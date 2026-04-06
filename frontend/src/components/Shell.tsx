@@ -45,6 +45,17 @@ function AndroidNavIconClients() {
   )
 }
 
+function AndroidNavIconInbox() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2.5" y="5" width="19" height="14" rx="1.8" ry="1.8" />
+      <path d="M3 6l9 7 9-7" />
+      <path d="M3 18l6.6-6" />
+      <path d="M21 18l-6.6-6" />
+    </svg>
+  )
+}
+
 /** Staggered bars (middle shorter, left-aligned) — white on colored trigger button */
 function IconMobileMenuBars() {
   return (
@@ -361,6 +372,16 @@ function ShellInner({ children }: PropsWithChildren) {
             </span>
             <span className="mobile-nav-overlay-link-label">{t('navAnalytics')}</span>
           </NavLink>
+          <NavLink
+            to="/inbox"
+            className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+            onClick={() => closeMobileNavIfAlreadyOn('/inbox')}
+          >
+            <span className="mobile-nav-overlay-link-icon">
+              <AndroidNavIconInbox />
+            </span>
+            <span className="mobile-nav-overlay-link-label">{t('navInbox')}</span>
+          </NavLink>
           <div className="mobile-nav-overlay-section-label">{t('mobileNavSectionSettings')}</div>
           <NavLink
             to="/configuration"
@@ -648,6 +669,10 @@ function ShellInner({ children }: PropsWithChildren) {
             <AndroidNavIconAnalytics />
             <span>Analytics</span>
           </NavLink>
+          <NavLink to="/inbox" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
+            <AndroidNavIconInbox />
+            <span>Inbox</span>
+          </NavLink>
           <NavLink to="/billing" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
             <AndroidNavIconBilling />
             <span>Billing</span>
@@ -673,6 +698,9 @@ function ShellInner({ children }: PropsWithChildren) {
           </NavLink>
           <NavLink to="/billing" title="Billing" aria-label="Billing">
             <AndroidNavIconBilling />
+          </NavLink>
+          <NavLink to="/inbox" title="Inbox" aria-label="Inbox">
+            <AndroidNavIconInbox />
           </NavLink>
           <NavLink to="/analytics" title="Analytics" aria-label="Analytics">
             <AndroidNavIconAnalytics />

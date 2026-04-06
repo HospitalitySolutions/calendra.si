@@ -16,7 +16,6 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { Card, EmptyState } from '../components/ui'
 import { fullName } from '../lib/format'
-import { AnalyticsInboxTab } from './AnalyticsInboxTab'
 
 type PeriodPoint = {
   label: string
@@ -54,11 +53,9 @@ type ConsultantOption = { id: number; firstName: string; lastName: string; consu
 type SpaceOption = { id: number; name: string }
 type TypeOption = { id: number; name: string }
 type Preset = 'day' | '7d' | 'month' | 'year' | 'custom'
-type AnalyticsTab = 'overview' | 'inbox'
 
 export function AnalyticsPage() {
   const me = getStoredUser()!
-  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>('overview')
   const [periodPreset, setPeriodPreset] = useState<Preset>('month')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -121,15 +118,6 @@ export function AnalyticsPage() {
 
   return (
     <div className="stack gap-lg">
-      <div className="analytics-section-switch">
-        <button type="button" className={analyticsTab === 'overview' ? 'active' : ''} onClick={() => setAnalyticsTab('overview')}>Overview</button>
-        <button type="button" className={analyticsTab === 'inbox' ? 'active' : ''} onClick={() => setAnalyticsTab('inbox')}>Inbox</button>
-      </div>
-
-      {analyticsTab === 'inbox' ? (
-        <AnalyticsInboxTab />
-      ) : (
-        <>
           <div className="analytics-filters-row">
             <div className="analytics-filter-group">
               <button type="button" className={periodPreset === 'day' ? 'active' : ''} onClick={() => setPeriodPreset('day')}>1D</button>
@@ -267,8 +255,6 @@ export function AnalyticsPage() {
               )}
             </>
           )}
-        </>
-      )}
     </div>
   )
 }

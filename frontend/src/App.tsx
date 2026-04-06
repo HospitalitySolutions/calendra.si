@@ -9,6 +9,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { SignupPage } from './pages/SignupPage'
 import { Shell } from './components/Shell'
 import { AnalyticsPage } from './pages/AnalyticsPage'
+import { InboxPage } from './pages/InboxPage'
 import { BillingPage } from './pages/BillingPage'
 import { ClientsPage } from './pages/ClientsPage'
 import { ConfigurationPage } from './pages/ConfigurationPage'
@@ -121,6 +122,7 @@ export default function App() {
           <Route path="/consultants" element={<Navigate to="/configuration?tab=consultants" replace />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/inbox" element={<InboxPage />} />
           <Route path="/configuration" element={<ConfigurationPage />} />
           <Route path="/settings" element={<Navigate to="/configuration" replace />} />
           <Route path="/sessions/spaces" element={<Navigate to="/configuration?tab=booking" replace />} />

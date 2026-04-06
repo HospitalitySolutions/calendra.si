@@ -39,6 +39,18 @@ function senderSummary(senderName?: string | null, senderPhone?: string | null) 
   return label || null
 }
 
+function threadSenderLabel(thread: InboxThread) {
+  const label = senderSummary(thread.lastSenderName, thread.lastSenderPhone)
+  if (!label) return null
+  return thread.lastDirection === 'INBOUND' ? `Client · ${label}` : `Sent by ${label}`
+}
+
+function messageSenderLabel(message: ClientMessage) {
+  const label = senderSummary(message.senderName, message.senderPhone)
+  if (!label) return null
+  return message.direction === 'INBOUND' ? `Client · ${label}` : `Sent by ${label}`
+}
+
 export function AnalyticsInboxTab() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
@@ -223,8 +235,8 @@ export function AnalyticsInboxTab() {
                       <Pill tone={statusTone(thread.lastStatus)}>{statusLabel(thread.lastStatus)}</Pill>
                       <span>{thread.messageCount} msg</span>
                     </div>
-                    {thread.lastDirection === 'OUTBOUND' && senderSummary(thread.lastSenderName, thread.lastSenderPhone) && (
-                      <div className="analytics-inbox-thread__sender muted">Sent by {senderSummary(thread.lastSenderName, thread.lastSenderPhone)}</div>
+                    {threadSenderLabel(thread) && (
+                      <div className="analytics-inbox-thread__sender muted">{threadSenderLabel(thread)}</div>
                     )}
                     {thread.lastSubject && <div className="analytics-inbox-thread__subject">{thread.lastSubject}</div>}
                     <div className="analytics-inbox-thread__preview">{thread.lastPreview || 'No preview available.'}</div>
@@ -262,8 +274,8 @@ export function AnalyticsInboxTab() {
                     <Pill tone={channelTone(message.channel)}>{channelLabel(message.channel)}</Pill>
                     <Pill tone={statusTone(message.status)}>{statusLabel(message.status)}</Pill>
                     <span>{message.sentAt ? formatDateTime(message.sentAt) : formatDateTime(message.createdAt)}</span>
-                    {message.direction === 'OUTBOUND' && senderSummary(message.senderName, message.senderPhone) && (
-                      <span>Sent by {senderSummary(message.senderName, message.senderPhone)}</span>
+                    {messageSenderLabel(message) && (
+                      <span>{messageSenderLabel(message)}</span>
                     )}
                   </div>
                   {message.subject && <strong className="analytics-inbox-bubble__subject">{message.subject}</strong>}

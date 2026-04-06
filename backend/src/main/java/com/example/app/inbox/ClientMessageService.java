@@ -144,6 +144,8 @@ public class ClientMessageService {
             if (latest == null) continue;
             Client client = latest.getClient();
             User latestSender = latest.getSenderUser();
+            String inboundSenderName = latest.getDirection() == MessageDirection.INBOUND ? clientDisplayName(client) : null;
+            String inboundSenderPhone = latest.getDirection() == MessageDirection.INBOUND ? blankToNull(preferredPhone(client)) : null;
             out.add(new ThreadSummary(
                     client.getId(),
                     client.getFirstName(),
@@ -155,8 +157,8 @@ public class ClientMessageService {
                     latest.getStatus(),
                     blankToNull(latest.getSubject()),
                     summarize(latest.getBody()),
-                    displayUserName(latestSender),
-                    blankToNull(latestSender != null ? latestSender.getPhone() : null),
+                    displayUserName(latestSender) != null ? displayUserName(latestSender) : inboundSenderName,
+                    blankToNull(latestSender != null ? latestSender.getPhone() : null) != null ? blankToNull(latestSender != null ? latestSender.getPhone() : null) : inboundSenderPhone,
                     latest.getSentAt() != null ? latest.getSentAt() : latest.getCreatedAt(),
                     rows.size()
             ));
@@ -356,9 +358,20 @@ public class ClientMessageService {
         return raw != null && raw.toLowerCase(Locale.ROOT).contains(q);
     }
 
+    private String clientDisplayName(Client client) {
+        if (client == null) return null;
+        String label = List.of(blankToNull(client.getFirstName()), blankToNull(client.getLastName())).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(" "))
+                .trim();
+        return label.isBlank() ? null : label;
+    }
+
     private MessageView toView(ClientMessage row) {
         Client client = row.getClient();
         User senderUser = row.getSenderUser();
+        String inboundSenderName = row.getDirection() == MessageDirection.INBOUND ? clientDisplayName(client) : null;
+        String inboundSenderPhone = row.getDirection() == MessageDirection.INBOUND ? blankToNull(preferredPhone(client)) : null;
         return new MessageView(
                 row.getId(),
                 client.getId(),
@@ -372,8 +385,8 @@ public class ClientMessageService {
                 row.getBody(),
                 blankToNull(row.getExternalMessageId()),
                 blankToNull(row.getErrorMessage()),
-                displayUserName(senderUser),
-                blankToNull(senderUser != null ? senderUser.getPhone() : null),
+                displayUserName(senderUser) != null ? displayUserName(senderUser) : inboundSenderName,
+                blankToNull(senderUser != null ? senderUser.getPhone() : null) != null ? blankToNull(senderUser != null ? senderUser.getPhone() : null) : inboundSenderPhone,
                 row.getSentAt(),
                 row.getCreatedAt()
         );
