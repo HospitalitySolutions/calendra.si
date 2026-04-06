@@ -7,6 +7,7 @@ import type { Client, ClientMessage, InboxChannel, InboxStatus, InboxThread } fr
 import { formatDateTime } from '../lib/format'
 
 const CHANNELS: InboxChannel[] = ['EMAIL', 'WHATSAPP', 'VIBER']
+type RecipientMode = 'single' | 'bulk'
 
 function clientName(row: { firstName?: string | null; lastName?: string | null }) {
   return [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || 'Client'
@@ -51,6 +52,46 @@ function messageSenderLabel(message: ClientMessage) {
   return message.direction === 'INBOUND' ? `Client · ${label}` : `Sent by ${label}`
 }
 
+function matchesClientSearch(client: Client, value: string) {
+  const query = value.trim().toLowerCase()
+  if (!query) return true
+  const haystack = [
+    clientName(client),
+    client.email ?? '',
+    client.phone ?? '',
+    client.whatsappPhone ?? '',
+  ].join(' ').toLowerCase()
+  return haystack.includes(query)
+}
+
+function hasEmailTarget(client?: Client | null) {
+  return !!client?.email?.trim()
+}
+
+function hasWhatsAppTarget(client?: Client | null) {
+  return !!(client?.whatsappPhone?.trim() || client?.phone?.trim())
+}
+
+function hasViberTarget(client?: Client | null) {
+  return !!client?.viberConnected
+}
+
+function isClientEligibleForChannel(client: Client | null | undefined, channel: InboxChannel) {
+  if (!client) return false
+  if (channel === 'EMAIL') return hasEmailTarget(client)
+  if (channel === 'WHATSAPP') return !!client.whatsappOptIn && hasWhatsAppTarget(client)
+  return hasViberTarget(client)
+}
+
+function clientEligibilityLabel(client: Client, channel: InboxChannel) {
+  if (channel === 'EMAIL') return hasEmailTarget(client) ? 'Ready' : 'Missing email'
+  if (channel === 'WHATSAPP') {
+    if (!client.whatsappOptIn) return 'Opt-in needed'
+    return hasWhatsAppTarget(client) ? 'Ready' : 'Missing phone'
+  }
+  return client.viberConnected ? 'Ready' : 'Not linked'
+}
+
 export function AnalyticsInboxTab() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
@@ -61,6 +102,9 @@ export function AnalyticsInboxTab() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
+  const [recipientMode, setRecipientMode] = useState<RecipientMode>('single')
+  const [bulkRecipientSearch, setBulkRecipientSearch] = useState('')
+  const [bulkSelectedClientIds, setBulkSelectedClientIds] = useState<number[]>([])
   const [composeChannel, setComposeChannel] = useState<InboxChannel>('EMAIL')
   const [composeSubject, setComposeSubject] = useState('')
   const [composeBody, setComposeBody] = useState('')
@@ -99,16 +143,27 @@ export function AnalyticsInboxTab() {
   useEffect(() => {
     const rows = threadsQuery.data ?? []
     if (!rows.length) {
-      if (clientIdFilter) setSelectedClientId(Number(clientIdFilter))
+      if (selectedClientId == null && clientIdFilter) setSelectedClientId(Number(clientIdFilter))
       return
     }
-    const exists = rows.some((row) => row.clientId === selectedClientId)
-    if (!exists) setSelectedClientId(rows[0].clientId)
+    if (selectedClientId == null) {
+      setSelectedClientId(rows[0].clientId)
+      return
+    }
+    // Keep explicit client selection from the composer even if that client has no existing thread yet.
+    if (clientIdFilter) {
+      const existsInFilteredRows = rows.some((row) => row.clientId === selectedClientId)
+      if (!existsInFilteredRows) setSelectedClientId(rows[0].clientId)
+    }
   }, [threadsQuery.data, selectedClientId, clientIdFilter])
 
   useEffect(() => {
-    if (selectedThread?.lastChannel) setComposeChannel(selectedThread.lastChannel)
-  }, [selectedThread?.lastChannel])
+    if (recipientMode === 'single' && selectedThread?.lastChannel) setComposeChannel(selectedThread.lastChannel)
+  }, [selectedThread?.lastChannel, recipientMode])
+
+  useEffect(() => {
+    if (recipientMode === 'bulk' && composeChannel === 'VIBER') setComposeChannel('EMAIL')
+  }, [recipientMode, composeChannel])
 
   const messagesQuery = useQuery<ClientMessage[]>({
     queryKey: ['inbox-messages', selectedClientId],
@@ -124,9 +179,64 @@ export function AnalyticsInboxTab() {
     [clientsQuery.data, selectedClientId],
   )
 
+  const bulkSelectedSet = useMemo(() => new Set(bulkSelectedClientIds), [bulkSelectedClientIds])
+
+  const bulkSelectedClients = useMemo(
+    () => (clientsQuery.data ?? []).filter((client) => bulkSelectedSet.has(client.id)),
+    [clientsQuery.data, bulkSelectedSet],
+  )
+
+  const filteredBulkClients = useMemo(
+    () => (clientsQuery.data ?? []).filter((client) => matchesClientSearch(client, bulkRecipientSearch)),
+    [clientsQuery.data, bulkRecipientSearch],
+  )
+
+  const eligibleBulkClients = useMemo(
+    () => bulkSelectedClients.filter((client) => isClientEligibleForChannel(client, composeChannel)),
+    [bulkSelectedClients, composeChannel],
+  )
+
   const recentMessages = messagesQuery.data ?? []
 
-  const sendMessage = async () => {
+  const singleSendReady = !!selectedClientId && !!composeBody.trim() && isClientEligibleForChannel(selectedClient, composeChannel)
+  const bulkSendReady = composeChannel !== 'VIBER' && !!composeBody.trim() && eligibleBulkClients.length > 0
+
+  const toggleBulkClient = (clientId: number) => {
+    setBulkSelectedClientIds((prev) => (
+      prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]
+    ))
+  }
+
+  const selectAllVisibleClients = () => {
+    setBulkSelectedClientIds(filteredBulkClients.map((client) => client.id))
+  }
+
+  const selectEligibleVisibleClients = () => {
+    setBulkSelectedClientIds(
+      filteredBulkClients
+        .filter((client) => isClientEligibleForChannel(client, composeChannel))
+        .map((client) => client.id),
+    )
+  }
+
+  const clearBulkSelection = () => {
+    setBulkSelectedClientIds([])
+  }
+
+  const resetComposerAfterSend = () => {
+    setComposeBody('')
+    if (composeChannel === 'EMAIL') setComposeSubject('')
+  }
+
+  const invalidateInboxQueries = async (sentClientIds: number[]) => {
+    await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
+    if (selectedClientId != null && sentClientIds.includes(selectedClientId)) {
+      await queryClient.invalidateQueries({ queryKey: ['inbox-messages', selectedClientId] })
+    }
+    window.dispatchEvent(new Event('clients-updated'))
+  }
+
+  const sendSingleMessage = async () => {
     if (!selectedClientId || !composeBody.trim()) return
     setSending(true)
     try {
@@ -137,18 +247,69 @@ export function AnalyticsInboxTab() {
         body: composeBody.trim(),
       })
       showToast('success', `${channelLabel(composeChannel)} message sent.`)
-      setComposeBody('')
-      if (composeChannel === 'EMAIL') setComposeSubject('')
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['inbox-threads'] }),
-        queryClient.invalidateQueries({ queryKey: ['inbox-messages', selectedClientId] }),
-      ])
-      window.dispatchEvent(new Event('clients-updated'))
+      resetComposerAfterSend()
+      await invalidateInboxQueries([selectedClientId])
     } catch (error: any) {
       showToast('error', error?.response?.data?.message || 'Failed to send message.')
     } finally {
       setSending(false)
     }
+  }
+
+  const sendBulkMessage = async () => {
+    const eligibleRecipients = eligibleBulkClients
+    if (!eligibleRecipients.length || !composeBody.trim()) return
+
+    setSending(true)
+    try {
+      const results = await Promise.allSettled(
+        eligibleRecipients.map((client) => api.post('/inbox/messages', {
+          clientId: client.id,
+          channel: composeChannel,
+          subject: composeChannel === 'EMAIL' ? composeSubject.trim() || null : null,
+          body: composeBody.trim(),
+        })),
+      )
+
+      let successCount = 0
+      let failureCount = 0
+      let firstError = ''
+      const sentClientIds: number[] = []
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          successCount += 1
+          sentClientIds.push(eligibleRecipients[index].id)
+          return
+        }
+        failureCount += 1
+        if (!firstError) {
+          firstError = result.reason?.response?.data?.message || result.reason?.message || 'Failed to send messages.'
+        }
+      })
+
+      const skippedCount = bulkSelectedClients.length - eligibleRecipients.length
+      if (successCount > 0) {
+        const parts = [`${channelLabel(composeChannel)} sent to ${successCount} client${successCount === 1 ? '' : 's'}`]
+        if (failureCount) parts.push(`${failureCount} failed`)
+        if (skippedCount) parts.push(`${skippedCount} skipped`)
+        showToast('success', `${parts.join(' · ')}.`)
+        resetComposerAfterSend()
+        await invalidateInboxQueries(sentClientIds)
+      } else {
+        showToast('error', firstError || `Failed to send ${channelLabel(composeChannel)} messages.`)
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const sendMessage = async () => {
+    if (recipientMode === 'bulk') {
+      await sendBulkMessage()
+      return
+    }
+    await sendSingleMessage()
   }
 
   return (
@@ -296,25 +457,98 @@ export function AnalyticsInboxTab() {
           </div>
 
           <div className="analytics-inbox-compose-form stack gap-md">
-            <Field label="Client">
-              <select
-                value={selectedClientId ?? ''}
-                onChange={(e) => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}
+            <div className="analytics-inbox-recipient-mode">
+              <button
+                type="button"
+                className={recipientMode === 'single' ? 'active' : ''}
+                onClick={() => setRecipientMode('single')}
               >
-                <option value="">Select client</option>
-                {(clientsQuery.data ?? []).map((client) => (
-                  <option key={client.id} value={client.id}>{clientName(client)}</option>
-                ))}
-              </select>
-            </Field>
+                Single client
+              </button>
+              <button
+                type="button"
+                className={recipientMode === 'bulk' ? 'active' : ''}
+                onClick={() => setRecipientMode('bulk')}
+              >
+                Bulk send
+              </button>
+            </div>
+
+            {recipientMode === 'single' ? (
+              <Field label="Client">
+                <select
+                  value={selectedClientId ?? ''}
+                  onChange={(e) => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Select client</option>
+                  {(clientsQuery.data ?? []).map((client) => (
+                    <option key={client.id} value={client.id}>{clientName(client)}</option>
+                  ))}
+                </select>
+              </Field>
+            ) : (
+              <div className="analytics-inbox-bulk-picker stack gap-sm">
+                <Field label="Recipients">
+                  <input
+                    value={bulkRecipientSearch}
+                    onChange={(e) => setBulkRecipientSearch(e.target.value)}
+                    placeholder="Filter clients by name, email, or phone"
+                  />
+                </Field>
+                <div className="analytics-inbox-bulk-actions">
+                  <button type="button" className="secondary" onClick={selectEligibleVisibleClients}>Select eligible</button>
+                  <button type="button" className="secondary" onClick={selectAllVisibleClients}>Select all</button>
+                  <button type="button" className="secondary" onClick={clearBulkSelection} disabled={bulkSelectedClientIds.length === 0}>Clear</button>
+                </div>
+                <div className="analytics-inbox-bulk-summary muted">
+                  {bulkSelectedClients.length} selected · {eligibleBulkClients.length} eligible for {channelLabel(composeChannel).toLowerCase()}
+                </div>
+                <div className="analytics-inbox-bulk-list">
+                  {filteredBulkClients.length === 0 ? (
+                    <div className="muted">No clients match this search.</div>
+                  ) : (
+                    filteredBulkClients.map((client) => {
+                      const checked = bulkSelectedSet.has(client.id)
+                      const eligible = isClientEligibleForChannel(client, composeChannel)
+                      const meta = [client.email, client.phone || client.whatsappPhone].filter(Boolean).join(' · ') || 'No contact info'
+                      return (
+                        <label key={client.id} className={`analytics-inbox-bulk-client${checked ? ' active' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleBulkClient(client.id)}
+                          />
+                          <div className="analytics-inbox-bulk-client__body">
+                            <strong>{clientName(client)}</strong>
+                            <span>{meta}</span>
+                          </div>
+                          <Pill tone={eligible ? 'green' : 'red'}>{clientEligibilityLabel(client, composeChannel)}</Pill>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="analytics-inbox-channel-switch">
               {CHANNELS.map((channel) => {
-                const disabled = channel === 'WHATSAPP'
-                  ? !selectedClient?.whatsappOptIn || !selectedClient?.phone
-                  : channel === 'VIBER'
-                    ? !selectedClient?.viberConnected
-                    : false
+                const disabled = recipientMode === 'bulk'
+                  ? channel === 'VIBER'
+                  : channel === 'WHATSAPP'
+                    ? !selectedClient?.whatsappOptIn || !hasWhatsAppTarget(selectedClient)
+                    : channel === 'VIBER'
+                      ? !selectedClient?.viberConnected
+                      : channel === 'EMAIL'
+                        ? !hasEmailTarget(selectedClient)
+                        : false
+                const disabledTitle = recipientMode === 'bulk'
+                  ? (channel === 'VIBER' ? 'Bulk send currently supports Email and WhatsApp.' : undefined)
+                  : channel === 'EMAIL'
+                    ? 'Add a client email address.'
+                    : channel === 'WHATSAPP'
+                      ? 'Add a client phone number and WhatsApp opt-in.'
+                      : 'Viber is available only for linked clients.'
                 return (
                   <button
                     key={channel}
@@ -322,7 +556,7 @@ export function AnalyticsInboxTab() {
                     className={composeChannel === channel ? 'active' : ''}
                     onClick={() => !disabled && setComposeChannel(channel)}
                     disabled={disabled}
-                    title={disabled ? (channel === 'VIBER' ? 'Viber is available only for linked clients.' : 'Add a client phone number and WhatsApp opt-in.') : undefined}
+                    title={disabled ? disabledTitle : undefined}
                   >
                     {channelLabel(channel)}
                   </button>
@@ -350,20 +584,30 @@ export function AnalyticsInboxTab() {
             </Field>
 
             <div className="analytics-inbox-channel-note muted">
-              {composeChannel === 'EMAIL'
-                ? 'Email uses the SMTP settings already configured on the backend.'
-                : composeChannel === 'WHATSAPP'
-                  ? (selectedClient?.whatsappOptIn ? 'WhatsApp uses the client phone number. The consultant phone is used as the sender reference in the app, while delivery still relies on your configured WhatsApp API sender.' : 'Mark this client as WhatsApp opt-in before sending.')
-                  : (selectedClient?.viberConnected ? 'Viber uses the official bot API and sends only to clients already linked to your Viber bot.' : 'Viber becomes available after the client is linked to your Viber bot.')}
+              {recipientMode === 'bulk'
+                ? composeChannel === 'EMAIL'
+                  ? 'Bulk email sends the same message to every selected client with an email address.'
+                  : composeChannel === 'WHATSAPP'
+                    ? 'Bulk WhatsApp sends only to selected clients with opt-in and a WhatsApp target number.'
+                    : 'Bulk sending is currently available for Email and WhatsApp.'
+                : composeChannel === 'EMAIL'
+                  ? 'Email uses the SMTP settings already configured on the backend.'
+                  : composeChannel === 'WHATSAPP'
+                    ? (selectedClient?.whatsappOptIn ? 'WhatsApp uses the client phone or WhatsApp number. The consultant phone is used as the sender reference in the app, while delivery still relies on your configured WhatsApp API sender.' : 'Mark this client as WhatsApp opt-in before sending.')
+                    : (selectedClient?.viberConnected ? 'Viber uses the official bot API and sends only to clients already linked to your Viber bot.' : 'Viber becomes available after the client is linked to your Viber bot.')}
             </div>
 
             <div className="form-actions">
               <button
                 type="button"
                 onClick={sendMessage}
-                disabled={sending || !selectedClientId || !composeBody.trim() || (composeChannel === 'WHATSAPP' && !selectedClient?.whatsappOptIn) || (composeChannel === 'VIBER' && !selectedClient?.viberConnected)}
+                disabled={sending || (recipientMode === 'bulk' ? !bulkSendReady : !singleSendReady)}
               >
-                {sending ? 'Sending…' : `Send ${channelLabel(composeChannel)}`}
+                {sending
+                  ? 'Sending…'
+                  : recipientMode === 'bulk'
+                    ? `Send ${channelLabel(composeChannel)} to ${eligibleBulkClients.length} client${eligibleBulkClients.length === 1 ? '' : 's'}`
+                    : `Send ${channelLabel(composeChannel)}`}
               </button>
             </div>
           </div>

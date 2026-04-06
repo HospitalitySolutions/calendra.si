@@ -179,7 +179,11 @@ public class ClientMessageService {
         return out;
     }
 
-    @Transactional
+    /**
+     * Failed sends are persisted with {@link MessageStatus#FAILED} so the timeline shows the attempt.
+     * We must not roll back on {@link ResponseStatusException} after save, otherwise the INSERT is lost.
+     */
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public MessageView send(User me, SendMessageRequest request) {
         if (request == null || request.clientId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
         MessageChannel channel = request.channel() == null ? MessageChannel.EMAIL : request.channel();

@@ -4,7 +4,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { useLocale } from '../locale'
 import type { Client, Company, CompanyBillSummary, Role, User } from '../lib/types'
-import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
+import { Card, EmptyState, PageHeader, SectionTitle } from '../components/ui'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
@@ -76,6 +76,16 @@ function contactTelHref(phone: string) {
   if (!raw) return ''
   const core = raw.replace(/[\s().-]/g, '')
   return core ? `tel:${encodeURIComponent(core)}` : ''
+}
+
+function initials(...parts: Array<string | null | undefined>) {
+  const letters = parts
+    .map((part) => (part ?? '').trim())
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
+    .slice(0, 2)
+  return letters || 'N'
 }
 
 export function ClientsPage() {
@@ -1071,10 +1081,6 @@ export function ClientsPage() {
                   {renderClientEditableField('email', 'Email', true)}
                   {renderClientEditableField('phone', 'Phone', true)}
                   <div className="clients-detail-field-card clients-detail-field-card--wide" onClick={(e) => e.stopPropagation()}>
-                    <span>WhatsApp target</span>
-                    <strong>{detailClient.phone || 'Uses client phone when available'}</strong>
-                  </div>
-                  <div className="clients-detail-field-card clients-detail-field-card--wide" onClick={(e) => e.stopPropagation()}>
                     <span>WhatsApp opt-in</span>
                     <strong>
                       <input type="checkbox" checked={detailEditDraft.whatsappOptIn} onChange={(e) => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: e.target.checked })} />
@@ -1332,47 +1338,92 @@ export function ClientsPage() {
       )}
 
       {showModal && (
-        <div className="modal-backdrop booking-side-panel-backdrop" onClick={closeModal}>
-          <div className="modal large-modal booking-side-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="booking-side-panel-header">
-              <PageHeader
-                title="New client"
-                actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeModal} aria-label="Close">×</button>}
-              />
-            </div>
-            <form className="form-grid booking-side-panel-body" onSubmit={handleSubmit}>
-              <Field label="First name"><input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></Field>
-              <Field label="Last name"><input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></Field>
-              <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-              <Field label="Phone"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-              <Field label="WhatsApp opt-in"><input type="checkbox" checked={form.whatsappOptIn} onChange={(e) => setForm({ ...form, whatsappOptIn: e.target.checked })} /></Field>
-              <div className="full-span muted" style={{ marginTop: -4 }}>WhatsApp always uses the client phone number. Viber linking is managed internally after the client connects to your Viber bot.</div>
-              <Field label="Linked company">
-                <select
-                  value={form.billingCompanyId ?? ''}
-                  onChange={(e) => setForm({ ...form, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
-                >
-                  <option value="">No linked company</option>
-                  {companies.map((company) => (
-                    <option key={company.id} value={company.id}>{company.name}</option>
-                  ))}
-                </select>
-              </Field>
-              {isAdmin && (
-                <Field label="Assigned consultant">
-                  <select
-                    value={form.assignedToId ?? consultants[0]?.id ?? ''}
-                    onChange={(e) => setForm({ ...form, assignedToId: Number(e.target.value) })}
-                    required
-                  >
-                    {consultants.map((u) => (
-                      <option key={u.id} value={u.id}>{fullName(u)} ({u.email})</option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-              {errorMessage && <div className="error full-span">{errorMessage}</div>}
-              <div className="form-actions full-span booking-side-panel-footer">
+        <div
+          className={`modal-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ' booking-side-panel-backdrop'}`}
+          onClick={closeModal}
+        >
+          <div
+            className={`modal large-modal${isNativeAndroid ? '' : ' booking-side-panel clients-detail-side-panel clients-detail-panel-modern clients-create-modal'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <form className="clients-create-modal-form" onSubmit={handleSubmit}>
+              <div className="booking-side-panel-header">
+                <PageHeader
+                  title="New client"
+                  subtitle="CLIENT"
+                  actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeModal} aria-label="Close">×</button>}
+                />
+              </div>
+              <div className={isNativeAndroid ? undefined : 'booking-side-panel-body'}>
+                <div className="clients-detail-shell clients-create-shell">
+                  <div className="clients-detail-hero clients-detail-head-card clients-create-head-card">
+                    <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{initials(form.firstName, form.lastName)}</span>
+                    <div className="clients-name-stack">
+                      <span className="clients-name">{[form.firstName, form.lastName].filter(Boolean).join(' ').trim() || 'New client'}</span>
+                      <span className="clients-id">Create a client profile and link billing details if needed.</span>
+                    </div>
+                  </div>
+
+                  <div className="clients-detail-fields clients-create-fields">
+                    <label className="clients-detail-field-card">
+                      <span>First name</span>
+                      <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card">
+                      <span>Last name</span>
+                      <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>Email</span>
+                      <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>Phone</span>
+                      <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    </label>
+                    <div className="clients-detail-field-card clients-detail-field-card--wide clients-create-toggle-card">
+                      <span>WhatsApp opt-in</span>
+                      <div className="clients-create-toggle-row">
+                        <strong>{form.whatsappOptIn ? 'Enabled' : 'Disabled'}</strong>
+                        <input type="checkbox" checked={form.whatsappOptIn} onChange={(e) => setForm({ ...form, whatsappOptIn: e.target.checked })} />
+                      </div>
+                    </div>
+                    <div className="clients-detail-field-card clients-detail-field-card--wide clients-create-note-card">
+                      <span>Messaging</span>
+                      <p>WhatsApp uses the client phone number. Viber linking becomes available after the client connects to your Viber bot.</p>
+                    </div>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>Linked company</span>
+                      <select
+                        value={form.billingCompanyId ?? ''}
+                        onChange={(e) => setForm({ ...form, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
+                      >
+                        <option value="">No linked company</option>
+                        {companies.map((company) => (
+                          <option key={company.id} value={company.id}>{company.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    {isAdmin && (
+                      <label className="clients-detail-field-card clients-detail-field-card--wide">
+                        <span>Assigned consultant</span>
+                        <select
+                          value={form.assignedToId ?? consultants[0]?.id ?? ''}
+                          onChange={(e) => setForm({ ...form, assignedToId: Number(e.target.value) })}
+                          required
+                        >
+                          {consultants.map((u) => (
+                            <option key={u.id} value={u.id}>{fullName(u)} ({u.email})</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+
+                  {errorMessage && <div className="error">{errorMessage}</div>}
+                </div>
+              </div>
+              <div className={`${isNativeAndroid ? 'form-actions' : 'form-actions booking-side-panel-footer'} clients-create-footer`} style={{ marginTop: isNativeAndroid ? 16 : 0 }}>
                 <button type="submit" disabled={saving || (isAdmin && consultants.length === 0)}>{saving ? 'Saving...' : 'Create client'}</button>
                 <button type="button" className="secondary" onClick={closeModal}>Cancel</button>
               </div>
@@ -1382,20 +1433,67 @@ export function ClientsPage() {
       )}
 
       {showCompanyModal && (
-        <div className="modal-backdrop" onClick={closeCompanyModal}>
-          <div className="modal large-modal" onClick={(e) => e.stopPropagation()}>
-            <PageHeader title="New company" subtitle="Only company name is required." />
-            <form className="form-grid" onSubmit={submitCompanyForm}>
-              <Field label="Company name"><input required value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} /></Field>
-              <Field label="Address"><input value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} /></Field>
-              <Field label="Postal code"><input value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} /></Field>
-              <Field label="City"><input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} /></Field>
-              <Field label="VAT ID"><input value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} /></Field>
-              <Field label="IBAN"><input value={companyForm.iban} onChange={(e) => setCompanyForm({ ...companyForm, iban: e.target.value })} /></Field>
-              <Field label="Email"><input type="email" value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} /></Field>
-              <Field label="Telephone"><input value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} /></Field>
-              {companyErrorMessage && <div className="error full-span">{companyErrorMessage}</div>}
-              <div className="form-actions full-span">
+        <div
+          className={`modal-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ' booking-side-panel-backdrop'}`}
+          onClick={closeCompanyModal}
+        >
+          <div
+            className={`modal large-modal${isNativeAndroid ? '' : ' booking-side-panel clients-detail-side-panel clients-detail-panel-modern clients-create-modal'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <form className="clients-create-modal-form" onSubmit={submitCompanyForm}>
+              <div className="booking-side-panel-header">
+                <PageHeader
+                  title="New company"
+                  subtitle="COMPANY"
+                  actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeCompanyModal} aria-label="Close">×</button>}
+                />
+              </div>
+              <div className={isNativeAndroid ? undefined : 'booking-side-panel-body'}>
+                <div className="clients-detail-shell clients-create-shell">
+                  <div className="clients-detail-hero clients-detail-head-card clients-create-head-card">
+                    <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{initials(companyForm.name, 'Company')}</span>
+                    <div className="clients-name-stack">
+                      <span className="clients-name">{companyForm.name.trim() || 'New company'}</span>
+                      <span className="clients-id">Only company name is required. Everything else can be filled in later.</span>
+                    </div>
+                  </div>
+
+                  <div className="clients-detail-fields clients-create-fields">
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>Company name</span>
+                      <input required value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>Address</span>
+                      <input value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card">
+                      <span>Postal code</span>
+                      <input value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card">
+                      <span>City</span>
+                      <input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>VAT ID</span>
+                      <input value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>Email</span>
+                      <input type="email" value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>Telephone</span>
+                      <input value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
+                    </label>
+                  </div>
+
+                  {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
+                </div>
+              </div>
+              <div className={`${isNativeAndroid ? 'form-actions' : 'form-actions booking-side-panel-footer'} clients-create-footer`} style={{ marginTop: isNativeAndroid ? 16 : 0 }}>
                 <button type="submit" disabled={savingCompany}>{savingCompany ? 'Saving...' : 'Create company'}</button>
                 <button type="button" className="secondary" onClick={closeCompanyModal}>Cancel</button>
               </div>

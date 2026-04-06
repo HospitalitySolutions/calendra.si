@@ -5,6 +5,7 @@ import type { Bill, BillingService, Client, Company, OpenBill, PaymentMethod, Us
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { useLocale } from '../locale'
 import { currency, formatDate, fullName } from '../lib/format'
 type BillForm = {
   clientId?: number
@@ -78,6 +79,7 @@ const HISTORY_SORT_OPTIONS: Array<{ field: HistorySortField; label: string }> = 
 export function BillingPage() {
   const me = getStoredUser()!
   const { showToast } = useToast()
+  const { t } = useLocale()
   const [services, setServices] = useState<BillingService[]>([])
   const [bills, setBills] = useState<Bill[]>([])
   const [openBills, setOpenBills] = useState<OpenBill[]>([])
@@ -944,11 +946,11 @@ export function BillingPage() {
           <Card className={(billingTab === 'open' || billingTab === 'history') && isOpenBillsMobile ? 'billing-open-mobile-shell' : ''}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-                <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>Open bills</button>
-                <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>Folio history</button>
+                <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>{t('billingTabOpenBills')}</button>
+                <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>{t('billingTabFolioHistory')}</button>
               </div>
               {billingTab === 'open' && (
-                <button type="button" className="secondary" onClick={openCreateBillModal}>{isOpenBillsMobile ? '+ New' : 'New'}</button>
+                <button type="button" className="secondary" onClick={openCreateBillModal}>{isOpenBillsMobile ? t('billingNewMobile') : t('billingNew')}</button>
               )}
             </div>
 
@@ -957,12 +959,12 @@ export function BillingPage() {
             <div className="billing-search-row">
               <input
                 className="clients-search-input"
-                placeholder="Search open bills by session ID, client, consultant, session, payment method..."
+                placeholder={t('billingOpenBillsSearchPlaceholder')}
                 value={openBillsSearch}
                 onChange={(e) => setOpenBillsSearch(e.target.value)}
               />
             </div>
-            {sortedOpenBills.length === 0 ? <EmptyState title="No open bills" text="Past booked sessions with types will appear here automatically. Use New to create a bill from scratch." /> : (
+            {sortedOpenBills.length === 0 ? <EmptyState title={t('billingEmptyOpenTitle')} text={t('billingEmptyOpenText')} /> : (
               isOpenBillsMobile ? (
                 <div className="billing-open-mobile">
                   <div className="billing-open-mobile-summary">
@@ -1144,7 +1146,7 @@ export function BillingPage() {
 
             {billingTab === 'history' && (
               <>
-                {!isOpenBillsMobile && <SectionTitle>Folio history</SectionTitle>}
+                {!isOpenBillsMobile && <SectionTitle>{t('billingTabFolioHistory')}</SectionTitle>}
             <div className="billing-search-row">
               <input
                 className="clients-search-input"

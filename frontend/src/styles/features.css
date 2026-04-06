@@ -1814,6 +1814,67 @@ a.clients-contact-link:hover {
     border-color: rgba(148, 163, 184, 0.35);
 }
 
+.clients-create-modal-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.clients-create-shell {
+    display: grid;
+    gap: 14px;
+}
+
+.clients-create-head-card {
+    margin-bottom: 2px;
+}
+
+.clients-create-fields {
+    align-items: stretch;
+}
+
+.clients-create-fields label.clients-detail-field-card {
+    cursor: default;
+}
+
+.clients-create-fields .clients-detail-field-card input,
+.clients-create-fields .clients-detail-field-card select {
+    margin-top: 2px;
+}
+
+.clients-create-toggle-card {
+    cursor: default;
+}
+
+.clients-create-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.clients-create-toggle-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+.clients-create-note-card {
+    cursor: default;
+}
+
+.clients-create-note-card p {
+    margin: 0;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
+.clients-create-footer {
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .clients-session-tabs {
     display: inline-flex;
     gap: 6px;
@@ -2534,6 +2595,90 @@ a.clients-contact-link:hover {
 .analytics-inbox-channel-note {
     font-size: 0.84rem;
     line-height: 1.5;
+}
+
+.analytics-inbox-recipient-mode {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.analytics-inbox-recipient-mode button,
+.analytics-inbox-bulk-actions button {
+    width: auto;
+}
+
+.analytics-inbox-recipient-mode button {
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-soft);
+    color: var(--color-text);
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-weight: 700;
+}
+
+.analytics-inbox-recipient-mode button.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
+.analytics-inbox-bulk-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.analytics-inbox-bulk-summary {
+    font-size: 0.82rem;
+}
+
+.analytics-inbox-bulk-list {
+    display: grid;
+    gap: 8px;
+    max-height: 260px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.analytics-inbox-bulk-client {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-surface-soft);
+}
+
+.analytics-inbox-bulk-client.active {
+    border-color: rgba(22, 114, 243, 0.4);
+    background: rgba(22, 114, 243, 0.08);
+}
+
+.analytics-inbox-bulk-client input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+.analytics-inbox-bulk-client__body {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.analytics-inbox-bulk-client__body strong {
+    font-size: 0.92rem;
+}
+
+.analytics-inbox-bulk-client__body span {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 [data-theme="dark"] .analytics-section-switch,

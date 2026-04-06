@@ -325,7 +325,18 @@ function toIsoDateKey(date: Date) {
   return `${y}-${m}-${d}`
 }
 
+function newClientInitials(firstName: string, lastName: string) {
+  const letters = [firstName, lastName]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => value[0]?.toUpperCase() ?? '')
+    .join('')
+    .slice(0, 2)
+  return letters || 'N'
+}
+
 export default function CalendarPage() {
+
   const navigate = useNavigate()
   const { locale, t } = useLocale()
   const { showToast } = useToast()
@@ -7552,23 +7563,49 @@ export default function CalendarPage() {
           className="modal-backdrop booking-side-panel-backdrop calendar-booking-supplement"
           onClick={() => setShowAddClientModal(false)}
         >
-          <div className="modal large-modal booking-side-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="modal large-modal booking-side-panel clients-detail-side-panel clients-detail-panel-modern clients-create-modal" onClick={(e) => e.stopPropagation()}>
             <div className="booking-side-panel-header">
               <PageHeader
                 title="New client"
-                subtitle="Create a client and assign to this session."
+                subtitle="CLIENT"
                 actions={<button type="button" className="secondary booking-side-panel-close" onClick={() => setShowAddClientModal(false)} aria-label="Close">×</button>}
               />
             </div>
-            <div className="booking-side-panel-body form-grid">
-              <Field label="First name"><input value={newClientForm.firstName} onChange={(e) => setNewClientForm({ ...newClientForm, firstName: e.target.value })} required /></Field>
-              <Field label="Last name"><input value={newClientForm.lastName} onChange={(e) => setNewClientForm({ ...newClientForm, lastName: e.target.value })} required /></Field>
-              <Field label="Email"><input type="email" value={newClientForm.email} onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })} /></Field>
-              <Field label="Phone"><input value={newClientForm.phone} onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })} /></Field>
-              {clientError && <div className="error full-span" style={{ marginTop: 12 }}>{clientError}</div>}
+            <div className="booking-side-panel-body">
+              <div className="clients-detail-shell clients-create-shell">
+                <div className="clients-detail-hero clients-detail-head-card clients-create-head-card">
+                  <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{newClientInitials(newClientForm.firstName, newClientForm.lastName)}</span>
+                  <div className="clients-name-stack">
+                    <span className="clients-name">{[newClientForm.firstName, newClientForm.lastName].filter(Boolean).join(' ').trim() || 'New client'}</span>
+                    <span className="clients-id">Create a client and attach them to this session.</span>
+                  </div>
+                </div>
+
+                <div className="clients-detail-fields clients-create-fields">
+                  <label className="clients-detail-field-card">
+                    <span>First name</span>
+                    <input value={newClientForm.firstName} onChange={(e) => setNewClientForm({ ...newClientForm, firstName: e.target.value })} required />
+                  </label>
+                  <label className="clients-detail-field-card">
+                    <span>Last name</span>
+                    <input value={newClientForm.lastName} onChange={(e) => setNewClientForm({ ...newClientForm, lastName: e.target.value })} required />
+                  </label>
+                  <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <span>Email</span>
+                    <input type="email" value={newClientForm.email} onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })} />
+                  </label>
+                  <label className="clients-detail-field-card clients-detail-field-card--wide">
+                    <span>Phone</span>
+                    <input value={newClientForm.phone} onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })} />
+                  </label>
+                </div>
+
+                {clientError && <div className="error">{clientError}</div>}
+              </div>
             </div>
-            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="form-actions booking-side-panel-footer clients-create-footer">
               <button onClick={createClientFromBooking} disabled={savingClient}>{savingClient ? 'Saving…' : 'Create client'}</button>
+              <button type="button" className="secondary" onClick={() => setShowAddClientModal(false)}>Cancel</button>
             </div>
           </div>
         </div>
