@@ -1,0 +1,7 @@
+node_modules/
+dist/
+target/
+.env.local
+backend/.env.local
+.idea/
+.vscode/

@@ -1,0 +1,79 @@
+services:
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - website
+      - frontend
+      - backend
+
+  website:
+    build:
+      context: /opt/calendra-website
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: calendradb
+      POSTGRES_USER: calendra
+      POSTGRES_PASSWORD: calendra
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U calendra -d calendradb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: 4000
+      APP_JWT_EXPIRATION_MS: 86400000
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_STAGING_SECRET_ID: ${AWS_STAGING_SECRET_ID:-arn:aws:secretsmanager:eu-central-1:345362761828:secret:calendra/staging-2jqRIf}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4000:4000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      VITE_API_BASE_URL: /api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,307 @@
+@media (max-width: 419px) {
+    .calendar-web-inner--bottom-panel .calendar-rail-date-nav {
+        position: fixed;
+        top: 50vh;
+        right: max(0px, env(safe-area-inset-right, 0px));
+        left: auto;
+        width: var(--calendar-rail-w, 50px);
+        transform: translateY(-50%);
+        z-index: 96;
+        flex: none !important;
+        min-height: 0;
+        justify-content: center;
+        align-items: center;
+        padding: 8px 4px;
+        box-sizing: border-box;
+        background: var(--color-surface);
+    }
+}
+
+@media (max-width: 939px) {
+    /* No horizontal shell scroll for day / 3-day — grid is sized to fit viewport */
+    .calendar-fc-shell:has(.fc-timeGridDay-view),
+    .calendar-fc-shell:has(.fc-timeGridThreeDay-view),
+    .calendar-fc-shell:has(.fc-resourceTimeGridDay-view),
+    .calendar-fc-shell:has(.fc-resourceTimeGridThreeDay-view) {
+        overflow-x: hidden;
+    }
+
+    .calendar-web-wrap {
+        padding-bottom: 0;
+        box-sizing: border-box;
+    }
+
+    .fc .fc-timegrid th.fc-col-header-cell {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .fc .fc-timegrid th.fc-col-header-cell .fc-col-header-cell-cushion {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        text-align: center;
+    }
+
+    .fc .fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table,
+    .fc .fc-timeGridDay-view .fc-timegrid-cols table,
+    .fc .fc-timeGridDay-view .fc-timegrid .fc-timegrid-body table {
+        width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    .fc .fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child {
+        width: 48px;
+    }
+
+    .fc .fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:last-child {
+        width: auto;
+    }
+
+    .fc .fc-timeGridDay-view .fc-day-header-stack {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /*
+     * Day & 3-day (incl. resource variants): stretch to full shell width so columns
+     * are not clipped or partially off-screen on phones/tablets (matches Android layout).
+     */
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-view-harness,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-view-harness,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-view-harness,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-view-harness {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid-cols table,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-body table {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child {
+        width: 48px;
+    }
+
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid-cols table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-body table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid-cols table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-body table {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid,
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid table,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid table {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid col,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid col,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid col,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid col {
+        min-width: 0 !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid td.fc-timegrid-col,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid td.fc-timegrid-col,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid td.fc-timegrid-col,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid td.fc-timegrid-col,
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid th.fc-col-header-cell,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid th.fc-col-header-cell,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid th.fc-col-header-cell,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid th.fc-col-header-cell {
+        min-width: 0 !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid .fc-scroller,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid .fc-scroller,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid .fc-scroller,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid .fc-scroller {
+        overflow-x: hidden !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-col-header-cell-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-col-header-cell-cushion {
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 4px 2px;
+        line-height: 1.15;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-col-header-cell-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-col-header-cell-cushion {
+        font-size: 0.72rem;
+        padding: 4px 4px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+}
+
+/*
+ * Compaction below 939px: use `.fc.fc-timeGridDay-view` (etc.) on the same element as FullCalendar’s
+ * own rules — not `:has()`, which is lower-specificity and loses to the 48px col + 56px sticky axis
+ * rules, so widths never actually shrink on phones.
+ */
+/* Day / 3-day only: narrower sticky time axis than week (shell uses 56px ≤780px). */
+@media (max-width: 780px) {
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid-shrink {
+        min-width: 38px !important;
+        width: 38px !important;
+        max-width: 38px !important;
+    }
+}
+
+/* Narrow phones: reclaim horizontal space for day / 3-day columns (week unchanged). */
+@media (max-width: 520px) {
+    /*
+     * Do not set overflow-x: auto on the shell or .fc-scroller here — nested horizontal
+     * scroll breaks sticky time-axis alignment and often clips the left edge of the grid.
+     * Keep the ≤939px overflow-x: hidden on these views; compaction is via col widths + margins.
+     */
+    /*
+     * FC sets pixel width/minWidth on .fc-timegrid-slots and .fc-timegrid-cols tables; without
+     * these overrides the grid can be a few px wider than the shell and the last day clips.
+     */
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-slots table,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-slots table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-slots table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-slots table,
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-cols table,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-cols table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-cols table,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-cols table {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-cols table colgroup col,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-cols table colgroup col,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-cols table colgroup col,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-cols table colgroup col {
+        min-width: 0 !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid-shrink {
+        min-width: 36px !important;
+        width: 36px !important;
+        max-width: 36px !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child {
+        width: 36px !important;
+        max-width: 36px !important;
+    }
+
+    /* FullCalendar default max-width: 60px on axis label — forces a wide axis column. */
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-slot-label-cushion {
+        max-width: 36px !important;
+    }
+
+    /* Default FC uses ~2.5% horizontal inset per column — very expensive in 3-day on phones. */
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-direction-ltr .fc-timegrid-col-events,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-direction-ltr .fc-timegrid-col-events,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-direction-ltr .fc-timegrid-col-events,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-direction-ltr .fc-timegrid-col-events {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-direction-rtl .fc-timegrid-col-events,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-direction-rtl .fc-timegrid-col-events,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-direction-rtl .fc-timegrid-col-events,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-direction-rtl .fc-timegrid-col-events {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-col-header-cell-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-col-header-cell-cushion {
+        font-size: 0.56rem;
+        padding: 2px 0;
+        line-height: 1.05;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-col-header-cell-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-col-header-cell-cushion {
+        font-size: 0.6rem;
+        padding: 2px 1px;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-slot-label-cushion {
+        font-size: 0.62rem;
+        padding: 0 2px !important;
+    }
+}
+
+@media (max-width: 380px) {
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid-shrink {
+        min-width: 30px !important;
+        width: 30px !important;
+        max-width: 30px !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table colgroup col:first-child {
+        width: 30px !important;
+        max-width: 30px !important;
+    }
+
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-axis-cushion,
+    .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-timegrid-slot-label-cushion,
+    .calendar-fc-shell .fc.fc-resourceTimeGridThreeDay-view .fc-timegrid .fc-timegrid-slot-label-cushion {
+        max-width: 30px !important;
+    }
+}
