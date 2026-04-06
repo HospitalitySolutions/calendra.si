@@ -27,11 +27,13 @@ class StripeBillingServiceTest {
     private BillRepository bills;
     @Mock
     private StripeCheckoutClient client;
+    @Mock
+    private StripeInvoiceClient invoiceClient;
 
     @Test
     void duplicateActiveSessionIsRejected() {
         StripeConfig config = new StripeConfig();
-        StripeBillingService service = new StripeBillingService(bills, client, config);
+        StripeBillingService service = new StripeBillingService(bills, client, invoiceClient, config);
         Bill bill = sampleBill();
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
         bill.setCheckoutSessionId("cs_active");
@@ -43,7 +45,7 @@ class StripeBillingServiceTest {
     @Test
     void expiredPendingSessionCanBeRecreated() {
         StripeConfig config = new StripeConfig();
-        StripeBillingService service = new StripeBillingService(bills, client, config);
+        StripeBillingService service = new StripeBillingService(bills, client, invoiceClient, config);
         Bill bill = sampleBill();
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
         bill.setCheckoutSessionId("cs_old");
