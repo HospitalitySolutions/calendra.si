@@ -84,7 +84,7 @@ app:
   invoice-s3:
     enabled: ${APP_INVOICE_S3_ENABLED:false}
     bucket: ${APP_INVOICE_S3_BUCKET:}
-    prefix: ${APP_INVOICE_S3_PREFIX:invoices}
+    prefix: ${APP_INVOICE_S3_PREFIX:calendra}
   stripe:
     secret-key: ${STRIPE_SECRET_KEY:}
     publishable-key: ${STRIPE_PUBLISHABLE_KEY:}

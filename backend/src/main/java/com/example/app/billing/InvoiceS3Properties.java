@@ -10,7 +10,7 @@ public class InvoiceS3Properties {
     private boolean enabled;
     private String bucket = "";
     /** Logical prefix inside the bucket (no leading/trailing slashes). */
-    private String prefix = "invoices";
+    private String prefix = "calendra";
 
     public boolean isEnabled() {
         return enabled;
@@ -38,5 +38,11 @@ public class InvoiceS3Properties {
 
     public boolean isReady() {
         return enabled && bucket != null && !bucket.isBlank();
+    }
+
+    public String normalizedPrefix() {
+        String rawPrefix = prefix == null ? "calendra" : prefix.trim();
+        String cleaned = rawPrefix.replaceAll("^/+|/+$", "");
+        return cleaned.isBlank() ? "calendra" : cleaned;
     }
 }

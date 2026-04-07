@@ -1,9 +1,6 @@
 # Profile: production
-# JSON secret "calendra/production" — same flat keys as staging (including AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-# AWS_REGION, and optional APP_INVOICE_S3_* for invoice PDFs).
-#
-# Lightsail: include AWS_* in Secrets Manager for Spring; bootstrap IAM user on the host (or container env) must still
-# be able to call secretsmanager:GetSecretValue for this secret before the JSON is loaded (see application-staging.yml).
+# JSON secret "calendra/production" — production on EC2 uses the instance IAM role for AWS access.
+# Keep AWS_REGION in the secret if desired; do not provide static AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
 server:
   forward-headers-strategy: framework
 spring:
@@ -14,9 +11,10 @@ spring:
     aws:
       region:
         static: ${AWS_REGION:eu-central-1}
-      credentials:
-        access-key: ${AWS_ACCESS_KEY_ID:}
-        secret-key: ${AWS_SECRET_ACCESS_KEY:}
 app:
   auth:
     frontend-url: ${APP_AUTH_FRONTEND_URL:https://app.calendra.si}
+  invoice-s3:
+    enabled: ${APP_INVOICE_S3_ENABLED:true}
+    bucket: ${APP_INVOICE_S3_BUCKET:calendra-s3-app-1-345362761828-eu-central-1-an}
+    prefix: ${APP_INVOICE_S3_PREFIX:calendra}

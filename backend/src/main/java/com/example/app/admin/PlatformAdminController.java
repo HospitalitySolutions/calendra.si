@@ -47,10 +47,11 @@ public class PlatformAdminController {
         this.spaces = spaces;
     }
 
-    public record TenancyRow(Long id, String name) {}
+    public record TenancyRow(Long id, String tenantCode, String name) {}
 
     public record TenancyDetailsDto(
             long id,
+            String tenantCode,
             String companyName,
             String contactName,
             String contactEmail,
@@ -71,7 +72,7 @@ public class PlatformAdminController {
     @GetMapping("/tenancies")
     public List<TenancyRow> tenancies() {
         return companies.findAll().stream()
-                .map(c -> new TenancyRow(c.getId(), c.getName()))
+                .map(c -> new TenancyRow(c.getId(), c.getTenantCode(), c.getName()))
                 .sorted(java.util.Comparator.comparing(TenancyRow::name, String.CASE_INSENSITIVE_ORDER))
                 .collect(Collectors.toList());
     }
@@ -106,6 +107,7 @@ public class PlatformAdminController {
 
         return new TenancyDetailsDto(
                 cid,
+                company.getTenantCode() == null ? "" : company.getTenantCode(),
                 company.getName() == null ? "" : company.getName(),
                 contactName,
                 contactEmail,

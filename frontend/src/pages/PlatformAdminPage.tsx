@@ -3,7 +3,7 @@ import { api } from '../api'
 import { TenancyDetailSidePanel } from '../components/TenancyDetailSidePanel'
 import { clearAuthStoragePreservingTheme } from '../theme'
 
-type TenancyRow = { id: number; name: string }
+type TenancyRow = { id: number; tenantCode: string; name: string }
 type GlobalSettings = {
   GLOBAL_FISCAL_TEST_INVOICE_URL: string
   GLOBAL_FISCAL_TEST_PREMISE_URL: string
@@ -109,7 +109,7 @@ export function PlatformAdminPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Tenancy ID</th>
                 <th>Company name</th>
               </tr>
             </thead>
@@ -129,7 +129,7 @@ export function PlatformAdminPage() {
                     }
                   }}
                 >
-                  <td>{t.id}</td>
+                  <td>{t.tenantCode || t.id}</td>
                   <td>{t.name}</td>
                 </tr>
               ))}

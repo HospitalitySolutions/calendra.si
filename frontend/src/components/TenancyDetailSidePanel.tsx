@@ -4,6 +4,7 @@ import { PageHeader } from './ui'
 
 export type TenancyDetails = {
   id: number
+  tenantCode: string
   companyName: string
   contactName: string
   contactEmail: string
@@ -131,6 +132,7 @@ export function TenancyDetailSidePanel({ tenancyId, onClose }: Props) {
           {error && <p className="muted" style={{ color: 'var(--color-danger, #dc2626)' }}>{error}</p>}
           {!loading && !error && detail && (
             <dl className="tenancy-detail-dl">
+              {row('Tenancy ID', detail.tenantCode || '—')}
               {row('Company name', detail.companyName || '—')}
               {row('Contact name', detail.contactName || '—')}
               {row('Contact email', detail.contactEmail || '—')}

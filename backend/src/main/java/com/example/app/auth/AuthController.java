@@ -5,6 +5,7 @@ import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.company.TenantCodeService;
 import com.example.app.security.JwtService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
@@ -65,31 +66,34 @@ public class AuthController {
     private final SessionTypeRepository types;
     private final TransactionServiceRepository txServices;
     private final PasswordResetService passwordResetService;
+    private final TenantCodeService tenantCodeService;
 
     public AuthController(
             UserRepository users,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-                        Environment environment,
-                        @org.springframework.beans.factory.annotation.Autowired(required = false)
-                        ClientRegistrationRepository clientRegistrationRepository,
+            Environment environment,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            ClientRegistrationRepository clientRegistrationRepository,
             CompanyRepository companies,
             AppSettingRepository settings,
             SessionTypeRepository types,
             TransactionServiceRepository txServices,
-            PasswordResetService passwordResetService
+            PasswordResetService passwordResetService,
+            TenantCodeService tenantCodeService
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-                this.environment = environment;
-                this.clientRegistrationRepository = Optional.ofNullable(clientRegistrationRepository);
-                this.authorizationRequestRepository = new HttpSessionOAuth2AuthorizationRequestRepository();
+        this.environment = environment;
+        this.clientRegistrationRepository = Optional.ofNullable(clientRegistrationRepository);
+        this.authorizationRequestRepository = new HttpSessionOAuth2AuthorizationRequestRepository();
         this.companies = companies;
         this.settings = settings;
         this.types = types;
         this.txServices = txServices;
         this.passwordResetService = passwordResetService;
+        this.tenantCodeService = tenantCodeService;
     }
 
     /**
@@ -198,6 +202,7 @@ public class AuthController {
         Company company = new Company();
         company.setName(companyName);
         company = companies.save(company);
+        company = tenantCodeService.assignIfMissing(company.getId());
 
         boolean passwordProvided = request.password() != null && !request.password().isBlank();
         String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");

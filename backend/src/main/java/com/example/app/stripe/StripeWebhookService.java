@@ -201,7 +201,7 @@ public class StripeWebhookService {
             fiscalized = fiscalizationService.fiscalizeBill(bill, bill.getCompany().getId());
         }
         byte[] pdf = billPdfService.generatePdf(fiscalized, fiscalized.getCompany().getId());
-        invoicePdfS3Service.uploadAndPersistKey(fiscalized, pdf);
+        invoicePdfS3Service.uploadInvoiceAndPersistKey(fiscalized, pdf);
         billingEmailService.sendPaidBillReceipt(fiscalized, pdf);
     }
 

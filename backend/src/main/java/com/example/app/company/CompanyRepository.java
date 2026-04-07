@@ -9,6 +9,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface CompanyRepository extends JpaRepository<Company, Long> {
 
+    java.util.Optional<Company> findByTenantCodeIgnoreCase(String tenantCode);
+
+    boolean existsByTenantCodeIgnoreCase(String tenantCode);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Company c WHERE c.id = :id")
     Optional<Company> findByIdForUpdate(@Param("id") Long id);

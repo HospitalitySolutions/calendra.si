@@ -584,7 +584,7 @@ public class BillingController {
     private void tryArchiveInvoicePdfAfterCreate(Bill bill, Long companyId) {
         try {
             byte[] pdf = billPdfService.generatePdf(bill, companyId);
-            invoicePdfS3Service.uploadAndPersistKey(bill, pdf);
+            invoicePdfS3Service.uploadInvoiceAndPersistKey(bill, pdf);
         } catch (Exception e) {
             log.warn("Could not archive invoice PDF to S3 for billId={}", bill.getId(), e);
         }
@@ -928,6 +928,7 @@ public class BillingController {
             var req = buildFolioPdfRequest(bill, companyId);
             var layout = loadFolioLayout(companyId);
             byte[] folioPdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
+            invoicePdfS3Service.uploadFolioForBill(bill, folioPdf);
             billingEmailService.sendBankTransferFolio(bill, folioPdf);
             return new CheckoutSessionResponse(bill.getId(), bill.getBillNumber(), bill.getPaymentStatus(), null, null, null);
         }
@@ -990,6 +991,7 @@ public class BillingController {
         var req = buildFolioPdfRequest(bill, companyId);
         var layout = loadFolioLayout(companyId);
         byte[] pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
+        invoicePdfS3Service.uploadFolioForBill(bill, pdf);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"folio-" + bill.getBillNumber() + ".pdf\"")
@@ -1455,12 +1457,24 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var layout = loadFolioLayout(companyId);
         byte[] pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
+        invoicePdfS3Service.uploadStandaloneFolio(companyId, req.getFolioNumber(), parseFolioIssueDate(req.getFolioDate()), pdf);
         String filename = req.getFolioNumber() != null ? req.getFolioNumber() : "folio";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"folio-" + filename + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    private LocalDate parseFolioIssueDate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(raw.trim());
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /* ── Folio layout config management ── */
