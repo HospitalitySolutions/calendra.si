@@ -1,5 +1,5 @@
 # Profile: production
-# JSON secret "calendra/production" — same flat keys as staging (including AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+# JSON secret "calendra-app" — same flat keys as staging (including AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
 # AWS_REGION, and optional APP_INVOICE_S3_* for invoice PDFs).
 #
 # Lightsail: include AWS_* in Secrets Manager for Spring; bootstrap IAM user on the host (or container env) must still
@@ -9,7 +9,7 @@ server:
 spring:
   config:
     # Override with AWS_PRODUCTION_SECRET_ID to force exact lookup (recommended: full ARN).
-    import: optional:aws-secretsmanager:${AWS_PRODUCTION_SECRET_ID:calendra/production},optional:aws-secretsmanager:/${AWS_PRODUCTION_SECRET_ID:calendra/production}
+    import: optional:aws-secretsmanager:${AWS_PRODUCTION_SECRET_ID:calendra-app},optional:aws-secretsmanager:/${AWS_PRODUCTION_SECRET_ID:calendra-app}
   cloud:
     aws:
       region:
