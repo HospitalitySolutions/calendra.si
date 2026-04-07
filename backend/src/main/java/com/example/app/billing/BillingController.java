@@ -996,8 +996,7 @@ public class BillingController {
             pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
         }
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename="folio-" + bill.getBillNumber() + ".pdf"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"folio-" + bill.getBillNumber() + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
     }
