@@ -1,16 +1,13 @@
 # No credentials or API secrets belong in this file.
 # — Local: copy backend/env.local.example → backend/.env.local (loaded automatically before Spring starts).
-# — Docker: use a root .env file for compose variable substitution (see .env.example).
+# — Docker local: docker-compose.local.yml injects local DB + JWT settings directly and does not require AWS.
 # — Staging / production: AWS Secrets Manager (application-staging.yml / application-production.yml).
-#   Staging/production profiles map spring.cloud.aws.credentials from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
-#   (from the secret JSON after import, or from the host). Lightsail needs host bootstrap creds for the first SM fetch.
 spring:
   cloud:
     aws:
       region:
         static: ${AWS_REGION:eu-central-1}
       s3:
-        # Matches app.invoice-s3.enabled; keeps S3Client off the context when archival is disabled (typical local dev).
         enabled: ${APP_INVOICE_S3_ENABLED:false}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/calendradb}
@@ -24,7 +21,6 @@ spring:
       hibernate:
         format_sql: true
   mail:
-    # Public SES endpoint (not a secret); credentials come from env / Secrets Manager only.
     host: ${SPRING_MAIL_HOST:email-smtp.eu-north-1.amazonaws.com}
     port: ${SPRING_MAIL_PORT:465}
     test-connection: false
@@ -42,9 +38,8 @@ server:
   port: 4000
   address: 0.0.0.0
   error:
-    include-message: always
+    include-message: ${APP_SERVER_INCLUDE_MESSAGE:always}
 
-# Mail is optional until SPRING_MAIL_* are set; do not fail /actuator/health when password is blank.
 management:
   health:
     mail:
@@ -97,3 +92,10 @@ app:
     eu-bank-transfer-country: ${STRIPE_EU_BANK_TRANSFER_COUNTRY:NL}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  seed:
+    enabled: ${APP_SEED_ENABLED:true}
+    demo-tenants-enabled: ${APP_SEED_DEMO_TENANTS_ENABLED:true}
+    super-admin-enabled: ${APP_SEED_SUPER_ADMIN_ENABLED:true}
+    super-admin-email: ${APP_SEED_SUPER_ADMIN_EMAIL:dmirc@hosp-it.eu}
+    super-admin-password: ${APP_SEED_SUPER_ADMIN_PASSWORD:Admin123!}
+    demo-admin-password: ${APP_SEED_DEMO_ADMIN_PASSWORD:Admin123!}

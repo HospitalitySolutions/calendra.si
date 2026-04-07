@@ -1,6 +1,5 @@
 package com.example.app.billing;
 
-import com.example.app.company.TenantCodeService;
 import java.time.LocalDate;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -21,25 +20,22 @@ public class InvoicePdfS3Service {
     private final InvoiceS3Properties properties;
     private final BillRepository billRepo;
     private final S3Client s3Client;
-    private final TenantCodeService tenantCodeService;
 
-    public InvoicePdfS3Service(
-            InvoiceS3Properties properties,
-            BillRepository billRepo,
-            ObjectProvider<S3Client> s3Client,
-            TenantCodeService tenantCodeService) {
+    public InvoicePdfS3Service(InvoiceS3Properties properties, BillRepository billRepo, ObjectProvider<S3Client> s3Client) {
         this.properties = properties;
         this.billRepo = billRepo;
         this.s3Client = s3Client.getIfAvailable();
-        this.tenantCodeService = tenantCodeService;
     }
 
     public boolean isReady() {
         return properties.isReady() && s3Client != null;
     }
 
-    public void uploadInvoiceAndPersistKey(Bill bill, byte[] pdf) {
-        if (!isReady() || pdf == null || pdf.length == 0) {
+    public void uploadAndPersistKey(Bill bill, byte[] pdf) {
+        if (!isReady()) {
+            return;
+        }
+        if (pdf == null || pdf.length == 0) {
             return;
         }
         if (bill.getInvoicePdfObjectKey() != null && !bill.getInvoicePdfObjectKey().isBlank()) {
@@ -47,7 +43,13 @@ public class InvoicePdfS3Service {
         }
         String key = buildInvoiceObjectKey(bill);
         try {
-            putPdf(key, pdf);
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(properties.getBucket().trim())
+                            .key(key)
+                            .contentType("application/pdf")
+                            .build(),
+                    RequestBody.fromBytes(pdf));
             bill.setInvoicePdfObjectKey(key);
             billRepo.save(bill);
         } catch (Exception e) {
@@ -59,24 +61,16 @@ public class InvoicePdfS3Service {
         if (!isReady() || pdf == null || pdf.length == 0) {
             return;
         }
-        String key = buildFolioObjectKey(bill);
-        try {
-            putPdf(key, pdf);
-        } catch (Exception e) {
-            log.warn("Failed to store folio PDF in S3 billId={} key={}", bill.getId(), key, e);
-        }
+        String key = buildFolioObjectKey(bill.getCompany().getId(), bill.getIssueDate(), bill.getBillNumber());
+        upload(key, pdf, bill.getId());
     }
 
-    public void uploadStandaloneFolio(Long companyId, String folioNumber, LocalDate issueDate, byte[] pdf) {
-        if (!isReady() || pdf == null || pdf.length == 0 || companyId == null) {
+    public void uploadFolioForDocument(Long tenantId, LocalDate issueDate, String billNumber, byte[] pdf) {
+        if (!isReady() || pdf == null || pdf.length == 0 || tenantId == null || billNumber == null || billNumber.isBlank()) {
             return;
         }
-        String key = buildStandaloneFolioObjectKey(companyId, folioNumber, issueDate);
-        try {
-            putPdf(key, pdf);
-        } catch (Exception e) {
-            log.warn("Failed to store standalone folio PDF in S3 companyId={} key={}", companyId, key, e);
-        }
+        String key = buildFolioObjectKey(tenantId, issueDate, billNumber);
+        upload(key, pdf, null);
     }
 
     public byte[] downloadIfPresent(Bill bill) {
@@ -98,39 +92,38 @@ public class InvoicePdfS3Service {
     }
 
     String buildInvoiceObjectKey(Bill bill) {
-        return buildBaseFolder(bill) + "/invoice.pdf";
+        return buildDocumentKey(bill.getCompany().getId(), bill.getIssueDate(), bill.getBillNumber(), "invoice");
     }
 
-    String buildFolioObjectKey(Bill bill) {
-        return buildBaseFolder(bill) + "/folio.pdf";
+    String buildFolioObjectKey(Long tenantId, LocalDate issueDate, String billNumber) {
+        return buildDocumentKey(tenantId, issueDate, billNumber, "folio");
     }
 
-    String buildStandaloneFolioObjectKey(Long companyId, String folioNumber, LocalDate issueDate) {
-        String tenantCode = tenantCodeService.tenantCodeForCompanyId(companyId).orElse(String.valueOf(companyId));
-        String safeNumber = sanitizeBillNumber(folioNumber == null || folioNumber.isBlank() ? "folio" : folioNumber);
-        int year = issueDate == null ? LocalDate.now().getYear() : issueDate.getYear();
-        return properties.normalizedPrefix() + "/tenants/" + tenantCode + "/invoices/" + year + "/" + safeNumber + "/folio.pdf";
+    private void upload(String key, byte[] pdf, Long billId) {
+        try {
+            s3Client.putObject(
+                    PutObjectRequest.builder()
+                            .bucket(properties.getBucket().trim())
+                            .key(key)
+                            .contentType("application/pdf")
+                            .build(),
+                    RequestBody.fromBytes(pdf));
+        } catch (Exception e) {
+            log.warn("Failed to store PDF in S3 billId={} key={}", billId, key, e);
+        }
     }
 
-    private String buildBaseFolder(Bill bill) {
-        String tenantCode = tenantCodeService.tenantCodeOrFallback(bill.getCompany());
-        int year = bill.getIssueDate() == null ? LocalDate.now().getYear() : bill.getIssueDate().getYear();
-        String safeNum = sanitizeBillNumber(bill.getBillNumber());
-        return properties.normalizedPrefix() + "/tenants/" + tenantCode + "/invoices/" + year + "/" + safeNum;
+    private String buildDocumentKey(Long tenantId, LocalDate issueDate, String billNumber, String documentType) {
+        String rawPrefix = properties.getPrefix() == null ? "calendra" : properties.getPrefix().trim();
+        String prefix = rawPrefix.replaceAll("^/+|/+$", "");
+        long safeTenantId = tenantId == null ? 0L : tenantId;
+        String safeBillNo = sanitize(billNumber == null ? "unknown" : billNumber);
+        int issueYear = issueDate == null ? LocalDate.now().getYear() : issueDate.getYear();
+        return prefix + "/tenants/" + safeTenantId + "/invoices/" + issueYear + "/" + safeBillNo + "/" + documentType + "-" + safeBillNo + ".pdf";
     }
 
-    private String sanitizeBillNumber(String billNumber) {
-        String cleaned = SANITIZE_KEY.matcher(billNumber == null ? "unknown" : billNumber).replaceAll("_");
-        return cleaned.isBlank() ? "unknown" : cleaned;
-    }
-
-    private void putPdf(String key, byte[] pdf) {
-        s3Client.putObject(
-                PutObjectRequest.builder()
-                        .bucket(properties.getBucket().trim())
-                        .key(key)
-                        .contentType("application/pdf")
-                        .build(),
-                RequestBody.fromBytes(pdf));
+    private String sanitize(String value) {
+        String sanitized = SANITIZE_KEY.matcher(value).replaceAll("_");
+        return sanitized.isBlank() ? "unknown" : sanitized;
     }
 }

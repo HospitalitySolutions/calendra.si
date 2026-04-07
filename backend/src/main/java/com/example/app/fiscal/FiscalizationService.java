@@ -108,7 +108,7 @@ public class FiscalizationService {
         if (saved.getFiscalStatus() == BillFiscalStatus.SENT) {
             try {
                 byte[] pdf = billPdfService.generatePdf(saved, companyId);
-                invoicePdfS3Service.uploadInvoiceAndPersistKey(saved, pdf);
+                invoicePdfS3Service.uploadAndPersistKey(saved, pdf);
             } catch (Exception e) {
                 log.warn("Invoice PDF generation or S3 archival failed after fiscal success billId={}", saved.getId(), e);
             }

@@ -68,7 +68,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      VITE_API_BASE_URL: /api
+      VITE_WEB_API_URL: /api
     volumes:
       - ./frontend:/app
       - /app/node_modules

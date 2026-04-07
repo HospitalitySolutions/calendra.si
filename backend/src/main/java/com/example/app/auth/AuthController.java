@@ -50,7 +50,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*")
 public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
@@ -72,9 +71,9 @@ public class AuthController {
             UserRepository users,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            Environment environment,
-            @org.springframework.beans.factory.annotation.Autowired(required = false)
-            ClientRegistrationRepository clientRegistrationRepository,
+                        Environment environment,
+                        @org.springframework.beans.factory.annotation.Autowired(required = false)
+                        ClientRegistrationRepository clientRegistrationRepository,
             CompanyRepository companies,
             AppSettingRepository settings,
             SessionTypeRepository types,
@@ -85,9 +84,9 @@ public class AuthController {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-        this.environment = environment;
-        this.clientRegistrationRepository = Optional.ofNullable(clientRegistrationRepository);
-        this.authorizationRequestRepository = new HttpSessionOAuth2AuthorizationRequestRepository();
+                this.environment = environment;
+                this.clientRegistrationRepository = Optional.ofNullable(clientRegistrationRepository);
+                this.authorizationRequestRepository = new HttpSessionOAuth2AuthorizationRequestRepository();
         this.companies = companies;
         this.settings = settings;
         this.types = types;
@@ -201,8 +200,9 @@ public class AuthController {
         String companyName = request.companyName().trim();
         Company company = new Company();
         company.setName(companyName);
+        company = companies.saveAndFlush(company);
+        company.setTenantCode(tenantCodeService.generate(company.getId(), companyName));
         company = companies.save(company);
-        company = tenantCodeService.assignIfMissing(company.getId());
 
         boolean passwordProvided = request.password() != null && !request.password().isBlank();
         String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");

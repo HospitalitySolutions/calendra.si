@@ -14,8 +14,6 @@ export function OAuthCallbackPage() {
     const token = searchParams.get('token')
     const oauthError = searchParams.get('oauth_error')
 
-    console.log('OAuthCallbackPage: token=', token, 'oauthError=', oauthError)
-
     if (oauthError) {
       const err = decodeURIComponent(oauthError)
       console.error('OAuth error:', err)
@@ -35,7 +33,6 @@ export function OAuthCallbackPage() {
       .get('/auth/me')
       .then((res) => {
         const user = res.data?.user
-        console.log('User loaded:', user)
         if (!user) {
           const err = 'Could not load user profile.'
           console.error(err)

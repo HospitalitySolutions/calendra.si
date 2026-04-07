@@ -5,3 +5,4 @@ target/
 backend/.env.local
 .idea/
 .vscode/
+.env

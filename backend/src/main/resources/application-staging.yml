@@ -1,33 +1,22 @@
-# Profile: staging — run with: spring.profiles.active=staging
-# Behind Caddy (TLS termination): trust X-Forwarded-Proto so OAuth redirect_uri uses https, not http.
 server:
   forward-headers-strategy: framework
-# Loads configuration from AWS Secrets Manager (see spring.config.import below).
-# Secret JSON: flat keys only (e.g. SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD,
-# APP_JWT_SECRET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION,
-# APP_INVOICE_S3_ENABLED, APP_INVOICE_S3_BUCKET, APP_INVOICE_S3_PREFIX, …).
-# See backend/env.local.example for the full list used locally (same names work in AWS).
-#
-# Amazon Lightsail (no instance IAM role): put AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION in the secret
-# for Spring-managed clients (S3, etc.). You still need bootstrap credentials on the host (systemd EnvironmentFile,
-# Docker env, or export before java -jar) with at least secretsmanager:GetSecretValue on this secret — otherwise the
-# JVM cannot fetch the secret on first start. Use a narrow IAM user; optional duplicate keys in SM for one place to edit.
+  error:
+    include-message: ${APP_SERVER_INCLUDE_MESSAGE:always}
+
 spring:
   config:
-    # Friendly name or full ARN (see AWS console) both work.
-    # Override with AWS_STAGING_SECRET_ID to force exact lookup (recommended: full ARN).
     import: optional:aws-secretsmanager:${AWS_STAGING_SECRET_ID:arn:aws:secretsmanager:eu-central-1:345362761828:secret:calendra/staging-2jqRIf}
-  # Google login: put GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the calendra/staging JSON secret.
-  # Spring does not map those names to OAuth2 automatically; GoogleOAuthClientRegistrationConfig does.
-  # Optional: GOOGLE_OAUTH_REDIRECT_URI (default {baseUrl}/login/oauth2/code/{registrationId}).
-  # Or use full Spring keys in the secret instead: spring.security.oauth2.client.registration.google.client-id, etc.
   cloud:
     aws:
       region:
         static: ${AWS_REGION:eu-central-1}
-      credentials:
-        access-key: ${AWS_ACCESS_KEY_ID:}
-        secret-key: ${AWS_SECRET_ACCESS_KEY:}
+
 app:
   auth:
     frontend-url: ${APP_AUTH_FRONTEND_URL:https://staging.calendra.si}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:https://staging.calendra.si,http://localhost:3000}
+  seed:
+    enabled: ${APP_SEED_ENABLED:true}
+    demo-tenants-enabled: ${APP_SEED_DEMO_TENANTS_ENABLED:true}
+    super-admin-enabled: ${APP_SEED_SUPER_ADMIN_ENABLED:true}

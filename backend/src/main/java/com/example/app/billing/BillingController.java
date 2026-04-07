@@ -584,7 +584,7 @@ public class BillingController {
     private void tryArchiveInvoicePdfAfterCreate(Bill bill, Long companyId) {
         try {
             byte[] pdf = billPdfService.generatePdf(bill, companyId);
-            invoicePdfS3Service.uploadInvoiceAndPersistKey(bill, pdf);
+            invoicePdfS3Service.uploadAndPersistKey(bill, pdf);
         } catch (Exception e) {
             log.warn("Could not archive invoice PDF to S3 for billId={}", bill.getId(), e);
         }
@@ -1457,8 +1457,8 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var layout = loadFolioLayout(companyId);
         byte[] pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
-        invoicePdfS3Service.uploadStandaloneFolio(companyId, req.getFolioNumber(), parseFolioIssueDate(req.getFolioDate()), pdf);
         String filename = req.getFolioNumber() != null ? req.getFolioNumber() : "folio";
+        invoicePdfS3Service.uploadFolioForDocument(companyId, parseIssueDate(req.getFolioDate()), filename, pdf);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"folio-" + filename + ".pdf\"")
@@ -1466,14 +1466,14 @@ public class BillingController {
                 .body(pdf);
     }
 
-    private LocalDate parseFolioIssueDate(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
+    private LocalDate parseIssueDate(String value) {
+        if (value == null || value.isBlank()) {
+            return LocalDate.now();
         }
         try {
-            return LocalDate.parse(raw.trim());
-        } catch (Exception ignored) {
-            return null;
+            return LocalDate.parse(value);
+        } catch (Exception ex) {
+            return LocalDate.now();
         }
     }
 
