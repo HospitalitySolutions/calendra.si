@@ -95,6 +95,21 @@ type TypeOption = { id: number; name: string }
 type Preset = 'day' | '7d' | 'month' | 'year' | 'custom'
 type ReportFrequency = 'DAILY' | 'WEEKLY'
 
+type ActivityChartRow = {
+  label: string
+  sessionsTotal: number
+  newClients: number
+  clientsTotal?: number
+  consultantHours?: number
+}
+
+type RevenueChartRow = {
+  label: string
+  revenueGross: number
+  revenueNet?: number
+  consultantHours?: number
+}
+
 function csvEscape(value: string | number) {
   const raw = String(value ?? '')
   if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
@@ -452,7 +467,7 @@ export function AnalyticsPage() {
     }
   }, [locale])
 
-  const activitySeries = useMemo(() => {
+  const activitySeries = useMemo((): ActivityChartRow[] => {
     if (isComparison) {
       return comparisonSeries.map((point) => ({
         label: trendLabelFormatter.period(point),
@@ -469,7 +484,7 @@ export function AnalyticsPage() {
     }))
   }, [comparisonSeries, data?.weeks, isComparison, trendLabelFormatter])
 
-  const revenueSeries = useMemo(() => {
+  const revenueSeries = useMemo((): RevenueChartRow[] => {
     if (isComparison) {
       return comparisonSeries.map((point) => ({
         label: trendLabelFormatter.period(point),
@@ -638,7 +653,7 @@ export function AnalyticsPage() {
         <Card><div className="muted">{text.loading}</div></Card>
       ) : isError ? (
         <Card><div className="error">{text.failed}</div></Card>
-      ) : !summary ? (
+      ) : !data || !summary ? (
         <Card><EmptyState title={text.emptyTitle} text={text.emptyText} /></Card>
       ) : (
         <>

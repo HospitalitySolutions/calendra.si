@@ -8,7 +8,7 @@ import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
-import com.example.app.company.TenantCodeService;
+import com.example.app.company.CompanyProvisioningService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
@@ -37,7 +37,7 @@ public class DataSeeder implements CommandLineRunner {
     private final CompanyRepository companies;
     private final PaymentMethodRepository paymentMethods;
     private final SeederProperties seederProperties;
-    private final TenantCodeService tenantCodeService;
+    private final CompanyProvisioningService companyProvisioningService;
 
     public DataSeeder(UserRepository users,
                       PasswordEncoder encoder,
@@ -47,7 +47,7 @@ public class DataSeeder implements CommandLineRunner {
                       CompanyRepository companies,
                       PaymentMethodRepository paymentMethods,
                       SeederProperties seederProperties,
-                      TenantCodeService tenantCodeService) {
+                      CompanyProvisioningService companyProvisioningService) {
         this.users = users;
         this.encoder = encoder;
         this.settings = settings;
@@ -56,7 +56,7 @@ public class DataSeeder implements CommandLineRunner {
         this.companies = companies;
         this.paymentMethods = paymentMethods;
         this.seederProperties = seederProperties;
-        this.tenantCodeService = tenantCodeService;
+        this.companyProvisioningService = companyProvisioningService;
     }
 
     @Override
@@ -82,7 +82,7 @@ public class DataSeeder implements CommandLineRunner {
         final String superAdminPassword = seederProperties.getSuperAdminPassword();
 
         Company platformCompany = companies.findByNameIgnoreCase("Platform Admin")
-                .orElseGet(() -> createCompanyWithTenantCode("Platform Admin"));
+                .orElseGet(() -> companyProvisioningService.createWithTenantCode("Platform Admin"));
 
         users.findByEmailIgnoreCase(superAdminEmail).ifPresentOrElse(existing -> {
             boolean dirty = false;
@@ -132,7 +132,7 @@ public class DataSeeder implements CommandLineRunner {
         Company company = users.findByEmailIgnoreCase(adminEmail)
                 .flatMap(u -> u.getCompany() != null ? Optional.of(u.getCompany()) : Optional.empty())
                 .orElseGet(() -> companies.findByNameIgnoreCase(tenantName)
-                        .orElseGet(() -> createCompanyWithTenantCode(tenantName)));
+                        .orElseGet(() -> companyProvisioningService.createWithTenantCode(tenantName)));
 
         ensureTenantCode(company);
 
@@ -268,19 +268,8 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 
-    private Company createCompanyWithTenantCode(String companyName) {
-        var company = new Company();
-        company.setName(companyName);
-        company = companies.saveAndFlush(company);
-        company.setTenantCode(tenantCodeService.generate(company.getId(), companyName));
-        return companies.save(company);
-    }
-
     private void ensureTenantCode(Company company) {
-        if (company.getTenantCode() == null || company.getTenantCode().isBlank()) {
-            company.setTenantCode(tenantCodeService.generate(company.getId(), company.getName()));
-            companies.save(company);
-        }
+        companyProvisioningService.ensureTenantCode(company);
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

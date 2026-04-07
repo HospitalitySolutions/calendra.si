@@ -5,8 +5,6 @@ import interactionPlugin from '@fullcalendar/interaction'
 import resourcePlugin from '@fullcalendar/resource'
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid'
 import resourceDayGridPlugin from '@fullcalendar/resource-daygrid'
-import slLocale from '@fullcalendar/core/locales/sl'
-import enGbLocale from '@fullcalendar/core/locales/en-gb'
 import { Capacitor } from '@capacitor/core'
 import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition'
 import { createPortal } from 'react-dom'
@@ -27,314 +25,41 @@ import { getStoredUser } from '../auth'
 import { Card, Field, PageHeader } from '../components/ui'
 import { formatDateTime, fullName, nameLastFirst, parseClientNameInput, personInitials } from '../lib/format'
 import { applyTheme, clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../theme'
-import { useLocale, type AppLocale } from '../locale'
+import { useLocale } from '../locale'
+import {
+  CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX,
+  useCalendarCompactHeader,
+  useCalendarConsultantResourceInitialsLayout,
+  useCalendarDateNavArrowsInRail,
+  useCalendarFiltersBottomBar,
+  useCalendarMobileHeaderNav,
+} from '../hooks/useCalendarResponsiveLayout'
 import { LanguageModal } from '../components/LanguageModal'
 import { ClientDetailSidePanel } from '../components/ClientDetailSidePanel'
 import { useToast } from '../components/Toast'
 import { consultantDayWindow, parseHmToMinutes as whWindowParseHm, windowToDayMs } from '../lib/consultantWorkingHours'
 import { dayOptions } from '../lib/types'
+import {
+  ANDROID_PINCH_ZOOM_MAX,
+  ANDROID_PINCH_ZOOM_MIN,
+  AVAILABILITY_BLOCK_TASK,
+  CALENDAR_META_POLL_MS,
+  CALENDAR_POLL_MS,
+  CalendarLocalDateTimeSplit,
+  CONSULTANT_RESOURCE_UNASSIGNED_ID,
+  DATE_SET_CALENDAR_DEBOUNCE_MS,
+  formatRepeatWeekdayLabel,
+  FULLCALENDAR_LOCALES,
+  isWebTimeGridLikeView,
+  PERSONAL_TASK_PRESETS_KEY,
+  PersonalTaskCombo,
+  REPEAT_WEEKDAY_EN,
+  SPACE_RESOURCE_UNASSIGNED_ID,
+  toIsoDateKey,
+  WORKING_HOURS_FALLBACK_KEY,
+} from './calendar/calendarPageSupport'
 
 const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
-const WORKING_HOURS_FALLBACK_KEY = 'workingHoursFallback'
-const PERSONAL_TASK_PRESETS_KEY = 'PERSONAL_TASK_PRESETS_JSON'
-const AVAILABILITY_BLOCK_TASK = '__availability_block__'
-/** Visible calendar data only; full meta/settings use CALENDAR_META_POLL_MS and focus/settings events. */
-const CALENDAR_POLL_MS = 30000
-const CALENDAR_META_POLL_MS = 180000
-const DATE_SET_CALENDAR_DEBOUNCE_MS = 300
-const FULLCALENDAR_LOCALES = [enGbLocale, slLocale]
-
-const REPEAT_WEEKDAY_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
-
-function formatRepeatWeekdayLabel(loc: AppLocale, englishDay: string): string {
-  const idx = (REPEAT_WEEKDAY_EN as readonly string[]).indexOf(englishDay)
-  if (idx < 0) return englishDay
-  return new Date(2024, 0, 7 + idx).toLocaleDateString(loc === 'sl' ? 'sl-SI' : 'en-GB', { weekday: 'long' })
-}
-
-/** FullCalendar resource id for bookings with no room (Spaces mode, ALL columns). */
-const SPACE_RESOURCE_UNASSIGNED_ID = '__unassigned'
-
-/** FullCalendar resource id for bookings with no consultant (Bookings mode, ALL columns). */
-const CONSULTANT_RESOURCE_UNASSIGNED_ID = '__unassigned_consultant'
-
-/** Web: normal + resource (Spaces, ALL) time-grid view types. */
-function isWebTimeGridLikeView(v: string) {
-  return (
-    v === 'timeGridWeek' ||
-    v === 'timeGridDay' ||
-    v === 'timeGridThreeDay' ||
-    v === 'resourceTimeGridWeek' ||
-    v === 'resourceTimeGridDay' ||
-    v === 'resourceTimeGridThreeDay'
-  )
-}
-
-function localTodayYmd() {
-  const n = new Date()
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
-}
-
-function splitLocalDateTimeParts(value: string | undefined | null): { date: string; time: string } {
-  if (value == null) return { date: '', time: '' }
-  const v = String(value).trim()
-  if (!v) return { date: '', time: '' }
-  const withSeconds = v.length === 16 ? `${v}:00` : v
-  const m = withSeconds.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/)
-  if (!m) return { date: '', time: '' }
-  return { date: m[1], time: m[2] }
-}
-
-/** Centers the field in the scrollport so Android WebView does not clip the native picker. */
-function scrollIntoViewForAndroidPicker(el: HTMLElement) {
-  if (typeof document === 'undefined') return
-  if (!document.documentElement.classList.contains('layout-android')) return
-  window.requestAnimationFrame(() => {
-    el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-  })
-}
-
-/** Time first, then date (DD/MM/YYYY via browser locale on `type="date"`). */
-function CalendarLocalDateTimeSplit({
-  value,
-  onCommit,
-  normalize,
-}: {
-  value: string | undefined
-  onCommit: (localIso: string) => void
-  normalize: (v: string) => string
-}) {
-  const { date, time } = splitLocalDateTimeParts(value)
-
-  return (
-    <div className="calendar-datetime-split">
-      <div className="calendar-datetime-split-inner">
-        <input
-          type="time"
-          className="calendar-datetime-split-time"
-          value={time}
-          onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
-          onChange={(e) => {
-            const t = e.target.value
-            if (!t) return
-            const d = date || localTodayYmd()
-            onCommit(normalize(`${d}T${t}`))
-          }}
-          aria-label="Time"
-        />
-        <span className="calendar-datetime-split-divider" aria-hidden />
-        <input
-          type="date"
-          className="calendar-datetime-split-date"
-          value={date}
-          onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
-          onChange={(e) => {
-            const d = e.target.value
-            if (!d) return
-            const t = time || '09:00'
-            onCommit(normalize(`${d}T${t}`))
-          }}
-          aria-label="Date"
-        />
-      </div>
-    </div>
-  )
-}
-
-/** Personal block task: type freely or open client-style dropdown for predefined tasks. */
-function PersonalTaskCombo({
-  value,
-  onChange,
-  placeholder,
-  presets,
-  dropdownOpen,
-  onDropdownOpenChange,
-  selectPredefinedLabel,
-  noMatchLabel,
-}: {
-  value: string
-  onChange: (next: string) => void
-  placeholder: string
-  presets: string[]
-  dropdownOpen: boolean
-  onDropdownOpenChange: (open: boolean) => void
-  selectPredefinedLabel: string
-  noMatchLabel: string
-}) {
-  const visiblePresets = useMemo(() => {
-    const q = value.trim().toLowerCase()
-    return presets.filter((p) => !q || p.toLowerCase().includes(q)).slice(0, 20)
-  }, [presets, value])
-
-  if (presets.length === 0) {
-    return <input placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
-  }
-
-  return (
-    <div className="client-picker personal-task-combo" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0, flex: 1 }}>
-      <div className="client-search-wrap client-search-wrap--task-combo">
-        <input
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => onDropdownOpenChange(true)}
-        />
-        <button
-          type="button"
-          className="client-task-preset-chevron"
-          aria-label={selectPredefinedLabel}
-          aria-expanded={dropdownOpen}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onDropdownOpenChange(!dropdownOpen)
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
-      </div>
-      {dropdownOpen && (
-        <div className="client-dropdown-panel">
-          {visiblePresets.map((task) => (
-            <button
-              key={task}
-              type="button"
-              className={`client-list-item ${value.trim() === task ? 'selected' : ''}`}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onChange(task)
-                onDropdownOpenChange(false)
-              }}
-            >
-              {task}
-            </button>
-          ))}
-          {visiblePresets.length === 0 && <span className="muted" style={{ padding: '8px 12px', display: 'block' }}>{noMatchLabel}</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** Shell: below 1750px date nav moves left; from 940px up labeled Consultant/Space in header; under 940px icons + mic in bottom strip. */
-const CALENDAR_COMPACT_HEADER_MAX_PX = 1749
-/** ≤939px: Consultant/Space as icon popups in bottom strip; mic centered (labeled selects stay in header above 940px). */
-const CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX = 939
-/** Prev/next move from header to the right rail (narrow phones). */
-const CALENDAR_DATE_NAV_RAIL_MAX_PX = 419
-/** ≤780px: keep arrows + view selector grouped on the right side in the header. */
-const CALENDAR_MOBILE_HEADER_NAV_MAX_PX = 780
-/** ≤1100px: bookings “all consultants” resource columns show initials instead of full names. */
-const CALENDAR_CONSULTANT_RESOURCE_INITIALS_MAX_PX = 1100
-
-function useCalendarCompactHeader() {
-  const [compact, setCompact] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia(`(max-width: ${CALENDAR_COMPACT_HEADER_MAX_PX}px)`).matches
-      : false,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${CALENDAR_COMPACT_HEADER_MAX_PX}px)`)
-    const apply = () => setCompact(mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [])
-  return compact
-}
-
-function useCalendarFiltersBottomBar() {
-  const [bottom, setBottom] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia(`(max-width: ${CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX}px)`).matches
-      : false,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX}px)`)
-    const apply = () => setBottom(mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [])
-  return bottom
-}
-
-function useCalendarDateNavArrowsInRail() {
-  const [v, setV] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia(`(max-width: ${CALENDAR_DATE_NAV_RAIL_MAX_PX}px)`).matches
-      : false,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${CALENDAR_DATE_NAV_RAIL_MAX_PX}px)`)
-    const apply = () => setV(mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [])
-  return v
-}
-
-function useCalendarMobileHeaderNav() {
-  const [v, setV] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia(
-          `(max-width: ${CALENDAR_MOBILE_HEADER_NAV_MAX_PX}px)`,
-        ).matches
-      : false,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia(
-      `(max-width: ${CALENDAR_MOBILE_HEADER_NAV_MAX_PX}px)`,
-    )
-    const apply = () => setV(mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [])
-  return v
-}
-
-function useCalendarConsultantResourceInitialsLayout() {
-  const [compact, setCompact] = useState(() =>
-    typeof window !== 'undefined'
-      ? window.matchMedia(`(max-width: ${CALENDAR_CONSULTANT_RESOURCE_INITIALS_MAX_PX}px)`).matches
-      : false,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${CALENDAR_CONSULTANT_RESOURCE_INITIALS_MAX_PX}px)`)
-    const apply = () => setCompact(mq.matches)
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [])
-  return compact
-}
-
-/** Pinch zoom: only magnify above default (1); cannot zoom out past the normal view. */
-const ANDROID_PINCH_ZOOM_MIN = 1
-const ANDROID_PINCH_ZOOM_MAX = 2.75
-
-function toIsoDateKey(date: Date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function newClientInitials(firstName: string, lastName: string) {
-  const letters = [firstName, lastName]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => value[0]?.toUpperCase() ?? '')
-    .join('')
-    .slice(0, 2)
-  return letters || 'N'
-}
-
 export default function CalendarPage() {
 
   const navigate = useNavigate()
@@ -7574,7 +7299,9 @@ export default function CalendarPage() {
             <div className="booking-side-panel-body">
               <div className="clients-detail-shell clients-create-shell">
                 <div className="clients-detail-hero clients-detail-head-card clients-create-head-card">
-                  <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{newClientInitials(newClientForm.firstName, newClientForm.lastName)}</span>
+                  <span className="clients-name-avatar clients-detail-avatar" aria-hidden>
+                    {personInitials({ firstName: newClientForm.firstName, lastName: newClientForm.lastName })}
+                  </span>
                   <div className="clients-name-stack">
                     <span className="clients-name">{[newClientForm.firstName, newClientForm.lastName].filter(Boolean).join(' ').trim() || (locale === 'sl' ? 'Nova stranka' : 'New client')}</span>
                     <span className="clients-id">{locale === 'sl' ? 'Ustvari stranko in jo poveži s tem terminom.' : 'Create a client and attach them to this session.'}</span>

@@ -5,7 +5,7 @@ import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
-import com.example.app.company.TenantCodeService;
+import com.example.app.company.CompanyProvisioningService;
 import com.example.app.security.JwtService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
@@ -65,7 +65,7 @@ public class AuthController {
     private final SessionTypeRepository types;
     private final TransactionServiceRepository txServices;
     private final PasswordResetService passwordResetService;
-    private final TenantCodeService tenantCodeService;
+    private final CompanyProvisioningService companyProvisioningService;
 
     public AuthController(
             UserRepository users,
@@ -79,7 +79,7 @@ public class AuthController {
             SessionTypeRepository types,
             TransactionServiceRepository txServices,
             PasswordResetService passwordResetService,
-            TenantCodeService tenantCodeService
+            CompanyProvisioningService companyProvisioningService
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
@@ -92,7 +92,7 @@ public class AuthController {
         this.types = types;
         this.txServices = txServices;
         this.passwordResetService = passwordResetService;
-        this.tenantCodeService = tenantCodeService;
+        this.companyProvisioningService = companyProvisioningService;
     }
 
     /**
@@ -198,11 +198,7 @@ public class AuthController {
         }
 
         String companyName = request.companyName().trim();
-        Company company = new Company();
-        company.setName(companyName);
-        company = companies.saveAndFlush(company);
-        company.setTenantCode(tenantCodeService.generate(company.getId(), companyName));
-        company = companies.save(company);
+        Company company = companyProvisioningService.createWithTenantCode(companyName);
 
         boolean passwordProvided = request.password() != null && !request.password().isBlank();
         String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");

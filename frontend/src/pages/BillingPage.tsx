@@ -4,103 +4,32 @@ import { getStoredUser } from '../auth'
 import type { Bill, BillingService, Client, Company, OpenBill, PaymentMethod, User } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
+import { BillingAddCompanyModal } from './billing/BillingAddCompanyModal'
+import { BillingDesktopPaymentMethodPicker, BillingMobilePaymentMethodPicker } from './billing/BillingPaymentMethodPicker'
 import { useToast } from '../components/Toast'
 import { useLocale } from '../locale'
 import { currency, formatDate, fullName } from '../lib/format'
-type BillForm = {
-  clientId?: number
-  consultantId?: number
-  paymentMethodId?: number
-  billingTarget: 'PERSON' | 'COMPANY'
-  recipientCompanyId?: number
-  items: { transactionServiceId: number; quantity: number; netPrice: string }[]
-}
-
-type OpenBillEditItem = {
-  transactionServiceId: number
-  quantity: number
-  netPrice: string
-  sourceSessionBookingId?: number | null
-}
-
-
-/** Lines that share service + net unit price + session are combined; quantities add (same gross per unit). */
-function openBillLineMergeKey(item: {
-  transactionServiceId: number
-  netPrice: string
-  sourceSessionBookingId?: number | null
-}) {
-  const sid = item.sourceSessionBookingId == null ? '' : String(item.sourceSessionBookingId)
-  const net = Number(item.netPrice || 0)
-  const netKey = Number.isFinite(net) ? net.toFixed(4) : '0'
-  return `${item.transactionServiceId}|${netKey}|${sid}`
-}
-
-function mergeDuplicateOpenBillLines(items: OpenBillEditItem[]): OpenBillEditItem[] {
-  if (items.length < 2) return items
-  const byKey = new Map<string, OpenBillEditItem>()
-  const order: string[] = []
-  for (const item of items) {
-    const key = openBillLineMergeKey(item)
-    const cur = byKey.get(key)
-    if (!cur) {
-      byKey.set(key, {
-        transactionServiceId: item.transactionServiceId,
-        quantity: item.quantity,
-        netPrice: String(item.netPrice),
-        sourceSessionBookingId: item.sourceSessionBookingId ?? null,
-      })
-      order.push(key)
-    } else {
-      cur.quantity = cur.quantity + item.quantity
-    }
-  }
-  return order.map((k) => byKey.get(k)!)
-}
-
-const paymentTypeLabel = (value?: string | null) => value === 'BANK_TRANSFER' ? 'BANK TRANSFER' : (value || '—')
-const paymentTypeIcon = (value?: string | null) =>
-  value === 'CASH' ? '💵' : value === 'CARD' ? '💳' : value === 'BANK_TRANSFER' ? '🏦' : '•'
-const paymentTypeBadgeLabel = (value?: string | null) =>
-  value === 'BANK_TRANSFER' ? 'Transfer' : value === 'CASH' ? 'Cash' : value === 'CARD' ? 'Card' : '—'
-type OpenBillsSortField = 'gross' | 'client' | 'date'
-type HistorySortField = 'gross' | 'folio'
-type SortDir = 'asc' | 'desc'
-const OPEN_BILLS_SORT_OPTIONS: Array<{ field: OpenBillsSortField; label: string }> = [
-  { field: 'gross', label: 'Gross' },
-  { field: 'date', label: 'Date' },
-  { field: 'client', label: 'Client' },
-]
-const HISTORY_SORT_OPTIONS: Array<{ field: HistorySortField; label: string }> = [
-  { field: 'gross', label: 'Gross' },
-  { field: 'folio', label: 'Folio no.' },
-]
+import {
+  type BillForm,
+  type HistorySortField,
+  HISTORY_SORT_OPTIONS,
+  type OpenBillEditItem,
+  type OpenBillsSortField,
+  OPEN_BILLS_SORT_OPTIONS,
+  paymentTypeBadgeLabel,
+  paymentTypeIcon,
+  paymentTypeLabel,
+  mergeDuplicateOpenBillLines,
+  type SortDir,
+  getBillingCopy,
+  folioHistoryMobileStatusPill,
+} from './billing/billingSupport'
 
 export function BillingPage() {
   const me = getStoredUser()!
   const { showToast } = useToast()
   const { t, locale } = useLocale()
-  const billingCopy = locale === 'sl' ? {
-    newCompanyTitle: 'Novo podjetje',
-    newCompanySubtitle: 'Obvezno je samo ime podjetja.',
-    companyName: 'Ime podjetja',
-    email: 'E-pošta',
-    telephone: 'Telefon',
-    emailOptional: 'E-pošta (neobvezno)',
-    telephoneOptional: 'Telefon (neobvezno)',
-    creating: 'Ustvarjam…',
-    create: 'Ustvari',
-  } : {
-    newCompanyTitle: 'New company',
-    newCompanySubtitle: 'Required: company name.',
-    companyName: 'Company name',
-    email: 'Email',
-    telephone: 'Telephone',
-    emailOptional: 'Email (optional)',
-    telephoneOptional: 'Telephone (optional)',
-    creating: 'Creating…',
-    create: 'Create',
-  }
+  const billingCopy = getBillingCopy(locale)
   const [services, setServices] = useState<BillingService[]>([])
   const [bills, setBills] = useState<Bill[]>([])
   const [openBills, setOpenBills] = useState<OpenBill[]>([])
@@ -834,115 +763,27 @@ export function BillingPage() {
   }
 
   const renderOpenBillPayTypeControl = (ob: OpenBill) => (
-    <>
-      <div className="billing-open-paytype-wrap">
-        <button
-          type="button"
-          className="billing-open-paytype-trigger"
-          onClick={(e) => {
-            const triggerRect = e.currentTarget.getBoundingClientRect()
-            const popupHeight = Math.min(260, Math.max(120, paymentMethods.length * 32 + 20))
-            const spaceBelow = window.innerHeight - triggerRect.bottom
-            const spaceAbove = triggerRect.top
-            const nextPlacement: 'up' | 'down' =
-              spaceBelow < popupHeight && spaceAbove > spaceBelow ? 'up' : 'down'
-            setOpenPayTypePickerFor((prev) => {
-              if (prev === ob.id) return null
-              setOpenPayTypePickerPlacement(nextPlacement)
-              return ob.id
-            })
-          }}
-          aria-haspopup="dialog"
-          aria-expanded={openPayTypePickerFor === ob.id}
-          aria-label="Select payment method"
-          title="Select payment method"
-        >
-          {paymentTypeIcon(ob.paymentMethod?.paymentType)}
-        </button>
-        {openPayTypePickerFor === ob.id && (
-          <div
-            className={`billing-open-paytype-popup ${openPayTypePickerPlacement === 'up' ? 'billing-open-paytype-popup--up' : ''}`}
-            role="dialog"
-            aria-label="Select payment method"
-          >
-            {paymentMethods.map((method) => (
-              <label key={method.id} className="billing-open-paytype-option">
-                <input
-                  type="radio"
-                  name={`open-bill-paytype-${ob.id}`}
-                  checked={ob.paymentMethod?.id === method.id}
-                  onChange={() => {
-                    updateOpenBillPaymentMethod(ob.id, method.id)
-                    setOpenPayTypePickerFor(null)
-                  }}
-                />
-                <span>{method.name}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-      <select
-        className="billing-open-payment-select"
-        value={ob.paymentMethod?.id ?? ''}
-        onChange={(e) => updateOpenBillPaymentMethod(ob.id, Number(e.target.value))}
-      >
-        <option value="">Select payment method</option>
-        {paymentMethods.map((method) => (
-          <option key={method.id} value={method.id}>{method.name}</option>
-        ))}
-      </select>
-    </>
+    <BillingDesktopPaymentMethodPicker
+      openBill={ob}
+      paymentMethods={paymentMethods}
+      isOpen={openPayTypePickerFor === ob.id}
+      placement={openPayTypePickerPlacement}
+      onPlacementChange={setOpenPayTypePickerPlacement}
+      onOpenChange={(nextOpen) => setOpenPayTypePickerFor(nextOpen ? ob.id : null)}
+      onSelect={(methodId) => updateOpenBillPaymentMethod(ob.id, methodId)}
+    />
   )
 
   const renderOpenBillPayTypePillControl = (ob: OpenBill) => (
-    <div className="billing-open-paytype-wrap">
-      <button
-        type="button"
-        className={`billing-open-mobile-paytype-pill billing-open-mobile-paytype-pill--${(ob.paymentMethod?.paymentType || 'none').toLowerCase()}`}
-        onClick={(e) => {
-          const triggerRect = e.currentTarget.getBoundingClientRect()
-          const popupHeight = Math.min(260, Math.max(120, paymentMethods.length * 32 + 20))
-          const spaceBelow = window.innerHeight - triggerRect.bottom
-          const spaceAbove = triggerRect.top
-          const nextPlacement: 'up' | 'down' =
-            spaceBelow < popupHeight && spaceAbove > spaceBelow ? 'up' : 'down'
-          setOpenPayTypePickerFor((prev) => {
-            if (prev === ob.id) return null
-            setOpenPayTypePickerPlacement(nextPlacement)
-            return ob.id
-          })
-        }}
-        aria-haspopup="dialog"
-        aria-expanded={openPayTypePickerFor === ob.id}
-        aria-label="Select payment method"
-        title="Select payment method"
-      >
-        {paymentTypeBadgeLabel(ob.paymentMethod?.paymentType)}
-      </button>
-      {openPayTypePickerFor === ob.id && (
-        <div
-          className={`billing-open-paytype-popup ${openPayTypePickerPlacement === 'up' ? 'billing-open-paytype-popup--up' : ''}`}
-          role="dialog"
-          aria-label="Select payment method"
-        >
-          {paymentMethods.map((method) => (
-            <label key={method.id} className="billing-open-paytype-option">
-              <input
-                type="radio"
-                name={`open-bill-paytype-${ob.id}`}
-                checked={ob.paymentMethod?.id === method.id}
-                onChange={() => {
-                  updateOpenBillPaymentMethod(ob.id, method.id)
-                  setOpenPayTypePickerFor(null)
-                }}
-              />
-              <span>{method.name}</span>
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
+    <BillingMobilePaymentMethodPicker
+      openBill={ob}
+      paymentMethods={paymentMethods}
+      isOpen={openPayTypePickerFor === ob.id}
+      placement={openPayTypePickerPlacement}
+      onPlacementChange={setOpenPayTypePickerPlacement}
+      onOpenChange={(nextOpen) => setOpenPayTypePickerFor(nextOpen ? ob.id : null)}
+      onSelect={(methodId) => updateOpenBillPaymentMethod(ob.id, methodId)}
+    />
   )
 
   /** Plain document icon (matches open-bill “create bill” icon, no payment-status badge). */
@@ -953,13 +794,6 @@ export function BillingPage() {
       <path d="M8 17h8M8 13h8" />
     </svg>
   )
-
-  const folioHistoryMobileStatusPill = (bill: Bill): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
-    if (bill.fiscalStatus === 'FAILED') return { label: 'FISCAL FAILED', variant: 'fiscal-failed' }
-    if (bill.paymentStatus === 'payment_pending') return { label: 'PAYMENT PENDING', variant: 'payment-pending' }
-    if (bill.paymentStatus === 'paid') return { label: 'PAID', variant: 'paid' }
-    return null
-  }
 
   return (
     <div className="stack gap-lg">
@@ -1760,30 +1594,19 @@ export function BillingPage() {
         </div>
       )}
 
-      {showAddCompanyModal && (
-        <div className="modal-backdrop" onClick={() => setShowAddCompanyModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <PageHeader title={billingCopy.newCompanyTitle} subtitle={billingCopy.newCompanySubtitle} />
-            <div className="form-grid">
-              <Field label={billingCopy.companyName}>
-                <input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} placeholder={billingCopy.companyName} />
-              </Field>
-              <Field label={billingCopy.email}>
-                <input type="email" value={newCompanyEmail} onChange={(e) => setNewCompanyEmail(e.target.value)} placeholder={billingCopy.emailOptional} />
-              </Field>
-              <Field label={billingCopy.telephone}>
-                <input value={newCompanyTelephone} onChange={(e) => setNewCompanyTelephone(e.target.value)} placeholder={billingCopy.telephoneOptional} />
-              </Field>
-              <div className="form-actions full-span">
-                <button type="button" onClick={createCompanyInline} disabled={creatingCompany || !newCompanyName.trim()}>
-                  {creatingCompany ? billingCopy.creating : billingCopy.create}
-                </button>
-                <button type="button" className="secondary" onClick={() => setShowAddCompanyModal(false)}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <BillingAddCompanyModal
+        open={showAddCompanyModal}
+        copy={billingCopy}
+        companyName={newCompanyName}
+        companyEmail={newCompanyEmail}
+        companyTelephone={newCompanyTelephone}
+        creating={creatingCompany}
+        onCompanyNameChange={setNewCompanyName}
+        onCompanyEmailChange={setNewCompanyEmail}
+        onCompanyTelephoneChange={setNewCompanyTelephone}
+        onCreate={createCompanyInline}
+        onClose={() => setShowAddCompanyModal(false)}
+      />
 
       {fiscalLogBill && (
         <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { setFiscalLogBill(null); setDetailFolioBill(null) }}>
