@@ -1,5 +1,6 @@
 package com.example.app.billing;
 
+import java.time.LocalDate;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,11 +107,13 @@ public class InvoicePdfS3Service {
     }
 
     String buildObjectKey(Bill bill) {
-        String rawPrefix = properties.getPrefix() == null ? "invoices" : properties.getPrefix().trim();
+        String rawPrefix = properties.getPrefix() == null ? "calendra/tenants" : properties.getPrefix().trim();
         String prefix = rawPrefix.replaceAll("^/+|/+$", "");
-        long companyId = bill.getCompany().getId();
+        long tenancyId = bill.getCompany().getId();
+        LocalDate issueDate = bill.getIssueDate();
+        int year = issueDate == null ? LocalDate.now().getYear() : issueDate.getYear();
         long billId = bill.getId() == null ? 0L : bill.getId();
         String safeNum = bill.getBillNumber() == null ? "unknown" : SANITIZE_KEY.matcher(bill.getBillNumber()).replaceAll("_");
-        return prefix + "/" + companyId + "/" + billId + "_" + safeNum + ".pdf";
+        return prefix + "/" + tenancyId + "/invoices/" + year + "/" + billId + "_" + safeNum + ".pdf";
     }
 }
