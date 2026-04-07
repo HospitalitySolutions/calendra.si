@@ -87,10 +87,12 @@ export function Shell({ children }: PropsWithChildren) {
 function ShellInner({ children }: PropsWithChildren) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const user = getStoredUser()!
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
-  const [companyName, setCompanyName] = useState('Company')
+  const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
+  const voiceLabel = locale === 'sl' ? 'Glasovno naročanje' : 'Voice booking'
+  const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [aiBookingEnabled, setAiBookingEnabled] = useState(true)
   const [overdueTodoCount, setOverdueTodoCount] = useState(0)
   const [todos, setTodos] = useState<any[]>([])
@@ -147,7 +149,7 @@ function ShellInner({ children }: PropsWithChildren) {
       .then((r) => {
         const settingsData = r.data || {}
         const configuredName = String(settingsData.COMPANY_NAME || '').trim()
-        setCompanyName(configuredName || 'Company')
+        setCompanyName(configuredName || defaultCompanyName)
         setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED !== 'false')
       })
       .catch(() => {})
@@ -158,7 +160,7 @@ function ShellInner({ children }: PropsWithChildren) {
     const onSettings = () => loadCompanyName()
     window.addEventListener('settings-updated', onSettings)
     return () => window.removeEventListener('settings-updated', onSettings)
-  }, [])
+  }, [defaultCompanyName])
 
   /** Keep bottom tabs fixed: only the main column scrolls, not the whole WebView. */
   useEffect(() => {
@@ -265,8 +267,8 @@ function ShellInner({ children }: PropsWithChildren) {
         type="button"
         className={`global-voice-fab${isNativeAndroid ? ' global-voice-fab--android' : ''}`}
         onClick={triggerGlobalVoice}
-        aria-label="Glasovno rezerviranje"
-        title="Glasovno rezerviranje"
+        aria-label={voiceLabel}
+        title={voiceLabel}
       >
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />

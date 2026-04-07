@@ -5,6 +5,7 @@ import { getStoredUser } from '../auth'
 import type { Client, ClientMessage, Company, User } from '../lib/types'
 import { EmptyState, PageHeader, SectionTitle } from './ui'
 import { formatDateTime, fullName } from '../lib/format'
+import { useLocale } from '../locale'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
@@ -39,6 +40,96 @@ export function ClientDetailSidePanel({
   showLifecycleActions?: boolean
 }) {
   const me = getStoredUser()!
+  const { locale, t } = useLocale()
+  const copy = locale === 'sl' ? {
+    details: 'Podrobnosti',
+    client: 'STRANKA',
+    inactive: 'Neaktivna',
+    firstName: 'Ime',
+    lastName: 'Priimek',
+    email: 'E-pošta',
+    phone: 'Telefon',
+    linkedCompany: 'Povezano podjetje',
+    batchPayment: 'Paketno plačilo',
+    sessions: 'Termini',
+    sessionsSubtitle: 'Preglej prihodnje in pretekle termine, povezane s to stranko.',
+    future: 'Prihodnji',
+    past: 'Pretekli',
+    sessionsCount: (count: number) => `${count} terminov`,
+    loading: 'Nalagam…',
+    loadingSessions: 'Nalagam termine…',
+    noUpcomingTitle: 'Ni prihodnjih terminov',
+    noUpcomingText: 'Tukaj se prikažejo rezervirani termini z začetkom po trenutnem času.',
+    noPastTitle: 'Ni preteklih terminov',
+    noPastText: 'Tukaj se prikažejo termini z začetkom pred ali ob trenutnem času.',
+    liveSession: 'Termin v živo',
+    start: 'Začetek',
+    end: 'Konec',
+    messages: 'Sporočila',
+    messagesSubtitle: 'Nedavna sporočila, shranjena iz Analitika → Prejeto.',
+    loadingMessages: 'Nalagam sporočila…',
+    noMessagesTitle: 'Sporočil še ni',
+    noMessagesText: 'Sporočila, poslana iz zavihka Prejeto, se bodo prikazala tukaj.',
+    emailMessage: 'E-poštno sporočilo',
+    whatsappMessage: 'WhatsApp sporočilo',
+    viberMessage: 'Viber sporočilo',
+    sent: 'Poslano',
+    failed: 'Napaka',
+    when: 'Kdaj',
+    to: 'Za',
+    anonymize: 'Anonimiziraj',
+    anonymizing: 'Anonimiziram...',
+    yesAnonymize: 'Da, anonimiziraj',
+    saveChanges: 'Shrani spremembe',
+    savingChanges: 'Shranjujem spremembe…',
+    saving: 'Shranjujem...',
+    deactivate: 'Deaktiviraj',
+    activate: 'Aktiviraj',
+  } : {
+    details: 'Details',
+    client: 'CLIENT',
+    inactive: 'Inactive',
+    firstName: 'First name',
+    lastName: 'Last name',
+    email: 'Email',
+    phone: 'Phone',
+    linkedCompany: 'Linked company',
+    batchPayment: 'Batch payment',
+    sessions: 'Sessions',
+    sessionsSubtitle: 'View future and past bookings linked to this client.',
+    future: 'Future',
+    past: 'Past',
+    sessionsCount: (count: number) => `${count} sessions`,
+    loading: 'Loading…',
+    loadingSessions: 'Loading sessions…',
+    noUpcomingTitle: 'No upcoming sessions',
+    noUpcomingText: 'Booked sessions with a start time after now appear here.',
+    noPastTitle: 'No past sessions',
+    noPastText: 'Sessions with a start time before or at now appear here.',
+    liveSession: 'Live session',
+    start: 'Start',
+    end: 'End',
+    messages: 'Messages',
+    messagesSubtitle: 'Recent messages saved from Analytics → Inbox.',
+    loadingMessages: 'Loading messages…',
+    noMessagesTitle: 'No messages yet',
+    noMessagesText: 'Messages sent from the Inbox tab will appear here.',
+    emailMessage: 'Email message',
+    whatsappMessage: 'WhatsApp message',
+    viberMessage: 'Viber message',
+    sent: 'Sent',
+    failed: 'Failed',
+    when: 'When',
+    to: 'To',
+    anonymize: 'Anonymize',
+    anonymizing: 'Anonymizing...',
+    yesAnonymize: 'Yes, anonymize',
+    saveChanges: 'Save changes',
+    savingChanges: 'Saving changes…',
+    saving: 'Saving...',
+    deactivate: 'Deactivate',
+    activate: 'Activate',
+  }
   const isAdmin = me.role === 'ADMIN'
   const [detailClient, setDetailClient] = useState<Client | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -318,7 +409,7 @@ export function ClientDetailSidePanel({
                   setDetailEditDraft({ ...detailEditDraft, billingCompanyId: e.target.value ? Number(e.target.value) : null })
                 }
               >
-                <option value="">No linked company</option>
+                <option value="">{locale === 'sl' ? 'Brez povezanega podjetja' : 'No linked company'}</option>
                 {companies.map((company) => (
                   <option key={company.id} value={company.id}>
                     {company.name}
@@ -360,8 +451,8 @@ export function ClientDetailSidePanel({
       >
         <div className="booking-side-panel-header">
           <PageHeader
-            title="Details"
-            subtitle="CLIENT"
+            title={copy.details}
+            subtitle={copy.client}
             actions={
               <button type="button" className="secondary booking-side-panel-close" onClick={onClose} aria-label="Close">
                 ×
@@ -381,7 +472,7 @@ export function ClientDetailSidePanel({
             </div>
           ) : null}
           {!detailClient && !loadError ? (
-            <div className="muted">Loading…</div>
+            <div className="muted">{copy.loading}</div>
           ) : detailClient ? (
             <div className="clients-detail-shell">
               <div className="clients-detail-hero clients-detail-head-card">
@@ -392,20 +483,20 @@ export function ClientDetailSidePanel({
                 <div className="clients-name-stack">
                   <span className="clients-name">
                     {fullName(detailClient)}
-                    {detailClient.active === false && <span className="clients-inactive-badge">Inactive</span>}
+                    {detailClient.active === false && <span className="clients-inactive-badge">{copy.inactive}</span>}
                   </span>
                   <span className="clients-id">ID #{detailClient.id}</span>
                 </div>
               </div>
 
               <div className="clients-detail-fields">
-                {renderClientEditableField('firstName', 'First name')}
-                {renderClientEditableField('lastName', 'Last name')}
-                {renderClientEditableField('email', 'Email', true)}
-                {renderClientEditableField('phone', 'Phone', true)}
-                {renderClientEditableField('billingCompanyId', 'Linked company', true)}
+                {renderClientEditableField('firstName', copy.firstName)}
+                {renderClientEditableField('lastName', copy.lastName)}
+                {renderClientEditableField('email', copy.email, true)}
+                {renderClientEditableField('phone', copy.phone, true)}
+                {renderClientEditableField('billingCompanyId', copy.linkedCompany, true)}
                 <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                  <span>Batch payment</span>
+                  <span>{copy.batchPayment}</span>
                   <button
                     type="button"
                     className={`clients-batch-switch${detailClient.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
@@ -419,9 +510,9 @@ export function ClientDetailSidePanel({
               </div>
 
               <div className="clients-detail-sessions-card clients-detail-sessions-card--modern">
-                <SectionTitle>Sessions</SectionTitle>
+                <SectionTitle>{copy.sessions}</SectionTitle>
                 <p className="muted" style={{ marginTop: -6, marginBottom: 10 }}>
-                  View future and past bookings linked to this client.
+                  {copy.sessionsSubtitle}
                 </p>
                 <div className="clients-detail-session-tabs-row">
                   <div className="clients-session-tabs">
@@ -431,7 +522,7 @@ export function ClientDetailSidePanel({
                       onClick={() => setSessionTab('future')}
                       aria-pressed={sessionTab === 'future'}
                     >
-                      Future
+                      {copy.future}
                     </button>
                     <button
                       type="button"
@@ -439,7 +530,7 @@ export function ClientDetailSidePanel({
                       onClick={() => setSessionTab('past')}
                       aria-pressed={sessionTab === 'past'}
                     >
-                      Past
+                      {copy.past}
                     </button>
                   </div>
                   <span
@@ -449,16 +540,16 @@ export function ClientDetailSidePanel({
                   >
                     {detailSessionsLoading
                       ? '…'
-                      : `${sessionTab === 'future' ? futureSessions.length : pastSessions.length} sessions`}
+                      : copy.sessionsCount(sessionTab === 'future' ? futureSessions.length : pastSessions.length)}
                   </span>
                 </div>
                 {detailSessionsError && <div className="error">{detailSessionsError}</div>}
                 {detailSessionsLoading ? (
-                  <div className="muted">Loading sessions…</div>
+                  <div className="muted">{copy.loadingSessions}</div>
                 ) : sessionTab === 'future' ? (
                   futureSessions.length === 0 ? (
                     <div className="clients-detail-empty-card">
-                      <EmptyState title="No upcoming sessions" text="Booked sessions with a start time after now appear here." />
+                      <EmptyState title={copy.noUpcomingTitle} text={copy.noUpcomingText} />
                     </div>
                   ) : (
                     <div className="clients-detail-session-list">
@@ -468,16 +559,16 @@ export function ClientDetailSidePanel({
                             <span className="clients-detail-session-no">#{s.id}</span>
                             <div className="clients-detail-session-heading">
                               <strong>{fullName({ firstName: s.consultantFirstName, lastName: s.consultantLastName })}</strong>
-                              <span>Live session</span>
+                              <span>{copy.liveSession}</span>
                             </div>
                           </div>
                           <div className="clients-detail-session-times">
                             <div>
-                              <span>Start</span>
+                              <span>{copy.start}</span>
                               <strong>{formatDateTime(s.startTime)}</strong>
                             </div>
                             <div>
-                              <span>End</span>
+                              <span>{copy.end}</span>
                               <strong>{formatDateTime(s.endTime)}</strong>
                             </div>
                           </div>
@@ -487,7 +578,7 @@ export function ClientDetailSidePanel({
                   )
                 ) : pastSessions.length === 0 ? (
                   <div className="clients-detail-empty-card">
-                    <EmptyState title="No past sessions" text="Sessions with a start time before or at now appear here." />
+                    <EmptyState title={copy.noPastTitle} text={copy.noPastText} />
                   </div>
                 ) : (
                   <div className="clients-detail-session-list">
@@ -497,16 +588,16 @@ export function ClientDetailSidePanel({
                           <span className="clients-detail-session-no">#{s.id}</span>
                           <div className="clients-detail-session-heading">
                             <strong>{fullName({ firstName: s.consultantFirstName, lastName: s.consultantLastName })}</strong>
-                            <span>Live session</span>
+                            <span>{copy.liveSession}</span>
                           </div>
                         </div>
                         <div className="clients-detail-session-times">
                           <div>
-                            <span>Start</span>
+                            <span>{copy.start}</span>
                             <strong>{formatDateTime(s.startTime)}</strong>
                           </div>
                           <div>
-                            <span>End</span>
+                            <span>{copy.end}</span>
                             <strong>{formatDateTime(s.endTime)}</strong>
                           </div>
                         </div>
@@ -517,15 +608,15 @@ export function ClientDetailSidePanel({
               </div>
 
               <div className="clients-detail-sessions-card clients-detail-sessions-card--modern">
-                <SectionTitle>Messages</SectionTitle>
+                <SectionTitle>{copy.messages}</SectionTitle>
                 <p className="muted" style={{ marginTop: -6, marginBottom: 10 }}>
-                  Recent messages saved from Analytics → Inbox.
+                  {copy.messagesSubtitle}
                 </p>
                 {detailMessagesLoading ? (
-                  <div className="muted">Loading messages…</div>
+                  <div className="muted">{copy.loadingMessages}</div>
                 ) : detailMessages.length === 0 ? (
                   <div className="clients-detail-empty-card">
-                    <EmptyState title="No messages yet" text="Messages sent from the Inbox tab will appear here." />
+                    <EmptyState title={copy.noMessagesTitle} text={copy.noMessagesText} />
                   </div>
                 ) : (
                   <div className="clients-detail-session-list">
@@ -534,17 +625,17 @@ export function ClientDetailSidePanel({
                         <div className="clients-detail-session-top clients-detail-session-top--modern">
                           <span className="clients-detail-session-no">{message.channel === 'WHATSAPP' ? 'WA' : message.channel === 'VIBER' ? 'VB' : 'EM'}</span>
                           <div className="clients-detail-session-heading">
-                            <strong>{message.subject || (message.channel === 'EMAIL' ? 'Email message' : message.channel === 'WHATSAPP' ? 'WhatsApp message' : 'Viber message')}</strong>
-                            <span>{message.status === 'SENT' ? 'Sent' : 'Failed'}</span>
+                            <strong>{message.subject || (message.channel === 'EMAIL' ? copy.emailMessage : message.channel === 'WHATSAPP' ? copy.whatsappMessage : copy.viberMessage)}</strong>
+                            <span>{message.status === 'SENT' ? copy.sent : copy.failed}</span>
                           </div>
                         </div>
                         <div className="clients-detail-session-times">
                           <div>
-                            <span>When</span>
+                            <span>{copy.when}</span>
                             <strong>{formatDateTime(message.sentAt || message.createdAt)}</strong>
                           </div>
                           <div>
-                            <span>To</span>
+                            <span>{copy.to}</span>
                             <strong>{message.recipient}</strong>
                           </div>
                         </div>
@@ -567,30 +658,28 @@ export function ClientDetailSidePanel({
                 !detailClient.anonymized &&
                 (confirmAnonymize ? (
                   <>
-                    <button type="button" className="danger secondary" onClick={() => setConfirmAnonymize(false)} disabled={anonymizing}>
-                      Cancel
-                    </button>
+                    <button type="button" className="danger secondary" onClick={() => setConfirmAnonymize(false)} disabled={anonymizing}>{t('cancel')}</button>
                     <button type="button" className="danger" onClick={() => void anonymizeClient()} disabled={anonymizing}>
-                      {anonymizing ? 'Anonymizing...' : 'Yes, anonymize'}
+                      {anonymizing ? copy.anonymizing : copy.yesAnonymize}
                     </button>
                   </>
                 ) : (
                   <button type="button" className="danger secondary" onClick={() => setConfirmAnonymize(true)}>
-                    Anonymize
+                    {copy.anonymize}
                   </button>
                 ))}
             </div>
             <div className="clients-detail-footer-center">
               {clientDetailHasChanges && (
                 <button type="button" onClick={() => void saveDetailClientInline()} disabled={savingDetailEdit}>
-                  {savingDetailEdit ? 'Saving changes…' : 'Save changes'}
+                  {savingDetailEdit ? copy.savingChanges : copy.saveChanges}
                 </button>
               )}
             </div>
             <div className="clients-detail-footer-right">
               {showLifecycleActions && (
                 <button type="button" className="secondary" onClick={() => void toggleActive()} disabled={activating}>
-                  {activating ? 'Saving...' : detailClient.active !== false ? 'Deactivate' : 'Activate'}
+                  {activating ? copy.saving : detailClient.active !== false ? copy.deactivate : copy.activate}
                 </button>
               )}
             </div>

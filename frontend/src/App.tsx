@@ -14,6 +14,7 @@ import { BillingPage } from './pages/BillingPage'
 import { ClientsPage } from './pages/ClientsPage'
 import { ConfigurationPage } from './pages/ConfigurationPage'
 import { PlatformAdminPage } from './pages/PlatformAdminPage'
+import { useLocale } from './locale'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 
@@ -24,6 +25,22 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const { locale } = useLocale()
+  const copy = locale === 'sl' ? {
+    googleSignInFailed: 'Google prijava ni uspela: ',
+    zoomConnected: 'Zoom je uspešno povezan. Zdaj lahko ustvarjate spletne termine.',
+    zoomAuthorizationFailed: 'Zoom avtorizacija ni uspela: ',
+    googleConnected: 'Google je uspešno povezan. Zdaj lahko ustvarjate spletne termine.',
+    googleAuthorizationFailed: 'Google avtorizacija ni uspela: ',
+    loading: 'Nalaganje…',
+  } : {
+    googleSignInFailed: 'Google sign-in failed: ',
+    zoomConnected: 'Zoom connected successfully. You can now create online sessions.',
+    zoomAuthorizationFailed: 'Zoom authorization failed: ',
+    googleConnected: 'Google connected successfully. You can now create online sessions.',
+    googleAuthorizationFailed: 'Google authorization failed: ',
+    loading: 'Loading…',
+  }
   const handledRef = useRef(false)
 
   useEffect(() => {
@@ -45,7 +62,7 @@ export default function App() {
       handledRef.current = true
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(Date.now()))
       navigate(location.pathname, { replace: true })
-      showToast('error', 'Google sign-in failed: ' + decodeURIComponent(oauthError))
+      showToast('error', copy.googleSignInFailed + decodeURIComponent(oauthError))
     } else if (zoomConnected) {
       if (handledRef.current) return
       handledRef.current = true
@@ -54,7 +71,7 @@ export default function App() {
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
       navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
-      showToast('success', 'Zoom connected successfully. You can now create online sessions.')
+      showToast('success', copy.zoomConnected)
     } else if (zoomError) {
       if (handledRef.current) return
       handledRef.current = true
@@ -63,7 +80,7 @@ export default function App() {
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
       navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
-      showToast('error', 'Zoom authorization failed: ' + decodeURIComponent(zoomError))
+      showToast('error', copy.zoomAuthorizationFailed + decodeURIComponent(zoomError))
     } else if (googleConnected) {
       if (handledRef.current) return
       handledRef.current = true
@@ -72,7 +89,7 @@ export default function App() {
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
       navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
-      showToast('success', 'Google connected successfully. You can now create online sessions.')
+      showToast('success', copy.googleConnected)
     } else if (googleError) {
       if (handledRef.current) return
       handledRef.current = true
@@ -81,7 +98,7 @@ export default function App() {
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
       navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
-      showToast('error', 'Google authorization failed: ' + decodeURIComponent(googleError))
+      showToast('error', copy.googleAuthorizationFailed + decodeURIComponent(googleError))
     }
   }, [location.search, location.pathname, navigate, showToast, user])
 
@@ -111,7 +128,7 @@ export default function App() {
 
   return (
     <Shell>
-      <Suspense fallback={<div className="content content-android-native" style={{ padding: 24 }}>Loading…</div>}>
+      <Suspense fallback={<div className="content content-android-native" style={{ padding: 24 }}>{copy.loading}</div>}>
         <Routes>
           <Route path="/" element={<Navigate to="/calendar" replace />} />
           <Route path="/calendar" element={<CalendarPage key={location.key} />} />

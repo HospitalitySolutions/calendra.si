@@ -666,6 +666,258 @@ const DICT: Record<AppLocale, Record<string, string>> = {
   },
 }
 
+
+
+const DOM_TRANSLATIONS_SL: Record<string, string> = {
+  'Loading…': 'Nalaganje…',
+  'Loading...': 'Nalaganje...',
+  'Loading analytics…': 'Nalagam analitiko…',
+  'Loading thread...': 'Nalagam pogovor...',
+  'Loading messages…': 'Nalagam sporočila…',
+  'New': 'Novo',
+  'Edit': 'Uredi',
+  'Delete': 'Izbriši',
+  'Close': 'Zapri',
+  'Save': 'Shrani',
+  'Save changes': 'Shrani spremembe',
+  'Cancel': 'Prekliči',
+  'Create': 'Ustvari',
+  'Compose': 'Novo sporočilo',
+  'Client': 'Stranka',
+  'Client details': 'Podrobnosti stranke',
+  'Clients': 'Stranke',
+  'Company': 'Podjetje',
+  'Companies': 'Podjetja',
+  'Consultant': 'Zaposleni',
+  'Consultants': 'Zaposleni',
+  'Booking': 'Rezervacije',
+  'Billing': 'Obračun',
+  'Notifications': 'Obvestila',
+  'Messages': 'Sporočila',
+  'Messaging': 'Sporočanje',
+  'Subject': 'Zadeva',
+  'Message': 'Sporočilo',
+  'Recipients': 'Prejemniki',
+  'Single client': 'Ena stranka',
+  'Bulk send': 'Množično pošiljanje',
+  'Select client': 'Izberi stranko',
+  'Select all': 'Izberi vse',
+  'Select eligible': 'Izberi ustrezne',
+  'Clear': 'Počisti',
+  'Ready': 'Pripravljeno',
+  'Missing email': 'Manjka e-pošta',
+  'Missing phone': 'Manjka telefon',
+  'Opt-in needed': 'Potrebno soglasje',
+  'Not linked': 'Ni povezano',
+  'Sent': 'Poslano',
+  'Received': 'Prejeto',
+  'Failed': 'Neuspešno',
+  'No conversations yet': 'Pogovorov še ni',
+  'Send the first message to start a client thread.': 'Pošljite prvo sporočilo za začetek pogovora s stranko.',
+  'No client selected': 'Stranka ni izbrana',
+  'Pick a conversation from the left, or choose a client in the composer to start a new one.': 'Izberite pogovor na levi ali izberite stranko v obrazcu, da začnete novega.',
+  'No saved messages yet': 'Shranjenih sporočil še ni',
+  'Write the first message in the composer.': 'Prvo sporočilo napišite v obrazcu.',
+  'Send and save messages from one place.': 'Pošiljajte in shranjujte sporočila na enem mestu.',
+  'Filter clients by name, email, or phone': 'Filtriraj stranke po imenu, e-pošti ali telefonu',
+  'No clients match this search.': 'Nobena stranka ne ustreza iskanju.',
+  'No contact info': 'Ni kontaktnih podatkov',
+  'Subject': 'Zadeva',
+  'Write your email...': 'Napišite e-pošto...',
+  'Write your WhatsApp message...': 'Napišite WhatsApp sporočilo...',
+  'Write your Viber message...': 'Napišite Viber sporočilo...',
+  'Search by client, channel, subject, recipient...': 'Išči po stranki, kanalu, zadevi ali prejemniku...',
+  'Email': 'E-pošta',
+  'Phone': 'Telefon',
+  'Telephone': 'Telefon',
+  'Telephone (optional)': 'Telefon (neobvezno)',
+  'Email (optional)': 'E-pošta (neobvezno)',
+  'Address': 'Naslov',
+  'Postal code': 'Poštna številka',
+  'City': 'Mesto',
+  'VAT ID': 'Davčna številka',
+  'IBAN': 'IBAN',
+  'BIC / SWIFT (optional)': 'BIC / SWIFT (neobvezno)',
+  'First name': 'Ime',
+  'Last name': 'Priimek',
+  'Details': 'Podrobnosti',
+  'CLIENT': 'STRANKA',
+  'COMPANY': 'PODJETJE',
+  'Inactive': 'Neaktivna',
+  'Linked company': 'Povezano podjetje',
+  'Batch payment': 'Paketno plačilo',
+  'Sessions': 'Termini',
+  'Future': 'Prihodnji',
+  'Past': 'Pretekli',
+  'No upcoming sessions': 'Ni prihodnjih terminov',
+  'No past sessions': 'Ni preteklih terminov',
+  'Live session': 'Termin v živo',
+  'Start': 'Začetek',
+  'End': 'Konec',
+  'When': 'Kdaj',
+  'To': 'Za',
+  'No linked company': 'Brez povezanega podjetja',
+  'Assigned consultant': 'Dodeljeni zaposleni',
+  'Create client': 'Ustvari stranko',
+  'Create company': 'Ustvari podjetje',
+  'Create type': 'Ustvari storitev',
+  'Create space': 'Ustvari lokacijo',
+  'Create method': 'Ustvari način',
+  'New client': 'Nova stranka',
+  'New company': 'Novo podjetje',
+  'New type': 'Nova storitev',
+  'New space': 'Nova lokacija',
+  'New payment method': 'Nov način plačila',
+  'Edit consultant': 'Uredi zaposlenega',
+  'New consultant': 'Nov zaposleni',
+  'Consultant updated successfully.': 'Zaposleni je uspešno posodobljen.',
+  'Consultant created successfully.': 'Zaposleni je uspešno ustvarjen.',
+  'No consultants': 'Ni zaposlenih',
+  'Search consultants...': 'Išči zaposlene...',
+  'Click New to create your first consultant.': 'Kliknite Novo za ustvarjanje prvega zaposlenega.',
+  'Bookable sessions': 'Razpoložljivi termini',
+  'Set recurring availability windows for consultants with optional date ranges.': 'Nastavite ponavljajoča obdobja razpoložljivosti za zaposlene z neobveznimi datumskimi omejitvami.',
+  'Search day, time, or consultant': 'Išči dan, čas ali zaposlenega',
+  'No bookable sessions': 'Ni razpoložljivih terminov',
+  'Create the first available slot using the form on the right.': 'Ustvarite prvi razpoložljivi termin z obrazcem na desni.',
+  'Delete this bookable session?': 'Izbrišem ta razpoložljivi termin?',
+  'Edit bookable session': 'Uredi razpoložljivi termin',
+  'New bookable session': 'Nov razpoložljivi termin',
+  'Day of week': 'Dan v tednu',
+  'Start time': 'Začetni čas',
+  'End time': 'Končni čas',
+  'Indefinite': 'Neomejeno',
+  'Indefinite availability': 'Neomejena razpoložljivost',
+  'Start date': 'Začetni datum',
+  'End date': 'Končni datum',
+  'Create bookable session': 'Ustvari razpoložljivi termin',
+  'Booked sessions': 'Rezervirani termini',
+  'Filter upcoming or past sessions by date, client, consultant, space, and type.': 'Filtrirajte prihodnje ali pretekle termine po datumu, stranki, zaposlenem, lokaciji in storitvi.',
+  'Search': 'Iskanje',
+  'Client, consultant, notes...': 'Stranka, zaposleni, opombe...',
+  'Space': 'Lokacija',
+  'Type': 'Storitev',
+  'No sessions': 'Ni terminov',
+  'No booked sessions matched the active filters.': 'Noben rezerviran termin ne ustreza aktivnim filtrom.',
+  'Spaces': 'Lokacije',
+  'Manage locations where a single session can be booked at a time.': 'Upravljajte lokacije, kjer je lahko hkrati rezerviran le en termin.',
+  'No spaces': 'Ni lokacij',
+  'Create your first space using the form on the right.': 'Prvo lokacijo ustvarite z obrazcem na desni.',
+  'Edit space': 'Uredi lokacijo',
+  'New space': 'Nova lokacija',
+  'Space name': 'Naziv lokacije',
+  'Description': 'Opis',
+  'Types': 'Storitve',
+  'Control the list of session types available for bookings and consultants.': 'Urejajte seznam storitev, ki so na voljo za rezervacije in zaposlene.',
+  'No session types': 'Ni storitev',
+  'Create your first type using the form on the right.': 'Prvo storitev ustvarite z obrazcem na desni.',
+  'Edit type': 'Uredi storitev',
+  'Type name': 'Naziv storitve',
+  'Duration (minutes)': 'Trajanje (minute)',
+  'Break (minutes)': 'Pavza (minute)',
+  'Booked session block length shown on the calendar.': 'Dolžina bloka rezerviranega termina v koledarju.',
+  'Adds unavailable hatch time right after the session without extending the visible session block.': 'Doda nedosegljiv čas takoj po terminu brez podaljšanja vidnega bloka v koledarju.',
+  'Sessions': 'Termini',
+  'Booked sessions and consultant availability.': 'Rezervirani termini in razpoložljivost zaposlenih.',
+  'Settings': 'Nastavitve',
+  'Control optional modules and the default session duration used across the app.': 'Upravljajte dodatne module in privzeto trajanje termina v aplikaciji.',
+  'Session length (minutes)': 'Trajanje termina (minute)',
+  'Used as the default end time suggestion for bookable and booked sessions.': 'Uporablja se kot privzeti predlog časa konca za razpoložljive in rezervirane termine.',
+  'Invoice counter': 'Števec računov',
+  'The next invoice number to use. Supports alphanumeric values (e.g. 1, INV-0007).': 'Naslednja številka računa. Podpira alfanumerične vrednosti (npr. 1, INV-0007).',
+  'Payment deadline (days)': 'Rok plačila (dni)',
+  'Due date is issue date + this number of days.': 'Rok zapadlosti je datum izdaje + to število dni.',
+  'Used on invoice PDFs. Only one company profile is stored.': 'Uporablja se na PDF računih. Shranjen je samo en profil podjetja.',
+  'Save global settings': 'Shrani globalne nastavitve',
+  'No predefined personal tasks': 'Ni prednastavljenih osebnih opravil',
+  'Click New to create your first personal task preset.': 'Kliknite Novo za ustvarjanje prve prednastavitve osebnega opravila.',
+  'No transaction services': 'Ni transakcijskih storitev',
+  'Click New to create your first service.': 'Kliknite Novo za ustvarjanje prve storitve.',
+  'No payment methods': 'Ni načinov plačila',
+  'Click New to create your first payment method.': 'Kliknite Novo za ustvarjanje prvega načina plačila.',
+  'Show registered premises': 'Prikaži registrirane poslovne prostore',
+  'Name': 'Naziv',
+  'Payment type': 'Vrsta plačila',
+  'Fiscalized': 'Fiskalizirano',
+  'When ON, creating a bill sends the invoice to the fiscal service.': 'Ko je VKLOPLJENO, ustvarjanje računa pošlje račun v fiskalni servis.',
+  'Stripe (card only)': 'Stripe (samo kartice)',
+  'Create bookings, clients and issued bills to populate charts.': 'Za prikaz grafov ustvarite termine, stranke in izdane račune.',
+  'No analytics data yet': 'Analitičnih podatkov še ni',
+  'No messages yet': 'Sporočil še ni',
+  'Messages sent from the Inbox tab will appear here.': 'Sporočila, poslana iz zavihka Prejeto, se bodo prikazala tukaj.',
+  'Dismiss': 'Zapri',
+  'Tenancy details': 'Podrobnosti naročnine',
+  'Company name': 'Naziv podjetja',
+  'Contact name': 'Kontaktna oseba',
+  'Contact email': 'Kontaktni e-poštni naslov',
+  'Contact phone': 'Kontaktni telefon',
+  'Created on': 'Ustvarjeno',
+  'Subscription start': 'Začetek naročnine',
+  'Subscription end': 'Konec naročnine',
+  'Users': 'Uporabniki',
+  'SMS sent': 'Poslanih SMS',
+  'Package type': 'Tip paketa',
+  'Subscription type': 'Tip naročnine',
+  'Due amount': 'Znesek za plačilo',
+  'Inbox': 'Prejeto',
+  'Threads': 'Pogovori',
+  'Latest message per client.': 'Zadnje sporočilo za vsako stranko.',
+  'Loading inbox...': 'Nalagam prejeto...',
+  'No preview available.': 'Predogled ni na voljo.',
+  'Choose a client thread to read the timeline.': 'Izberite pogovor stranke za ogled časovnice.',
+  'All clients': 'Vse stranke',
+  'All channels': 'Vsi kanali',
+  'All statuses': 'Vsi statusi',
+  'Open Google Meet': 'Odpri Google Meet',
+  'Open Zoom': 'Odpri Zoom',
+  'Yearly': 'Letno',
+  'Monthly': 'Mesečno',
+  'Booked': 'Rezervirani',
+  'Bookable': 'Razpoložljivi',
+  'Bill created': 'Račun je ustvarjen',
+  'Bank transfer folio with UPN QR has been emailed to the client. Import your bank statement CSV later to mark it paid automatically in folio history.': 'Račun za bančno nakazilo z UPN QR je bil poslan stranki po e-pošti. Kasneje uvozite bančni izpis CSV, da se v zgodovini računov samodejno označi kot plačan.',
+  'Payment link has been sent to the client email. Bill is now payment pending.': 'Povezava za plačilo je bila poslana na e-pošto stranke. Račun zdaj čaka na plačilo.',
+  'Unknown error': 'Neznana napaka',
+  'Failed to load admin console data.': 'Nalaganje administratorske konzole ni uspelo.',
+  'Failed to save.': 'Shranjevanje ni uspelo.',
+  'No token received from Google.': 'Od Googla ni bil prejet žeton.',
+  'Could not load user profile.': 'Profila uporabnika ni bilo mogoče naložiti.',
+  'Could not load tenancy details.': 'Podrobnosti naročnine ni bilo mogoče naložiti.',
+  'Glasovno rezerviranje': 'Glasovno naročanje',
+  'Voice booking': 'Glasovno naročanje',
+}
+
+const DOM_TRANSLATIONS_EN = Object.fromEntries(Object.entries(DOM_TRANSLATIONS_SL).map(([en, sl]) => [sl, en])) as Record<string, string>
+
+function replaceExactText(value: string, translations: Record<string, string>) {
+  const match = value.match(/^(\s*)(.*?)(\s*)$/s)
+  if (!match) return value
+  const [, leading, core, trailing] = match
+  const translated = translations[core]
+  if (!translated) return value
+  return `${leading}${translated}${trailing}`
+}
+
+function translateDomTree(root: Node, translations: Record<string, string>) {
+  if (root.nodeType === Node.TEXT_NODE) {
+    const current = root.textContent ?? ''
+    const next = replaceExactText(current, translations)
+    if (next !== current) root.textContent = next
+    return
+  }
+  if (root.nodeType !== Node.ELEMENT_NODE) return
+  const element = root as HTMLElement
+  const tag = element.tagName
+  if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return
+  ;(['placeholder', 'title', 'aria-label', 'data-tooltip'] as const).forEach((attr) => {
+    const current = element.getAttribute(attr)
+    if (!current) return
+    const next = translations[current] ?? current
+    if (next !== current) element.setAttribute(attr, next)
+  })
+  Array.from(element.childNodes).forEach((child) => translateDomTree(child, translations))
+}
+
 export function getStoredLocale(): AppLocale {
   try {
     const v = localStorage.getItem(STORAGE_KEY)
@@ -705,6 +957,22 @@ export function LocaleProvider({ children }: PropsWithChildren) {
     applyDocumentLang(next)
     window.dispatchEvent(new Event('locale-changed'))
   }, [])
+
+  useEffect(() => {
+    const translations = locale === 'sl' ? DOM_TRANSLATIONS_SL : DOM_TRANSLATIONS_EN
+    const apply = () => translateDomTree(document.body, translations)
+    const run = () => window.requestAnimationFrame(apply)
+    run()
+    const observer = new MutationObserver(() => run())
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['placeholder', 'title', 'aria-label', 'data-tooltip'],
+    })
+    return () => observer.disconnect()
+  }, [locale])
 
   const t = useCallback(
     (key: string) => DICT[locale]?.[key] ?? DICT.en[key] ?? key,

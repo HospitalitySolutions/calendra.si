@@ -7566,8 +7566,8 @@ export default function CalendarPage() {
           <div className="modal large-modal booking-side-panel clients-detail-side-panel clients-detail-panel-modern clients-create-modal" onClick={(e) => e.stopPropagation()}>
             <div className="booking-side-panel-header">
               <PageHeader
-                title="New client"
-                subtitle="CLIENT"
+                title={locale === 'sl' ? 'Nova stranka' : 'New client'}
+                subtitle={locale === 'sl' ? 'STRANKA' : 'CLIENT'}
                 actions={<button type="button" className="secondary booking-side-panel-close" onClick={() => setShowAddClientModal(false)} aria-label="Close">×</button>}
               />
             </div>
@@ -7576,26 +7576,26 @@ export default function CalendarPage() {
                 <div className="clients-detail-hero clients-detail-head-card clients-create-head-card">
                   <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{newClientInitials(newClientForm.firstName, newClientForm.lastName)}</span>
                   <div className="clients-name-stack">
-                    <span className="clients-name">{[newClientForm.firstName, newClientForm.lastName].filter(Boolean).join(' ').trim() || 'New client'}</span>
-                    <span className="clients-id">Create a client and attach them to this session.</span>
+                    <span className="clients-name">{[newClientForm.firstName, newClientForm.lastName].filter(Boolean).join(' ').trim() || (locale === 'sl' ? 'Nova stranka' : 'New client')}</span>
+                    <span className="clients-id">{locale === 'sl' ? 'Ustvari stranko in jo poveži s tem terminom.' : 'Create a client and attach them to this session.'}</span>
                   </div>
                 </div>
 
                 <div className="clients-detail-fields clients-create-fields">
                   <label className="clients-detail-field-card">
-                    <span>First name</span>
+                    <span>{locale === 'sl' ? 'Ime' : 'First name'}</span>
                     <input value={newClientForm.firstName} onChange={(e) => setNewClientForm({ ...newClientForm, firstName: e.target.value })} required />
                   </label>
                   <label className="clients-detail-field-card">
-                    <span>Last name</span>
+                    <span>{locale === 'sl' ? 'Priimek' : 'Last name'}</span>
                     <input value={newClientForm.lastName} onChange={(e) => setNewClientForm({ ...newClientForm, lastName: e.target.value })} required />
                   </label>
                   <label className="clients-detail-field-card clients-detail-field-card--wide">
-                    <span>Email</span>
+                    <span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span>
                     <input type="email" value={newClientForm.email} onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })} />
                   </label>
                   <label className="clients-detail-field-card clients-detail-field-card--wide">
-                    <span>Phone</span>
+                    <span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span>
                     <input value={newClientForm.phone} onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })} />
                   </label>
                 </div>
@@ -7604,8 +7604,8 @@ export default function CalendarPage() {
               </div>
             </div>
             <div className="form-actions booking-side-panel-footer clients-create-footer">
-              <button onClick={createClientFromBooking} disabled={savingClient}>{savingClient ? 'Saving…' : 'Create client'}</button>
-              <button type="button" className="secondary" onClick={() => setShowAddClientModal(false)}>Cancel</button>
+              <button onClick={createClientFromBooking} disabled={savingClient}>{savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : (locale === 'sl' ? 'Ustvari stranko' : 'Create client')}</button>
+              <button type="button" className="secondary" onClick={() => setShowAddClientModal(false)}>{t('cancel')}</button>
             </div>
           </div>
         </div>

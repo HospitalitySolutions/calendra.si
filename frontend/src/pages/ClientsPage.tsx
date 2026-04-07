@@ -89,7 +89,116 @@ function initials(...parts: Array<string | null | undefined>) {
 }
 
 export function ClientsPage() {
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
+  const clientsCopy = locale === 'sl' ? {
+    details: 'Podrobnosti',
+    client: 'STRANKA',
+    company: 'PODJETJE',
+    inactive: 'Neaktivna',
+    firstName: 'Ime',
+    lastName: 'Priimek',
+    email: 'E-pošta',
+    phone: 'Telefon',
+    whatsappOptIn: 'WhatsApp opt-in',
+    viberStatus: 'Viber status',
+    linkedToViberBot: 'Povezano z Viber botom',
+    notLinkedYet: 'Še ni povezano',
+    linkedCompany: 'Povezano podjetje',
+    batchPayment: 'Paketno plačilo',
+    sessions: 'Termini',
+    sessionsSubtitle: 'Preglej prihodnje in pretekle termine, povezane s to stranko.',
+    future: 'Prihodnji',
+    past: 'Pretekli',
+    sessionsCount: (count: number) => `${count} terminov`,
+    loadingSessions: 'Nalagam termine…',
+    noUpcomingSessionsTitle: 'Ni prihodnjih terminov',
+    noUpcomingSessionsText: 'Tukaj se prikažejo rezervirani termini z začetkom po trenutnem času.',
+    noPastSessionsTitle: 'Ni preteklih terminov',
+    noPastSessionsText: 'Tukaj se prikažejo termini z začetkom pred ali ob trenutnem času.',
+    liveSession: 'Termin v živo',
+    start: 'Začetek',
+    end: 'Konec',
+    saveChanges: 'Shrani spremembe',
+    savingChanges: 'Shranjujem spremembe…',
+    saving: 'Shranjujem...',
+    deactivate: 'Deaktiviraj',
+    activate: 'Aktiviraj',
+    anonymize: 'Anonimiziraj',
+    anonymizing: 'Anonimiziram...',
+    yesAnonymize: 'Da, anonimiziraj',
+    newClientTitle: 'Nova stranka',
+    newClientName: 'Nova stranka',
+    newClientSubtitle: 'Ustvari profil stranke in po potrebi poveži podatke za obračun.',
+    messaging: 'Sporočanje',
+    messagingNote: 'WhatsApp uporablja telefonsko številko stranke. Povezava z Viberjem bo na voljo, ko se stranka poveže z vašim Viber botom.',
+    noLinkedCompany: 'Brez povezanega podjetja',
+    assignedConsultant: 'Dodeljeni zaposleni',
+    createClient: 'Ustvari stranko',
+    newCompanyTitle: 'Novo podjetje',
+    newCompanyName: 'Novo podjetje',
+    newCompanySubtitle: 'Obvezno je samo ime podjetja. Ostalo lahko dodaš pozneje.',
+    companyName: 'Ime podjetja',
+    address: 'Naslov',
+    postalCode: 'Poštna številka',
+    city: 'Mesto',
+    vatId: 'Davčna številka',
+    telephone: 'Telefon',
+    createCompany: 'Ustvari podjetje',
+  } : {
+    details: 'Details',
+    client: 'CLIENT',
+    company: 'COMPANY',
+    inactive: 'Inactive',
+    firstName: 'First name',
+    lastName: 'Last name',
+    email: 'Email',
+    phone: 'Phone',
+    whatsappOptIn: 'WhatsApp opt-in',
+    viberStatus: 'Viber status',
+    linkedToViberBot: 'Linked to Viber bot',
+    notLinkedYet: 'Not linked yet',
+    linkedCompany: 'Linked company',
+    batchPayment: 'Batch payment',
+    sessions: 'Sessions',
+    sessionsSubtitle: 'View future and past bookings linked to this client.',
+    future: 'Future',
+    past: 'Past',
+    sessionsCount: (count: number) => `${count} sessions`,
+    loadingSessions: 'Loading sessions…',
+    noUpcomingSessionsTitle: 'No upcoming sessions',
+    noUpcomingSessionsText: 'Booked sessions with a start time after now appear here.',
+    noPastSessionsTitle: 'No past sessions',
+    noPastSessionsText: 'Sessions with a start time before or at now appear here.',
+    liveSession: 'Live session',
+    start: 'Start',
+    end: 'End',
+    saveChanges: 'Save changes',
+    savingChanges: 'Saving changes…',
+    saving: 'Saving...',
+    deactivate: 'Deactivate',
+    activate: 'Activate',
+    anonymize: 'Anonymize',
+    anonymizing: 'Anonymizing...',
+    yesAnonymize: 'Yes, anonymize',
+    newClientTitle: 'New client',
+    newClientName: 'New client',
+    newClientSubtitle: 'Create a client profile and link billing details if needed.',
+    messaging: 'Messaging',
+    messagingNote: 'WhatsApp uses the client phone number. Viber linking becomes available after the client connects to your Viber bot.',
+    noLinkedCompany: 'No linked company',
+    assignedConsultant: 'Assigned consultant',
+    createClient: 'Create client',
+    newCompanyTitle: 'New company',
+    newCompanyName: 'New company',
+    newCompanySubtitle: 'Only company name is required. Everything else can be filled in later.',
+    companyName: 'Company name',
+    address: 'Address',
+    postalCode: 'Postal code',
+    city: 'City',
+    vatId: 'VAT ID',
+    telephone: 'Telephone',
+    createCompany: 'Create company',
+  }
   const me = getStoredUser()!
   const isAdmin = me.role === 'ADMIN'
   const [entityTab, setEntityTab] = useState<EntityTab>('clients')
@@ -837,7 +946,7 @@ export function ClientsPage() {
                   </div>
                   <div className="clients-mobile-meta">
                     <div>
-                      <span>Email</span>
+                      <span>{clientsCopy.email}</span>
                       {c.email?.trim() ? (
                         <strong>
                           <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>
@@ -849,7 +958,7 @@ export function ClientsPage() {
                       )}
                     </div>
                     <div>
-                      <span>Phone</span>
+                      <span>{clientsCopy.phone}</span>
                       {c.phone?.trim() ? (
                         <strong>
                           <a href={contactTelHref(c.phone)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>
@@ -870,7 +979,7 @@ export function ClientsPage() {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Email</th>
+                    <th>{clientsCopy.email}</th>
                     <th>Phone</th>
                     {isAdmin && <th>Assigned</th>}
                     <th>Created</th>
@@ -963,7 +1072,7 @@ export function ClientsPage() {
                       </div>
                       <div className="clients-mobile-meta">
                         <div>
-                          <span>Email</span>
+                          <span>{clientsCopy.email}</span>
                           {c.email?.trim() ? (
                             <strong>
                               <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>
@@ -975,7 +1084,7 @@ export function ClientsPage() {
                           )}
                         </div>
                         <div>
-                          <span>Phone</span>
+                          <span>{clientsCopy.phone}</span>
                           {c.telephone?.trim() ? (
                             <strong>
                               <a href={contactTelHref(c.telephone)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>
@@ -986,8 +1095,8 @@ export function ClientsPage() {
                             <strong>—</strong>
                           )}
                         </div>
-                        <div><span>City</span><strong>{c.city || '—'}</strong></div>
-                        <div><span>VAT ID</span><strong>{c.vatId || '—'}</strong></div>
+                        <div><span>{clientsCopy.city}</span><strong>{c.city || '—'}</strong></div>
+                        <div><span>{clientsCopy.vatId}</span><strong>{c.vatId || '—'}</strong></div>
                       </div>
                     </article>
                   ))}
@@ -997,11 +1106,11 @@ export function ClientsPage() {
                   <table className="clients-table">
                     <thead>
                     <tr>
-                      <th>Company name</th>
-                      <th>Email</th>
-                      <th>Telephone</th>
-                      <th>City</th>
-                      <th>VAT ID</th>
+                      <th>{clientsCopy.companyName}</th>
+                      <th>{clientsCopy.email}</th>
+                      <th>{clientsCopy.telephone}</th>
+                      <th>{clientsCopy.city}</th>
+                      <th>{clientsCopy.vatId}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -1058,8 +1167,8 @@ export function ClientsPage() {
           >
             <div className="booking-side-panel-header">
               <PageHeader
-                title="Details"
-                subtitle="CLIENT"
+                title={clientsCopy.details}
+                subtitle={clientsCopy.client}
                 actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeDetailModal} aria-label="Close">×</button>}
               />
             </div>
@@ -1070,29 +1179,29 @@ export function ClientsPage() {
                     {(detailClient.firstName?.[0] || '').toUpperCase()}{(detailClient.lastName?.[0] || '').toUpperCase()}
                   </span>
                   <div className="clients-name-stack">
-                    <span className="clients-name">{fullName(detailClient)}{detailClient.active === false && <span className="clients-inactive-badge">Inactive</span>}</span>
+                    <span className="clients-name">{fullName(detailClient)}{detailClient.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
                     <span className="clients-id">ID #{detailClient.id}</span>
                   </div>
                 </div>
 
                 <div className="clients-detail-fields">
-                  {renderClientEditableField('firstName', 'First name')}
-                  {renderClientEditableField('lastName', 'Last name')}
-                  {renderClientEditableField('email', 'Email', true)}
-                  {renderClientEditableField('phone', 'Phone', true)}
+                  {renderClientEditableField('firstName', clientsCopy.firstName)}
+                  {renderClientEditableField('lastName', clientsCopy.lastName)}
+                  {renderClientEditableField('email', clientsCopy.email, true)}
+                  {renderClientEditableField('phone', clientsCopy.phone, true)}
                   <div className="clients-detail-field-card clients-detail-field-card--wide" onClick={(e) => e.stopPropagation()}>
-                    <span>WhatsApp opt-in</span>
+                    <span>{clientsCopy.whatsappOptIn}</span>
                     <strong>
                       <input type="checkbox" checked={detailEditDraft.whatsappOptIn} onChange={(e) => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: e.target.checked })} />
                     </strong>
                   </div>
                   <div className="clients-detail-field-card clients-detail-field-card--wide" onClick={(e) => e.stopPropagation()}>
-                    <span>Viber status</span>
-                    <strong>{detailClient.viberConnected ? 'Linked to Viber bot' : 'Not linked yet'}</strong>
+                    <span>{clientsCopy.viberStatus}</span>
+                    <strong>{detailClient.viberConnected ? clientsCopy.linkedToViberBot : clientsCopy.notLinkedYet}</strong>
                   </div>
-                  {renderClientEditableField('billingCompanyId', 'Linked company', true)}
+                  {renderClientEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
                   <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                    <span>Batch payment</span>
+                    <span>{clientsCopy.batchPayment}</span>
                     <button
                       type="button"
                       className={`clients-batch-switch${detailClient.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
@@ -1106,8 +1215,8 @@ export function ClientsPage() {
                 </div>
 
                 <div className="clients-detail-sessions-card clients-detail-sessions-card--modern">
-                  <SectionTitle>Sessions</SectionTitle>
-                  <p className="muted" style={{ marginTop: -6, marginBottom: 10 }}>View future and past bookings linked to this client.</p>
+                  <SectionTitle>{clientsCopy.sessions}</SectionTitle>
+                  <p className="muted" style={{ marginTop: -6, marginBottom: 10 }}>{clientsCopy.sessionsSubtitle}</p>
                   <div className="clients-detail-session-tabs-row">
                     <div className="clients-session-tabs">
                       <button
@@ -1116,7 +1225,7 @@ export function ClientsPage() {
                         onClick={() => setSessionTab('future')}
                         aria-pressed={sessionTab === 'future'}
                       >
-                        Future
+                        {clientsCopy.future}
                       </button>
                       <button
                         type="button"
@@ -1124,7 +1233,7 @@ export function ClientsPage() {
                         onClick={() => setSessionTab('past')}
                         aria-pressed={sessionTab === 'past'}
                       >
-                        Past
+                        {clientsCopy.past}
                       </button>
                     </div>
                     <span
@@ -1134,16 +1243,16 @@ export function ClientsPage() {
                     >
                       {detailSessionsLoading
                         ? '…'
-                        : `${sessionTab === 'future' ? futureSessions.length : pastSessions.length} sessions`}
+                        : clientsCopy.sessionsCount(sessionTab === 'future' ? futureSessions.length : pastSessions.length)}
                     </span>
                   </div>
                   {detailSessionsError && <div className="error">{detailSessionsError}</div>}
                   {detailSessionsLoading ? (
-                    <div className="muted">Loading sessions…</div>
+                    <div className="muted">{clientsCopy.loadingSessions}</div>
                   ) : sessionTab === 'future' ? (
                     futureSessions.length === 0 ? (
                       <div className="clients-detail-empty-card">
-                        <EmptyState title="No upcoming sessions" text="Booked sessions with a start time after now appear here." />
+                        <EmptyState title={clientsCopy.noUpcomingSessionsTitle} text={clientsCopy.noUpcomingSessionsText} />
                       </div>
                     ) : (
                       <div className="clients-detail-session-list">
@@ -1153,12 +1262,12 @@ export function ClientsPage() {
                               <span className="clients-detail-session-no">#{s.id}</span>
                               <div className="clients-detail-session-heading">
                                 <strong>{fullName({ firstName: s.consultantFirstName, lastName: s.consultantLastName })}</strong>
-                                <span>Live session</span>
+                                <span>{clientsCopy.liveSession}</span>
                               </div>
                             </div>
                             <div className="clients-detail-session-times">
-                              <div><span>Start</span><strong>{formatDateTime(s.startTime)}</strong></div>
-                              <div><span>End</span><strong>{formatDateTime(s.endTime)}</strong></div>
+                              <div><span>{clientsCopy.start}</span><strong>{formatDateTime(s.startTime)}</strong></div>
+                              <div><span>{clientsCopy.end}</span><strong>{formatDateTime(s.endTime)}</strong></div>
                             </div>
                           </article>
                         ))}
@@ -1166,7 +1275,7 @@ export function ClientsPage() {
                     )
                   ) : pastSessions.length === 0 ? (
                     <div className="clients-detail-empty-card">
-                      <EmptyState title="No past sessions" text="Sessions with a start time before or at now appear here." />
+                      <EmptyState title={clientsCopy.noPastSessionsTitle} text={clientsCopy.noPastSessionsText} />
                     </div>
                   ) : (
                     <div className="clients-detail-session-list">
@@ -1176,12 +1285,12 @@ export function ClientsPage() {
                             <span className="clients-detail-session-no">#{s.id}</span>
                             <div className="clients-detail-session-heading">
                               <strong>{fullName({ firstName: s.consultantFirstName, lastName: s.consultantLastName })}</strong>
-                              <span>Live session</span>
+                              <span>{clientsCopy.liveSession}</span>
                             </div>
                           </div>
                           <div className="clients-detail-session-times">
-                            <div><span>Start</span><strong>{formatDateTime(s.startTime)}</strong></div>
-                            <div><span>End</span><strong>{formatDateTime(s.endTime)}</strong></div>
+                            <div><span>{clientsCopy.start}</span><strong>{formatDateTime(s.startTime)}</strong></div>
+                            <div><span>{clientsCopy.end}</span><strong>{formatDateTime(s.endTime)}</strong></div>
                           </div>
                         </article>
                       ))}
@@ -1195,24 +1304,24 @@ export function ClientsPage() {
                 {!detailClient.anonymized && (
                   confirmAnonymize ? (
                     <>
-                      <button type="button" className="danger secondary" onClick={() => setConfirmAnonymize(false)} disabled={anonymizing}>Cancel</button>
-                      <button type="button" className="danger" onClick={anonymizeClient} disabled={anonymizing}>{anonymizing ? 'Anonymizing...' : 'Yes, anonymize'}</button>
+                      <button type="button" className="danger secondary" onClick={() => setConfirmAnonymize(false)} disabled={anonymizing}>{t('cancel')}</button>
+                      <button type="button" className="danger" onClick={anonymizeClient} disabled={anonymizing}>{anonymizing ? clientsCopy.anonymizing : clientsCopy.yesAnonymize}</button>
                     </>
                   ) : (
-                    <button type="button" className="danger secondary" onClick={() => setConfirmAnonymize(true)}>Anonymize</button>
+                    <button type="button" className="danger secondary" onClick={() => setConfirmAnonymize(true)}>{clientsCopy.anonymize}</button>
                   )
                 )}
               </div>
               <div className="clients-detail-footer-center">
                 {clientDetailHasChanges && (
                   <button type="button" onClick={() => void saveDetailClientInline()} disabled={savingDetailEdit}>
-                    {savingDetailEdit ? 'Saving changes…' : 'Save changes'}
+                    {savingDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
                   </button>
                 )}
               </div>
               <div className="clients-detail-footer-right">
                 <button type="button" className="secondary" onClick={toggleActive} disabled={activating}>
-                  {activating ? 'Saving...' : (detailClient.active !== false ? 'Deactivate' : 'Activate')}
+                  {activating ? clientsCopy.saving : (detailClient.active !== false ? clientsCopy.deactivate : clientsCopy.activate)}
                 </button>
               </div>
             </div>
@@ -1231,8 +1340,8 @@ export function ClientsPage() {
           >
             <div className="booking-side-panel-header">
               <PageHeader
-                title="Details"
-                subtitle="COMPANY"
+                title={clientsCopy.details}
+                subtitle={clientsCopy.company}
                 actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeCompanyDetailModal} aria-label="Close">×</button>}
               />
             </div>
@@ -1241,21 +1350,21 @@ export function ClientsPage() {
                 <div className="clients-detail-hero clients-detail-head-card">
                   <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{(detailCompany.name?.[0] || 'C').toUpperCase()}</span>
                   <div className="clients-name-stack">
-                    <span className="clients-name">{detailCompany.name}{detailCompany.active === false && <span className="clients-inactive-badge">Inactive</span>}</span>
+                    <span className="clients-name">{detailCompany.name}{detailCompany.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
                     <span className="clients-id">ID #{detailCompany.id}</span>
                   </div>
                 </div>
 
                 <div className="clients-detail-fields">
-                  {renderCompanyEditableField('name', 'Company name', true)}
-                  {renderCompanyEditableField('address', 'Address', true)}
-                  {renderCompanyEditableField('postalCode', 'Postal code')}
-                  {renderCompanyEditableField('city', 'City')}
-                  {renderCompanyEditableField('vatId', 'VAT ID', true)}
-                  {renderCompanyEditableField('email', 'Email', true)}
-                  {renderCompanyEditableField('telephone', 'Telephone', true)}
+                  {renderCompanyEditableField('name', clientsCopy.companyName, true)}
+                  {renderCompanyEditableField('address', clientsCopy.address, true)}
+                  {renderCompanyEditableField('postalCode', clientsCopy.postalCode)}
+                  {renderCompanyEditableField('city', clientsCopy.city)}
+                  {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
+                  {renderCompanyEditableField('email', clientsCopy.email, true)}
+                  {renderCompanyEditableField('telephone', clientsCopy.telephone, true)}
                   <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                    <span>Batch payment</span>
+                    <span>{clientsCopy.batchPayment}</span>
                     <button
                       type="button"
                       className={`clients-batch-switch${detailCompany.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
@@ -1270,15 +1379,15 @@ export function ClientsPage() {
 
                 <div className="clients-detail-sessions-card clients-detail-invoices-card">
                   <div className="clients-detail-invoices-head">
-                    <SectionTitle>Issued invoices</SectionTitle>
-                    <p className="clients-detail-invoices-subtitle">Recent billing documents linked to this company.</p>
+                    <SectionTitle>{locale === 'sl' ? 'Izdani računi' : 'Issued invoices'}</SectionTitle>
+                    <p className="clients-detail-invoices-subtitle">{locale === 'sl' ? 'Nedavni obračunski dokumenti, povezani s tem podjetjem.' : 'Recent billing documents linked to this company.'}</p>
                   </div>
                   {detailCompanyError && <div className="error">{detailCompanyError}</div>}
                   {detailCompanyBillsLoading ? (
-                    <div className="muted">Loading issued invoices...</div>
+                    <div className="muted">{locale === 'sl' ? 'Nalagam izdane račune...' : 'Loading issued invoices...'}</div>
                   ) : companyBills.length === 0 ? (
                     <div className="clients-detail-empty-card">
-                      <EmptyState title="No issued invoices" text="Invoices billed to this company will appear here." />
+                      <EmptyState title={locale === 'sl' ? 'Ni izdanih računov' : 'No issued invoices'} text={locale === 'sl' ? 'Računi, izdani temu podjetju, bodo prikazani tukaj.' : 'Invoices billed to this company will appear here.'} />
                     </div>
                   ) : (
                     <div className="clients-detail-invoices-list">
@@ -1294,20 +1403,20 @@ export function ClientsPage() {
                               </span>
                             ) : null}
                           </div>
-                          <div className="clients-detail-invoice-title">{bill.clientName || 'Unknown client'}</div>
-                          <div className="clients-detail-invoice-issued">Issued {formatDate(bill.issueDate)}</div>
+                          <div className="clients-detail-invoice-title">{bill.clientName || (locale === 'sl' ? 'Neznana stranka' : 'Unknown client')}</div>
+                          <div className="clients-detail-invoice-issued">{locale === 'sl' ? 'Izdano' : 'Issued'} {formatDate(bill.issueDate)}</div>
                           <div className="clients-detail-invoice-bottom">
                             <div className="clients-detail-invoice-total-wrap">
-                              <span className="clients-detail-invoice-total-label">Total</span>
+                              <span className="clients-detail-invoice-total-label">{locale === 'sl' ? 'Skupaj' : 'Total'}</span>
                               <strong className="clients-detail-invoice-total">{currency(bill.totalGross)}</strong>
                             </div>
                             <button
                               type="button"
                               className="clients-detail-invoice-open"
                               onClick={() => downloadBillPdf(bill.id, bill.billNumber)}
-                              aria-label={`Open invoice ${bill.billNumber}`}
+                              aria-label={`${locale === 'sl' ? 'Odpri račun' : 'Open invoice'} ${bill.billNumber}`}
                             >
-                              Open invoice →
+                              {locale === 'sl' ? 'Odpri račun →' : 'Open invoice →'}
                             </button>
                           </div>
                         </article>
@@ -1323,13 +1432,13 @@ export function ClientsPage() {
               <div className="clients-detail-footer-center">
                 {companyDetailHasChanges && (
                   <button type="button" onClick={() => void saveDetailCompanyInline()} disabled={savingCompanyDetailEdit}>
-                    {savingCompanyDetailEdit ? 'Saving changes…' : 'Save changes'}
+                    {savingCompanyDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
                   </button>
                 )}
               </div>
               <div className="clients-detail-footer-right">
                 <button type="button" className="secondary" onClick={toggleCompanyActive} disabled={activatingCompany}>
-                  {activatingCompany ? 'Saving...' : (detailCompany.active !== false ? 'Deactivate' : 'Activate')}
+                  {activatingCompany ? clientsCopy.saving : (detailCompany.active !== false ? clientsCopy.deactivate : clientsCopy.activate)}
                 </button>
               </div>
             </div>
@@ -1349,8 +1458,8 @@ export function ClientsPage() {
             <form className="clients-create-modal-form" onSubmit={handleSubmit}>
               <div className="booking-side-panel-header">
                 <PageHeader
-                  title="New client"
-                  subtitle="CLIENT"
+                  title={clientsCopy.newClientTitle}
+                  subtitle={clientsCopy.client}
                   actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeModal} aria-label="Close">×</button>}
                 />
               </div>
@@ -1359,46 +1468,46 @@ export function ClientsPage() {
                   <div className="clients-detail-hero clients-detail-head-card clients-create-head-card">
                     <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{initials(form.firstName, form.lastName)}</span>
                     <div className="clients-name-stack">
-                      <span className="clients-name">{[form.firstName, form.lastName].filter(Boolean).join(' ').trim() || 'New client'}</span>
-                      <span className="clients-id">Create a client profile and link billing details if needed.</span>
+                      <span className="clients-name">{[form.firstName, form.lastName].filter(Boolean).join(' ').trim() || clientsCopy.newClientName}</span>
+                      <span className="clients-id">{clientsCopy.newClientSubtitle}</span>
                     </div>
                   </div>
 
                   <div className="clients-detail-fields clients-create-fields">
                     <label className="clients-detail-field-card">
-                      <span>First name</span>
+                      <span>{clientsCopy.firstName}</span>
                       <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card">
-                      <span>Last name</span>
+                      <span>{clientsCopy.lastName}</span>
                       <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>Email</span>
+                      <span>{clientsCopy.email}</span>
                       <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>Phone</span>
+                      <span>{clientsCopy.phone}</span>
                       <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                     </label>
                     <div className="clients-detail-field-card clients-detail-field-card--wide clients-create-toggle-card">
-                      <span>WhatsApp opt-in</span>
+                      <span>{clientsCopy.whatsappOptIn}</span>
                       <div className="clients-create-toggle-row">
-                        <strong>{form.whatsappOptIn ? 'Enabled' : 'Disabled'}</strong>
+                        <strong>{form.whatsappOptIn ? (locale === 'sl' ? 'Omogočeno' : 'Enabled') : (locale === 'sl' ? 'Onemogočeno' : 'Disabled')}</strong>
                         <input type="checkbox" checked={form.whatsappOptIn} onChange={(e) => setForm({ ...form, whatsappOptIn: e.target.checked })} />
                       </div>
                     </div>
                     <div className="clients-detail-field-card clients-detail-field-card--wide clients-create-note-card">
-                      <span>Messaging</span>
-                      <p>WhatsApp uses the client phone number. Viber linking becomes available after the client connects to your Viber bot.</p>
+                      <span>{clientsCopy.messaging}</span>
+                      <p>{clientsCopy.messagingNote}</p>
                     </div>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>Linked company</span>
+                      <span>{clientsCopy.linkedCompany}</span>
                       <select
                         value={form.billingCompanyId ?? ''}
                         onChange={(e) => setForm({ ...form, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
                       >
-                        <option value="">No linked company</option>
+                        <option value="">{clientsCopy.noLinkedCompany}</option>
                         {companies.map((company) => (
                           <option key={company.id} value={company.id}>{company.name}</option>
                         ))}
@@ -1406,7 +1515,7 @@ export function ClientsPage() {
                     </label>
                     {isAdmin && (
                       <label className="clients-detail-field-card clients-detail-field-card--wide">
-                        <span>Assigned consultant</span>
+                        <span>{clientsCopy.assignedConsultant}</span>
                         <select
                           value={form.assignedToId ?? consultants[0]?.id ?? ''}
                           onChange={(e) => setForm({ ...form, assignedToId: Number(e.target.value) })}
@@ -1424,8 +1533,8 @@ export function ClientsPage() {
                 </div>
               </div>
               <div className={`${isNativeAndroid ? 'form-actions' : 'form-actions booking-side-panel-footer'} clients-create-footer`} style={{ marginTop: isNativeAndroid ? 16 : 0 }}>
-                <button type="submit" disabled={saving || (isAdmin && consultants.length === 0)}>{saving ? 'Saving...' : 'Create client'}</button>
-                <button type="button" className="secondary" onClick={closeModal}>Cancel</button>
+                <button type="submit" disabled={saving || (isAdmin && consultants.length === 0)}>{saving ? clientsCopy.saving : clientsCopy.createClient}</button>
+                <button type="button" className="secondary" onClick={closeModal}>{t('cancel')}</button>
               </div>
             </form>
           </div>
@@ -1444,48 +1553,48 @@ export function ClientsPage() {
             <form className="clients-create-modal-form" onSubmit={submitCompanyForm}>
               <div className="booking-side-panel-header">
                 <PageHeader
-                  title="New company"
-                  subtitle="COMPANY"
+                  title={clientsCopy.newCompanyTitle}
+                  subtitle={clientsCopy.company}
                   actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeCompanyModal} aria-label="Close">×</button>}
                 />
               </div>
               <div className={isNativeAndroid ? undefined : 'booking-side-panel-body'}>
                 <div className="clients-detail-shell clients-create-shell">
                   <div className="clients-detail-hero clients-detail-head-card clients-create-head-card">
-                    <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{initials(companyForm.name, 'Company')}</span>
+                    <span className="clients-name-avatar clients-detail-avatar" aria-hidden>{initials(companyForm.name, locale === 'sl' ? 'Podjetje' : 'Company')}</span>
                     <div className="clients-name-stack">
-                      <span className="clients-name">{companyForm.name.trim() || 'New company'}</span>
-                      <span className="clients-id">Only company name is required. Everything else can be filled in later.</span>
+                      <span className="clients-name">{companyForm.name.trim() || clientsCopy.newCompanyName}</span>
+                      <span className="clients-id">{clientsCopy.newCompanySubtitle}</span>
                     </div>
                   </div>
 
                   <div className="clients-detail-fields clients-create-fields">
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>Company name</span>
+                      <span>{clientsCopy.companyName}</span>
                       <input required value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>Address</span>
+                      <span>{clientsCopy.address}</span>
                       <input value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card">
-                      <span>Postal code</span>
+                      <span>{clientsCopy.postalCode}</span>
                       <input value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card">
-                      <span>City</span>
+                      <span>{clientsCopy.city}</span>
                       <input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>VAT ID</span>
+                      <span>{clientsCopy.vatId}</span>
                       <input value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>Email</span>
+                      <span>{clientsCopy.email}</span>
                       <input type="email" value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>Telephone</span>
+                      <span>{clientsCopy.telephone}</span>
                       <input value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
                     </label>
                   </div>
@@ -1494,8 +1603,8 @@ export function ClientsPage() {
                 </div>
               </div>
               <div className={`${isNativeAndroid ? 'form-actions' : 'form-actions booking-side-panel-footer'} clients-create-footer`} style={{ marginTop: isNativeAndroid ? 16 : 0 }}>
-                <button type="submit" disabled={savingCompany}>{savingCompany ? 'Saving...' : 'Create company'}</button>
-                <button type="button" className="secondary" onClick={closeCompanyModal}>Cancel</button>
+                <button type="submit" disabled={savingCompany}>{savingCompany ? clientsCopy.saving : clientsCopy.createCompany}</button>
+                <button type="button" className="secondary" onClick={closeCompanyModal}>{t('cancel')}</button>
               </div>
             </form>
           </div>

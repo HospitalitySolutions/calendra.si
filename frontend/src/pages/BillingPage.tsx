@@ -79,7 +79,28 @@ const HISTORY_SORT_OPTIONS: Array<{ field: HistorySortField; label: string }> = 
 export function BillingPage() {
   const me = getStoredUser()!
   const { showToast } = useToast()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
+  const billingCopy = locale === 'sl' ? {
+    newCompanyTitle: 'Novo podjetje',
+    newCompanySubtitle: 'Obvezno je samo ime podjetja.',
+    companyName: 'Ime podjetja',
+    email: 'E-pošta',
+    telephone: 'Telefon',
+    emailOptional: 'E-pošta (neobvezno)',
+    telephoneOptional: 'Telefon (neobvezno)',
+    creating: 'Ustvarjam…',
+    create: 'Ustvari',
+  } : {
+    newCompanyTitle: 'New company',
+    newCompanySubtitle: 'Required: company name.',
+    companyName: 'Company name',
+    email: 'Email',
+    telephone: 'Telephone',
+    emailOptional: 'Email (optional)',
+    telephoneOptional: 'Telephone (optional)',
+    creating: 'Creating…',
+    create: 'Create',
+  }
   const [services, setServices] = useState<BillingService[]>([])
   const [bills, setBills] = useState<Bill[]>([])
   const [openBills, setOpenBills] = useState<OpenBill[]>([])
@@ -1742,20 +1763,20 @@ export function BillingPage() {
       {showAddCompanyModal && (
         <div className="modal-backdrop" onClick={() => setShowAddCompanyModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <PageHeader title="New company" subtitle="Required: company name." />
+            <PageHeader title={billingCopy.newCompanyTitle} subtitle={billingCopy.newCompanySubtitle} />
             <div className="form-grid">
-              <Field label="Company name">
-                <input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} placeholder="Company name" />
+              <Field label={billingCopy.companyName}>
+                <input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} placeholder={billingCopy.companyName} />
               </Field>
-              <Field label="Email">
-                <input type="email" value={newCompanyEmail} onChange={(e) => setNewCompanyEmail(e.target.value)} placeholder="Email (optional)" />
+              <Field label={billingCopy.email}>
+                <input type="email" value={newCompanyEmail} onChange={(e) => setNewCompanyEmail(e.target.value)} placeholder={billingCopy.emailOptional} />
               </Field>
-              <Field label="Telephone">
-                <input value={newCompanyTelephone} onChange={(e) => setNewCompanyTelephone(e.target.value)} placeholder="Telephone (optional)" />
+              <Field label={billingCopy.telephone}>
+                <input value={newCompanyTelephone} onChange={(e) => setNewCompanyTelephone(e.target.value)} placeholder={billingCopy.telephoneOptional} />
               </Field>
               <div className="form-actions full-span">
                 <button type="button" onClick={createCompanyInline} disabled={creatingCompany || !newCompanyName.trim()}>
-                  {creatingCompany ? 'Creating…' : 'Create'}
+                  {creatingCompany ? billingCopy.creating : billingCopy.create}
                 </button>
                 <button type="button" className="secondary" onClick={() => setShowAddCompanyModal(false)}>Cancel</button>
               </div>

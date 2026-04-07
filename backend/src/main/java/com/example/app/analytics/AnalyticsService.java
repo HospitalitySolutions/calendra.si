@@ -1,6 +1,7 @@
 package com.example.app.analytics;
 
 import com.example.app.billing.Bill;
+import com.example.app.billing.BillItem;
 import com.example.app.billing.BillRepository;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
@@ -9,11 +10,15 @@ import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.user.User;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,10 +26,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 @Service
 public class AnalyticsService {
@@ -67,13 +72,51 @@ public class AnalyticsService {
             BigDecimal revenueGross
     ) {}
 
+    public record WeekdayLoadPoint(
+            String dayKey,
+            String label,
+            long sessionsTotal,
+            long consultantMinutes,
+            long spaceMinutes,
+            long onlineSessions,
+            long onsiteSessions
+    ) {}
+
+    public record WeekPoint(
+            String label,
+            String weekStart,
+            long sessionsTotal,
+            long newClients,
+            BigDecimal revenueGross,
+            long consultantMinutes,
+            long spaceMinutes
+    ) {}
+
+    public record RankedAmount(
+            String label,
+            BigDecimal amount,
+            long count
+    ) {}
+
+    public record UsageRanking(
+            String label,
+            long minutes,
+            long sessionsTotal
+    ) {}
+
     public record AnalyticsOverviewResponse(
             String period,
             String rangeStart,
             String rangeEnd,
             Summary summary,
             List<PeriodPoint> months,
-            List<PeriodPoint> years
+            List<PeriodPoint> years,
+            List<WeekdayLoadPoint> weekdays,
+            List<WeekPoint> weeks,
+            List<RankedAmount> topServices,
+            List<RankedAmount> topConsultants,
+            List<RankedAmount> topClients,
+            List<UsageRanking> topSpaces
     ) {}
 
     private static final class Bucket {
@@ -84,6 +127,17 @@ public class AnalyticsService {
         long newClients = 0;
         BigDecimal revenueNet = BigDecimal.ZERO;
         BigDecimal revenueGross = BigDecimal.ZERO;
+        long consultantMinutes = 0;
+        long spaceMinutes = 0;
+        long onlineSessions = 0;
+        long onsiteSessions = 0;
+    }
+
+    private static final class RankedBucket {
+        BigDecimal amount = BigDecimal.ZERO;
+        long count = 0;
+        long minutes = 0;
+        long sessionsTotal = 0;
     }
 
     @Transactional(readOnly = true)
@@ -96,18 +150,33 @@ public class AnalyticsService {
             Long spaceId,
             Long typeId
     ) {
-        Long companyId = me.getCompany().getId();
+        return overviewForCompany(
+                me.getCompany().getId(),
+                periodRaw,
+                fromParam,
+                toParam,
+                resolveConsultantFilter(me, consultantIdParam),
+                spaceId,
+                typeId
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public AnalyticsOverviewResponse overviewForCompany(
+            Long companyId,
+            String periodRaw,
+            LocalDate fromParam,
+            LocalDate toParam,
+            Long consultantFilter,
+            Long spaceId,
+            Long typeId
+    ) {
         ZoneId zone = ZoneId.of(remindersTimezone);
         String period = normalizePeriod(periodRaw);
         DateRange range = resolveRange(period, fromParam, toParam, zone);
-        Long consultantFilter = resolveConsultantFilter(me, consultantIdParam);
 
-        List<SessionBooking> bookings = SecurityUtils.isAdmin(me)
-                ? bookingRepository.findAllByCompanyId(companyId)
-                : bookingRepository.findByConsultantIdAndCompanyId(me.getId(), companyId);
-        List<Client> clients = SecurityUtils.isAdmin(me)
-                ? clientRepository.findAllByCompanyId(companyId)
-                : clientRepository.findByAssignedToIdAndCompanyId(me.getId(), companyId);
+        List<SessionBooking> bookings = bookingRepository.findAllByCompanyId(companyId);
+        List<Client> clients = clientRepository.findAllByCompanyId(companyId);
         List<Bill> bills = billRepository.findAllByCompanyId(companyId);
 
         bookings = bookings.stream()
@@ -132,32 +201,38 @@ public class AnalyticsService {
 
         Map<YearMonth, Bucket> monthBuckets = new HashMap<>();
         Map<Integer, Bucket> yearBuckets = new HashMap<>();
+        Map<DayOfWeek, Bucket> weekdayBuckets = new EnumMap<>(DayOfWeek.class);
+        Map<LocalDate, Bucket> weekBuckets = new HashMap<>();
+        Map<String, RankedBucket> serviceRanking = new HashMap<>();
+        Map<String, RankedBucket> consultantRevenueRanking = new HashMap<>();
+        Map<String, RankedBucket> clientRevenueRanking = new HashMap<>();
+        Map<String, RankedBucket> spaceUsageRanking = new HashMap<>();
         Bucket summaryBucket = new Bucket();
 
         for (SessionBooking b : bookings) {
             YearMonth ym = YearMonth.from(b.getStartTime());
             int y = b.getStartTime().getYear();
+            LocalDate bookingDate = b.getStartTime().toLocalDate();
+            LocalDate weekStart = startOfIsoWeek(bookingDate);
+            DayOfWeek dayOfWeek = bookingDate.getDayOfWeek();
             Bucket m = monthBuckets.computeIfAbsent(ym, k -> new Bucket());
             Bucket yy = yearBuckets.computeIfAbsent(y, k -> new Bucket());
+            Bucket ww = weekBuckets.computeIfAbsent(weekStart, k -> new Bucket());
+            Bucket dd = weekdayBuckets.computeIfAbsent(dayOfWeek, k -> new Bucket());
             boolean online = b.getMeetingLink() != null && !b.getMeetingLink().isBlank();
             Long clientId = b.getClient() != null ? b.getClient().getId() : null;
+            long durationMinutes = durationMinutes(b);
 
-            m.sessionsTotal++;
-            yy.sessionsTotal++;
-            summaryBucket.sessionsTotal++;
-            if (clientId != null) {
-                m.clientIds.add(clientId);
-                yy.clientIds.add(clientId);
-                summaryBucket.clientIds.add(clientId);
-            }
-            if (online) {
-                m.sessionsOnline++;
-                yy.sessionsOnline++;
-                summaryBucket.sessionsOnline++;
-            } else {
-                m.sessionsStandard++;
-                yy.sessionsStandard++;
-                summaryBucket.sessionsStandard++;
+            applyBookingToBucket(m, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
+            applyBookingToBucket(yy, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
+            applyBookingToBucket(ww, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
+            applyBookingToBucket(dd, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
+            applyBookingToBucket(summaryBucket, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
+
+            if (b.getSpace() != null && !b.getSpace().getName().isBlank()) {
+                RankedBucket spaceBucket = spaceUsageRanking.computeIfAbsent(b.getSpace().getName().trim(), key -> new RankedBucket());
+                spaceBucket.minutes += durationMinutes;
+                spaceBucket.sessionsTotal++;
             }
         }
 
@@ -165,16 +240,20 @@ public class AnalyticsService {
             LocalDate d = c.getCreatedAt().atZone(zone).toLocalDate();
             YearMonth ym = YearMonth.from(d);
             int y = d.getYear();
+            LocalDate weekStart = startOfIsoWeek(d);
             monthBuckets.computeIfAbsent(ym, k -> new Bucket()).newClients++;
             yearBuckets.computeIfAbsent(y, k -> new Bucket()).newClients++;
+            weekBuckets.computeIfAbsent(weekStart, k -> new Bucket()).newClients++;
             summaryBucket.newClients++;
         }
 
         for (Bill b : bills) {
             YearMonth ym = YearMonth.from(b.getIssueDate());
             int y = b.getIssueDate().getYear();
+            LocalDate weekStart = startOfIsoWeek(b.getIssueDate());
             Bucket m = monthBuckets.computeIfAbsent(ym, k -> new Bucket());
             Bucket yy = yearBuckets.computeIfAbsent(y, k -> new Bucket());
+            Bucket ww = weekBuckets.computeIfAbsent(weekStart, k -> new Bucket());
 
             BigDecimal net = b.getTotalNet() == null ? BigDecimal.ZERO : b.getTotalNet();
             BigDecimal gross = b.getTotalGross() == null ? BigDecimal.ZERO : b.getTotalGross();
@@ -182,12 +261,28 @@ public class AnalyticsService {
             m.revenueGross = m.revenueGross.add(gross);
             yy.revenueNet = yy.revenueNet.add(net);
             yy.revenueGross = yy.revenueGross.add(gross);
+            ww.revenueGross = ww.revenueGross.add(gross);
             summaryBucket.revenueNet = summaryBucket.revenueNet.add(net);
             summaryBucket.revenueGross = summaryBucket.revenueGross.add(gross);
+
+            accumulateAmount(consultantRevenueRanking, safeConsultantLabel(b.getConsultant()), gross, 1);
+            accumulateAmount(clientRevenueRanking, safeBillClientLabel(b), gross, 1);
+
+            for (BillItem item : b.getItems()) {
+                if (item == null) continue;
+                String label = safeServiceLabel(item);
+                long quantity = item.getQuantity() == null ? 0 : item.getQuantity();
+                BigDecimal lineGross = item.getGrossPrice() == null
+                        ? BigDecimal.ZERO
+                        : item.getGrossPrice().multiply(BigDecimal.valueOf(Math.max(quantity, 0)));
+                accumulateAmount(serviceRanking, label, lineGross, quantity);
+            }
         }
 
         List<PeriodPoint> months = "month".equals(period) ? toMonthPoints(monthBuckets) : List.of();
         List<PeriodPoint> years = "year".equals(period) ? toYearPoints(yearBuckets) : List.of();
+        List<WeekdayLoadPoint> weekdays = toWeekdayPoints(weekdayBuckets);
+        List<WeekPoint> weeks = toWeekPoints(weekBuckets);
         Summary summary = new Summary(
                 summaryBucket.sessionsTotal,
                 summaryBucket.clientIds.size(),
@@ -197,7 +292,41 @@ public class AnalyticsService {
                 summaryBucket.revenueNet,
                 summaryBucket.revenueGross
         );
-        return new AnalyticsOverviewResponse(period, range.from().toString(), range.to().toString(), summary, months, years);
+        return new AnalyticsOverviewResponse(
+                period,
+                range.from().toString(),
+                range.to().toString(),
+                summary,
+                months,
+                years,
+                weekdays,
+                weeks,
+                toRankedAmounts(serviceRanking, 5),
+                toRankedAmounts(consultantRevenueRanking, 5),
+                toRankedAmounts(clientRevenueRanking, 5),
+                toUsageRankings(spaceUsageRanking, 5)
+        );
+    }
+
+    private void applyBookingToBucket(
+            Bucket bucket,
+            Long clientId,
+            boolean online,
+            long durationMinutes,
+            boolean hasConsultant,
+            boolean hasSpace
+    ) {
+        bucket.sessionsTotal++;
+        if (clientId != null) bucket.clientIds.add(clientId);
+        if (online) {
+            bucket.sessionsOnline++;
+            bucket.onlineSessions++;
+        } else {
+            bucket.sessionsStandard++;
+            bucket.onsiteSessions++;
+        }
+        if (hasConsultant) bucket.consultantMinutes += durationMinutes;
+        if (hasSpace) bucket.spaceMinutes += durationMinutes;
     }
 
     private List<PeriodPoint> toMonthPoints(Map<YearMonth, Bucket> monthBuckets) {
@@ -252,6 +381,117 @@ public class AnalyticsService {
             ));
         }
         return out;
+    }
+
+    private List<WeekdayLoadPoint> toWeekdayPoints(Map<DayOfWeek, Bucket> weekdayBuckets) {
+        List<WeekdayLoadPoint> out = new ArrayList<>();
+        for (DayOfWeek day : DayOfWeek.values()) {
+            Bucket b = weekdayBuckets.getOrDefault(day, new Bucket());
+            out.add(new WeekdayLoadPoint(
+                    day.name(),
+                    day.getDisplayName(TextStyle.SHORT, Locale.ENGLISH),
+                    b.sessionsTotal,
+                    b.consultantMinutes,
+                    b.spaceMinutes,
+                    b.onlineSessions,
+                    b.onsiteSessions
+            ));
+        }
+        return out;
+    }
+
+    private List<WeekPoint> toWeekPoints(Map<LocalDate, Bucket> weekBuckets) {
+        if (weekBuckets.isEmpty()) return List.of();
+        List<LocalDate> keys = new ArrayList<>(weekBuckets.keySet());
+        keys.sort(Comparator.naturalOrder());
+        List<WeekPoint> out = new ArrayList<>();
+        for (LocalDate weekStart : keys) {
+            Bucket b = weekBuckets.getOrDefault(weekStart, new Bucket());
+            out.add(new WeekPoint(
+                    weekStart.toString(),
+                    weekStart.toString(),
+                    b.sessionsTotal,
+                    b.newClients,
+                    b.revenueGross,
+                    b.consultantMinutes,
+                    b.spaceMinutes
+            ));
+        }
+        return out;
+    }
+
+    private List<RankedAmount> toRankedAmounts(Map<String, RankedBucket> source, int limit) {
+        return source.entrySet().stream()
+                .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank())
+                .map(entry -> new RankedAmount(entry.getKey(), entry.getValue().amount, entry.getValue().count))
+                .sorted(Comparator
+                        .comparing(RankedAmount::amount, Comparator.reverseOrder())
+                        .thenComparing(RankedAmount::count, Comparator.reverseOrder())
+                        .thenComparing(RankedAmount::label))
+                .limit(limit)
+                .toList();
+    }
+
+    private List<UsageRanking> toUsageRankings(Map<String, RankedBucket> source, int limit) {
+        return source.entrySet().stream()
+                .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank())
+                .map(entry -> new UsageRanking(entry.getKey(), entry.getValue().minutes, entry.getValue().sessionsTotal))
+                .sorted(Comparator
+                        .comparing(UsageRanking::minutes, Comparator.reverseOrder())
+                        .thenComparing(UsageRanking::sessionsTotal, Comparator.reverseOrder())
+                        .thenComparing(UsageRanking::label))
+                .limit(limit)
+                .toList();
+    }
+
+    private void accumulateAmount(Map<String, RankedBucket> ranking, String label, BigDecimal amount, long count) {
+        if (label == null || label.isBlank()) return;
+        RankedBucket bucket = ranking.computeIfAbsent(label, key -> new RankedBucket());
+        bucket.amount = bucket.amount.add(amount == null ? BigDecimal.ZERO : amount);
+        bucket.count += Math.max(count, 0);
+    }
+
+    private long durationMinutes(SessionBooking booking) {
+        if (booking.getStartTime() == null || booking.getEndTime() == null) return 0;
+        return Math.max(0, Duration.between(booking.getStartTime(), booking.getEndTime()).toMinutes());
+    }
+
+    private LocalDate startOfIsoWeek(LocalDate date) {
+        return date.minusDays(date.getDayOfWeek().getValue() - DayOfWeek.MONDAY.getValue());
+    }
+
+    private String safeConsultantLabel(User consultant) {
+        if (consultant == null) return "Unassigned";
+        String name = ((consultant.getFirstName() == null ? "" : consultant.getFirstName().trim()) + " "
+                + (consultant.getLastName() == null ? "" : consultant.getLastName().trim())).trim();
+        return name.isBlank() ? "Consultant" : name;
+    }
+
+    private String safeBillClientLabel(Bill bill) {
+        if (bill.getClient() != null) {
+            String full = ((bill.getClient().getFirstName() == null ? "" : bill.getClient().getFirstName().trim()) + " "
+                    + (bill.getClient().getLastName() == null ? "" : bill.getClient().getLastName().trim())).trim();
+            if (!full.isBlank()) return full;
+        }
+        String snapshot = ((bill.getClientFirstNameSnapshot() == null ? "" : bill.getClientFirstNameSnapshot().trim()) + " "
+                + (bill.getClientLastNameSnapshot() == null ? "" : bill.getClientLastNameSnapshot().trim())).trim();
+        if (!snapshot.isBlank()) return snapshot;
+        if (bill.getRecipientCompanyNameSnapshot() != null && !bill.getRecipientCompanyNameSnapshot().isBlank()) {
+            return bill.getRecipientCompanyNameSnapshot().trim();
+        }
+        return "Client";
+    }
+
+    private String safeServiceLabel(BillItem item) {
+        if (item.getTransactionService() != null) {
+            if (item.getTransactionService().getDescription() != null && !item.getTransactionService().getDescription().isBlank()) {
+                return item.getTransactionService().getDescription().trim();
+            }
+            if (item.getTransactionService().getCode() != null && !item.getTransactionService().getCode().isBlank()) {
+                return item.getTransactionService().getCode().trim();
+            }
+        }
+        return "Service";
     }
 
     private String normalizePeriod(String raw) {

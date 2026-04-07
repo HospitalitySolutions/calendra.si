@@ -7,12 +7,17 @@ import com.example.app.settings.SettingKey;
 
 public interface AppSettingRepository extends JpaRepository<AppSetting, Long> {
     Optional<AppSetting> findByKey(String key);
+    List<AppSetting> findAllByKey(String key);
 
     List<AppSetting> findAllByCompanyId(Long companyId);
     Optional<AppSetting> findByCompanyIdAndKey(Long companyId, String key);
 
     default Optional<AppSetting> findByKey(SettingKey key) {
         return findByKey(key.name());
+    }
+
+    default List<AppSetting> findAllByKey(SettingKey key) {
+        return findAllByKey(key.name());
     }
 
     default Optional<AppSetting> findByCompanyIdAndKey(Long companyId, SettingKey key) {
