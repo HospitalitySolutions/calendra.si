@@ -16,4 +16,3 @@ public class Company extends BaseEntity {
     @Column(name = "tenant_code", unique = true, length = 64)
     private String tenantCode;
 }
-

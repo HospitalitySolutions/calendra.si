@@ -5,7 +5,6 @@ import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
-import com.example.app.company.CompanyProvisioningService;
 import com.example.app.security.JwtService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
@@ -50,6 +49,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
+@CrossOrigin(origins = "*")
 public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
@@ -65,7 +65,6 @@ public class AuthController {
     private final SessionTypeRepository types;
     private final TransactionServiceRepository txServices;
     private final PasswordResetService passwordResetService;
-    private final CompanyProvisioningService companyProvisioningService;
 
     public AuthController(
             UserRepository users,
@@ -78,8 +77,7 @@ public class AuthController {
             AppSettingRepository settings,
             SessionTypeRepository types,
             TransactionServiceRepository txServices,
-            PasswordResetService passwordResetService,
-            CompanyProvisioningService companyProvisioningService
+            PasswordResetService passwordResetService
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
@@ -92,7 +90,6 @@ public class AuthController {
         this.types = types;
         this.txServices = txServices;
         this.passwordResetService = passwordResetService;
-        this.companyProvisioningService = companyProvisioningService;
     }
 
     /**
@@ -198,7 +195,9 @@ public class AuthController {
         }
 
         String companyName = request.companyName().trim();
-        Company company = companyProvisioningService.createWithTenantCode(companyName);
+        Company company = new Company();
+        company.setName(companyName);
+        company = companies.save(company);
 
         boolean passwordProvided = request.password() != null && !request.password().isBlank();
         String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");

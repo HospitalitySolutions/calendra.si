@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -34,18 +33,15 @@ public class SecurityConfig {
     private final GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler;
     private final Environment environment;
     private final ObjectProvider<ClientRegistrationRepository> clientRegistrationRepository;
-    private final CorsProperties corsProperties;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler,
                           Environment environment,
-                          ObjectProvider<ClientRegistrationRepository> clientRegistrationRepository,
-                          CorsProperties corsProperties) {
+                          ObjectProvider<ClientRegistrationRepository> clientRegistrationRepository) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.googleOAuth2SuccessHandler = googleOAuth2SuccessHandler;
         this.environment = environment;
         this.clientRegistrationRepository = clientRegistrationRepository;
-        this.corsProperties = corsProperties;
     }
 
     @Bean
@@ -57,33 +53,9 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(request -> {
                     CorsConfiguration config = new CorsConfiguration();
-                    List<String> configuredOrigins = corsProperties.getAllowedOrigins() == null
-                            ? List.of()
-                            : corsProperties.getAllowedOrigins().stream()
-                            .map(String::trim)
-                            .filter(s -> !s.isBlank())
-                            .toList();
-                    if (configuredOrigins.isEmpty()) {
-                        configuredOrigins = List.of("http://localhost:3000");
-                    }
-                    List<String> exactOrigins = new ArrayList<>();
-                    List<String> originPatterns = new ArrayList<>();
-                    for (String origin : configuredOrigins) {
-                        if (origin.contains("*")) {
-                            originPatterns.add(origin);
-                        } else {
-                            exactOrigins.add(origin);
-                        }
-                    }
-                    if (!exactOrigins.isEmpty()) {
-                        config.setAllowedOrigins(exactOrigins);
-                    }
-                    if (!originPatterns.isEmpty()) {
-                        config.setAllowedOriginPatterns(originPatterns);
-                    }
+                    config.setAllowedOriginPatterns(List.of("*"));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-                    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
-                    config.setExposedHeaders(List.of("Location", "Content-Disposition"));
+                    config.setAllowedHeaders(List.of("*"));
                     config.setAllowCredentials(false);
                     return config;
                 }))
@@ -143,12 +115,15 @@ public class SecurityConfig {
                             ));
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json");
                             response.getWriter().write(new ObjectMapper().writeValueAsString(
                                     new LinkedHashMap<String, Object>() {{
                                         put("message", "Access denied.");
                                         put("path", request.getRequestURI());
+                                        put("principal", auth == null ? null : String.valueOf(auth.getPrincipal()));
+                                        put("authorities", auth == null ? List.of() : auth.getAuthorities().stream().map(a -> a.getAuthority()).toList());
                                     }}
                             ));
                         })

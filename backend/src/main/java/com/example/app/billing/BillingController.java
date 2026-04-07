@@ -928,7 +928,6 @@ public class BillingController {
             var req = buildFolioPdfRequest(bill, companyId);
             var layout = loadFolioLayout(companyId);
             byte[] folioPdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
-            invoicePdfS3Service.uploadFolioForBill(bill, folioPdf);
             billingEmailService.sendBankTransferFolio(bill, folioPdf);
             return new CheckoutSessionResponse(bill.getId(), bill.getBillNumber(), bill.getPaymentStatus(), null, null, null);
         }
@@ -991,7 +990,6 @@ public class BillingController {
         var req = buildFolioPdfRequest(bill, companyId);
         var layout = loadFolioLayout(companyId);
         byte[] pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
-        invoicePdfS3Service.uploadFolioForBill(bill, pdf);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"folio-" + bill.getBillNumber() + ".pdf\"")
@@ -1458,23 +1456,11 @@ public class BillingController {
         var layout = loadFolioLayout(companyId);
         byte[] pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
         String filename = req.getFolioNumber() != null ? req.getFolioNumber() : "folio";
-        invoicePdfS3Service.uploadFolioForDocument(companyId, parseIssueDate(req.getFolioDate()), filename, pdf);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "inline; filename=\"folio-" + filename + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
-    }
-
-    private LocalDate parseIssueDate(String value) {
-        if (value == null || value.isBlank()) {
-            return LocalDate.now();
-        }
-        try {
-            return LocalDate.parse(value);
-        } catch (Exception ex) {
-            return LocalDate.now();
-        }
     }
 
     /* ── Folio layout config management ── */

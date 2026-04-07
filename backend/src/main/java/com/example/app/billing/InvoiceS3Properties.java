@@ -10,7 +10,7 @@ public class InvoiceS3Properties {
     private boolean enabled;
     private String bucket = "";
     /** Logical prefix inside the bucket (no leading/trailing slashes). */
-    private String prefix = "calendra";
+    private String prefix = "invoices";
 
     public boolean isEnabled() {
         return enabled;

@@ -1,6 +1,5 @@
 package com.example.app.billing;
 
-import java.time.LocalDate;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +30,10 @@ public class InvoicePdfS3Service {
         return properties.isReady() && s3Client != null;
     }
 
+    /**
+     * Upload PDF bytes once and persist {@link Bill#getInvoicePdfObjectKey()} when archival is enabled.
+     * No-op if disabled, if a key already exists, or if {@code pdf} is null/empty.
+     */
     public void uploadAndPersistKey(Bill bill, byte[] pdf) {
         if (!isReady()) {
             return;
@@ -41,7 +44,7 @@ public class InvoicePdfS3Service {
         if (bill.getInvoicePdfObjectKey() != null && !bill.getInvoicePdfObjectKey().isBlank()) {
             return;
         }
-        String key = buildInvoiceObjectKey(bill);
+        String key = buildObjectKey(bill);
         try {
             s3Client.putObject(
                     PutObjectRequest.builder()
@@ -57,22 +60,9 @@ public class InvoicePdfS3Service {
         }
     }
 
-    public void uploadFolioForBill(Bill bill, byte[] pdf) {
-        if (!isReady() || pdf == null || pdf.length == 0) {
-            return;
-        }
-        String key = buildFolioObjectKey(bill.getCompany().getId(), bill.getIssueDate(), bill.getBillNumber());
-        upload(key, pdf, bill.getId());
-    }
-
-    public void uploadFolioForDocument(Long tenantId, LocalDate issueDate, String billNumber, byte[] pdf) {
-        if (!isReady() || pdf == null || pdf.length == 0 || tenantId == null || billNumber == null || billNumber.isBlank()) {
-            return;
-        }
-        String key = buildFolioObjectKey(tenantId, issueDate, billNumber);
-        upload(key, pdf, null);
-    }
-
+    /**
+     * Return archived PDF bytes, or {@code null} if there is no key, S3 is disabled, or download failed.
+     */
     public byte[] downloadIfPresent(Bill bill) {
         if (!isReady()) {
             return null;
@@ -91,39 +81,12 @@ public class InvoicePdfS3Service {
         }
     }
 
-    String buildInvoiceObjectKey(Bill bill) {
-        return buildDocumentKey(bill.getCompany().getId(), bill.getIssueDate(), bill.getBillNumber(), "invoice");
-    }
-
-    String buildFolioObjectKey(Long tenantId, LocalDate issueDate, String billNumber) {
-        return buildDocumentKey(tenantId, issueDate, billNumber, "folio");
-    }
-
-    private void upload(String key, byte[] pdf, Long billId) {
-        try {
-            s3Client.putObject(
-                    PutObjectRequest.builder()
-                            .bucket(properties.getBucket().trim())
-                            .key(key)
-                            .contentType("application/pdf")
-                            .build(),
-                    RequestBody.fromBytes(pdf));
-        } catch (Exception e) {
-            log.warn("Failed to store PDF in S3 billId={} key={}", billId, key, e);
-        }
-    }
-
-    private String buildDocumentKey(Long tenantId, LocalDate issueDate, String billNumber, String documentType) {
-        String rawPrefix = properties.getPrefix() == null ? "calendra" : properties.getPrefix().trim();
+    String buildObjectKey(Bill bill) {
+        String rawPrefix = properties.getPrefix() == null ? "invoices" : properties.getPrefix().trim();
         String prefix = rawPrefix.replaceAll("^/+|/+$", "");
-        long safeTenantId = tenantId == null ? 0L : tenantId;
-        String safeBillNo = sanitize(billNumber == null ? "unknown" : billNumber);
-        int issueYear = issueDate == null ? LocalDate.now().getYear() : issueDate.getYear();
-        return prefix + "/tenants/" + safeTenantId + "/invoices/" + issueYear + "/" + safeBillNo + "/" + documentType + "-" + safeBillNo + ".pdf";
-    }
-
-    private String sanitize(String value) {
-        String sanitized = SANITIZE_KEY.matcher(value).replaceAll("_");
-        return sanitized.isBlank() ? "unknown" : sanitized;
+        long companyId = bill.getCompany().getId();
+        long billId = bill.getId() == null ? 0L : bill.getId();
+        String safeNum = bill.getBillNumber() == null ? "unknown" : SANITIZE_KEY.matcher(bill.getBillNumber()).replaceAll("_");
+        return prefix + "/" + companyId + "/" + billId + "_" + safeNum + ".pdf";
     }
 }

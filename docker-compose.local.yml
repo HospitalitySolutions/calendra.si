@@ -25,18 +25,17 @@ services:
       db:
         condition: service_healthy
     environment:
+      # Staging profile + Secrets Manager. If needed, pass AWS creds from host/.env.
+      SPRING_PROFILES_ACTIVE: staging
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: 4000
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/calendradb
-      SPRING_DATASOURCE_USERNAME: calendra
-      SPRING_DATASOURCE_PASSWORD: calendra
-      APP_JWT_SECRET: local-dev-only-change-me-to-a-long-random-string
-      APP_AUTH_FRONTEND_URL: http://localhost:3000
-      APP_CORS_ALLOWED_ORIGINS: http://localhost:3000
-      APP_SERVER_INCLUDE_MESSAGE: always
-      APP_SEED_ENABLED: "true"
-      APP_SEED_DEMO_TENANTS_ENABLED: "true"
-      APP_SEED_SUPER_ADMIN_ENABLED: "true"
+      APP_JWT_EXPIRATION_MS: 86400000
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_STAGING_SECRET_ID: ${AWS_STAGING_SECRET_ID:-arn:aws:secretsmanager:eu-central-1:345362761828:secret:calendra/staging-2jqRIf}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     ports:
       - "4000:4000"
 

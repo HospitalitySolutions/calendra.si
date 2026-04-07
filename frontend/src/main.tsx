@@ -14,6 +14,10 @@ try {
   console.error('initTheme failed', e)
 }
 
+window.addEventListener('vite:preloadError', () => {
+  window.location.reload()
+})
+
 const qc = new QueryClient()
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>

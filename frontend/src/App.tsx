@@ -8,17 +8,17 @@ import { OAuthCallbackPage } from './pages/OAuthCallbackPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { SignupPage } from './pages/SignupPage'
 import { Shell } from './components/Shell'
-import { AnalyticsPage } from './pages/AnalyticsPage'
-import { InboxPage } from './pages/InboxPage'
-import { BillingPage } from './pages/BillingPage'
-import { ClientsPage } from './pages/ClientsPage'
-import { ConfigurationPage } from './pages/ConfigurationPage'
-import { PlatformAdminPage } from './pages/PlatformAdminPage'
 import { useLocale } from './locale'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 
 const CalendarPage = lazy(() => import('./pages/CalendarPage'))
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((mod) => ({ default: mod.AnalyticsPage })))
+const InboxPage = lazy(() => import('./pages/InboxPage').then((mod) => ({ default: mod.InboxPage })))
+const BillingPage = lazy(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })))
+const ClientsPage = lazy(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })))
+const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })))
+const PlatformAdminPage = lazy(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })))
 
 export default function App() {
   const user = getStoredUser()

@@ -1,14 +1,13 @@
 package com.example.app.config;
 
+import com.example.app.billing.TaxRate;
 import com.example.app.billing.PaymentMethod;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
-import com.example.app.billing.TaxRate;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
-import com.example.app.company.CompanyProvisioningService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
@@ -21,13 +20,10 @@ import com.example.app.user.UserRepository;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
-@Order(Ordered.LOWEST_PRECEDENCE)
 public class DataSeeder implements CommandLineRunner {
     private final UserRepository users;
     private final PasswordEncoder encoder;
@@ -36,18 +32,10 @@ public class DataSeeder implements CommandLineRunner {
     private final TransactionServiceRepository txServices;
     private final CompanyRepository companies;
     private final PaymentMethodRepository paymentMethods;
-    private final SeederProperties seederProperties;
-    private final CompanyProvisioningService companyProvisioningService;
 
-    public DataSeeder(UserRepository users,
-                      PasswordEncoder encoder,
-                      AppSettingRepository settings,
-                      SessionTypeRepository types,
-                      TransactionServiceRepository txServices,
-                      CompanyRepository companies,
-                      PaymentMethodRepository paymentMethods,
-                      SeederProperties seederProperties,
-                      CompanyProvisioningService companyProvisioningService) {
+    public DataSeeder(UserRepository users, PasswordEncoder encoder, AppSettingRepository settings,
+                      SessionTypeRepository types, TransactionServiceRepository txServices, CompanyRepository companies,
+                      PaymentMethodRepository paymentMethods) {
         this.users = users;
         this.encoder = encoder;
         this.settings = settings;
@@ -55,34 +43,30 @@ public class DataSeeder implements CommandLineRunner {
         this.txServices = txServices;
         this.companies = companies;
         this.paymentMethods = paymentMethods;
-        this.seederProperties = seederProperties;
-        this.companyProvisioningService = companyProvisioningService;
     }
 
     @Override
     public void run(String... args) {
-        if (!seederProperties.isEnabled()) {
-            return;
-        }
-        if (seederProperties.isSuperAdminEnabled()) {
-            seedSuperAdmin();
-        }
-        if (seederProperties.isDemoTenantsEnabled()) {
-            seedTenant("Tenant 1", "tenancy1@terminko.eu");
-            seedTenant("Tenant 2", "tenancy2@terminko.eu");
-            seedTenant("Tenant 3", "tenancy3@terminko.eu");
-            seedTenant("CoreGym", "jdukaric@calendra.si");
-            seedTenant("Nejc Bracko s.p.", "nbracko@calendra.si");
-            seedTenant("Inštitut AVISENSA", "nina@avisensa.com");
-        }
+        seedSuperAdmin();
+        seedTenant("Tenant 1", "tenancy1@terminko.eu");
+        seedTenant("Tenant 2", "tenancy2@terminko.eu");
+        seedTenant("Tenant 3", "tenancy3@terminko.eu");
+        seedTenant("CoreGym", "jdukaric@calendra.si");
+        seedTenant("Nejc Bracko s.p.", "nbracko@calendra.si");
+        seedTenant("Inštitut AVISENSA", "nina@avisensa.com");
     }
 
     private void seedSuperAdmin() {
-        final String superAdminEmail = seederProperties.getSuperAdminEmail();
-        final String superAdminPassword = seederProperties.getSuperAdminPassword();
-
-        Company platformCompany = companies.findByNameIgnoreCase("Platform Admin")
-                .orElseGet(() -> companyProvisioningService.createWithTenantCode("Platform Admin"));
+        final String superAdminEmail = "dmirc@hosp-it.eu";
+        final String superAdminPassword = "Admin123!";
+        Company platformCompany = companies.findAll().stream()
+                .filter(c -> c.getName() != null && c.getName().equalsIgnoreCase("Platform Admin"))
+                .findFirst()
+                .orElseGet(() -> {
+                    var c = new Company();
+                    c.setName("Platform Admin");
+                    return companies.save(c);
+                });
 
         users.findByEmailIgnoreCase(superAdminEmail).ifPresentOrElse(existing -> {
             boolean dirty = false;
@@ -106,9 +90,7 @@ public class DataSeeder implements CommandLineRunner {
                 existing.setConsultant(false);
                 dirty = true;
             }
-            if (dirty) {
-                users.save(existing);
-            }
+            if (dirty) users.save(existing);
         }, () -> {
             var u = new User();
             u.setCompany(platformCompany);
@@ -122,22 +104,23 @@ public class DataSeeder implements CommandLineRunner {
             users.save(u);
         });
 
-        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL,
-                "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices");
-        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL,
-                "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices/register");
+        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL, "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices");
+        seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL, "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices/register");
     }
 
     private void seedTenant(String tenantName, String adminEmail) {
         Company company = users.findByEmailIgnoreCase(adminEmail)
                 .flatMap(u -> u.getCompany() != null ? Optional.of(u.getCompany()) : Optional.empty())
-                .orElseGet(() -> companies.findByNameIgnoreCase(tenantName)
-                        .orElseGet(() -> companyProvisioningService.createWithTenantCode(tenantName)));
-
-        ensureTenantCode(company);
+                .orElseGet(() -> companies.findAll().stream()
+                        .filter(c -> c.getName() != null && c.getName().equalsIgnoreCase(tenantName))
+                        .findFirst()
+                        .orElseGet(() -> {
+                            var c = new Company();
+                            c.setName(tenantName);
+                            return companies.save(c);
+                        }));
 
         var companyName = company.getName() != null && !company.getName().isBlank() ? company.getName() : tenantName;
-        final String demoAdminPassword = seederProperties.getDemoAdminPassword();
 
         users.findByEmailIgnoreCase(adminEmail).ifPresentOrElse(existing -> {
             boolean dirty = false;
@@ -152,8 +135,9 @@ public class DataSeeder implements CommandLineRunner {
                 dirty = true;
             }
 
-            if (!encoder.matches(demoAdminPassword, existing.getPasswordHash())) {
-                existing.setPasswordHash(encoder.encode(demoAdminPassword));
+            // Keep demo credentials usable in dev environments.
+            if (!encoder.matches("Admin123!", existing.getPasswordHash())) {
+                existing.setPasswordHash(encoder.encode("Admin123!"));
                 dirty = true;
             }
 
@@ -176,13 +160,14 @@ public class DataSeeder implements CommandLineRunner {
             u.setFirstName("System");
             u.setLastName("Admin");
             u.setEmail(adminEmail);
-            u.setPasswordHash(encoder.encode(demoAdminPassword));
+            u.setPasswordHash(encoder.encode("Admin123!"));
             u.setRole(Role.ADMIN);
             u.setActive(true);
             u.setConsultant(true);
             users.save(u);
         });
 
+        // Seed settings for this tenant.
         seedSetting(company, SettingKey.SPACES_ENABLED, "true");
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
         seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
@@ -212,6 +197,7 @@ public class DataSeeder implements CommandLineRunner {
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, "MONTHLY");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, "0.00");
 
+        // Ensure at least one payment method exists.
         var methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId());
         if (methods.isEmpty()) {
             var cash = new PaymentMethod();
@@ -223,6 +209,7 @@ public class DataSeeder implements CommandLineRunner {
             paymentMethods.save(cash);
         }
 
+        // Ensure default billing transaction service exists for this tenant.
         var txList = txServices.findAllByCompanyId(company.getId());
         var tx = txList.stream().filter(s -> s.getCode().equalsIgnoreCase("CONSULT-001")).findFirst().orElse(null);
         if (tx == null) {
@@ -235,6 +222,7 @@ public class DataSeeder implements CommandLineRunner {
             tx = txServices.save(s);
         }
 
+        // Ensure default session type exists for this tenant, and link it to the default service.
         var therapyTypeOpt = types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
                 .filter(t -> t.getName().equalsIgnoreCase("THERAPY"))
                 .findFirst();
@@ -266,10 +254,6 @@ public class DataSeeder implements CommandLineRunner {
                 types.save(therapyType);
             }
         }
-    }
-
-    private void ensureTenantCode(Company company) {
-        companyProvisioningService.ensureTenantCode(company);
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

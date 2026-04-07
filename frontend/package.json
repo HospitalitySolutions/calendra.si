@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "build:android": "tsc -b && vite build --mode android",
     "build:android:emu": "tsc -b && vite build --mode androidemu",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:staging": "tsc -b && vite build --mode staging",
+    "build:production": "tsc -b && vite build --mode production"
   },
   "dependencies": {
     "@capacitor-community/speech-recognition": "^7.0.1",

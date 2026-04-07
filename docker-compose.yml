@@ -62,16 +62,11 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     depends_on:
       - backend
     ports:
-      - "127.0.0.1:3000:3000"
-    environment:
-      VITE_WEB_API_URL: /api
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "127.0.0.1:3000:80"
 
 volumes:
   postgres_data:

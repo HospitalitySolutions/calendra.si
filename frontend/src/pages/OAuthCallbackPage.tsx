@@ -14,6 +14,7 @@ export function OAuthCallbackPage() {
     const token = searchParams.get('token')
     const oauthError = searchParams.get('oauth_error')
 
+
     if (oauthError) {
       const err = decodeURIComponent(oauthError)
       console.error('OAuth error:', err)
