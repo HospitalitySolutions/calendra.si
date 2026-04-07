@@ -1,4 +1,4 @@
-staging.calendra.si {
+app.calendra.si {
 	encode gzip
 
 	header {

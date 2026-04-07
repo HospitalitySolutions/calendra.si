@@ -1,20 +1,61 @@
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-    depends_on:
-      - backend
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
     ports:
-      - "3000:80"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: calendradb
+      POSTGRES_USER: calendra
+      POSTGRES_PASSWORD: calendra
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U calendra -d calendradb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: production
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: 4000
-    ports:
-      - "4000:4000"
+      APP_JWT_EXPIRATION_MS: 86400000
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_PRODUCTION_SECRET_ID: ${AWS_PRODUCTION_SECRET_ID:-calendra/production}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        BUILD_SCRIPT: build:production
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

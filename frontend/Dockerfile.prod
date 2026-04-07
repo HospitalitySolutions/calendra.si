@@ -3,11 +3,13 @@ FROM node:20-bookworm AS build
 
 WORKDIR /app
 
+ARG BUILD_SCRIPT=build
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN npm run ${BUILD_SCRIPT}
 
 # ---- runtime stage ----
 FROM caddy:2-alpine

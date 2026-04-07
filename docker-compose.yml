@@ -10,17 +10,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - website
       - frontend
       - backend
-
-  website:
-    build:
-      context: /opt/calendra-website
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:3001:3000"
 
   db:
     image: postgres:16
@@ -63,6 +54,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+      args:
+        BUILD_SCRIPT: build:staging
     depends_on:
       - backend
     ports:
