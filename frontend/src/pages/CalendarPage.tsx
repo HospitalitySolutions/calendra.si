@@ -425,6 +425,16 @@ export default function CalendarPage() {
   const [voiceBookingError, setVoiceBookingError] = useState<string | null>(null)
   const [voiceReviewOpen, setVoiceReviewOpen] = useState(false)
   const [voiceReviewText, setVoiceReviewText] = useState('')
+  const [voicePendingCancellation, setVoicePendingCancellation] = useState<null | {
+    action?: string
+    message?: string
+    bookingId?: number
+    clientId?: number | null
+    clientName?: string | null
+    startTime?: string | null
+    endTime?: string | null
+    confirmationRequired?: boolean
+  }>(null)
   const [modeSwitching, setModeSwitching] = useState(false)
   const calendarRef = useRef<InstanceType<typeof FullCalendar>>(null)
   const loadRef = useRef<() => Promise<void>>(async () => {})
@@ -3284,19 +3294,62 @@ export default function CalendarPage() {
     placeSessionPopup(anchorEl)
   }
 
-  const submitVoiceBookingTranscript = async (text: string) => {
+  const transcriptLooksLikeCancellation = (text: string) => {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+    return ['preklic', 'preklici', 'preklicem', 'preklici', 'preklici', 'odjavi', 'odpovej', 'storno', 'cancel', 'delete', 'izbrisi', 'zbrisi']
+      .some((token) => normalized.includes(token))
+  }
+
+  const formatVoiceReviewDateTime = (value?: string | null) => {
+    if (!value) return '—'
+    const dt = new Date(value)
+    if (Number.isNaN(dt.getTime())) return value
+    return dt.toLocaleString(locale === 'sl' ? 'sl-SI' : 'en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const submitVoiceBookingTranscript = async (text: string, confirmCancellation = false) => {
     const trimmed = text.trim()
     if (!trimmed) {
       setVoiceBookingError('Besedilo je prazno.')
       return
     }
+    if (!confirmCancellation) {
+      setVoicePendingCancellation(null)
+    }
     setVoiceBookingError(null)
     setVoiceBookingLoading(true)
     try {
-      const res = await api.post('/ai/voice-booking', { transcript: trimmed })
+      const res = await api.post('/ai/voice-booking', { transcript: trimmed, confirmCancellation })
+      const action = typeof res.data?.action === 'string' ? res.data.action : ''
+      if (res.data?.confirmationRequired && action === 'cancel_review') {
+        setVoiceBookingError(null)
+        setVoicePendingCancellation({
+          action,
+          message: res.data?.message,
+          bookingId: res.data?.bookingId,
+          clientId: res.data?.clientId ?? null,
+          clientName: res.data?.clientName ?? null,
+          startTime: res.data?.startTime ?? null,
+          endTime: res.data?.endTime ?? null,
+          confirmationRequired: true,
+        })
+        setVoiceReviewOpen(true)
+        return
+      }
       setVoiceReviewOpen(false)
+      setVoicePendingCancellation(null)
       setVoiceBookingError(null)
       await loadRef.current()
+      showToast('success', res.data?.message || (action === 'cancelled' ? 'Termin je uspešno preklican.' : 'Termin je uspešno rezerviran.'))
       const startStr = res.data?.startTime as string | undefined
       if (startStr) {
         const d = new Date(startStr)
@@ -3320,6 +3373,7 @@ export default function CalendarPage() {
         typeof d.endTime === 'string' &&
         (status === 400 || status === 409)
       ) {
+        setVoicePendingCancellation(null)
         setVoiceReviewOpen(false)
         setCalendarMode('bookings')
         setVoiceBookingError(null)
@@ -3344,6 +3398,7 @@ export default function CalendarPage() {
 
   const startVoiceBooking = () => {
     setVoiceBookingError(null)
+    setVoicePendingCancellation(null)
     if (!aiBookingEnabled) {
       setVoiceBookingError('AI booking je izklopljen v konfiguraciji.')
       return
@@ -3419,6 +3474,7 @@ export default function CalendarPage() {
           setVoiceBookingError('Govor ni bil zaznan.')
           return
         }
+        setVoicePendingCancellation(null)
         setVoiceReviewText(text)
         setVoiceReviewOpen(true)
       }
@@ -3628,6 +3684,7 @@ export default function CalendarPage() {
     nativeTranscriptRef.current = ''
     nativeTranscriptBestRef.current = ''
     if (text) {
+      setVoicePendingCancellation(null)
       setVoiceReviewText(text)
       setVoiceReviewOpen(true)
     } else if (showNoSpeechError) {
@@ -5088,29 +5145,46 @@ export default function CalendarPage() {
             className="modal-backdrop"
             style={{ zIndex: 20 }}
             onClick={() => {
-              if (!voiceBookingLoading) setVoiceReviewOpen(false)
+              if (!voiceBookingLoading) {
+                setVoiceReviewOpen(false)
+                setVoicePendingCancellation(null)
+              }
             }}
           >
             <div className="modal" style={{ maxWidth: 440, width: 'min(440px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
               <PageHeader
-                title="Glasovno rezerviranje"
-                subtitle="Popravite besedilo, če ga je mikrofon narobe zaznal. Govorite slovensko; prepoznavanje uporablja slovenščino (sl-SI)."
+                title={voicePendingCancellation ? "Potrditev glasovnega preklica" : "Glasovno naročanje in preklic"}
+                subtitle={voicePendingCancellation
+                  ? "Preglejte prepoznani termin in potrdite preklic. Če je mikrofon kaj zgrešil, besedilo spodaj popravite."
+                  : "Popravite besedilo, če ga je mikrofon narobe zaznal. Mikrofon lahko rezervira ali prekliče termin; prepoznavanje uporablja slovenščino (sl-SI)."}
               />
               <div className="stack gap-md" style={{ marginTop: 12 }}>
                 <Field
                   label="Besedilo (lahko uredite)"
-                  hint="Primer: Rezerviraj Tino Jekler ob štirinajstih 28. marca. ali Termin za Petra Novaka ob 9.30 30. marca."
+                  hint="Primeri: Rezerviraj Tino Jekler ob štirinajstih 28. marca. Prekliči termin za Tino Jekler 28. marca ob 14:00. Prekliči termin 28. marca."
                 >
                   <textarea
                     className="input"
                     rows={4}
                     value={voiceReviewText}
-                    onChange={(e) => setVoiceReviewText(e.target.value)}
+                    onChange={(e) => {
+                      setVoiceReviewText(e.target.value)
+                      if (voicePendingCancellation) setVoicePendingCancellation(null)
+                    }}
                     style={{ resize: 'vertical', minHeight: 88 }}
                   />
                 </Field>
+                {voicePendingCancellation && (
+                  <div style={{ border: '1px solid var(--border-color, #d6d3d1)', borderRadius: 12, padding: 12, background: 'rgba(245, 158, 11, 0.08)' }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Termin za preklic</div>
+                    <div><strong>Stranka:</strong> {voicePendingCancellation.clientName || 'Ni določena'}</div>
+                    <div><strong>Začetek:</strong> {formatVoiceReviewDateTime(voicePendingCancellation.startTime)}</div>
+                    <div><strong>Konec:</strong> {formatVoiceReviewDateTime(voicePendingCancellation.endTime)}</div>
+                    <div style={{ marginTop: 8 }}>{voicePendingCancellation.message || 'Potrdite preklic termina.'}</div>
+                  </div>
+                )}
                 <div className="row gap" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                  <button type="button" className="secondary" disabled={voiceBookingLoading} onClick={() => setVoiceReviewOpen(false)}>
+                  <button type="button" className="secondary" disabled={voiceBookingLoading} onClick={() => { setVoiceReviewOpen(false); setVoicePendingCancellation(null) }}>
                     Prekliči
                   </button>
                   <button
@@ -5119,6 +5193,7 @@ export default function CalendarPage() {
                     disabled={voiceBookingLoading}
                     onClick={() => {
                       setVoiceReviewOpen(false)
+                      setVoicePendingCancellation(null)
                       window.setTimeout(() => startVoiceBooking(), 0)
                     }}
                   >
@@ -5128,9 +5203,9 @@ export default function CalendarPage() {
                     type="button"
                     className="primary"
                     disabled={voiceBookingLoading || !voiceReviewText.trim()}
-                    onClick={() => submitVoiceBookingTranscript(voiceReviewText)}
+                    onClick={() => submitVoiceBookingTranscript(voiceReviewText, !!voicePendingCancellation)}
                   >
-                    {voiceBookingLoading ? '…' : 'Rezerviraj'}
+                    {voiceBookingLoading ? '…' : voicePendingCancellation ? 'Potrdi preklic' : transcriptLooksLikeCancellation(voiceReviewText) ? 'Preglej preklic' : 'Rezerviraj termin'}
                   </button>
                 </div>
               </div>
@@ -7628,26 +7703,22 @@ export default function CalendarPage() {
             className={`calendar-voice-fab${isNativeAndroid ? ' calendar-voice-fab--android' : ''}${voiceListening ? ' calendar-voice-fab--listening' : ''}`}
             disabled={voiceBookingLoading}
             onClick={() => {
-              if (isNativeAndroid) {
-                if (voiceListening) {
-                  void stopVoiceBooking()
-                } else {
-                  startVoiceBooking()
-                }
+              if (voiceListening) {
+                void stopVoiceBooking()
                 return
               }
               startVoiceBooking()
             }}
             title={
               voiceBookingConfigured === false
-                ? 'Glasovno rezerviranje zahteva OPENAI_API_KEY na strežniku'
+                ? 'Glasovno naročanje in preklic zahtevata OPENAI_API_KEY na strežniku'
                 : voiceBookingLoading
                   ? 'Obdelava…'
                   : voiceListening
                     ? 'Poslušam…'
-                    : 'Rezerviraj z glasom (AI)'
+                    : 'Rezerviraj ali prekliči z glasom (AI)'
             }
-            aria-label="Rezerviraj z glasom z umetno inteligenco"
+            aria-label="Rezerviraj ali prekliči termin z glasom z umetno inteligenco"
           >
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />

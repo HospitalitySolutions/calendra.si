@@ -1,6 +1,10 @@
 # Profile: production
 # JSON secret "calendra-app" — same flat keys as staging (including AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-# AWS_REGION, and optional APP_INVOICE_S3_* for invoice PDFs).
+# AWS_REGION). For fiscalized invoice PDF archival to S3 after successful FURS send, set all of:
+#   APP_INVOICE_S3_ENABLED=true
+#   APP_INVOICE_S3_BUCKET=<production-bucket-name>
+#   optional: APP_INVOICE_S3_PREFIX=invoices
+# Without these, archival is skipped (no error to the client). Archived PDF is BillPdfService output (GET .../pdf), not the separate FolioPdfService document (GET .../folio-pdf).
 #
 # Lightsail: include AWS_* in Secrets Manager for Spring; bootstrap IAM user on the host (or container env) must still
 # be able to call secretsmanager:GetSecretValue for this secret before the JSON is loaded (see application-staging.yml).

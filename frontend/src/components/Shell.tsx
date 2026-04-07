@@ -91,7 +91,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const user = getStoredUser()!
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
-  const voiceLabel = locale === 'sl' ? 'Glasovno naročanje' : 'Voice booking'
+  const voiceLabel = locale === 'sl' ? 'Glasovno naročanje in preklic' : 'Voice booking and cancellation'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [aiBookingEnabled, setAiBookingEnabled] = useState(true)
   const [overdueTodoCount, setOverdueTodoCount] = useState(0)

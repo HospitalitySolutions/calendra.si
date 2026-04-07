@@ -79,12 +79,15 @@ public class VoiceBookingService {
             String message,
             SessionBookingController.BookingResponse booking,
             Long bookingId,
+            Long clientId,
+            String clientName,
             LocalDateTime startTime,
-            LocalDateTime endTime
+            LocalDateTime endTime,
+            boolean confirmationRequired
     ) {}
 
     @Transactional
-    public VoiceActionResponse handleTranscript(String transcript, User me) {
+    public VoiceActionResponse handleTranscript(String transcript, User me, boolean confirmCancellation) {
         if (!openAiConfig.isConfigured()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "OpenAI ni konfiguriran.");
         }
@@ -146,10 +149,10 @@ public class VoiceBookingService {
             if (fn != null && !fn.isBlank() && ln != null && !ln.isBlank()) {
                 cancelClientId = resolveClientId(fn, ln, me, false);
             }
-            return cancelFromVoice(me, sessionDate, sessionTime, cancelClientId);
+            return cancelFromVoice(me, sessionDate, sessionTime, cancelClientId, confirmCancellation);
         }
 
-        long clientId = resolveClientId(fields.firstName(), fields.lastName(), me, true);
+        long clientId = resolveClientId(fields.firstName(), fields.lastName(), me, false);
         enforceClientNameUppercase(clientId);
         if (sessionTime == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -205,8 +208,13 @@ public class VoiceBookingService {
                     "Termin je uspešno rezerviran.",
                     created,
                     created.id(),
+                    clientId,
+                    created.client() != null
+                            ? displayClientName(created.client().firstName(), created.client().lastName())
+                            : null,
                     created.startTime(),
-                    created.endTime());
+                    created.endTime(),
+                    false);
         } catch (ResponseStatusException e) {
             if (HttpStatus.CONFLICT.equals(e.getStatusCode())) {
                 throw new VoiceBookingFallbackException(
@@ -221,7 +229,7 @@ public class VoiceBookingService {
         }
     }
 
-    private VoiceActionResponse cancelFromVoice(User me, LocalDate date, LocalTime time, Long clientId) {
+    private VoiceActionResponse cancelFromVoice(User me, LocalDate date, LocalTime time, Long clientId, boolean confirmCancellation) {
         Long companyId = me.getCompany().getId();
         List<SessionBooking> source = SecurityUtils.isAdmin(me)
                 ? bookingRepository.findAllByCompanyId(companyId)
@@ -269,14 +277,35 @@ public class VoiceBookingService {
                     "Lahko prekličete le svoje termine.");
         }
 
+        Long targetClientId = target.getClient() != null ? target.getClient().getId() : null;
+        String targetClientName = target.getClient() != null
+                ? displayClientName(target.getClient().getFirstName(), target.getClient().getLastName())
+                : null;
+
+        if (!confirmCancellation) {
+            return new VoiceActionResponse(
+                    "cancel_review",
+                    "Potrdite preklic termina.",
+                    null,
+                    target.getId(),
+                    targetClientId,
+                    targetClientName,
+                    target.getStartTime(),
+                    target.getEndTime(),
+                    true);
+        }
+
         bookingRepository.delete(target);
         return new VoiceActionResponse(
                 "cancelled",
                 "Termin je uspešno preklican.",
                 null,
                 target.getId(),
+                targetClientId,
+                targetClientName,
                 target.getStartTime(),
-                target.getEndTime());
+                target.getEndTime(),
+                false);
     }
 
     private boolean isCancelIntent(String rawIntent, String transcript) {
@@ -324,7 +353,8 @@ public class VoiceBookingService {
             if (allowCreateIfMissing) {
                 return createClientForVoice(fn, ln, me).getId();
             }
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Stranka s tem imenom ni bila najdena.");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Stranka s tem imenom ni bila najdena. Odprite ročno rezervacijo in najprej potrdite ali ustvarite stranko.");
         }
         if (matches.size() > 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -490,6 +520,13 @@ public class VoiceBookingService {
             return "";
         }
         return s.trim().toUpperCase(SLOVENIAN_LOCALE);
+    }
+
+    private static String displayClientName(String firstName, String lastName) {
+        String fn = firstName == null ? "" : firstName.trim();
+        String ln = lastName == null ? "" : lastName.trim();
+        String full = (fn + " " + ln).trim();
+        return full.isBlank() ? null : full;
     }
 
     private int defaultSessionLengthMinutes(Long companyId) {
@@ -680,14 +717,16 @@ public class VoiceBookingService {
         String knownNamesPrompt = knownClientNamesPrompt(knownClients);
         String system = """
                 Prejšnji JSON je bil nepopoln. Odgovori z enim samim JSON objektom, brez markdowna.
-                Obvezni ključi (razen durationMinutes morajo imeti ne-null nize):
-                - intent (book ali cancel)
-                - clientFirstName, clientLastName, date (YYYY-MM-DD)
+                Ključi:
+                - intent (book ali cancel, obvezno)
+                - clientFirstName, clientLastName (opcijsko za cancel, obvezno za book)
+                - date (YYYY-MM-DD, obvezno)
                 - time (24-urni HH:mm) je obvezen le za intent=book; za intent=cancel je lahko null ali prazen
                 Izbirno: durationMinutes (število)
 
                 Časovni pas: %s. Danes je: %s.
-                Manjkajoče vrednosti dopolni iz slovenskega transkripta. Za obvezna štiri polja ne uporabi null.
+                Manjkajoče vrednosti dopolni iz slovenskega transkripta.
+                Če uporabnik pri preklicu ne pove imena stranke, pusti clientFirstName in clientLastName prazna ali null.
                 %s
                 """.formatted(zoneId, todayIso, knownNamesPrompt);
         String userContent = "Uporabnik je rekel:\n" + transcript + "\n\nPrejšnji JSON (popravi):\n" + partial.toString();
@@ -745,8 +784,8 @@ public class VoiceBookingService {
                 Iz slovenske izgovorjene ali napisane povedi izlušči podatke za rezervacijo ali preklic termina.
                 Odgovori z enim samim JSON objektom, brez markdown okvirov. Uporabi točne ključe (angleška imena ključev):
                 - intent (niz, obvezno) — "book" za rezervacijo ali "cancel" za preklic
-                - clientFirstName (niz, obvezno) — ime stranke
-                - clientLastName (niz, obvezno) — priimek stranke
+                - clientFirstName (niz, za book obvezno, za cancel opcijsko) — ime stranke
+                - clientLastName (niz, za book obvezno, za cancel opcijsko) — priimek stranke
                 - date (niz, obvezno) — datum v obliki YYYY-MM-DD
                 - time (niz, za book obvezno, za cancel opcijsko) — čas v 24-urnem zapisu HH:mm
                 - durationMinutes (opcijsko število, trajanje v minutah)
@@ -758,8 +797,11 @@ public class VoiceBookingService {
                 - Imeni loči ime in priimek (npr. »Tina Jekler« → clientFirstName Tina, clientLastName Jekler).
                 - Za preklic prepoznaj izraze kot »prekliči«, »odjavi«, »zbriši termin«, »cancel« in nastavi intent na "cancel".
                 - Za rezervacijo nastavi intent na "book".
-                - Polja intent, clientFirstName, clientLastName in date morajo biti vedno izpolnjena; ne smejo biti null ali prazna.
+                - Polji clientFirstName in clientLastName sta obvezni samo pri intent=book.
+                - Pri intent=cancel lahko clientFirstName in clientLastName ostaneta prazni ali null, če uporabnik imena ne pove.
+                - Polji intent in date morata biti vedno izpolnjeni; ne smeta biti null ali prazni.
                 - Če je intent=book, mora biti izpolnjen tudi time.
+                - Ne izmišljaj si imen strank. Če imena pri preklicu ni v povedi, ga ne dodajaj.
                 %s
                 """.formatted(zoneId, todayIso, knownNamesPrompt);
 

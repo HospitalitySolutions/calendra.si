@@ -107,6 +107,7 @@ public class FiscalizationService {
         Bill saved = bills.save(bill);
         if (saved.getFiscalStatus() == BillFiscalStatus.SENT) {
             try {
+                // Same layout source as GET /api/billing/bills/{id}/pdf (BillPdfService + ZOI/EOR/QR). Not the FolioPdfService bank folio from /folio-pdf.
                 byte[] pdf = billPdfService.generatePdf(saved, companyId);
                 invoicePdfS3Service.uploadAndPersistKey(saved, pdf);
             } catch (Exception e) {

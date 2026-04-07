@@ -18,16 +18,21 @@ public class InvoicePdfS3Service {
 
     private final InvoiceS3Properties properties;
     private final BillRepository billRepo;
-    private final S3Client s3Client;
+    /** Resolve lazily so the client is never captured as null when created after this bean. */
+    private final ObjectProvider<S3Client> s3ClientProvider;
 
-    public InvoicePdfS3Service(InvoiceS3Properties properties, BillRepository billRepo, ObjectProvider<S3Client> s3Client) {
+    public InvoicePdfS3Service(InvoiceS3Properties properties, BillRepository billRepo, ObjectProvider<S3Client> s3ClientProvider) {
         this.properties = properties;
         this.billRepo = billRepo;
-        this.s3Client = s3Client.getIfAvailable();
+        this.s3ClientProvider = s3ClientProvider;
+    }
+
+    private S3Client s3Client() {
+        return s3ClientProvider.getIfAvailable();
     }
 
     public boolean isReady() {
-        return properties.isReady() && s3Client != null;
+        return properties.isReady() && s3Client() != null;
     }
 
     /**
@@ -35,10 +40,24 @@ public class InvoicePdfS3Service {
      * No-op if disabled, if a key already exists, or if {@code pdf} is null/empty.
      */
     public void uploadAndPersistKey(Bill bill, byte[] pdf) {
-        if (!isReady()) {
+        if (!properties.isEnabled()) {
+            return;
+        }
+        if (properties.getBucket() == null || properties.getBucket().isBlank()) {
+            log.warn(
+                    "Invoice S3: APP_INVOICE_S3_ENABLED is true but bucket is empty — add APP_INVOICE_S3_BUCKET to env/Secrets Manager. billId={}",
+                    bill.getId());
+            return;
+        }
+        S3Client client = s3Client();
+        if (client == null) {
+            log.warn(
+                    "Invoice S3: enabled with bucket set but no S3Client bean — check Spring AWS S3 auto-config and region/credentials. billId={}",
+                    bill.getId());
             return;
         }
         if (pdf == null || pdf.length == 0) {
+            log.warn("Invoice S3 archival skipped billId={}: empty PDF bytes", bill.getId());
             return;
         }
         if (bill.getInvoicePdfObjectKey() != null && !bill.getInvoicePdfObjectKey().isBlank()) {
@@ -46,7 +65,7 @@ public class InvoicePdfS3Service {
         }
         String key = buildObjectKey(bill);
         try {
-            s3Client.putObject(
+            client.putObject(
                     PutObjectRequest.builder()
                             .bucket(properties.getBucket().trim())
                             .key(key)
@@ -55,6 +74,7 @@ public class InvoicePdfS3Service {
                     RequestBody.fromBytes(pdf));
             bill.setInvoicePdfObjectKey(key);
             billRepo.save(bill);
+            log.info("Archived invoice PDF to s3://{}/{} billId={}", properties.getBucket().trim(), key, bill.getId());
         } catch (Exception e) {
             log.warn("Failed to store invoice PDF in S3 billId={} key={}", bill.getId(), key, e);
         }
@@ -67,12 +87,16 @@ public class InvoicePdfS3Service {
         if (!isReady()) {
             return null;
         }
+        S3Client client = s3Client();
+        if (client == null) {
+            return null;
+        }
         String key = bill.getInvoicePdfObjectKey();
         if (key == null || key.isBlank()) {
             return null;
         }
         try {
-            return s3Client.getObjectAsBytes(
+            return client.getObjectAsBytes(
                             GetObjectRequest.builder().bucket(properties.getBucket().trim()).key(key).build())
                     .asByteArray();
         } catch (Exception e) {
