@@ -987,14 +987,26 @@ public class BillingController {
     public ResponseEntity<byte[]> billFolioPdf(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
         var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId).orElseThrow());
-        var req = buildFolioPdfRequest(bill, companyId);
-        var layout = loadFolioLayout(companyId);
-        byte[] pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
+        byte[] pdf = shouldServeArchivedInvoicePdfForFolio(bill)
+                ? invoicePdfS3Service.downloadIfPresent(bill)
+                : null;
+        if (pdf == null) {
+            var req = buildFolioPdfRequest(bill, companyId);
+            var layout = loadFolioLayout(companyId);
+            pdf = folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
+        }
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"folio-" + bill.getBillNumber() + ".pdf\"")
+                        "inline; filename="folio-" + bill.getBillNumber() + ".pdf"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    private boolean shouldServeArchivedInvoicePdfForFolio(Bill bill) {
+        return bill != null
+                && bill.getFiscalStatus() == BillFiscalStatus.SENT
+                && bill.getInvoicePdfObjectKey() != null
+                && !bill.getInvoicePdfObjectKey().isBlank();
     }
 
     private FolioPdfRequest buildFolioPdfRequest(Bill bill, Long companyId) {

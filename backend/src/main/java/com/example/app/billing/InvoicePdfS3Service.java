@@ -1,6 +1,5 @@
 package com.example.app.billing;
 
-import java.time.LocalDate;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,9 +108,8 @@ public class InvoicePdfS3Service {
     String buildObjectKey(Bill bill) {
         String rawPrefix = properties.getPrefix() == null ? "calendra/tenants" : properties.getPrefix().trim();
         String prefix = rawPrefix.replaceAll("^/+|/+$", "");
-        long tenancyId = bill.getCompany().getId();
-        LocalDate issueDate = bill.getIssueDate();
-        int year = issueDate == null ? LocalDate.now().getYear() : issueDate.getYear();
+        long tenancyId = bill.getCompany() != null && bill.getCompany().getId() != null ? bill.getCompany().getId() : 0L;
+        int year = bill.getIssueDate() != null ? bill.getIssueDate().getYear() : java.time.Year.now().getValue();
         long billId = bill.getId() == null ? 0L : bill.getId();
         String safeNum = bill.getBillNumber() == null ? "unknown" : SANITIZE_KEY.matcher(bill.getBillNumber()).replaceAll("_");
         return prefix + "/" + tenancyId + "/invoices/" + year + "/" + billId + "_" + safeNum + ".pdf";
