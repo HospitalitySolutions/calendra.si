@@ -22,7 +22,8 @@ public class ApiExceptionHandler {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Client is required for Individual billing. For Company billing, select a recipient company."));
         }
-        if (lower.contains("email")) {
+        // Narrow match: global user.email unique violations mention the column; app_setting key "COMPANY_EMAIL" also contains "email" but is a different failure.
+        if (lower.contains("users") && lower.contains("email")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("message", "Duplicate value detected. Email already exists."));
         }

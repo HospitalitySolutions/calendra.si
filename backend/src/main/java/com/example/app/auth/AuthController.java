@@ -300,11 +300,16 @@ public class AuthController {
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {
-        var s = new AppSetting();
-        s.setCompany(company);
-        s.setKey(key.name());
-        s.setValue(value);
-        settings.save(s);
+        settings.findByCompanyIdAndKey(company.getId(), key).ifPresentOrElse(existing -> {
+            existing.setValue(value);
+            settings.save(existing);
+        }, () -> {
+            var s = new AppSetting();
+            s.setCompany(company);
+            s.setKey(key.name());
+            s.setValue(value);
+            settings.save(s);
+        });
     }
 
     private String safeSignupValue(String rawValue, String fallback) {
