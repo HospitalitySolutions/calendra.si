@@ -6,9 +6,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-public class TherapyApplication {
+public class CalendraApplication {
     public static void main(String[] args) {
         DotenvLoader.load();
-        SpringApplication.run(TherapyApplication.class, args);
+        SpringApplication.run(CalendraApplication.class, args);
     }
 }

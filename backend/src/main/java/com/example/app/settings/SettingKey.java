@@ -5,6 +5,10 @@ public enum SettingKey {
     TYPES_ENABLED,
     BOOKABLE_ENABLED,
     AI_BOOKING_ENABLED,
+    /** Personal time blocks on the calendar (and personal-task presets tab). */
+    PERSONAL_ENABLED,
+    /** To-do items on the calendar and header task list. */
+    TODOS_ENABLED,
     SESSION_LENGTH_MINUTES,
     WORKING_HOURS_START,
     WORKING_HOURS_END,

@@ -96,6 +96,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [aiBookingEnabled, setAiBookingEnabled] = useState(true)
   const [overdueTodoCount, setOverdueTodoCount] = useState(0)
   const [todos, setTodos] = useState<any[]>([])
+  const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
   const [bellOpen, setBellOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -134,6 +135,11 @@ function ShellInner({ children }: PropsWithChildren) {
   }
 
   useEffect(() => {
+    if (!todosModuleEnabled) {
+      setOverdueTodoCount(0)
+      setTodos([])
+      return
+    }
     loadOverdue()
     const interval = window.setInterval(loadOverdue, 60000)
     window.addEventListener('todos-updated', loadOverdue)
@@ -141,7 +147,7 @@ function ShellInner({ children }: PropsWithChildren) {
       window.clearInterval(interval)
       window.removeEventListener('todos-updated', loadOverdue)
     }
-  }, [])
+  }, [todosModuleEnabled])
 
   const loadCompanyName = () => {
     api
@@ -151,6 +157,7 @@ function ShellInner({ children }: PropsWithChildren) {
         const configuredName = String(settingsData.COMPANY_NAME || '').trim()
         setCompanyName(configuredName || defaultCompanyName)
         setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED !== 'false')
+        setTodosModuleEnabled(settingsData.TODOS_ENABLED !== 'false')
       })
       .catch(() => {})
   }
@@ -293,7 +300,7 @@ function ShellInner({ children }: PropsWithChildren) {
       return isOverdue || isToday
     })
     .sort((a: any, b: any) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-  const showHeaderTodo = !isNativeAndroid
+  const showHeaderTodo = !isNativeAndroid && todosModuleEnabled
 
   const displayName = `${user.firstName} ${user.lastName}`.trim()
   const initials =

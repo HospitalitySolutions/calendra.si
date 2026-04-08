@@ -172,6 +172,8 @@ public class DataSeeder implements CommandLineRunner {
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
         seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
         seedSetting(company, SettingKey.AI_BOOKING_ENABLED, "true");
+        seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
+        seedSetting(company, SettingKey.TODOS_ENABLED, "true");
         seedSetting(company, SettingKey.SESSION_LENGTH_MINUTES, "60");
         seedSetting(company, SettingKey.WORKING_HOURS_START, "05:00");
         seedSetting(company, SettingKey.WORKING_HOURS_END, "23:00");

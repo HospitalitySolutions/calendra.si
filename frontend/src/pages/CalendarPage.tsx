@@ -355,6 +355,8 @@ export default function CalendarPage() {
   const user = getStoredUser()!
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [] })
   const [settings, setSettings] = useState<Record<string, string>>({})
+  const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
+  const todosModuleEnabled = settings.TODOS_ENABLED !== 'false'
   const [meta, setMeta] = useState({ clients: [], users: [], spaces: [], types: [] } as any)
   const EMPTY_ARR: any[] = useMemo(() => [], [])
   const metaUsers: any[] = Array.isArray(meta.users) ? meta.users : EMPTY_ARR
@@ -1383,15 +1385,16 @@ export default function CalendarPage() {
   }, [])
 
   useEffect(() => {
-    if (!pendingExternalTodo) return
+    if (!pendingExternalTodo || !todosModuleEnabled) return
     const todo = (calendarData.todos || []).find((t: any) => t.id === pendingExternalTodo.todoId)
     if (!todo) return
     sessionPopupAnchorRectRef.current = pendingExternalTodo.anchorRect ?? null
     setSelectedTodo(todo)
     setPendingExternalTodo(null)
-  }, [pendingExternalTodo, calendarData.todos])
+  }, [pendingExternalTodo, calendarData.todos, todosModuleEnabled])
 
   useEffect(() => {
+    if (!todosModuleEnabled) return
     const todoIdRaw = new URLSearchParams(window.location.search).get('todoId')
     if (!todoIdRaw) return
     const todoId = Number(todoIdRaw)
@@ -1403,7 +1406,7 @@ export default function CalendarPage() {
     const url = new URL(window.location.href)
     url.searchParams.delete('todoId')
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
-  }, [calendarData.todos])
+  }, [calendarData.todos, todosModuleEnabled])
 
   const PENDING_BOOKING_KEY = 'pendingOnlineBooking'
 
@@ -1520,6 +1523,22 @@ export default function CalendarPage() {
     isWeekOrMonthView &&
     ((calendarMode === 'bookings' && (consultantFilterId == null || consultantFilterId === CONSULTANT_FILTER_ALL_SESSION)) ||
       (calendarMode === 'spaces' && spaceFilterId == null))
+
+  useEffect(() => {
+    if (!personalModuleEnabled) {
+      setForm((f: any) => ({ ...f, personal: false }))
+      setSelectedPersonalBlock(null)
+      setPersonalTaskPresetDropdownOpen(false)
+    }
+  }, [personalModuleEnabled])
+
+  useEffect(() => {
+    if (!todosModuleEnabled) {
+      setForm((f: any) => ({ ...f, todo: false }))
+      setSelectedTodo(null)
+      setAndroidTodoOpen(false)
+    }
+  }, [todosModuleEnabled])
 
   const calendarPlugins = useMemo(
     () =>
@@ -2030,9 +2049,11 @@ export default function CalendarPage() {
       // Also add an availability-block marker so working-hours availability
       // is removed for this period as well (not only explicit slots).
       const ownerId = consultantId
-      const blockCandidates = (calendarData.personal || [])
-        .filter((p: any) => (p.consultant?.id ?? p.consultantId ?? p.ownerId) === ownerId)
-        .filter((p: any) => String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK)
+      const blockCandidates = personalModuleEnabled
+        ? (calendarData.personal || [])
+            .filter((p: any) => (p.consultant?.id ?? p.consultantId ?? p.ownerId) === ownerId)
+            .filter((p: any) => String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK)
+        : []
       const reqStartMs = startDate.getTime()
       const reqEndMs = endDate.getTime()
       const covered = blockCandidates
@@ -2049,7 +2070,7 @@ export default function CalendarPage() {
         cursor = Math.max(cursor, r.endMs)
         if (cursor >= reqEndMs) break
       }
-      if (cursor < reqEndMs) {
+      if (cursor < reqEndMs && personalModuleEnabled) {
         await api.post('/bookings/personal-blocks', {
           startTime: availabilitySelection.startTime,
           endTime: availabilitySelection.endTime,
@@ -2410,7 +2431,7 @@ export default function CalendarPage() {
               && otherEndMs > otherStartMs
               && overlaps(breakRange.startMs, breakRange.endMs, otherStartMs, otherEndMs)
           }) ||
-          (calendarData.personal || []).some((other: any) => {
+          (personalModuleEnabled ? (calendarData.personal || []) : []).some((other: any) => {
             const otherOwnerId = personalOwnerId(other)
             if (bookedOwnerId == null || otherOwnerId !== bookedOwnerId) return false
             const otherStartMs = new Date(other?.startTime).getTime()
@@ -2514,15 +2535,17 @@ export default function CalendarPage() {
       arr.push({ startMs, endMs })
       blockingRangesByConsultant.set(cid, arr)
     }
-    for (const p of (calendarData.personal || [])) {
-      const cid = personalOwnerId(p)
-      if (!Number.isFinite(cid) || !visibleConsultantIds.has(cid)) continue
-      const startMs = new Date(p.startTime).getTime()
-      const endMs = new Date(p.endTime).getTime()
-      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue
-      const arr = blockingRangesByConsultant.get(cid) || []
-      arr.push({ startMs, endMs })
-      blockingRangesByConsultant.set(cid, arr)
+    if (personalModuleEnabled) {
+      for (const p of calendarData.personal || []) {
+        const cid = personalOwnerId(p)
+        if (!Number.isFinite(cid) || !visibleConsultantIds.has(cid)) continue
+        const startMs = new Date(p.startTime).getTime()
+        const endMs = new Date(p.endTime).getTime()
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue
+        const arr = blockingRangesByConsultant.get(cid) || []
+        arr.push({ startMs, endMs })
+        blockingRangesByConsultant.set(cid, arr)
+      }
     }
     const splitIntoStepSegments = (startMs: number, endMs: number, stepMs: number) => {
       const out: Array<{ startMs: number; endMs: number }> = []
@@ -2875,7 +2898,7 @@ export default function CalendarPage() {
       return map
     })()
 
-    const personal = (calendarData.personal || [])
+    const personal = (personalModuleEnabled ? calendarData.personal || [] : [])
       .filter((p: any) => personalOwnerId(p) === user.id)
       .filter((p: any) => {
         if (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION) return true
@@ -2901,7 +2924,7 @@ export default function CalendarPage() {
         return ev
       })
       .filter(Boolean as any)
-    const todosRaw = (calendarData.todos || [])
+    const todosRaw = (todosModuleEnabled ? calendarData.todos || [] : [])
       .filter((t: any) => (t.consultant?.id ?? t.consultantId ?? user.id) === user.id)
       .filter((t: any) => {
         if (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION) return true
@@ -2949,8 +2972,8 @@ export default function CalendarPage() {
       } else if (selection && !availabilitySelection) {
         startStr = form?.startTime ?? selection.start
         endStr = form?.endTime ?? selection.end
-        if (form?.todo) draftKind = 'todo'
-        else if (form?.personal) draftKind = 'personal'
+        if (form?.todo && todosModuleEnabled) draftKind = 'todo'
+        else if (form?.personal && personalModuleEnabled) draftKind = 'personal'
         else draftKind = 'booked'
         if (spacesUseResourceColumns && calendarMode === 'spaces') {
           const online = !!form?.online
@@ -3063,6 +3086,8 @@ export default function CalendarPage() {
     selectedPersonalBlock,
     selectedTodo,
     availabilitySelection,
+    personalModuleEnabled,
+    todosModuleEnabled,
     t,
     locale,
   ])
@@ -3954,6 +3979,7 @@ export default function CalendarPage() {
   }
 
   const findOverlappingPersonalBlocksForBooking = (start: string, end: string, consultantId: number | null, breakMinutes = 0) => {
+    if (!personalModuleEnabled) return []
     const startMs = new Date(start).getTime()
     const endMs = new Date(end).getTime() + Math.max(0, Number(breakMinutes) || 0) * 60000
     return (calendarData.personal || []).filter((p: any) => {
@@ -3967,6 +3993,16 @@ export default function CalendarPage() {
 
   const saveBooking = async (skipBookedOverlapCheck = false, skipNonBookableConfirm = false, skipPersonalOverlapConfirm = false) => {
     setSaveBookingError(null)
+    if (form.personal && !personalModuleEnabled) {
+      setForm((f: any) => ({ ...f, personal: false }))
+      setSaveBookingError(t('calendarErrorPersonalModuleDisabled'))
+      return
+    }
+    if (form.todo && !todosModuleEnabled) {
+      setForm((f: any) => ({ ...f, todo: false }))
+      setSaveBookingError(t('calendarErrorTodosModuleDisabled'))
+      return
+    }
     let resolvedClientId: number | null = null
     if (form.personal || form.todo) {
       if (!form.task?.trim()) {
@@ -4403,6 +4439,11 @@ export default function CalendarPage() {
 
   const updatePersonalBlock = async () => {
     if (!selectedPersonalBlock?.id) return
+    if (!personalModuleEnabled) {
+      setSelectedPersonalBlock(null)
+      showToast('error', t('calendarErrorPersonalModuleDisabled'))
+      return
+    }
     await api.put(`/bookings/personal-blocks/${selectedPersonalBlock.id}`, {
       startTime: selectedPersonalBlock.startTime,
       endTime: selectedPersonalBlock.endTime,
@@ -4415,6 +4456,10 @@ export default function CalendarPage() {
 
   const deletePersonalBlock = async () => {
     if (!selectedPersonalBlock?.id) return
+    if (!personalModuleEnabled) {
+      setSelectedPersonalBlock(null)
+      return
+    }
     await api.delete(`/bookings/personal-blocks/${selectedPersonalBlock.id}`)
     setSelectedPersonalBlock(null)
     load()
@@ -4423,6 +4468,11 @@ export default function CalendarPage() {
   const closeTodoModal = () => setSelectedTodo(null)
   const updateTodo = async () => {
     if (!selectedTodo?.id) return
+    if (!todosModuleEnabled) {
+      setSelectedTodo(null)
+      showToast('error', t('calendarErrorTodosModuleDisabled'))
+      return
+    }
     await api.put(`/bookings/todos/${selectedTodo.id}`, {
       startTime: selectedTodo.startTime,
       task: selectedTodo.task,
@@ -4434,6 +4484,10 @@ export default function CalendarPage() {
   }
   const deleteTodo = async () => {
     if (!selectedTodo?.id) return
+    if (!todosModuleEnabled) {
+      setSelectedTodo(null)
+      return
+    }
     await api.delete(`/bookings/todos/${selectedTodo.id}`)
     setSelectedTodo(null)
     load()
@@ -4499,6 +4553,7 @@ export default function CalendarPage() {
   }
 
   const performMovePersonal = async (block: any, newStartStr: string, newEndStr: string) => {
+    if (!personalModuleEnabled) throw new Error('PERSONAL_MODULE_DISABLED')
     await api.put(`/bookings/personal-blocks/${block.id}`, {
       startTime: newStartStr,
       endTime: newEndStr,
@@ -4508,6 +4563,7 @@ export default function CalendarPage() {
   }
 
   const performMoveTodo = async (todo: any, newStartStr: string) => {
+    if (!todosModuleEnabled) throw new Error('TODOS_MODULE_DISABLED')
     await api.put(`/bookings/todos/${todo.id}`, {
       startTime: newStartStr,
       task: todo.task,
@@ -4550,6 +4606,10 @@ export default function CalendarPage() {
         : undefined
 
     if (props.kind === 'personal') {
+      if (!personalModuleEnabled) {
+        info.revert()
+        return
+      }
       const newEnd = info.event.end || new Date(newStart.getTime() + 60 * 60000)
       const newEndStr = toLocalDateTimeString(newEnd)
       setCalendarData((prev: any) => ({ ...prev, personal: (prev.personal || []).map((p: any) => p.id === props.id ? { ...p, startTime: newStartStr, endTime: newEndStr } : p) }))
@@ -4566,6 +4626,10 @@ export default function CalendarPage() {
     }
 
     if (props.kind === 'todo') {
+      if (!todosModuleEnabled) {
+        info.revert()
+        return
+      }
       const newEnd = info.event.end || new Date(newStart.getTime() + 30 * 60 * 1000)
       const newEndStr = toLocalDateTimeString(newEnd)
       setCalendarData((prev: any) => ({
@@ -4684,6 +4748,10 @@ export default function CalendarPage() {
   const handleEventResize = async (info: any) => {
     const props = info.event.extendedProps
     if (props.kind === 'personal') {
+      if (!personalModuleEnabled) {
+        info.revert()
+        return
+      }
       const newStart = info.event.start!
       const newEnd = info.event.end || new Date(newStart.getTime() + 60 * 60000)
       const newStartStr = toLocalDateTimeString(newStart)
@@ -5245,6 +5313,7 @@ export default function CalendarPage() {
             <div className="calendar-android-toolbar-leading" />
             <div className="calendar-android-toolbar-title">{calendarToolbarTitle}</div>
             <div className="fc-button-group calendar-android-view-toggle" ref={androidScheduleRef} style={{ position: 'relative' }}>
+              {todosModuleEnabled && (
               <button
                 type="button"
                 className="calendar-android-toolbar-icon-btn calendar-android-todo-btn"
@@ -5255,6 +5324,7 @@ export default function CalendarPage() {
                   <path d="M22 5.18 10.59 16.6l-4.24-4.24 1.41-1.41 2.83 2.83L20.59 3.76 22 5.18ZM19.79 11.22c.05.25.05.51.05.78 0 4.31-3.48 7.8-7.79 7.8s-7.79-3.49-7.79-7.8 3.48-7.8 7.79-7.8c1.08 0 2.11.22 3.06.62l1.57-1.57A9.86 9.86 0 0 0 12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10c0-.8-.1-1.58-.29-2.33l-1.92 1.55Z" />
                 </svg>
               </button>
+              )}
               <button
                 type="button"
                 className="fc-button fc-button-primary"
@@ -6338,15 +6408,15 @@ export default function CalendarPage() {
             </div>
           </div>
         )}
-        {isNativeAndroid && androidTodoOpen && (
+        {isNativeAndroid && todosModuleEnabled && androidTodoOpen && (
           <div className="modal-backdrop" onClick={() => setAndroidTodoOpen(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <PageHeader title={t('calendarTodoTasks')} />
               <div className="stack gap-sm">
-                {(calendarData.todos || []).length === 0 ? (
+                {(todosModuleEnabled ? calendarData.todos || [] : []).length === 0 ? (
                   <div className="muted">{t('calendarNoTasks')}</div>
                 ) : (
-                  (calendarData.todos || []).map((t: any) => (
+                  (todosModuleEnabled ? calendarData.todos || [] : []).map((t: any) => (
                     <button
                       key={t.id}
                       type="button"
@@ -7026,6 +7096,7 @@ export default function CalendarPage() {
                 >
                   <span className="booking-type-btn-label">{t('formBooking')}</span>
                 </button>
+                {personalModuleEnabled && (
                 <button
                   type="button"
                   className={!availabilitySelection && form.personal ? 'booking-type-btn active' : 'booking-type-btn'}
@@ -7038,6 +7109,8 @@ export default function CalendarPage() {
                 >
                   <span className="booking-type-btn-label">{t('formPersonal')}</span>
                 </button>
+                )}
+                {todosModuleEnabled && (
                 <button
                   type="button"
                   className={!availabilitySelection && form.todo ? 'booking-type-btn active' : 'booking-type-btn'}
@@ -7050,6 +7123,7 @@ export default function CalendarPage() {
                 >
                   <span className="booking-type-btn-label">{t('formTodo')}</span>
                 </button>
+                )}
                 <button
                   type="button"
                   className={availabilitySelection ? 'booking-type-btn active' : 'booking-type-btn'}
@@ -7470,8 +7544,8 @@ export default function CalendarPage() {
                   <div className="form-row book-session-flags-row">
                     <span className="form-row-label">{t('formOptions')}</span>
                     <div className="checkbox-row book-session-checkbox-row">
-                      <label><input type="checkbox" checked={!!form.todo} onChange={(e) => setForm({ ...form, todo: e.target.checked, personal: false, online: false, consultantId: e.target.checked ? user.id : form.consultantId })} /> {t('formTodo')}</label>
-                      <label><input type="checkbox" checked={!!form.personal} onChange={(e) => setForm({ ...form, personal: e.target.checked, todo: false, consultantId: e.target.checked ? user.id : form.consultantId })} disabled={!!form.todo} /> {t('formPersonal')}</label>
+                      {todosModuleEnabled && <label><input type="checkbox" checked={!!form.todo} onChange={(e) => setForm({ ...form, todo: e.target.checked, personal: false, online: false, consultantId: e.target.checked ? user.id : form.consultantId })} /> {t('formTodo')}</label>}
+                      {personalModuleEnabled && <label><input type="checkbox" checked={!!form.personal} onChange={(e) => setForm({ ...form, personal: e.target.checked, todo: false, consultantId: e.target.checked ? user.id : form.consultantId })} disabled={!!form.todo} /> {t('formPersonal')}</label>}
                       <label><input type="checkbox" checked={!!form.online} onChange={(e) => { const on = e.target.checked; if (on) { setForm({ ...form, online: true }); setMeetingPickerCancelUnchecksOnline(true); setMeetingProviderPickerOpen(true) } else { setForm({ ...form, online: false }); setMeetingProviderPickerOpen(false); setMeetingPickerCancelUnchecksOnline(false) } }} disabled={!!form.personal || !!form.todo} /> {t('formOnline')}</label>
                     </div>
                   </div>

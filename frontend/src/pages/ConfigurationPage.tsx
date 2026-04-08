@@ -271,6 +271,14 @@ export function ConfigurationPage() {
 
   useEffect(() => { load() }, [])
 
+  const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
+
+  useEffect(() => {
+    if (!personalModuleEnabled && bookingSubtab === 'tasks') {
+      setBookingSubtab('modules')
+    }
+  }, [personalModuleEnabled, bookingSubtab])
+
   useEffect(() => {
     setOpenSpaceMenuId(null)
   }, [bookingSubtab])
@@ -608,7 +616,9 @@ export function ConfigurationPage() {
           <div className="config-booking-subtabs">
             <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
               <button type="button" className={bookingSubtab === 'modules' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('modules')}>{t('configBookingModulesTab')}</button>
-              <button type="button" className={bookingSubtab === 'tasks' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('tasks')}>{t('configBookingTasksTab')}</button>
+              {personalModuleEnabled ? (
+                <button type="button" className={bookingSubtab === 'tasks' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('tasks')}>{t('configBookingTasksTab')}</button>
+              ) : null}
               <button type="button" className={bookingSubtab === 'spaces' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('spaces')}>{t('configBookingSpacesTab')}</button>
               <button type="button" className={bookingSubtab === 'types' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('types')}>{t('configBookingTypesTab')}</button>
             </div>
@@ -643,6 +653,42 @@ export function ConfigurationPage() {
                     <strong>{t('configModulesAiLabel')}</strong>
                   </div>
                   <button type="button" className={settings.AI_BOOKING_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, AI_BOOKING_ENABLED: String(settings.AI_BOOKING_ENABLED === 'false') })}>{settings.AI_BOOKING_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}</button>
+                </div>
+                <div className="config-module-row">
+                  <div className="config-module-name">
+                    <HelpHint text={t('configModulesPersonalHelp')} />
+                    <strong>{t('configModulesPersonalLabel')}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    className={settings.PERSONAL_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
+                    onClick={() =>
+                      setSettings({
+                        ...settings,
+                        PERSONAL_ENABLED: String(settings.PERSONAL_ENABLED === 'false'),
+                      })
+                    }
+                  >
+                    {settings.PERSONAL_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
+                  </button>
+                </div>
+                <div className="config-module-row">
+                  <div className="config-module-name">
+                    <HelpHint text={t('configModulesTodosHelp')} />
+                    <strong>{t('configModulesTodosLabel')}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    className={settings.TODOS_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
+                    onClick={() =>
+                      setSettings({
+                        ...settings,
+                        TODOS_ENABLED: String(settings.TODOS_ENABLED === 'false'),
+                      })
+                    }
+                  >
+                    {settings.TODOS_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
+                  </button>
                 </div>
                 <label className="config-setting-row">
                   <span className="field-label config-label-with-help"><HelpHint text={t('configModulesSessionLengthHelp')} />{t('configModulesSessionLengthLabel')}</span>
