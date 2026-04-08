@@ -4594,3 +4594,76 @@ a.clients-contact-link:hover {
         padding: 10px 12px;
     }
 }
+
+.auth-flow-card {
+    width: min(100%, 420px);
+    max-width: 420px;
+}
+
+.auth-flow-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.auth-flow-note {
+    margin: 0;
+    text-align: left;
+}
+
+.auth-flow-back-btn {
+    width: 100%;
+}
+
+.auth-flow-success-state,
+.auth-flow-invalid-state {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.auth-flow-feedback {
+    margin: 0;
+}
+
+.auth-flow-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.auth-flow-email-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    border-radius: 14px;
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    color: var(--color-text);
+    font-weight: 600;
+    box-sizing: border-box;
+    text-align: center;
+    word-break: break-word;
+}
+
+.password-rule-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--color-text-muted);
+    font-size: 0.92rem;
+}
+
+.password-rule-list li {
+    list-style: disc;
+}
+
+.password-rule-list li.met {
+    color: var(--color-success);
+}

@@ -321,6 +321,22 @@ public class AuthController {
         return rawValue.trim();
     }
 
+    private String validatePasswordStrength(String password) {
+        if (password == null || password.length() < 8) {
+            return "Password must be at least 8 characters.";
+        }
+        if (!password.chars().anyMatch(Character::isDigit)) {
+            return "Password must contain at least one number.";
+        }
+        if (!password.chars().anyMatch(Character::isUpperCase)) {
+            return "Password must contain at least one uppercase letter.";
+        }
+        if (!password.chars().anyMatch(Character::isLowerCase)) {
+            return "Password must contain at least one lowercase letter.";
+        }
+        return null;
+    }
+
     public record LoginRequest(
             @NotBlank @Email String email,
             @NotBlank String password
@@ -363,9 +379,10 @@ public class AuthController {
 
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
-        if (request.password().length() < 8) {
+        String passwordValidationMessage = validatePasswordStrength(request.password());
+        if (passwordValidationMessage != null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", "Password must be at least 8 characters."));
+                    .body(Map.of("message", passwordValidationMessage));
         }
         boolean ok = passwordResetService.resetPassword(request.token(), request.password());
         if (!ok) {

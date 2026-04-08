@@ -22,16 +22,22 @@ export function LoginPage() {
   const [email, setEmail] = useState('tenancy1@terminko.eu')
   const [password, setPassword] = useState('Admin123!')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [showForgotModal, setShowForgotModal] = useState(false)
-  const [forgotEmail, setForgotEmail] = useState('')
-  const [forgotSubmitting, setForgotSubmitting] = useState(false)
-  const [forgotMessage, setForgotMessage] = useState('')
   const [loginPasswordVisible, setLoginPasswordVisible] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const oauthError = params.get('oauth_error')
+    const resetSuccess = params.get('reset')
+
+    setError('')
+    setSuccess('')
+
+    if (resetSuccess === 'success') {
+      setSuccess(t('loginPasswordResetSuccess'))
+    }
+
     if (oauthError) {
       try {
         const decoded = decodeURIComponent(oauthError)
@@ -51,6 +57,7 @@ export function LoginPage() {
   const submitLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
+    setSuccess('')
     const fd = new FormData(e.currentTarget)
     const emailVal = String(fd.get('email') ?? email).trim()
     const passwordVal = String(fd.get('password') ?? password)
@@ -90,19 +97,7 @@ export function LoginPage() {
     }
   }
 
-  const submitForgotPassword = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setForgotMessage('')
-    setForgotSubmitting(true)
-    try {
-      await api.post('/auth/forgot-password', { email: forgotEmail.trim() })
-      setForgotMessage(t('forgotPasswordSentSuccess'))
-    } catch {
-      setForgotMessage(t('forgotPasswordSendError'))
-    } finally {
-      setForgotSubmitting(false)
-    }
-  }
+  const forgotPasswordUrl = `/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`
 
   return (
     <div className="login-wrap login-bg">
@@ -177,17 +172,10 @@ export function LoginPage() {
               </svg>
             </button>
           </div>
-          <button
-            type="button"
-            className="login-forgot-open"
-            onClick={() => {
-              setForgotEmail(email || '')
-              setForgotMessage('')
-              setShowForgotModal(true)
-            }}
-          >
+          <button type="button" className="login-forgot-open" onClick={() => navigate(forgotPasswordUrl)}>
             {t('loginForgotPassword')}
           </button>
+          {success && <div className="success">{success}</div>}
           {error && <div className="error">{error}</div>}
           <button type="submit" disabled={submitting} className="login-primary-btn">
             {submitting ? t('loginSubmitting') : t('loginSubmit')}
@@ -232,32 +220,6 @@ export function LoginPage() {
           </div>
         </form>
       </>
-      {showForgotModal && (
-        <div className="modal-backdrop" onClick={() => setShowForgotModal(false)}>
-          <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginTop: 0 }}>{t('loginForgotPassword')}</h2>
-            <p className="muted">{t('forgotPasswordModalHint')}</p>
-            <form onSubmit={submitForgotPassword} className="login-forgot-form">
-              <input
-                type="email"
-                value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)}
-                placeholder={t('loginEmailLabel')}
-                required
-              />
-              {forgotMessage && <div className="success">{forgotMessage}</div>}
-              <div className="form-actions" style={{ marginTop: 8 }}>
-                <button type="button" className="secondary" onClick={() => setShowForgotModal(false)}>
-                  {t('cancel')}
-                </button>
-                <button type="submit" disabled={forgotSubmitting}>
-                  {forgotSubmitting ? t('forgotPasswordSending') : t('forgotPasswordSendResetLink')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

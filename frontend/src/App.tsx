@@ -5,6 +5,7 @@ import { useToast } from './components/Toast'
 import { registerConflict409Handler } from './api'
 import { LoginPage } from './pages/LoginPage'
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { SignupPage } from './pages/SignupPage'
 import { Shell } from './components/Shell'
@@ -103,6 +104,7 @@ export default function App() {
   }, [location.search, location.pathname, navigate, showToast, user])
 
   if (location.pathname === '/oauth-callback') return <OAuthCallbackPage />
+  if (location.pathname === '/forgot-password') return <ForgotPasswordPage />
   if (location.pathname === '/reset-password') return <ResetPasswordPage />
 
   if (!user) {
@@ -111,6 +113,8 @@ export default function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
