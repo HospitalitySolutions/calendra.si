@@ -30,4 +30,4 @@ spring:
         secret-key: ${AWS_SECRET_ACCESS_KEY:}
 app:
   auth:
-    frontend-url: ${APP_AUTH_FRONTEND_URL:https://staging.calendra.si}
+    frontend-url: ${APP_AUTH_FRONTEND_URL:}
