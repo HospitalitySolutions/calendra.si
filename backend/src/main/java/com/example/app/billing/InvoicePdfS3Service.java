@@ -108,7 +108,7 @@ public class InvoicePdfS3Service {
     String buildObjectKey(Bill bill) {
         String rawPrefix = properties.getPrefix() == null ? "calendra/tenants" : properties.getPrefix().trim();
         String prefix = rawPrefix.replaceAll("^/+|/+$", "");
-        long tenancyId = bill.getCompany() != null && bill.getCompany().getId() != null ? bill.getCompany().getId() : 0L;
+        long tenancyId = bill.getCompany().getId();
         int year = bill.getIssueDate() != null ? bill.getIssueDate().getYear() : java.time.Year.now().getValue();
         long billId = bill.getId() == null ? 0L : bill.getId();
         String safeNum = bill.getBillNumber() == null ? "unknown" : SANITIZE_KEY.matcher(bill.getBillNumber()).replaceAll("_");
