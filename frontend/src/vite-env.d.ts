@@ -4,4 +4,5 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string
   /** Optional override when running in a browser (never uses emulator-only hosts). */
   readonly VITE_WEB_API_URL?: string
+  readonly VITE_WEBSITE_PRICING_URL?: string
 }
