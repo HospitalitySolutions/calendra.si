@@ -1,0 +1,381 @@
+package com.example.app.widget;
+
+import com.example.app.client.Client;
+import com.example.app.client.ClientRepository;
+import com.example.app.company.Company;
+import com.example.app.company.CompanyRepository;
+import com.example.app.session.BookableSlot;
+import com.example.app.session.BookableSlotRepository;
+import com.example.app.session.SessionBookingController;
+import com.example.app.session.SessionBookingCreationService;
+import com.example.app.session.SessionType;
+import com.example.app.session.SessionTypeRepository;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
+import com.example.app.user.Role;
+import com.example.app.user.User;
+import com.example.app.user.UserRepository;
+import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+public class PublicBookingWidgetService {
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+    private static final DateTimeFormatter SLOT_LABEL_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter HUMAN_FORMAT = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' HH:mm", Locale.ENGLISH);
+
+    private final CompanyRepository companies;
+    private final AppSettingRepository settings;
+    private final SessionTypeRepository types;
+    private final BookableSlotRepository bookableSlots;
+    private final UserRepository users;
+    private final ClientRepository clients;
+    private final SessionBookingCreationService bookingCreationService;
+
+    public PublicBookingWidgetService(
+            CompanyRepository companies,
+            AppSettingRepository settings,
+            SessionTypeRepository types,
+            BookableSlotRepository bookableSlots,
+            UserRepository users,
+            ClientRepository clients,
+            SessionBookingCreationService bookingCreationService
+    ) {
+        this.companies = companies;
+        this.settings = settings;
+        this.types = types;
+        this.bookableSlots = bookableSlots;
+        this.users = users;
+        this.clients = clients;
+        this.bookingCreationService = bookingCreationService;
+    }
+
+    public PublicBookingWidgetController.WidgetConfigResponse config(String tenantCode) {
+        Company company = resolveCompany(tenantCode);
+        var cfg = loadConfig(company.getId());
+        return new PublicBookingWidgetController.WidgetConfigResponse(
+                company.getTenantCode(),
+                cfg.companyName(),
+                cfg.availabilityEnabled(),
+                cfg.typesEnabled(),
+                cfg.sessionLengthMinutes(),
+                cfg.workingHoursStart().toString(),
+                cfg.workingHoursEnd().toString(),
+                "Europe/Ljubljana"
+        );
+    }
+
+    public List<PublicBookingWidgetController.WidgetServiceResponse> services(String tenantCode) {
+        Company company = resolveCompany(tenantCode);
+        return types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
+                .sorted(Comparator.comparing(SessionType::getName, String.CASE_INSENSITIVE_ORDER))
+                .map(type -> new PublicBookingWidgetController.WidgetServiceResponse(
+                        type.getId(),
+                        type.getName(),
+                        type.getDescription(),
+                        type.getDurationMinutes() != null ? type.getDurationMinutes() : 60,
+                        toPriceLabel(type)
+                ))
+                .toList();
+    }
+
+    public PublicBookingWidgetController.AvailabilityResponse availability(String tenantCode, Long typeId, String dateText) {
+        Company company = resolveCompany(tenantCode);
+        WidgetConfig cfg = loadConfig(company.getId());
+        LocalDate date = parseDate(dateText);
+        SessionType type = resolveType(company.getId(), typeId);
+
+        List<PublicBookingWidgetController.AvailabilitySlotResponse> slots = cfg.availabilityEnabled()
+                ? buildBookableSlots(company, cfg, type, date)
+                : buildFallbackSlots(cfg, type, date);
+
+        return new PublicBookingWidgetController.AvailabilityResponse(cfg.availabilityEnabled(), DATE_FORMAT.format(date), slots);
+    }
+
+    @Transactional
+    public PublicBookingWidgetController.BookingResponse createBooking(String tenantCode, PublicBookingWidgetController.BookingRequest request) {
+        Company company = resolveCompany(tenantCode);
+        WidgetConfig cfg = loadConfig(company.getId());
+        SessionType type = resolveType(company.getId(), request.typeId());
+        LocalDate date = parseDate(request.date());
+        LocalDateTime start = parseStartTime(request.startTime(), date);
+        LocalDateTime end = start.plusMinutes(type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes());
+
+        User consultant = resolveConsultantForBooking(company.getId(), request.consultantId(), cfg.availabilityEnabled());
+        User actor = consultant != null ? consultant : resolveAdminActor(company.getId());
+        Client client = findOrCreateClient(company, actor, request);
+
+        SessionBookingController.BookingRequest internalRequest = new SessionBookingController.BookingRequest(
+                client.getId(),
+                consultant != null ? consultant.getId() : null,
+                DATE_TIME_FORMAT.format(start),
+                DATE_TIME_FORMAT.format(end),
+                null,
+                type.getId(),
+                "Booked via website widget",
+                null,
+                false,
+                null,
+                false
+        );
+
+        var booking = bookingCreationService.create(internalRequest, actor);
+        String consultantName = booking.consultant() == null
+                ? null
+                : (booking.consultant().firstName() + " " + booking.consultant().lastName()).trim();
+        return new PublicBookingWidgetController.BookingResponse(
+                booking.id(),
+                booking.type() == null ? type.getName() : booking.type().name(),
+                booking.startTime().format(DATE_TIME_FORMAT),
+                booking.startTime().format(HUMAN_FORMAT),
+                client.getEmail(),
+                consultantName
+        );
+    }
+
+    private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildBookableSlots(Company company, WidgetConfig cfg, SessionType type, LocalDate date) {
+        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+
+        Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
+        List<BookableSlot> windows = bookableSlots.findAllByCompanyId(company.getId()).stream()
+                .filter(slot -> slot.getConsultant() != null)
+                .filter(slot -> slot.getConsultant().isActive())
+                .filter(slot -> slot.getDayOfWeek() == dayOfWeek)
+                .filter(slot -> slot.isIndefinite() || withinDateRange(slot, date))
+                .filter(slot -> consultantSupportsType(slot.getConsultant(), type))
+                .sorted(Comparator.comparing((BookableSlot s) -> s.getConsultant().getId()).thenComparing(BookableSlot::getStartTime))
+                .toList();
+
+        for (BookableSlot window : windows) {
+            LocalTime cursor = window.getStartTime();
+            while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
+                LocalDateTime start = date.atTime(cursor);
+                LocalDateTime end = start.plusMinutes(durationMinutes);
+                if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, type.getId())) {
+                    String iso = DATE_TIME_FORMAT.format(start);
+                    deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
+                            cursor.format(SLOT_LABEL_FORMAT),
+                            iso,
+                            window.getConsultant().getId(),
+                            (window.getConsultant().getFirstName() + " " + window.getConsultant().getLastName()).trim()
+                    ));
+                }
+                cursor = cursor.plusMinutes(30);
+            }
+        }
+
+        return new ArrayList<>(deduped.values());
+    }
+
+    private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildFallbackSlots(WidgetConfig cfg, SessionType type, LocalDate date) {
+        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        List<PublicBookingWidgetController.AvailabilitySlotResponse> items = new ArrayList<>();
+        LocalTime cursor = cfg.workingHoursStart();
+        while (!cursor.plusMinutes(durationMinutes).isAfter(cfg.workingHoursEnd())) {
+            LocalDateTime start = date.atTime(cursor);
+            items.add(new PublicBookingWidgetController.AvailabilitySlotResponse(
+                    cursor.format(SLOT_LABEL_FORMAT),
+                    DATE_TIME_FORMAT.format(start),
+                    null,
+                    null
+            ));
+            cursor = cursor.plusMinutes(30);
+        }
+        return items;
+    }
+
+    private boolean isActuallyBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
+        try {
+            bookingCreationService.validateBookingWindow(
+                    companyId,
+                    consultantId,
+                    null,
+                    start,
+                    end,
+                    typeId,
+                    SessionBookingCreationService.bookingExcludeIds((Long) null),
+                    bookingCreationService.isSpacesEnabled(companyId),
+                    false,
+                    false
+            );
+            return true;
+        } catch (ResponseStatusException ex) {
+            return false;
+        }
+    }
+
+    private Client findOrCreateClient(Company company, User actor, PublicBookingWidgetController.BookingRequest request) {
+        String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
+        String normalizedPhone = request.phone().trim();
+
+        Optional<Client> existing = clients.findAllByCompanyId(company.getId()).stream()
+                .filter(client -> client.getEmail() != null && client.getEmail().trim().equalsIgnoreCase(normalizedEmail))
+                .findFirst();
+        if (existing.isEmpty()) {
+            existing = clients.findAllByCompanyId(company.getId()).stream()
+                    .filter(client -> client.getPhone() != null && client.getPhone().trim().equals(normalizedPhone))
+                    .findFirst();
+        }
+        if (existing.isPresent()) {
+            Client client = existing.get();
+            if (client.getAssignedTo() == null) {
+                client.setAssignedTo(actor);
+            }
+            if (client.getEmail() == null || client.getEmail().isBlank()) {
+                client.setEmail(normalizedEmail);
+            }
+            if (client.getPhone() == null || client.getPhone().isBlank()) {
+                client.setPhone(normalizedPhone);
+                client.setWhatsappPhone(normalizedPhone);
+            }
+            return clients.save(client);
+        }
+
+        Client client = new Client();
+        client.setCompany(company);
+        client.setAssignedTo(actor);
+        client.setFirstName(request.firstName().trim());
+        client.setLastName(request.lastName().trim());
+        client.setEmail(normalizedEmail);
+        client.setPhone(normalizedPhone);
+        client.setWhatsappPhone(normalizedPhone);
+        client.setWhatsappOptIn(false);
+        client.setActive(true);
+        client.setBatchPaymentEnabled(false);
+        return clients.save(client);
+    }
+
+    private User resolveConsultantForBooking(Long companyId, Long consultantId, boolean availabilityEnabled) {
+        if (consultantId == null) {
+            if (availabilityEnabled) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A consultant-backed slot is required when availability is enabled.");
+            }
+            return null;
+        }
+
+        return users.findAllByCompanyId(companyId).stream()
+                .filter(User::isActive)
+                .filter(user -> user.getId().equals(consultantId))
+                .filter(user -> user.isConsultant() || user.getRole() == Role.CONSULTANT)
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant."));
+    }
+
+    private User resolveAdminActor(Long companyId) {
+        return users.findAllByCompanyId(companyId).stream()
+                .filter(User::isActive)
+                .filter(user -> user.getRole() == Role.ADMIN)
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No admin user available for tenancy."));
+    }
+
+    private boolean consultantSupportsType(User consultant, SessionType type) {
+        return consultant.getTypes() == null
+                || consultant.getTypes().isEmpty()
+                || consultant.getTypes().stream().anyMatch(t -> t.getId().equals(type.getId()));
+    }
+
+    private boolean withinDateRange(BookableSlot slot, LocalDate date) {
+        if (slot.getStartDate() != null && date.isBefore(slot.getStartDate())) return false;
+        if (slot.getEndDate() != null && date.isAfter(slot.getEndDate())) return false;
+        return true;
+    }
+
+    private SessionType resolveType(Long companyId, Long typeId) {
+        return types.findAllWithLinkedServicesByCompanyId(companyId).stream()
+                .filter(type -> type.getId().equals(typeId))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service."));
+    }
+
+    private Company resolveCompany(String tenantCode) {
+        return companies.findAll().stream()
+                .filter(company -> company.getTenantCode() != null)
+                .filter(company -> company.getTenantCode().equalsIgnoreCase(tenantCode))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown tenant code."));
+    }
+
+    private LocalDate parseDate(String value) {
+        try {
+            return LocalDate.parse(value, DATE_FORMAT);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid date. Use YYYY-MM-DD.");
+        }
+    }
+
+    private LocalDateTime parseStartTime(String value, LocalDate fallbackDate) {
+        try {
+            if (value.contains("T")) {
+                return LocalDateTime.parse(value, DATE_TIME_FORMAT);
+            }
+            return LocalDateTime.of(fallbackDate, LocalTime.parse(value));
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid startTime.");
+        }
+    }
+
+    private String toPriceLabel(SessionType type) {
+        BigDecimal min = type.getLinkedServices() == null ? null : type.getLinkedServices().stream()
+                .map(link -> link.getPrice())
+                .filter(price -> price != null)
+                .min(BigDecimal::compareTo)
+                .orElse(null);
+        return min == null ? null : "€" + min.stripTrailingZeros().toPlainString();
+    }
+
+    private WidgetConfig loadConfig(Long companyId) {
+        Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
+                .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
+        boolean availabilityEnabled = !"false".equalsIgnoreCase(values.getOrDefault(SettingKey.BOOKABLE_ENABLED.name(), "true"));
+        boolean typesEnabled = !"false".equalsIgnoreCase(values.getOrDefault(SettingKey.TYPES_ENABLED.name(), "true"));
+        int sessionLengthMinutes = parseInteger(values.get(SettingKey.SESSION_LENGTH_MINUTES.name()), 60);
+        LocalTime workingHoursStart = parseTime(values.get(SettingKey.WORKING_HOURS_START.name()), LocalTime.of(8, 0));
+        LocalTime workingHoursEnd = parseTime(values.get(SettingKey.WORKING_HOURS_END.name()), LocalTime.of(18, 0));
+        String companyName = values.getOrDefault(SettingKey.COMPANY_NAME.name(), "Calendra");
+        return new WidgetConfig(companyName, availabilityEnabled, typesEnabled, sessionLengthMinutes, workingHoursStart, workingHoursEnd);
+    }
+
+    private int parseInteger(String value, int fallback) {
+        try {
+            return value == null || value.isBlank() ? fallback : Integer.parseInt(value.trim());
+        } catch (Exception ex) {
+            return fallback;
+        }
+    }
+
+    private LocalTime parseTime(String value, LocalTime fallback) {
+        try {
+            return value == null || value.isBlank() ? fallback : LocalTime.parse(value.trim());
+        } catch (Exception ex) {
+            return fallback;
+        }
+    }
+
+    private record WidgetConfig(
+            String companyName,
+            boolean availabilityEnabled,
+            boolean typesEnabled,
+            int sessionLengthMinutes,
+            LocalTime workingHoursStart,
+            LocalTime workingHoursEnd
+    ) {}
+}

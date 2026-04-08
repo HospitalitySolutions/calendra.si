@@ -21,6 +21,15 @@ type ClientSession = {
 
 const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
 
+function slovenianTerminCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'terminov'
+  const last = n % 10
+  if (last === 1) return 'termin'
+  if (last >= 2 && last <= 4) return 'termina'
+  return 'terminov'
+}
+
 type Draft = {
   firstName: string
   lastName: string
@@ -51,11 +60,14 @@ export function ClientDetailSidePanel({
     phone: 'Telefon',
     linkedCompany: 'Povezano podjetje',
     batchPayment: 'Paketno plačilo',
+    toggleOn: 'VKLOP',
+    toggleOff: 'IZKLOP',
+    batchPaymentSaving: 'Shranjujem…',
     sessions: 'Termini',
     sessionsSubtitle: 'Preglej prihodnje in pretekle termine, povezane s to stranko.',
     future: 'Prihodnji',
     past: 'Pretekli',
-    sessionsCount: (count: number) => `${count} terminov`,
+    sessionsCount: (count: number) => `${count} ${slovenianTerminCountForm(count)}`,
     loading: 'Nalagam…',
     loadingSessions: 'Nalagam termine…',
     noUpcomingTitle: 'Ni prihodnjih terminov',
@@ -95,6 +107,9 @@ export function ClientDetailSidePanel({
     phone: 'Phone',
     linkedCompany: 'Linked company',
     batchPayment: 'Batch payment',
+    toggleOn: 'ON',
+    toggleOff: 'OFF',
+    batchPaymentSaving: 'Saving…',
     sessions: 'Sessions',
     sessionsSubtitle: 'View future and past bookings linked to this client.',
     future: 'Future',
@@ -504,7 +519,7 @@ export function ClientDetailSidePanel({
                     disabled={savingBatchPaymentClient}
                     aria-pressed={detailClient.batchPaymentEnabled ?? false}
                   >
-                    {savingBatchPaymentClient ? 'Saving…' : detailClient.batchPaymentEnabled ? 'ON' : 'OFF'}
+                    {savingBatchPaymentClient ? copy.batchPaymentSaving : detailClient.batchPaymentEnabled ? copy.toggleOn : copy.toggleOff}
                   </button>
                 </div>
               </div>

@@ -88,13 +88,61 @@ function initials(...parts: Array<string | null | undefined>) {
   return letters || 'N'
 }
 
+function slovenianStrankaCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'strank'
+  const last = n % 10
+  if (last === 1) return 'stranka'
+  if (last === 2) return 'stranki'
+  if (last === 3 || last === 4) return 'stranke'
+  return 'strank'
+}
+
+function slovenianPodjetjeCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'podjetij'
+  const last = n % 10
+  if (last === 1) return 'podjetje'
+  if (last === 2) return 'podjetji'
+  if (last === 3 || last === 4) return 'podjetja'
+  return 'podjetij'
+}
+
+function slovenianTerminCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'terminov'
+  const last = n % 10
+  if (last === 1) return 'termin'
+  if (last >= 2 && last <= 4) return 'termina'
+  return 'terminov'
+}
+
 export function ClientsPage() {
   const { t, locale } = useLocale()
   const clientsCopy = locale === 'sl' ? {
     details: 'Podrobnosti',
     client: 'STRANKA',
     company: 'PODJETJE',
+    newButtonMobile: '+ Novo',
+    newButton: 'Novo',
+    searchClientsPlaceholder: 'Išči stranke...',
+    searchCompaniesPlaceholder: 'Išči podjetja...',
+    activeFilter: 'Aktivna',
     inactive: 'Neaktivna',
+    listClientsCount: (count: number) => `${count} ${slovenianStrankaCountForm(count)}`,
+    listCompaniesCount: (count: number) => `${count} ${slovenianPodjetjeCountForm(count)}`,
+    assignedToLine: (name: string) => ` · Dodeljeno: ${name}`,
+    tableHeaderName: 'Naziv',
+    tableHeaderPhone: 'Telefon',
+    tableHeaderAssigned: 'Dodeljeni zaposleni',
+    tableHeaderCreated: 'Ustvarjeno',
+    emptyClientsTitle: 'Ni strank',
+    emptyClientsText: 'Kliknite Novo za ustvarjanje prve stranke.',
+    emptyCompaniesTitle: 'Ni podjetij',
+    emptyCompaniesText: 'Kliknite Novo za ustvarjanje prvega podjetja kot prejemnika.',
+    toggleOn: 'VKLOP',
+    toggleOff: 'IZKLOP',
+    batchPaymentSaving: 'Shranjujem…',
     firstName: 'Ime',
     lastName: 'Priimek',
     email: 'E-pošta',
@@ -109,7 +157,7 @@ export function ClientsPage() {
     sessionsSubtitle: 'Preglej prihodnje in pretekle termine, povezane s to stranko.',
     future: 'Prihodnji',
     past: 'Pretekli',
-    sessionsCount: (count: number) => `${count} terminov`,
+    sessionsCount: (count: number) => `${count} ${slovenianTerminCountForm(count)}`,
     loadingSessions: 'Nalagam termine…',
     noUpcomingSessionsTitle: 'Ni prihodnjih terminov',
     noUpcomingSessionsText: 'Tukaj se prikažejo rezervirani termini z začetkom po trenutnem času.',
@@ -148,7 +196,26 @@ export function ClientsPage() {
     details: 'Details',
     client: 'CLIENT',
     company: 'COMPANY',
+    newButtonMobile: '+ New',
+    newButton: 'New',
+    searchClientsPlaceholder: 'Search clients...',
+    searchCompaniesPlaceholder: 'Search companies...',
+    activeFilter: 'Active',
     inactive: 'Inactive',
+    listClientsCount: (count: number) => `${count} clients`,
+    listCompaniesCount: (count: number) => `${count} companies`,
+    assignedToLine: (name: string) => ` · Assigned to ${name}`,
+    tableHeaderName: 'Name',
+    tableHeaderPhone: 'Phone',
+    tableHeaderAssigned: 'Assigned',
+    tableHeaderCreated: 'Created',
+    emptyClientsTitle: 'No clients',
+    emptyClientsText: 'Click New to create your first client.',
+    emptyCompaniesTitle: 'No companies',
+    emptyCompaniesText: 'Click New to create your first company recipient.',
+    toggleOn: 'ON',
+    toggleOff: 'OFF',
+    batchPaymentSaving: 'Saving…',
     firstName: 'First name',
     lastName: 'Last name',
     email: 'Email',
@@ -883,7 +950,7 @@ export function ClientsPage() {
             className="secondary"
             onClick={entityTab === 'clients' ? openNewModal : openNewCompanyModal}
           >
-            {isClientsMobile ? '+ New' : 'New'}
+            {isClientsMobile ? clientsCopy.newButtonMobile : clientsCopy.newButton}
           </button>
         </div>
         {entityTab === 'clients' ? (
@@ -892,23 +959,23 @@ export function ClientsPage() {
           <div className="clients-search-wrap">
             <input
               className="clients-search-input"
-              placeholder="Search clients..."
+              placeholder={clientsCopy.searchClientsPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <span className="clients-search-icon" aria-hidden>⌕</span>
           </div>
           <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-            <button type="button" className={activeFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('active')}>Active</button>
-            <button type="button" className={activeFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('inactive')}>Inactive</button>
+            <button type="button" className={activeFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('active')}>{clientsCopy.activeFilter}</button>
+            <button type="button" className={activeFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('inactive')}>{clientsCopy.inactive}</button>
           </div>
-          <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{filteredClients.length} clients</div>
+          <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listClientsCount(filteredClients.length)}</div>
         </div>
         {errorMessage && !showModal && <div className="error">{errorMessage}</div>}
         {loading ? (
           <div className="muted">Loading clients...</div>
         ) : filteredClients.length === 0 ? (
-          <EmptyState title="No clients" text="Click New to create your first client." />
+          <EmptyState title={clientsCopy.emptyClientsTitle} text={clientsCopy.emptyClientsText} />
         ) : (
           <div className="clients-list-shell">
             <div className="clients-mobile-list">
@@ -920,8 +987,8 @@ export function ClientsPage() {
                         {(c.firstName?.[0] || '').toUpperCase()}{(c.lastName?.[0] || '').toUpperCase()}
                       </span>
                       <div className="clients-name-stack">
-                        <span className="clients-name">{fullName(c)}{c.active === false && <span className="clients-inactive-badge">Inactive</span>}</span>
-                        <span className="clients-id">ID #{c.id}{isAdmin ? ` · Assigned to ${c.assignedTo ? fullName(c.assignedTo) : '—'}` : ''}</span>
+                        <span className="clients-name">{fullName(c)}{c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
+                        <span className="clients-id">ID #{c.id}{isAdmin ? clientsCopy.assignedToLine(c.assignedTo ? fullName(c.assignedTo) : '—') : ''}</span>
                       </div>
                     </div>
                     <div className="clients-card-menu-wrap">
@@ -978,11 +1045,11 @@ export function ClientsPage() {
               <table className="clients-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
+                    <th>{clientsCopy.tableHeaderName}</th>
                     <th>{clientsCopy.email}</th>
-                    <th>Phone</th>
-                    {isAdmin && <th>Assigned</th>}
-                    <th>Created</th>
+                    <th>{clientsCopy.tableHeaderPhone}</th>
+                    {isAdmin && <th>{clientsCopy.tableHeaderAssigned}</th>}
+                    <th>{clientsCopy.tableHeaderCreated}</th>
                     <th />
                   </tr>
                 </thead>
@@ -995,7 +1062,7 @@ export function ClientsPage() {
                             {(c.firstName?.[0] || '').toUpperCase()}{(c.lastName?.[0] || '').toUpperCase()}
                           </span>
                           <div className="clients-name-stack">
-                            <span className="clients-name">{fullName(c)}{c.active === false && <span className="clients-inactive-badge">Inactive</span>}</span>
+                            <span className="clients-name">{fullName(c)}{c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
                             <span className="clients-id">ID #{c.id}</span>
                           </div>
                         </div>
@@ -1039,23 +1106,23 @@ export function ClientsPage() {
               <div className="clients-search-wrap">
                 <input
                   className="clients-search-input"
-                  placeholder="Search companies..."
+                  placeholder={clientsCopy.searchCompaniesPlaceholder}
                   value={companySearch}
                   onChange={(e) => setCompanySearch(e.target.value)}
                 />
                 <span className="clients-search-icon" aria-hidden>⌕</span>
               </div>
               <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-                <button type="button" className={companyActiveFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('active')}>Active</button>
-                <button type="button" className={companyActiveFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('inactive')}>Inactive</button>
+                <button type="button" className={companyActiveFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('active')}>{clientsCopy.activeFilter}</button>
+                <button type="button" className={companyActiveFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('inactive')}>{clientsCopy.inactive}</button>
               </div>
-              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{filteredCompanies.length} companies</div>
+              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listCompaniesCount(filteredCompanies.length)}</div>
             </div>
             {companyErrorMessage && !showCompanyModal && <div className="error">{companyErrorMessage}</div>}
             {loadingCompanies ? (
               <div className="muted">Loading companies...</div>
             ) : filteredCompanies.length === 0 ? (
-              <EmptyState title="No companies" text="Click New to create your first company recipient." />
+              <EmptyState title={clientsCopy.emptyCompaniesTitle} text={clientsCopy.emptyCompaniesText} />
             ) : (
               <div className="clients-list-shell">
                 <div className="clients-mobile-list">
@@ -1065,7 +1132,7 @@ export function ClientsPage() {
                         <div className="clients-name-cell">
                           <span className="clients-name-avatar" aria-hidden>{(c.name?.[0] || 'C').toUpperCase()}</span>
                           <div className="clients-name-stack">
-                            <span className="clients-name">{c.name}{c.active === false && <span className="clients-inactive-badge">Inactive</span>}</span>
+                            <span className="clients-name">{c.name}{c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
                             <span className="clients-id">ID #{c.id}</span>
                           </div>
                         </div>
@@ -1120,7 +1187,7 @@ export function ClientsPage() {
                           <div className="clients-name-cell">
                             <span className="clients-name-avatar" aria-hidden>{(c.name?.[0] || 'C').toUpperCase()}</span>
                             <div className="clients-name-stack">
-                              <span className="clients-name">{c.name}{c.active === false && <span className="clients-inactive-badge">Inactive</span>}</span>
+                              <span className="clients-name">{c.name}{c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
                               <span className="clients-id">ID #{c.id}</span>
                             </div>
                           </div>
@@ -1209,7 +1276,7 @@ export function ClientsPage() {
                       disabled={savingBatchPaymentClient}
                       aria-pressed={detailClient.batchPaymentEnabled ?? false}
                     >
-                      {savingBatchPaymentClient ? 'Saving…' : (detailClient.batchPaymentEnabled ? 'ON' : 'OFF')}
+                      {savingBatchPaymentClient ? clientsCopy.batchPaymentSaving : detailClient.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                     </button>
                   </div>
                 </div>
@@ -1372,7 +1439,7 @@ export function ClientsPage() {
                       disabled={savingBatchPaymentCompany}
                       aria-pressed={detailCompany.batchPaymentEnabled ?? false}
                     >
-                      {savingBatchPaymentCompany ? 'Saving…' : (detailCompany.batchPaymentEnabled ? 'ON' : 'OFF')}
+                      {savingBatchPaymentCompany ? clientsCopy.batchPaymentSaving : detailCompany.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                     </button>
                   </div>
                 </div>

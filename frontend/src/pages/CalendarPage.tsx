@@ -325,6 +325,16 @@ function toIsoDateKey(date: Date) {
   return `${y}-${m}-${d}`
 }
 
+/** Noun form after a numeric count for "termin" (e.g. bottom pill: "3 termina"). */
+function slovenianTerminCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'terminov'
+  const last = n % 10
+  if (last === 1) return 'termin'
+  if (last >= 2 && last <= 4) return 'termina'
+  return 'terminov'
+}
+
 function newClientInitials(firstName: string, lastName: string) {
   const letters = [firstName, lastName]
     .map((value) => value.trim())
@@ -5067,8 +5077,10 @@ export default function CalendarPage() {
   const bottomPillLabel = useMemo(() => {
     const dateLabel = new Date().toLocaleDateString(calendarLocaleTag, { day: 'numeric', month: 'short' })
     const count = todayRemainingSessions.length
-    return `${dateLabel} · ${count} ${count === 1 ? 'session' : 'sessions'}`
-  }, [calendarLocaleTag, todayRemainingSessions.length])
+    const sessionsWord =
+      locale === 'sl' ? slovenianTerminCountForm(count) : count === 1 ? 'session' : 'sessions'
+    return `${dateLabel} · ${count} ${sessionsWord}`
+  }, [calendarLocaleTag, locale, todayRemainingSessions.length])
 
   const openSessionsSheet = useCallback(() => {
     setSessionsSheetDragOffset(0)
@@ -6378,7 +6390,7 @@ export default function CalendarPage() {
             </div>
             <div className="calendar-sessions-sheet-list">
               {todayRemainingSessions.length === 0 ? (
-                <div className="calendar-sessions-sheet-empty">No remaining sessions for today.</div>
+                <div className="calendar-sessions-sheet-empty">{t('calendarSessionsRemainingEmpty')}</div>
               ) : (
                 todayRemainingSessions.map((row) => (
                   <button

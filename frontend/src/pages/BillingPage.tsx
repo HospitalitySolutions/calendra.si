@@ -5,7 +5,7 @@ import type { Bill, BillingService, Client, Company, OpenBill, PaymentMethod, Us
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { useLocale } from '../locale'
+import { useLocale, type AppLocale } from '../locale'
 import { currency, formatDate, fullName } from '../lib/format'
 type BillForm = {
   clientId?: number
@@ -58,23 +58,79 @@ function mergeDuplicateOpenBillLines(items: OpenBillEditItem[]): OpenBillEditIte
   return order.map((k) => byKey.get(k)!)
 }
 
-const paymentTypeLabel = (value?: string | null) => value === 'BANK_TRANSFER' ? 'BANK TRANSFER' : (value || '—')
+function paymentTypeLabel(value: string | null | undefined, loc: AppLocale): string {
+  if (loc === 'sl') {
+    return value === 'BANK_TRANSFER' ? 'BANK. NAKAZILO' : value || '—'
+  }
+  return value === 'BANK_TRANSFER' ? 'BANK TRANSFER' : value || '—'
+}
 const paymentTypeIcon = (value?: string | null) =>
   value === 'CASH' ? '💵' : value === 'CARD' ? '💳' : value === 'BANK_TRANSFER' ? '🏦' : '•'
-const paymentTypeBadgeLabel = (value?: string | null) =>
-  value === 'BANK_TRANSFER' ? 'Transfer' : value === 'CASH' ? 'Cash' : value === 'CARD' ? 'Card' : '—'
+function paymentTypeBadgeLabel(value: string | null | undefined, loc: AppLocale): string {
+  if (loc === 'sl') {
+    return value === 'BANK_TRANSFER' ? 'Nakazilo' : value === 'CASH' ? 'Gotovina' : value === 'CARD' ? 'Kartica' : '—'
+  }
+  return value === 'BANK_TRANSFER' ? 'Transfer' : value === 'CASH' ? 'Cash' : value === 'CARD' ? 'Card' : '—'
+}
+function localizedPaymentMethodName(
+  method: { name: string; paymentType?: string | null } | null | undefined,
+  loc: AppLocale,
+): string {
+  if (!method) return '—'
+  if (loc !== 'sl') return method.name
+  const pt = method.paymentType
+  if (pt === 'CASH') return 'Gotovina'
+  if (pt === 'CARD') return 'Kartica'
+  if (pt === 'BANK_TRANSFER') return 'Bančno nakazilo'
+  return method.name
+}
+function slovenianPostavkaCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'postavk'
+  const last = n % 10
+  if (last === 1) return 'postavka'
+  if (last === 2) return 'postavki'
+  if (last === 3 || last === 4) return 'postavke'
+  return 'postavk'
+}
+function slovenianRacunCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'računov'
+  const last = n % 10
+  if (last === 1) return 'račun'
+  if (last === 2) return 'računa'
+  if (last === 3 || last === 4) return 'računi'
+  return 'računov'
+}
 type OpenBillsSortField = 'gross' | 'client' | 'date'
 type HistorySortField = 'gross' | 'folio'
 type SortDir = 'asc' | 'desc'
-const OPEN_BILLS_SORT_OPTIONS: Array<{ field: OpenBillsSortField; label: string }> = [
-  { field: 'gross', label: 'Gross' },
-  { field: 'date', label: 'Date' },
-  { field: 'client', label: 'Client' },
-]
-const HISTORY_SORT_OPTIONS: Array<{ field: HistorySortField; label: string }> = [
-  { field: 'gross', label: 'Gross' },
-  { field: 'folio', label: 'Folio no.' },
-]
+function getOpenBillsSortOptions(loc: AppLocale): Array<{ field: OpenBillsSortField; label: string }> {
+  if (loc === 'sl') {
+    return [
+      { field: 'gross', label: 'Bruto' },
+      { field: 'date', label: 'Datum' },
+      { field: 'client', label: 'Stranka' },
+    ]
+  }
+  return [
+    { field: 'gross', label: 'Gross' },
+    { field: 'date', label: 'Date' },
+    { field: 'client', label: 'Client' },
+  ]
+}
+function getHistorySortOptions(loc: AppLocale): Array<{ field: HistorySortField; label: string }> {
+  if (loc === 'sl') {
+    return [
+      { field: 'gross', label: 'Bruto' },
+      { field: 'folio', label: 'Št. lista' },
+    ]
+  }
+  return [
+    { field: 'gross', label: 'Gross' },
+    { field: 'folio', label: 'Folio no.' },
+  ]
+}
 
 export function BillingPage() {
   const me = getStoredUser()!
@@ -90,6 +146,55 @@ export function BillingPage() {
     telephoneOptional: 'Telefon (neobvezno)',
     creating: 'Ustvarjam…',
     create: 'Ustvari',
+    historySearchPlaceholder:
+      'Iskanje po številki računa, ID seje, stranki, zaposlenem, načinu plačila …',
+    historyStatusAll: 'Vsi statusi',
+    historyStatusPaid: 'Plačano',
+    historyStatusPending: 'Čaka na plačilo',
+    historyStatusOpen: 'Odprt',
+    historyStatusCancelled: 'Preklicano',
+    historyFilterStatusAria: 'Filtriraj po statusu plačila',
+    historyFilterDateAria: 'Filtriraj po datumu izdaje',
+    historyEmptyTitle: 'Ni še računov',
+    historyEmptyText:
+      'Pod odprtimi računi uporabite gumb Novo za ustvarjanje računa ali pretvorbo odprtega računa. Bančni izpisek uvozite z gumbom Uvozi bančni CSV.',
+    importBankCsv: 'Uvozi bančni CSV',
+    importBankCsvImporting: 'Uvoz …',
+    historyCollected: 'Zbrano',
+    historyBillsCount: (n: number) => `${n} ${slovenianRacunCountForm(n)}`,
+    gross: 'Bruto',
+    openBillsOutstanding: 'Neporavnano',
+    openBillsCount: (n: number) => `${n} ${slovenianRacunCountForm(n)}`,
+    sortPrefix: 'Razvrsti:',
+    sortOpenBillsAria: 'Razvrsti odprte račune',
+    sortHistoryAria: 'Razvrsti zgodovino računov',
+    createBillTitle: 'Ustvari račun',
+    targetPerson: 'Posameznik',
+    targetCompany: 'Podjetje',
+    recipientCompany: 'Prejemnik (podjetje)',
+    searchCompanyPlaceholder: 'Iskanje podjetja …',
+    selectCompany: 'Izberi podjetje',
+    linkedToClientSuffix: '(povezano s stranko)',
+    noCompaniesFound: 'Podjetja nismo našli. Uporabite + za dodajanje.',
+    client: 'Stranka',
+    clientOptional: 'Stranka (neobvezno)',
+    selectClient: 'Izberi stranko',
+    billLines: 'Postavke',
+    addLine: 'Dodaj postavko',
+    noBillLinesTitle: 'Ni postavk',
+    noBillLinesText: 'Dodajte eno ali več transakcijskih storitev.',
+    paymentMethod: 'Način plačila',
+    selectPaymentMethod: 'Izberite način plačila',
+    paymentTypeTitle: 'Vrsta plačila',
+    paymentTypeSubtitle: 'Izberite, kako bo račun plačan.',
+    estimatedTotal: 'Predvideni znesek',
+    lineItemsCount: (n: number) => `${n} ${slovenianPostavkaCountForm(n)}`,
+    paymentWithMethod: (name: string) => `Plačilo: ${name}`,
+    createOpenBill: 'Ustvari odprti račun',
+    createBill: 'Ustvari račun',
+    createBillAria: 'Ustvari račun',
+    creatingBill: 'Ustvarjanje računa',
+    paymentPickerAria: 'Izberi način plačila',
   } : {
     newCompanyTitle: 'New company',
     newCompanySubtitle: 'Required: company name.',
@@ -100,7 +205,56 @@ export function BillingPage() {
     telephoneOptional: 'Telephone (optional)',
     creating: 'Creating…',
     create: 'Create',
+    historySearchPlaceholder: 'Search folio by bill no., session ID, client, consultant, payment method...',
+    historyStatusAll: 'All statuses',
+    historyStatusPaid: 'Paid',
+    historyStatusPending: 'Payment pending',
+    historyStatusOpen: 'Open',
+    historyStatusCancelled: 'Cancelled',
+    historyFilterStatusAria: 'Filter by payment status',
+    historyFilterDateAria: 'Filter by issued date',
+    historyEmptyTitle: 'No bills yet',
+    historyEmptyText: 'Use New under Open bills to create a bill, or convert an open bill.',
+    importBankCsv: 'Import bank CSV',
+    importBankCsvImporting: 'Importing…',
+    historyCollected: 'Collected',
+    historyBillsCount: (n: number) => `${n} bills`,
+    gross: 'Gross',
+    openBillsOutstanding: 'Outstanding',
+    openBillsCount: (n: number) => `${n} bills`,
+    sortPrefix: 'Sort:',
+    sortOpenBillsAria: 'Sort open bills',
+    sortHistoryAria: 'Sort folio history',
+    createBillTitle: 'Create bill',
+    targetPerson: 'Individual',
+    targetCompany: 'Company',
+    recipientCompany: 'Recipient company',
+    searchCompanyPlaceholder: 'Search company...',
+    selectCompany: 'Select company',
+    linkedToClientSuffix: '(linked to client)',
+    noCompaniesFound: 'No companies found. Use + to add one.',
+    client: 'Client',
+    clientOptional: 'Client (optional)',
+    selectClient: 'Select client',
+    billLines: 'Bill lines',
+    addLine: 'Add line',
+    noBillLinesTitle: 'No bill lines',
+    noBillLinesText: 'Add one or more transaction services.',
+    paymentMethod: 'Payment method',
+    selectPaymentMethod: 'Select payment method',
+    paymentTypeTitle: 'Payment type',
+    paymentTypeSubtitle: 'Choose how this bill will be paid.',
+    estimatedTotal: 'Estimated total',
+    lineItemsCount: (n: number) => `${n} line items`,
+    paymentWithMethod: (name: string) => `Payment: ${name}`,
+    createOpenBill: 'Create Open Bill',
+    createBill: 'Create bill',
+    createBillAria: 'Create bill',
+    creatingBill: 'Creating bill',
+    paymentPickerAria: 'Select payment method',
   }
+  const openBillsSortOptions = useMemo(() => getOpenBillsSortOptions(locale), [locale])
+  const historySortOptions = useMemo(() => getHistorySortOptions(locale), [locale])
   const [services, setServices] = useState<BillingService[]>([])
   const [bills, setBills] = useState<Bill[]>([])
   const [openBills, setOpenBills] = useState<OpenBill[]>([])
@@ -330,7 +484,17 @@ export function BillingPage() {
     [sortedOpenBills, openBillEdits, services],
   )
 
-  const openBillsSortLabel = `${openBillsSortField === 'gross' ? 'Gross' : openBillsSortField === 'date' ? 'Date' : 'Client'} ${openBillsSortDir === 'asc' ? '↑' : '↓'}`
+  const openBillsSortLabel = useMemo(() => {
+    const opt = openBillsSortOptions.find((o) => o.field === openBillsSortField)
+    const label = opt?.label ?? ''
+    return `${label} ${openBillsSortDir === 'asc' ? '↑' : '↓'}`
+  }, [openBillsSortOptions, openBillsSortField, openBillsSortDir])
+
+  const historySortButtonLabel = useMemo(() => {
+    const opt = historySortOptions.find((o) => o.field === historySortField)
+    const label = opt?.label ?? ''
+    return `${label} ${historySortDir === 'asc' ? '↑' : '↓'}`
+  }, [historySortOptions, historySortField, historySortDir])
 
   const historyCollectedTotal = useMemo(
     () => sortedHistoryBills.reduce((sum, bill) => sum + Number(bill.totalGross || 0), 0),
@@ -854,8 +1018,8 @@ export function BillingPage() {
           }}
           aria-haspopup="dialog"
           aria-expanded={openPayTypePickerFor === ob.id}
-          aria-label="Select payment method"
-          title="Select payment method"
+          aria-label={billingCopy.paymentPickerAria}
+          title={billingCopy.paymentPickerAria}
         >
           {paymentTypeIcon(ob.paymentMethod?.paymentType)}
         </button>
@@ -863,7 +1027,7 @@ export function BillingPage() {
           <div
             className={`billing-open-paytype-popup ${openPayTypePickerPlacement === 'up' ? 'billing-open-paytype-popup--up' : ''}`}
             role="dialog"
-            aria-label="Select payment method"
+            aria-label={billingCopy.paymentPickerAria}
           >
             {paymentMethods.map((method) => (
               <label key={method.id} className="billing-open-paytype-option">
@@ -876,7 +1040,7 @@ export function BillingPage() {
                     setOpenPayTypePickerFor(null)
                   }}
                 />
-                <span>{method.name}</span>
+                <span>{localizedPaymentMethodName(method, locale)}</span>
               </label>
             ))}
           </div>
@@ -887,9 +1051,9 @@ export function BillingPage() {
         value={ob.paymentMethod?.id ?? ''}
         onChange={(e) => updateOpenBillPaymentMethod(ob.id, Number(e.target.value))}
       >
-        <option value="">Select payment method</option>
+        <option value="">{billingCopy.selectPaymentMethod}</option>
         {paymentMethods.map((method) => (
-          <option key={method.id} value={method.id}>{method.name}</option>
+          <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
         ))}
       </select>
     </>
@@ -915,16 +1079,16 @@ export function BillingPage() {
         }}
         aria-haspopup="dialog"
         aria-expanded={openPayTypePickerFor === ob.id}
-        aria-label="Select payment method"
-        title="Select payment method"
+        aria-label={billingCopy.paymentPickerAria}
+        title={billingCopy.paymentPickerAria}
       >
-        {paymentTypeBadgeLabel(ob.paymentMethod?.paymentType)}
+        {paymentTypeBadgeLabel(ob.paymentMethod?.paymentType, locale)}
       </button>
       {openPayTypePickerFor === ob.id && (
         <div
           className={`billing-open-paytype-popup ${openPayTypePickerPlacement === 'up' ? 'billing-open-paytype-popup--up' : ''}`}
           role="dialog"
-          aria-label="Select payment method"
+          aria-label={billingCopy.paymentPickerAria}
         >
           {paymentMethods.map((method) => (
             <label key={method.id} className="billing-open-paytype-option">
@@ -937,7 +1101,7 @@ export function BillingPage() {
                   setOpenPayTypePickerFor(null)
                 }}
               />
-              <span>{method.name}</span>
+              <span>{localizedPaymentMethodName(method, locale)}</span>
             </label>
           ))}
         </div>
@@ -990,22 +1154,22 @@ export function BillingPage() {
                 <div className="billing-open-mobile">
                   <div className="billing-open-mobile-summary">
                     <div className="billing-open-mobile-summary-main">
-                      <span className="billing-open-mobile-summary-label">Outstanding</span>
+                      <span className="billing-open-mobile-summary-label">{billingCopy.openBillsOutstanding}</span>
                       <strong>{currency(openBillsSummaryGross)}</strong>
                     </div>
                     <div className="billing-open-mobile-summary-side">
-                      <span className="billing-open-mobile-count">{sortedOpenBills.length} bills</span>
+                      <span className="billing-open-mobile-count">{billingCopy.openBillsCount(sortedOpenBills.length)}</span>
                       <div className="billing-open-mobile-sort-wrap">
                         <button
                           type="button"
                           className="billing-open-mobile-sort-btn"
                           onClick={() => setOpenBillsSortMenuOpen((v) => !v)}
                         >
-                          Sort: {openBillsSortLabel} <span className="billing-open-mobile-sort-caret">▾</span>
+                          {billingCopy.sortPrefix} {openBillsSortLabel} <span className="billing-open-mobile-sort-caret">▾</span>
                         </button>
                         {openBillsSortMenuOpen && (
-                          <div className="billing-open-mobile-sort-popup" role="dialog" aria-label="Sort open bills">
-                            {OPEN_BILLS_SORT_OPTIONS.map((opt) => (
+                          <div className="billing-open-mobile-sort-popup" role="dialog" aria-label={billingCopy.sortOpenBillsAria}>
+                            {openBillsSortOptions.map((opt) => (
                               <button
                                 key={opt.field}
                                 type="button"
@@ -1055,8 +1219,8 @@ export function BillingPage() {
                               className="small-btn billing-open-create-icon-btn billing-open-create-icon-btn--mobile"
                               onClick={(e) => { e.stopPropagation(); void createBillFromOpen(ob) }}
                               disabled={creatingFromOpenId === ob.id || items.length === 0 || !ob.paymentMethod?.id}
-                              aria-label={creatingFromOpenId === ob.id ? 'Creating bill' : 'Create bill'}
-                              title={creatingFromOpenId === ob.id ? 'Creating bill' : 'Create bill'}
+                              aria-label={creatingFromOpenId === ob.id ? billingCopy.creatingBill : billingCopy.createBillAria}
+                              title={creatingFromOpenId === ob.id ? billingCopy.creatingBill : billingCopy.createBillAria}
                             >
                               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1076,8 +1240,8 @@ export function BillingPage() {
                           </div>
                           <div className="billing-open-mobile-meta">
                             <div>
-                              <span>Gross</span>
-                              <strong>{currency(gross)}</strong>
+                            <span>{billingCopy.gross}</span>
+                            <strong>{currency(gross)}</strong>
                             </div>
                             <div
                               className="billing-open-payment-col billing-open-mobile-paytype"
@@ -1103,7 +1267,7 @@ export function BillingPage() {
                         <th className="billing-open-consultant-col">Consultant</th>
                         <th><span className="billing-open-total-word">Total </span>gross</th>
                         <th className="billing-open-payment-col">
-                          <span className="billing-open-payment-label-full">Payment method</span>
+                          <span className="billing-open-payment-label-full">{billingCopy.paymentMethod}</span>
                           <span className="billing-open-payment-label-compact">Pay type</span>
                         </th>
                         <th />
@@ -1133,15 +1297,15 @@ export function BillingPage() {
                             <td className="clients-actions billing-open-actions-col" onClick={(e) => e.stopPropagation()}>
                               <div className="clients-actions-inner">
                                 <button type="button" className="small-btn billing-open-create-btn" onClick={() => createBillFromOpen(ob)} disabled={creatingFromOpenId === ob.id || items.length === 0 || !ob.paymentMethod?.id}>
-                                  {creatingFromOpenId === ob.id ? 'Creating…' : 'Create bill'}
+                                  {creatingFromOpenId === ob.id ? billingCopy.creating : billingCopy.createBill}
                                 </button>
                                 <button
                                   type="button"
                                   className="small-btn billing-open-create-icon-btn"
                                   onClick={() => createBillFromOpen(ob)}
                                   disabled={creatingFromOpenId === ob.id || items.length === 0 || !ob.paymentMethod?.id}
-                                  aria-label={creatingFromOpenId === ob.id ? 'Creating bill' : 'Create bill'}
-                                  title={creatingFromOpenId === ob.id ? 'Creating bill' : 'Create bill'}
+                                  aria-label={creatingFromOpenId === ob.id ? billingCopy.creatingBill : billingCopy.createBillAria}
+                                  title={creatingFromOpenId === ob.id ? billingCopy.creatingBill : billingCopy.createBillAria}
                                 >
                                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1171,29 +1335,29 @@ export function BillingPage() {
             <div className="billing-search-row">
               <input
                 className="clients-search-input"
-                placeholder="Search folio by bill no., session ID, client, consultant, payment method..."
+                placeholder={billingCopy.historySearchPlaceholder}
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
               />
               <select
                 value={historyStatusFilter}
                 onChange={(e) => setHistoryStatusFilter(e.target.value as 'all' | 'paid' | 'payment_pending' | 'open' | 'cancelled')}
-                aria-label="Filter by payment status"
+                aria-label={billingCopy.historyFilterStatusAria}
               >
-                <option value="all">All statuses</option>
-                <option value="paid">Paid</option>
-                <option value="payment_pending">Payment pending</option>
-                <option value="open">Open</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="all">{billingCopy.historyStatusAll}</option>
+                <option value="paid">{billingCopy.historyStatusPaid}</option>
+                <option value="payment_pending">{billingCopy.historyStatusPending}</option>
+                <option value="open">{billingCopy.historyStatusOpen}</option>
+                <option value="cancelled">{billingCopy.historyStatusCancelled}</option>
               </select>
               <input
                 type="date"
                 value={historyIssuedDate}
                 onChange={(e) => setHistoryIssuedDate(e.target.value)}
-                aria-label="Filter by issued date"
+                aria-label={billingCopy.historyFilterDateAria}
               />
               <button type="button" className="secondary" onClick={() => bankStatementInputRef.current?.click()} disabled={importingBankStatement}>
-                {importingBankStatement ? 'Importing…' : 'Import bank CSV'}
+                {importingBankStatement ? billingCopy.importBankCsvImporting : billingCopy.importBankCsv}
               </button>
               <input
                 ref={bankStatementInputRef}
@@ -1203,16 +1367,16 @@ export function BillingPage() {
                 onChange={(e) => void importBankStatement(e.target.files?.[0] || null)}
               />
             </div>
-            {sortedHistoryBills.length === 0 ? <EmptyState title="No bills yet" text="Use New under Open bills to create a bill, or convert an open bill." /> : (
+            {sortedHistoryBills.length === 0 ? <EmptyState title={billingCopy.historyEmptyTitle} text={billingCopy.historyEmptyText} /> : (
               isOpenBillsMobile ? (
                 <div className="billing-history-mobile">
                   <div className="billing-history-mobile-summary">
                     <div>
-                      <span className="billing-open-mobile-summary-label">Collected</span>
+                      <span className="billing-open-mobile-summary-label">{billingCopy.historyCollected}</span>
                       <strong>{currency(historyCollectedTotal)}</strong>
                     </div>
                     <div className="billing-open-mobile-summary-side">
-                      <span className="billing-open-mobile-count">{sortedHistoryBills.length} bills</span>
+                      <span className="billing-open-mobile-count">{billingCopy.historyBillsCount(sortedHistoryBills.length)}</span>
                       <div className="billing-open-mobile-sort-wrap">
                         <button
                           type="button"
@@ -1220,14 +1384,14 @@ export function BillingPage() {
                           onClick={() => setHistorySortMenuOpen((prev) => !prev)}
                           aria-haspopup="dialog"
                           aria-expanded={historySortMenuOpen}
-                          aria-label="Sort folio history"
+                          aria-label={billingCopy.sortHistoryAria}
                         >
-                          {`${historySortField === 'gross' ? 'Gross' : 'Folio no.'} ${historySortDir === 'asc' ? '↑' : '↓'}`}
+                          {historySortButtonLabel}
                           <span className="billing-open-mobile-sort-caret">▾</span>
                         </button>
                         {historySortMenuOpen && (
-                          <div className="billing-open-mobile-sort-popup" role="dialog" aria-label="Sort folio history">
-                            {HISTORY_SORT_OPTIONS.map((option) => (
+                          <div className="billing-open-mobile-sort-popup" role="dialog" aria-label={billingCopy.sortHistoryAria}>
+                            {historySortOptions.map((option) => (
                               <button
                                 key={option.field}
                                 type="button"
@@ -1281,12 +1445,12 @@ export function BillingPage() {
                         </div>
                         <div className="billing-open-mobile-meta">
                           <div>
-                            <span>Gross</span>
+                            <span>{billingCopy.gross}</span>
                             <strong>{currency(bill.totalGross)}</strong>
                           </div>
                           <div className="billing-open-mobile-paytype">
                             <span className={`billing-open-mobile-paytype-pill billing-open-mobile-paytype-pill--${(bill.paymentMethod?.paymentType || 'none').toLowerCase()}`}>
-                              {paymentTypeBadgeLabel(bill.paymentMethod?.paymentType)}
+                              {paymentTypeBadgeLabel(bill.paymentMethod?.paymentType, locale)}
                             </span>
                           </div>
                         </div>
@@ -1334,7 +1498,7 @@ export function BillingPage() {
                             ? (bill.recipientCompany?.name || '—')
                             : (bill.client ? fullName(bill.client) : '—')}</td>
                           <td>{fullName(bill.consultant)}</td>
-                          <td>{bill.paymentMethod ? `${bill.paymentMethod.name} (${paymentTypeLabel(bill.paymentMethod.paymentType)})` : '—'}</td>
+                          <td>{bill.paymentMethod ? `${localizedPaymentMethodName(bill.paymentMethod, locale)} (${paymentTypeLabel(bill.paymentMethod.paymentType, locale)})` : '—'}</td>
                           <td>{formatDate(bill.issueDate)}</td>
                           <td>{currency(bill.totalGross)}</td>
                           <td>{bill.paymentStatus || 'open'}</td>
@@ -1479,8 +1643,8 @@ export function BillingPage() {
                 )}
                 {isOpenBillsMobile ? (
                   <div className="billing-payment-picker">
-                    <div className="billing-payment-picker-title">Payment type</div>
-                    <div className="billing-payment-picker-subtitle">Choose how this bill will be paid.</div>
+                    <div className="billing-payment-picker-title">{billingCopy.paymentTypeTitle}</div>
+                    <div className="billing-payment-picker-subtitle">{billingCopy.paymentTypeSubtitle}</div>
                     <div className="billing-payment-picker-grid">
                       {paymentMethods.map((method) => (
                         <button
@@ -1490,21 +1654,21 @@ export function BillingPage() {
                           onClick={() => updateOpenBillPaymentMethod(detailOpenBill.id, method.id)}
                         >
                           <span className="billing-payment-picker-icon" aria-hidden>{paymentTypeIcon(method.paymentType)}</span>
-                          <span className="billing-payment-picker-label">{method.name}</span>
+                          <span className="billing-payment-picker-label">{localizedPaymentMethodName(method, locale)}</span>
                         </button>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <Field label="Payment method">
+                  <Field label={billingCopy.paymentMethod}>
                     <select
                       value={detailOpenBill.paymentMethod?.id ?? ''}
                       onChange={(e) => updateOpenBillPaymentMethod(detailOpenBill.id, Number(e.target.value))}
                     >
-                      <option value="">Select payment method</option>
+                      <option value="">{billingCopy.selectPaymentMethod}</option>
                       {paymentMethods.map((method) => (
                         <option key={method.id} value={method.id}>
-                          {method.name}
+                          {localizedPaymentMethodName(method, locale)}
                         </option>
                       ))}
                     </select>
@@ -1513,12 +1677,12 @@ export function BillingPage() {
                 <div className="billing-sticky-summary-stack">
                   <div className="billing-open-estimate billing-open-estimate--sticky">
                     <div>
-                      <div className="billing-open-estimate-label">Estimated total</div>
+                      <div className="billing-open-estimate-label">{billingCopy.estimatedTotal}</div>
                       <strong>{currency(estimateGross(getOpenBillItems(detailOpenBill)))}</strong>
                     </div>
                     <div className="billing-open-estimate-count">
-                      <div>{getOpenBillItems(detailOpenBill).length} line items</div>
-                      <div>Payment: {detailOpenBill.paymentMethod?.name || '—'}</div>
+                      <div>{billingCopy.lineItemsCount(getOpenBillItems(detailOpenBill).length)}</div>
+                      <div>{billingCopy.paymentWithMethod(localizedPaymentMethodName(detailOpenBill.paymentMethod, locale))}</div>
                     </div>
                   </div>
                 </div>
@@ -1535,7 +1699,7 @@ export function BillingPage() {
                   <button type="button" className="secondary small-btn" onClick={() => saveOpenBill(detailOpenBill)}>Save changes</button>
                 )}
                 <button type="button" className="small-btn" onClick={() => createBillFromOpen(detailOpenBill)} disabled={creatingFromOpenId === detailOpenBill.id || getOpenBillItems(detailOpenBill).length === 0 || !detailOpenBill.paymentMethod?.id}>
-                  {creatingFromOpenId === detailOpenBill.id ? 'Creating…' : 'Create bill'}
+                  {creatingFromOpenId === detailOpenBill.id ? billingCopy.creating : billingCopy.createBill}
                 </button>
               </div>
             </div>
@@ -1548,7 +1712,7 @@ export function BillingPage() {
           <div className="modal large-modal booking-side-panel billing-create-panel" onClick={(e) => e.stopPropagation()}>
             <div className="booking-side-panel-header">
               <PageHeader
-                title="Create bill"
+                title={billingCopy.createBillTitle}
                 actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeCreateBillModal} aria-label="Close">×</button>}
               />
             </div>
@@ -1559,7 +1723,7 @@ export function BillingPage() {
                   className={billForm.billingTarget === 'PERSON' ? 'booking-type-btn active' : 'booking-type-btn'}
                   onClick={() => setBillForm({ ...billForm, billingTarget: 'PERSON', recipientCompanyId: undefined })}
                 >
-                  Individual
+                  {billingCopy.targetPerson}
                 </button>
                 <button
                   type="button"
@@ -1570,17 +1734,17 @@ export function BillingPage() {
                     recipientCompanyId: billForm.recipientCompanyId ?? selectedClientCompany?.id,
                   })}
                 >
-                  Company
+                  {billingCopy.targetCompany}
                 </button>
               </div>
               {billForm.billingTarget === 'COMPANY' && (
                 <>
-                  <Field label="Recipient company">
+                  <Field label={billingCopy.recipientCompany}>
                     <div className="client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                       <div className={`client-search-wrap${!editingRecipientCompanySearch ? ' client-search-wrap--compact-client' : ''}`}>
                         {editingRecipientCompanySearch ? (
                           <input
-                            placeholder="Search company..."
+                            placeholder={billingCopy.searchCompanyPlaceholder}
                             value={recipientCompanySearch}
                             onChange={(e) => setRecipientCompanySearch(e.target.value)}
                             onFocus={() => setRecipientCompanyPickerOpen(true)}
@@ -1595,7 +1759,7 @@ export function BillingPage() {
                               setRecipientCompanyPickerOpen(true)
                             }}
                           >
-                            {selectedRecipientCompany?.name || 'Select company'}
+                            {selectedRecipientCompany?.name || billingCopy.selectCompany}
                           </button>
                         )}
                         <span className="client-search-icon" aria-hidden>
@@ -1624,7 +1788,7 @@ export function BillingPage() {
                                 setEditingRecipientCompanySearch(false)
                               }}
                             >
-                              {selectedClientCompany.name} (linked to client)
+                              {`${selectedClientCompany.name} ${billingCopy.linkedToClientSuffix}`}
                             </button>
                           )}
                           {visibleRecipientCompanies
@@ -1644,14 +1808,14 @@ export function BillingPage() {
                                 {company.name}
                               </button>
                             ))}
-                          {visibleRecipientCompanies.length === 0 && <span className="muted">No companies found. Use + to add one.</span>}
+                          {visibleRecipientCompanies.length === 0 && <span className="muted">{billingCopy.noCompaniesFound}</span>}
                         </div>
                       )}
                     </div>
                   </Field>
                 </>
               )}
-              <Field label={billForm.billingTarget === 'COMPANY' ? 'Client (optional)' : 'Client'}>
+              <Field label={billForm.billingTarget === 'COMPANY' ? billingCopy.clientOptional : billingCopy.client}>
                 <select
                   value={billForm.clientId ?? ''}
                   onChange={(e) => {
@@ -1666,14 +1830,19 @@ export function BillingPage() {
                     })
                   }}
                 >
-                  <option value="">Select client</option>
+                  <option value="">{billingCopy.selectClient}</option>
                   {clients.map((client) => <option key={client.id} value={client.id}>{fullName(client)}</option>)}
                 </select>
               </Field>
-              <Field label="Consultant"><select value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: Number(e.target.value) })}><option value="">Select consultant</option>{(me.role === 'ADMIN' ? users : [me]).map((user) => <option key={user.id} value={user.id}>{fullName(user)}</option>)}</select></Field>
+              <Field label={t('formConsultant')}>
+                <select value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: Number(e.target.value) })}>
+                  <option value="">{t('formSelectConsultant')}</option>
+                  {(me.role === 'ADMIN' ? users : [me]).map((user) => <option key={user.id} value={user.id}>{fullName(user)}</option>)}
+                </select>
+              </Field>
               <div className="full-span stack gap-sm">
-                <SectionTitle action={<button type="button" className="secondary small-btn" onClick={() => setBillForm({ ...billForm, items: [...billForm.items, { transactionServiceId: services[0]?.id, quantity: 1, netPrice: String(services[0]?.netPrice ?? 0) }] })}>Add line</button>}>Bill lines</SectionTitle>
-                {billForm.items.length === 0 ? <EmptyState title="No bill lines" text="Add one or more transaction services." /> : billForm.items.map((item, index) => (
+                <SectionTitle action={<button type="button" className="secondary small-btn" onClick={() => setBillForm({ ...billForm, items: [...billForm.items, { transactionServiceId: services[0]?.id, quantity: 1, netPrice: String(services[0]?.netPrice ?? 0) }] })}>{billingCopy.addLine}</button>}>{billingCopy.billLines}</SectionTitle>
+                {billForm.items.length === 0 ? <EmptyState title={billingCopy.noBillLinesTitle} text={billingCopy.noBillLinesText} /> : billForm.items.map((item, index) => (
                   <div key={index} className="inline-form billing-row">
                     <select value={item.transactionServiceId} onChange={(e) => {
                       const id = Number(e.target.value)
@@ -1700,8 +1869,8 @@ export function BillingPage() {
               </div>
               {isOpenBillsMobile ? (
                 <div className="full-span billing-payment-picker">
-                  <div className="billing-payment-picker-title">Payment type</div>
-                  <div className="billing-payment-picker-subtitle">Choose how this bill will be paid.</div>
+                  <div className="billing-payment-picker-title">{billingCopy.paymentTypeTitle}</div>
+                  <div className="billing-payment-picker-subtitle">{billingCopy.paymentTypeSubtitle}</div>
                   <div className="billing-payment-picker-grid">
                     {paymentMethods.map((method) => (
                       <button
@@ -1711,29 +1880,34 @@ export function BillingPage() {
                         onClick={() => setBillForm({ ...billForm, paymentMethodId: method.id })}
                       >
                         <span className="billing-payment-picker-icon" aria-hidden>{paymentTypeIcon(method.paymentType)}</span>
-                        <span className="billing-payment-picker-label">{method.name}</span>
+                        <span className="billing-payment-picker-label">{localizedPaymentMethodName(method, locale)}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               ) : (
-                <Field label="Payment method">
+                <Field label={billingCopy.paymentMethod}>
                   <select value={billForm.paymentMethodId ?? ''} onChange={(e) => setBillForm({ ...billForm, paymentMethodId: Number(e.target.value) })}>
-                    <option value="">Select payment method</option>
-                    {paymentMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+                    <option value="">{billingCopy.selectPaymentMethod}</option>
+                    {paymentMethods.map((method) => <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>)}
                   </select>
                 </Field>
               )}
               <div className="full-span billing-sticky-summary-stack">
                 <div className="billing-open-estimate billing-open-estimate--sticky full-span">
                   <div>
-                    <div className="billing-open-estimate-label">Estimated total</div>
+                    <div className="billing-open-estimate-label">{billingCopy.estimatedTotal}</div>
                     <strong>{currency(grossPreview)}</strong>
                   </div>
                   <div className="billing-open-estimate-count">
-                    <div>{billForm.items.length} line items</div>
+                    <div>{billingCopy.lineItemsCount(billForm.items.length)}</div>
                     <div>
-                      Payment: {paymentMethods.find((method) => method.id === billForm.paymentMethodId)?.name || '—'}
+                      {billingCopy.paymentWithMethod(
+                        localizedPaymentMethodName(
+                          paymentMethods.find((method) => method.id === billForm.paymentMethodId),
+                          locale,
+                        ),
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1746,14 +1920,14 @@ export function BillingPage() {
                   onClick={() => void createManualOpenBillFromCreateBillForm()}
                   disabled={creatingManualOpenBill}
                 >
-                  {creatingManualOpenBill ? 'Creating…' : 'Create Open Bill'}
+                  {creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}
                 </button>
                 <button
                   type="button"
                   onClick={createBill}
                   disabled={creatingBill || !billCanSubmit}
                 >
-                  {creatingBill ? 'Creating…' : 'Create bill'}
+                  {creatingBill ? billingCopy.creating : billingCopy.createBill}
                 </button>
             </div>
           </div>
