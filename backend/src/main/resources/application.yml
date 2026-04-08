@@ -74,8 +74,8 @@ app:
   google-meet:
     client-id: ${GOOGLE_MEET_CLIENT_ID:}
     client-secret: ${GOOGLE_MEET_CLIENT_SECRET:}
-    redirect-uri: ${GOOGLE_MEET_REDIRECT_URI:https://staging.calendra.si/api/google/callback}
-    frontend-url: ${GOOGLE_MEET_FRONTEND_URL:https://staging.calendra.si}
+    redirect-uri: ${GOOGLE_MEET_REDIRECT_URI:}
+    frontend-url: ${GOOGLE_MEET_FRONTEND_URL:}
   jwt:
     secret: ${APP_JWT_SECRET}
     expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
