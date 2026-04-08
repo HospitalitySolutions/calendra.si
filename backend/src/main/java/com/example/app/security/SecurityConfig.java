@@ -68,13 +68,18 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/auth/**").permitAll();
                     auth.requestMatchers("/api/zoom/callback", "/api/google/callback").permitAll();
                     auth.requestMatchers("/api/stripe/webhook").permitAll();
+
                     auth.requestMatchers("/api/public/widget/**").permitAll();
+                    auth.requestMatchers("/widget/**").permitAll();   // add this
+
                     auth.requestMatchers("/api/inbox/webhooks/**").permitAll();
                     auth.requestMatchers("/error").permitAll();
                     auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+
                     if (oauthLoginEnabled) {
                         auth.requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll();
                     }
+
                     auth.anyRequest().authenticated();
                 });
 
