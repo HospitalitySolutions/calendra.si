@@ -30,5 +30,6 @@ staging.calendra.si {
 		reverse_proxy frontend:80 {
 			header_up X-Forwarded-Proto https
 		}
+
 	}
 }
