@@ -40,6 +40,11 @@ public class PublicBookingWidgetController {
             String priceLabel
     ) {}
 
+    public record WidgetConsultantResponse(
+            Long id,
+            String name
+    ) {}
+
     public record AvailabilitySlotResponse(
             String label,
             String startTime,
@@ -83,13 +88,22 @@ public class PublicBookingWidgetController {
         return service.services(tenantCode);
     }
 
+    @GetMapping("/{tenantCode}/consultants")
+    public List<WidgetConsultantResponse> consultants(
+            @PathVariable String tenantCode,
+            @RequestParam Long typeId
+    ) {
+        return service.consultants(tenantCode, typeId);
+    }
+
     @GetMapping("/{tenantCode}/availability")
     public AvailabilityResponse availability(
             @PathVariable String tenantCode,
             @RequestParam Long typeId,
-            @RequestParam String date
+            @RequestParam String date,
+            @RequestParam(required = false) Long consultantId
     ) {
-        return service.availability(tenantCode, typeId, date);
+        return service.availability(tenantCode, typeId, date, consultantId);
     }
 
     @PostMapping("/{tenantCode}/bookings")

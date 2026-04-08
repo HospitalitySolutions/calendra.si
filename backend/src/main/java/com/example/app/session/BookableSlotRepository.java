@@ -12,6 +12,14 @@ public interface BookableSlotRepository extends JpaRepository<BookableSlot, Long
 
     List<BookableSlot> findAllByCompanyId(Long companyId);
 
+    @Query("""
+        select distinct s from BookableSlot s
+        join fetch s.consultant c
+        left join fetch c.types
+        where s.company.id = :companyId
+        """)
+    List<BookableSlot> findAllForWidgetByCompanyId(@Param("companyId") Long companyId);
+
     List<BookableSlot> findByConsultantIdAndCompanyId(Long consultantId, Long companyId);
 
     Optional<BookableSlot> findByIdAndCompanyId(Long id, Long companyId);

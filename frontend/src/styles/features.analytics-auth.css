@@ -719,13 +719,14 @@
 }
 
 .login-modern-logo-mark {
-    width: 148px;
-    height: 52px;
+    width: clamp(170px, 38vw, 230px);
+    aspect-ratio: 927 / 319;
+    height: auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: transparent;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .login-modern-logo-mark img {
@@ -734,9 +735,8 @@
     object-fit: contain;
     object-position: center;
     display: block;
-    mix-blend-mode: screen;
-    transform: scale(1.85);
-    transform-origin: 50% 45%;
+    mix-blend-mode: normal;
+    transform: none;
 }
 
 .login-lang-switch {
