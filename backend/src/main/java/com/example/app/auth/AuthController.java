@@ -46,6 +46,7 @@ import java.util.Optional;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.example.app.company.CompanyProvisioningService;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -65,6 +66,7 @@ public class AuthController {
     private final SessionTypeRepository types;
     private final TransactionServiceRepository txServices;
     private final PasswordResetService passwordResetService;
+    private final CompanyProvisioningService companyProvisioningService;
 
     public AuthController(
             UserRepository users,
@@ -77,7 +79,8 @@ public class AuthController {
             AppSettingRepository settings,
             SessionTypeRepository types,
             TransactionServiceRepository txServices,
-            PasswordResetService passwordResetService
+            PasswordResetService passwordResetService,
+            CompanyProvisioningService companyProvisioningService
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
@@ -90,6 +93,7 @@ public class AuthController {
         this.types = types;
         this.txServices = txServices;
         this.passwordResetService = passwordResetService;
+        this.companyProvisioningService = companyProvisioningService;
     }
 
     /**
@@ -195,9 +199,7 @@ public class AuthController {
         }
 
         String companyName = request.companyName().trim();
-        Company company = new Company();
-        company.setName(companyName);
-        company = companies.save(company);
+        Company company = companyProvisioningService.createWithTenantCode(companyName);
 
         boolean passwordProvided = request.password() != null && !request.password().isBlank();
         String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");

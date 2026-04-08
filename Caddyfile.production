@@ -26,11 +26,18 @@ app.calendra.si {
 		}
 	}
 
+	handle /widget/* {
+    		reverse_proxy backend:4000 {
+    			header_up X-Forwarded-Proto https
+    		}
+    	}
+
 	handle {
 		reverse_proxy frontend:80 {
 			header_up X-Forwarded-Proto https
 		}
 	}
+
 }
 
 calendra.si, www.calendra.si {
