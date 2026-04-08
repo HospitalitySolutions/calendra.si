@@ -41,7 +41,7 @@ public class PasswordResetService {
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${spring.mail.username:}") String mailUsername,
-            @Value("${app.auth.frontend-url:http://localhost:3000}") String frontendBaseUrl
+            @Value("${app.auth.frontend-url:http://app.calendra.si}") String frontendBaseUrl
     ) {
         this.users = users;
         this.resetTokens = resetTokens;
