@@ -16,7 +16,7 @@ spring:
   config:
     # Friendly name or full ARN (see AWS console) both work.
     # Override with AWS_STAGING_SECRET_ID to force exact lookup (recommended: full ARN).
-    import: optional:aws-secretsmanager:${AWS_STAGING_SECRET_ID:arn:aws:secretsmanager:eu-central-1:345362761828:secret:calendra/staging-2jqRIf}
+    import: optional:aws-secretsmanager:${AWS_PRODUCTION_SECRET_ID:calendra-app},optional:aws-secretsmanager:/${AWS_PRODUCTION_SECRET_ID:calendra-app}
   # Google login: put GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the calendra/staging JSON secret.
   # Spring does not map those names to OAuth2 automatically; GoogleOAuthClientRegistrationConfig does.
   # Optional: GOOGLE_OAUTH_REDIRECT_URI (default {baseUrl}/login/oauth2/code/{registrationId}).
@@ -25,9 +25,6 @@ spring:
     aws:
       region:
         static: ${AWS_REGION:eu-central-1}
-      credentials:
-        access-key: ${AWS_ACCESS_KEY_ID:}
-        secret-key: ${AWS_SECRET_ACCESS_KEY:}
 app:
   auth:
     frontend-url: ${APP_AUTH_FRONTEND_URL:}
