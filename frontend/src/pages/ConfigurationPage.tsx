@@ -14,26 +14,24 @@ import { taxLabels } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { currency, formatDate } from '../lib/format'
-import { ConsultantsPage } from './ConsultantsPage'
 import { ConfigurationNotificationsSection } from './ConfigurationNotificationsSection'
 import { FolioLayoutEditor } from './FolioLayoutEditor'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute } from '../lib/packageAccess'
 
-type Tab = 'company' | 'booking' | 'billing' | 'consultants' | 'notifications'
+type Tab = 'company' | 'booking' | 'billing' | 'notifications'
 type BookingSubtab = 'modules' | 'tasks' | 'spaces' | 'types'
 type BillingSubtab = 'paymentMethods' | 'services' | 'fiscal' | 'folioLayout'
 type PersonalTaskPreset = { id: string; name: string; color: string }
 
-const CONFIG_TABS: Array<{ id: Tab; label: string; icon: 'company' | 'booking' | 'billing' | 'consultants' | 'notifications' }> = [
+const CONFIG_TABS: Array<{ id: Tab; label: string; icon: 'company' | 'booking' | 'billing' | 'notifications' }> = [
   { id: 'company', label: 'Company', icon: 'company' },
   { id: 'booking', label: 'Booking', icon: 'booking' },
   { id: 'billing', label: 'Billing', icon: 'billing' },
-  { id: 'consultants', label: 'Consultants', icon: 'consultants' },
   { id: 'notifications', label: 'Notifications', icon: 'notifications' },
 ]
 
-function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'consultants' | 'notifications' }) {
+function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'notifications' }) {
   if (kind === 'company') {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -68,13 +66,9 @@ function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'co
       </svg>
     )
   }
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  )
+  const _exhaustive: never = kind
+  void _exhaustive
+  return null
 }
 
 function HelpHint({ text }: { text: string }) {
@@ -239,7 +233,11 @@ export function ConfigurationPage() {
       navigate('/security', { replace: true })
       return
     }
-    if (q === 'company' || q === 'booking' || q === 'billing' || q === 'consultants' || q === 'notifications') setTab(q)
+    if (q === 'consultants') {
+      navigate('/consultants', { replace: true })
+      return
+    }
+    if (q === 'company' || q === 'booking' || q === 'billing' || q === 'notifications') setTab(q)
   }, [query, navigate, isAdmin])
 
   useEffect(() => {
@@ -583,9 +581,7 @@ export function ConfigurationPage() {
                     ? t('tabBooking')
                     : entry.id === 'billing'
                       ? t('tabBilling')
-                      : entry.id === 'consultants'
-                        ? t('tabConsultants')
-                        : t('tabNotifications')}
+                      : t('tabNotifications')}
               </span>
             </button>
           ))}
@@ -1305,9 +1301,7 @@ export function ConfigurationPage() {
           onSave={saveSettings}
           t={t}
         />
-      ) : (
-        <ConsultantsPage />
-      )}
+      ) : null}
         </div>
       </div>
     </div>

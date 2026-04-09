@@ -46,6 +46,17 @@ function AndroidNavIconClients() {
   )
 }
 
+/** Employees — briefcase (workforce / org), visually distinct from clients “users” icon. */
+function SidebarIconEmployees() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 20V8a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v12" />
+      <rect x="2" y="8" width="20" height="12" rx="2" />
+      <path d="M10 8V6a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
 function AndroidNavIconInbox() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -397,6 +408,18 @@ function ShellInner({ children }: PropsWithChildren) {
                 <AndroidNavIconInbox />
               </span>
               <span className="mobile-nav-overlay-link-label">{t('navInbox')}</span>
+            </NavLink>
+          )}
+          {isAdmin && (
+            <NavLink
+              to="/consultants"
+              className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+              onClick={() => closeMobileNavIfAlreadyOn('/consultants')}
+            >
+              <span className="mobile-nav-overlay-link-icon">
+                <SidebarIconEmployees />
+              </span>
+              <span className="mobile-nav-overlay-link-label">{t('tabConsultants')}</span>
             </NavLink>
           )}
           <div className="mobile-nav-overlay-section-label">{t('mobileNavSectionSettings')}</div>
@@ -764,6 +787,11 @@ function ShellInner({ children }: PropsWithChildren) {
             <AndroidNavIconAnalytics />
           </NavLink>
         </nav>
+        {isAdmin && (
+          <NavLink to="/consultants" title={t('tabConsultants')} aria-label={t('tabConsultants')}>
+            <SidebarIconEmployees />
+          </NavLink>
+        )}
         <a
           className="sidebar-support"
           href="mailto:dmirc@hosp-it.eu"

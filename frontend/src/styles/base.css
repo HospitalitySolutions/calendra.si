@@ -1,5 +1,14 @@
 * { box-sizing: border-box; }
 
+/* Native selects / date inputs: tell the UA to paint form popups (option list) for the active theme. */
+html {
+    color-scheme: light;
+}
+
+html[data-theme="dark"] {
+    color-scheme: dark;
+}
+
 /* Remove native mobile tap flash/highlight on clickable elements. */
 html,
 body,

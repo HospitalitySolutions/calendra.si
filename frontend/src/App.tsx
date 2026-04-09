@@ -20,6 +20,7 @@ const InboxPage = lazy(() => import('./pages/InboxPage').then((mod) => ({ defaul
 const BillingPage = lazy(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })))
 const ClientsPage = lazy(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })))
 const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })))
+const ConsultantsPage = lazy(() => import('./pages/ConsultantsPage').then((mod) => ({ default: mod.ConsultantsPage })))
 const SecurityPage = lazy(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })))
 const PlatformAdminPage = lazy(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })))
 
@@ -145,7 +146,10 @@ export default function App() {
           <Route path="/sessions/booked" element={<Navigate to="/calendar" replace />} />
           <Route path="/sessions/bookable" element={<Navigate to="/calendar" replace />} />
           <Route path="/clients" element={<ClientsPage />} />
-          <Route path="/consultants" element={<Navigate to="/configuration?tab=consultants" replace />} />
+          <Route
+            path="/consultants"
+            element={user.role === 'ADMIN' ? <ConsultantsPage /> : <Navigate to={fallbackRoute} replace />}
+          />
           <Route path="/billing" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />

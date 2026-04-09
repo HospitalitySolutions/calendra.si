@@ -30,6 +30,13 @@ input, select, textarea {
     color: var(--color-text);
 }
 
+/* Option list: improves contrast where the UA still uses a light popup (fallback to color-scheme on html). */
+[data-theme="dark"] select option,
+[data-theme="dark"] select optgroup {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--color-primary);

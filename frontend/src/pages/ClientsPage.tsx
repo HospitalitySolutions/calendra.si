@@ -148,9 +148,6 @@ export function ClientsPage() {
     email: 'E-pošta',
     phone: 'Telefon',
     whatsappOptIn: 'WhatsApp opt-in',
-    viberStatus: 'Viber status',
-    linkedToViberBot: 'Povezano z Viber botom',
-    notLinkedYet: 'Še ni povezano',
     linkedCompany: 'Povezano podjetje',
     batchPayment: 'Paketno plačilo',
     sessions: 'Termini',
@@ -221,9 +218,6 @@ export function ClientsPage() {
     email: 'Email',
     phone: 'Phone',
     whatsappOptIn: 'WhatsApp opt-in',
-    viberStatus: 'Viber status',
-    linkedToViberBot: 'Linked to Viber bot',
-    notLinkedYet: 'Not linked yet',
     linkedCompany: 'Linked company',
     batchPayment: 'Batch payment',
     sessions: 'Sessions',
@@ -300,13 +294,12 @@ export function ClientsPage() {
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive'>('active')
   const [companyActiveFilter, setCompanyActiveFilter] = useState<'active' | 'inactive'>('active')
   const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | null>(null)
-  const [detailEditDraft, setDetailEditDraft] = useState<{ firstName: string; lastName: string; email: string; phone: string; whatsappOptIn: boolean; viberConnected: boolean; billingCompanyId: number | null }>({
+  const [detailEditDraft, setDetailEditDraft] = useState<{ firstName: string; lastName: string; email: string; phone: string; whatsappOptIn: boolean; billingCompanyId: number | null }>({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     whatsappOptIn: false,
-    viberConnected: false,
     billingCompanyId: null,
   })
   const [savingDetailEdit, setSavingDetailEdit] = useState(false)
@@ -482,7 +475,6 @@ export function ClientsPage() {
       || (detailEditDraft.email ?? '') !== (detailClient.email ?? '')
       || (detailEditDraft.phone ?? '') !== (detailClient.phone ?? '')
       || (detailEditDraft.whatsappOptIn ?? false) !== (detailClient.whatsappOptIn ?? false)
-      || (detailEditDraft.viberConnected ?? false) !== (detailClient.viberConnected ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
   }, [detailClient, detailEditDraft])
 
@@ -513,7 +505,6 @@ export function ClientsPage() {
       email: c.email ?? '',
       phone: c.phone ?? '',
       whatsappOptIn: c.whatsappOptIn ?? false,
-      viberConnected: c.viberConnected ?? false,
       billingCompanyId: c.billingCompany?.id ?? null,
     })
     setSessionTab('future')
@@ -566,7 +557,6 @@ export function ClientsPage() {
         email: response.data.email ?? '',
         phone: response.data.phone ?? '',
         whatsappOptIn: response.data.whatsappOptIn ?? false,
-        viberConnected: response.data.viberConnected ?? false,
         billingCompanyId: response.data.billingCompany?.id ?? null,
       })
       setClients((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
@@ -1256,17 +1246,13 @@ export function ClientsPage() {
                   {renderClientEditableField('lastName', clientsCopy.lastName)}
                   {renderClientEditableField('email', clientsCopy.email, true)}
                   {renderClientEditableField('phone', clientsCopy.phone, true)}
+                  {renderClientEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
                   <div className="clients-detail-field-card clients-detail-field-card--wide" onClick={(e) => e.stopPropagation()}>
                     <span>{clientsCopy.whatsappOptIn}</span>
                     <strong>
                       <input type="checkbox" checked={detailEditDraft.whatsappOptIn} onChange={(e) => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: e.target.checked })} />
                     </strong>
                   </div>
-                  <div className="clients-detail-field-card clients-detail-field-card--wide" onClick={(e) => e.stopPropagation()}>
-                    <span>{clientsCopy.viberStatus}</span>
-                    <strong>{detailClient.viberConnected ? clientsCopy.linkedToViberBot : clientsCopy.notLinkedYet}</strong>
-                  </div>
-                  {renderClientEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
                   <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
                     <span>{clientsCopy.batchPayment}</span>
                     <button
