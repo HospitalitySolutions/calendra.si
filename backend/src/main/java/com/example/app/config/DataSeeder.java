@@ -54,6 +54,7 @@ public class DataSeeder implements CommandLineRunner {
         seedTenant("CoreGym", "jdukaric@calendra.si");
         seedTenant("Nejc Bracko s.p.", "nbracko@calendra.si");
         seedTenant("Inštitut AVISENSA", "nina@avisensa.com");
+        seedTenant("Rudi Inc.", "astraus81@gmail.com");
         seedTenant("Zoom Marketplace", "marketplace@zoom.us");
         seedTenant("Facebook", "developers@facebook.com");
     }
