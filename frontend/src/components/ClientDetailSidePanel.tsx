@@ -64,7 +64,6 @@ export function ClientDetailSidePanel({
     toggleOff: 'IZKLOPLJENO',
     batchPaymentSaving: 'Shranjujem…',
     sessions: 'Termini',
-    sessionsSubtitle: 'Preglej prihodnje in pretekle termine, povezane s to stranko.',
     future: 'Prihodnji',
     past: 'Pretekli',
     sessionsCount: (count: number) => `${count} ${slovenianTerminCountForm(count)}`,
@@ -111,7 +110,6 @@ export function ClientDetailSidePanel({
     toggleOff: 'OFF',
     batchPaymentSaving: 'Saving…',
     sessions: 'Sessions',
-    sessionsSubtitle: 'View future and past bookings linked to this client.',
     future: 'Future',
     past: 'Past',
     sessionsCount: (count: number) => `${count} sessions`,
@@ -525,10 +523,6 @@ export function ClientDetailSidePanel({
               </div>
 
               <div className="clients-detail-sessions-card clients-detail-sessions-card--modern">
-                <SectionTitle>{copy.sessions}</SectionTitle>
-                <p className="muted" style={{ marginTop: -6, marginBottom: 10 }}>
-                  {copy.sessionsSubtitle}
-                </p>
                 <div className="clients-detail-session-tabs-row">
                   <div className="clients-session-tabs">
                     <button

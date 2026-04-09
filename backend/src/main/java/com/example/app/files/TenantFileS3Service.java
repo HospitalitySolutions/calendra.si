@@ -24,7 +24,8 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 public class TenantFileS3Service {
     private static final Logger log = LoggerFactory.getLogger(TenantFileS3Service.class);
     private static final Pattern SANITIZE_SEGMENT = Pattern.compile("[^a-zA-Z0-9._-]");
-    private static final long MAX_FILE_SIZE_BYTES = 25L * 1024L * 1024L;
+    /** Max upload size for client and company file attachments (must stay in sync with {@code spring.servlet.multipart.max-file-size}). */
+    private static final long MAX_FILE_SIZE_BYTES = 50L * 1024L * 1024L;
 
     private final InvoiceS3Properties properties;
     private final ObjectProvider<S3Client> s3ClientProvider;
@@ -79,7 +80,7 @@ public class TenantFileS3Service {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is required.");
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File must be smaller than 25 MB.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File must be 50 MB or smaller.");
         }
         S3Client client = requireClient();
         String contentType = normalizeContentType(file.getContentType());

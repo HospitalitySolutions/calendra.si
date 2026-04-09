@@ -356,137 +356,145 @@ function ShellInner({ children }: PropsWithChildren) {
           </button>
         </header>
         <div className="mobile-nav-overlay-body">
-          <NavLink
-            to="/calendar"
-            className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-            onClick={() => closeMobileNavIfAlreadyOn('/calendar')}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              <AndroidNavIconCalendar />
-            </span>
-            <span className="mobile-nav-overlay-link-label">{t('navCalendar')}</span>
-          </NavLink>
-          <NavLink
-            to="/clients"
-            className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-            onClick={() => closeMobileNavIfAlreadyOn('/clients')}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              <AndroidNavIconClients />
-            </span>
-            <span className="mobile-nav-overlay-link-label">{t('navClients')}</span>
-          </NavLink>
-          {billingAllowed && (
+          <div className="mobile-nav-overlay-body-primary">
             <NavLink
-              to="/billing"
+              to="/calendar"
               className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/billing')}
+              onClick={() => closeMobileNavIfAlreadyOn('/calendar')}
             >
               <span className="mobile-nav-overlay-link-icon">
-                <AndroidNavIconBilling />
+                <AndroidNavIconCalendar />
               </span>
-              <span className="mobile-nav-overlay-link-label">{t('navBilling')}</span>
+              <span className="mobile-nav-overlay-link-label">{t('navCalendar')}</span>
             </NavLink>
-          )}
-          <NavLink
-            to="/analytics"
-            className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-            onClick={() => closeMobileNavIfAlreadyOn('/analytics')}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              <AndroidNavIconAnalytics />
-            </span>
-            <span className="mobile-nav-overlay-link-label">{t('navAnalytics')}</span>
-          </NavLink>
-          {inboxAllowed && (
             <NavLink
-              to="/inbox"
+              to="/clients"
               className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/inbox')}
+              onClick={() => closeMobileNavIfAlreadyOn('/clients')}
             >
               <span className="mobile-nav-overlay-link-icon">
-                <AndroidNavIconInbox />
+                <AndroidNavIconClients />
               </span>
-              <span className="mobile-nav-overlay-link-label">{t('navInbox')}</span>
+              <span className="mobile-nav-overlay-link-label">{t('navClients')}</span>
             </NavLink>
-          )}
-          {isAdmin && (
+            {billingAllowed && (
+              <NavLink
+                to="/billing"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/billing')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <AndroidNavIconBilling />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('navBilling')}</span>
+              </NavLink>
+            )}
             <NavLink
-              to="/consultants"
+              to="/analytics"
               className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/consultants')}
+              onClick={() => closeMobileNavIfAlreadyOn('/analytics')}
             >
               <span className="mobile-nav-overlay-link-icon">
-                <SidebarIconEmployees />
+                <AndroidNavIconAnalytics />
               </span>
-              <span className="mobile-nav-overlay-link-label">{t('tabConsultants')}</span>
+              <span className="mobile-nav-overlay-link-label">{t('navAnalytics')}</span>
             </NavLink>
-          )}
-          <div className="mobile-nav-overlay-section-label">{t('mobileNavSectionSettings')}</div>
-          {isAdmin && (
-            <NavLink
-              to="/configuration"
-              className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
-              onClick={() => closeMobileNavIfAlreadyOn('/configuration')}
+            {inboxAllowed && (
+              <NavLink
+                to="/inbox"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/inbox')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <AndroidNavIconInbox />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('navInbox')}</span>
+              </NavLink>
+            )}
+          </div>
+          <div className="mobile-nav-overlay-body-settings">
+            {isAdmin && (
+              <NavLink
+                to="/consultants"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/consultants')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <SidebarIconEmployees />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('tabConsultants')}</span>
+              </NavLink>
+            )}
+            <div className="mobile-nav-overlay-section-label">{t('mobileNavSectionSettings')}</div>
+            {isAdmin && (
+              <NavLink
+                to="/configuration"
+                className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/configuration')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <IconConfigGear />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('settingsGroup')}</span>
+              </NavLink>
+            )}
+            {!isAdmin && (
+              <NavLink
+                to="/security"
+                className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/security')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
+                    <path d="M9.5 12.5l1.5 1.5 3.5-4" />
+                  </svg>
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('tabSecurity')}</span>
+              </NavLink>
+            )}
+            <button
+              type="button"
+              className="mobile-nav-overlay-link mobile-nav-overlay-link--sub mobile-nav-overlay-link--button"
+              onClick={() => {
+                setLanguageModalOpen(true)
+                setMobileNavOpen(false)
+              }}
             >
               <span className="mobile-nav-overlay-link-icon">
-                <IconConfigGear />
-              </span>
-              <span className="mobile-nav-overlay-link-label">{t('settingsGroup')}</span>
-            </NavLink>
-          )}
-          <button
-            type="button"
-            className="mobile-nav-overlay-link mobile-nav-overlay-link--sub mobile-nav-overlay-link--button"
-            onClick={() => {
-              setLanguageModalOpen(true)
-              setMobileNavOpen(false)
-            }}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <circle cx="12" cy="12" r="10" />
-                <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-            </span>
-            <span className="mobile-nav-overlay-link-label">{t('language')}</span>
-          </button>
-          <button
-            type="button"
-            className="mobile-nav-overlay-link mobile-nav-overlay-link--sub mobile-nav-overlay-link--button"
-            onClick={() => {
-              if (theme === 'light') setDarkMode()
-              else setLightMode()
-              setMobileNavOpen(false)
-            }}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              {theme === 'dark' ? (
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <circle cx="12" cy="12" r="5" />
-                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
-              ) : (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z" />
-                </svg>
-              )}
-            </span>
-            <span className="mobile-nav-overlay-link-label">{theme === 'dark' ? t('lightMode') : t('darkMode')}</span>
-          </button>
+              </span>
+              <span className="mobile-nav-overlay-link-label">{t('language')}</span>
+            </button>
+            <button
+              type="button"
+              className="mobile-nav-overlay-link mobile-nav-overlay-link--sub mobile-nav-overlay-link--button"
+              onClick={() => {
+                if (theme === 'light') setDarkMode()
+                else setLightMode()
+                setMobileNavOpen(false)
+              }}
+            >
+              <span className="mobile-nav-overlay-link-icon">
+                {theme === 'dark' ? (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <circle cx="12" cy="12" r="5" />
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                  </svg>
+                ) : (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3c0 0 0 0 0 0A7 7 0 0 0 21 12.79z" />
+                  </svg>
+                )}
+              </span>
+              <span className="mobile-nav-overlay-link-label">{theme === 'dark' ? t('lightMode') : t('darkMode')}</span>
+            </button>
+          </div>
         </div>
         <footer className="mobile-nav-overlay-footer">
-          <a
-            className="mobile-nav-overlay-support"
-            href="mailto:dmirc@hosp-it.eu"
-            onClick={() => setMobileNavOpen(false)}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
-            </svg>
-            <span>{t('support')}</span>
-          </a>
           <div className="mobile-nav-overlay-user">
             <span className="clients-name-avatar mobile-nav-overlay-user-avatar" aria-hidden>
               {initials}
@@ -496,20 +504,18 @@ function ShellInner({ children }: PropsWithChildren) {
               <div className="mobile-nav-overlay-user-email">{user.email}</div>
             </div>
           </div>
-          <button
-            type="button"
+          <a
             className="mobile-nav-overlay-logout"
-            onClick={() => {
-              setMobileNavOpen(false)
-              navigate('/security')
-            }}
+            href="mailto:dmirc@hosp-it.eu"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label={t('supportEmailHint')}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
-              <path d="M9.5 12.5l1.5 1.5 3.5-4" />
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
             </svg>
-            {t('tabSecurity')}
-          </button>
+            {t('support')}
+          </a>
           <button
             type="button"
             className="mobile-nav-overlay-logout"
@@ -671,20 +677,17 @@ function ShellInner({ children }: PropsWithChildren) {
               <div className="credentials-popover-divider" aria-hidden />
               <div className="credentials-popover-actions">
                 <div className="credentials-popover-actions-title">{t('actions')}</div>
-                <button
-                  type="button"
+                <a
                   className="credentials-popover-action-btn"
-                  onClick={() => {
-                    setAccountOpen(false)
-                    navigate('/security')
-                  }}
+                  href="mailto:dmirc@hosp-it.eu"
+                  onClick={() => setAccountOpen(false)}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
-                    <path d="M9.5 12.5l1.5 1.5 3.5-4" />
+                    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
                   </svg>
-                  {t('tabSecurity')}
-                </button>
+                  {t('support')}
+                </a>
                 <button
                   type="button"
                   className="credentials-popover-action-btn"
@@ -788,21 +791,15 @@ function ShellInner({ children }: PropsWithChildren) {
           </NavLink>
         </nav>
         {isAdmin && (
-          <NavLink to="/consultants" title={t('tabConsultants')} aria-label={t('tabConsultants')}>
+          <NavLink
+            className="sidebar-consultants"
+            to="/consultants"
+            title={t('tabConsultants')}
+            aria-label={t('tabConsultants')}
+          >
             <SidebarIconEmployees />
           </NavLink>
         )}
-        <a
-          className="sidebar-support"
-          href="mailto:dmirc@hosp-it.eu"
-          title={t('support')}
-          aria-label={t('supportEmailHint')}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
-            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
-          </svg>
-        </a>
       </aside>
       <div className={isCalendarRoute ? 'main-area main-area--calendar' : 'main-area'}>
         <header

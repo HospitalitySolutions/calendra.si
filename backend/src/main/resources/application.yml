@@ -5,6 +5,10 @@
 #   Staging/production profiles map spring.cloud.aws.credentials from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
 #   (from the secret JSON after import, or from the host). Lightsail needs host bootstrap creds for the first SM fetch.
 spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
   cloud:
     aws:
       region:

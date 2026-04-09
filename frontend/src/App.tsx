@@ -154,7 +154,16 @@ export default function App() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={<ConfigurationPage />} />
-          <Route path="/security" element={<SecurityPage />} />
+          <Route
+            path="/security"
+            element={
+              user.role === 'ADMIN' ? (
+                <Navigate to="/configuration?tab=security" replace />
+              ) : (
+                <SecurityPage />
+              )
+            }
+          />
           <Route path="/settings" element={<Navigate to="/configuration" replace />} />
           <Route path="/sessions/spaces" element={<Navigate to="/configuration?tab=booking" replace />} />
           <Route path="/sessions/types" element={<Navigate to="/configuration?tab=booking" replace />} />

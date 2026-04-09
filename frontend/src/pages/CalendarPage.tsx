@@ -10,7 +10,18 @@ import enGbLocale from '@fullcalendar/core/locales/en-gb'
 import { Capacitor } from '@capacitor/core'
 import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition'
 import { createPortal } from 'react-dom'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MouseEvent as ReactMouseEvent,
+  type TextareaHTMLAttributes,
+  type TouchEvent as ReactTouchEvent,
+} from 'react'
 import { useCalendarShellHeader } from '../calendarHeaderContext'
 import {
   CalendarHeaderDateNav,
@@ -94,48 +105,165 @@ function scrollIntoViewForAndroidPicker(el: HTMLElement) {
   })
 }
 
-/** Time first, then date (DD/MM/YYYY via browser locale on `type="date"`). */
-function CalendarLocalDateTimeSplit({
+/** ~one text line inside session panel padding (see `.calendar-session-notes-autogrow` CSS) */
+const SESSION_NOTES_TEXTAREA_MIN_HEIGHT_PX = 32
+const SESSION_NOTES_TEXTAREA_MAX_HEIGHT_PX = 288
+
+type SessionNotesTextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'rows' | 'value' | 'onChange'> & {
+  value: string
+  onChange: (e: ChangeEvent<HTMLTextAreaElement>) => void
+}
+
+/** Starts one line tall; grows with content up to a max height, then scrolls. */
+function SessionNotesTextarea({ value, onChange, className, ...rest }: SessionNotesTextareaProps) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = '0px'
+    const sh = el.scrollHeight
+    const h = Math.min(Math.max(sh, SESSION_NOTES_TEXTAREA_MIN_HEIGHT_PX), SESSION_NOTES_TEXTAREA_MAX_HEIGHT_PX)
+    el.style.height = `${h}px`
+    el.style.overflowY = sh > SESSION_NOTES_TEXTAREA_MAX_HEIGHT_PX ? 'auto' : 'hidden'
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      className={['calendar-session-notes-autogrow', className].filter(Boolean).join(' ')}
+      value={value}
+      onChange={onChange}
+      {...rest}
+    />
+  )
+}
+
+/** One row: time from | time to | date (date last). */
+function CalendarLocalTimespanRow({
+  startValue,
+  endValue,
+  onCommitStart,
+  onCommitEnd,
+  normalize,
+  labels,
+}: {
+  startValue: string | undefined
+  endValue: string | undefined
+  onCommitStart: (localIso: string) => void
+  onCommitEnd: (localIso: string) => void
+  normalize: (v: string) => string
+  labels: { timeFrom: string; timeTo: string; date: string }
+}) {
+  const sp = splitLocalDateTimeParts(startValue)
+  const ep = splitLocalDateTimeParts(endValue)
+  const date = sp.date || ep.date || localTodayYmd()
+  const startTime = sp.time || '09:00'
+  const endTime = ep.time || '10:00'
+
+  return (
+    <div className="calendar-timespan-row">
+      <div className="calendar-timespan-field">
+        <div className="calendar-timespan-input-inner">
+          <span className="calendar-timespan-label">{labels.timeFrom}</span>
+          <input
+            type="time"
+            value={startTime}
+            onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+            onChange={(e) => {
+              const t = e.target.value
+              if (!t) return
+              onCommitStart(normalize(`${date}T${t}`))
+            }}
+            aria-label={labels.timeFrom}
+          />
+        </div>
+      </div>
+      <div className="calendar-timespan-field">
+        <div className="calendar-timespan-input-inner">
+          <span className="calendar-timespan-label">{labels.timeTo}</span>
+          <input
+            type="time"
+            value={endTime}
+            onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+            onChange={(e) => {
+              const t = e.target.value
+              if (!t) return
+              onCommitEnd(normalize(`${date}T${t}`))
+            }}
+            aria-label={labels.timeTo}
+          />
+        </div>
+      </div>
+      <div className="calendar-timespan-field calendar-timespan-field--date">
+        <div className="calendar-timespan-input-inner">
+          <span className="calendar-timespan-label">{labels.date}</span>
+          <input
+            type="date"
+            value={date}
+            onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+            onChange={(e) => {
+              const d = e.target.value
+              if (!d) return
+              onCommitStart(normalize(`${d}T${startTime}`))
+              onCommitEnd(normalize(`${d}T${endTime}`))
+            }}
+            aria-label={labels.date}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Todo: one row — time from | date (date last). */
+function CalendarLocalTimeDateRow({
   value,
   onCommit,
   normalize,
+  labels,
 }: {
   value: string | undefined
   onCommit: (localIso: string) => void
   normalize: (v: string) => string
+  labels: { time: string; date: string }
 }) {
   const { date, time } = splitLocalDateTimeParts(value)
+  const d = date || localTodayYmd()
+  const tm = time || '09:00'
 
   return (
-    <div className="calendar-datetime-split">
-      <div className="calendar-datetime-split-inner">
-        <input
-          type="time"
-          className="calendar-datetime-split-time"
-          value={time}
-          onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
-          onChange={(e) => {
-            const t = e.target.value
-            if (!t) return
-            const d = date || localTodayYmd()
-            onCommit(normalize(`${d}T${t}`))
-          }}
-          aria-label="Time"
-        />
-        <span className="calendar-datetime-split-divider" aria-hidden />
-        <input
-          type="date"
-          className="calendar-datetime-split-date"
-          value={date}
-          onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
-          onChange={(e) => {
-            const d = e.target.value
-            if (!d) return
-            const t = time || '09:00'
-            onCommit(normalize(`${d}T${t}`))
-          }}
-          aria-label="Date"
-        />
+    <div className="calendar-timespan-row calendar-timespan-row--two">
+      <div className="calendar-timespan-field">
+        <div className="calendar-timespan-input-inner">
+          <span className="calendar-timespan-label">{labels.time}</span>
+          <input
+            type="time"
+            value={tm}
+            onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+            onChange={(e) => {
+              const t = e.target.value
+              if (!t) return
+              onCommit(normalize(`${d}T${t}`))
+            }}
+            aria-label={labels.time}
+          />
+        </div>
+      </div>
+      <div className="calendar-timespan-field calendar-timespan-field--date">
+        <div className="calendar-timespan-input-inner">
+          <span className="calendar-timespan-label">{labels.date}</span>
+          <input
+            type="date"
+            value={d}
+            onFocus={(e) => scrollIntoViewForAndroidPicker(e.currentTarget)}
+            onChange={(e) => {
+              const next = e.target.value
+              if (!next) return
+              onCommit(normalize(`${next}T${tm}`))
+            }}
+            aria-label={labels.date}
+          />
+        </div>
       </div>
     </div>
   )
@@ -1495,21 +1623,6 @@ export default function CalendarPage() {
     }
     // If it already looks like local datetime, keep it.
     return value.length === 16 ? `${value}:00` : value
-  }
-
-  const openNativeDatePicker = (input: HTMLInputElement | null) => {
-    if (!input) return
-    const picker = input as HTMLInputElement & { showPicker?: () => void }
-    if (typeof picker.showPicker === 'function') {
-      try {
-        picker.showPicker()
-        return
-      } catch {
-        // Fall through to focus/click fallback for browsers that block showPicker.
-      }
-    }
-    input.focus()
-    input.click()
   }
 
   const fallbackSessionLengthMinutes = Number(settings.SESSION_LENGTH_MINUTES || 60)
@@ -6709,7 +6822,7 @@ export default function CalendarPage() {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={useBookingSidePanel ? 'modal large-modal booking-side-panel' : 'modal large-modal calendar-session-popup'}
+            className={useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel'}
             style={!useBookingSidePanel && sessionPopupPosition ? { left: sessionPopupPosition.left, top: sessionPopupPosition.top, maxHeight: `calc(100vh - ${sessionPopupPosition.top + 12}px)` } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
@@ -6739,8 +6852,9 @@ export default function CalendarPage() {
               </div>
             )}
             <div className="form-row-layout">
-              <div className="form-row">
-                <span className="form-row-label">{t('formClient')}</span>
+              <div className="form-row form-row-infield">
+                <span className="form-field-inline-label">{t('formClient')}</span>
+                <div className="form-field-inline-control">
                 <div className="client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className={`client-search-wrap${!showBookedSessionClientSearch ? ' client-search-wrap--compact-client' : ''}`}>
                     {showBookedSessionClientSearch ? (
@@ -6819,10 +6933,12 @@ export default function CalendarPage() {
                     </div>
                   )}
                 </div>
+                </div>
               </div>
               {user.role === 'ADMIN' && (
-                <div className="form-row">
-                  <span className="form-row-label">{t('formConsultant')}</span>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formConsultant')}</span>
+                  <div className="form-field-inline-control">
                   <select
                     value={selectedBookedSession.consultant?.id ?? ''}
                     onChange={(e) => {
@@ -6839,22 +6955,17 @@ export default function CalendarPage() {
                       <option key={c.id} value={c.id}>{fullName(c)}</option>
                     ))}
                   </select>
+                  </div>
                 </div>
               )}
-              <div className="form-row">
-                <span className="form-row-label">{t('formStart')}</span>
-                <CalendarLocalDateTimeSplit
-                  value={selectedBookedSession.startTime}
-                  onCommit={(s) => setSelectedBookedSession({ ...selectedBookedSession, startTime: s })}
+              <div className="form-row form-row-timespan">
+                <CalendarLocalTimespanRow
+                  startValue={selectedBookedSession.startTime}
+                  endValue={selectedBookedSession.endTime}
+                  onCommitStart={(s) => setSelectedBookedSession({ ...selectedBookedSession, startTime: s })}
+                  onCommitEnd={(s) => setSelectedBookedSession({ ...selectedBookedSession, endTime: s })}
                   normalize={normalizeToLocalDateTime}
-                />
-              </div>
-              <div className="form-row">
-                <span className="form-row-label">{t('formEnd')}</span>
-                <CalendarLocalDateTimeSplit
-                  value={selectedBookedSession.endTime}
-                  onCommit={(s) => setSelectedBookedSession({ ...selectedBookedSession, endTime: s })}
-                  normalize={normalizeToLocalDateTime}
+                  labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                 />
               </div>
               {(() => {
@@ -6880,16 +6991,18 @@ export default function CalendarPage() {
                 const summaryLine = t('formRepeatSummaryLine').replace('{from}', sessionDateStr).replace('{tail}', summaryTail)
                 return (
                   <div className="form-row-repeats-section">
-                    <div className="form-row" style={{ alignItems: 'center' }}>
-                      <span className="form-row-label" style={{ fontWeight: 600 }}>{t('formRepeats')}</span>
-                      <label className="repeats-toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={!!selectedBookedSession.repeats}
-                          onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeats: e.target.checked, repeatDay: sessionDay })}
-                        />
-                        <span className="repeats-toggle-slider" />
-                      </label>
+                    <div className="form-row form-row-infield form-row--bare">
+                      <span className="form-field-inline-label">{t('formRepeats')}</span>
+                      <div className="form-field-inline-control">
+                        <label className="repeats-toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedBookedSession.repeats}
+                            onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeats: e.target.checked, repeatDay: sessionDay })}
+                          />
+                          <span className="repeats-toggle-slider" />
+                        </label>
+                      </div>
                     </div>
                     {selectedBookedSession.repeats && (
                       <div className="form-repeats-config">
@@ -6968,45 +7081,52 @@ export default function CalendarPage() {
                 )
               })()}
               {settings.SPACES_ENABLED !== 'false' && (
-                <div className="form-row">
-                  <span className="form-row-label">{t('formSpace')}</span>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formSpace')}</span>
+                  <div className="form-field-inline-control">
                   <select value={selectedBookedSession.space?.id ?? ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, space: metaSpaces.find((s: any) => s.id === Number(e.target.value)) })}>
                     <option value="">{t('formNoSpace')}</option>
                     {metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
+                  </div>
                 </div>
               )}
               {settings.TYPES_ENABLED !== 'false' && (
-                <div className="form-row">
-                  <span className="form-row-label">{t('formType')}</span>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formType')}</span>
+                  <div className="form-field-inline-control">
                   <select value={selectedBookedSession.type?.id ?? ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, type: metaTypes.find((t: any) => t.id === Number(e.target.value)) })}>
                     <option value="">{t('formNoType')}</option>
                     {metaTypes.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
+                  </div>
                 </div>
               )}
-              <div className="form-row">
-                <span className="form-row-label">{t('formSession')}</span>
-                <div className="online-live-toggle">
-                  <button
-                    type="button"
-                    className={!selectedBookedSession.online ? 'toggle-btn active' : 'toggle-btn'}
-                    onClick={() => setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })}
-                  >
-                    {t('formLive')}
-                  </button>
-                  <button
-                    type="button"
-                    className={selectedBookedSession.online ? 'toggle-btn active' : 'toggle-btn'}
-                    onClick={() => setSelectedBookedSession({ ...selectedBookedSession, online: true, meetingProvider: selectedBookedSession.meetingProvider || 'zoom' })}
-                  >
-                    {t('formOnline')}
-                  </button>
+              <div className="form-row form-row-infield form-row--bare">
+                <span className="form-field-inline-label">{t('formSession')}</span>
+                <div className="form-field-inline-control">
+                  <div className="online-live-toggle">
+                    <button
+                      type="button"
+                      className={!selectedBookedSession.online ? 'toggle-btn active' : 'toggle-btn'}
+                      onClick={() => setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })}
+                    >
+                      {t('formLive')}
+                    </button>
+                    <button
+                      type="button"
+                      className={selectedBookedSession.online ? 'toggle-btn active' : 'toggle-btn'}
+                      onClick={() => setSelectedBookedSession({ ...selectedBookedSession, online: true, meetingProvider: selectedBookedSession.meetingProvider || 'zoom' })}
+                    >
+                      {t('formOnline')}
+                    </button>
+                  </div>
                 </div>
               </div>
               {selectedBookedSession.online && (
-                <div className="form-row">
-                  <span className="form-row-label">{t('formMeeting')}</span>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formMeeting')}</span>
+                  <div className="form-field-inline-control">
                   <div className="online-live-toggle">
                     <button
                       type="button"
@@ -7023,19 +7143,27 @@ export default function CalendarPage() {
                       Google Meet
                     </button>
                   </div>
+                  </div>
                 </div>
               )}
               {(selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').includes('Zoom meeting:')) && (
-                <div className="form-row">
-                  <span className="form-row-label">{t('formMeetingLink')}</span>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formMeetingLink')}</span>
+                  <div className="form-field-inline-control">
                   <a href={selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').match(/Zoom meeting:\s*(https?:\/\/[^\s\n]+)/)?.[1]} target="_blank" rel="noopener noreferrer" className="linkish">
                     {(selectedBookedSession.meetingProvider === 'google' || (selectedBookedSession.meetingLink || '').includes('meet.google.com')) ? t('formOpenGoogleMeet') : t('formOpenZoom')}
                   </a>
+                  </div>
                 </div>
               )}
-              <div className="form-row stretch">
-                <span className="form-row-label">{t('formNotes')}</span>
-                <textarea rows={4} value={(selectedBookedSession.meetingLink ? (selectedBookedSession.notes || '').replace(/\n?Zoom meeting:\s*https?:\/\/[^\s\n]+/g, '').trim() : selectedBookedSession.notes) || ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, notes: e.target.value })} />
+              <div className="form-row form-row-infield stretch">
+                <span className="form-field-inline-label">{t('formNotes')}</span>
+                <div className="form-field-inline-control">
+                <SessionNotesTextarea
+                  value={(selectedBookedSession.meetingLink ? (selectedBookedSession.notes || '').replace(/\n?Zoom meeting:\s*https?:\/\/[^\s\n]+/g, '').trim() : selectedBookedSession.notes) || ''}
+                  onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, notes: e.target.value })}
+                />
+                </div>
               </div>
             </div>
             </div>
@@ -7066,7 +7194,7 @@ export default function CalendarPage() {
         <div className={useBookingSidePanel ? 'modal-backdrop booking-side-panel-backdrop' : 'calendar-session-popup-layer'} onClick={useBookingSidePanel ? closePersonalModal : undefined}>
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={useBookingSidePanel ? 'modal large-modal booking-side-panel' : 'modal large-modal calendar-session-popup'}
+            className={useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel'}
             style={!useBookingSidePanel && sessionPopupPosition ? { left: sessionPopupPosition.left, top: sessionPopupPosition.top } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
@@ -7075,8 +7203,9 @@ export default function CalendarPage() {
             </div>
             <div className="booking-side-panel-body">
             <div className="form-row-layout">
-              <div className="form-row">
-                <span className="form-row-label">{t('formTask')}</span>
+              <div className="form-row form-row-infield">
+                <span className="form-field-inline-label">{t('formTask')}</span>
+                <div className="form-field-inline-control">
                 <PersonalTaskCombo
                   value={selectedPersonalBlock.task || ''}
                   onChange={(task) => setSelectedPersonalBlock({ ...selectedPersonalBlock, task })}
@@ -7087,26 +7216,23 @@ export default function CalendarPage() {
                   selectPredefinedLabel={t('formSelectPredefinedTask')}
                   noMatchLabel={t('formNoTaskPresetsMatch')}
                 />
+                </div>
               </div>
-              <div className="form-row">
-                <span className="form-row-label">{t('formStart')}</span>
-                <CalendarLocalDateTimeSplit
-                  value={selectedPersonalBlock.startTime}
-                  onCommit={(s) => setSelectedPersonalBlock({ ...selectedPersonalBlock, startTime: s })}
+              <div className="form-row form-row-timespan">
+                <CalendarLocalTimespanRow
+                  startValue={selectedPersonalBlock.startTime}
+                  endValue={selectedPersonalBlock.endTime}
+                  onCommitStart={(s) => setSelectedPersonalBlock({ ...selectedPersonalBlock, startTime: s })}
+                  onCommitEnd={(s) => setSelectedPersonalBlock({ ...selectedPersonalBlock, endTime: s })}
                   normalize={normalizeToLocalDateTime}
+                  labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                 />
               </div>
-              <div className="form-row">
-                <span className="form-row-label">{t('formEnd')}</span>
-                <CalendarLocalDateTimeSplit
-                  value={selectedPersonalBlock.endTime}
-                  onCommit={(s) => setSelectedPersonalBlock({ ...selectedPersonalBlock, endTime: s })}
-                  normalize={normalizeToLocalDateTime}
-                />
-              </div>
-              <div className="form-row stretch">
-                <span className="form-row-label">{t('formNotes')}</span>
-                <textarea rows={4} value={selectedPersonalBlock.notes || ''} onChange={(e) => setSelectedPersonalBlock({ ...selectedPersonalBlock, notes: e.target.value })} />
+              <div className="form-row form-row-infield stretch">
+                <span className="form-field-inline-label">{t('formNotes')}</span>
+                <div className="form-field-inline-control">
+                <SessionNotesTextarea value={selectedPersonalBlock.notes || ''} onChange={(e) => setSelectedPersonalBlock({ ...selectedPersonalBlock, notes: e.target.value })} />
+                </div>
               </div>
             </div>
             </div>
@@ -7125,7 +7251,7 @@ export default function CalendarPage() {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={useBookingSidePanel ? 'modal large-modal booking-side-panel' : 'modal large-modal calendar-session-popup'}
+            className={useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel'}
             style={!useBookingSidePanel && sessionPopupPosition ? { left: sessionPopupPosition.left, top: sessionPopupPosition.top } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
@@ -7138,21 +7264,25 @@ export default function CalendarPage() {
             </div>
             <div className="booking-side-panel-body">
               <div className="form-row-layout">
-                <div className="form-row">
-                  <span className="form-row-label">{t('formTask')}</span>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formTask')}</span>
+                  <div className="form-field-inline-control">
                   <input value={selectedTodo.task || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, task: e.target.value })} />
+                  </div>
                 </div>
-                <div className="form-row">
-                  <span className="form-row-label">{t('formStart')}</span>
-                  <CalendarLocalDateTimeSplit
+                <div className="form-row form-row-timespan">
+                  <CalendarLocalTimeDateRow
                     value={selectedTodo.startTime}
                     onCommit={(s) => setSelectedTodo({ ...selectedTodo, startTime: s })}
                     normalize={normalizeToLocalDateTime}
+                    labels={{ time: t('formTimeFrom'), date: t('formCalendarDate') }}
                   />
                 </div>
-                <div className="form-row stretch">
-                  <span className="form-row-label">{t('formNotes')}</span>
-                  <textarea rows={4} value={selectedTodo.notes || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, notes: e.target.value })} />
+                <div className="form-row form-row-infield stretch">
+                  <span className="form-field-inline-label">{t('formNotes')}</span>
+                  <div className="form-field-inline-control">
+                  <SessionNotesTextarea value={selectedTodo.notes || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, notes: e.target.value })} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -7171,7 +7301,7 @@ export default function CalendarPage() {
         >
           <div
             ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={useBookingSidePanel ? 'modal large-modal booking-side-panel' : 'modal large-modal calendar-session-popup'}
+            className={useBookingSidePanel ? 'modal large-modal booking-side-panel calendar-edit-session-panel' : 'modal large-modal calendar-session-popup calendar-edit-session-panel'}
             style={!useBookingSidePanel && sessionPopupPosition ? { left: sessionPopupPosition.left, top: sessionPopupPosition.top, maxHeight: `calc(100vh - ${sessionPopupPosition.top + 12}px)` } : undefined}
             onClick={(e) => {
               e.stopPropagation()
@@ -7250,8 +7380,9 @@ export default function CalendarPage() {
               {availabilitySelection ? (
                 <>
                   {user.role === 'ADMIN' && (
-                    <div className="form-row">
-                      <span className="form-row-label">{t('formConsultant')}</span>
+                    <div className="form-row form-row-infield">
+                      <span className="form-field-inline-label">{t('formConsultant')}</span>
+                      <div className="form-field-inline-control">
                       <select
                         value={availabilitySelection.consultantId || ''}
                         onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, consultantId: Number(e.target.value) || null })}
@@ -7261,101 +7392,87 @@ export default function CalendarPage() {
                           <option key={c.id} value={c.id}>{fullName(c)}</option>
                         ))}
                       </select>
+                      </div>
                     </div>
                   )}
-                  <div className="form-row">
-                    <span className="form-row-label">{t('formStart')}</span>
-                    <CalendarLocalDateTimeSplit
-                      value={availabilitySelection.startTime}
-                      onCommit={(s) => setAvailabilitySelection({ ...availabilitySelection, startTime: s })}
+                  <div className="form-row form-row-timespan">
+                    <CalendarLocalTimespanRow
+                      startValue={availabilitySelection.startTime}
+                      endValue={availabilitySelection.endTime}
+                      onCommitStart={(s) => setAvailabilitySelection({ ...availabilitySelection, startTime: s })}
+                      onCommitEnd={(s) => setAvailabilitySelection({ ...availabilitySelection, endTime: s })}
                       normalize={normalizeToLocalDateTime}
+                      labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                     />
                   </div>
-                  <div className="form-row">
-                    <span className="form-row-label">{t('formEnd')}</span>
-                    <CalendarLocalDateTimeSplit
-                      value={availabilitySelection.endTime}
-                      onCommit={(s) => setAvailabilitySelection({ ...availabilitySelection, endTime: s })}
-                      normalize={normalizeToLocalDateTime}
-                    />
-                  </div>
-                  <div className="form-row">
-                    <span className="form-row-label">{t('calendarRepeat')}</span>
-                    <div className="online-live-toggle">
-                      <button type="button" className={availabilitySelection.indefinite ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: true })}>{t('formIndefinite')}</button>
-                      <button type="button" className={!availabilitySelection.indefinite ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: false })}>{t('formLimited')}</button>
+                  <div className="form-row form-row-infield form-row--bare">
+                    <span className="form-field-inline-label">{t('calendarRepeat')}</span>
+                    <div className="form-field-inline-control">
+                      <div className="online-live-toggle">
+                        <button type="button" className={availabilitySelection.indefinite ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: true })}>{t('formIndefinite')}</button>
+                        <button type="button" className={!availabilitySelection.indefinite ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: false })}>{t('formLimited')}</button>
+                      </div>
                     </div>
                   </div>
                   {!availabilitySelection.indefinite && (
-                    <>
-                      <div className="form-row">
-                        <span className="form-row-label">{t('formStartDate')}</span>
-                        <div className="calendar-input-with-picker">
-                          <input
-                            ref={availabilityRangeStartInputRef}
-                            type="date"
-                            value={availabilitySelection.rangeStartDate || availabilitySelection.startTime?.slice(0, 10) || ''}
-                            onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, rangeStartDate: e.target.value })}
-                          />
-                          <button
-                            type="button"
-                            className="calendar-input-picker-btn"
-                            aria-label={t('calendarDatePickerStartAria')}
-                            onClick={() => openNativeDatePicker(availabilityRangeStartInputRef.current)}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                              <line x1="16" y1="2" x2="16" y2="6" />
-                              <line x1="8" y1="2" x2="8" y2="6" />
-                              <line x1="3" y1="10" x2="21" y2="10" />
-                            </svg>
-                          </button>
+                    <div className="form-row form-row-timespan">
+                      <div className="calendar-timespan-row calendar-timespan-row--two calendar-availability-datum-row">
+                        <div className="calendar-timespan-field calendar-timespan-field--date">
+                          <div className="calendar-timespan-input-inner">
+                            <span className="calendar-timespan-label">{t('formStartDate')}</span>
+                            <input
+                              ref={availabilityRangeStartInputRef}
+                              type="date"
+                              value={availabilitySelection.rangeStartDate || availabilitySelection.startTime?.slice(0, 10) || ''}
+                              onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, rangeStartDate: e.target.value })}
+                              aria-label={t('formStartDate')}
+                            />
+                          </div>
+                        </div>
+                        <div className="calendar-timespan-field calendar-timespan-field--date">
+                          <div className="calendar-timespan-input-inner">
+                            <span className="calendar-timespan-label">{t('formEndDate')}</span>
+                            <input
+                              ref={availabilityRangeEndInputRef}
+                              type="date"
+                              value={availabilitySelection.rangeEndDate || availabilitySelection.endTime?.slice(0, 10) || ''}
+                              onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, rangeEndDate: e.target.value })}
+                              aria-label={t('formEndDate')}
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="form-row">
-                        <span className="form-row-label">{t('formEndDate')}</span>
-                        <div className="calendar-input-with-picker">
-                          <input
-                            ref={availabilityRangeEndInputRef}
-                            type="date"
-                            value={availabilitySelection.rangeEndDate || availabilitySelection.endTime?.slice(0, 10) || ''}
-                            onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, rangeEndDate: e.target.value })}
-                          />
-                          <button
-                            type="button"
-                            className="calendar-input-picker-btn"
-                            aria-label={t('calendarDatePickerEndAria')}
-                            onClick={() => openNativeDatePicker(availabilityRangeEndInputRef.current)}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                              <line x1="16" y1="2" x2="16" y2="6" />
-                              <line x1="8" y1="2" x2="8" y2="6" />
-                              <line x1="3" y1="10" x2="21" y2="10" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </>
+                    </div>
                   )}
                 </>
               ) : form.todo ? (
                 <>
-                  <div className="form-row"><span className="form-row-label">{t('formTask')}</span><input placeholder={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} /></div>
-                  <div className="form-row">
-                    <span className="form-row-label">{t('formStart')}</span>
-                    <CalendarLocalDateTimeSplit
+                  <div className="form-row form-row-infield">
+                    <span className="form-field-inline-label">{t('formTask')}</span>
+                    <div className="form-field-inline-control">
+                    <input placeholder={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="form-row form-row-timespan">
+                    <CalendarLocalTimeDateRow
                       value={form.startTime}
                       onCommit={(s) => setForm({ ...form, startTime: s })}
                       normalize={normalizeToLocalDateTime}
+                      labels={{ time: t('formTimeFrom'), date: t('formCalendarDate') }}
                     />
                   </div>
-                  <div className="form-row stretch"><span className="form-row-label">{t('formNotes')}</span><textarea rows={4} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+                  <div className="form-row form-row-infield stretch">
+                    <span className="form-field-inline-label">{t('formNotes')}</span>
+                    <div className="form-field-inline-control">
+                    <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                    </div>
+                  </div>
                 </>
               ) : form.personal ? (
                 <>
-                  <div className="form-row">
-                    <span className="form-row-label">{t('formTask')}</span>
+                  <div className="form-row form-row-infield">
+                    <span className="form-field-inline-label">{t('formTask')}</span>
+                    <div className="form-field-inline-control">
                     <PersonalTaskCombo
                       value={form.task || ''}
                       onChange={(task) => setForm({ ...form, task })}
@@ -7366,29 +7483,30 @@ export default function CalendarPage() {
                       selectPredefinedLabel={t('formSelectPredefinedTask')}
                       noMatchLabel={t('formNoTaskPresetsMatch')}
                     />
+                    </div>
                   </div>
-                  <div className="form-row">
-                    <span className="form-row-label">{t('formStart')}</span>
-                    <CalendarLocalDateTimeSplit
-                      value={form.startTime}
-                      onCommit={(s) => setForm({ ...form, startTime: s })}
+                  <div className="form-row form-row-timespan">
+                    <CalendarLocalTimespanRow
+                      startValue={form.startTime}
+                      endValue={form.endTime}
+                      onCommitStart={(s) => setForm({ ...form, startTime: s })}
+                      onCommitEnd={(s) => setForm({ ...form, endTime: s })}
                       normalize={normalizeToLocalDateTime}
+                      labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                     />
                   </div>
-                  <div className="form-row">
-                    <span className="form-row-label">{t('formEnd')}</span>
-                    <CalendarLocalDateTimeSplit
-                      value={form.endTime}
-                      onCommit={(s) => setForm({ ...form, endTime: s })}
-                      normalize={normalizeToLocalDateTime}
-                    />
+                  <div className="form-row form-row-infield stretch">
+                    <span className="form-field-inline-label">{t('formNotes')}</span>
+                    <div className="form-field-inline-control">
+                    <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                    </div>
                   </div>
-                  <div className="form-row stretch"><span className="form-row-label">{t('formNotes')}</span><textarea rows={4} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
                 </>
               ) : (
                 <>
-              <div className="form-row">
-                <span className="form-row-label">{t('formClient')}</span>
+              <div className="form-row form-row-infield">
+                <span className="form-field-inline-label">{t('formClient')}</span>
+                <div className="form-field-inline-control">
                 <div className="client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className={`client-search-wrap${!showBookSessionClientSearch ? ' client-search-wrap--compact-client' : ''}`}>
                     {showBookSessionClientSearch ? (
@@ -7467,24 +7585,24 @@ export default function CalendarPage() {
                     </div>
                   )}
                 </div>
+                </div>
               </div>
               {user.role === 'ADMIN' && (
-                <div className="form-row"><span className="form-row-label">{t('formConsultant')}</span><select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{metaUsers.filter((u: any) => u.consultant).map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></div>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formConsultant')}</span>
+                  <div className="form-field-inline-control">
+                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{metaUsers.filter((u: any) => u.consultant).map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select>
+                  </div>
+                </div>
               )}
-              <div className="form-row">
-                <span className="form-row-label">{t('formStart')}</span>
-                <CalendarLocalDateTimeSplit
-                  value={form.startTime}
-                  onCommit={(s) => updateBookingFormStartTime(s)}
+              <div className="form-row form-row-timespan">
+                <CalendarLocalTimespanRow
+                  startValue={form.startTime}
+                  endValue={form.endTime}
+                  onCommitStart={(s) => updateBookingFormStartTime(s)}
+                  onCommitEnd={(s) => updateBookingFormEndTime(s)}
                   normalize={normalizeToLocalDateTime}
-                />
-              </div>
-              <div className="form-row">
-                <span className="form-row-label">{t('formEnd')}</span>
-                <CalendarLocalDateTimeSplit
-                  value={form.endTime}
-                  onCommit={(s) => updateBookingFormEndTime(s)}
-                  normalize={normalizeToLocalDateTime}
+                  labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                 />
               </div>
               {!form.todo && !form.personal && !availabilitySelection && (() => {
@@ -7510,16 +7628,18 @@ export default function CalendarPage() {
                 const summaryLine = t('formRepeatSummaryLine').replace('{from}', sessionDateStr).replace('{tail}', summaryTail)
                 return (
                   <div className="form-row-repeats-section">
-                    <div className="form-row" style={{ alignItems: 'center' }}>
-                      <span className="form-row-label" style={{ fontWeight: 600 }}>{t('formRepeats')}</span>
-                      <label className="repeats-toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={!!form.repeats}
-                          onChange={(e) => setForm({ ...form, repeats: e.target.checked, repeatDay: sessionDay })}
-                        />
-                        <span className="repeats-toggle-slider" />
-                      </label>
+                    <div className="form-row form-row-infield form-row--bare">
+                      <span className="form-field-inline-label">{t('formRepeats')}</span>
+                      <div className="form-field-inline-control">
+                        <label className="repeats-toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={!!form.repeats}
+                            onChange={(e) => setForm({ ...form, repeats: e.target.checked, repeatDay: sessionDay })}
+                          />
+                          <span className="repeats-toggle-slider" />
+                        </label>
+                      </div>
                     </div>
                     {form.repeats && (
                       <div className="form-repeats-config">
@@ -7598,12 +7718,18 @@ export default function CalendarPage() {
                 )
               })()}
               {settings.SPACES_ENABLED !== 'false' && (
-                <div className="form-row"><span className="form-row-label">{t('formSpace')}</span><select value={form.spaceId || ''} onChange={(e) => setForm({ ...form, spaceId: Number(e.target.value) || null })}><option value="">{t('formNoSpace')}</option>{metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formSpace')}</span>
+                  <div className="form-field-inline-control">
+                  <select value={form.spaceId || ''} onChange={(e) => setForm({ ...form, spaceId: Number(e.target.value) || null })}><option value="">{t('formNoSpace')}</option>{metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                  </div>
+                </div>
               )}
               {settings.TYPES_ENABLED !== 'false' && (
                 <>
-                  <div className="form-row">
-                    <span className="form-row-label">{t('formType')}</span>
+                  <div className="form-row form-row-infield">
+                    <span className="form-field-inline-label">{t('formType')}</span>
+                    <div className="form-field-inline-control">
                     <select
                       value={form.typeId || ''}
                       onChange={(e) => updateBookingFormType(Number(e.target.value) || null)}
@@ -7615,33 +7741,36 @@ export default function CalendarPage() {
                         </option>
                       ))}
                     </select>
+                    </div>
                   </div>
                   {!isNativeAndroid && (
-                    <div className="form-row">
-                      <span className="form-row-label">{t('formSession')}</span>
-                      <div className="online-live-toggle">
-                        <button
-                          type="button"
-                          className={!form.online ? 'toggle-btn active' : 'toggle-btn'}
-                          onClick={() => {
-                            setForm({ ...form, online: false })
-                            setMeetingProviderPickerOpen(false)
-                            setMeetingPickerCancelUnchecksOnline(false)
-                          }}
-                        >
-                          {t('formLive')}
-                        </button>
-                        <button
-                          type="button"
-                          className={form.online ? 'toggle-btn active' : 'toggle-btn'}
-                          onClick={() => {
-                            setForm({ ...form, online: true })
-                            setMeetingPickerCancelUnchecksOnline(true)
-                            setMeetingProviderPickerOpen(true)
-                          }}
-                        >
-                          {t('formOnline')}
-                        </button>
+                    <div className="form-row form-row-infield form-row--bare">
+                      <span className="form-field-inline-label">{t('formSession')}</span>
+                      <div className="form-field-inline-control">
+                        <div className="online-live-toggle">
+                          <button
+                            type="button"
+                            className={!form.online ? 'toggle-btn active' : 'toggle-btn'}
+                            onClick={() => {
+                              setForm({ ...form, online: false })
+                              setMeetingProviderPickerOpen(false)
+                              setMeetingPickerCancelUnchecksOnline(false)
+                            }}
+                          >
+                            {t('formLive')}
+                          </button>
+                          <button
+                            type="button"
+                            className={form.online ? 'toggle-btn active' : 'toggle-btn'}
+                            onClick={() => {
+                              setForm({ ...form, online: true })
+                              setMeetingPickerCancelUnchecksOnline(true)
+                              setMeetingProviderPickerOpen(true)
+                            }}
+                          >
+                            {t('formOnline')}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -7649,17 +7778,20 @@ export default function CalendarPage() {
               )}
               {isNativeAndroid ? (
                 <>
-                  <div className="form-row book-session-flags-row">
-                    <span className="form-row-label">{t('formOptions')}</span>
+                  <div className="form-row form-row-infield book-session-flags-row">
+                    <span className="form-field-inline-label">{t('formOptions')}</span>
+                    <div className="form-field-inline-control">
                     <div className="checkbox-row book-session-checkbox-row">
                       {todosModuleEnabled && <label><input type="checkbox" checked={!!form.todo} onChange={(e) => setForm({ ...form, todo: e.target.checked, personal: false, online: false, consultantId: e.target.checked ? user.id : form.consultantId })} /> {t('formTodo')}</label>}
                       {personalModuleEnabled && <label><input type="checkbox" checked={!!form.personal} onChange={(e) => setForm({ ...form, personal: e.target.checked, todo: false, consultantId: e.target.checked ? user.id : form.consultantId })} disabled={!!form.todo} /> {t('formPersonal')}</label>}
                       <label><input type="checkbox" checked={!!form.online} onChange={(e) => { const on = e.target.checked; if (on) { setForm({ ...form, online: true }); setMeetingPickerCancelUnchecksOnline(true); setMeetingProviderPickerOpen(true) } else { setForm({ ...form, online: false }); setMeetingProviderPickerOpen(false); setMeetingPickerCancelUnchecksOnline(false) } }} disabled={!!form.personal || !!form.todo} /> {t('formOnline')}</label>
                     </div>
+                    </div>
                   </div>
                   {form.online && (
-                    <div className="form-row">
-                      <span className="form-row-label">{t('formMeeting')}</span>
+                    <div className="form-row form-row-infield">
+                      <span className="form-field-inline-label">{t('formMeeting')}</span>
+                      <div className="form-field-inline-control">
                       <div className="meeting-provider-summary">
                         <span>{form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}</span>
                         <button
@@ -7673,10 +7805,12 @@ export default function CalendarPage() {
                           {t('formChange')}
                         </button>
                       </div>
+                      </div>
                     </div>
                   )}
-                  <div className="form-row stretch book-session-notes-android">
-                    <span className="form-row-label">{t('formNotes')}</span>
+                  <div className="form-row form-row-infield stretch book-session-notes-android">
+                    <span className="form-field-inline-label">{t('formNotes')}</span>
+                    <div className="form-field-inline-control">
                     <div className="book-session-notes-android-wrap">
                       <button
                         type="button"
@@ -7688,34 +7822,41 @@ export default function CalendarPage() {
                         {bookSessionNotesExpanded ? '−' : '+'}
                       </button>
                       {bookSessionNotesExpanded && (
-                        <textarea
-                          rows={4}
+                        <SessionNotesTextarea
                           className="book-session-notes-textarea"
                           value={form.notes || ''}
                           onChange={(e) => setForm({ ...form, notes: e.target.value })}
                         />
                       )}
                     </div>
+                    </div>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="form-row stretch"><span className="form-row-label">{t('formNotes')}</span><textarea rows={4} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+                  <div className="form-row form-row-infield stretch">
+                    <span className="form-field-inline-label">{t('formNotes')}</span>
+                    <div className="form-field-inline-control">
+                    <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                    </div>
+                  </div>
                   {form.online && (
-                    <div className="form-row">
-                      <span className="form-row-label">{t('formMeeting')}</span>
-                      <div className="meeting-provider-summary">
-                        <span>{form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}</span>
-                        <button
-                          type="button"
-                          className="secondary meeting-provider-change-btn"
-                          onClick={() => {
-                            setMeetingPickerCancelUnchecksOnline(false)
-                            setMeetingProviderPickerOpen(true)
-                          }}
-                        >
-                          {t('formChange')}
-                        </button>
+                    <div className="form-row form-row-infield">
+                      <span className="form-field-inline-label">{t('formMeeting')}</span>
+                      <div className="form-field-inline-control">
+                        <div className="meeting-provider-summary">
+                          <span>{form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}</span>
+                          <button
+                            type="button"
+                            className="secondary meeting-provider-change-btn"
+                            onClick={() => {
+                              setMeetingPickerCancelUnchecksOnline(false)
+                              setMeetingProviderPickerOpen(true)
+                            }}
+                          >
+                            {t('formChange')}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}

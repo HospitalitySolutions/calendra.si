@@ -50,9 +50,24 @@
     min-width: 0;
 }
 
+.layout-android .modal .form-row.form-row-infield {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.layout-android .modal .form-row.form-row-infield.stretch {
+    align-items: stretch;
+}
+
 .layout-android .modal .form-row .form-row-label {
     width: 100%;
     padding-top: 0;
+}
+
+.layout-android .modal .form-row.form-row-infield .form-field-inline-label {
+    width: auto;
+    max-width: none;
 }
 
 .layout-android .modal .form-row input,

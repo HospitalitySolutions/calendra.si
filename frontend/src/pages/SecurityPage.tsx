@@ -122,7 +122,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   }
 
   return (
-    <div className="content content-android-native" style={{ display: 'grid', gap: 16 }}>
+    <div className={embedded ? 'security-page-embedded' : 'content content-android-native'} style={{ display: 'grid', gap: 16 }}>
       {!embedded && <PageHeader title={t('tabSecurity')} subtitle={t('securityPageSubtitle')} />}
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}

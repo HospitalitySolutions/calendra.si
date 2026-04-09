@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { useLocale } from '../locale'
 import type { Client, Company, CompanyBillSummary, Role, StoredFile, User } from '../lib/types'
-import { Card, EmptyState, PageHeader, SectionTitle } from '../components/ui'
+import { Card, EmptyState, PageHeader } from '../components/ui'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
@@ -64,6 +64,9 @@ const emptyCompanyForm: CompanyForm = {
 }
 
 const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
+
+/** Must match backend TenantFileS3Service and spring.servlet.multipart.max-file-size. */
+const MAX_CLIENT_OR_COMPANY_FILE_BYTES = 50 * 1024 * 1024
 
 function contactMailtoHref(email: string) {
   const e = email.trim()
@@ -158,7 +161,6 @@ export function ClientsPage() {
     linkedCompany: 'Povezano podjetje',
     batchPayment: 'Paketno plačilo',
     sessions: 'Termini',
-    sessionsSubtitle: 'Preglej prihodnje in pretekle termine, povezane s to stranko.',
     future: 'Prihodnji',
     past: 'Pretekli',
     sessionsCount: (count: number) => `${count} ${slovenianTerminCountForm(count)}`,
@@ -197,8 +199,6 @@ export function ClientsPage() {
     telephone: 'Telefon',
     createCompany: 'Ustvari podjetje',
     files: 'Datoteke',
-    clientFilesSubtitle: 'Naloži in upravljaj datoteke, povezane s to stranko.',
-    companyFilesSubtitle: 'Naloži in upravljaj datoteke, povezane s tem podjetjem.',
     uploadFile: 'Naloži datoteko',
     uploadingFile: 'Nalagam datoteko…',
     loadingFiles: 'Nalagam datoteke…',
@@ -209,6 +209,14 @@ export function ClientsPage() {
     openFile: 'Odpri',
     removeFile: 'Odstrani',
     deleteFileConfirm: 'Odstranim to datoteko?',
+    fileTooLarge: 'Datoteka ne sme biti večja od 50 MB.',
+    dragDropFilesHint: 'Povlecite datoteke sem ali uporabite gumb zgoraj.',
+    clientDetailMainTabsAria: 'Zavihki podrobnosti stranke',
+    clientDetailTabSettings: 'Nastavitve',
+    companyDetailMainTabsAria: 'Zavihki podrobnosti podjetja',
+    companyDatotekeSubTabsAria: 'Podzavihki datotek in računov',
+    companySubTabInvoices: 'Računi',
+    companySubTabGeneral: 'Splošno',
   } : {
     details: 'Details',
     client: 'CLIENT',
@@ -241,7 +249,6 @@ export function ClientsPage() {
     linkedCompany: 'Linked company',
     batchPayment: 'Batch payment',
     sessions: 'Sessions',
-    sessionsSubtitle: 'View future and past bookings linked to this client.',
     future: 'Future',
     past: 'Past',
     sessionsCount: (count: number) => `${count} sessions`,
@@ -280,8 +287,6 @@ export function ClientsPage() {
     telephone: 'Telephone',
     createCompany: 'Create company',
     files: 'Files',
-    clientFilesSubtitle: 'Upload and manage files linked to this client.',
-    companyFilesSubtitle: 'Upload and manage files linked to this company.',
     uploadFile: 'Upload file',
     uploadingFile: 'Uploading file…',
     loadingFiles: 'Loading files…',
@@ -292,6 +297,14 @@ export function ClientsPage() {
     openFile: 'Open',
     removeFile: 'Remove',
     deleteFileConfirm: 'Remove this file?',
+    fileTooLarge: 'Files must be 50 MB or smaller.',
+    dragDropFilesHint: 'Drag files here or use the button above.',
+    clientDetailMainTabsAria: 'Client detail sections',
+    clientDetailTabSettings: 'Settings',
+    companyDetailMainTabsAria: 'Company detail tabs',
+    companyDatotekeSubTabsAria: 'Files and invoices sections',
+    companySubTabInvoices: 'Invoices',
+    companySubTabGeneral: 'General',
   }
   const me = getStoredUser()!
   const isAdmin = me.role === 'ADMIN'
@@ -326,6 +339,9 @@ export function ClientsPage() {
   const [detailClientFilesError, setDetailClientFilesError] = useState('')
   const [detailCompanyFilesError, setDetailCompanyFilesError] = useState('')
   const [sessionTab, setSessionTab] = useState<'future' | 'past'>('future')
+  const [clientDetailMainTab, setClientDetailMainTab] = useState<'sessions' | 'files' | 'settings'>('sessions')
+  const [companyDetailMainTab, setCompanyDetailMainTab] = useState<'datoteke' | 'nastavitve'>('datoteke')
+  const [companyDetailDatotekeSubTab, setCompanyDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
   const [confirmAnonymize, setConfirmAnonymize] = useState(false)
   const [anonymizing, setAnonymizing] = useState(false)
   const [activating, setActivating] = useState(false)
@@ -351,6 +367,10 @@ export function ClientsPage() {
   const [uploadingCompanyFile, setUploadingCompanyFile] = useState(false)
   const [deletingClientFileId, setDeletingClientFileId] = useState<number | null>(null)
   const [deletingCompanyFileId, setDeletingCompanyFileId] = useState<number | null>(null)
+  const [clientFilesDropActive, setClientFilesDropActive] = useState(false)
+  const [companyFilesDropActive, setCompanyFilesDropActive] = useState(false)
+  const clientFilesDropDepth = useRef(0)
+  const companyFilesDropDepth = useRef(0)
   const [isClientsMobile, setIsClientsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false,
   )
@@ -595,12 +615,15 @@ export function ClientsPage() {
       billingCompanyId: c.billingCompany?.id ?? null,
     })
     setSessionTab('future')
+    setClientDetailMainTab('sessions')
     setConfirmAnonymize(false)
   }
 
   const openCompanyDetailModal = (company: Company) => {
     setDetailCompany(company)
     setCompanyDetailEditField(null)
+    setCompanyDetailMainTab('datoteke')
+    setCompanyDetailDatotekeSubTab('splosno')
     setCompanyDetailEditDraft({
       name: company.name ?? '',
       address: company.address ?? '',
@@ -621,6 +644,8 @@ export function ClientsPage() {
     setDetailClientFilesError('')
     setConfirmAnonymize(false)
     setDetailEditField(null)
+    clientFilesDropDepth.current = 0
+    setClientFilesDropActive(false)
   }
 
   const saveDetailClientInline = async () => {
@@ -751,6 +776,8 @@ export function ClientsPage() {
     setDetailCompanyError('')
     setDetailCompanyFilesError('')
     setCompanyDetailEditField(null)
+    companyFilesDropDepth.current = 0
+    setCompanyFilesDropActive(false)
   }
 
   const renderClientEditableField = (
@@ -1028,6 +1055,10 @@ export function ClientsPage() {
 
   const uploadClientFile = async (file: File) => {
     if (!detailClient || uploadingClientFile) return
+    if (file.size > MAX_CLIENT_OR_COMPANY_FILE_BYTES) {
+      setDetailClientFilesError(clientsCopy.fileTooLarge)
+      return
+    }
     setUploadingClientFile(true)
     setDetailClientFilesError('')
     try {
@@ -1044,6 +1075,10 @@ export function ClientsPage() {
 
   const uploadCompanyFile = async (file: File) => {
     if (!detailCompany || uploadingCompanyFile) return
+    if (file.size > MAX_CLIENT_OR_COMPANY_FILE_BYTES) {
+      setDetailCompanyFilesError(clientsCopy.fileTooLarge)
+      return
+    }
     setUploadingCompanyFile(true)
     setDetailCompanyFilesError('')
     try {
@@ -1055,6 +1090,79 @@ export function ClientsPage() {
       setDetailCompanyFilesError(error?.response?.data?.message || (locale === 'sl' ? 'Nalaganje datoteke ni uspelo.' : 'Failed to upload file.'))
     } finally {
       setUploadingCompanyFile(false)
+    }
+  }
+
+  const hasFilesInDataTransfer = (dt: DataTransfer | null) =>
+    !!dt && [...dt.types].includes('Files')
+
+  const handleClientFilesDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    if (!hasFilesInDataTransfer(e.dataTransfer)) return
+    e.preventDefault()
+    e.stopPropagation()
+    clientFilesDropDepth.current += 1
+    setClientFilesDropActive(true)
+  }
+
+  const handleClientFilesDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    clientFilesDropDepth.current = Math.max(0, clientFilesDropDepth.current - 1)
+    if (clientFilesDropDepth.current === 0) setClientFilesDropActive(false)
+  }
+
+  const handleClientFilesDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (!hasFilesInDataTransfer(e.dataTransfer)) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleClientFilesDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    clientFilesDropDepth.current = 0
+    setClientFilesDropActive(false)
+    const { files } = e.dataTransfer
+    if (!files?.length) return
+    for (const file of Array.from(files)) {
+      if (!file.size) continue
+      await uploadClientFile(file)
+    }
+  }
+
+  const handleCompanyFilesDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    if (!hasFilesInDataTransfer(e.dataTransfer)) return
+    e.preventDefault()
+    e.stopPropagation()
+    companyFilesDropDepth.current += 1
+    setCompanyFilesDropActive(true)
+  }
+
+  const handleCompanyFilesDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    companyFilesDropDepth.current = Math.max(0, companyFilesDropDepth.current - 1)
+    if (companyFilesDropDepth.current === 0) setCompanyFilesDropActive(false)
+  }
+
+  const handleCompanyFilesDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (!hasFilesInDataTransfer(e.dataTransfer)) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleCompanyFilesDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    companyFilesDropDepth.current = 0
+    setCompanyFilesDropActive(false)
+    const { files } = e.dataTransfer
+    if (!files?.length) return
+    for (const file of Array.from(files)) {
+      if (!file.size) continue
+      await uploadCompanyFile(file)
     }
   }
 
@@ -1433,122 +1541,193 @@ export function ClientsPage() {
                   {renderClientEditableField('email', clientsCopy.email, true)}
                   {renderClientEditableField('phone', clientsCopy.phone, true)}
                   {renderClientEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
-                  <div className="clients-detail-field-card clients-detail-field-card--wide" onClick={(e) => e.stopPropagation()}>
-                    <span>{clientsCopy.whatsappOptIn}</span>
-                    <strong>
-                      <input type="checkbox" checked={detailEditDraft.whatsappOptIn} onChange={(e) => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: e.target.checked })} />
-                    </strong>
-                  </div>
-                  <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                    <span>{clientsCopy.batchPayment}</span>
+                </div>
+
+                <div className="clients-detail-main-tabs" onClick={(e) => e.stopPropagation()}>
+                  <div className="clients-session-tabs clients-detail-main-tabs-inner" role="tablist" aria-label={clientsCopy.clientDetailMainTabsAria}>
                     <button
                       type="button"
-                      className={`clients-batch-switch${detailClient.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                      onClick={() => void toggleClientBatchPayment()}
-                      disabled={savingBatchPaymentClient}
-                      aria-pressed={detailClient.batchPaymentEnabled ?? false}
+                      role="tab"
+                      className={clientDetailMainTab === 'sessions' ? 'clients-session-tab active' : 'clients-session-tab'}
+                      aria-selected={clientDetailMainTab === 'sessions'}
+                      onClick={() => setClientDetailMainTab('sessions')}
                     >
-                      {savingBatchPaymentClient ? clientsCopy.batchPaymentSaving : detailClient.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                      {clientsCopy.sessions}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      className={clientDetailMainTab === 'files' ? 'clients-session-tab active' : 'clients-session-tab'}
+                      aria-selected={clientDetailMainTab === 'files'}
+                      onClick={() => setClientDetailMainTab('files')}
+                    >
+                      {clientsCopy.files}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      className={clientDetailMainTab === 'settings' ? 'clients-session-tab active' : 'clients-session-tab'}
+                      aria-selected={clientDetailMainTab === 'settings'}
+                      onClick={() => setClientDetailMainTab('settings')}
+                    >
+                      {clientsCopy.clientDetailTabSettings}
                     </button>
                   </div>
                 </div>
 
-                <div className="clients-detail-sessions-card clients-detail-invoices-card">
-                  <div className="clients-detail-invoices-head clients-detail-files-head">
-                    <SectionTitle>{clientsCopy.files}</SectionTitle>
-                    <p className="clients-detail-invoices-subtitle">{clientsCopy.clientFilesSubtitle}</p>
-                  </div>
-                  <div className="clients-detail-files-toolbar">
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => pickFile((file) => void uploadClientFile(file))}
-                      disabled={uploadingClientFile}
+                {clientDetailMainTab === 'files' && (
+                  <div className="clients-detail-sessions-card clients-detail-invoices-card" role="tabpanel">
+                    <div className="clients-detail-files-toolbar">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => pickFile((file) => void uploadClientFile(file))}
+                        disabled={uploadingClientFile}
+                      >
+                        {uploadingClientFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
+                      </button>
+                    </div>
+                    {detailClientFilesError && <div className="error">{detailClientFilesError}</div>}
+                    <div
+                      className={`clients-detail-file-drop-zone${clientFilesDropActive ? ' clients-detail-file-drop-zone--active' : ''}`}
+                      onDragEnter={handleClientFilesDragEnter}
+                      onDragLeave={handleClientFilesDragLeave}
+                      onDragOver={handleClientFilesDragOver}
+                      onDrop={(e) => void handleClientFilesDrop(e)}
                     >
-                      {uploadingClientFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
-                    </button>
+                      <p className="muted clients-detail-file-drop-hint">{clientsCopy.dragDropFilesHint}</p>
+                      {detailClientFilesLoading ? (
+                        <div className="muted">{clientsCopy.loadingFiles}</div>
+                      ) : detailClientFiles.length === 0 ? (
+                        <div className="clients-detail-empty-card">
+                          <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noClientFilesText} />
+                        </div>
+                      ) : (
+                        <div className="clients-detail-files-list">
+                          {detailClientFiles.map((file) => (
+                            <article key={file.id} className="clients-detail-file-item">
+                              <div className="clients-detail-file-main">
+                                <div className="clients-detail-file-name" title={file.fileName}>{file.fileName}</div>
+                                <div className="clients-detail-file-meta">
+                                  <span>{formatFileSize(file.sizeBytes)}</span>
+                                  <span>•</span>
+                                  <span>{clientsCopy.uploaded} {file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</span>
+                                </div>
+                              </div>
+                              <div className="clients-detail-file-actions">
+                                <button type="button" className="clients-detail-invoice-open" onClick={() => void downloadClientFile(file)}>
+                                  {clientsCopy.openFile}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="clients-detail-invoice-open clients-detail-file-remove"
+                                  onClick={() => void removeClientFile(file)}
+                                  disabled={deletingClientFileId === file.id}
+                                >
+                                  {deletingClientFileId === file.id ? clientsCopy.saving : clientsCopy.removeFile}
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {detailClientFilesError && <div className="error">{detailClientFilesError}</div>}
-                  {detailClientFilesLoading ? (
-                    <div className="muted">{clientsCopy.loadingFiles}</div>
-                  ) : detailClientFiles.length === 0 ? (
-                    <div className="clients-detail-empty-card">
-                      <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noClientFilesText} />
-                    </div>
-                  ) : (
-                    <div className="clients-detail-files-list">
-                      {detailClientFiles.map((file) => (
-                        <article key={file.id} className="clients-detail-file-item">
-                          <div className="clients-detail-file-main">
-                            <div className="clients-detail-file-name" title={file.fileName}>{file.fileName}</div>
-                            <div className="clients-detail-file-meta">
-                              <span>{formatFileSize(file.sizeBytes)}</span>
-                              <span>•</span>
-                              <span>{clientsCopy.uploaded} {file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</span>
-                            </div>
-                          </div>
-                          <div className="clients-detail-file-actions">
-                            <button type="button" className="clients-detail-invoice-open" onClick={() => void downloadClientFile(file)}>
-                              {clientsCopy.openFile}
-                            </button>
-                            <button
-                              type="button"
-                              className="clients-detail-invoice-open clients-detail-file-remove"
-                              onClick={() => void removeClientFile(file)}
-                              disabled={deletingClientFileId === file.id}
-                            >
-                              {deletingClientFileId === file.id ? clientsCopy.saving : clientsCopy.removeFile}
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                )}
 
-                <div className="clients-detail-sessions-card clients-detail-sessions-card--modern">
-                  <SectionTitle>{clientsCopy.sessions}</SectionTitle>
-                  <p className="muted" style={{ marginTop: -6, marginBottom: 10 }}>{clientsCopy.sessionsSubtitle}</p>
-                  <div className="clients-detail-session-tabs-row">
-                    <div className="clients-session-tabs">
+                {clientDetailMainTab === 'settings' && (
+                  <div className="clients-detail-fields" onClick={(e) => e.stopPropagation()} role="tabpanel">
+                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                      <span>{clientsCopy.whatsappOptIn}</span>
                       <button
                         type="button"
-                        className={sessionTab === 'future' ? 'clients-session-tab active' : 'clients-session-tab'}
-                        onClick={() => setSessionTab('future')}
-                        aria-pressed={sessionTab === 'future'}
+                        className={`clients-batch-switch${detailEditDraft.whatsappOptIn ? ' clients-batch-switch--on' : ''}`}
+                        onClick={() => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: !detailEditDraft.whatsappOptIn })}
+                        aria-pressed={detailEditDraft.whatsappOptIn}
                       >
-                        {clientsCopy.future}
-                      </button>
-                      <button
-                        type="button"
-                        className={sessionTab === 'past' ? 'clients-session-tab active' : 'clients-session-tab'}
-                        onClick={() => setSessionTab('past')}
-                        aria-pressed={sessionTab === 'past'}
-                      >
-                        {clientsCopy.past}
+                        {detailEditDraft.whatsappOptIn ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                       </button>
                     </div>
-                    <span
-                      className="clients-detail-sessions-tab-count"
-                      aria-live="polite"
-                      aria-atomic="true"
-                    >
-                      {detailSessionsLoading
-                        ? '…'
-                        : clientsCopy.sessionsCount(sessionTab === 'future' ? futureSessions.length : pastSessions.length)}
-                    </span>
+                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                      <span>{clientsCopy.batchPayment}</span>
+                      <button
+                        type="button"
+                        className={`clients-batch-switch${detailClient.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
+                        onClick={() => void toggleClientBatchPayment()}
+                        disabled={savingBatchPaymentClient}
+                        aria-pressed={detailClient.batchPaymentEnabled ?? false}
+                      >
+                        {savingBatchPaymentClient ? clientsCopy.batchPaymentSaving : detailClient.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                      </button>
+                    </div>
                   </div>
-                  {detailSessionsError && <div className="error">{detailSessionsError}</div>}
-                  {detailSessionsLoading ? (
-                    <div className="muted">{clientsCopy.loadingSessions}</div>
-                  ) : sessionTab === 'future' ? (
-                    futureSessions.length === 0 ? (
+                )}
+
+                {clientDetailMainTab === 'sessions' && (
+                  <div className="clients-detail-sessions-card clients-detail-sessions-card--modern" role="tabpanel">
+                    <div className="clients-detail-session-tabs-row">
+                      <div className="clients-session-tabs">
+                        <button
+                          type="button"
+                          className={sessionTab === 'future' ? 'clients-session-tab active' : 'clients-session-tab'}
+                          onClick={() => setSessionTab('future')}
+                          aria-pressed={sessionTab === 'future'}
+                        >
+                          {clientsCopy.future}
+                        </button>
+                        <button
+                          type="button"
+                          className={sessionTab === 'past' ? 'clients-session-tab active' : 'clients-session-tab'}
+                          onClick={() => setSessionTab('past')}
+                          aria-pressed={sessionTab === 'past'}
+                        >
+                          {clientsCopy.past}
+                        </button>
+                      </div>
+                      <span
+                        className="clients-detail-sessions-tab-count"
+                        aria-live="polite"
+                        aria-atomic="true"
+                      >
+                        {detailSessionsLoading
+                          ? '…'
+                          : clientsCopy.sessionsCount(sessionTab === 'future' ? futureSessions.length : pastSessions.length)}
+                      </span>
+                    </div>
+                    {detailSessionsError && <div className="error">{detailSessionsError}</div>}
+                    {detailSessionsLoading ? (
+                      <div className="muted">{clientsCopy.loadingSessions}</div>
+                    ) : sessionTab === 'future' ? (
+                      futureSessions.length === 0 ? (
+                        <div className="clients-detail-empty-card">
+                          <EmptyState title={clientsCopy.noUpcomingSessionsTitle} text={clientsCopy.noUpcomingSessionsText} />
+                        </div>
+                      ) : (
+                        <div className="clients-detail-session-list">
+                          {futureSessions.map((s) => (
+                            <article key={s.id} className="clients-detail-session-card">
+                              <div className="clients-detail-session-top clients-detail-session-top--modern">
+                                <span className="clients-detail-session-no">#{s.id}</span>
+                                <div className="clients-detail-session-heading">
+                                  <strong>{fullName({ firstName: s.consultantFirstName, lastName: s.consultantLastName })}</strong>
+                                  <span>{clientsCopy.liveSession}</span>
+                                </div>
+                              </div>
+                              <div className="clients-detail-session-times">
+                                <div><span>{clientsCopy.start}</span><strong>{formatDateTime(s.startTime)}</strong></div>
+                                <div><span>{clientsCopy.end}</span><strong>{formatDateTime(s.endTime)}</strong></div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )
+                    ) : pastSessions.length === 0 ? (
                       <div className="clients-detail-empty-card">
-                        <EmptyState title={clientsCopy.noUpcomingSessionsTitle} text={clientsCopy.noUpcomingSessionsText} />
+                        <EmptyState title={clientsCopy.noPastSessionsTitle} text={clientsCopy.noPastSessionsText} />
                       </div>
                     ) : (
                       <div className="clients-detail-session-list">
-                        {futureSessions.map((s) => (
+                        {pastSessions.map((s) => (
                           <article key={s.id} className="clients-detail-session-card">
                             <div className="clients-detail-session-top clients-detail-session-top--modern">
                               <span className="clients-detail-session-no">#{s.id}</span>
@@ -1564,31 +1743,9 @@ export function ClientsPage() {
                           </article>
                         ))}
                       </div>
-                    )
-                  ) : pastSessions.length === 0 ? (
-                    <div className="clients-detail-empty-card">
-                      <EmptyState title={clientsCopy.noPastSessionsTitle} text={clientsCopy.noPastSessionsText} />
-                    </div>
-                  ) : (
-                    <div className="clients-detail-session-list">
-                      {pastSessions.map((s) => (
-                        <article key={s.id} className="clients-detail-session-card">
-                          <div className="clients-detail-session-top clients-detail-session-top--modern">
-                            <span className="clients-detail-session-no">#{s.id}</span>
-                            <div className="clients-detail-session-heading">
-                              <strong>{fullName({ firstName: s.consultantFirstName, lastName: s.consultantLastName })}</strong>
-                              <span>{clientsCopy.liveSession}</span>
-                            </div>
-                          </div>
-                          <div className="clients-detail-session-times">
-                            <div><span>{clientsCopy.start}</span><strong>{formatDateTime(s.startTime)}</strong></div>
-                            <div><span>{clientsCopy.end}</span><strong>{formatDateTime(s.endTime)}</strong></div>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className={`${isNativeAndroid ? 'form-actions' : 'form-actions booking-side-panel-footer'} clients-detail-footer`} style={{ marginTop: isNativeAndroid ? 16 : 0 }}>
@@ -1655,121 +1812,185 @@ export function ClientsPage() {
                   {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
                   {renderCompanyEditableField('email', clientsCopy.email, true)}
                   {renderCompanyEditableField('telephone', clientsCopy.telephone, true)}
-                  <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                    <span>{clientsCopy.batchPayment}</span>
+                </div>
+
+                <div className="clients-detail-main-tabs" onClick={(e) => e.stopPropagation()}>
+                  <div className="clients-session-tabs clients-detail-main-tabs-inner" role="tablist" aria-label={clientsCopy.companyDetailMainTabsAria}>
                     <button
                       type="button"
-                      className={`clients-batch-switch${detailCompany.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                      onClick={() => void toggleCompanyBatchPayment()}
-                      disabled={savingBatchPaymentCompany}
-                      aria-pressed={detailCompany.batchPaymentEnabled ?? false}
+                      role="tab"
+                      className={companyDetailMainTab === 'datoteke' ? 'clients-session-tab active' : 'clients-session-tab'}
+                      aria-selected={companyDetailMainTab === 'datoteke'}
+                      onClick={() => setCompanyDetailMainTab('datoteke')}
                     >
-                      {savingBatchPaymentCompany ? clientsCopy.batchPaymentSaving : detailCompany.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                      {clientsCopy.files}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      className={companyDetailMainTab === 'nastavitve' ? 'clients-session-tab active' : 'clients-session-tab'}
+                      aria-selected={companyDetailMainTab === 'nastavitve'}
+                      onClick={() => setCompanyDetailMainTab('nastavitve')}
+                    >
+                      {clientsCopy.clientDetailTabSettings}
                     </button>
                   </div>
                 </div>
 
-                <div className="clients-detail-sessions-card clients-detail-invoices-card">
-                  <div className="clients-detail-invoices-head clients-detail-files-head">
-                    <SectionTitle>{clientsCopy.files}</SectionTitle>
-                    <p className="clients-detail-invoices-subtitle">{clientsCopy.companyFilesSubtitle}</p>
-                  </div>
-                  <div className="clients-detail-files-toolbar">
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => pickFile((file) => void uploadCompanyFile(file))}
-                      disabled={uploadingCompanyFile}
-                    >
-                      {uploadingCompanyFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
-                    </button>
-                  </div>
-                  {detailCompanyFilesError && <div className="error">{detailCompanyFilesError}</div>}
-                  {detailCompanyFilesLoading ? (
-                    <div className="muted">{clientsCopy.loadingFiles}</div>
-                  ) : detailCompanyFiles.length === 0 ? (
-                    <div className="clients-detail-empty-card">
-                      <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noCompanyFilesText} />
+                {companyDetailMainTab === 'nastavitve' && (
+                  <div className="clients-detail-fields" onClick={(e) => e.stopPropagation()} role="tabpanel">
+                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                      <span>{clientsCopy.batchPayment}</span>
+                      <button
+                        type="button"
+                        className={`clients-batch-switch${detailCompany.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
+                        onClick={() => void toggleCompanyBatchPayment()}
+                        disabled={savingBatchPaymentCompany}
+                        aria-pressed={detailCompany.batchPaymentEnabled ?? false}
+                      >
+                        {savingBatchPaymentCompany ? clientsCopy.batchPaymentSaving : detailCompany.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                      </button>
                     </div>
-                  ) : (
-                    <div className="clients-detail-files-list">
-                      {detailCompanyFiles.map((file) => (
-                        <article key={file.id} className="clients-detail-file-item">
-                          <div className="clients-detail-file-main">
-                            <div className="clients-detail-file-name" title={file.fileName}>{file.fileName}</div>
-                            <div className="clients-detail-file-meta">
-                              <span>{formatFileSize(file.sizeBytes)}</span>
-                              <span>•</span>
-                              <span>{clientsCopy.uploaded} {file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</span>
-                            </div>
-                          </div>
-                          <div className="clients-detail-file-actions">
-                            <button type="button" className="clients-detail-invoice-open" onClick={() => void downloadCompanyFile(file)}>
-                              {clientsCopy.openFile}
-                            </button>
-                            <button
-                              type="button"
-                              className="clients-detail-invoice-open clients-detail-file-remove"
-                              onClick={() => void removeCompanyFile(file)}
-                              disabled={deletingCompanyFileId === file.id}
-                            >
-                              {deletingCompanyFileId === file.id ? clientsCopy.saving : clientsCopy.removeFile}
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                <div className="clients-detail-sessions-card clients-detail-invoices-card">
-                  <div className="clients-detail-invoices-head">
-                    <SectionTitle>{locale === 'sl' ? 'Izdani računi' : 'Issued invoices'}</SectionTitle>
-                    <p className="clients-detail-invoices-subtitle">{locale === 'sl' ? 'Nedavni obračunski dokumenti, povezani s tem podjetjem.' : 'Recent billing documents linked to this company.'}</p>
-                  </div>
-                  {detailCompanyError && <div className="error">{detailCompanyError}</div>}
-                  {detailCompanyBillsLoading ? (
-                    <div className="muted">{locale === 'sl' ? 'Nalagam izdane račune...' : 'Loading issued invoices...'}</div>
-                  ) : companyBills.length === 0 ? (
-                    <div className="clients-detail-empty-card">
-                      <EmptyState title={locale === 'sl' ? 'Ni izdanih računov' : 'No issued invoices'} text={locale === 'sl' ? 'Računi, izdani temu podjetju, bodo prikazani tukaj.' : 'Invoices billed to this company will appear here.'} />
+                {companyDetailMainTab === 'datoteke' && (
+                  <div
+                    className="clients-detail-sessions-card clients-detail-invoices-card clients-detail-datoteke-card"
+                    role="tabpanel"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="clients-detail-datoteke-sub-tabs">
+                      <div className="clients-session-tabs clients-detail-main-tabs-inner" role="tablist" aria-label={clientsCopy.companyDatotekeSubTabsAria}>
+                        <button
+                          type="button"
+                          role="tab"
+                          className={companyDetailDatotekeSubTab === 'racuni' ? 'clients-session-tab active' : 'clients-session-tab'}
+                          aria-selected={companyDetailDatotekeSubTab === 'racuni'}
+                          onClick={() => setCompanyDetailDatotekeSubTab('racuni')}
+                        >
+                          {clientsCopy.companySubTabInvoices}
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          className={companyDetailDatotekeSubTab === 'splosno' ? 'clients-session-tab active' : 'clients-session-tab'}
+                          aria-selected={companyDetailDatotekeSubTab === 'splosno'}
+                          onClick={() => setCompanyDetailDatotekeSubTab('splosno')}
+                        >
+                          {clientsCopy.companySubTabGeneral}
+                        </button>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="clients-detail-invoices-list">
-                      {companyBills.map((bill) => {
-                        const statusPill = companyInvoiceStatusPill(bill)
-                        return (
-                        <article key={bill.id} className="clients-detail-invoice-item">
-                          <div className="clients-detail-invoice-item-top">
-                            <span className="clients-detail-invoice-no">#{bill.billNumber}</span>
-                            {statusPill ? (
-                              <span className={`clients-detail-invoice-status billing-folio-status-pill billing-folio-status-pill--${statusPill.variant}`}>
-                                {statusPill.label}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="clients-detail-invoice-title">{bill.clientName || (locale === 'sl' ? 'Neznana stranka' : 'Unknown client')}</div>
-                          <div className="clients-detail-invoice-issued">{locale === 'sl' ? 'Izdano' : 'Issued'} {formatDate(bill.issueDate)}</div>
-                          <div className="clients-detail-invoice-bottom">
-                            <div className="clients-detail-invoice-total-wrap">
-                              <span className="clients-detail-invoice-total-label">{locale === 'sl' ? 'Skupaj' : 'Total'}</span>
-                              <strong className="clients-detail-invoice-total">{currency(bill.totalGross)}</strong>
+
+                    {companyDetailDatotekeSubTab === 'splosno' && (
+                      <>
+                        <div className="clients-detail-files-toolbar">
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => pickFile((file) => void uploadCompanyFile(file))}
+                            disabled={uploadingCompanyFile}
+                          >
+                            {uploadingCompanyFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
+                          </button>
+                        </div>
+                        {detailCompanyFilesError && <div className="error">{detailCompanyFilesError}</div>}
+                        <div
+                          className={`clients-detail-file-drop-zone${companyFilesDropActive ? ' clients-detail-file-drop-zone--active' : ''}`}
+                          onDragEnter={handleCompanyFilesDragEnter}
+                          onDragLeave={handleCompanyFilesDragLeave}
+                          onDragOver={handleCompanyFilesDragOver}
+                          onDrop={(e) => void handleCompanyFilesDrop(e)}
+                        >
+                          <p className="muted clients-detail-file-drop-hint">{clientsCopy.dragDropFilesHint}</p>
+                          {detailCompanyFilesLoading ? (
+                            <div className="muted">{clientsCopy.loadingFiles}</div>
+                          ) : detailCompanyFiles.length === 0 ? (
+                            <div className="clients-detail-empty-card">
+                              <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noCompanyFilesText} />
                             </div>
-                            <button
-                              type="button"
-                              className="clients-detail-invoice-open"
-                              onClick={() => downloadBillPdf(bill.id, bill.billNumber)}
-                              aria-label={`${locale === 'sl' ? 'Odpri račun' : 'Open invoice'} ${bill.billNumber}`}
-                            >
-                              {locale === 'sl' ? 'Odpri račun →' : 'Open invoice →'}
-                            </button>
+                          ) : (
+                            <div className="clients-detail-files-list">
+                              {detailCompanyFiles.map((file) => (
+                                <article key={file.id} className="clients-detail-file-item">
+                                  <div className="clients-detail-file-main">
+                                    <div className="clients-detail-file-name" title={file.fileName}>{file.fileName}</div>
+                                    <div className="clients-detail-file-meta">
+                                      <span>{formatFileSize(file.sizeBytes)}</span>
+                                      <span>•</span>
+                                      <span>{clientsCopy.uploaded} {file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</span>
+                                    </div>
+                                  </div>
+                                  <div className="clients-detail-file-actions">
+                                    <button type="button" className="clients-detail-invoice-open" onClick={() => void downloadCompanyFile(file)}>
+                                      {clientsCopy.openFile}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="clients-detail-invoice-open clients-detail-file-remove"
+                                      onClick={() => void removeCompanyFile(file)}
+                                      disabled={deletingCompanyFileId === file.id}
+                                    >
+                                      {deletingCompanyFileId === file.id ? clientsCopy.saving : clientsCopy.removeFile}
+                                    </button>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {companyDetailDatotekeSubTab === 'racuni' && (
+                      <>
+                        {detailCompanyError && <div className="error">{detailCompanyError}</div>}
+                        {detailCompanyBillsLoading ? (
+                          <div className="muted">{locale === 'sl' ? 'Nalagam izdane račune...' : 'Loading issued invoices...'}</div>
+                        ) : companyBills.length === 0 ? (
+                          <div className="clients-detail-empty-card">
+                            <EmptyState title={locale === 'sl' ? 'Ni izdanih računov' : 'No issued invoices'} text={locale === 'sl' ? 'Računi, izdani temu podjetju, bodo prikazani tukaj.' : 'Invoices billed to this company will appear here.'} />
                           </div>
-                        </article>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+                        ) : (
+                          <div className="clients-detail-invoices-list">
+                            {companyBills.map((bill) => {
+                              const statusPill = companyInvoiceStatusPill(bill)
+                              return (
+                              <article key={bill.id} className="clients-detail-invoice-item">
+                                <div className="clients-detail-invoice-item-top">
+                                  <span className="clients-detail-invoice-no">#{bill.billNumber}</span>
+                                  {statusPill ? (
+                                    <span className={`clients-detail-invoice-status billing-folio-status-pill billing-folio-status-pill--${statusPill.variant}`}>
+                                      {statusPill.label}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="clients-detail-invoice-title">{bill.clientName || (locale === 'sl' ? 'Neznana stranka' : 'Unknown client')}</div>
+                                <div className="clients-detail-invoice-issued">{locale === 'sl' ? 'Izdano' : 'Issued'} {formatDate(bill.issueDate)}</div>
+                                <div className="clients-detail-invoice-bottom">
+                                  <div className="clients-detail-invoice-total-wrap">
+                                    <span className="clients-detail-invoice-total-label">{locale === 'sl' ? 'Skupaj' : 'Total'}</span>
+                                    <strong className="clients-detail-invoice-total">{currency(bill.totalGross)}</strong>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="clients-detail-invoice-open"
+                                    onClick={() => downloadBillPdf(bill.id, bill.billNumber)}
+                                    aria-label={`${locale === 'sl' ? 'Odpri račun' : 'Open invoice'} ${bill.billNumber}`}
+                                  >
+                                    {locale === 'sl' ? 'Odpri račun →' : 'Open invoice →'}
+                                  </button>
+                                </div>
+                              </article>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className={`${isNativeAndroid ? 'form-actions' : 'form-actions booking-side-panel-footer'} clients-detail-footer`} style={{ marginTop: isNativeAndroid ? 16 : 0 }}>
@@ -1835,12 +2056,16 @@ export function ClientsPage() {
                       <span>{clientsCopy.phone}</span>
                       <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                     </label>
-                    <div className="clients-detail-field-card clients-detail-field-card--wide clients-create-toggle-card">
+                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
                       <span>{clientsCopy.whatsappOptIn}</span>
-                      <div className="clients-create-toggle-row">
-                        <strong>{form.whatsappOptIn ? (locale === 'sl' ? 'Omogočeno' : 'Enabled') : (locale === 'sl' ? 'Onemogočeno' : 'Disabled')}</strong>
-                        <input type="checkbox" checked={form.whatsappOptIn} onChange={(e) => setForm({ ...form, whatsappOptIn: e.target.checked })} />
-                      </div>
+                      <button
+                        type="button"
+                        className={`clients-batch-switch${form.whatsappOptIn ? ' clients-batch-switch--on' : ''}`}
+                        onClick={() => setForm({ ...form, whatsappOptIn: !form.whatsappOptIn })}
+                        aria-pressed={form.whatsappOptIn}
+                      >
+                        {form.whatsappOptIn ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                      </button>
                     </div>
                     <div className="clients-detail-field-card clients-detail-field-card--wide clients-create-note-card">
                       <span>{clientsCopy.messaging}</span>

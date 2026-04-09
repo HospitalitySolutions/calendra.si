@@ -186,6 +186,40 @@ button { border: none; cursor: pointer; }
 .form-row.stretch { align-items: stretch; }
 .form-row.stretch .form-row-label { padding-top: 10px; }
 
+/* Small label above value, same field card (calendar booking panel) */
+.form-row.form-row-infield {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    grid-template-columns: unset;
+}
+
+.form-row.form-row-infield.stretch {
+    align-items: stretch;
+}
+
+.form-field-inline-label {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+}
+
+.form-field-inline-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.form-row.form-row-infield.stretch .form-field-inline-control {
+    align-items: stretch;
+}
+
 .calendar-input-with-picker {
     display: flex;
     align-items: center;
@@ -269,6 +303,96 @@ button { border: none; cursor: pointer; }
 
 [data-theme="dark"] .calendar-datetime-split-divider {
     background: rgba(148, 163, 184, 0.28);
+}
+
+/* Booking / calendar modals: Čas od | Čas do | Datum (one row, date last) */
+.form-row.form-row-timespan {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+}
+
+.calendar-timespan-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    flex: 1;
+    min-width: 0;
+    align-items: stretch;
+}
+
+.calendar-timespan-field {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.calendar-timespan-field:not(.calendar-timespan-field--date) {
+    flex: 0 0 auto;
+    min-width: 6.25rem;
+}
+
+.calendar-timespan-field--date {
+    flex: 1 1 148px;
+    min-width: 9.5rem;
+}
+
+.calendar-timespan-row--two .calendar-timespan-field--date {
+    flex: 1 1 160px;
+}
+
+.calendar-timespan-label {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+}
+
+.calendar-timespan-input-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.04);
+    padding: 6px 10px 8px;
+    min-height: 0;
+    box-sizing: border-box;
+}
+
+.calendar-timespan-input-inner:focus-within {
+    border-color: var(--color-primary, #1672f3);
+    box-shadow: 0 0 0 2px var(--color-primary-soft, rgba(22, 114, 243, 0.2));
+}
+
+.calendar-timespan-input-inner input {
+    border: none;
+    background: transparent;
+    padding: 2px 0 0;
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-text);
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+}
+
+.calendar-timespan-input-inner input:focus {
+    outline: none;
+}
+
+[data-theme="dark"] .calendar-timespan-input-inner {
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme="dark"] .calendar-timespan-input-inner:focus-within {
+    border-color: rgba(96, 165, 250, 0.65);
+    box-shadow: 0 0 0 2px rgba(22, 114, 243, 0.25);
 }
 
 .calendar-input-picker-btn,
