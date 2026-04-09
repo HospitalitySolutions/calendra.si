@@ -1,4 +1,5 @@
 export type Role = 'ADMIN' | 'CONSULTANT' | 'SUPER_ADMIN'
+export type PackageType = 'TRIAL' | 'BASIC' | 'PROFESSIONAL' | 'PREMIUM' | 'CUSTOM'
 
 export type User = {
   id: number
@@ -8,6 +9,7 @@ export type User = {
   role: Role
   consultant?: boolean
   companyId?: number
+  packageType?: PackageType
   createdAt?: string
   vatId?: string | null
   phone?: string | null

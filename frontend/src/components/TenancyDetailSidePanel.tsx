@@ -1,6 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api'
+import { useLocale } from '../locale'
+import { getPackageLabel, normalizePackageType } from '../lib/packageAccess'
+import type { PackageType } from '../lib/types'
 import { PageHeader } from './ui'
+
+const PACKAGE_OPTIONS: PackageType[] = ['TRIAL', 'BASIC', 'PROFESSIONAL', 'PREMIUM', 'CUSTOM']
 
 export type TenancyDetails = {
   id: number
@@ -54,9 +59,12 @@ function ratioString(created: number, total: number | null): string {
 }
 
 export function TenancyDetailSidePanel({ tenancyId, onClose }: Props) {
+  const { locale } = useLocale()
   const [detail, setDetail] = useState<TenancyDetails | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [savingPackage, setSavingPackage] = useState(false)
+  const [packageSaveError, setPackageSaveError] = useState('')
 
   useEffect(() => {
     if (tenancyId == null) {
@@ -67,6 +75,7 @@ export function TenancyDetailSidePanel({ tenancyId, onClose }: Props) {
     let cancelled = false
     setLoading(true)
     setError('')
+    setPackageSaveError('')
     setDetail(null)
     api
       .get<TenancyDetails>(`/platform-admin/tenancies/${tenancyId}`)
@@ -141,7 +150,48 @@ export function TenancyDetailSidePanel({ tenancyId, onClose }: Props) {
               {row('Users', ratioString(detail.usersCreated, detail.usersPaidTotal))}
               {row('Spaces', ratioString(detail.spacesCreated, detail.spacesTotal))}
               {row('SMS sent', ratioString(detail.smsSent, detail.smsQuota))}
-              {row('Package type', detail.packageType || '—')}
+              {row(
+                'Package type',
+                <Fragment>
+                  <select
+                    className="tenancy-package-select"
+                    aria-label="Package type"
+                    disabled={savingPackage}
+                    value={normalizePackageType(detail.packageType)}
+                    onChange={(e) => {
+                      const next = e.target.value as PackageType
+                      const current = normalizePackageType(detail.packageType)
+                      if (next === current || tenancyId == null) return
+                      setSavingPackage(true)
+                      setPackageSaveError('')
+                      api
+                        .put<TenancyDetails>(`/platform-admin/tenancies/${tenancyId}/package-type`, {
+                          packageType: next,
+                        })
+                        .then((res) => {
+                          setDetail(res.data)
+                        })
+                        .catch(() => {
+                          setPackageSaveError('Could not update package type.')
+                        })
+                        .finally(() => {
+                          setSavingPackage(false)
+                        })
+                    }}
+                  >
+                    {PACKAGE_OPTIONS.map((p) => (
+                      <option key={p} value={p}>
+                        {getPackageLabel(p, locale)}
+                      </option>
+                    ))}
+                  </select>
+                  {packageSaveError ? (
+                    <p className="muted tenancy-detail-package-error" style={{ color: 'var(--color-danger, #dc2626)', margin: '8px 0 0' }}>
+                      {packageSaveError}
+                    </p>
+                  ) : null}
+                </Fragment>,
+              )}
               {row('Subscription type', formatInterval(detail.subscriptionInterval))}
               {row(
                 'Due amount',

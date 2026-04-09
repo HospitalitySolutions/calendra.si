@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import com.example.app.company.CompanyProvisioningService;
 
@@ -163,7 +164,8 @@ public class AuthController {
                         "lastName", user.getLastName(),
                         "email", user.getEmail(),
                         "role", user.getRole().name(),
-                        "companyId", user.getCompany().getId()
+                        "companyId", user.getCompany().getId(),
+                        "packageType", packageTypeForCompany(user.getCompany())
                 )
         ));
     }
@@ -182,7 +184,8 @@ public class AuthController {
                         "lastName", user.getLastName(),
                         "email", user.getEmail(),
                         "role", user.getRole().name(),
-                        "companyId", user.getCompany().getId()
+                        "companyId", user.getCompany().getId(),
+                        "packageType", packageTypeForCompany(user.getCompany())
                 ),
                 "authorities", authentication.getAuthorities().stream()
                         .map(a -> a.getAuthority())
@@ -198,7 +201,8 @@ public class AuthController {
                     .body(Map.of("message", "An account with this email already exists."));
         }
 
-        String companyName = request.companyName().trim();
+        String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
+        String companyName = resolveCompanyName(request);
         Company company = companyProvisioningService.createWithTenantCode(companyName);
 
         boolean passwordProvided = request.password() != null && !request.password().isBlank();
@@ -210,6 +214,10 @@ public class AuthController {
         owner.setLastName(request.lastName().trim());
         owner.setEmail(normalizedEmail);
         owner.setPasswordHash(passwordEncoder.encode(rawPassword));
+        String phone = trimToNull(request.phone());
+        owner.setPhone(phone);
+        owner.setWhatsappSenderNumber(phone);
+        owner.setWhatsappPhoneNumberId(phone);
         owner.setRole(Role.ADMIN);
         owner.setActive(true);
         owner.setConsultant(true);
@@ -217,7 +225,10 @@ public class AuthController {
 
         seedTenantDefaults(company, companyName);
         seedSetting(company, SettingKey.COMPANY_EMAIL, normalizedEmail);
-        seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, safeSignupValue(request.packageName(), "professional"));
+        if (phone != null) {
+            seedSetting(company, SettingKey.COMPANY_TELEPHONE, phone);
+        }
+        seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
         seedSetting(company, SettingKey.SIGNUP_FISCALIZATION_REQUIRED, String.valueOf(Boolean.TRUE.equals(request.fiscalizationNeeded())));
@@ -229,7 +240,9 @@ public class AuthController {
             interval = "MONTHLY";
         }
         LocalDate subStart = LocalDate.now(ZoneId.systemDefault());
-        LocalDate subEnd = "YEARLY".equals(interval) ? subStart.plusYears(1) : subStart.plusMonths(1);
+        LocalDate subEnd = "TRIAL".equals(normalizedPackageType)
+                ? subStart.plusDays(7)
+                : ("YEARLY".equals(interval) ? subStart.plusYears(1) : subStart.plusMonths(1));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_START, subStart.toString());
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_END, subEnd.toString());
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
@@ -253,7 +266,8 @@ public class AuthController {
                         "lastName", owner.getLastName(),
                         "email", owner.getEmail(),
                         "role", owner.getRole().name(),
-                        "companyId", owner.getCompany().getId()
+                        "companyId", owner.getCompany().getId(),
+                        "packageType", normalizedPackageType
                 )
         ));
     }
@@ -316,9 +330,42 @@ public class AuthController {
         });
     }
 
-    private String safeSignupValue(String rawValue, String fallback) {
-        if (rawValue == null || rawValue.isBlank()) return fallback;
-        return rawValue.trim();
+    private String normalizePackageType(String rawValue, String fallback) {
+        String normalizedFallback = fallback == null || fallback.isBlank() ? "PROFESSIONAL" : fallback.trim().toUpperCase(Locale.ROOT);
+        if (rawValue == null || rawValue.isBlank()) return normalizedFallback;
+        String normalized = rawValue.trim().toUpperCase(Locale.ROOT).replace(' ', '_').replace('-', '_');
+        if ("PRO".equals(normalized)) return "PROFESSIONAL";
+        if ("TRIAL".equals(normalized) || "BASIC".equals(normalized) || "PROFESSIONAL".equals(normalized) || "PREMIUM".equals(normalized) || "CUSTOM".equals(normalized)) {
+            return normalized;
+        }
+        return normalizedFallback;
+    }
+
+    private String packageTypeForCompany(Company company) {
+        return settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_PACKAGE_NAME)
+                .map(AppSetting::getValue)
+                .map(value -> normalizePackageType(value, "CUSTOM"))
+                .orElse("CUSTOM");
+    }
+
+    private String resolveCompanyName(SignupRequest request) {
+        String companyName = trimToNull(request.companyName());
+        if (companyName != null) return companyName;
+
+        String fullName = ((request.firstName() == null ? "" : request.firstName().trim()) + " " + (request.lastName() == null ? "" : request.lastName().trim())).trim();
+        if (!fullName.isBlank()) return fullName;
+
+        String email = trimToNull(request.email());
+        if (email != null && email.contains("@")) {
+            return email.substring(0, email.indexOf('@'));
+        }
+        return "New tenancy";
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
     }
 
     private String validatePasswordStrength(String password) {
@@ -397,6 +444,7 @@ public class AuthController {
             @NotBlank String firstName,
             @NotBlank String lastName,
             @NotBlank @Email String email,
+            String phone,
             String password,
             String packageName,
             Integer userCount,

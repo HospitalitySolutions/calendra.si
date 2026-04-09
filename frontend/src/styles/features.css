@@ -4211,6 +4211,33 @@ a.clients-contact-link:hover {
     max-width: 760px;
 }
 
+.signup-card--compact {
+    max-width: 560px;
+}
+
+.signup-info-card {
+    display: grid;
+    gap: 10px;
+    border: 1px solid rgba(22, 114, 243, 0.14);
+    border-radius: 16px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.signup-info-card strong {
+    display: block;
+    margin-top: 4px;
+    color: var(--color-text);
+}
+
+.signup-trial-note {
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: rgba(22, 114, 243, 0.08);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
 .signup-section {
     display: flex;
     flex-direction: column;

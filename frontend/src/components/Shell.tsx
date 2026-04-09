@@ -6,6 +6,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { applyTheme, clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../theme'
 import { useLocale } from '../locale'
+import { hasBillingAccess, hasInboxAccess } from '../lib/packageAccess'
 import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 
@@ -90,6 +91,8 @@ function ShellInner({ children }: PropsWithChildren) {
   const { t, locale } = useLocale()
   const user = getStoredUser()!
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
+  const billingAllowed = hasBillingAccess(user.packageType)
+  const inboxAllowed = hasInboxAccess(user.packageType)
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'Glasovno naročanje in preklic' : 'Voice booking and cancellation'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
@@ -361,16 +364,18 @@ function ShellInner({ children }: PropsWithChildren) {
             </span>
             <span className="mobile-nav-overlay-link-label">{t('navClients')}</span>
           </NavLink>
-          <NavLink
-            to="/billing"
-            className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-            onClick={() => closeMobileNavIfAlreadyOn('/billing')}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              <AndroidNavIconBilling />
-            </span>
-            <span className="mobile-nav-overlay-link-label">{t('navBilling')}</span>
-          </NavLink>
+          {billingAllowed && (
+            <NavLink
+              to="/billing"
+              className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+              onClick={() => closeMobileNavIfAlreadyOn('/billing')}
+            >
+              <span className="mobile-nav-overlay-link-icon">
+                <AndroidNavIconBilling />
+              </span>
+              <span className="mobile-nav-overlay-link-label">{t('navBilling')}</span>
+            </NavLink>
+          )}
           <NavLink
             to="/analytics"
             className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
@@ -381,16 +386,18 @@ function ShellInner({ children }: PropsWithChildren) {
             </span>
             <span className="mobile-nav-overlay-link-label">{t('navAnalytics')}</span>
           </NavLink>
-          <NavLink
-            to="/inbox"
-            className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
-            onClick={() => closeMobileNavIfAlreadyOn('/inbox')}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              <AndroidNavIconInbox />
-            </span>
-            <span className="mobile-nav-overlay-link-label">{t('navInbox')}</span>
-          </NavLink>
+          {inboxAllowed && (
+            <NavLink
+              to="/inbox"
+              className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+              onClick={() => closeMobileNavIfAlreadyOn('/inbox')}
+            >
+              <span className="mobile-nav-overlay-link-icon">
+                <AndroidNavIconInbox />
+              </span>
+              <span className="mobile-nav-overlay-link-label">{t('navInbox')}</span>
+            </NavLink>
+          )}
           <div className="mobile-nav-overlay-section-label">{t('mobileNavSectionSettings')}</div>
           <NavLink
             to="/configuration"
@@ -679,14 +686,18 @@ function ShellInner({ children }: PropsWithChildren) {
             <AndroidNavIconAnalytics />
             <span>Analytics</span>
           </NavLink>
-          <NavLink to="/inbox" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
-            <AndroidNavIconInbox />
-            <span>Inbox</span>
-          </NavLink>
-          <NavLink to="/billing" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
-            <AndroidNavIconBilling />
-            <span>Billing</span>
-          </NavLink>
+          {inboxAllowed && (
+            <NavLink to="/inbox" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
+              <AndroidNavIconInbox />
+              <span>Inbox</span>
+            </NavLink>
+          )}
+          {billingAllowed && (
+            <NavLink to="/billing" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
+              <AndroidNavIconBilling />
+              <span>Billing</span>
+            </NavLink>
+          )}
           <NavLink to="/clients" className={({ isActive }) => `android-nav-item${isActive ? ' active' : ''}`}>
             <AndroidNavIconClients />
             <span>Clients</span>
@@ -706,12 +717,16 @@ function ShellInner({ children }: PropsWithChildren) {
           <NavLink to="/clients" title="Clients" aria-label="Clients">
             <AndroidNavIconClients />
           </NavLink>
-          <NavLink to="/billing" title="Billing" aria-label="Billing">
-            <AndroidNavIconBilling />
-          </NavLink>
-          <NavLink to="/inbox" title="Inbox" aria-label="Inbox">
-            <AndroidNavIconInbox />
-          </NavLink>
+          {billingAllowed && (
+            <NavLink to="/billing" title="Billing" aria-label="Billing">
+              <AndroidNavIconBilling />
+            </NavLink>
+          )}
+          {inboxAllowed && (
+            <NavLink to="/inbox" title="Inbox" aria-label="Inbox">
+              <AndroidNavIconInbox />
+            </NavLink>
+          )}
           <NavLink to="/analytics" title="Analytics" aria-label="Analytics">
             <AndroidNavIconAnalytics />
           </NavLink>

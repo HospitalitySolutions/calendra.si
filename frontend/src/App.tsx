@@ -10,6 +10,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { SignupPage } from './pages/SignupPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
+import { getDefaultAllowedRoute, hasBillingAccess, hasInboxAccess } from './lib/packageAccess'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 
@@ -57,7 +58,6 @@ export default function App() {
     const googleConnected = params.get('google_connected')
     const googleError = params.get('google_error')
     if (oauthError) {
-      // Keep oauth_error in URL on the login screen so LoginPage can show a persistent inline message.
       if (!user) return
       if (handledRef.current) return
       handledRef.current = true
@@ -130,6 +130,10 @@ export default function App() {
     )
   }
 
+  const billingAllowed = hasBillingAccess(user.packageType)
+  const inboxAllowed = hasInboxAccess(user.packageType)
+  const fallbackRoute = getDefaultAllowedRoute(user.packageType)
+
   return (
     <Shell>
       <Suspense fallback={<div className="content content-android-native" style={{ padding: 24 }}>{copy.loading}</div>}>
@@ -141,14 +145,14 @@ export default function App() {
           <Route path="/sessions/bookable" element={<Navigate to="/calendar" replace />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/consultants" element={<Navigate to="/configuration?tab=consultants" replace />} />
-          <Route path="/billing" element={<BillingPage />} />
+          <Route path="/billing" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/inbox" element={<InboxPage />} />
+          <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={<ConfigurationPage />} />
           <Route path="/settings" element={<Navigate to="/configuration" replace />} />
           <Route path="/sessions/spaces" element={<Navigate to="/configuration?tab=booking" replace />} />
           <Route path="/sessions/types" element={<Navigate to="/configuration?tab=booking" replace />} />
-          <Route path="*" element={<Navigate to="/calendar" replace />} />
+          <Route path="*" element={<Navigate to={fallbackRoute} replace />} />
         </Routes>
       </Suspense>
     </Shell>
