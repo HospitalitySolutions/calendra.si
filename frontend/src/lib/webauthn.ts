@@ -31,17 +31,20 @@ function webauthnFieldToArrayBuffer(value: unknown, fieldLabel: string): ArrayBu
   }
   if (ArrayBuffer.isView(value)) {
     const v = value as ArrayBufferView
-    return v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength)
+    return new Uint8Array(v.buffer, v.byteOffset, v.byteLength).slice().buffer
   }
   if (typeof value === 'string') {
     return base64UrlToArrayBuffer(value)
   }
   if (Array.isArray(value)) {
     const bytes = value as unknown[]
-    if (!bytes.length || !bytes.every((n) => typeof n === 'number' && n >= 0 && n <= 255 && Number.isInteger(n))) {
+    const validBytes = bytes.every(
+      (n): n is number => typeof n === 'number' && n >= 0 && n <= 255 && Number.isInteger(n),
+    )
+    if (!bytes.length || !validBytes) {
       throw new Error(`WebAuthn field ${fieldLabel} is not a valid byte array.`)
     }
-    return new Uint8Array(bytes).buffer
+    return new Uint8Array(bytes as number[]).buffer
   }
   if (typeof value === 'object') {
     const o = value as Record<string, unknown>
