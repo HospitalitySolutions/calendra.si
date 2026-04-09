@@ -176,7 +176,7 @@ public class VoiceBookingService {
         LocalTime sessionEndTime = parseTime(fields.endTimeStr(), true, lang);
 
         return switch (action) {
-            case BOOK_SESSION -> bookFromVoice(me, fields, sessionDate, sessionTime, parsed, zone, lang);
+            case BOOK_SESSION -> bookFromVoice(me, fields, sessionDate, sessionTime, parsed, zone, lang, confirmCancellation);
             case CANCEL_SESSION -> {
                 Long cancelClientId = null;
                 String fn = fields.firstName();
@@ -202,8 +202,9 @@ public class VoiceBookingService {
             LocalTime sessionTime,
             JsonNode parsed,
             ZoneId zone,
-            UiLang lang) {
-        long clientId = resolveClientId(fields.firstName(), fields.lastName(), me, false, lang);
+            UiLang lang,
+            boolean confirmBooking) {
+        long clientId = resolveClientId(fields.firstName(), fields.lastName(), me, true, lang);
         enforceClientNameUppercase(clientId);
         if (sessionTime == null) {
             throw new ResponseStatusException(
@@ -222,9 +223,28 @@ public class VoiceBookingService {
         LocalDateTime start = LocalDateTime.of(sessionDate, sessionTime);
         ensureNotInPast(start, zone, lang);
         LocalDateTime end = start.plusMinutes(durationMinutes);
+        String clientName = clientRepository.findById(clientId)
+                .map(c -> displayClientName(c.getFirstName(), c.getLastName()))
+                .orElse(null);
 
         String startTime = start.format(ISO_LOCAL);
         String endTime = end.format(ISO_LOCAL);
+        if (!confirmBooking) {
+            return new VoiceActionResponse(
+                    "book_review",
+                    "booking",
+                    null,
+                    msg(lang, "Potrdite rezervacijo termina.", "Please confirm booking creation."),
+                    null,
+                    null,
+                    clientId,
+                    clientName,
+                    null,
+                    start,
+                    end,
+                    true);
+        }
+
         Long consultantId = SecurityUtils.isAdmin(me) ? me.getId() : null;
         var req = new SessionBookingController.BookingRequest(
                 clientId,
@@ -260,7 +280,7 @@ public class VoiceBookingService {
                     created,
                     created.id(),
                     clientId,
-                    created.client() != null ? displayClientName(created.client().firstName(), created.client().lastName()) : null,
+                    created.client() != null ? displayClientName(created.client().firstName(), created.client().lastName()) : clientName,
                     null,
                     created.startTime(),
                     created.endTime(),

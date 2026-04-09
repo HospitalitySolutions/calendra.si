@@ -3361,7 +3361,7 @@ export default function CalendarPage() {
     try {
       const res = await api.post('/ai/voice-booking', { transcript: trimmed, confirmCancellation, locale })
       const action = typeof res.data?.action === 'string' ? res.data.action : ''
-      if (res.data?.confirmationRequired && action === 'cancel_review') {
+      if (res.data?.confirmationRequired && (action === 'cancel_review' || action === 'book_review')) {
         setVoiceBookingError(null)
         setVoicePendingCancellation({
           action,
@@ -3510,7 +3510,7 @@ export default function CalendarPage() {
         }
         setVoicePendingCancellation(null)
         setVoiceReviewText(text)
-        setVoiceReviewOpen(true)
+        void submitVoiceBookingTranscript(text, false)
       }
       r.start()
     } catch (e: unknown) {
@@ -3720,11 +3720,17 @@ export default function CalendarPage() {
     if (text) {
       setVoicePendingCancellation(null)
       setVoiceReviewText(text)
-      setVoiceReviewOpen(true)
+      void submitVoiceBookingTranscript(text, false)
     } else if (showNoSpeechError) {
       setVoiceBookingError(locale === 'sl' ? 'Govor ni bil zaznan.' : 'No speech was detected.')
     }
   }
+
+  useEffect(() => {
+    if (!voiceBookingError) return
+    showToast('error', voiceBookingError)
+    setVoiceBookingError(null)
+  }, [showToast, voiceBookingError])
 
   const getBookableSelectionInfo = (start: string, end: string): { isBookable: boolean; consultantId?: number } => {
     const selectionStartMs = new Date(start).getTime()
@@ -5214,11 +5220,6 @@ export default function CalendarPage() {
   return (
     <div className={isNativeAndroid ? 'calendar-page-android-root' : 'calendar-page-web-root'}>
       <Card className={isNativeAndroid ? 'calendar-card-android' : 'calendar-web-flush'}>
-        {voiceBookingError && (
-          <div className="error calendar-voice-error" role="alert" style={{ marginBottom: 10 }}>
-            {voiceBookingError}
-          </div>
-        )}
         {voiceReviewOpen && (
           <div
             className="modal-backdrop"
@@ -5232,39 +5233,14 @@ export default function CalendarPage() {
           >
             <div className="modal" style={{ maxWidth: 440, width: 'min(440px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
               <PageHeader
-                title={voicePendingCancellation
-                  ? (locale === 'sl' ? 'Potrditev glasovnega dejanja' : 'Confirm voice action')
-                  : (locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions')}
-                subtitle={voicePendingCancellation
-                  ? (locale === 'sl'
-                    ? 'Preglejte prepoznano dejanje in ga potrdite. Če je mikrofon kaj zgrešil, besedilo spodaj popravite.'
-                    : 'Review the recognized action and confirm it. If the microphone missed something, edit the text below.')
-                  : (locale === 'sl'
-                    ? `Popravite besedilo, če ga je mikrofon narobe zaznal. Podprta so rezervacija in preklic termina, osebni termini, opravki ter odpiranje ali zapiranje razpoložljivosti. Prepoznavanje uporablja ${voiceRecognitionLang}.`
-                    : `Edit the text if the microphone got it wrong. Supported actions include booking and cancelling sessions, personal sessions, todos, and opening or blocking availability. Recognition uses ${voiceRecognitionLang}.`)}
+                title={t('calendarVoiceConfirmTitle')}
+                subtitle={t('calendarVoiceConfirmSubtitle')}
               />
               <div className="stack gap-md" style={{ marginTop: 12 }}>
-                <Field
-                  label={locale === 'sl' ? 'Besedilo (lahko uredite)' : 'Text (editable)'}
-                  hint={locale === 'sl'
-                    ? 'Primeri: Rezerviraj Tino Jekler 28. marca ob 14:00. Dodaj osebno Kosilo za 27. april od 12h do 15h. Dodaj opravek Pokliči Marka za 27. april ob 12h. Odpri za 27. april od 12h do 15h.'
-                    : 'Examples: Book Tina Jekler on March 28 at 14:00. Add personal Lunch for April 27 from 12 to 15. Add todo Call Marko for April 27 at 12. Open availability for April 27 from 12 to 15.'}
-                >
-                  <textarea
-                    className="input"
-                    rows={4}
-                    value={voiceReviewText}
-                    onChange={(e) => {
-                      setVoiceReviewText(e.target.value)
-                      if (voicePendingCancellation) setVoicePendingCancellation(null)
-                    }}
-                    style={{ resize: 'vertical', minHeight: 88 }}
-                  />
-                </Field>
                 {voicePendingCancellation && (
                   <div style={{ border: '1px solid var(--border-color, #d6d3d1)', borderRadius: 12, padding: 12, background: 'rgba(245, 158, 11, 0.08)' }}>
                     <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                      {locale === 'sl' ? 'Dejanje za potrditev' : 'Action to confirm'}
+                      {t('calendarVoiceActionToConfirm')}
                     </div>
                     {voicePendingCancellation.targetType === 'booking' ? (
                       <div><strong>{locale === 'sl' ? 'Stranka' : 'Client'}:</strong> {voicePendingCancellation.clientName || (locale === 'sl' ? 'Ni določena' : 'Not specified')}</div>
@@ -5297,14 +5273,12 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     className="primary"
-                    disabled={voiceBookingLoading || !voiceReviewText.trim()}
+                    disabled={voiceBookingLoading || !voicePendingCancellation}
                     onClick={() => submitVoiceBookingTranscript(voiceReviewText, !!voicePendingCancellation)}
                   >
                     {voiceBookingLoading
                       ? '…'
-                      : voicePendingCancellation
-                        ? (locale === 'sl' ? 'Potrdi dejanje' : 'Confirm action')
-                        : (locale === 'sl' ? 'Izvedi dejanje' : 'Run action')}
+                        : (locale === 'sl' ? 'Potrdi dejanje' : 'Confirm action')}
                   </button>
                 </div>
               </div>
