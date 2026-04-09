@@ -36,7 +36,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      SPRING_PROFILES_ACTIVE: staging
+      SPRING_PROFILES_ACTIVE: production
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: 4000
       APP_JWT_EXPIRATION_MS: 86400000
