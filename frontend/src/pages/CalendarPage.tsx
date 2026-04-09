@@ -350,6 +350,7 @@ export default function CalendarPage() {
   const navigate = useNavigate()
   const { locale, t } = useLocale()
   const { showToast } = useToast()
+  const isAndroidWeb = !isNativeAndroid && /Android/i.test(window.navigator.userAgent || '')
   const calendarLocaleTag = locale === 'sl' ? 'sl-SI' : 'en-GB'
   const voiceRecognitionLang = locale === 'sl' ? 'sl-SI' : 'en-US'
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
@@ -438,6 +439,9 @@ export default function CalendarPage() {
   const [voiceBookingError, setVoiceBookingError] = useState<string | null>(null)
   const [voiceReviewOpen, setVoiceReviewOpen] = useState(false)
   const [voiceReviewText, setVoiceReviewText] = useState('')
+  const [voiceManualFallbackOpen, setVoiceManualFallbackOpen] = useState(false)
+  const [voiceManualFallbackText, setVoiceManualFallbackText] = useState('')
+  const [voiceManualFallbackMessage, setVoiceManualFallbackMessage] = useState<string | null>(null)
   const [voicePendingCancellation, setVoicePendingCancellation] = useState<null | {
     action?: string
     targetType?: string | null
@@ -456,6 +460,8 @@ export default function CalendarPage() {
   const loadRef = useRef<() => Promise<void>>(async () => {})
   const speechRecognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null)
   const voiceStopRequestedRef = useRef(false)
+  const webSpeechBestTranscriptRef = useRef('')
+  const webSpeechSubmittedRef = useRef(false)
   const androidMicHoldActiveRef = useRef(false)
   const androidMicShouldListenRef = useRef(false)
   const nativeSpeechHandleRef = useRef<{ remove: () => Promise<void> } | null>(null)
@@ -3430,9 +3436,33 @@ export default function CalendarPage() {
     }
   }
 
+  const openAndroidWebVoiceManualFallback = (fallbackMessage?: string) => {
+    if (!isAndroidWeb || voiceBookingLoading) {
+      if (fallbackMessage) setVoiceBookingError(fallbackMessage)
+      return
+    }
+    setVoiceManualFallbackMessage(fallbackMessage ?? null)
+    setVoiceManualFallbackText(voiceReviewText || '')
+    setVoiceManualFallbackOpen(true)
+  }
+
+  const submitAndroidWebVoiceManualFallback = () => {
+    const trimmed = voiceManualFallbackText.trim()
+    if (!trimmed) {
+      setVoiceBookingError(locale === 'sl' ? 'Besedilo je prazno.' : 'The text is empty.')
+      return
+    }
+    setVoiceManualFallbackOpen(false)
+    setVoiceManualFallbackMessage(null)
+    setVoiceReviewText(trimmed)
+    void submitVoiceBookingTranscript(trimmed, false)
+  }
+
   const startVoiceBooking = () => {
     setVoiceBookingError(null)
     setVoicePendingCancellation(null)
+    setVoiceManualFallbackOpen(false)
+    setVoiceManualFallbackMessage(null)
     if (!aiBookingEnabled) {
       setVoiceBookingError(locale === 'sl' ? 'AI glasovna dejanja so izklopljena v konfiguraciji.' : 'AI voice actions are disabled in configuration.')
       return
@@ -3456,7 +3486,7 @@ export default function CalendarPage() {
     }
     const Ctor = win.SpeechRecognition || win.webkitSpeechRecognition
     if (!Ctor) {
-      setVoiceBookingError(locale === 'sl' ? 'Ta brskalnik ne podpira glasovnega vnosa.' : 'This browser does not support voice input.')
+      openAndroidWebVoiceManualFallback(locale === 'sl' ? 'Ta brskalnik ne podpira glasovnega vnosa.' : 'This browser does not support voice input.')
       return
     }
     if (voiceBookingConfigured === false) {
@@ -3480,14 +3510,27 @@ export default function CalendarPage() {
       }
       speechRecognitionRef.current = r
       voiceStopRequestedRef.current = false
+      webSpeechBestTranscriptRef.current = ''
+      webSpeechSubmittedRef.current = false
       r.lang = voiceRecognitionLang
-      r.interimResults = false
-      r.continuous = false
+      r.interimResults = isAndroidWeb
+      r.continuous = isAndroidWeb
       r.maxAlternatives = 1
       r.onstart = () => setVoiceListening(true)
       r.onend = () => {
         setVoiceListening(false)
         speechRecognitionRef.current = null
+        if (isAndroidWeb && !webSpeechSubmittedRef.current) {
+          const text = webSpeechBestTranscriptRef.current.trim()
+          if (text) {
+            webSpeechSubmittedRef.current = true
+            setVoicePendingCancellation(null)
+            setVoiceReviewText(text)
+            void submitVoiceBookingTranscript(text, false)
+          } else if (!voiceStopRequestedRef.current) {
+            openAndroidWebVoiceManualFallback(locale === 'sl' ? 'Govor ni bil zaznan.' : 'No speech was detected.')
+          }
+        }
         voiceStopRequestedRef.current = false
       }
       r.onerror = () => {
@@ -3496,7 +3539,8 @@ export default function CalendarPage() {
         const wasRequested = voiceStopRequestedRef.current
         voiceStopRequestedRef.current = false
         if (!wasRequested) {
-          setVoiceBookingError(locale === 'sl' ? 'Prepoznavanje govora ni uspelo ali je bilo preklicano.' : 'Speech recognition failed or was cancelled.')
+          const msg = locale === 'sl' ? 'Prepoznavanje govora ni uspelo ali je bilo preklicano.' : 'Speech recognition failed or was cancelled.'
+          openAndroidWebVoiceManualFallback(msg)
         }
       }
       r.onresult = (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => {
@@ -3505,9 +3549,15 @@ export default function CalendarPage() {
           .join(' ')
           .trim()
         if (!text) {
-          setVoiceBookingError(locale === 'sl' ? 'Govor ni bil zaznan.' : 'No speech was detected.')
+          openAndroidWebVoiceManualFallback(locale === 'sl' ? 'Govor ni bil zaznan.' : 'No speech was detected.')
           return
         }
+        webSpeechBestTranscriptRef.current = text
+        if (isAndroidWeb && !voiceStopRequestedRef.current) {
+          return
+        }
+        if (webSpeechSubmittedRef.current) return
+        webSpeechSubmittedRef.current = true
         setVoicePendingCancellation(null)
         setVoiceReviewText(text)
         void submitVoiceBookingTranscript(text, false)
@@ -5279,6 +5329,67 @@ export default function CalendarPage() {
                     {voiceBookingLoading
                       ? '…'
                         : (locale === 'sl' ? 'Potrdi dejanje' : 'Confirm action')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {voiceManualFallbackOpen && (
+          <div
+            className="modal-backdrop"
+            style={{ zIndex: 21 }}
+            onClick={() => {
+              if (!voiceBookingLoading) {
+                setVoiceManualFallbackOpen(false)
+                setVoiceManualFallbackMessage(null)
+              }
+            }}
+          >
+            <div className="modal" style={{ maxWidth: 460, width: 'min(460px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
+              <PageHeader
+                title={locale === 'sl' ? 'Ročni vnos glasovnega dejanja' : 'Manual voice action input'}
+                subtitle={locale === 'sl'
+                  ? 'Glasovni zajem ni uspel. Vnesite ukaz ročno in nadaljujte.'
+                  : 'Voice capture did not succeed. Enter the command manually and continue.'}
+              />
+              <div className="stack gap-md" style={{ marginTop: 12 }}>
+                {voiceManualFallbackMessage && (
+                  <div className="error" role="alert">{voiceManualFallbackMessage}</div>
+                )}
+                <Field
+                  label={locale === 'sl' ? 'Ukaz' : 'Command'}
+                  hint={locale === 'sl'
+                    ? 'Primer: Rezerviraj Ana Novak 12. april ob 8:00.'
+                    : 'Example: Book Ana Novak on April 12 at 08:00.'}
+                >
+                  <textarea
+                    className="input"
+                    rows={4}
+                    value={voiceManualFallbackText}
+                    onChange={(e) => setVoiceManualFallbackText(e.target.value)}
+                    style={{ resize: 'vertical', minHeight: 92 }}
+                  />
+                </Field>
+                <div className="row gap" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={voiceBookingLoading}
+                    onClick={() => {
+                      setVoiceManualFallbackOpen(false)
+                      setVoiceManualFallbackMessage(null)
+                    }}
+                  >
+                    {locale === 'sl' ? 'Prekliči' : 'Cancel'}
+                  </button>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={voiceBookingLoading}
+                    onClick={submitAndroidWebVoiceManualFallback}
+                  >
+                    {voiceBookingLoading ? '…' : (locale === 'sl' ? 'Izvedi dejanje' : 'Run action')}
                   </button>
                 </div>
               </div>
