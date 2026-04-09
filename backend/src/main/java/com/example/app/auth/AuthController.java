@@ -5,6 +5,7 @@ import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.mfa.WebAuthnService;
 import com.example.app.security.JwtService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
@@ -68,6 +69,7 @@ public class AuthController {
     private final TransactionServiceRepository txServices;
     private final PasswordResetService passwordResetService;
     private final CompanyProvisioningService companyProvisioningService;
+    private final WebAuthnService webAuthnService;
 
     public AuthController(
             UserRepository users,
@@ -81,7 +83,8 @@ public class AuthController {
             SessionTypeRepository types,
             TransactionServiceRepository txServices,
             PasswordResetService passwordResetService,
-            CompanyProvisioningService companyProvisioningService
+            CompanyProvisioningService companyProvisioningService,
+            WebAuthnService webAuthnService
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
@@ -95,6 +98,7 @@ public class AuthController {
         this.txServices = txServices;
         this.passwordResetService = passwordResetService;
         this.companyProvisioningService = companyProvisioningService;
+        this.webAuthnService = webAuthnService;
     }
 
     /**
@@ -152,6 +156,20 @@ public class AuthController {
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Invalid email or password."));
+        }
+
+        WebAuthnService.PrimaryLoginResult mfa = webAuthnService.startLoginChallenge(user);
+        if (mfa.mfaRequired()) {
+            return ResponseEntity.ok(Map.of(
+                    "mfaRequired", true,
+                    "pendingToken", mfa.pendingToken(),
+                    "availableMethods", List.of("webauthn", "recovery_code"),
+                    "user", Map.of(
+                            "email", user.getEmail(),
+                            "firstName", user.getFirstName(),
+                            "lastName", user.getLastName()
+                    )
+            ));
         }
 
         String token = jwtService.generateToken(user.getId());

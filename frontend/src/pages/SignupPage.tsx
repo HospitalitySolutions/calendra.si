@@ -83,14 +83,19 @@ export function SignupPage() {
 
   return (
     <div className="login-wrap login-bg signup-wrap">
-      <div className="login-brand-above">
+      <div className="login-brand-above login-brand-above--desktop">
         <div className="login-modern-logo-mark" aria-hidden>
           <img src={loginLogo} alt="" />
         </div>
       </div>
 
-      <form className="card login polished-login signup-card signup-card--compact" onSubmit={submitSignup} style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}>
-        <div className="login-modern-header">
+      <form className="card login polished-login polished-login--modern signup-card signup-card--compact signup-card--modern" onSubmit={submitSignup} style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}>
+        <div className="auth-card-topbar">
+          <div className="login-brand-inline" aria-hidden>
+            <div className="login-modern-logo-mark">
+              <img src={loginLogo} alt="" />
+            </div>
+          </div>
           <div className="login-lang-switch" role="group" aria-label={t('language')}>
             <button
               type="button"
@@ -109,41 +114,108 @@ export function SignupPage() {
           </div>
         </div>
 
-        <div>
-          <p className="eyebrow">{t('signupTitle')}</p>
-          <h1 style={{ marginTop: 4 }}>{t('signupFormTitle')}</h1>
-          <p className="muted">{t('signupSubtitle')}</p>
+        <div className="signup-hero">
+          <div className="signup-hero-copy">
+            <p className="eyebrow">{t('signupTitle')}</p>
+            <h1 className="signup-title">{t('signupFormTitle')}</h1>
+            <p className="muted signup-subtitle">{t('signupSubtitle')}</p>
+          </div>
+          <div className="signup-package-pill">{packageLabel}</div>
         </div>
 
-        <div className="signup-info-card">
-          <div>
-            <span className="muted">{t('signupSelectedPackage')}</span>
-            <strong>{packageLabel}</strong>
+        <div className="signup-info-card signup-info-card--modern">
+          <div className="signup-info-row">
+            <div>
+              <span className="signup-info-label">{t('signupSelectedPackage')}</span>
+              <strong>{packageLabel}</strong>
+            </div>
           </div>
           {signupContext.flow === 'trial' && (
             <div className="signup-trial-note">{t('signupTrialNote')}</div>
           )}
         </div>
 
-        <div className="signup-section">
-          <input name="companyName" autoComplete="organization" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder={t('signupCompanyName')} type="text" required />
-          <div className="signup-name-grid">
-            <input name="firstName" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder={t('signupFirstName')} type="text" required />
-            <input name="lastName" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder={t('signupLastName')} type="text" required />
+        <div className="signup-form-panel">
+          <div className="signup-field-stack">
+            <label htmlFor="signup-company-name">{t('signupCompanyName')}</label>
+            <input
+              id="signup-company-name"
+              name="companyName"
+              autoComplete="organization"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder={t('signupCompanyName')}
+              type="text"
+              required
+            />
           </div>
-          <input name="signupEmail" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('signupEmail')} type="email" required />
-          <input name="phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t('signupPhoneOptional')} type="tel" />
+
+          <div className="signup-field-grid signup-name-grid">
+            <div className="signup-field-stack">
+              <label htmlFor="signup-first-name">{t('signupFirstName')}</label>
+              <input
+                id="signup-first-name"
+                name="firstName"
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder={t('signupFirstName')}
+                type="text"
+                required
+              />
+            </div>
+            <div className="signup-field-stack">
+              <label htmlFor="signup-last-name">{t('signupLastName')}</label>
+              <input
+                id="signup-last-name"
+                name="lastName"
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder={t('signupLastName')}
+                type="text"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="signup-field-stack">
+            <label htmlFor="signup-email">{t('signupEmail')}</label>
+            <input
+              id="signup-email"
+              name="signupEmail"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('signupEmail')}
+              type="email"
+              required
+            />
+          </div>
+
+          <div className="signup-field-stack">
+            <label htmlFor="signup-phone">{t('signupPhoneOptional')}</label>
+            <input
+              id="signup-phone"
+              name="phone"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder={t('signupPhoneOptional')}
+              type="tel"
+            />
+          </div>
         </div>
 
         {error && <div className="error">{error}</div>}
         {successMessage && <div className="success">{successMessage}</div>}
 
-        <button type="submit" disabled={submitting} className="login-primary-btn">
+        <button type="submit" disabled={submitting} className="login-primary-btn signup-submit-btn">
           {submitting ? t('signupSubmitting') : t('signupSubmit')}
         </button>
 
-        <div className="form-actions full-span" style={{ marginTop: 8 }}>
-          <button type="button" className="secondary" onClick={() => navigate('/login')}>
+        <div className="form-actions full-span signup-actions-row">
+          <button type="button" className="secondary signup-back-btn" onClick={() => navigate('/login')}>
             {t('signupBack')}
           </button>
         </div>

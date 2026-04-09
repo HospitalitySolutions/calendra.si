@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
 import type {
@@ -18,6 +18,7 @@ import { ConsultantsPage } from './ConsultantsPage'
 import { ConfigurationNotificationsSection } from './ConfigurationNotificationsSection'
 import { FolioLayoutEditor } from './FolioLayoutEditor'
 import { useLocale } from '../locale'
+import { getDefaultAllowedRoute } from '../lib/packageAccess'
 
 type Tab = 'company' | 'booking' | 'billing' | 'consultants' | 'notifications'
 type BookingSubtab = 'modules' | 'tasks' | 'spaces' | 'types'
@@ -191,6 +192,8 @@ export function ConfigurationPage() {
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('modules')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
 
+  const visibleTabs = CONFIG_TABS
+
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [savingSettings, setSavingSettings] = useState(false)
 
@@ -230,9 +233,14 @@ export function ConfigurationPage() {
   const [premisePickerOpen, setPremisePickerOpen] = useState(false)
 
   useEffect(() => {
+    if (!isAdmin) return
     const q = query.get('tab')
+    if (q === 'security') {
+      navigate('/security', { replace: true })
+      return
+    }
     if (q === 'company' || q === 'booking' || q === 'billing' || q === 'consultants' || q === 'notifications') setTab(q)
-  }, [query])
+  }, [query, navigate, isAdmin])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 800px)')
@@ -269,7 +277,9 @@ export function ConfigurationPage() {
     setCertificateMeta(certificateMetaRes.data || { uploaded: false })
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (isAdmin) void load()
+  }, [isAdmin])
 
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
 
@@ -545,17 +555,20 @@ export function ConfigurationPage() {
     setCertificateMeta({ uploaded: false })
   }
 
-  if (!isAdmin) return <Card>{t('configAdminOnly')}</Card>
   const registeredPremises = parseRegisteredPremises(settings[REGISTERED_PREMISES_KEY])
   const selectedPremiseId = (settings.FISCAL_BUSINESS_PREMISE_ID || '').trim()
   const selectedPremiseConfirmed = selectedPremiseId.length > 0 && registeredPremises.includes(selectedPremiseId)
+
+  if (!isAdmin) {
+    return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />
+  }
 
   return (
     <div className="stack gap-lg">
       <div className="config-shell">
         <aside className="config-nav">
           <div className="config-nav-title">{t('settingsGroup')}</div>
-          {CONFIG_TABS.map((entry) => (
+          {visibleTabs.map((entry) => (
             <button
               key={entry.id}
               type="button"

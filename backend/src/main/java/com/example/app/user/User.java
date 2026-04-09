@@ -77,4 +77,8 @@ public class User extends BaseEntity {
     /** JSON: sameForAllDays, allDays {start,end}, byDay per weekday — see frontend WorkingHoursConfig. */
     @Column(columnDefinition = "TEXT")
     private String workingHoursJson;
+
+    /** Base64url-encoded stable WebAuthn user handle for this user. */
+    @Column(length = 255, unique = true)
+    private String webauthnUserHandle;
 }

@@ -90,6 +90,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const navigate = useNavigate()
   const { t, locale } = useLocale()
   const user = getStoredUser()!
+  const isAdmin = user.role === 'ADMIN'
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const billingAllowed = hasBillingAccess(user.packageType)
   const inboxAllowed = hasInboxAccess(user.packageType)
@@ -399,16 +400,18 @@ function ShellInner({ children }: PropsWithChildren) {
             </NavLink>
           )}
           <div className="mobile-nav-overlay-section-label">{t('mobileNavSectionSettings')}</div>
-          <NavLink
-            to="/configuration"
-            className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
-            onClick={() => closeMobileNavIfAlreadyOn('/configuration')}
-          >
-            <span className="mobile-nav-overlay-link-icon">
-              <IconConfigGear />
-            </span>
-            <span className="mobile-nav-overlay-link-label">{t('settingsGroup')}</span>
-          </NavLink>
+          {isAdmin && (
+            <NavLink
+              to="/configuration"
+              className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
+              onClick={() => closeMobileNavIfAlreadyOn('/configuration')}
+            >
+              <span className="mobile-nav-overlay-link-icon">
+                <IconConfigGear />
+              </span>
+              <span className="mobile-nav-overlay-link-label">{t('settingsGroup')}</span>
+            </NavLink>
+          )}
           <button
             type="button"
             className="mobile-nav-overlay-link mobile-nav-overlay-link--sub mobile-nav-overlay-link--button"
@@ -470,6 +473,20 @@ function ShellInner({ children }: PropsWithChildren) {
               <div className="mobile-nav-overlay-user-email">{user.email}</div>
             </div>
           </div>
+          <button
+            type="button"
+            className="mobile-nav-overlay-logout"
+            onClick={() => {
+              setMobileNavOpen(false)
+              navigate('/security')
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
+              <path d="M9.5 12.5l1.5 1.5 3.5-4" />
+            </svg>
+            {t('tabSecurity')}
+          </button>
           <button
             type="button"
             className="mobile-nav-overlay-logout"
@@ -573,9 +590,11 @@ function ShellInner({ children }: PropsWithChildren) {
         </button>
         {configOpen && (
           <div className="config-dropdown">
-            <button type="button" className="config-dropdown-item" onClick={() => { navigate('/configuration'); setConfigOpen(false) }}>
-              {t('settingsGroup')}
-            </button>
+            {isAdmin && (
+              <button type="button" className="config-dropdown-item" onClick={() => { navigate('/configuration'); setConfigOpen(false) }}>
+                {t('settingsGroup')}
+              </button>
+            )}
             <button
               type="button"
               className="config-dropdown-item"
@@ -629,6 +648,20 @@ function ShellInner({ children }: PropsWithChildren) {
               <div className="credentials-popover-divider" aria-hidden />
               <div className="credentials-popover-actions">
                 <div className="credentials-popover-actions-title">{t('actions')}</div>
+                <button
+                  type="button"
+                  className="credentials-popover-action-btn"
+                  onClick={() => {
+                    setAccountOpen(false)
+                    navigate('/security')
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
+                    <path d="M9.5 12.5l1.5 1.5 3.5-4" />
+                  </svg>
+                  {t('tabSecurity')}
+                </button>
                 <button
                   type="button"
                   className="credentials-popover-action-btn"

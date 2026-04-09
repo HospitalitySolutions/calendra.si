@@ -9,9 +9,14 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Map;
 
 @Service
 public class JwtService {
+
+    public record MfaTokenPayload(Long userId, String flow, String requestJson) {}
+
+    private static final long MFA_TOKEN_TTL_MS = 5 * 60 * 1000L;
 
     private final SecretKey key;
     private final long expirationMs;
@@ -43,6 +48,37 @@ public class JwtService {
                 .expiration(expiry)
                 .signWith(key)
                 .compact();
+    }
+
+
+    public String generateMfaToken(Long userId, String flow, String requestJson) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + MFA_TOKEN_TTL_MS);
+
+        return Jwts.builder()
+                .subject("mfa")
+                .issuedAt(now)
+                .expiration(expiry)
+                .claims(Map.of(
+                        "tokenType", "MFA",
+                        "userId", userId,
+                        "flow", flow,
+                        "requestJson", requestJson
+                ))
+                .signWith(key)
+                .compact();
+    }
+
+    public MfaTokenPayload parseMfaToken(String token) {
+        Claims claims = extractAllClaims(token);
+        if (!"MFA".equals(String.valueOf(claims.get("tokenType")))) {
+            throw new IllegalArgumentException("Invalid MFA token type.");
+        }
+        Object userIdClaim = claims.get("userId");
+        Long userId = userIdClaim instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(userIdClaim));
+        String flow = String.valueOf(claims.get("flow"));
+        String requestJson = String.valueOf(claims.get("requestJson"));
+        return new MfaTokenPayload(userId, flow, requestJson);
     }
 
     public Long extractUserId(String token) {

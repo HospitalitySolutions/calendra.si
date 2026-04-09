@@ -18,5 +18,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByIdAndCompanyId(Long id, Long companyId);
     boolean existsByCompanyIdAndEmailIgnoreCase(Long companyId, String email);
     Optional<User> findByEmailIgnoreCaseAndCompanyId(String email, Long companyId);
+    Optional<User> findByWebauthnUserHandle(String webauthnUserHandle);
     java.util.List<User> findAllByRoleOrderByIdAsc(Role role);
 }

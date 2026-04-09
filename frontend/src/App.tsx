@@ -20,6 +20,7 @@ const InboxPage = lazy(() => import('./pages/InboxPage').then((mod) => ({ defaul
 const BillingPage = lazy(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })))
 const ClientsPage = lazy(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })))
 const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })))
+const SecurityPage = lazy(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })))
 const PlatformAdminPage = lazy(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })))
 
 export default function App() {
@@ -149,6 +150,7 @@ export default function App() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={<ConfigurationPage />} />
+          <Route path="/security" element={<SecurityPage />} />
           <Route path="/settings" element={<Navigate to="/configuration" replace />} />
           <Route path="/sessions/spaces" element={<Navigate to="/configuration?tab=booking" replace />} />
           <Route path="/sessions/types" element={<Navigate to="/configuration?tab=booking" replace />} />

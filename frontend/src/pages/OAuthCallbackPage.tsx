@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
+import { MfaChallengeCard } from '../components/MfaChallengeCard'
+import { storeAuthenticatedSession } from '../lib/session'
 
 /**
  * Handles redirect from Google OAuth: stores token, fetches user, redirects to app.
@@ -9,16 +11,22 @@ export function OAuthCallbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
+  const [pendingToken, setPendingToken] = useState<string | null>(null)
 
   useEffect(() => {
     const token = searchParams.get('token')
     const oauthError = searchParams.get('oauth_error')
-
+    const mfaToken = searchParams.get('mfa_token')
 
     if (oauthError) {
       const err = decodeURIComponent(oauthError)
       console.error('OAuth error:', err)
       setError(err)
+      return
+    }
+
+    if (mfaToken) {
+      setPendingToken(mfaToken)
       return
     }
 
@@ -40,7 +48,7 @@ export function OAuthCallbackPage() {
           setError(err)
           return
         }
-        sessionStorage.setItem('user', JSON.stringify(user))
+        storeAuthenticatedSession({ token, user })
         navigate('/calendar', { replace: true })
         window.location.reload()
       })
@@ -50,6 +58,24 @@ export function OAuthCallbackPage() {
         setError(msg)
       })
   }, [searchParams, navigate])
+
+  if (pendingToken) {
+    return (
+      <div className="login-wrap login-bg">
+        <MfaChallengeCard
+          pendingToken={pendingToken}
+          heading="Two-factor verification"
+          subheading="Use your passkey or a recovery code to finish signing in with Google."
+          onSuccess={(data) => {
+            storeAuthenticatedSession(data)
+            navigate('/calendar', { replace: true })
+            window.location.reload()
+          }}
+          onBack={() => navigate('/login', { replace: true })}
+        />
+      </div>
+    )
+  }
 
   if (error) {
     return (

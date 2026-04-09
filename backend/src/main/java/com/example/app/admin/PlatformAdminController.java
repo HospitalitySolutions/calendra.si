@@ -49,8 +49,6 @@ public class PlatformAdminController {
 
     public record TenancyRow(Long id, String tenantCode, String name) {}
 
-    public record UpdateTenancyPackageRequest(String packageType) {}
-
     public record TenancyDetailsDto(
             long id,
             String companyName,
@@ -128,30 +126,6 @@ public class PlatformAdminController {
                         : settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT));
     }
 
-    @PutMapping("/tenancies/{id}/package-type")
-    public TenancyDetailsDto updateTenancyPackage(
-            @PathVariable Long id, @RequestBody UpdateTenancyPackageRequest body) {
-        if (body == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
-        }
-        Company company = companies.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        String allowed = parseAllowedPackageType(body.packageType());
-        savePackageSetting(company, allowed);
-        return tenancyDetails(id);
-    }
-
-    private void savePackageSetting(Company company, String packageType) {
-        Long companyId = company.getId();
-        AppSetting s = settings.findByCompanyIdAndKey(companyId, SettingKey.SIGNUP_PACKAGE_NAME).orElseGet(() -> {
-            var ns = new AppSetting();
-            ns.setCompany(company);
-            ns.setKey(SettingKey.SIGNUP_PACKAGE_NAME.name());
-            return ns;
-        });
-        s.setValue(packageType);
-        settings.save(s);
-    }
-
     private String settingTrim(Long companyId, SettingKey key) {
         return settings.findByCompanyIdAndKey(companyId, key)
                 .map(AppSetting::getValue)
@@ -173,25 +147,6 @@ public class PlatformAdminController {
     private static int parseIntegerOrZero(String raw) {
         Integer n = parseInteger(raw);
         return n == null ? 0 : n;
-    }
-
-    /** Accepts only known package codes; rejects unknown values (unlike {@link #normalizePackageType} for reads). */
-    private static String parseAllowedPackageType(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "packageType is required");
-        }
-        String u = raw.trim().toUpperCase(Locale.ROOT).replace(' ', '_').replace('-', '_');
-        if ("PRO".equals(u)) {
-            u = "PROFESSIONAL";
-        }
-        if ("TRIAL".equals(u)
-                || "BASIC".equals(u)
-                || "PROFESSIONAL".equals(u)
-                || "PREMIUM".equals(u)
-                || "CUSTOM".equals(u)) {
-            return u;
-        }
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid packageType");
     }
 
     private static String normalizePackageType(String raw) {
