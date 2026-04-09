@@ -806,6 +806,78 @@
     text-decoration: underline;
 }
 
+.clients-detail-files-head {
+    margin-bottom: 0;
+}
+
+.clients-detail-files-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: 10px 0 12px;
+}
+
+.clients-detail-files-list {
+    display: grid;
+    gap: 8px;
+}
+
+.clients-detail-file-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.clients-detail-file-main {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.clients-detail-file-name {
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clients-detail-file-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.clients-detail-file-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.clients-detail-file-remove {
+    color: #b91c1c;
+}
+
+@media (max-width: 720px) {
+    .clients-detail-file-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .clients-detail-file-actions {
+        justify-content: flex-end;
+    }
+}
+
 .clients-detail-table-wrap table {
     width: 100%;
     table-layout: fixed;
@@ -872,6 +944,23 @@
 
 [data-theme="dark"] .clients-detail-invoice-open {
     color: #93c5fd;
+}
+
+[data-theme="dark"] .clients-detail-file-item {
+    background: #0b1220;
+    border-color: #1f2937;
+}
+
+[data-theme="dark"] .clients-detail-file-name {
+    color: #e5eefc;
+}
+
+[data-theme="dark"] .clients-detail-file-meta {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .clients-detail-file-remove {
+    color: #fca5a5;
 }
 
 [data-theme="dark"] .clients-detail-sessions-card--modern {

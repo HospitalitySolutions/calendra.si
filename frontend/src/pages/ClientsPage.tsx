@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { useLocale } from '../locale'
-import type { Client, Company, CompanyBillSummary, Role, User } from '../lib/types'
+import type { Client, Company, CompanyBillSummary, Role, StoredFile, User } from '../lib/types'
 import { Card, EmptyState, PageHeader, SectionTitle } from '../components/ui'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 
@@ -86,6 +86,13 @@ function initials(...parts: Array<string | null | undefined>) {
     .join('')
     .slice(0, 2)
   return letters || 'N'
+}
+
+function formatFileSize(bytes?: number | null) {
+  const size = typeof bytes === 'number' && Number.isFinite(bytes) ? bytes : 0
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(size < 10 * 1024 ? 1 : 0)} KB`
+  return `${(size / (1024 * 1024)).toFixed(size < 10 * 1024 * 1024 ? 1 : 0)} MB`
 }
 
 function slovenianStrankaCountForm(count: number): string {
@@ -189,6 +196,19 @@ export function ClientsPage() {
     vatId: 'Davčna številka',
     telephone: 'Telefon',
     createCompany: 'Ustvari podjetje',
+    files: 'Datoteke',
+    clientFilesSubtitle: 'Naloži in upravljaj datoteke, povezane s to stranko.',
+    companyFilesSubtitle: 'Naloži in upravljaj datoteke, povezane s tem podjetjem.',
+    uploadFile: 'Naloži datoteko',
+    uploadingFile: 'Nalagam datoteko…',
+    loadingFiles: 'Nalagam datoteke…',
+    noFilesTitle: 'Ni datotek',
+    noClientFilesText: 'Datoteke, naložene za to stranko, bodo prikazane tukaj.',
+    noCompanyFilesText: 'Datoteke, naložene za to podjetje, bodo prikazane tukaj.',
+    uploaded: 'Naloženo',
+    openFile: 'Odpri',
+    removeFile: 'Odstrani',
+    deleteFileConfirm: 'Odstranim to datoteko?',
   } : {
     details: 'Details',
     client: 'CLIENT',
@@ -259,6 +279,19 @@ export function ClientsPage() {
     vatId: 'VAT ID',
     telephone: 'Telephone',
     createCompany: 'Create company',
+    files: 'Files',
+    clientFilesSubtitle: 'Upload and manage files linked to this client.',
+    companyFilesSubtitle: 'Upload and manage files linked to this company.',
+    uploadFile: 'Upload file',
+    uploadingFile: 'Uploading file…',
+    loadingFiles: 'Loading files…',
+    noFilesTitle: 'No files',
+    noClientFilesText: 'Files uploaded for this client will appear here.',
+    noCompanyFilesText: 'Files uploaded for this company will appear here.',
+    uploaded: 'Uploaded',
+    openFile: 'Open',
+    removeFile: 'Remove',
+    deleteFileConfirm: 'Remove this file?',
   }
   const me = getStoredUser()!
   const isAdmin = me.role === 'ADMIN'
@@ -266,6 +299,8 @@ export function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [companyBills, setCompanyBills] = useState<CompanyBillSummary[]>([])
+  const [detailClientFiles, setDetailClientFiles] = useState<StoredFile[]>([])
+  const [detailCompanyFiles, setDetailCompanyFiles] = useState<StoredFile[]>([])
   const [consultants, setConsultants] = useState<ConsultantSummary[]>([])
   const [showModal, setShowModal] = useState(false)
   const [showCompanyModal, setShowCompanyModal] = useState(false)
@@ -284,8 +319,12 @@ export function ClientsPage() {
   const [detailSessions, setDetailSessions] = useState<ClientSession[]>([])
   const [detailSessionsLoading, setDetailSessionsLoading] = useState(false)
   const [detailCompanyBillsLoading, setDetailCompanyBillsLoading] = useState(false)
+  const [detailClientFilesLoading, setDetailClientFilesLoading] = useState(false)
+  const [detailCompanyFilesLoading, setDetailCompanyFilesLoading] = useState(false)
   const [detailSessionsError, setDetailSessionsError] = useState('')
   const [detailCompanyError, setDetailCompanyError] = useState('')
+  const [detailClientFilesError, setDetailClientFilesError] = useState('')
+  const [detailCompanyFilesError, setDetailCompanyFilesError] = useState('')
   const [sessionTab, setSessionTab] = useState<'future' | 'past'>('future')
   const [confirmAnonymize, setConfirmAnonymize] = useState(false)
   const [anonymizing, setAnonymizing] = useState(false)
@@ -308,6 +347,10 @@ export function ClientsPage() {
   const [savingCompanyDetailEdit, setSavingCompanyDetailEdit] = useState(false)
   const [savingBatchPaymentClient, setSavingBatchPaymentClient] = useState(false)
   const [savingBatchPaymentCompany, setSavingBatchPaymentCompany] = useState(false)
+  const [uploadingClientFile, setUploadingClientFile] = useState(false)
+  const [uploadingCompanyFile, setUploadingCompanyFile] = useState(false)
+  const [deletingClientFileId, setDeletingClientFileId] = useState<number | null>(null)
+  const [deletingCompanyFileId, setDeletingCompanyFileId] = useState<number | null>(null)
   const [isClientsMobile, setIsClientsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false,
   )
@@ -417,6 +460,50 @@ export function ClientsPage() {
       cancelled = true
     }
   }, [detailCompany])
+
+  useEffect(() => {
+    if (!detailClient) return
+    let cancelled = false
+    setDetailClientFilesLoading(true)
+    setDetailClientFilesError('')
+    setDetailClientFiles([])
+    api
+      .get<StoredFile[]>(`/clients/${detailClient.id}/files`)
+      .then((res) => {
+        if (!cancelled) setDetailClientFiles(res.data ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setDetailClientFilesError(locale === 'sl' ? 'Nalaganje datotek ni uspelo.' : 'Failed to load files.')
+      })
+      .finally(() => {
+        if (!cancelled) setDetailClientFilesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [detailClient, locale])
+
+  useEffect(() => {
+    if (!detailCompany) return
+    let cancelled = false
+    setDetailCompanyFilesLoading(true)
+    setDetailCompanyFilesError('')
+    setDetailCompanyFiles([])
+    api
+      .get<StoredFile[]>(`/companies/${detailCompany.id}/files`)
+      .then((res) => {
+        if (!cancelled) setDetailCompanyFiles(res.data ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setDetailCompanyFilesError(locale === 'sl' ? 'Nalaganje datotek ni uspelo.' : 'Failed to load files.')
+      })
+      .finally(() => {
+        if (!cancelled) setDetailCompanyFilesLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [detailCompany, locale])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -529,7 +616,9 @@ export function ClientsPage() {
   const closeDetailModal = () => {
     setDetailClient(null)
     setDetailSessions([])
+    setDetailClientFiles([])
     setDetailSessionsError('')
+    setDetailClientFilesError('')
     setConfirmAnonymize(false)
     setDetailEditField(null)
   }
@@ -658,7 +747,9 @@ export function ClientsPage() {
   const closeCompanyDetailModal = () => {
     setDetailCompany(null)
     setCompanyBills([])
+    setDetailCompanyFiles([])
     setDetailCompanyError('')
+    setDetailCompanyFilesError('')
     setCompanyDetailEditField(null)
   }
 
@@ -911,6 +1002,101 @@ export function ClientsPage() {
       setCompanyErrorMessage(backendMessage || 'Failed to update company status.')
     } finally {
       setActivatingCompany(false)
+    }
+  }
+
+  const pickFile = (handler: (file: File) => void) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (file) handler(file)
+    }
+    input.click()
+  }
+
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  }
+
+  const uploadClientFile = async (file: File) => {
+    if (!detailClient || uploadingClientFile) return
+    setUploadingClientFile(true)
+    setDetailClientFilesError('')
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const response = await api.post<StoredFile>(`/clients/${detailClient.id}/files`, body)
+      setDetailClientFiles((prev) => [response.data, ...prev])
+    } catch (error: any) {
+      setDetailClientFilesError(error?.response?.data?.message || (locale === 'sl' ? 'Nalaganje datoteke ni uspelo.' : 'Failed to upload file.'))
+    } finally {
+      setUploadingClientFile(false)
+    }
+  }
+
+  const uploadCompanyFile = async (file: File) => {
+    if (!detailCompany || uploadingCompanyFile) return
+    setUploadingCompanyFile(true)
+    setDetailCompanyFilesError('')
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const response = await api.post<StoredFile>(`/companies/${detailCompany.id}/files`, body)
+      setDetailCompanyFiles((prev) => [response.data, ...prev])
+    } catch (error: any) {
+      setDetailCompanyFilesError(error?.response?.data?.message || (locale === 'sl' ? 'Nalaganje datoteke ni uspelo.' : 'Failed to upload file.'))
+    } finally {
+      setUploadingCompanyFile(false)
+    }
+  }
+
+  const downloadClientFile = async (file: StoredFile) => {
+    if (!detailClient) return
+    const response = await api.get(`/clients/${detailClient.id}/files/${file.id}`, { responseType: 'blob' })
+    downloadBlob(new Blob([response.data], { type: file.contentType || 'application/octet-stream' }), file.fileName || `client-file-${file.id}`)
+  }
+
+  const downloadCompanyFile = async (file: StoredFile) => {
+    if (!detailCompany) return
+    const response = await api.get(`/companies/${detailCompany.id}/files/${file.id}`, { responseType: 'blob' })
+    downloadBlob(new Blob([response.data], { type: file.contentType || 'application/octet-stream' }), file.fileName || `company-file-${file.id}`)
+  }
+
+  const removeClientFile = async (file: StoredFile) => {
+    if (!detailClient || deletingClientFileId != null) return
+    if (!window.confirm(clientsCopy.deleteFileConfirm)) return
+    setDeletingClientFileId(file.id)
+    setDetailClientFilesError('')
+    try {
+      await api.delete(`/clients/${detailClient.id}/files/${file.id}`)
+      setDetailClientFiles((prev) => prev.filter((row) => row.id !== file.id))
+    } catch (error: any) {
+      setDetailClientFilesError(error?.response?.data?.message || (locale === 'sl' ? 'Odstranjevanje datoteke ni uspelo.' : 'Failed to remove file.'))
+    } finally {
+      setDeletingClientFileId(null)
+    }
+  }
+
+  const removeCompanyFile = async (file: StoredFile) => {
+    if (!detailCompany || deletingCompanyFileId != null) return
+    if (!window.confirm(clientsCopy.deleteFileConfirm)) return
+    setDeletingCompanyFileId(file.id)
+    setDetailCompanyFilesError('')
+    try {
+      await api.delete(`/companies/${detailCompany.id}/files/${file.id}`)
+      setDetailCompanyFiles((prev) => prev.filter((row) => row.id !== file.id))
+    } catch (error: any) {
+      setDetailCompanyFilesError(error?.response?.data?.message || (locale === 'sl' ? 'Odstranjevanje datoteke ni uspelo.' : 'Failed to remove file.'))
+    } finally {
+      setDeletingCompanyFileId(null)
     }
   }
 
@@ -1267,6 +1453,59 @@ export function ClientsPage() {
                   </div>
                 </div>
 
+                <div className="clients-detail-sessions-card clients-detail-invoices-card">
+                  <div className="clients-detail-invoices-head clients-detail-files-head">
+                    <SectionTitle>{clientsCopy.files}</SectionTitle>
+                    <p className="clients-detail-invoices-subtitle">{clientsCopy.clientFilesSubtitle}</p>
+                  </div>
+                  <div className="clients-detail-files-toolbar">
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => pickFile((file) => void uploadClientFile(file))}
+                      disabled={uploadingClientFile}
+                    >
+                      {uploadingClientFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
+                    </button>
+                  </div>
+                  {detailClientFilesError && <div className="error">{detailClientFilesError}</div>}
+                  {detailClientFilesLoading ? (
+                    <div className="muted">{clientsCopy.loadingFiles}</div>
+                  ) : detailClientFiles.length === 0 ? (
+                    <div className="clients-detail-empty-card">
+                      <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noClientFilesText} />
+                    </div>
+                  ) : (
+                    <div className="clients-detail-files-list">
+                      {detailClientFiles.map((file) => (
+                        <article key={file.id} className="clients-detail-file-item">
+                          <div className="clients-detail-file-main">
+                            <div className="clients-detail-file-name" title={file.fileName}>{file.fileName}</div>
+                            <div className="clients-detail-file-meta">
+                              <span>{formatFileSize(file.sizeBytes)}</span>
+                              <span>•</span>
+                              <span>{clientsCopy.uploaded} {file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</span>
+                            </div>
+                          </div>
+                          <div className="clients-detail-file-actions">
+                            <button type="button" className="clients-detail-invoice-open" onClick={() => void downloadClientFile(file)}>
+                              {clientsCopy.openFile}
+                            </button>
+                            <button
+                              type="button"
+                              className="clients-detail-invoice-open clients-detail-file-remove"
+                              onClick={() => void removeClientFile(file)}
+                              disabled={deletingClientFileId === file.id}
+                            >
+                              {deletingClientFileId === file.id ? clientsCopy.saving : clientsCopy.removeFile}
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="clients-detail-sessions-card clients-detail-sessions-card--modern">
                   <SectionTitle>{clientsCopy.sessions}</SectionTitle>
                   <p className="muted" style={{ marginTop: -6, marginBottom: 10 }}>{clientsCopy.sessionsSubtitle}</p>
@@ -1428,6 +1667,59 @@ export function ClientsPage() {
                       {savingBatchPaymentCompany ? clientsCopy.batchPaymentSaving : detailCompany.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                     </button>
                   </div>
+                </div>
+
+                <div className="clients-detail-sessions-card clients-detail-invoices-card">
+                  <div className="clients-detail-invoices-head clients-detail-files-head">
+                    <SectionTitle>{clientsCopy.files}</SectionTitle>
+                    <p className="clients-detail-invoices-subtitle">{clientsCopy.companyFilesSubtitle}</p>
+                  </div>
+                  <div className="clients-detail-files-toolbar">
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => pickFile((file) => void uploadCompanyFile(file))}
+                      disabled={uploadingCompanyFile}
+                    >
+                      {uploadingCompanyFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}
+                    </button>
+                  </div>
+                  {detailCompanyFilesError && <div className="error">{detailCompanyFilesError}</div>}
+                  {detailCompanyFilesLoading ? (
+                    <div className="muted">{clientsCopy.loadingFiles}</div>
+                  ) : detailCompanyFiles.length === 0 ? (
+                    <div className="clients-detail-empty-card">
+                      <EmptyState title={clientsCopy.noFilesTitle} text={clientsCopy.noCompanyFilesText} />
+                    </div>
+                  ) : (
+                    <div className="clients-detail-files-list">
+                      {detailCompanyFiles.map((file) => (
+                        <article key={file.id} className="clients-detail-file-item">
+                          <div className="clients-detail-file-main">
+                            <div className="clients-detail-file-name" title={file.fileName}>{file.fileName}</div>
+                            <div className="clients-detail-file-meta">
+                              <span>{formatFileSize(file.sizeBytes)}</span>
+                              <span>•</span>
+                              <span>{clientsCopy.uploaded} {file.uploadedAt ? formatDateTime(file.uploadedAt) : '—'}</span>
+                            </div>
+                          </div>
+                          <div className="clients-detail-file-actions">
+                            <button type="button" className="clients-detail-invoice-open" onClick={() => void downloadCompanyFile(file)}>
+                              {clientsCopy.openFile}
+                            </button>
+                            <button
+                              type="button"
+                              className="clients-detail-invoice-open clients-detail-file-remove"
+                              onClick={() => void removeCompanyFile(file)}
+                              disabled={deletingCompanyFileId === file.id}
+                            >
+                              {deletingCompanyFileId === file.id ? clientsCopy.saving : clientsCopy.removeFile}
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="clients-detail-sessions-card clients-detail-invoices-card">

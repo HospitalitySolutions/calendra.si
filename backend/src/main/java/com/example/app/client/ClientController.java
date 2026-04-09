@@ -1,6 +1,9 @@
 package com.example.app.client;
 
 import com.example.app.company.ClientCompanyRepository;
+import com.example.app.files.ClientFileRepository;
+import com.example.app.files.StoredFileResponse;
+import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -8,15 +11,20 @@ import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
@@ -27,19 +35,25 @@ public class ClientController {
     private final SessionBookingRepository bookings;
     private final ClientAnonymizationService anonymizationService;
     private final ClientCompanyRepository clientCompanies;
+    private final ClientFileRepository clientFiles;
+    private final TenantFileS3Service fileStorage;
 
     public ClientController(
             ClientRepository repository,
             UserRepository users,
             SessionBookingRepository bookings,
             ClientAnonymizationService anonymizationService,
-            ClientCompanyRepository clientCompanies
+            ClientCompanyRepository clientCompanies,
+            ClientFileRepository clientFiles,
+            TenantFileS3Service fileStorage
     ) {
         this.repository = repository;
         this.users = users;
         this.bookings = bookings;
         this.anonymizationService = anonymizationService;
         this.clientCompanies = clientCompanies;
+        this.clientFiles = clientFiles;
+        this.fileStorage = fileStorage;
     }
 
     public record PreferredSlotRequest(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {}
@@ -129,9 +143,8 @@ public class ClientController {
     @DeleteMapping("/{id}")
     @Transactional
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
-        var c = repository.findByIdAndCompanyId(id, me.getCompany().getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!SecurityUtils.isAdmin(me) && !c.getAssignedTo().getId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        var c = loadClientForDetailAccess(id, me);
+        clientFiles.findAllByClientId(c.getId()).forEach(file -> fileStorage.deleteQuietly(file.getS3ObjectKey()));
         repository.delete(c);
     }
 
@@ -178,6 +191,81 @@ public class ClientController {
                     .toList();
         }
         return list.stream().map(ClientController::toClientSessionResponse).toList();
+    }
+
+
+    @GetMapping("/{id}/files")
+    @Transactional(readOnly = true)
+    public List<StoredFileResponse> listFiles(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        var client = loadClientForDetailAccess(id, me);
+        return clientFiles.findAllByClientIdAndOwnerCompanyIdOrderByCreatedAtDescIdDesc(client.getId(), me.getCompany().getId())
+                .stream()
+                .map(StoredFileResponse::from)
+                .toList();
+    }
+
+    @PostMapping("/{id}/files")
+    @Transactional
+    public StoredFileResponse uploadFile(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal User me
+    ) {
+        var client = loadClientForDetailAccess(id, me);
+        var stored = fileStorage.uploadClientFile(me.getCompany(), client, file);
+
+        var row = new com.example.app.files.ClientFile();
+        row.setClient(client);
+        row.setOwnerCompany(me.getCompany());
+        row.setOriginalFileName(file.getOriginalFilename() == null || file.getOriginalFilename().isBlank() ? "file" : file.getOriginalFilename().trim());
+        row.setContentType(stored.contentType());
+        row.setSizeBytes(stored.sizeBytes());
+        row.setS3ObjectKey(stored.objectKey());
+        row.setUploadedByUserId(me.getId());
+        return StoredFileResponse.from(clientFiles.save(row));
+    }
+
+    @GetMapping("/{id}/files/{fileId}")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> downloadFile(
+            @PathVariable Long id,
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal User me
+    ) {
+        loadClientForDetailAccess(id, me);
+        var file = clientFiles.findByIdAndClientIdAndOwnerCompanyId(fileId, id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        byte[] bytes = fileStorage.download(file.getS3ObjectKey());
+        String contentType = file.getContentType() == null || file.getContentType().isBlank()
+                ? MediaType.APPLICATION_OCTET_STREAM_VALUE
+                : file.getContentType();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(file.getOriginalFileName()).build().toString())
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(bytes);
+    }
+
+    @DeleteMapping("/{id}/files/{fileId}")
+    @Transactional
+    public void deleteFile(
+            @PathVariable Long id,
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal User me
+    ) {
+        loadClientForDetailAccess(id, me);
+        var file = clientFiles.findByIdAndClientIdAndOwnerCompanyId(fileId, id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        fileStorage.deleteQuietly(file.getS3ObjectKey());
+        clientFiles.delete(file);
+    }
+
+    private Client loadClientForDetailAccess(Long id, User me) {
+        var client = repository.findByIdAndCompanyId(id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!SecurityUtils.isAdmin(me) && (client.getAssignedTo() == null || !client.getAssignedTo().getId().equals(me.getId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        return client;
     }
 
     private static ClientSessionResponse toClientSessionResponse(SessionBooking b) {

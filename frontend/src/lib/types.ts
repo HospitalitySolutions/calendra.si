@@ -60,6 +60,14 @@ export type Company = CompanySummary & {
   updatedAt?: string
 }
 
+export type StoredFile = {
+  id: number
+  fileName: string
+  contentType?: string | null
+  sizeBytes: number
+  uploadedAt?: string | null
+}
+
 export type PreferredSlot = {
   id?: number
   dayOfWeek: DayOfWeek

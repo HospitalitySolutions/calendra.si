@@ -1,14 +1,23 @@
 package com.example.app.company;
 
 import com.example.app.billing.BillRepository;
+import com.example.app.files.CompanyFile;
+import com.example.app.files.CompanyFileRepository;
+import com.example.app.files.StoredFileResponse;
+import com.example.app.files.TenantFileS3Service;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
@@ -25,10 +35,19 @@ import org.springframework.web.server.ResponseStatusException;
 public class CompanyController {
     private final ClientCompanyRepository companies;
     private final BillRepository bills;
+    private final CompanyFileRepository companyFiles;
+    private final TenantFileS3Service fileStorage;
 
-    public CompanyController(ClientCompanyRepository companies, BillRepository bills) {
+    public CompanyController(
+            ClientCompanyRepository companies,
+            BillRepository bills,
+            CompanyFileRepository companyFiles,
+            TenantFileS3Service fileStorage
+    ) {
         this.companies = companies;
         this.bills = bills;
+        this.companyFiles = companyFiles;
+        this.fileStorage = fileStorage;
     }
 
     public record CompanyRequest(
@@ -150,6 +169,77 @@ public class CompanyController {
                         b.getFiscalStatus() == null ? null : b.getFiscalStatus().name()
                 ))
                 .toList();
+    }
+
+
+    @GetMapping("/{id}/files")
+    @Transactional(readOnly = true)
+    public List<StoredFileResponse> listFiles(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        var company = loadCompany(id, me);
+        return companyFiles.findAllByCompanyIdAndOwnerCompanyIdOrderByCreatedAtDescIdDesc(company.getId(), me.getCompany().getId())
+                .stream()
+                .map(StoredFileResponse::from)
+                .toList();
+    }
+
+    @PostMapping("/{id}/files")
+    @Transactional
+    public StoredFileResponse uploadFile(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal User me
+    ) {
+        var company = loadCompany(id, me);
+        var stored = fileStorage.uploadCompanyFile(me.getCompany(), company, file);
+
+        var row = new CompanyFile();
+        row.setCompany(company);
+        row.setOwnerCompany(me.getCompany());
+        row.setOriginalFileName(file.getOriginalFilename() == null || file.getOriginalFilename().isBlank() ? "file" : file.getOriginalFilename().trim());
+        row.setContentType(stored.contentType());
+        row.setSizeBytes(stored.sizeBytes());
+        row.setS3ObjectKey(stored.objectKey());
+        row.setUploadedByUserId(me.getId());
+        return StoredFileResponse.from(companyFiles.save(row));
+    }
+
+    @GetMapping("/{id}/files/{fileId}")
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> downloadFile(
+            @PathVariable Long id,
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal User me
+    ) {
+        loadCompany(id, me);
+        var file = companyFiles.findByIdAndCompanyIdAndOwnerCompanyId(fileId, id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        byte[] bytes = fileStorage.download(file.getS3ObjectKey());
+        String contentType = file.getContentType() == null || file.getContentType().isBlank()
+                ? MediaType.APPLICATION_OCTET_STREAM_VALUE
+                : file.getContentType();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(file.getOriginalFileName()).build().toString())
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(bytes);
+    }
+
+    @DeleteMapping("/{id}/files/{fileId}")
+    @Transactional
+    public void deleteFile(
+            @PathVariable Long id,
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal User me
+    ) {
+        loadCompany(id, me);
+        var file = companyFiles.findByIdAndCompanyIdAndOwnerCompanyId(fileId, id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        fileStorage.deleteQuietly(file.getS3ObjectKey());
+        companyFiles.delete(file);
+    }
+
+    private ClientCompany loadCompany(Long id, User me) {
+        return companies.findByIdAndOwnerCompanyId(id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
     private static CompanyResponse toResponse(ClientCompany c) {
