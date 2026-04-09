@@ -95,7 +95,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const billingAllowed = hasBillingAccess(user.packageType)
   const inboxAllowed = hasInboxAccess(user.packageType)
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
-  const voiceLabel = locale === 'sl' ? 'Glasovno naročanje in preklic' : 'Voice booking and cancellation'
+  const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
   const [aiBookingEnabled, setAiBookingEnabled] = useState(true)
   const [overdueTodoCount, setOverdueTodoCount] = useState(0)

@@ -18,6 +18,18 @@ import java.util.Locale;
 public class SignupWelcomeEmailService {
     private static final Logger log = LoggerFactory.getLogger(SignupWelcomeEmailService.class);
 
+    public record PricingSummaryRequest(
+            Integer totalUsers,
+            Integer additionalSms,
+            Boolean fiscalCashRegister,
+            Boolean websiteCreation,
+            Boolean businessPremises,
+            java.math.BigDecimal monthlyTotal,
+            java.math.BigDecimal oneTimeTotal,
+            java.math.BigDecimal firstInvoiceEstimate
+    ) {
+    }
+
     private final JavaMailSender mailSender;
     private final boolean mailConfigured;
     private final String fallbackFrom;
@@ -45,7 +57,7 @@ public class SignupWelcomeEmailService {
             String companyName,
             String packageType,
             String localeCode,
-            AuthController.PricingSummaryRequest summary
+            PricingSummaryRequest summary
     ) {
         if (recipientEmail == null || recipientEmail.isBlank()) return;
         if (!mailConfigured || mailSender == null) {
@@ -166,7 +178,7 @@ public class SignupWelcomeEmailService {
         };
     }
 
-    private static List<String> orderedItems(AuthController.PricingSummaryRequest summary, boolean sl) {
+    private static List<String> orderedItems(PricingSummaryRequest summary, boolean sl) {
         List<String> items = new ArrayList<>();
         if (summary == null) return items;
         if (summary.totalUsers() != null && summary.totalUsers() > 1) {

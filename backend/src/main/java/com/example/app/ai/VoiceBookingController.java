@@ -1,6 +1,5 @@
 package com.example.app.ai;
 
-import com.example.app.session.SessionBookingController;
 import com.example.app.user.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,7 +21,7 @@ public class VoiceBookingController {
         this.openAiConfig = openAiConfig;
     }
 
-    public record VoiceBookingRequest(String transcript, Boolean confirmCancellation) {}
+    public record VoiceBookingRequest(String transcript, Boolean confirmCancellation, String locale) {}
 
     public record VoiceBookingStatusResponse(boolean configured) {}
 
@@ -36,6 +35,6 @@ public class VoiceBookingController {
         if (body == null || body.transcript() == null || body.transcript().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Polje transcript je obvezno.");
         }
-        return voiceBookingService.handleTranscript(body.transcript(), me, Boolean.TRUE.equals(body.confirmCancellation()));
+        return voiceBookingService.handleTranscript(body.transcript(), me, Boolean.TRUE.equals(body.confirmCancellation()), body.locale());
     }
 }

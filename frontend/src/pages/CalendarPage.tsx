@@ -351,6 +351,7 @@ export default function CalendarPage() {
   const { locale, t } = useLocale()
   const { showToast } = useToast()
   const calendarLocaleTag = locale === 'sl' ? 'sl-SI' : 'en-GB'
+  const voiceRecognitionLang = locale === 'sl' ? 'sl-SI' : 'en-US'
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
   const user = getStoredUser()!
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [] })
@@ -439,10 +440,13 @@ export default function CalendarPage() {
   const [voiceReviewText, setVoiceReviewText] = useState('')
   const [voicePendingCancellation, setVoicePendingCancellation] = useState<null | {
     action?: string
+    targetType?: string | null
+    targetId?: number | null
     message?: string
     bookingId?: number
     clientId?: number | null
     clientName?: string | null
+    title?: string | null
     startTime?: string | null
     endTime?: string | null
     confirmationRequired?: boolean
@@ -3329,15 +3333,6 @@ export default function CalendarPage() {
     placeSessionPopup(anchorEl)
   }
 
-  const transcriptLooksLikeCancellation = (text: string) => {
-    const normalized = text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-    return ['preklic', 'preklici', 'preklicem', 'preklici', 'preklici', 'odjavi', 'odpovej', 'storno', 'cancel', 'delete', 'izbrisi', 'zbrisi']
-      .some((token) => normalized.includes(token))
-  }
-
   const formatVoiceReviewDateTime = (value?: string | null) => {
     if (!value) return '—'
     const dt = new Date(value)
@@ -3352,9 +3347,10 @@ export default function CalendarPage() {
   }
 
   const submitVoiceBookingTranscript = async (text: string, confirmCancellation = false) => {
+    const genericVoiceFailure = locale === 'sl' ? 'Glasovno dejanje ni uspelo.' : 'Voice action failed.'
     const trimmed = text.trim()
     if (!trimmed) {
-      setVoiceBookingError('Besedilo je prazno.')
+      setVoiceBookingError(locale === 'sl' ? 'Besedilo je prazno.' : 'The text is empty.')
       return
     }
     if (!confirmCancellation) {
@@ -3363,16 +3359,19 @@ export default function CalendarPage() {
     setVoiceBookingError(null)
     setVoiceBookingLoading(true)
     try {
-      const res = await api.post('/ai/voice-booking', { transcript: trimmed, confirmCancellation })
+      const res = await api.post('/ai/voice-booking', { transcript: trimmed, confirmCancellation, locale })
       const action = typeof res.data?.action === 'string' ? res.data.action : ''
       if (res.data?.confirmationRequired && action === 'cancel_review') {
         setVoiceBookingError(null)
         setVoicePendingCancellation({
           action,
+          targetType: res.data?.targetType ?? null,
+          targetId: res.data?.targetId ?? null,
           message: res.data?.message,
           bookingId: res.data?.bookingId,
           clientId: res.data?.clientId ?? null,
           clientName: res.data?.clientName ?? null,
+          title: res.data?.title ?? null,
           startTime: res.data?.startTime ?? null,
           endTime: res.data?.endTime ?? null,
           confirmationRequired: true,
@@ -3384,7 +3383,7 @@ export default function CalendarPage() {
       setVoicePendingCancellation(null)
       setVoiceBookingError(null)
       await loadRef.current()
-      showToast('success', res.data?.message || (action === 'cancelled' ? 'Termin je uspešno preklican.' : 'Termin je uspešno rezerviran.'))
+      showToast('success', res.data?.message || (locale === 'sl' ? (action === 'cancelled' ? 'Dejanje je uspešno izvedeno.' : 'Dejanje je uspešno izvedeno.') : 'Action completed successfully.'))
       const startStr = res.data?.startTime as string | undefined
       if (startStr) {
         const d = new Date(startStr)
@@ -3424,7 +3423,7 @@ export default function CalendarPage() {
         }, 0)
         return
       }
-      const msg = d?.message ?? err?.message ?? 'Glasovno rezerviranje ni uspelo.'
+      const msg = d?.message ?? err?.message ?? genericVoiceFailure
       setVoiceBookingError(String(msg))
     } finally {
       setVoiceBookingLoading(false)
@@ -3435,7 +3434,7 @@ export default function CalendarPage() {
     setVoiceBookingError(null)
     setVoicePendingCancellation(null)
     if (!aiBookingEnabled) {
-      setVoiceBookingError('AI booking je izklopljen v konfiguraciji.')
+      setVoiceBookingError(locale === 'sl' ? 'AI glasovna dejanja so izklopljena v konfiguraciji.' : 'AI voice actions are disabled in configuration.')
       return
     }
     if (isNativeAndroid) {
@@ -3457,11 +3456,11 @@ export default function CalendarPage() {
     }
     const Ctor = win.SpeechRecognition || win.webkitSpeechRecognition
     if (!Ctor) {
-      setVoiceBookingError('Ta brskalnik ne podpira glasovnega vnosa.')
+      setVoiceBookingError(locale === 'sl' ? 'Ta brskalnik ne podpira glasovnega vnosa.' : 'This browser does not support voice input.')
       return
     }
     if (voiceBookingConfigured === false) {
-      setVoiceBookingError('Glasovno rezerviranje ni na voljo. Na strežniku nastavite OPENAI_API_KEY.')
+      setVoiceBookingError(locale === 'sl' ? 'Glasovna dejanja niso na voljo. Na strežniku nastavite OPENAI_API_KEY.' : 'Voice actions are unavailable. Configure OPENAI_API_KEY on the server.')
       return
     }
     if (voiceBookingLoading) return
@@ -3481,7 +3480,7 @@ export default function CalendarPage() {
       }
       speechRecognitionRef.current = r
       voiceStopRequestedRef.current = false
-      r.lang = 'sl-SI'
+      r.lang = voiceRecognitionLang
       r.interimResults = false
       r.continuous = false
       r.maxAlternatives = 1
@@ -3497,7 +3496,7 @@ export default function CalendarPage() {
         const wasRequested = voiceStopRequestedRef.current
         voiceStopRequestedRef.current = false
         if (!wasRequested) {
-          setVoiceBookingError('Prepoznavanje govora ni uspelo ali je bilo preklicano.')
+          setVoiceBookingError(locale === 'sl' ? 'Prepoznavanje govora ni uspelo ali je bilo preklicano.' : 'Speech recognition failed or was cancelled.')
         }
       }
       r.onresult = (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => {
@@ -3506,7 +3505,7 @@ export default function CalendarPage() {
           .join(' ')
           .trim()
         if (!text) {
-          setVoiceBookingError('Govor ni bil zaznan.')
+          setVoiceBookingError(locale === 'sl' ? 'Govor ni bil zaznan.' : 'No speech was detected.')
           return
         }
         setVoicePendingCancellation(null)
@@ -3515,18 +3514,18 @@ export default function CalendarPage() {
       }
       r.start()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Mikrofona ni bilo mogoče zagnati.'
+      const msg = e instanceof Error ? e.message : (locale === 'sl' ? 'Mikrofona ni bilo mogoče zagnati.' : 'The microphone could not be started.')
       setVoiceBookingError(msg)
     }
   }
 
   const startVoiceBookingAndroidNative = async () => {
     if (!aiBookingEnabled) {
-      setVoiceBookingError('AI booking je izklopljen v konfiguraciji.')
+      setVoiceBookingError(locale === 'sl' ? 'AI glasovna dejanja so izklopljena v konfiguraciji.' : 'AI voice actions are disabled in configuration.')
       return
     }
     if (voiceBookingConfigured === false) {
-      setVoiceBookingError('Glasovno rezerviranje ni na voljo. Na strežniku nastavite OPENAI_API_KEY.')
+      setVoiceBookingError(locale === 'sl' ? 'Glasovna dejanja niso na voljo. Na strežniku nastavite OPENAI_API_KEY.' : 'Voice actions are unavailable. Configure OPENAI_API_KEY on the server.')
       return
     }
     if (voiceBookingLoading || voiceListening || nativeStartingRef.current) return
@@ -3535,14 +3534,14 @@ export default function CalendarPage() {
     try {
       const available = await NativeSpeechRecognition.available()
       if (!available?.available) {
-        setVoiceBookingError('Naprava ne podpira glasovnega vnosa.')
+        setVoiceBookingError(locale === 'sl' ? 'Naprava ne podpira glasovnega vnosa.' : 'This device does not support voice input.')
         return
       }
       const perms = await NativeSpeechRecognition.checkPermissions()
       if (perms?.speechRecognition !== 'granted') {
         const req = await NativeSpeechRecognition.requestPermissions()
         if (req?.speechRecognition !== 'granted') {
-          setVoiceBookingError('Dovoljenje za mikrofon ni odobreno.')
+          setVoiceBookingError(locale === 'sl' ? 'Dovoljenje za mikrofon ni odobreno.' : 'Microphone permission was not granted.')
           return
         }
       }
@@ -3599,11 +3598,11 @@ export default function CalendarPage() {
 
       setVoiceListening(true)
       void NativeSpeechRecognition.start({
-        language: 'sl-SI',
+        language: voiceRecognitionLang,
         partialResults: true,
         maxResults: 1,
         popup: false,
-        prompt: 'Govorite',
+        prompt: locale === 'sl' ? 'Govorite' : 'Speak',
       }).then((result: { matches?: string[] }) => {
         const finalText = (result?.matches || []).join(' ').trim()
         if (finalText) {
@@ -3614,12 +3613,12 @@ export default function CalendarPage() {
         }
       }).catch((e: unknown) => {
         setVoiceListening(false)
-        const msg = e instanceof Error ? e.message : 'Mikrofona ni bilo mogoče zagnati.'
+        const msg = e instanceof Error ? e.message : (locale === 'sl' ? 'Mikrofona ni bilo mogoče zagnati.' : 'The microphone could not be started.')
         setVoiceBookingError(msg)
       })
     } catch (e: unknown) {
       setVoiceListening(false)
-      const msg = e instanceof Error ? e.message : 'Mikrofona ni bilo mogoče zagnati.'
+      const msg = e instanceof Error ? e.message : (locale === 'sl' ? 'Mikrofona ni bilo mogoče zagnati.' : 'The microphone could not be started.')
       setVoiceBookingError(msg)
     } finally {
       nativeStartingRef.current = false
@@ -3723,7 +3722,7 @@ export default function CalendarPage() {
       setVoiceReviewText(text)
       setVoiceReviewOpen(true)
     } else if (showNoSpeechError) {
-      setVoiceBookingError('Govor ni bil zaznan.')
+      setVoiceBookingError(locale === 'sl' ? 'Govor ni bil zaznan.' : 'No speech was detected.')
     }
   }
 
@@ -5233,15 +5232,23 @@ export default function CalendarPage() {
           >
             <div className="modal" style={{ maxWidth: 440, width: 'min(440px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
               <PageHeader
-                title={voicePendingCancellation ? "Potrditev glasovnega preklica" : "Glasovno naročanje in preklic"}
+                title={voicePendingCancellation
+                  ? (locale === 'sl' ? 'Potrditev glasovnega dejanja' : 'Confirm voice action')
+                  : (locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions')}
                 subtitle={voicePendingCancellation
-                  ? "Preglejte prepoznani termin in potrdite preklic. Če je mikrofon kaj zgrešil, besedilo spodaj popravite."
-                  : "Popravite besedilo, če ga je mikrofon narobe zaznal. Mikrofon lahko rezervira ali prekliče termin; prepoznavanje uporablja slovenščino (sl-SI)."}
+                  ? (locale === 'sl'
+                    ? 'Preglejte prepoznano dejanje in ga potrdite. Če je mikrofon kaj zgrešil, besedilo spodaj popravite.'
+                    : 'Review the recognized action and confirm it. If the microphone missed something, edit the text below.')
+                  : (locale === 'sl'
+                    ? `Popravite besedilo, če ga je mikrofon narobe zaznal. Podprta so rezervacija in preklic termina, osebni termini, opravki ter odpiranje ali zapiranje razpoložljivosti. Prepoznavanje uporablja ${voiceRecognitionLang}.`
+                    : `Edit the text if the microphone got it wrong. Supported actions include booking and cancelling sessions, personal sessions, todos, and opening or blocking availability. Recognition uses ${voiceRecognitionLang}.`)}
               />
               <div className="stack gap-md" style={{ marginTop: 12 }}>
                 <Field
-                  label="Besedilo (lahko uredite)"
-                  hint="Primeri: Rezerviraj Tino Jekler ob štirinajstih 28. marca. Prekliči termin za Tino Jekler 28. marca ob 14:00. Prekliči termin 28. marca."
+                  label={locale === 'sl' ? 'Besedilo (lahko uredite)' : 'Text (editable)'}
+                  hint={locale === 'sl'
+                    ? 'Primeri: Rezerviraj Tino Jekler 28. marca ob 14:00. Dodaj osebno Kosilo za 27. april od 12h do 15h. Dodaj opravek Pokliči Marka za 27. april ob 12h. Odpri za 27. april od 12h do 15h.'
+                    : 'Examples: Book Tina Jekler on March 28 at 14:00. Add personal Lunch for April 27 from 12 to 15. Add todo Call Marko for April 27 at 12. Open availability for April 27 from 12 to 15.'}
                 >
                   <textarea
                     className="input"
@@ -5256,16 +5263,24 @@ export default function CalendarPage() {
                 </Field>
                 {voicePendingCancellation && (
                   <div style={{ border: '1px solid var(--border-color, #d6d3d1)', borderRadius: 12, padding: 12, background: 'rgba(245, 158, 11, 0.08)' }}>
-                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Termin za preklic</div>
-                    <div><strong>Stranka:</strong> {voicePendingCancellation.clientName || 'Ni določena'}</div>
-                    <div><strong>Začetek:</strong> {formatVoiceReviewDateTime(voicePendingCancellation.startTime)}</div>
-                    <div><strong>Konec:</strong> {formatVoiceReviewDateTime(voicePendingCancellation.endTime)}</div>
-                    <div style={{ marginTop: 8 }}>{voicePendingCancellation.message || 'Potrdite preklic termina.'}</div>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                      {locale === 'sl' ? 'Dejanje za potrditev' : 'Action to confirm'}
+                    </div>
+                    {voicePendingCancellation.targetType === 'booking' ? (
+                      <div><strong>{locale === 'sl' ? 'Stranka' : 'Client'}:</strong> {voicePendingCancellation.clientName || (locale === 'sl' ? 'Ni določena' : 'Not specified')}</div>
+                    ) : (
+                      <div><strong>{locale === 'sl' ? 'Naziv' : 'Title'}:</strong> {voicePendingCancellation.title || (locale === 'sl' ? 'Ni določen' : 'Not specified')}</div>
+                    )}
+                    <div><strong>{locale === 'sl' ? 'Začetek' : 'Start'}:</strong> {formatVoiceReviewDateTime(voicePendingCancellation.startTime)}</div>
+                    {voicePendingCancellation.endTime && (
+                      <div><strong>{locale === 'sl' ? 'Konec' : 'End'}:</strong> {formatVoiceReviewDateTime(voicePendingCancellation.endTime)}</div>
+                    )}
+                    <div style={{ marginTop: 8 }}>{voicePendingCancellation.message || (locale === 'sl' ? 'Potrdite dejanje.' : 'Please confirm the action.')}</div>
                   </div>
                 )}
                 <div className="row gap" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   <button type="button" className="secondary" disabled={voiceBookingLoading} onClick={() => { setVoiceReviewOpen(false); setVoicePendingCancellation(null) }}>
-                    Prekliči
+                    {locale === 'sl' ? 'Prekliči' : 'Cancel'}
                   </button>
                   <button
                     type="button"
@@ -5277,7 +5292,7 @@ export default function CalendarPage() {
                       window.setTimeout(() => startVoiceBooking(), 0)
                     }}
                   >
-                    Poslušaj znova
+                    {locale === 'sl' ? 'Poslušaj znova' : 'Listen again'}
                   </button>
                   <button
                     type="button"
@@ -5285,7 +5300,11 @@ export default function CalendarPage() {
                     disabled={voiceBookingLoading || !voiceReviewText.trim()}
                     onClick={() => submitVoiceBookingTranscript(voiceReviewText, !!voicePendingCancellation)}
                   >
-                    {voiceBookingLoading ? '…' : voicePendingCancellation ? 'Potrdi preklic' : transcriptLooksLikeCancellation(voiceReviewText) ? 'Preglej preklic' : 'Rezerviraj termin'}
+                    {voiceBookingLoading
+                      ? '…'
+                      : voicePendingCancellation
+                        ? (locale === 'sl' ? 'Potrdi dejanje' : 'Confirm action')
+                        : (locale === 'sl' ? 'Izvedi dejanje' : 'Run action')}
                   </button>
                 </div>
               </div>
@@ -7797,14 +7816,14 @@ export default function CalendarPage() {
             }}
             title={
               voiceBookingConfigured === false
-                ? 'Glasovno naročanje in preklic zahtevata OPENAI_API_KEY na strežniku'
+                ? (locale === 'sl' ? 'AI glasovna dejanja zahtevajo OPENAI_API_KEY na strežniku' : 'AI voice actions require OPENAI_API_KEY on the server')
                 : voiceBookingLoading
-                  ? 'Obdelava…'
+                  ? (locale === 'sl' ? 'Obdelava…' : 'Processing…')
                   : voiceListening
-                    ? 'Poslušam…'
-                    : 'Rezerviraj ali prekliči z glasom (AI)'
+                    ? (locale === 'sl' ? 'Poslušam…' : 'Listening…')
+                    : (locale === 'sl' ? 'Zaženi AI glasovna dejanja' : 'Start AI voice actions')
             }
-            aria-label="Rezerviraj ali prekliči termin z glasom z umetno inteligenco"
+            aria-label={locale === 'sl' ? 'Zaženi AI glasovna dejanja' : 'Start AI voice actions'}
           >
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />

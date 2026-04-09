@@ -70,7 +70,6 @@ public class AuthController {
     private final PasswordResetService passwordResetService;
     private final CompanyProvisioningService companyProvisioningService;
     private final WebAuthnService webAuthnService;
-    private final SignupWelcomeEmailService signupWelcomeEmailService;
 
     public AuthController(
             UserRepository users,
@@ -85,8 +84,7 @@ public class AuthController {
             TransactionServiceRepository txServices,
             PasswordResetService passwordResetService,
             CompanyProvisioningService companyProvisioningService,
-            WebAuthnService webAuthnService,
-            SignupWelcomeEmailService signupWelcomeEmailService
+            WebAuthnService webAuthnService
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
@@ -101,7 +99,6 @@ public class AuthController {
         this.passwordResetService = passwordResetService;
         this.companyProvisioningService = companyProvisioningService;
         this.webAuthnService = webAuthnService;
-        this.signupWelcomeEmailService = signupWelcomeEmailService;
     }
 
     /**
@@ -222,25 +219,12 @@ public class AuthController {
                     .body(Map.of("message", "An account with this email already exists."));
         }
 
-        String companyName = trimToNull(request.companyName());
-        if (companyName == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", "Company name is required."));
-        }
-
-        String rawPassword = request.password() == null ? "" : request.password().trim();
-        if (rawPassword.isBlank()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", "Password is required."));
-        }
-        String passwordValidationMessage = validatePasswordStrength(rawPassword);
-        if (passwordValidationMessage != null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", passwordValidationMessage));
-        }
-
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
+        String companyName = resolveCompanyName(request);
         Company company = companyProvisioningService.createWithTenantCode(companyName);
+
+        boolean passwordProvided = request.password() != null && !request.password().isBlank();
+        String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");
 
         User owner = new User();
         owner.setCompany(company);
@@ -282,14 +266,14 @@ public class AuthController {
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, "0.00");
 
-        signupWelcomeEmailService.sendWelcomeEmail(
-                normalizedEmail,
-                owner.getFirstName(),
-                companyName,
-                normalizedPackageType,
-                request.locale(),
-                request.pricingSummary()
-        );
+        if (!passwordProvided) {
+            passwordResetService.requestReset(normalizedEmail);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Signup created. A password setup email has been sent.",
+                    "requiresPasswordSetup", true,
+                    "email", normalizedEmail
+            ));
+        }
 
         String token = jwtService.generateToken(owner.getId());
         return ResponseEntity.ok(Map.of(
@@ -479,28 +463,14 @@ public class AuthController {
             @NotBlank String lastName,
             @NotBlank @Email String email,
             String phone,
-            @NotBlank String password,
+            String password,
             String packageName,
-            String locale,
             Integer userCount,
             Integer smsCount,
             Integer spaceCount,
             /** MONTHLY or YEARLY */
             String billingInterval,
-            Boolean fiscalizationNeeded,
-            PricingSummaryRequest pricingSummary
-    ) {
-    }
-
-    public record PricingSummaryRequest(
-            Integer totalUsers,
-            Integer additionalSms,
-            Boolean fiscalCashRegister,
-            Boolean websiteCreation,
-            Boolean businessPremises,
-            BigDecimal monthlyTotal,
-            BigDecimal oneTimeTotal,
-            BigDecimal firstInvoiceEstimate
+            Boolean fiscalizationNeeded
     ) {
     }
 
