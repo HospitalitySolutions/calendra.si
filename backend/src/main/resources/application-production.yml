@@ -21,3 +21,7 @@ spring:
 app:
   auth:
     frontend-url: ${APP_AUTH_FRONTEND_URL:https://app.calendra.si}
+  webauthn:
+    rp-id: ${APP_WEBAUTHN_RP_ID:app.calendra.si}
+    allowed-origins: ${APP_WEBAUTHN_ALLOWED_ORIGINS:https://app.calendra.si}
+
