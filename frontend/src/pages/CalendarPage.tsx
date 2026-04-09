@@ -758,6 +758,14 @@ export default function CalendarPage() {
     }, 120)
   }, [])
 
+  /** Drop FC’s focus/selected chrome on session tiles after opening edit UI (keeps grid clean). */
+  const clearSessionEventClickChrome = useCallback((el: HTMLElement) => {
+    queueMicrotask(() => {
+      el.classList.remove('fc-event-selected')
+      el.blur()
+    })
+  }, [])
+
   const createCalendarSnapshot = useCallback(() => {
     const shell = document.querySelector('.calendar-fc-shell') as HTMLElement
     if (!shell) return
@@ -5859,6 +5867,7 @@ export default function CalendarPage() {
           expandRows={false}
           slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
           nowIndicator
+          stickyHeaderDates
           selectable={!isNativeAndroid && !isViewOnly}
           unselectAuto={false}
           selectMinDistance={0}
@@ -6180,6 +6189,7 @@ export default function CalendarPage() {
                 online: Boolean(props.online ?? props.meetingLink),
                 meetingProvider: props.meetingProvider || 'zoom',
               })
+              clearSessionEventClickChrome(info.el)
               return
             }
             if (props.kind === 'personal') {
@@ -6188,6 +6198,7 @@ export default function CalendarPage() {
               calendarRef.current?.getApi()?.unselect()
               placeSessionPopup(info.el)
               setSelectedPersonalBlock(props)
+              clearSessionEventClickChrome(info.el)
               return
             }
             if (props.kind === 'todo') {
@@ -6196,6 +6207,7 @@ export default function CalendarPage() {
               calendarRef.current?.getApi()?.unselect()
               placeSessionPopup(info.el)
               setSelectedTodo(props)
+              clearSessionEventClickChrome(info.el)
               return
             }
             if (props.kind === 'bookable' && calendarMode === 'availability') {
@@ -7027,26 +7039,22 @@ export default function CalendarPage() {
               </div>
             </div>
             </div>
-            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
               {confirmDelete ? (
                 <>
                   <span className="muted">{t('formDeleteSessionQuestion')}</span>
-                  <div className="row gap">
-                    <button className="danger" onClick={deleteBookedSession}>{t('formYesDelete')}</button>
-                    <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
-                  </div>
+                  <button className="danger" onClick={deleteBookedSession}>{t('formYesDelete')}</button>
+                  <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
                 </>
               ) : (
                 <>
                   <button className="danger secondary" onClick={() => setConfirmDelete(true)}>{t('formDeleteSession')}</button>
-                  <div className="row gap">
-                    <button
-                      onClick={() => void updateBookedSession()}
-                      disabled={!selectedBookedSession.client?.id && !bookedClientSearch.trim()}
-                    >
-                      {t('formSave')}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => void updateBookedSession()}
+                    disabled={!selectedBookedSession.client?.id && !bookedClientSearch.trim()}
+                  >
+                    {t('formSave')}
+                  </button>
                 </>
               )}
             </div>
@@ -7102,11 +7110,9 @@ export default function CalendarPage() {
               </div>
             </div>
             </div>
-            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
               <button className="danger secondary" onClick={deletePersonalBlock}>{t('formDelete')}</button>
-              <div className="row gap">
-                <button onClick={updatePersonalBlock}>{t('formSave')}</button>
-              </div>
+              <button onClick={updatePersonalBlock}>{t('formSave')}</button>
             </div>
           </div>
         </div>
@@ -7150,11 +7156,9 @@ export default function CalendarPage() {
                 </div>
               </div>
             </div>
-            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
               <button className="danger secondary" onClick={deleteTodo}>{t('formDelete')}</button>
-              <div className="row gap">
-                <button onClick={updateTodo}>{t('formSave')}</button>
-              </div>
+              <button onClick={updateTodo}>{t('formSave')}</button>
             </div>
           </div>
         </div>

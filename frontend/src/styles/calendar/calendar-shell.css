@@ -279,8 +279,28 @@
     scrollbar-gutter: stable;
 }
 
+/* Sticky weekday + date row while scrolling (all viewport sizes; scrollport is .content--calendar-flush on web) */
+.calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header {
+    background: var(--color-surface);
+}
+
+/* Stick header cells (resource + standard week); axis also sticks horizontally */
+.calendar-fc-shell .fc-timegrid .fc-col-header th {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    background: var(--color-surface);
+}
+
+.calendar-fc-shell .fc-timegrid .fc-col-header th.fc-timegrid-axis {
+    left: 0;
+    z-index: 9;
+}
+
 .calendar-fc-shell > .fc {
     min-width: 0;
+    /* FullCalendar injects a semi-opaque ::after on .fc-event-selected; keep session tiles visually clean */
+    --fc-event-selected-overlay-color: transparent;
 }
 
 .calendar-web-inner--bottom-panel .calendar-fc-shell {

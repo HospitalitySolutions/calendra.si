@@ -546,6 +546,31 @@
     box-shadow: inset 2px 0 0 0 rgba(191, 219, 254, 0.9), inset -2px 0 0 0 rgba(191, 219, 254, 0.9) !important;
 }
 
+/* Draft preview is the slot affordance — hide inset ring and bookable fill so no green/dark slab shows past the purple block. */
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected,
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected .fc-event-main,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected .fc-event-main,
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up,
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up .fc-event-main,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up .fc-event-main,
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-down,
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-down .fc-event-main,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-down,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-down .fc-event-main,
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up.calendar-availability-selection-joined-down,
+.calendar-mode-bookings .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up.calendar-availability-selection-joined-down .fc-event-main,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up.calendar-availability-selection-joined-down,
+.calendar-mode-spaces .calendar-fc-shell.calendar-hide-native-selection-highlight .calendar-availability-bookings-selected.calendar-availability-selection-joined-up.calendar-availability-selection-joined-down .fc-event-main {
+    box-shadow: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border-radius: 6px !important;
+    margin-top: 0 !important;
+}
+
 .calendar-mode-bookings .fc-bg-event.calendar-availability-bookings-selectable.calendar-availability-chunk-continued-up,
 .calendar-mode-bookings .fc-bg-event.calendar-availability-bookings-selected.calendar-availability-selection-joined-up,
 .calendar-mode-spaces .fc-bg-event.calendar-availability-bookings-selectable.calendar-availability-chunk-continued-up,
@@ -675,4 +700,81 @@
             rgba(15, 23, 42, 0.12) 8px,
             rgba(15, 23, 42, 0.12) 16px
     ) !important;
+}
+
+/* FullCalendar defaults (injected): .fc-event-selected / :focus add box-shadow and ::before/::after overlay.
+   Remove the extra “frame” behind our booked / personal / todo blocks. */
+.calendar-fc-shell .fc-event.calendar-event-booked-visual.fc-event-selected,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual.fc-event-selected,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual.fc-event-selected,
+.calendar-fc-shell .fc-event.calendar-event-booked-visual:focus,
+.calendar-fc-shell .fc-event.calendar-event-booked-visual:focus-visible,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual:focus,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual:focus-visible,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual:focus,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual:focus-visible {
+    box-shadow: none !important;
+}
+
+.calendar-fc-shell .fc-event.calendar-event-booked-visual.fc-event-selected::before,
+.calendar-fc-shell .fc-event.calendar-event-booked-visual.fc-event-selected::after,
+.calendar-fc-shell .fc-event.calendar-event-booked-visual:focus::before,
+.calendar-fc-shell .fc-event.calendar-event-booked-visual:focus::after,
+.calendar-fc-shell .fc-event.calendar-event-booked-visual:focus-visible::before,
+.calendar-fc-shell .fc-event.calendar-event-booked-visual:focus-visible::after,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual.fc-event-selected::before,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual.fc-event-selected::after,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual:focus::before,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual:focus::after,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual:focus-visible::before,
+.calendar-fc-shell .fc-event.calendar-event-personal-visual:focus-visible::after,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual.fc-event-selected::before,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual.fc-event-selected::after,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual:focus::before,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual:focus::after,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual:focus-visible::before,
+.calendar-fc-shell .fc-event.calendar-event-todo-visual:focus-visible::after {
+    display: none !important;
+    content: none !important;
+}
+
+.calendar-fc-shell .fc-v-event.calendar-event-booked-visual.fc-event-selected::before,
+.calendar-fc-shell .fc-v-event.calendar-event-personal-visual.fc-event-selected::before,
+.calendar-fc-shell .fc-v-event.calendar-event-todo-visual.fc-event-selected::before {
+    display: none !important;
+    content: none !important;
+}
+
+.calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual.fc-event-mirror,
+.calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual.fc-event-mirror,
+.calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual.fc-event-mirror,
+.calendar-fc-shell .fc-timegrid-event-harness-inset .fc-timegrid-event.calendar-event-booked-visual,
+.calendar-fc-shell .fc-timegrid-event-harness-inset .fc-timegrid-event.calendar-event-personal-visual,
+.calendar-fc-shell .fc-timegrid-event-harness-inset .fc-timegrid-event.calendar-event-todo-visual {
+    box-shadow: none !important;
+}
+
+/* FC timegrid: 1px ring uses --fc-page-bg-color even when the event is not “selected” */
+.calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
+.calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
+.calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.calendar-fc-shell .fc-daygrid-event.calendar-event-booked-visual,
+.calendar-fc-shell .fc-daygrid-event.calendar-event-personal-visual,
+.calendar-fc-shell .fc-daygrid-event.calendar-event-todo-visual {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.calendar-fc-shell .fc-timegrid-event-harness:has(.fc-timegrid-event.calendar-event-booked-visual.fc-event-selected),
+.calendar-fc-shell .fc-timegrid-event-harness:has(.fc-timegrid-event.calendar-event-personal-visual.fc-event-selected),
+.calendar-fc-shell .fc-timegrid-event-harness:has(.fc-timegrid-event.calendar-event-todo-visual.fc-event-selected),
+.calendar-fc-shell .fc-timegrid-event-harness:has(.fc-timegrid-event.calendar-event-booked-visual:focus),
+.calendar-fc-shell .fc-timegrid-event-harness:has(.fc-timegrid-event.calendar-event-personal-visual:focus),
+.calendar-fc-shell .fc-timegrid-event-harness:has(.fc-timegrid-event.calendar-event-todo-visual:focus) {
+    outline: none !important;
+    box-shadow: none !important;
 }

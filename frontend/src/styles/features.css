@@ -3882,6 +3882,26 @@ a.clients-contact-link:hover {
     align-self: center;
 }
 
+/* Side panel / popup session editors: keep delete + save on one row (explicit flex; avoids overrides). */
+.booking-side-panel-footer.row.gap,
+.calendar-session-popup .booking-side-panel-footer.row.gap {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.booking-side-panel-footer.row.gap > button,
+.calendar-session-popup .booking-side-panel-footer.row.gap > button {
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: 100%;
+}
+
 .calendar-edit-session-panel .booking-side-panel-header,
 .calendar-edit-session-panel .booking-side-panel-footer {
     background: linear-gradient(135deg, #1f2a56 0%, #1a2550 45%, #17224b 100%);

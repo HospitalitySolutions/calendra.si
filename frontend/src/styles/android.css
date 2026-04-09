@@ -393,8 +393,9 @@
     transform-style: flat;
 }
 
+/* Avoid transform here: it breaks position:sticky on column headers inside this scroll container. */
 .layout-android .calendar-android-pinch-scale .fc {
-    transform: translateZ(0);
+    transform: none;
 }
 
 /* Android day header overrides */
@@ -489,6 +490,23 @@
 .layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid .fc-scroller {
     overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch;
+}
+
+/* Pin day-of-week + date row while the pinch layer scrolls (native Android webview / app) */
+.layout-android .calendar-android-pinch-scale .fc-timegrid .fc-scrollgrid-section-header {
+    background: var(--color-surface);
+}
+
+.layout-android .calendar-android-pinch-scale .fc-timegrid .fc-col-header th {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    background: var(--color-surface);
+}
+
+.layout-android .calendar-android-pinch-scale .fc-timegrid .fc-col-header th.fc-timegrid-axis {
+    left: 0;
+    z-index: 13;
 }
 
 .layout-android .calendar-android-week .fc-timegrid .fc-col-header-cell-cushion {
