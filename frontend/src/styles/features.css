@@ -4800,6 +4800,108 @@ a.clients-contact-link:hover {
     gap: 12px;
 }
 
+.signup-summary-surface {
+    display: grid;
+    gap: 16px;
+}
+
+.signup-summary-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.signup-summary-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.signup-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    color: var(--color-text);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.signup-summary-chip--soft {
+    background: rgba(22, 114, 243, 0.08);
+    color: var(--color-primary);
+}
+
+[data-theme="dark"] .signup-summary-chip {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.signup-summary-totals {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.signup-summary-totals > div,
+.signup-access-card {
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(255, 255, 255, 0.48);
+}
+
+[data-theme="dark"] .signup-summary-totals > div,
+[data-theme="dark"] .signup-access-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+
+.signup-summary-total-highlight {
+    color: var(--color-primary);
+}
+
+.signup-access-card {
+    display: grid;
+    gap: 12px;
+}
+
+.signup-trial-surface {
+    display: grid;
+    gap: 14px;
+}
+
+.signup-trial-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(22, 114, 243, 0.12);
+    color: var(--color-primary);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.signup-trial-note--prominent {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(22, 114, 243, 0.08);
+    border: 1px solid rgba(22, 114, 243, 0.14);
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.signup-password-wrap {
+    width: 100%;
+}
+
 .signup-info-label {
     display: inline-block;
     font-size: 0.74rem;
@@ -4903,7 +5005,8 @@ a.clients-contact-link:hover {
     }
 
     .signup-field-grid,
-    .signup-name-grid {
+    .signup-name-grid,
+    .signup-summary-totals {
         grid-template-columns: 1fr;
     }
 
