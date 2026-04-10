@@ -15,6 +15,8 @@ import com.example.app.settings.SettingKey;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -39,6 +41,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class PublicBookingWidgetService {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final DateTimeFormatter SLOT_LABEL_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
@@ -135,7 +139,7 @@ public class PublicBookingWidgetService {
             }
             slots = sortAvailabilitySlots(merged);
         } else {
-            slots = buildFallbackSlots(cfg, type, date, resolvedConsultantId);
+            slots = buildFallbackSlots(company, cfg, type, date, resolvedConsultantId);
         }
 
         return new PublicBookingWidgetController.AvailabilityResponse(cfg.availabilityEnabled(), DATE_FORMAT.format(date), slots);
@@ -241,9 +245,9 @@ public class PublicBookingWidgetService {
     }
 
     /**
-     * Same 30-minute grid as {@link #buildFallbackSlots}, but one pass per consultant who offers this type;
-     * only slots that pass {@link #isActuallyBookable} are included. Used together with bookable windows when
-     * availability mode is on.
+     * 30-minute grid inside each consultant's {@link User#getWorkingHoursJson()} window for {@code date}
+     * (same shape as frontend {@code WorkingHoursConfig}); only slots that pass {@link #isActuallyBookable}
+     * are included. Consultants without hours for that day contribute nothing.
      */
     private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildWorkingHoursSlots(
             Company company,
@@ -264,8 +268,13 @@ public class PublicBookingWidgetService {
 
         Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
         for (User consultant : consultants) {
-            LocalTime cursor = cfg.workingHoursStart();
-            while (!cursor.plusMinutes(durationMinutes).isAfter(cfg.workingHoursEnd())) {
+            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
+            if (dayWindow.isEmpty()) {
+                continue;
+            }
+            LocalTime rangeEnd = dayWindow.get().end();
+            LocalTime cursor = dayWindow.get().start();
+            while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
                 if (!isWidgetSlotStartInFuture(date, start)) {
@@ -290,6 +299,56 @@ public class PublicBookingWidgetService {
 
         return new ArrayList<>(deduped.values());
     }
+
+    /**
+     * Parses {@link User#getWorkingHoursJson()} ({@code sameForAllDays}, {@code allDays}, {@code byDay}) like the
+     * calendar frontend. Missing config or closed day yields empty.
+     */
+    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date) {
+        String raw = consultant.getWorkingHoursJson();
+        if (raw == null || raw.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode root = JSON.readTree(raw);
+            boolean sameForAllDays = root.path("sameForAllDays").asBoolean(false);
+            JsonNode block;
+            if (sameForAllDays) {
+                block = root.get("allDays");
+            } else {
+                block = root.path("byDay").get(date.getDayOfWeek().name());
+            }
+            if (block == null || block.isNull() || !block.isObject()) {
+                return Optional.empty();
+            }
+            LocalTime start = parseWorkingHoursTime(block.path("start").asText(null));
+            LocalTime end = parseWorkingHoursTime(block.path("end").asText(null));
+            if (start == null || end == null || !end.isAfter(start)) {
+                return Optional.empty();
+            }
+            return Optional.of(new TimeWindow(start, end));
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
+    }
+
+    private static LocalTime parseWorkingHoursTime(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String t = text.trim();
+        try {
+            return LocalTime.parse(t);
+        } catch (Exception ex) {
+            try {
+                return LocalTime.parse(t, DateTimeFormatter.ofPattern("H:mm"));
+            } catch (Exception ex2) {
+                return null;
+            }
+        }
+    }
+
+    private record TimeWindow(LocalTime start, LocalTime end) {}
 
     private static String widgetSlotMergeKey(PublicBookingWidgetController.AvailabilitySlotResponse s, Long requestConsultantId) {
         if (requestConsultantId == null) {
@@ -318,6 +377,7 @@ public class PublicBookingWidgetService {
     }
 
     private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildFallbackSlots(
+            Company company,
             WidgetConfig cfg,
             SessionType type,
             LocalDate date,
@@ -329,9 +389,30 @@ public class PublicBookingWidgetService {
         }
 
         int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        LocalTime rangeStart;
+        LocalTime rangeEnd;
+        if (consultantId != null) {
+            User consultant = users.findAllByCompanyId(company.getId()).stream()
+                    .filter(u -> u.getId().equals(consultantId))
+                    .findFirst()
+                    .orElse(null);
+            if (consultant == null) {
+                return new ArrayList<>();
+            }
+            Optional<TimeWindow> w = resolveConsultantWorkingWindow(consultant, date);
+            if (w.isEmpty()) {
+                return new ArrayList<>();
+            }
+            rangeStart = w.get().start();
+            rangeEnd = w.get().end();
+        } else {
+            rangeStart = cfg.workingHoursStart();
+            rangeEnd = cfg.workingHoursEnd();
+        }
+
         List<PublicBookingWidgetController.AvailabilitySlotResponse> items = new ArrayList<>();
-        LocalTime cursor = cfg.workingHoursStart();
-        while (!cursor.plusMinutes(durationMinutes).isAfter(cfg.workingHoursEnd())) {
+        LocalTime cursor = rangeStart;
+        while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
             LocalDateTime start = date.atTime(cursor);
             if (!isWidgetSlotStartInFuture(date, start)) {
                 cursor = cursor.plusMinutes(30);
