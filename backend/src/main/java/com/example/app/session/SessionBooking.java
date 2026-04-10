@@ -56,4 +56,10 @@ public class SessionBooking extends BaseEntity {
 
     /** When set, reminder (email/SMS) has been sent for this session. */
     private LocalDateTime reminderSentAt;
+
+    /** When set, configured "before session" template notification was sent (see NOTIFICATION_SETTINGS_JSON). */
+    private LocalDateTime notificationBeforeSentAt;
+
+    /** When set, configured "after session" template notification was sent. */
+    private LocalDateTime notificationAfterSentAt;
 }

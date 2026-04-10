@@ -31,6 +31,8 @@ type CompanyForm = {
   iban: string
   email: string
   telephone: string
+  /** Detail panel only; create-company form ignores this when posting. */
+  batchPaymentEnabled: boolean
 }
 
 type ClientSession = {
@@ -61,6 +63,7 @@ const emptyCompanyForm: CompanyForm = {
   iban: '',
   email: '',
   telephone: '',
+  batchPaymentEnabled: false,
 }
 
 const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
@@ -152,7 +155,6 @@ export function ClientsPage() {
     emptyCompaniesText: 'Kliknite Novo za ustvarjanje prvega podjetja kot prejemnika.',
     toggleOn: 'VKLOPLJENO',
     toggleOff: 'IZKLOPLJENO',
-    batchPaymentSaving: 'Shranjujem…',
     firstName: 'Ime',
     lastName: 'Priimek',
     email: 'E-pošta',
@@ -240,7 +242,6 @@ export function ClientsPage() {
     emptyCompaniesText: 'Click New to create your first company recipient.',
     toggleOn: 'ON',
     toggleOff: 'OFF',
-    batchPaymentSaving: 'Saving…',
     firstName: 'First name',
     lastName: 'Last name',
     email: 'Email',
@@ -349,20 +350,27 @@ export function ClientsPage() {
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive'>('active')
   const [companyActiveFilter, setCompanyActiveFilter] = useState<'active' | 'inactive'>('active')
   const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | null>(null)
-  const [detailEditDraft, setDetailEditDraft] = useState<{ firstName: string; lastName: string; email: string; phone: string; whatsappOptIn: boolean; billingCompanyId: number | null }>({
+  const [detailEditDraft, setDetailEditDraft] = useState<{
+    firstName: string
+    lastName: string
+    email: string
+    phone: string
+    whatsappOptIn: boolean
+    batchPaymentEnabled: boolean
+    billingCompanyId: number | null
+  }>({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     whatsappOptIn: false,
+    batchPaymentEnabled: false,
     billingCompanyId: null,
   })
   const [savingDetailEdit, setSavingDetailEdit] = useState(false)
   const [companyDetailEditField, setCompanyDetailEditField] = useState<'name' | 'address' | 'postalCode' | 'city' | 'vatId' | 'iban' | 'email' | 'telephone' | null>(null)
   const [companyDetailEditDraft, setCompanyDetailEditDraft] = useState<CompanyForm>(emptyCompanyForm)
   const [savingCompanyDetailEdit, setSavingCompanyDetailEdit] = useState(false)
-  const [savingBatchPaymentClient, setSavingBatchPaymentClient] = useState(false)
-  const [savingBatchPaymentCompany, setSavingBatchPaymentCompany] = useState(false)
   const [uploadingClientFile, setUploadingClientFile] = useState(false)
   const [uploadingCompanyFile, setUploadingCompanyFile] = useState(false)
   const [deletingClientFileId, setDeletingClientFileId] = useState<number | null>(null)
@@ -582,6 +590,7 @@ export function ClientsPage() {
       || (detailEditDraft.email ?? '') !== (detailClient.email ?? '')
       || (detailEditDraft.phone ?? '') !== (detailClient.phone ?? '')
       || (detailEditDraft.whatsappOptIn ?? false) !== (detailClient.whatsappOptIn ?? false)
+      || (detailEditDraft.batchPaymentEnabled ?? false) !== (detailClient.batchPaymentEnabled ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
   }, [detailClient, detailEditDraft])
 
@@ -595,6 +604,7 @@ export function ClientsPage() {
       || (companyDetailEditDraft.iban ?? '') !== (detailCompany.iban ?? '')
       || (companyDetailEditDraft.email ?? '') !== (detailCompany.email ?? '')
       || (companyDetailEditDraft.telephone ?? '') !== (detailCompany.telephone ?? '')
+      || (companyDetailEditDraft.batchPaymentEnabled ?? false) !== (detailCompany.batchPaymentEnabled ?? false)
   }, [detailCompany, companyDetailEditDraft])
 
   const openNewModal = () => {
@@ -612,6 +622,7 @@ export function ClientsPage() {
       email: c.email ?? '',
       phone: c.phone ?? '',
       whatsappOptIn: c.whatsappOptIn ?? false,
+      batchPaymentEnabled: c.batchPaymentEnabled ?? false,
       billingCompanyId: c.billingCompany?.id ?? null,
     })
     setSessionTab('future')
@@ -633,6 +644,7 @@ export function ClientsPage() {
       iban: company.iban ?? '',
       email: company.email ?? '',
       telephone: company.telephone ?? '',
+      batchPaymentEnabled: company.batchPaymentEnabled ?? false,
     })
   }
 
@@ -660,7 +672,7 @@ export function ClientsPage() {
         phone: detailEditDraft.phone.trim() || null,
         whatsappOptIn: detailEditDraft.whatsappOptIn,
         billingCompanyId: detailEditDraft.billingCompanyId,
-        batchPaymentEnabled: detailClient.batchPaymentEnabled ?? false,
+        batchPaymentEnabled: detailEditDraft.batchPaymentEnabled ?? false,
         assignedToId: detailClient.assignedTo?.id ?? consultants[0]?.id,
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
@@ -671,6 +683,7 @@ export function ClientsPage() {
         email: response.data.email ?? '',
         phone: response.data.phone ?? '',
         whatsappOptIn: response.data.whatsappOptIn ?? false,
+        batchPaymentEnabled: response.data.batchPaymentEnabled ?? false,
         billingCompanyId: response.data.billingCompany?.id ?? null,
       })
       setClients((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
@@ -696,7 +709,7 @@ export function ClientsPage() {
         iban: companyDetailEditDraft.iban.trim() || null,
         email: companyDetailEditDraft.email.trim() || null,
         telephone: companyDetailEditDraft.telephone.trim() || null,
-        batchPaymentEnabled: detailCompany.batchPaymentEnabled ?? false,
+        batchPaymentEnabled: companyDetailEditDraft.batchPaymentEnabled ?? false,
       }
       const response = await api.put<Company>(`/companies/${detailCompany.id}`, payload)
       setDetailCompany(response.data)
@@ -709,6 +722,7 @@ export function ClientsPage() {
         iban: response.data.iban ?? '',
         email: response.data.email ?? '',
         telephone: response.data.telephone ?? '',
+        batchPaymentEnabled: response.data.batchPaymentEnabled ?? false,
       })
       setCompanies((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
       setCompanyDetailEditField(null)
@@ -716,56 +730,6 @@ export function ClientsPage() {
       setCompanyErrorMessage(error?.response?.data?.message || 'Failed to save company.')
     } finally {
       setSavingCompanyDetailEdit(false)
-    }
-  }
-
-  const toggleClientBatchPayment = async () => {
-    if (!detailClient || savingBatchPaymentClient) return
-    setSavingBatchPaymentClient(true)
-    setErrorMessage('')
-    try {
-      const response = await api.put<Client>(`/clients/${detailClient.id}`, {
-        firstName: detailClient.firstName?.trim() ?? '',
-        lastName: detailClient.lastName?.trim() ?? '',
-        email: detailClient.email?.trim() || null,
-        phone: detailClient.phone?.trim() || null,
-        billingCompanyId: detailClient.billingCompany?.id ?? null,
-        batchPaymentEnabled: !(detailClient.batchPaymentEnabled ?? false),
-        assignedToId: detailClient.assignedTo?.id ?? consultants[0]?.id,
-      })
-      setDetailClient(response.data)
-      setClients((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
-      setDetailEditDraft((prev) => ({ ...prev }))
-    } catch (error: any) {
-      setErrorMessage(error?.response?.data?.message || 'Failed to update batch payment setting.')
-    } finally {
-      setSavingBatchPaymentClient(false)
-    }
-  }
-
-  const toggleCompanyBatchPayment = async () => {
-    if (!detailCompany || savingBatchPaymentCompany) return
-    setSavingBatchPaymentCompany(true)
-    setCompanyErrorMessage('')
-    try {
-      const response = await api.put<Company>(`/companies/${detailCompany.id}`, {
-        name: detailCompany.name?.trim() ?? '',
-        address: detailCompany.address?.trim() || null,
-        postalCode: detailCompany.postalCode?.trim() || null,
-        city: detailCompany.city?.trim() || null,
-        vatId: detailCompany.vatId?.trim() || null,
-        iban: detailCompany.iban?.trim() || null,
-        email: detailCompany.email?.trim() || null,
-        telephone: detailCompany.telephone?.trim() || null,
-        batchPaymentEnabled: !(detailCompany.batchPaymentEnabled ?? false),
-      })
-      setDetailCompany(response.data)
-      setCompanies((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
-      setCompanyDetailEditDraft((prev) => ({ ...prev }))
-    } catch (error: any) {
-      setCompanyErrorMessage(error?.response?.data?.message || 'Failed to update batch payment setting.')
-    } finally {
-      setSavingBatchPaymentCompany(false)
     }
   }
 
@@ -1652,12 +1616,13 @@ export function ClientsPage() {
                       <span>{clientsCopy.batchPayment}</span>
                       <button
                         type="button"
-                        className={`clients-batch-switch${detailClient.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                        onClick={() => void toggleClientBatchPayment()}
-                        disabled={savingBatchPaymentClient}
-                        aria-pressed={detailClient.batchPaymentEnabled ?? false}
+                        className={`clients-batch-switch${detailEditDraft.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
+                        onClick={() =>
+                          setDetailEditDraft({ ...detailEditDraft, batchPaymentEnabled: !detailEditDraft.batchPaymentEnabled })
+                        }
+                        aria-pressed={detailEditDraft.batchPaymentEnabled}
                       >
-                        {savingBatchPaymentClient ? clientsCopy.batchPaymentSaving : detailClient.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                        {detailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                       </button>
                     </div>
                   </div>
@@ -1843,12 +1808,16 @@ export function ClientsPage() {
                       <span>{clientsCopy.batchPayment}</span>
                       <button
                         type="button"
-                        className={`clients-batch-switch${detailCompany.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                        onClick={() => void toggleCompanyBatchPayment()}
-                        disabled={savingBatchPaymentCompany}
-                        aria-pressed={detailCompany.batchPaymentEnabled ?? false}
+                        className={`clients-batch-switch${companyDetailEditDraft.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
+                        onClick={() =>
+                          setCompanyDetailEditDraft({
+                            ...companyDetailEditDraft,
+                            batchPaymentEnabled: !companyDetailEditDraft.batchPaymentEnabled,
+                          })
+                        }
+                        aria-pressed={companyDetailEditDraft.batchPaymentEnabled}
                       >
-                        {savingBatchPaymentCompany ? clientsCopy.batchPaymentSaving : detailCompany.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                        {companyDetailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                       </button>
                     </div>
                   </div>

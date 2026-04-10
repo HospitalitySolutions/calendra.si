@@ -38,11 +38,29 @@ public class ReminderScheduler {
         this.timezone = (timezoneId != null && !timezoneId.isBlank())
                 ? ZoneId.of(timezoneId)
                 : ZoneId.systemDefault();
-        log.info("Reminder scheduler started (enabled={}, timezone={}, SMS={}, Email={}, runs every 1hr, window 50-70min before session)",
+        log.info("Reminder scheduler started (enabled={}, timezone={}, SMS={}, Email={})",
                 enabled, this.timezone, reminderService.isSmsConfigured(), reminderService.isMailConfigured());
     }
 
-    @Scheduled(cron = "0 0 0 1 1 *") // every 5 minutes at :00, :05, :10, ...
+    /**
+     * Sends company-configured "before session" / "after session" template messages (email/SMS).
+     */
+    @Scheduled(cron = "0 */1 * * * *")
+    @Transactional
+    public void sendScheduledTemplateNotifications() {
+        if (!enabled) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now(timezone);
+        try {
+            reminderService.sendScheduledSessionTemplateNotifications(now);
+        } catch (Exception e) {
+            log.error("Scheduled template notifications failed: {}", e.getMessage());
+        }
+    }
+
+    /** One hour before session; runs every 10 minutes and targets sessions starting in 50–70 minutes. */
+    @Scheduled(cron = "0 0/10 * * * *")
     @Transactional
     public void sendReminders() {
         if (!enabled) return;

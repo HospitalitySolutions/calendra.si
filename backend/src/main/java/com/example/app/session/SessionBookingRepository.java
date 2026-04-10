@@ -139,6 +139,36 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("companyId") Long companyId
     );
 
+    @Query("SELECT DISTINCT sb FROM SessionBooking sb "
+            + "JOIN FETCH sb.client "
+            + "JOIN FETCH sb.company "
+            + "LEFT JOIN FETCH sb.consultant "
+            + "LEFT JOIN FETCH sb.type "
+            + "LEFT JOIN FETCH sb.space "
+            + "WHERE sb.company.id = :companyId "
+            + "AND sb.notificationBeforeSentAt IS NULL "
+            + "AND sb.startTime >= :startFrom AND sb.startTime < :startTo")
+    List<SessionBooking> findNeedingBeforeSessionNotification(
+            @Param("companyId") Long companyId,
+            @Param("startFrom") LocalDateTime startFrom,
+            @Param("startTo") LocalDateTime startTo
+    );
+
+    @Query("SELECT DISTINCT sb FROM SessionBooking sb "
+            + "JOIN FETCH sb.client "
+            + "JOIN FETCH sb.company "
+            + "LEFT JOIN FETCH sb.consultant "
+            + "LEFT JOIN FETCH sb.type "
+            + "LEFT JOIN FETCH sb.space "
+            + "WHERE sb.company.id = :companyId "
+            + "AND sb.notificationAfterSentAt IS NULL "
+            + "AND sb.endTime >= :endFrom AND sb.endTime < :endTo")
+    List<SessionBooking> findNeedingAfterSessionNotification(
+            @Param("companyId") Long companyId,
+            @Param("endFrom") LocalDateTime endFrom,
+            @Param("endTo") LocalDateTime endTo
+    );
+
     @Modifying
     @Query("UPDATE SessionBooking sb SET sb.notes = :replacement WHERE sb.company.id = :companyId AND sb.client.id = :clientId")
     int anonymizeNotesForClient(

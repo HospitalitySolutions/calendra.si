@@ -7,6 +7,7 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionBookingRepository;
 import com.example.app.user.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +52,7 @@ public class ReminderService {
     private final boolean smsConfigured;
     private final AppSettingRepository appSettings;
     private final CompanyRepository companies;
+    private final SessionBookingRepository sessionBookings;
     private final String frontendBaseUrl;
 
     public ReminderService(
@@ -63,7 +65,8 @@ public class ReminderService {
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${spring.mail.username:}") String mailUsername,
             AppSettingRepository appSettings,
-            CompanyRepository companies
+            CompanyRepository companies,
+            SessionBookingRepository sessionBookings
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom != null ? mailFrom : "";
@@ -77,6 +80,156 @@ public class ReminderService {
         this.smsConfigured = !this.infobipBaseUrl.isBlank() && !this.infobipApiKey.isBlank() && !this.infobipSender.isBlank();
         this.appSettings = appSettings;
         this.companies = companies;
+        this.sessionBookings = sessionBookings;
+    }
+
+    /**
+     * Sends "before session" / "after session" template email+SMS when their send time falls in the current window.
+     * Uses NOTIFICATION_SETTINGS_JSON offsets (minutes/hours/days) per company.
+     */
+    public void sendScheduledSessionTemplateNotifications(LocalDateTime now) {
+        List<AppSetting> rows = appSettings.findAllByKey(SettingKey.NOTIFICATION_SETTINGS_JSON);
+        final int windowMinutes = 3;
+        for (AppSetting row : rows) {
+            if (row.getCompany() == null || row.getValue() == null || row.getValue().isBlank()) {
+                continue;
+            }
+            Long companyId = row.getCompany().getId();
+            JsonNode root;
+            try {
+                root = JSON.readTree(row.getValue());
+            } catch (Exception e) {
+                log.warn("Invalid NOTIFICATION_SETTINGS_JSON for company {}: {}", companyId, e.getMessage());
+                continue;
+            }
+
+            if (wantsBeforeSession(root)) {
+                int off = scheduleOffsetMinutes(root, "beforeSession");
+                LocalDateTime startFrom = now.plusMinutes(off);
+                LocalDateTime startTo = now.plusMinutes(off + windowMinutes);
+                List<SessionBooking> beforeList = sessionBookings.findNeedingBeforeSessionNotification(companyId, startFrom, startTo);
+                for (SessionBooking b : beforeList) {
+                    if (b.getClient() != null && b.getClient().isAnonymized()) {
+                        b.setNotificationBeforeSentAt(now);
+                        sessionBookings.save(b);
+                        continue;
+                    }
+                    sendBeforeAfterEmail(b, NotificationKind.BEFORE_SESSION, root, null, null);
+                    sendBeforeAfterSms(b, NotificationKind.BEFORE_SESSION, root);
+                    b.setNotificationBeforeSentAt(now);
+                    sessionBookings.save(b);
+                }
+            }
+
+            if (wantsAfterSession(root)) {
+                int off = scheduleOffsetMinutes(root, "afterSession");
+                LocalDateTime endTo = now.minusMinutes(off);
+                LocalDateTime endFrom = now.minusMinutes(off + windowMinutes);
+                List<SessionBooking> afterList = sessionBookings.findNeedingAfterSessionNotification(companyId, endFrom, endTo);
+                for (SessionBooking b : afterList) {
+                    if (b.getClient() != null && b.getClient().isAnonymized()) {
+                        b.setNotificationAfterSentAt(now);
+                        sessionBookings.save(b);
+                        continue;
+                    }
+                    sendBeforeAfterEmail(b, NotificationKind.AFTER_SESSION, root, null, null);
+                    sendBeforeAfterSms(b, NotificationKind.AFTER_SESSION, root);
+                    b.setNotificationAfterSentAt(now);
+                    sessionBookings.save(b);
+                }
+            }
+        }
+    }
+
+    private boolean wantsBeforeSession(JsonNode root) {
+        return root.path("email").path("beforeSession").path("enabled").asBoolean(false)
+                || root.path("sms").path("beforeSession").path("enabled").asBoolean(false);
+    }
+
+    private boolean wantsAfterSession(JsonNode root) {
+        return root.path("email").path("afterSession").path("enabled").asBoolean(false)
+                || root.path("sms").path("afterSession").path("enabled").asBoolean(false);
+    }
+
+    private void sendBeforeAfterEmail(
+            SessionBooking booking,
+            NotificationKind kind,
+            JsonNode root,
+            LocalDateTime originalStart,
+            LocalDateTime originalEnd
+    ) {
+        Client client = booking.getClient();
+        if (client == null || client.isAnonymized()) return;
+        if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) return;
+
+        JsonNode node = root.path("email").path(kind.getJsonKey());
+        if (!node.path("enabled").asBoolean(false)) {
+            return;
+        }
+        String subject = node.path("subject").asText("");
+        String bodyHtml = node.path("bodyHtml").asText("");
+        if (subject.isBlank() && bodyHtml.isBlank()) {
+            return;
+        }
+        Map<String, String> tokens = buildTemplateTokens(booking, originalStart, originalEnd);
+        try {
+            sendHtmlMail(client.getEmail().trim(), replaceTokens(subject, tokens), replaceTokens(bodyHtml, tokens));
+            log.info("Sent {} scheduled booking email to {}", kind, client.getEmail());
+        } catch (Exception e) {
+            log.warn("Failed to send {} scheduled booking email: {}", kind, e.getMessage());
+        }
+    }
+
+    private void sendBeforeAfterSms(SessionBooking booking, NotificationKind kind, JsonNode root) {
+        Client client = booking.getClient();
+        if (client == null || client.isAnonymized()) return;
+        if (client.getPhone() == null || client.getPhone().isBlank() || !smsConfigured) return;
+
+        JsonNode node = root.path("sms").path(kind.getJsonKey());
+        if (!node.path("enabled").asBoolean(false)) {
+            return;
+        }
+        String body = node.path("body").asText("");
+        if (body.isBlank()) {
+            return;
+        }
+        Long companyId = booking.getCompany().getId();
+        Map<String, String> tokens = buildTemplateTokens(booking, null, null);
+        String text = replaceTokens(body, tokens);
+        try {
+            sendInfobipSmsText(client.getPhone(), text, companyId);
+            log.info("Sent {} scheduled booking SMS", kind);
+        } catch (Exception e) {
+            log.warn("Failed to send {} scheduled booking SMS: {}", kind, e.getMessage());
+        }
+    }
+
+    private int scheduleOffsetMinutes(JsonNode root, String jsonKind) {
+        int fromEmail = parseOffsetMinutes(root.path("email").path(jsonKind));
+        if (fromEmail > 0) {
+            return fromEmail;
+        }
+        int fromSms = parseOffsetMinutes(root.path("sms").path(jsonKind));
+        if (fromSms > 0) {
+            return fromSms;
+        }
+        return 60;
+    }
+
+    private static int parseOffsetMinutes(JsonNode node) {
+        if (node == null || node.isMissingNode()) {
+            return 0;
+        }
+        int v = node.path("offsetValue").asInt(0);
+        if (v <= 0) {
+            v = 1;
+        }
+        String u = node.path("offsetUnit").asText("hours").toLowerCase();
+        return switch (u) {
+            case "days" -> Math.min(v * 24 * 60, 365 * 24 * 60);
+            case "minutes" -> Math.min(v, 365 * 24 * 60);
+            default -> Math.min(v * 60, 365 * 24 * 60);
+        };
     }
 
     public void sendReminders(SessionBooking booking) {
@@ -114,20 +267,20 @@ public class ReminderService {
 
     /** Sends new-session email only when the "New session" template is enabled in settings. */
     public void sendBookingConfirmation(SessionBooking booking) {
-        sendBookingTemplateEmail(booking, NotificationEmailKind.NEW_SESSION, null, null);
+        sendBookingTemplateEmail(booking, NotificationKind.NEW_SESSION, null, null);
     }
 
     /** Sends change-session email when the template is enabled and the client has email. */
     public void sendSessionRescheduled(SessionBooking booking, LocalDateTime previousStart, LocalDateTime previousEnd) {
-        sendBookingTemplateEmail(booking, NotificationEmailKind.CHANGE_SESSION, previousStart, previousEnd);
+        sendBookingTemplateEmail(booking, NotificationKind.CHANGE_SESSION, previousStart, previousEnd);
     }
 
     /** Sends cancel-session email when the template is enabled (call before deleting the booking entity). */
     public void sendSessionCancelled(SessionBooking booking) {
-        sendBookingTemplateEmail(booking, NotificationEmailKind.CANCEL_SESSION, null, null);
+        sendBookingTemplateEmail(booking, NotificationKind.CANCEL_SESSION, null, null);
     }
 
-    private void sendBookingTemplateEmail(SessionBooking booking, NotificationEmailKind kind,
+    private void sendBookingTemplateEmail(SessionBooking booking, NotificationKind kind,
             LocalDateTime originalStart, LocalDateTime originalEnd) {
         Client client = booking.getClient();
         if (client == null || client.isAnonymized()) {
@@ -161,7 +314,7 @@ public class ReminderService {
         }
     }
 
-    private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationEmailKind kind) {
+    private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind) {
         String raw = appSettings.findByCompanyIdAndKey(companyId, SettingKey.NOTIFICATION_SETTINGS_JSON)
                 .map(AppSetting::getValue)
                 .orElse(null);
@@ -297,14 +450,16 @@ public class ReminderService {
         return u;
     }
 
-    private enum NotificationEmailKind {
+    private enum NotificationKind {
         NEW_SESSION("newSession"),
         CHANGE_SESSION("changeSession"),
-        CANCEL_SESSION("cancelSession");
+        CANCEL_SESSION("cancelSession"),
+        BEFORE_SESSION("beforeSession"),
+        AFTER_SESSION("afterSession");
 
         private final String jsonKey;
 
-        NotificationEmailKind(String jsonKey) {
+        NotificationKind(String jsonKey) {
             this.jsonKey = jsonKey;
         }
 
@@ -341,9 +496,21 @@ public class ReminderService {
         if (body.length() > 160) {
             body = String.format("Reminder: Your session with %s is at %s.", consultantName, startFormatted);
         }
+        sendInfobipSmsText(to, body, companyId);
+    }
 
+    /**
+     * Normalizes MSISDN, posts to Infobip SMS API, and counts tenant SMS usage on success.
+     */
+    private void sendInfobipSmsText(String to, String body, Long companyId) {
+        if (!smsConfigured) {
+            return;
+        }
+        String text = body != null ? body : "";
         String toNormalized = to != null ? to.replaceAll("\\s+", "").replaceAll("^\\+", "") : "";
-        if (toNormalized.isBlank()) return;
+        if (toNormalized.isBlank()) {
+            return;
+        }
 
         String url = infobipBaseUrl + "/sms/3/messages";
 
@@ -355,14 +522,14 @@ public class ReminderService {
         Map<String, Object> message = Map.of(
                 "destinations", List.of(Map.of("to", toNormalized)),
                 "sender", infobipSender,
-                "content", Map.of("text", body)
+                "content", Map.of("text", text)
         );
         Map<String, Object> payload = Map.of("messages", List.of(message));
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
         if (response.getStatusCode().is2xxSuccessful()) {
-            log.info("Sent reminder SMS to {}", toNormalized);
+            log.info("Sent SMS to {}", toNormalized);
             if (companyId != null) {
                 incrementTenantSmsSentCount(companyId);
             }

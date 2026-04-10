@@ -6,58 +6,115 @@ export const NOTIFICATION_SETTINGS_KEY = 'NOTIFICATION_SETTINGS_JSON'
 
 type Translate = (key: string) => string
 
-type EmailKind = 'newSession' | 'changeSession' | 'cancelSession'
+export type NotificationKind = 'newSession' | 'changeSession' | 'cancelSession' | 'beforeSession' | 'afterSession'
+
+export type OffsetUnit = 'minutes' | 'hours' | 'days'
 
 export type EmailTemplate = {
   enabled: boolean
   subject: string
   bodyHtml: string
+  /** Used for beforeSession / afterSession: how long before or after the session to send. */
+  offsetValue?: number
+  offsetUnit?: OffsetUnit
 }
 
 export type SmsTemplate = {
   enabled: boolean
   body: string
+  offsetValue?: number
+  offsetUnit?: OffsetUnit
 }
 
 export type NotificationSettingsPayload = {
-  email: Record<EmailKind, EmailTemplate>
-  sms: Record<EmailKind, SmsTemplate>
+  email: Record<NotificationKind, EmailTemplate>
+  sms: Record<NotificationKind, SmsTemplate>
 }
 
-const EMAIL_KINDS: EmailKind[] = ['newSession', 'changeSession', 'cancelSession']
+const IMMEDIATE_KINDS: NotificationKind[] = ['newSession', 'changeSession', 'cancelSession']
+const SCHEDULED_KINDS: NotificationKind[] = ['beforeSession', 'afterSession']
+const NOTIFICATION_KINDS: NotificationKind[] = [...IMMEDIATE_KINDS, ...SCHEDULED_KINDS]
+
+function isScheduledKind(kind: NotificationKind): boolean {
+  return kind === 'beforeSession' || kind === 'afterSession'
+}
+
+const defaultScheduledEmail = (): EmailTemplate => ({
+  enabled: false,
+  subject: '',
+  bodyHtml: '',
+  offsetValue: 1,
+  offsetUnit: 'hours',
+})
+
+const defaultScheduledSms = (): SmsTemplate => ({
+  enabled: false,
+  body: '',
+  offsetValue: 1,
+  offsetUnit: 'hours',
+})
 
 const defaultPayload = (): NotificationSettingsPayload => ({
   email: {
     newSession: { enabled: false, subject: '', bodyHtml: '' },
     changeSession: { enabled: false, subject: '', bodyHtml: '' },
     cancelSession: { enabled: false, subject: '', bodyHtml: '' },
+    beforeSession: defaultScheduledEmail(),
+    afterSession: defaultScheduledEmail(),
   },
   sms: {
     newSession: { enabled: false, body: '' },
     changeSession: { enabled: false, body: '' },
     cancelSession: { enabled: false, body: '' },
+    beforeSession: defaultScheduledSms(),
+    afterSession: defaultScheduledSms(),
   },
 })
+
+function parseOffsetUnit(raw: unknown): OffsetUnit {
+  if (raw === 'minutes' || raw === 'hours' || raw === 'days') return raw
+  return 'hours'
+}
+
+function parseOffsetValue(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10)
+  if (!Number.isFinite(n) || n < 1) return 1
+  return Math.min(n, 365 * 24 * 60)
+}
 
 export function parseNotificationSettings(raw: string | undefined): NotificationSettingsPayload {
   if (!raw) return defaultPayload()
   try {
     const p = JSON.parse(raw)
     const base = defaultPayload()
-    for (const k of EMAIL_KINDS) {
+    for (const k of NOTIFICATION_KINDS) {
       const e = p?.email?.[k]
       if (e && typeof e === 'object') {
+        const sched = isScheduledKind(k)
         base.email[k] = {
           enabled: Boolean(e.enabled),
           subject: typeof e.subject === 'string' ? e.subject : '',
           bodyHtml: typeof e.bodyHtml === 'string' ? e.bodyHtml : '',
+          ...(sched
+            ? {
+                offsetValue: parseOffsetValue(e.offsetValue),
+                offsetUnit: parseOffsetUnit(e.offsetUnit),
+              }
+            : {}),
         }
       }
       const s = p?.sms?.[k]
       if (s && typeof s === 'object') {
+        const sched = isScheduledKind(k)
         base.sms[k] = {
           enabled: Boolean(s.enabled),
           body: typeof s.body === 'string' ? s.body : '',
+          ...(sched
+            ? {
+                offsetValue: parseOffsetValue(s.offsetValue),
+                offsetUnit: parseOffsetUnit(s.offsetUnit),
+              }
+            : {}),
         }
       }
     }
@@ -209,7 +266,7 @@ function IconRedo() {
   )
 }
 
-function insertTagIntoEmailEditor(editorKind: EmailKind, token: string, onHtmlChange: (next: string) => void) {
+function insertTagIntoEmailEditor(editorKind: NotificationKind, token: string, onHtmlChange: (next: string) => void) {
   const el = document.querySelector<HTMLDivElement>(`[data-notification-editor="${editorKind}"]`)
   if (!el) return
   el.focus()
@@ -229,7 +286,7 @@ function RichEmailBodyEditor({
 }: {
   html: string
   onHtmlChange: (next: string) => void
-  editorKind: EmailKind
+  editorKind: NotificationKind
   t: Translate
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -344,10 +401,12 @@ function insertIntoTextarea(
   })
 }
 
-function emailKindLabel(kind: EmailKind, t: Translate) {
+function notificationKindLabel(kind: NotificationKind, t: Translate) {
   if (kind === 'newSession') return t('configNotifyNewSession')
   if (kind === 'changeSession') return t('configNotifyChangeSession')
-  return t('configNotifyCancelSession')
+  if (kind === 'cancelSession') return t('configNotifyCancelSession')
+  if (kind === 'beforeSession') return t('configNotifyBeforeSession')
+  return t('configNotifyAfterSession')
 }
 
 function TagPills({ t, onInsert }: { t: Translate; onInsert: (token: string) => void }) {
@@ -381,31 +440,47 @@ type Props = {
 export function ConfigurationNotificationsSection({ settings, setSettings, savingSettings, onSave, t }: Props) {
   const [channel, setChannel] = useState<'email' | 'sms'>('email')
   const payload = parseNotificationSettings(settings[NOTIFICATION_SETTINGS_KEY])
-  const smsTextareaRefs = useRef<Partial<Record<EmailKind, HTMLTextAreaElement | null>>>({})
+  const smsTextareaRefs = useRef<Partial<Record<NotificationKind, HTMLTextAreaElement | null>>>({})
 
-  const patchEmail = (kind: EmailKind, patch: Partial<EmailTemplate>) => {
+  const patchEmail = (kind: NotificationKind, patch: Partial<EmailTemplate>) => {
     setSettings((prev) => {
       const cur = parseNotificationSettings(prev[NOTIFICATION_SETTINGS_KEY])
+      const nextEmailRow = { ...cur.email[kind], ...patch }
       const next: NotificationSettingsPayload = {
         ...cur,
-        email: {
-          ...cur.email,
-          [kind]: { ...cur.email[kind], ...patch },
-        },
+        email: { ...cur.email, [kind]: nextEmailRow },
+      }
+      if (isScheduledKind(kind) && (patch.offsetValue !== undefined || patch.offsetUnit !== undefined)) {
+        next.sms = {
+          ...cur.sms,
+          [kind]: {
+            ...cur.sms[kind],
+            ...(patch.offsetValue !== undefined ? { offsetValue: patch.offsetValue } : {}),
+            ...(patch.offsetUnit !== undefined ? { offsetUnit: patch.offsetUnit } : {}),
+          },
+        }
       }
       return { ...prev, [NOTIFICATION_SETTINGS_KEY]: serializeNotificationSettings(next) }
     })
   }
 
-  const patchSms = (kind: EmailKind, patch: Partial<SmsTemplate>) => {
+  const patchSms = (kind: NotificationKind, patch: Partial<SmsTemplate>) => {
     setSettings((prev) => {
       const cur = parseNotificationSettings(prev[NOTIFICATION_SETTINGS_KEY])
+      const nextSmsRow = { ...cur.sms[kind], ...patch }
       const next: NotificationSettingsPayload = {
         ...cur,
-        sms: {
-          ...cur.sms,
-          [kind]: { ...cur.sms[kind], ...patch },
-        },
+        sms: { ...cur.sms, [kind]: nextSmsRow },
+      }
+      if (isScheduledKind(kind) && (patch.offsetValue !== undefined || patch.offsetUnit !== undefined)) {
+        next.email = {
+          ...cur.email,
+          [kind]: {
+            ...cur.email[kind],
+            ...(patch.offsetValue !== undefined ? { offsetValue: patch.offsetValue } : {}),
+            ...(patch.offsetUnit !== undefined ? { offsetUnit: patch.offsetUnit } : {}),
+          },
+        }
       }
       return { ...prev, [NOTIFICATION_SETTINGS_KEY]: serializeNotificationSettings(next) }
     })
@@ -436,13 +511,13 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
 
       {channel === 'email' ? (
         <Card className="settings-card">
-          {EMAIL_KINDS.map((kind) => {
+          {NOTIFICATION_KINDS.map((kind) => {
             const row = payload.email[kind]
             return (
               <div key={kind} className="notification-event-block">
                 <div className="config-module-row notification-toggle-row">
                   <div className="config-module-name">
-                    <strong>{emailKindLabel(kind, t)}</strong>
+                    <strong>{notificationKindLabel(kind, t)}</strong>
                   </div>
                   <button
                     type="button"
@@ -452,6 +527,36 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
                     {row.enabled ? t('configToggleOn') : t('configToggleOff')}
                   </button>
                 </div>
+                {row.enabled && isScheduledKind(kind) && (
+                  <div className="notification-template-fields stack gap-md" style={{ marginTop: 12 }}>
+                    <p className="muted" style={{ margin: 0 }}>
+                      {kind === 'beforeSession' ? t('configNotifyBeforeSessionEmailHint') : t('configNotifyAfterSessionEmailHint')}
+                    </p>
+                    <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <Field label={t('configNotifyOffsetAmount')}>
+                        <input
+                          type="number"
+                          min={1}
+                          value={row.offsetValue ?? 1}
+                          onChange={(e) => {
+                            const v = Math.max(1, Number.parseInt(e.target.value, 10) || 1)
+                            patchEmail(kind, { offsetValue: v })
+                          }}
+                        />
+                      </Field>
+                      <Field label={t('configNotifyOffsetUnit')}>
+                        <select
+                          value={row.offsetUnit ?? 'hours'}
+                          onChange={(e) => patchEmail(kind, { offsetUnit: e.target.value as OffsetUnit })}
+                        >
+                          <option value="minutes">{t('configNotifyOffsetUnitMinutes')}</option>
+                          <option value="hours">{t('configNotifyOffsetUnitHours')}</option>
+                          <option value="days">{t('configNotifyOffsetUnitDays')}</option>
+                        </select>
+                      </Field>
+                    </div>
+                  </div>
+                )}
                 {row.enabled && (
                   <div className="notification-template-fields stack gap-md">
                     <Field label={t('configNotifySubject')}>
@@ -487,13 +592,13 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
       ) : (
         <Card className="settings-card">
           <p className="muted" style={{ marginBottom: 16 }}>{t('configNotifySmsHint')}</p>
-          {EMAIL_KINDS.map((kind) => {
+          {NOTIFICATION_KINDS.map((kind) => {
             const row = payload.sms[kind]
             return (
               <div key={kind} className="notification-event-block">
                 <div className="config-module-row notification-toggle-row">
                   <div className="config-module-name">
-                    <strong>{emailKindLabel(kind, t)}</strong>
+                    <strong>{notificationKindLabel(kind, t)}</strong>
                   </div>
                   <button
                     type="button"
@@ -503,6 +608,36 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
                     {row.enabled ? t('configToggleOn') : t('configToggleOff')}
                   </button>
                 </div>
+                {row.enabled && isScheduledKind(kind) && (
+                  <div className="notification-template-fields stack gap-md" style={{ marginTop: 12 }}>
+                    <p className="muted" style={{ margin: 0 }}>
+                      {kind === 'beforeSession' ? t('configNotifyBeforeSessionSmsHint') : t('configNotifyAfterSessionSmsHint')}
+                    </p>
+                    <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <Field label={t('configNotifyOffsetAmount')}>
+                        <input
+                          type="number"
+                          min={1}
+                          value={row.offsetValue ?? 1}
+                          onChange={(e) => {
+                            const v = Math.max(1, Number.parseInt(e.target.value, 10) || 1)
+                            patchSms(kind, { offsetValue: v })
+                          }}
+                        />
+                      </Field>
+                      <Field label={t('configNotifyOffsetUnit')}>
+                        <select
+                          value={row.offsetUnit ?? 'hours'}
+                          onChange={(e) => patchSms(kind, { offsetUnit: e.target.value as OffsetUnit })}
+                        >
+                          <option value="minutes">{t('configNotifyOffsetUnitMinutes')}</option>
+                          <option value="hours">{t('configNotifyOffsetUnitHours')}</option>
+                          <option value="days">{t('configNotifyOffsetUnitDays')}</option>
+                        </select>
+                      </Field>
+                    </div>
+                  </div>
+                )}
                 {row.enabled && (
                   <div className="notification-template-fields stack gap-md">
                     <TagPills
