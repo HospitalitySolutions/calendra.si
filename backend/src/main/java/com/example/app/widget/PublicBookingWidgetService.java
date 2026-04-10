@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -123,9 +124,19 @@ public class PublicBookingWidgetService {
         SessionType type = resolveType(company.getId(), typeId);
         Long resolvedConsultantId = consultantId != null ? resolveConsultantForBooking(company.getId(), consultantId, false).getId() : null;
 
-        List<PublicBookingWidgetController.AvailabilitySlotResponse> slots = cfg.availabilityEnabled()
-                ? buildBookableSlots(company, cfg, type, date, resolvedConsultantId)
-                : buildFallbackSlots(cfg, type, date, resolvedConsultantId);
+        List<PublicBookingWidgetController.AvailabilitySlotResponse> slots;
+        if (cfg.availabilityEnabled()) {
+            Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
+            for (PublicBookingWidgetController.AvailabilitySlotResponse s : buildBookableSlots(company, cfg, type, date, resolvedConsultantId)) {
+                merged.put(widgetSlotMergeKey(s, resolvedConsultantId), s);
+            }
+            for (PublicBookingWidgetController.AvailabilitySlotResponse s : buildWorkingHoursSlots(company, cfg, type, date, resolvedConsultantId)) {
+                merged.putIfAbsent(widgetSlotMergeKey(s, resolvedConsultantId), s);
+            }
+            slots = sortAvailabilitySlots(merged);
+        } else {
+            slots = buildFallbackSlots(cfg, type, date, resolvedConsultantId);
+        }
 
         return new PublicBookingWidgetController.AvailabilityResponse(cfg.availabilityEnabled(), DATE_FORMAT.format(date), slots);
     }
@@ -227,6 +238,83 @@ public class PublicBookingWidgetService {
         }
 
         return new ArrayList<>(deduped.values());
+    }
+
+    /**
+     * Same 30-minute grid as {@link #buildFallbackSlots}, but one pass per consultant who offers this type;
+     * only slots that pass {@link #isActuallyBookable} are included. Used together with bookable windows when
+     * availability mode is on.
+     */
+    private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildWorkingHoursSlots(
+            Company company,
+            WidgetConfig cfg,
+            SessionType type,
+            LocalDate date,
+            Long consultantId
+    ) {
+        LocalDate today = LocalDate.now(widgetZoneId);
+        if (date.isBefore(today)) {
+            return new ArrayList<>();
+        }
+
+        int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
+        List<User> consultants = supportedConsultants(company.getId(), type).stream()
+                .filter(c -> consultantId == null || c.getId().equals(consultantId))
+                .toList();
+
+        Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
+        for (User consultant : consultants) {
+            LocalTime cursor = cfg.workingHoursStart();
+            while (!cursor.plusMinutes(durationMinutes).isAfter(cfg.workingHoursEnd())) {
+                LocalDateTime start = date.atTime(cursor);
+                LocalDateTime end = start.plusMinutes(durationMinutes);
+                if (!isWidgetSlotStartInFuture(date, start)) {
+                    cursor = cursor.plusMinutes(30);
+                    continue;
+                }
+                if (isActuallyBookable(company.getId(), consultant.getId(), start, end, type.getId())) {
+                    String iso = DATE_TIME_FORMAT.format(start);
+                    String key = consultantId == null
+                            ? iso + "::" + consultant.getId()
+                            : iso;
+                    deduped.putIfAbsent(key, new PublicBookingWidgetController.AvailabilitySlotResponse(
+                            cursor.format(SLOT_LABEL_FORMAT),
+                            iso,
+                            consultant.getId(),
+                            consultantFullName(consultant)
+                    ));
+                }
+                cursor = cursor.plusMinutes(30);
+            }
+        }
+
+        return new ArrayList<>(deduped.values());
+    }
+
+    private static String widgetSlotMergeKey(PublicBookingWidgetController.AvailabilitySlotResponse s, Long requestConsultantId) {
+        if (requestConsultantId == null) {
+            return s.startTime() + "::" + (s.consultantId() == null ? "0" : s.consultantId());
+        }
+        return s.startTime();
+    }
+
+    private List<PublicBookingWidgetController.AvailabilitySlotResponse> sortAvailabilitySlots(
+            Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> merged
+    ) {
+        TreeMap<LocalDateTime, List<PublicBookingWidgetController.AvailabilitySlotResponse>> byStart = new TreeMap<>();
+        for (PublicBookingWidgetController.AvailabilitySlotResponse s : merged.values()) {
+            LocalDateTime t = LocalDateTime.parse(s.startTime(), DATE_TIME_FORMAT);
+            byStart.computeIfAbsent(t, k -> new ArrayList<>()).add(s);
+        }
+        List<PublicBookingWidgetController.AvailabilitySlotResponse> out = new ArrayList<>();
+        for (List<PublicBookingWidgetController.AvailabilitySlotResponse> group : byStart.values()) {
+            group.sort(Comparator.comparing(
+                    PublicBookingWidgetController.AvailabilitySlotResponse::consultantName,
+                    Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER)
+            ));
+            out.addAll(group);
+        }
+        return out;
     }
 
     private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildFallbackSlots(
