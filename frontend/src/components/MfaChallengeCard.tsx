@@ -18,6 +18,7 @@ export function MfaChallengeCard({ pendingToken, heading, subheading, onSuccess,
   const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState('')
   const [recoveryCode, setRecoveryCode] = useState('')
+  const [recoveryOpen, setRecoveryOpen] = useState(false)
   const [autoAttempted, setAutoAttempted] = useState(false)
 
   useEffect(() => {
@@ -41,6 +42,11 @@ export function MfaChallengeCard({ pendingToken, heading, subheading, onSuccess,
     return () => {
       cancelled = true
     }
+  }, [pendingToken])
+
+  useEffect(() => {
+    setRecoveryOpen(false)
+    setRecoveryCode('')
   }, [pendingToken])
 
   useEffect(() => {
@@ -96,19 +102,25 @@ export function MfaChallengeCard({ pendingToken, heading, subheading, onSuccess,
         <button type="button" className="login-primary-btn" disabled={loadingOptions || verifying || !publicKey || !supportsWebAuthn()} onClick={() => verifyWithPasskey(false)}>
           {verifying ? 'Checking passkey…' : 'Use passkey'}
         </button>
-        <form onSubmit={verifyRecoveryCode} style={{ display: 'grid', gap: 10 }}>
-          <label className="login-modern-label" htmlFor="recovery-code">Recovery code</label>
-          <input
-            id="recovery-code"
-            autoComplete="one-time-code"
-            value={recoveryCode}
-            onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
-            placeholder="ABCD-EFGH"
-          />
-          <button type="submit" disabled={verifying || !recoveryCode.trim()} className="login-social-btn">
-            Use recovery code
+        {!recoveryOpen ? (
+          <button type="button" className="login-social-btn" disabled={verifying} onClick={() => setRecoveryOpen(true)}>
+            Recovery code
           </button>
-        </form>
+        ) : (
+          <form onSubmit={verifyRecoveryCode} style={{ display: 'grid', gap: 10 }}>
+            <label className="login-modern-label" htmlFor="recovery-code">Recovery code</label>
+            <input
+              id="recovery-code"
+              autoComplete="one-time-code"
+              value={recoveryCode}
+              onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
+              placeholder="ABCD-EFGH"
+            />
+            <button type="submit" disabled={verifying || !recoveryCode.trim()} className="login-social-btn">
+              Use recovery code
+            </button>
+          </form>
+        )}
         {onBack && (
           <button type="button" className="secondary" onClick={onBack}>
             Back
