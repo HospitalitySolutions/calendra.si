@@ -412,7 +412,7 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
   }
 
   return (
-    <div className="stack gap-lg">
+    <div className="stack gap-lg config-notifications-page">
       <Card className="settings-card">
         <SectionTitle>{t('tabNotifications')}</SectionTitle>
         <p className="muted">{t('configNotificationsIntro')}</p>
@@ -478,6 +478,11 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
               </div>
             )
           })}
+          <div className="config-notifications-templates-footer" role="region" aria-label={t('configSaveConfiguration')}>
+            <button type="button" className="config-notifications-save-btn" onClick={onSave} disabled={savingSettings}>
+              {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+            </button>
+          </div>
         </Card>
       ) : (
         <Card className="settings-card">
@@ -521,6 +526,11 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
               </div>
             )
           })}
+          <div className="config-notifications-templates-footer" role="region" aria-label={t('configSaveConfiguration')}>
+            <button type="button" className="config-notifications-save-btn" onClick={onSave} disabled={savingSettings}>
+              {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+            </button>
+          </div>
         </Card>
       )}
 
@@ -613,12 +623,6 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
           </div>
         </div>
       </Card>
-
-      <div className="form-actions">
-        <button type="button" onClick={onSave} disabled={savingSettings}>
-          {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
-        </button>
-      </div>
     </div>
   )
 }

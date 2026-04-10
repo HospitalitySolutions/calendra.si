@@ -2489,13 +2489,13 @@ export default function CalendarPage() {
 
   const adminConsultantFilterActive = user.role === 'ADMIN' && effectiveConsultantFilterId != null
   const selectedConsultantLabel = effectiveConsultantFilterId == null
-    ? 'ALL (Consultant view)'
+    ? t('calendarFilterByStaffColumns')
     : effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION
-      ? 'ALL (Session view)'
+      ? t('calendarFilterAllSessionsMerged')
       : fullName(metaUsers.find((u: any) => u.id === effectiveConsultantFilterId) || { firstName: '', lastName: '' })
   const selectedSpaceLabel = spaceFilterId == null
-    ? 'ALL'
-    : ((metaSpaces).find((s: any) => s.id === spaceFilterId)?.name || 'ALL')
+    ? t('calendarSpaceFilterAllLocations')
+    : ((metaSpaces).find((s: any) => s.id === spaceFilterId)?.name || t('calendarSpaceFilterAllLocations'))
 
   const SLOT_MS = 15 * 60 * 1000
 
@@ -6592,7 +6592,7 @@ export default function CalendarPage() {
                     setAndroidFilterPicker(null)
                   }}
                 >
-                  {androidFilterPicker === 'consultant' ? 'ALL (Consultant view)' : t('calendarAll')}
+                  {androidFilterPicker === 'consultant' ? t('calendarFilterByStaffColumns') : t('calendarSpaceFilterAllLocations')}
                 </button>
                 {androidFilterPicker === 'consultant' && (
                   <button
@@ -6603,7 +6603,7 @@ export default function CalendarPage() {
                       setAndroidFilterPicker(null)
                     }}
                   >
-                    ALL (Session view)
+                    {t('calendarFilterAllSessionsMerged')}
                   </button>
                 )}
                 {androidFilterPicker === 'consultant'

@@ -3375,6 +3375,30 @@ a.clients-contact-link:hover {
     min-width: 0;
 }
 
+/* Notifications / Obvestila: spare space so the fixed AI voice FAB does not cover the Inbox card footer */
+.config-notifications-page {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Save under Nova seja / Sprememba seje / Preklic seje — bottom right, aligned with toggle row height band */
+.config-notifications-templates-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 20px;
+    min-height: 56px;
+    border-top: 1px solid var(--border);
+}
+
+.config-notifications-save-btn {
+    margin: 0;
+    padding: 12px 28px;
+    border-radius: 12px;
+    font-weight: 600;
+    box-shadow: 0 4px 18px rgba(22, 114, 243, 0.35);
+}
+
 .config-booking-shell {
     display: grid;
     grid-template-columns: 220px minmax(0, 1fr);

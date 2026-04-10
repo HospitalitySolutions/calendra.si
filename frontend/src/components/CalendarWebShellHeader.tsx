@@ -63,6 +63,234 @@ function IconFilterSpace() {
   )
 }
 
+/** Inline icons for wide-screen resource filter dropdown rows (~18px). */
+function IconFilterRowUsers() {
+  return (
+    <svg className="calendar-filter-dropdown-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="5" cy="10" r="2.25" />
+      <circle cx="19" cy="10" r="2.25" />
+      <path d="M1.5 20a4 4 0 0 1 4-3.5M22.5 20a4 4 0 0 0-4-3.5" />
+    </svg>
+  )
+}
+
+function IconFilterRowGrid() {
+  return (
+    <svg className="calendar-filter-dropdown-icon calendar-filter-dropdown-icon--accent" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+    </svg>
+  )
+}
+
+function IconFilterRowUser() {
+  return (
+    <svg className="calendar-filter-dropdown-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+    </svg>
+  )
+}
+
+function IconFilterRowShield() {
+  return (
+    <svg className="calendar-filter-dropdown-icon calendar-filter-dropdown-icon--accent" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
+    </svg>
+  )
+}
+
+function IconFilterRowPin() {
+  return (
+    <svg className="calendar-filter-dropdown-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 21s6-5 6-11a6 6 0 0 0-12 0c0 6 6 11 6 11Z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  )
+}
+
+/**
+ * One location marker: teardrop + inner circle “hole” + short ground line under the tip
+ * (outline style like the stacked-pins reference).
+ */
+function MapPinMarkerGlyph() {
+  return (
+    <>
+      <path d="M12 21s6-5 6-11a6 6 0 0 0-12 0c0 6 6 11 6 11Z" />
+      <circle cx="12" cy="10" r="2.2" />
+      <line x1="8" y1="21.4" x2="16" y2="21.4" strokeLinecap="round" />
+    </>
+  )
+}
+
+/**
+ * Three pins: rear row = one marker left and one right of center (symmetric); front = larger marker in the middle (drawn last).
+ * Each group is anchored on the pin tip via translate(-12, -21) so “middle” stays at x = 12 in the viewBox.
+ */
+function IconFilterRowPinsMulti() {
+  const pin = <MapPinMarkerGlyph />
+  const yBack = 15.5
+  const xOff = 6.35
+  const sBack = 0.36
+  return (
+    <svg className="calendar-filter-dropdown-icon calendar-filter-dropdown-icon--pins-multi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <g transform={`translate(${12 - xOff} ${yBack}) scale(${sBack}) translate(-12 -21)`}>{pin}</g>
+      <g transform={`translate(${12 + xOff} ${yBack}) scale(${sBack}) translate(-12 -21)`}>{pin}</g>
+      <g transform="translate(12 21.35) scale(0.74) translate(-12 -21)">{pin}</g>
+    </svg>
+  )
+}
+
+function IconSearch() {
+  return (
+    <svg className="calendar-filter-dropdown-search-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  )
+}
+
+function IconCheck() {
+  return (
+    <svg className="calendar-filter-dropdown-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
+type ResourceFilterIcon = 'users' | 'grid' | 'user' | 'shield' | 'pin' | 'pins-multi'
+
+function ResourceFilterRowIcon({ kind }: { kind: ResourceFilterIcon }) {
+  if (kind === 'users') return <IconFilterRowUsers />
+  if (kind === 'grid') return <IconFilterRowGrid />
+  if (kind === 'shield') return <IconFilterRowShield />
+  if (kind === 'pins-multi') return <IconFilterRowPinsMulti />
+  if (kind === 'pin') return <IconFilterRowPin />
+  return <IconFilterRowUser />
+}
+
+type ResourceFilterOption = {
+  id: string
+  label: string
+  icon: ResourceFilterIcon
+  selected: boolean
+  onSelect: () => void
+}
+
+function CalendarResourceFilterDropdown({
+  ariaLabel,
+  fieldLabel,
+  valueLabel,
+  options,
+  searchNoResultsLabel,
+}: {
+  ariaLabel: string
+  fieldLabel: string
+  valueLabel: string
+  options: ResourceFilterOption[]
+  searchNoResultsLabel: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setQuery('')
+      return
+    }
+    const t = window.setTimeout(() => searchRef.current?.focus(), 0)
+    return () => window.clearTimeout(t)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('click', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? options.filter((o) => o.label.toLowerCase().includes(q))
+    : options
+
+  return (
+    <div className="calendar-header-filter-field calendar-filter-rich-field">
+      <span className="calendar-header-filter-label">{fieldLabel}</span>
+      <div className="calendar-filter-dropdown-wrap" ref={wrapRef}>
+        <button
+          type="button"
+          className="calendar-filter-dropdown-trigger"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-label={ariaLabel}
+        >
+          <span className="calendar-filter-dropdown-trigger-text">{valueLabel}</span>
+          <svg className="calendar-view-dropdown-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        {open && (
+          <div className="calendar-filter-dropdown-panel" role="listbox" aria-label={ariaLabel}>
+            <div className="calendar-filter-dropdown-search-wrap">
+              <IconSearch />
+              <input
+                ref={searchRef}
+                type="search"
+                className="calendar-filter-dropdown-search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={valueLabel}
+                aria-label={`${ariaLabel} — search`}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            <div className="calendar-filter-dropdown-scroll">
+              {filtered.length === 0 ? (
+                <div className="calendar-filter-dropdown-empty muted">{searchNoResultsLabel}</div>
+              ) : (
+                filtered.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className={`calendar-filter-dropdown-item${o.selected ? ' calendar-filter-dropdown-item--selected' : ''}`}
+                    role="option"
+                    aria-selected={o.selected}
+                    onClick={() => {
+                      o.onSelect()
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="calendar-filter-dropdown-item-icon">
+                      <ResourceFilterRowIcon kind={o.icon} />
+                    </span>
+                    <span className="calendar-filter-dropdown-item-label">{o.label}</span>
+                    {o.selected ? <IconCheck /> : <span className="calendar-filter-dropdown-check-spacer" aria-hidden />}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Icon + portaled list — used in bottom bar below ~940px (layout footer: popups anchor above buttons). */
 export function CalendarRailIconFilters({
   showConsultant,
@@ -201,7 +429,7 @@ export function CalendarRailIconFilters({
                   setOpen(null)
                 }}
               >
-                ALL (Consultant view)
+                {t('calendarFilterByStaffColumns')}
               </button>
               <button
                 type="button"
@@ -213,7 +441,7 @@ export function CalendarRailIconFilters({
                   setOpen(null)
                 }}
               >
-                ALL (Session view)
+                {t('calendarFilterAllSessionsMerged')}
               </button>
               {consultantUsers.map((u) => (
                 <button
@@ -243,7 +471,7 @@ export function CalendarRailIconFilters({
                   setOpen(null)
                 }}
               >
-                {t('calendarAll')}
+                {t('calendarSpaceFilterAllLocations')}
               </button>
               {spaces.map((s) => (
                 <button
@@ -327,57 +555,92 @@ export function CalendarHeaderFilters({
   onConsultantFilterChange: (id: number | null) => void
   spaceFilterId: number | null
   onSpaceFilterChange: (id: number | null) => void
-  consultantUsers: Array<{ id: number; firstName: string; lastName: string }>
+  consultantUsers: Array<{ id: number; firstName: string; lastName: string; role?: string }>
   spaces: Array<{ id: number; name: string }>
 }) {
   const { t } = useLocale()
   if (!showConsultant && !showSpace) return null
+
+  const consultantValueLabel =
+    consultantFilterId == null
+      ? t('calendarFilterByStaffColumns')
+      : consultantFilterId === CONSULTANT_FILTER_ALL_SESSION
+        ? t('calendarFilterAllSessionsMerged')
+        : fullName(consultantUsers.find((u) => u.id === consultantFilterId) ?? { firstName: '', lastName: '—' })
+
+  const consultantOptions: ResourceFilterOption[] = showConsultant
+    ? [
+        {
+          id: 'c-null',
+          label: t('calendarFilterByStaffColumns'),
+          icon: 'users' satisfies ResourceFilterIcon,
+          selected: consultantFilterId == null,
+          onSelect: () => onConsultantFilterChange(null),
+        },
+        {
+          id: 'c-all-sess',
+          label: t('calendarFilterAllSessionsMerged'),
+          icon: 'grid' satisfies ResourceFilterIcon,
+          selected: consultantFilterId === CONSULTANT_FILTER_ALL_SESSION,
+          onSelect: () => onConsultantFilterChange(CONSULTANT_FILTER_ALL_SESSION),
+        },
+        ...consultantUsers.map(
+          (u): ResourceFilterOption => ({
+            id: `c-${u.id}`,
+            label: fullName(u),
+            icon: u.role === 'ADMIN' || u.role === 'SUPER_ADMIN' ? 'shield' : 'user',
+            selected: consultantFilterId === u.id,
+            onSelect: () => onConsultantFilterChange(u.id),
+          }),
+        ),
+      ]
+    : []
+
+  const spaceValueLabel =
+    spaceFilterId == null
+      ? t('calendarSpaceFilterAllLocations')
+      : spaces.find((s) => s.id === spaceFilterId)?.name ?? t('calendarSpaceFilterAllLocations')
+
+  const spaceOptions: ResourceFilterOption[] = showSpace
+    ? [
+        {
+          id: 's-null',
+          label: t('calendarSpaceFilterAllLocations'),
+          icon: 'pins-multi' satisfies ResourceFilterIcon,
+          selected: spaceFilterId == null,
+          onSelect: () => onSpaceFilterChange(null),
+        },
+        ...spaces.map(
+          (s): ResourceFilterOption => ({
+            id: `s-${s.id}`,
+            label: s.name,
+            icon: 'pin',
+            selected: spaceFilterId === s.id,
+            onSelect: () => onSpaceFilterChange(s.id),
+          }),
+        ),
+      ]
+    : []
+
   return (
-    <div className="calendar-header-filters">
+    <div className="calendar-header-filters calendar-header-filters--rich">
       {showConsultant && (
-        <label className="inline-check calendar-filter-select calendar-header-filter-field">
-          <span className="calendar-header-filter-label">{t('calendarConsultant')}</span>
-          <select
-            value={consultantFilterId == null ? '' : consultantFilterId === CONSULTANT_FILTER_ALL_SESSION ? String(CONSULTANT_FILTER_ALL_SESSION) : String(consultantFilterId)}
-            onChange={(e) => {
-              const v = e.target.value
-              if (v === '') onConsultantFilterChange(null)
-              else if (v === String(CONSULTANT_FILTER_ALL_SESSION)) onConsultantFilterChange(CONSULTANT_FILTER_ALL_SESSION)
-              else onConsultantFilterChange(Number(v))
-            }}
-            aria-label={t('calendarConsultant')}
-            title={t('calendarConsultant')}
-          >
-            <option value="">ALL (Consultant view)</option>
-            <option value={String(CONSULTANT_FILTER_ALL_SESSION)}>ALL (Session view)</option>
-            {consultantUsers.map((u) => (
-              <option key={u.id} value={u.id}>
-                {fullName(u)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CalendarResourceFilterDropdown
+          ariaLabel={t('calendarConsultant')}
+          fieldLabel={t('calendarConsultant')}
+          valueLabel={consultantValueLabel}
+          options={consultantOptions}
+          searchNoResultsLabel={t('calendarFilterSearchNoResults')}
+        />
       )}
       {showSpace && (
-        <label className="inline-check calendar-filter-select calendar-header-filter-field">
-          <span className="calendar-header-filter-label">{t('calendarSpace')}</span>
-          <select
-            value={spaceFilterId ?? ''}
-            onChange={(e) => {
-              const v = e.target.value
-              onSpaceFilterChange(v === '' ? null : Number(v))
-            }}
-            aria-label={t('calendarSpace')}
-            title={t('calendarSpace')}
-          >
-            <option value="">{t('calendarAll')}</option>
-            {spaces.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CalendarResourceFilterDropdown
+          ariaLabel={t('calendarSpace')}
+          fieldLabel={t('calendarSpace')}
+          valueLabel={spaceValueLabel}
+          options={spaceOptions}
+          searchNoResultsLabel={t('calendarFilterSearchNoResults')}
+        />
       )}
     </div>
   )
