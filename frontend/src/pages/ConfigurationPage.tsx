@@ -20,20 +20,21 @@ import { SecurityPage } from './SecurityPage'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute } from '../lib/packageAccess'
 
-type Tab = 'company' | 'booking' | 'billing' | 'notifications' | 'security'
-type BookingSubtab = 'modules' | 'tasks' | 'spaces' | 'types'
+type Tab = 'company' | 'booking' | 'billing' | 'notifications' | 'modules' | 'security'
+type BookingSubtab = 'tasks' | 'spaces' | 'types'
 type BillingSubtab = 'paymentMethods' | 'services' | 'fiscal' | 'folioLayout'
 type PersonalTaskPreset = { id: string; name: string; color: string }
 
-const CONFIG_TABS: Array<{ id: Tab; label: string; icon: 'company' | 'booking' | 'billing' | 'notifications' | 'security' }> = [
+const CONFIG_TABS: Array<{ id: Tab; label: string; icon: 'company' | 'booking' | 'billing' | 'notifications' | 'modules' | 'security' }> = [
   { id: 'company', label: 'Company', icon: 'company' },
   { id: 'booking', label: 'Booking', icon: 'booking' },
   { id: 'billing', label: 'Billing', icon: 'billing' },
   { id: 'notifications', label: 'Notifications', icon: 'notifications' },
+  { id: 'modules', label: 'Modules', icon: 'modules' },
   { id: 'security', label: 'Security', icon: 'security' },
 ]
 
-function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'notifications' | 'security' }) {
+function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'notifications' | 'modules' | 'security' }) {
   if (kind === 'company') {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -65,6 +66,16 @@ function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'no
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+    )
+  }
+  if (kind === 'modules') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
       </svg>
     )
   }
@@ -193,7 +204,7 @@ export function ConfigurationPage() {
   const { showToast } = useToast()
 
   const [tab, setTab] = useState<Tab>('company')
-  const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('modules')
+  const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('spaces')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
 
   const visibleTabs = CONFIG_TABS
@@ -243,7 +254,9 @@ export function ConfigurationPage() {
       navigate('/consultants', { replace: true })
       return
     }
-    if (q === 'company' || q === 'booking' || q === 'billing' || q === 'notifications' || q === 'security') setTab(q)
+    if (q === 'company' || q === 'booking' || q === 'billing' || q === 'notifications' || q === 'modules' || q === 'security') {
+      setTab(q)
+    }
   }, [query, navigate, isAdmin])
 
   useEffect(() => {
@@ -286,12 +299,20 @@ export function ConfigurationPage() {
   }, [isAdmin])
 
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
+  const spacesModuleEnabled = settings.SPACES_ENABLED === 'true'
+  const typesModuleEnabled = settings.TYPES_ENABLED === 'true'
+  const bookingSubtabsAvailable = personalModuleEnabled || spacesModuleEnabled || typesModuleEnabled
 
   useEffect(() => {
-    if (!personalModuleEnabled && bookingSubtab === 'tasks') {
-      setBookingSubtab('modules')
+    const order: BookingSubtab[] = []
+    if (personalModuleEnabled) order.push('tasks')
+    if (spacesModuleEnabled) order.push('spaces')
+    if (typesModuleEnabled) order.push('types')
+    if (order.length === 0) return
+    if (!order.includes(bookingSubtab)) {
+      setBookingSubtab(order[0]!)
     }
-  }, [personalModuleEnabled, bookingSubtab])
+  }, [personalModuleEnabled, spacesModuleEnabled, typesModuleEnabled, bookingSubtab])
 
   useEffect(() => {
     setOpenSpaceMenuId(null)
@@ -589,7 +610,9 @@ export function ConfigurationPage() {
                       ? t('tabBilling')
                       : entry.id === 'notifications'
                         ? t('tabNotifications')
-                        : t('tabSecurity')}
+                        : entry.id === 'modules'
+                          ? t('tabModules')
+                          : t('tabSecurity')}
               </span>
             </button>
           ))}
@@ -630,103 +653,43 @@ export function ConfigurationPage() {
         </Card>
       ) : tab === 'booking' ? (
         <div className="stack gap-lg">
+          <Card className="settings-card">
+            <SectionTitle>{t('configBookingScheduleSection')}</SectionTitle>
+            <div className="stack gap-sm">
+              <label className="config-setting-row">
+                <span className="field-label config-label-with-help"><HelpHint text={t('configModulesSessionLengthHelp')} />{t('configModulesSessionLengthLabel')}</span>
+                <input type="number" min="15" step="15" value={settings.SESSION_LENGTH_MINUTES || '60'} onChange={(e) => setSettings({ ...settings, SESSION_LENGTH_MINUTES: e.target.value })} />
+              </label>
+              <label className="config-setting-row">
+                <span className="field-label config-label-with-help"><HelpHint text={t('configModulesWorkFromHelp')} />{t('configModulesWorkFromLabel')}</span>
+                <input type="time" value={toTimeInputValue(settings.WORKING_HOURS_START, '05:00')} onChange={(e) => setSettings({ ...settings, WORKING_HOURS_START: e.target.value })} />
+              </label>
+              <label className="config-setting-row">
+                <span className="field-label config-label-with-help"><HelpHint text={t('configModulesWorkToHelp')} />{t('configModulesWorkToLabel')}</span>
+                <input type="time" value={toTimeInputValue(settings.WORKING_HOURS_END, '23:00')} onChange={(e) => setSettings({ ...settings, WORKING_HOURS_END: e.target.value })} />
+              </label>
+            </div>
+            <div className="form-actions config-modules-save">
+              <button onClick={saveSettings} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
+            </div>
+          </Card>
+          {bookingSubtabsAvailable ? (
           <div className="config-booking-subtabs">
             <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-              <button type="button" className={bookingSubtab === 'modules' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('modules')}>{t('configBookingModulesTab')}</button>
               {personalModuleEnabled ? (
                 <button type="button" className={bookingSubtab === 'tasks' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('tasks')}>{t('configBookingTasksTab')}</button>
               ) : null}
-              <button type="button" className={bookingSubtab === 'spaces' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('spaces')}>{t('configBookingSpacesTab')}</button>
-              <button type="button" className={bookingSubtab === 'types' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('types')}>{t('configBookingTypesTab')}</button>
+              {spacesModuleEnabled ? (
+                <button type="button" className={bookingSubtab === 'spaces' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('spaces')}>{t('configBookingSpacesTab')}</button>
+              ) : null}
+              {typesModuleEnabled ? (
+                <button type="button" className={bookingSubtab === 'types' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('types')}>{t('configBookingTypesTab')}</button>
+              ) : null}
             </div>
           </div>
-          {bookingSubtab === 'modules' && (
-            <div className="config-booking-modules">
-              <div className="stack gap-sm">
-                <div className="config-module-row">
-                  <div className="config-module-name">
-                    <HelpHint text={t('configModulesSpacesHelp')} />
-                    <strong>{t('configModulesSpacesLabel')}</strong>
-                  </div>
-                  <button type="button" className={settings.SPACES_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, SPACES_ENABLED: String(settings.SPACES_ENABLED !== 'true') })}>{settings.SPACES_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
-                </div>
-                <div className="config-module-row">
-                  <div className="config-module-name">
-                    <HelpHint text={t('configModulesTypesHelp')} />
-                    <strong>{t('configModulesTypesLabel')}</strong>
-                  </div>
-                  <button type="button" className={settings.TYPES_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, TYPES_ENABLED: String(settings.TYPES_ENABLED !== 'true') })}>{settings.TYPES_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
-                </div>
-                <div className="config-module-row">
-                  <div className="config-module-name">
-                    <HelpHint text={t('configModulesAvailabilityHelp')} />
-                    <strong>{t('configModulesAvailabilityLabel')}</strong>
-                  </div>
-                  <button type="button" className={settings.BOOKABLE_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, BOOKABLE_ENABLED: String(settings.BOOKABLE_ENABLED !== 'true') })}>{settings.BOOKABLE_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
-                </div>
-                <div className="config-module-row">
-                  <div className="config-module-name">
-                    <HelpHint text={t('configModulesAiHelp')} />
-                    <strong>{t('configModulesAiLabel')}</strong>
-                  </div>
-                  <button type="button" className={settings.AI_BOOKING_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, AI_BOOKING_ENABLED: String(settings.AI_BOOKING_ENABLED === 'false') })}>{settings.AI_BOOKING_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}</button>
-                </div>
-                <div className="config-module-row">
-                  <div className="config-module-name">
-                    <HelpHint text={t('configModulesPersonalHelp')} />
-                    <strong>{t('configModulesPersonalLabel')}</strong>
-                  </div>
-                  <button
-                    type="button"
-                    className={settings.PERSONAL_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
-                    onClick={() =>
-                      setSettings({
-                        ...settings,
-                        PERSONAL_ENABLED: String(settings.PERSONAL_ENABLED === 'false'),
-                      })
-                    }
-                  >
-                    {settings.PERSONAL_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
-                  </button>
-                </div>
-                <div className="config-module-row">
-                  <div className="config-module-name">
-                    <HelpHint text={t('configModulesTodosHelp')} />
-                    <strong>{t('configModulesTodosLabel')}</strong>
-                  </div>
-                  <button
-                    type="button"
-                    className={settings.TODOS_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
-                    onClick={() =>
-                      setSettings({
-                        ...settings,
-                        TODOS_ENABLED: String(settings.TODOS_ENABLED === 'false'),
-                      })
-                    }
-                  >
-                    {settings.TODOS_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
-                  </button>
-                </div>
-                <label className="config-setting-row">
-                  <span className="field-label config-label-with-help"><HelpHint text={t('configModulesSessionLengthHelp')} />{t('configModulesSessionLengthLabel')}</span>
-                  <input type="number" min="15" step="15" value={settings.SESSION_LENGTH_MINUTES || '60'} onChange={(e) => setSettings({ ...settings, SESSION_LENGTH_MINUTES: e.target.value })} />
-                </label>
-                <label className="config-setting-row">
-                  <span className="field-label config-label-with-help"><HelpHint text={t('configModulesWorkFromHelp')} />{t('configModulesWorkFromLabel')}</span>
-                  <input type="time" value={toTimeInputValue(settings.WORKING_HOURS_START, '05:00')} onChange={(e) => setSettings({ ...settings, WORKING_HOURS_START: e.target.value })} />
-                </label>
-                <label className="config-setting-row">
-                  <span className="field-label config-label-with-help"><HelpHint text={t('configModulesWorkToHelp')} />{t('configModulesWorkToLabel')}</span>
-                  <input type="time" value={toTimeInputValue(settings.WORKING_HOURS_END, '23:00')} onChange={(e) => setSettings({ ...settings, WORKING_HOURS_END: e.target.value })} />
-                </label>
-              </div>
-              <div className="form-actions config-modules-save">
-                <button onClick={saveSettings} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
-              </div>
-            </div>
-          )}
+          ) : null}
 
-          {bookingSubtab === 'tasks' && <div>
+          {bookingSubtab === 'tasks' && personalModuleEnabled ? <div>
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <HelpHint text={t('configPersonalTasksHelp')} />
@@ -759,7 +722,7 @@ export function ConfigurationPage() {
                 </div>
               ) }
             </Card>
-          </div>}
+          </div> : null}
 
           {showTaskPresetModal && (
             <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { if (!savingTaskPreset) { setShowTaskPresetModal(false); setEditingTaskPresetId(null) } }}>
@@ -785,7 +748,7 @@ export function ConfigurationPage() {
               </div>
             </div>
           )}
-          {bookingSubtab === 'spaces' && <div>
+          {bookingSubtab === 'spaces' && spacesModuleEnabled ? <div>
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <HelpHint text={t('configSpacesHelp')} />
@@ -882,7 +845,7 @@ export function ConfigurationPage() {
                 </div>
               )}
             </Card>
-          </div>}
+          </div> : null}
 
           {showSpaceModal && (
             <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { setShowSpaceModal(false); setEditingSpace(null) }}>
@@ -902,7 +865,7 @@ export function ConfigurationPage() {
             </div>
           )}
 
-          {bookingSubtab === 'types' && <div>
+          {bookingSubtab === 'types' && typesModuleEnabled ? <div>
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <HelpHint text={t('configTypesHelp')} />
@@ -944,7 +907,7 @@ export function ConfigurationPage() {
                 </div>
               )}
             </Card>
-          </div>}
+          </div> : null}
 
           {showTypeModal && (
             <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { setShowTypeModal(false); setEditingType(null) }}>
@@ -1309,6 +1272,82 @@ export function ConfigurationPage() {
           onSave={saveSettings}
           t={t}
         />
+      ) : tab === 'modules' ? (
+        <Card className="settings-card">
+          <SectionTitle>{t('tabModules')}</SectionTitle>
+          <p className="muted">{t('configModulesSectionIntro')}</p>
+          <div className="config-booking-modules" style={{ marginTop: 4 }}>
+            <div className="stack gap-sm">
+              <div className="config-module-row">
+                <div className="config-module-name">
+                  <HelpHint text={t('configModulesSpacesHelp')} />
+                  <strong>{t('configModulesSpacesLabel')}</strong>
+                </div>
+                <button type="button" className={settings.SPACES_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, SPACES_ENABLED: String(settings.SPACES_ENABLED !== 'true') })}>{settings.SPACES_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
+              </div>
+              <div className="config-module-row">
+                <div className="config-module-name">
+                  <HelpHint text={t('configModulesTypesHelp')} />
+                  <strong>{t('configModulesTypesLabel')}</strong>
+                </div>
+                <button type="button" className={settings.TYPES_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, TYPES_ENABLED: String(settings.TYPES_ENABLED !== 'true') })}>{settings.TYPES_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
+              </div>
+              <div className="config-module-row">
+                <div className="config-module-name">
+                  <HelpHint text={t('configModulesAvailabilityHelp')} />
+                  <strong>{t('configModulesAvailabilityLabel')}</strong>
+                </div>
+                <button type="button" className={settings.BOOKABLE_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, BOOKABLE_ENABLED: String(settings.BOOKABLE_ENABLED !== 'true') })}>{settings.BOOKABLE_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
+              </div>
+              <div className="config-module-row">
+                <div className="config-module-name">
+                  <HelpHint text={t('configModulesAiHelp')} />
+                  <strong>{t('configModulesAiLabel')}</strong>
+                </div>
+                <button type="button" className={settings.AI_BOOKING_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, AI_BOOKING_ENABLED: String(settings.AI_BOOKING_ENABLED === 'false') })}>{settings.AI_BOOKING_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}</button>
+              </div>
+              <div className="config-module-row">
+                <div className="config-module-name">
+                  <HelpHint text={t('configModulesPersonalHelp')} />
+                  <strong>{t('configModulesPersonalLabel')}</strong>
+                </div>
+                <button
+                  type="button"
+                  className={settings.PERSONAL_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
+                  onClick={() =>
+                    setSettings({
+                      ...settings,
+                      PERSONAL_ENABLED: String(settings.PERSONAL_ENABLED === 'false'),
+                    })
+                  }
+                >
+                  {settings.PERSONAL_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
+                </button>
+              </div>
+              <div className="config-module-row">
+                <div className="config-module-name">
+                  <HelpHint text={t('configModulesTodosHelp')} />
+                  <strong>{t('configModulesTodosLabel')}</strong>
+                </div>
+                <button
+                  type="button"
+                  className={settings.TODOS_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
+                  onClick={() =>
+                    setSettings({
+                      ...settings,
+                      TODOS_ENABLED: String(settings.TODOS_ENABLED === 'false'),
+                    })
+                  }
+                >
+                  {settings.TODOS_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
+                </button>
+              </div>
+            </div>
+            <div className="form-actions config-modules-save">
+              <button onClick={saveSettings} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
+            </div>
+          </div>
+        </Card>
       ) : tab === 'security' ? (
         <SecurityPage embedded />
       ) : null}

@@ -134,6 +134,8 @@ public class MfaController {
 
     private Map<String, Object> authResponse(User user, HttpServletRequest request) {
         String token = securityCenterService.issueSession(user, request, "Passkey sign-in").token();
+        var company = user.getCompany();
+        String tenantCode = company.getTenantCode();
         return Map.of(
                 "token", token,
                 "user", Map.of(
@@ -142,9 +144,9 @@ public class MfaController {
                         "lastName", user.getLastName(),
                         "email", user.getEmail(),
                         "role", user.getRole().name(),
-                        "companyId", user.getCompany().getId(),
-                        "packageType", webAuthnService.packageTypeFor(user)
-                )
+                        "companyId", company.getId(),
+                        "packageType", webAuthnService.packageTypeFor(user),
+                        "tenantCode", tenantCode != null && !tenantCode.isBlank() ? tenantCode : "")
         );
     }
 

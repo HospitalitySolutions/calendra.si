@@ -5,6 +5,7 @@ export type AppUser = {
     email: string;
     role: 'ADMIN' | 'CONSULTANT' | 'SUPER_ADMIN';
     companyId?: number;
+    tenantCode?: string | null;
 };
 
 export function getToken() {

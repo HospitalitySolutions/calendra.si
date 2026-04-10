@@ -9,6 +9,8 @@ export type User = {
   role: Role
   consultant?: boolean
   companyId?: number
+  /** Short public tenant identifier (e.g. widget URL segment); empty if not provisioned yet. */
+  tenantCode?: string | null
   packageType?: PackageType
   createdAt?: string
   vatId?: string | null

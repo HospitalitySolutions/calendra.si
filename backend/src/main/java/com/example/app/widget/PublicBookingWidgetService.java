@@ -20,6 +20,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -29,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,7 @@ public class PublicBookingWidgetService {
     private final UserRepository users;
     private final ClientRepository clients;
     private final SessionBookingCreationService bookingCreationService;
+    private final ZoneId widgetZoneId;
 
     public PublicBookingWidgetService(
             CompanyRepository companies,
@@ -56,7 +59,8 @@ public class PublicBookingWidgetService {
             BookableSlotRepository bookableSlots,
             UserRepository users,
             ClientRepository clients,
-            SessionBookingCreationService bookingCreationService
+            SessionBookingCreationService bookingCreationService,
+            @Value("${app.reminders.timezone:Europe/Ljubljana}") String widgetTimezoneId
     ) {
         this.companies = companies;
         this.settings = settings;
@@ -65,6 +69,9 @@ public class PublicBookingWidgetService {
         this.users = users;
         this.clients = clients;
         this.bookingCreationService = bookingCreationService;
+        this.widgetZoneId = (widgetTimezoneId == null || widgetTimezoneId.isBlank())
+                ? ZoneId.of("Europe/Ljubljana")
+                : ZoneId.of(widgetTimezoneId.trim());
     }
 
     public PublicBookingWidgetController.WidgetConfigResponse config(String tenantCode) {
@@ -78,7 +85,7 @@ public class PublicBookingWidgetService {
                 cfg.sessionLengthMinutes(),
                 cfg.workingHoursStart().toString(),
                 cfg.workingHoursEnd().toString(),
-                "Europe/Ljubljana"
+                widgetZoneId.getId()
         );
     }
 
@@ -132,6 +139,10 @@ public class PublicBookingWidgetService {
         LocalDateTime start = parseStartTime(request.startTime(), date);
         LocalDateTime end = start.plusMinutes(type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes());
 
+        if (!start.isAfter(LocalDateTime.now(widgetZoneId))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected time is in the past.");
+        }
+
         User consultant = resolveConsultantForBooking(company.getId(), request.consultantId(), cfg.availabilityEnabled());
         User actor = consultant != null ? consultant : resolveAdminActor(company.getId());
         Client client = findOrCreateClient(company, actor, request);
@@ -171,6 +182,11 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
+        LocalDate today = LocalDate.now(widgetZoneId);
+        if (date.isBefore(today)) {
+            return new ArrayList<>();
+        }
+
         int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
         DayOfWeek dayOfWeek = date.getDayOfWeek();
 
@@ -190,6 +206,10 @@ public class PublicBookingWidgetService {
             while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
                 LocalDateTime start = date.atTime(cursor);
                 LocalDateTime end = start.plusMinutes(durationMinutes);
+                if (!isWidgetSlotStartInFuture(date, start)) {
+                    cursor = cursor.plusMinutes(30);
+                    continue;
+                }
                 if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, type.getId())) {
                     String iso = DATE_TIME_FORMAT.format(start);
                     String key = consultantId == null
@@ -215,11 +235,20 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
+        LocalDate today = LocalDate.now(widgetZoneId);
+        if (date.isBefore(today)) {
+            return new ArrayList<>();
+        }
+
         int durationMinutes = type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes();
         List<PublicBookingWidgetController.AvailabilitySlotResponse> items = new ArrayList<>();
         LocalTime cursor = cfg.workingHoursStart();
         while (!cursor.plusMinutes(durationMinutes).isAfter(cfg.workingHoursEnd())) {
             LocalDateTime start = date.atTime(cursor);
+            if (!isWidgetSlotStartInFuture(date, start)) {
+                cursor = cursor.plusMinutes(30);
+                continue;
+            }
             items.add(new PublicBookingWidgetController.AvailabilitySlotResponse(
                     cursor.format(SLOT_LABEL_FORMAT),
                     DATE_TIME_FORMAT.format(start),
@@ -229,6 +258,17 @@ public class PublicBookingWidgetService {
             cursor = cursor.plusMinutes(30);
         }
         return items;
+    }
+
+    private boolean isWidgetSlotStartInFuture(LocalDate date, LocalDateTime slotStart) {
+        LocalDate today = LocalDate.now(widgetZoneId);
+        if (date.isBefore(today)) {
+            return false;
+        }
+        if (date.isAfter(today)) {
+            return true;
+        }
+        return slotStart.isAfter(LocalDateTime.now(widgetZoneId));
     }
 
     private boolean isActuallyBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {

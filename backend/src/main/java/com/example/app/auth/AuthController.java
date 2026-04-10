@@ -180,15 +180,7 @@ public class AuthController {
 
         return ResponseEntity.ok(Map.of(
                 "token", token,
-                "user", Map.of(
-                        "id", user.getId(),
-                        "firstName", user.getFirstName(),
-                        "lastName", user.getLastName(),
-                        "email", user.getEmail(),
-                        "role", user.getRole().name(),
-                        "companyId", user.getCompany().getId(),
-                        "packageType", packageTypeForCompany(user.getCompany())
-                )
+                "user", serializeUser(user, packageTypeForCompany(user.getCompany()))
         ));
     }
 
@@ -200,19 +192,25 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(Map.of(
-                "user", Map.of(
-                        "id", user.getId(),
-                        "firstName", user.getFirstName(),
-                        "lastName", user.getLastName(),
-                        "email", user.getEmail(),
-                        "role", user.getRole().name(),
-                        "companyId", user.getCompany().getId(),
-                        "packageType", packageTypeForCompany(user.getCompany())
-                ),
+                "user", serializeUser(user, packageTypeForCompany(user.getCompany())),
                 "authorities", authentication.getAuthorities().stream()
                         .map(a -> a.getAuthority())
                         .collect(Collectors.toList())
         ));
+    }
+
+    private Map<String, Object> serializeUser(User user, String packageType) {
+        Company company = user.getCompany();
+        String tenantCode = company.getTenantCode();
+        return Map.of(
+                "id", user.getId(),
+                "firstName", user.getFirstName(),
+                "lastName", user.getLastName(),
+                "email", user.getEmail(),
+                "role", user.getRole().name(),
+                "companyId", company.getId(),
+                "packageType", packageType,
+                "tenantCode", tenantCode != null && !tenantCode.isBlank() ? tenantCode : "");
     }
 
     @PostMapping("/signup")
@@ -282,15 +280,7 @@ public class AuthController {
         String token = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
         return ResponseEntity.ok(Map.of(
                 "token", token,
-                "user", Map.of(
-                        "id", owner.getId(),
-                        "firstName", owner.getFirstName(),
-                        "lastName", owner.getLastName(),
-                        "email", owner.getEmail(),
-                        "role", owner.getRole().name(),
-                        "companyId", owner.getCompany().getId(),
-                        "packageType", normalizedPackageType
-                )
+                "user", serializeUser(owner, normalizedPackageType)
         ));
     }
 

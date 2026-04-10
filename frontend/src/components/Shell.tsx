@@ -321,6 +321,9 @@ function ShellInner({ children }: PropsWithChildren) {
   const initials =
     `${(user.firstName?.[0] || '').toUpperCase()}${(user.lastName?.[0] || '').toUpperCase()}` || '?'
 
+  const tenantCode = String(user.tenantCode || '').trim()
+  const calendarHeaderBrandLabel = tenantCode ? `${tenantCode} - ${companyName}` : companyName
+
   const mobileNavTrigger = (
     <button
       type="button"
@@ -813,8 +816,8 @@ function ShellInner({ children }: PropsWithChildren) {
             <>
               <div className="app-header-calendar-left">
                 {mobileNavTrigger}
-                <div className="app-header-brand app-header-brand--calendar" title={companyName}>
-                  {companyName}
+                <div className="app-header-brand app-header-brand--calendar" title={calendarHeaderBrandLabel}>
+                  {calendarHeaderBrandLabel}
                 </div>
                 {calendarShellSlots.left}
               </div>
