@@ -120,6 +120,8 @@ function ShellInner({ children }: PropsWithChildren) {
   const bellRef = useRef<HTMLDivElement>(null)
   const configRef = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
+  const mainAreaRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
   const { slots: calendarShellSlots } = useCalendarShellHeader()
   const isCalendarRoute = location.pathname === '/calendar'
 
@@ -210,6 +212,31 @@ function ShellInner({ children }: PropsWithChildren) {
   useLayoutEffect(() => {
     setMobileNavOpen(false)
   }, [location.pathname])
+
+  useLayoutEffect(() => {
+    const mainEl = mainAreaRef.current
+    if (!mainEl) return
+    if (!isCalendarRoute) {
+      mainEl.style.removeProperty('--calendar-sticky-top')
+      return
+    }
+
+    const syncCalendarStickyTop = () => {
+      const headerEl = headerRef.current
+      if (!headerEl || !mainAreaRef.current) return
+      mainAreaRef.current.style.setProperty('--calendar-sticky-top', `${headerEl.offsetHeight}px`)
+    }
+
+    syncCalendarStickyTop()
+    const ro = headerRef.current ? new ResizeObserver(syncCalendarStickyTop) : null
+    if (ro && headerRef.current) ro.observe(headerRef.current)
+    window.addEventListener('resize', syncCalendarStickyTop)
+
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', syncCalendarStickyTop)
+    }
+  }, [isCalendarRoute, calendarShellSlots])
 
   useEffect(() => {
     if (!mobileNavOpen) return
@@ -804,8 +831,9 @@ function ShellInner({ children }: PropsWithChildren) {
           </NavLink>
         )}
       </aside>
-      <div className={isCalendarRoute ? 'main-area main-area--calendar' : 'main-area'}>
+      <div ref={mainAreaRef} className={isCalendarRoute ? 'main-area main-area--calendar' : 'main-area'}>
         <header
+          ref={headerRef}
           className={
             isCalendarRoute && calendarShellSlots
               ? 'app-header app-header--calendar'

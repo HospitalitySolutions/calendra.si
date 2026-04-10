@@ -18,12 +18,12 @@
 }
 
 @media (max-width: 939px) {
-    /* No horizontal shell scroll for day / 3-day — grid is sized to fit viewport */
+    /* Keep shell overflow visible for sticky weekday header; grid is already width-constrained by table rules below. */
     .calendar-fc-shell:has(.fc-timeGridDay-view),
     .calendar-fc-shell:has(.fc-timeGridThreeDay-view),
     .calendar-fc-shell:has(.fc-resourceTimeGridDay-view),
     .calendar-fc-shell:has(.fc-resourceTimeGridThreeDay-view) {
-        overflow-x: hidden;
+        overflow-x: visible;
     }
 
     .calendar-web-wrap {

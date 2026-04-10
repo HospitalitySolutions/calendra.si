@@ -5716,8 +5716,12 @@ export default function CalendarPage() {
               const d = arg.date
               const isMonthView = arg.view.type === 'dayGridMonth' || arg.view.type === 'resourceDayGridMonth'
               if (isMonthView) {
-                const fullDay = d.toLocaleDateString(calendarLocaleTag, { weekday: 'long' })
-                return <span className="fc-day-header-month-label">{fullDay}</span>
+                const monthDow = d
+                  .toLocaleDateString(calendarLocaleTag, { weekday: 'short' })
+                  .replace(/\.$/, '')
+                  .slice(0, 3)
+                  .toUpperCase()
+                return <span className="fc-day-header-month-label">{monthDow}</span>
               }
               const dowRaw = d.toLocaleDateString(calendarLocaleTag, { weekday: 'short' })
               const dowBase = dowRaw.replace(/\.$/, '').slice(0, 3)
