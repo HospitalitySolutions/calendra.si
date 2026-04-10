@@ -276,7 +276,8 @@
     min-width: 0;
     min-height: 0;
     overflow-x: auto;
-    scrollbar-gutter: stable;
+    /* Avoid a persistent empty gutter beside the grid; main scroll is .content--calendar-flush */
+    scrollbar-gutter: auto;
 }
 
 /* Sticky weekday + date row while scrolling (all viewport sizes; scrollport is .content--calendar-flush on web) */
@@ -301,6 +302,21 @@
     min-width: 0;
     /* FullCalendar injects a semi-opaque ::after on .fc-event-selected; keep session tiles visually clean */
     --fc-event-selected-overlay-color: transparent;
+}
+
+/* Timegrid: hide internal scrollbar track when FC uses liquid height (wheel/touch still works). */
+.calendar-fc-shell .fc .fc-scroller {
+    scrollbar-gutter: auto !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+}
+
+.calendar-fc-shell .fc .fc-scroller::-webkit-scrollbar,
+.calendar-fc-shell .fc .fc-scroller::-webkit-scrollbar-thumb,
+.calendar-fc-shell .fc .fc-scroller::-webkit-scrollbar-track {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
 }
 
 .calendar-web-inner--bottom-panel .calendar-fc-shell {
@@ -720,6 +736,18 @@
     border-left: none;
 }
 
+@media (min-width: 940px) {
+    .calendar-mode-toolbar--rail {
+        padding-right: 10px;
+    }
+}
+
+@media (min-width: 1280px) {
+    .calendar-mode-toolbar--rail {
+        padding-right: 6px;
+    }
+}
+
 [data-theme="dark"] .calendar-mode-toolbar--rail {
     background: transparent;
 }
@@ -798,8 +826,6 @@
     .calendar-fc-shell {
         grid-column: 1;
         grid-row: 1;
-        /* Prevent reserved scrollbar gutter from clipping right-most day on narrow devices. */
-        scrollbar-gutter: auto;
     }
 
     /* Keep the FC "shrink" time-axis column pinned left while scrolling */

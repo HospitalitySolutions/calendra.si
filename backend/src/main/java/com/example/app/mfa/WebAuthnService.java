@@ -59,7 +59,7 @@ public class WebAuthnService {
     public record PrimaryLoginResult(boolean mfaRequired, String pendingToken) {}
     public record RegistrationStartResult(String pendingToken, JsonNode publicKey) {}
     public record RegistrationFinishResult(List<String> recoveryCodes) {}
-    public record StatusResult(boolean webauthnEnabled, int recoveryCodesRemaining, List<Map<String, Object>> credentials) {}
+    public record StatusResult(boolean webauthnEnabled, int recoveryCodesRemaining, Instant recoveryCodesGeneratedAt, List<Map<String, Object>> credentials) {}
 
     private static final int RECOVERY_CODE_COUNT = 10;
 
@@ -143,18 +143,16 @@ public class WebAuthnService {
     }
 
     public PrimaryLoginResult startLoginChallenge(User user) {
-        if (!isWebAuthnEnabled(user)) {
-            return new PrimaryLoginResult(false, null);
-        }
-        AssertionRequest request = relyingParty.startAssertion(StartAssertionOptions.builder()
-                .username(webAuthnUserCredentialRepository.webAuthnUsername(user))
-                .build());
-        return new PrimaryLoginResult(true, jwtService.generateMfaToken(user.getId(), "login-assertion", uncheckIo(request::toJson)));
+        return startAssertionForFlow(user, "login-assertion");
+    }
+
+    public PrimaryLoginResult startSensitiveActionChallenge(User user) {
+        return startAssertionForFlow(user, "security-reauth");
     }
 
     public JsonNode getLoginChallengeOptions(String pendingToken) {
         JwtService.MfaTokenPayload payload = jwtService.parseMfaToken(pendingToken);
-        if (!"login-assertion".equals(payload.flow())) {
+        if (!"login-assertion".equals(payload.flow()) && !"security-reauth".equals(payload.flow())) {
             throw new IllegalArgumentException("Invalid MFA flow.");
         }
         AssertionRequest request = uncheckIo(() -> AssertionRequest.fromJson(payload.requestJson()));
@@ -163,33 +161,16 @@ public class WebAuthnService {
 
     @Transactional
     public User finishLoginWithAssertion(String pendingToken, String credentialJson) {
-        JwtService.MfaTokenPayload payload = jwtService.parseMfaToken(pendingToken);
-        if (!"login-assertion".equals(payload.flow())) {
-            throw new IllegalArgumentException("Invalid MFA flow.");
+        return finishAssertion(pendingToken, credentialJson, "login-assertion");
+    }
+
+    @Transactional
+    public String finishSensitiveActionAssertion(User currentUser, String pendingToken, String credentialJson) {
+        User assertedUser = finishAssertion(pendingToken, credentialJson, "security-reauth");
+        if (!assertedUser.getId().equals(currentUser.getId())) {
+            throw new IllegalArgumentException("This passkey belongs to a different account.");
         }
-        User user = userRepository.findById(payload.userId())
-                .orElseThrow(() -> new IllegalArgumentException("User not found."));
-
-        AssertionRequest request = uncheckIo(() -> AssertionRequest.fromJson(payload.requestJson()));
-        PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> response =
-                uncheckIo(() -> PublicKeyCredential.parseAssertionResponseJson(credentialJson));
-
-        AssertionResult result;
-        try {
-            result = relyingParty.finishAssertion(FinishAssertionOptions.builder()
-                    .request(request)
-                    .response(response)
-                    .build());
-        } catch (AssertionFailedException e) {
-            throw new IllegalArgumentException("WebAuthn assertion was not accepted.", e);
-        }
-
-        if (!result.isSuccess()) {
-            throw new IllegalArgumentException("WebAuthn assertion was not accepted.");
-        }
-
-        updateCredentialAfterAssertion(result);
-        return user;
+        return jwtService.generateReauthToken(assertedUser.getId());
     }
 
     @Transactional
@@ -287,10 +268,17 @@ public class WebAuthnService {
                     row.put("discoverable", credential.isDiscoverable());
                     row.put("createdAt", credential.getCreatedAt());
                     row.put("lastUsedAt", credential.getLastUsedAt());
+                    row.put("backupEligible", credential.getBackupEligible());
+                    row.put("backupState", credential.getBackupState());
                     return row;
                 })
                 .toList();
-        return new StatusResult(!credentials.isEmpty(), (int) recoveryCodeRepository.countByUserAndUsedAtIsNull(user), credentials);
+        RecoveryCode latestRecoveryCode = recoveryCodeRepository.findTopByUserOrderByCreatedAtDesc(user);
+        return new StatusResult(
+                !credentials.isEmpty(),
+                (int) recoveryCodeRepository.countByUserAndUsedAtIsNull(user),
+                latestRecoveryCode == null ? null : latestRecoveryCode.getCreatedAt(),
+                credentials);
     }
 
     @Transactional
@@ -302,8 +290,21 @@ public class WebAuthnService {
     }
 
     @Transactional
-    public void deleteCredential(User user, String credentialId) {
-        credentialRepository.deleteByCredentialIdAndUser(credentialId, user);
+    public String deleteCredential(User user, String credentialId) {
+        WebAuthnCredential credential = credentialRepository.findByCredentialIdAndUser(credentialId, user)
+                .orElseThrow(() -> new IllegalArgumentException("Passkey not found."));
+        String label = credential.getLabel();
+        credentialRepository.delete(credential);
+        return label;
+    }
+
+    @Transactional
+    public String renameCredential(User user, String credentialId, String label) {
+        WebAuthnCredential credential = credentialRepository.findByCredentialIdAndUser(credentialId, user)
+                .orElseThrow(() -> new IllegalArgumentException("Passkey not found."));
+        credential.setLabel(normalizeCredentialLabel(label, user));
+        credentialRepository.save(credential);
+        return credential.getLabel();
     }
 
     public String packageTypeFor(User user) {
@@ -311,6 +312,46 @@ public class WebAuthnService {
                 .map(AppSetting::getValue)
                 .map(value -> normalizePackageType(value, "CUSTOM"))
                 .orElse("CUSTOM");
+    }
+
+    private PrimaryLoginResult startAssertionForFlow(User user, String flow) {
+        if (!isWebAuthnEnabled(user)) {
+            return new PrimaryLoginResult(false, null);
+        }
+        AssertionRequest request = relyingParty.startAssertion(StartAssertionOptions.builder()
+                .username(webAuthnUserCredentialRepository.webAuthnUsername(user))
+                .build());
+        return new PrimaryLoginResult(true, jwtService.generateMfaToken(user.getId(), flow, uncheckIo(request::toJson)));
+    }
+
+    private User finishAssertion(String pendingToken, String credentialJson, String expectedFlow) {
+        JwtService.MfaTokenPayload payload = jwtService.parseMfaToken(pendingToken);
+        if (!expectedFlow.equals(payload.flow())) {
+            throw new IllegalArgumentException("Invalid MFA flow.");
+        }
+        User user = userRepository.findById(payload.userId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        AssertionRequest request = uncheckIo(() -> AssertionRequest.fromJson(payload.requestJson()));
+        PublicKeyCredential<AuthenticatorAssertionResponse, ClientAssertionExtensionOutputs> response =
+                uncheckIo(() -> PublicKeyCredential.parseAssertionResponseJson(credentialJson));
+
+        AssertionResult result;
+        try {
+            result = relyingParty.finishAssertion(FinishAssertionOptions.builder()
+                    .request(request)
+                    .response(response)
+                    .build());
+        } catch (AssertionFailedException e) {
+            throw new IllegalArgumentException("WebAuthn assertion was not accepted.", e);
+        }
+
+        if (!result.isSuccess()) {
+            throw new IllegalArgumentException("WebAuthn assertion was not accepted.");
+        }
+
+        updateCredentialAfterAssertion(result);
+        return user;
     }
 
     private void updateCredentialAfterAssertion(AssertionResult result) {

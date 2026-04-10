@@ -1,7 +1,9 @@
 package com.example.app.mfa;
 
 import com.example.app.security.JwtService;
+import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.user.User;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +31,12 @@ public class MfaController {
 
     private final WebAuthnService webAuthnService;
     private final JwtService jwtService;
+    private final SecurityCenterService securityCenterService;
 
-    public MfaController(WebAuthnService webAuthnService, JwtService jwtService) {
+    public MfaController(WebAuthnService webAuthnService, JwtService jwtService, SecurityCenterService securityCenterService) {
         this.webAuthnService = webAuthnService;
         this.jwtService = jwtService;
+        this.securityCenterService = securityCenterService;
     }
 
     @GetMapping("/status")
@@ -89,20 +93,20 @@ public class MfaController {
     }
 
     @PostMapping("/webauthn/verify")
-    public ResponseEntity<?> verifyAssertion(@RequestBody VerifyAssertionRequest request) {
+    public ResponseEntity<?> verifyAssertion(@RequestBody VerifyAssertionRequest request, HttpServletRequest httpRequest) {
         try {
             User user = webAuthnService.finishLoginWithAssertion(request.pendingToken(), request.credentialJson());
-            return ResponseEntity.ok(authResponse(user));
+            return ResponseEntity.ok(authResponse(user, httpRequest));
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Passkey verification failed."));
         }
     }
 
     @PostMapping("/recovery/verify")
-    public ResponseEntity<?> verifyRecoveryCode(@RequestBody VerifyRecoveryCodeRequest request) {
+    public ResponseEntity<?> verifyRecoveryCode(@RequestBody VerifyRecoveryCodeRequest request, HttpServletRequest httpRequest) {
         try {
             User user = webAuthnService.finishLoginWithRecoveryCode(request.pendingToken(), request.code());
-            return ResponseEntity.ok(authResponse(user));
+            return ResponseEntity.ok(authResponse(user, httpRequest));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", ex.getMessage()));
         }
@@ -128,8 +132,8 @@ public class MfaController {
         return ResponseEntity.noContent().build();
     }
 
-    private Map<String, Object> authResponse(User user) {
-        String token = jwtService.generateToken(user.getId());
+    private Map<String, Object> authResponse(User user, HttpServletRequest request) {
+        String token = securityCenterService.issueSession(user, request, "Passkey sign-in").token();
         return Map.of(
                 "token", token,
                 "user", Map.of(

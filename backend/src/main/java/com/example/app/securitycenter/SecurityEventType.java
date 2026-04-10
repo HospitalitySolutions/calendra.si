@@ -1,0 +1,14 @@
+package com.example.app.securitycenter;
+
+public enum SecurityEventType {
+    PASSKEY_ADDED,
+    PASSKEY_RENAMED,
+    PASSKEY_REMOVED,
+    RECOVERY_CODES_REGENERATED,
+    ALERT_PREFERENCES_UPDATED,
+    REAUTH_SUCCEEDED,
+    SIGN_IN,
+    SUSPICIOUS_SIGN_IN,
+    SESSION_REVOKED,
+    OTHER_SESSIONS_REVOKED
+}

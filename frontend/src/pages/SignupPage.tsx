@@ -5,6 +5,7 @@ import { api } from '../api'
 import { useLocale } from '../locale'
 import loginLogo from '../assets/login-logo.png'
 import { getPackageLabel, normalizePackageType } from '../lib/packageAccess'
+import { storeAuthenticatedSession } from '../lib/session'
 
 function resolveSignupContext(search: string) {
   const params = new URLSearchParams(search)
@@ -61,8 +62,7 @@ export function SignupPage() {
       })
 
       if (data?.token && data?.user) {
-        sessionStorage.setItem('token', data.token)
-        sessionStorage.setItem('user', JSON.stringify(data.user))
+        storeAuthenticatedSession(data)
         window.location.reload()
         return
       }

@@ -6,6 +6,7 @@ import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.mfa.WebAuthnService;
+import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.security.JwtService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
@@ -70,6 +71,7 @@ public class AuthController {
     private final PasswordResetService passwordResetService;
     private final CompanyProvisioningService companyProvisioningService;
     private final WebAuthnService webAuthnService;
+    private final SecurityCenterService securityCenterService;
 
     public AuthController(
             UserRepository users,
@@ -84,7 +86,8 @@ public class AuthController {
             TransactionServiceRepository txServices,
             PasswordResetService passwordResetService,
             CompanyProvisioningService companyProvisioningService,
-            WebAuthnService webAuthnService
+            WebAuthnService webAuthnService,
+            SecurityCenterService securityCenterService
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
@@ -99,6 +102,7 @@ public class AuthController {
         this.passwordResetService = passwordResetService;
         this.companyProvisioningService = companyProvisioningService;
         this.webAuthnService = webAuthnService;
+        this.securityCenterService = securityCenterService;
     }
 
     /**
@@ -144,7 +148,7 @@ public class AuthController {
         }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         String normalizedEmail = request.email().trim().toLowerCase();
         List<User> candidates = users.findAllByEmailIgnoreCase(normalizedEmail);
 
@@ -172,7 +176,7 @@ public class AuthController {
             ));
         }
 
-        String token = jwtService.generateToken(user.getId());
+        String token = securityCenterService.issueSession(user, httpRequest, "Password sign-in").token();
 
         return ResponseEntity.ok(Map.of(
                 "token", token,
@@ -212,7 +216,7 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody SignupRequest request) {
+    public ResponseEntity<?> signup(@RequestBody SignupRequest request, HttpServletRequest httpRequest) {
         String normalizedEmail = request.email().trim().toLowerCase();
         if (!users.findAllByEmailIgnoreCase(normalizedEmail).isEmpty()) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -275,7 +279,7 @@ public class AuthController {
             ));
         }
 
-        String token = jwtService.generateToken(owner.getId());
+        String token = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
         return ResponseEntity.ok(Map.of(
                 "token", token,
                 "user", Map.of(

@@ -147,11 +147,29 @@
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* Hide the main vertical scrollbar (edge of window); scrolling still works with wheel/touch/keyboard */
+    scrollbar-gutter: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.content--calendar-flush::-webkit-scrollbar,
+.content--calendar-flush::-webkit-scrollbar-thumb,
+.content--calendar-flush::-webkit-scrollbar-track {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 .calendar-page-web-root {
-    flex: 1;
-    min-height: 0;
+    /*
+     * Calendar content height comes from FullCalendar (height: auto), not a fixed viewport slice.
+     * Using flex:1 + min-height:0 here trapped .calendar-fc-shell in the viewport and turned it
+     * into a nested vertical scrollport (scrollbar beside the week grid). Let this root size to
+     * content so the only vertical scroll stays on main.content--calendar-flush.
+     */
+    flex: 0 1 auto;
+    min-height: auto;
     display: flex;
     flex-direction: column;
 }
@@ -190,6 +208,38 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+}
+
+/* Web calendar only: grow with FC instead of filling then clipping inside nested scroll areas */
+.calendar-page-web-root .card.calendar-web-flush {
+    flex: 0 1 auto;
+    min-height: auto;
+}
+
+.calendar-page-web-root .calendar-web-main,
+.calendar-page-web-root .calendar-web-main > div {
+    flex: 0 1 auto;
+    min-height: auto;
+}
+
+.calendar-page-web-root .calendar-web-wrap {
+    flex: 0 1 auto;
+    min-height: auto;
+}
+
+.calendar-page-web-root .calendar-web-inner {
+    grid-template-rows: auto;
+    flex: 0 1 auto;
+    min-height: auto;
+}
+
+.calendar-page-web-root .calendar-web-inner.calendar-web-inner--bottom-panel {
+    grid-template-rows: auto auto;
+}
+
+.calendar-page-web-root .calendar-fc-shell {
+    overflow-x: auto;
+    overflow-y: visible;
 }
 
 .app-header {

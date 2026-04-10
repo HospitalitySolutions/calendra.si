@@ -1,5 +1,6 @@
 package com.example.app.security;
 
+import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.servlet.FilterChain;
@@ -21,10 +22,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final SecurityCenterService securityCenterService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository, SecurityCenterService securityCenterService) {
         this.jwtService = jwtService;
         this.userRepository = userRepository;
+        this.securityCenterService = securityCenterService;
     }
 
     @Override
@@ -43,12 +46,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String token = authHeader.substring(7);
-            Long userId = jwtService.extractUserId(token);
+            JwtService.AuthTokenPayload payload = jwtService.parseAuthToken(token);
+            Long userId = payload.userId();
 
             if (userId != null) {
                 User user = userRepository.findById(userId).orElse(null);
 
                 if (user != null && jwtService.isTokenValid(token, user.getId())) {
+                    String sessionId = payload.sessionId();
+                    if (sessionId != null && !securityCenterService.isSessionActive(user.getId(), sessionId)) {
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     user,
@@ -61,6 +71,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    if (sessionId != null && !sessionId.isBlank()) {
+                        securityCenterService.touchSession(user.getId(), sessionId, request);
+                    }
                 }
             }
         } catch (Exception ignored) {

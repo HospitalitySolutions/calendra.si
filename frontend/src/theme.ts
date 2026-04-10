@@ -24,5 +24,6 @@ export function clearAuthStoragePreservingTheme() {
   localStorage.removeItem('user')
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('user')
+  sessionStorage.removeItem('securityReauthToken')
   if (theme) localStorage.setItem(THEME_KEY, theme)
 }

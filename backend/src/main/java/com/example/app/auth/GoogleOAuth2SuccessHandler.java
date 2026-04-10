@@ -2,6 +2,7 @@ package com.example.app.auth;
 
 import com.example.app.mfa.WebAuthnService;
 import com.example.app.security.JwtService;
+import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,11 +27,13 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final WebAuthnService webAuthnService;
+    private final SecurityCenterService securityCenterService;
 
-    public GoogleOAuth2SuccessHandler(UserRepository userRepository, JwtService jwtService, WebAuthnService webAuthnService) {
+    public GoogleOAuth2SuccessHandler(UserRepository userRepository, JwtService jwtService, WebAuthnService webAuthnService, SecurityCenterService securityCenterService) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
         this.webAuthnService = webAuthnService;
+        this.securityCenterService = securityCenterService;
     }
 
     @Override
@@ -72,7 +75,7 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             redirectUrl = "/oauth-callback?mfa_token=" + java.net.URLEncoder.encode(mfa.pendingToken(), java.nio.charset.StandardCharsets.UTF_8);
             log.info("Google OAuth MFA challenge created for userId={}", user.getId());
         } else {
-            String token = jwtService.generateToken(user.getId());
+            String token = securityCenterService.issueSession(user, request, "Google sign-in").token();
             log.info("Google OAuth token generated for userId={}", user.getId());
             redirectUrl = "/oauth-callback?token=" + token;
         }

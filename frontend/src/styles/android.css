@@ -505,6 +505,14 @@
 .layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid .fc-scroller {
     overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid .fc-scroller::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }
 
 /* Pin day-of-week + date row while the pinch layer scrolls (native Android webview / app) */

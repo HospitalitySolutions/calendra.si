@@ -10,6 +10,7 @@ public interface WebAuthnCredentialRepository extends JpaRepository<WebAuthnCred
     long countByUser(User user);
     boolean existsByUser(User user);
     Optional<WebAuthnCredential> findByCredentialId(String credentialId);
+    Optional<WebAuthnCredential> findByCredentialIdAndUser(String credentialId, User user);
     void deleteByCredentialIdAndUser(String credentialId, User user);
     List<WebAuthnCredential> findAllByCredentialId(String credentialId);
 }

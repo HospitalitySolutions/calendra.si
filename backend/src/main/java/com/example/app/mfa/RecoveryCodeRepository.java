@@ -7,5 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface RecoveryCodeRepository extends JpaRepository<RecoveryCode, Long> {
     List<RecoveryCode> findAllByUserOrderByCreatedAtAsc(User user);
     long countByUserAndUsedAtIsNull(User user);
+    RecoveryCode findTopByUserOrderByCreatedAtDesc(User user);
     void deleteAllByUser(User user);
 }

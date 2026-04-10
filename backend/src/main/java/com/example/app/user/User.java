@@ -81,4 +81,12 @@ public class User extends BaseEntity {
     /** Base64url-encoded stable WebAuthn user handle for this user. */
     @Column(length = 255, unique = true)
     private String webauthnUserHandle;
+
+    /** Whether this user wants email alerts when passkeys or recovery codes change. Null defaults to true. */
+    @Column
+    private Boolean factorChangeAlertsEnabled;
+
+    /** Whether this user wants email alerts for suspicious sign-ins. Null defaults to true. */
+    @Column
+    private Boolean suspiciousSignInAlertsEnabled;
 }

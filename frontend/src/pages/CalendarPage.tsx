@@ -5981,6 +5981,7 @@ export default function CalendarPage() {
           slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
           nowIndicator
           stickyHeaderDates
+          stickyFooterScrollbar={false}
           selectable={!isNativeAndroid && !isViewOnly}
           unselectAuto={false}
           selectMinDistance={0}
