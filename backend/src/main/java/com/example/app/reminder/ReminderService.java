@@ -8,6 +8,8 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.session.SessionBooking;
 import com.example.app.user.User;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -21,14 +23,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class ReminderService {
     private static final Logger log = LoggerFactory.getLogger(ReminderService.class);
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("EEEE, MMM d 'at' HH:mm");
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Locale NOTIFY_LOCALE = Locale.forLanguageTag("sl-SI");
+    private static final DateTimeFormatter TAG_DATE = DateTimeFormatter.ofPattern("d. M. yyyy").withLocale(NOTIFY_LOCALE);
+    private static final DateTimeFormatter TAG_TIME = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter TAG_DATETIME_FULL = DateTimeFormatter.ofPattern("EEEE, d. M. yyyy 'ob' HH:mm").withLocale(NOTIFY_LOCALE);
 
     private final JavaMailSender mailSender;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -40,10 +51,12 @@ public class ReminderService {
     private final boolean smsConfigured;
     private final AppSettingRepository appSettings;
     private final CompanyRepository companies;
+    private final String frontendBaseUrl;
 
     public ReminderService(
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
+            @Value("${app.auth.frontend-url:http://localhost:3000}") String frontendBaseUrl,
             @Value("${app.infobip.base-url:https://api.infobip.com}") String infobipBaseUrl,
             @Value("${app.infobip.api-key:}") String infobipApiKey,
             @Value("${app.infobip.sender:}") String infobipSender,
@@ -54,6 +67,7 @@ public class ReminderService {
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom != null ? mailFrom : "";
+        this.frontendBaseUrl = normalizeBaseUrl(frontendBaseUrl != null ? frontendBaseUrl : "");
         this.infobipBaseUrl = infobipBaseUrl != null ? infobipBaseUrl.strip().replaceAll("/$", "") : "";
         this.infobipApiKey = infobipApiKey != null ? infobipApiKey : "";
         this.infobipSender = infobipSender != null ? infobipSender : "";
@@ -98,53 +112,208 @@ public class ReminderService {
         }
     }
 
-    /** Sends booking confirmation email to the client when a session is booked. */
+    /** Sends new-session email only when the "New session" template is enabled in settings. */
     public void sendBookingConfirmation(SessionBooking booking) {
-        Client client = booking.getClient();
-        if (client == null || client.isAnonymized()) return;
-        if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured) return;
+        sendBookingTemplateEmail(booking, NotificationEmailKind.NEW_SESSION, null, null);
+    }
 
-        User consultant = booking.getConsultant();
-        String clientName = (client.getFirstName() + " " + client.getLastName()).trim();
-        String consultantName = consultant == null
-                ? "Unassigned"
-                : (consultant.getFirstName() + " " + consultant.getLastName()).trim();
-        String startFormatted = booking.getStartTime().format(DATE_TIME_FORMAT);
-        String endFormatted = booking.getEndTime().format(DateTimeFormatter.ofPattern("HH:mm"));
-        String typeName = booking.getType() != null ? booking.getType().getName() : "Session";
-        String spaceName = booking.getSpace() != null ? booking.getSpace().getName() : null;
+    /** Sends change-session email when the template is enabled and the client has email. */
+    public void sendSessionRescheduled(SessionBooking booking, LocalDateTime previousStart, LocalDateTime previousEnd) {
+        sendBookingTemplateEmail(booking, NotificationEmailKind.CHANGE_SESSION, previousStart, previousEnd);
+    }
+
+    /** Sends cancel-session email when the template is enabled (call before deleting the booking entity). */
+    public void sendSessionCancelled(SessionBooking booking) {
+        sendBookingTemplateEmail(booking, NotificationEmailKind.CANCEL_SESSION, null, null);
+    }
+
+    private void sendBookingTemplateEmail(SessionBooking booking, NotificationEmailKind kind,
+            LocalDateTime originalStart, LocalDateTime originalEnd) {
+        Client client = booking.getClient();
+        if (client == null || client.isAnonymized()) {
+            return;
+        }
+        if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) {
+            return;
+        }
+
+        Long companyId = booking.getCompany().getId();
+        Optional<NotificationEmailTemplate> templateOpt = loadNotificationEmailTemplate(companyId, kind);
+        if (templateOpt.isEmpty()) {
+            log.debug("Skipping {} booking email for company {}: template disabled or not configured", kind, companyId);
+            return;
+        }
+        NotificationEmailTemplate template = templateOpt.get();
+        if (template.subject().isBlank() && template.bodyHtml().isBlank()) {
+            log.debug("Skipping {} booking email for company {}: empty subject and body", kind, companyId);
+            return;
+        }
+
+        Map<String, String> tokens = buildTemplateTokens(booking, originalStart, originalEnd);
+        String subject = replaceTokens(template.subject(), tokens);
+        String bodyHtml = replaceTokens(template.bodyHtml(), tokens);
 
         try {
-            sendBookingConfirmationEmail(client.getEmail(), clientName, consultantName, startFormatted, endFormatted, typeName, spaceName);
+            sendHtmlMail(client.getEmail().trim(), subject, bodyHtml);
+            log.info("Sent {} booking email to {}", kind, client.getEmail());
         } catch (Exception e) {
-            log.warn("Failed to send booking confirmation email to {}: {}", client.getEmail(), e.getMessage());
+            log.warn("Failed to send {} booking email to {}: {}", kind, client.getEmail(), e.getMessage());
         }
     }
 
-    private void sendBookingConfirmationEmail(String to, String clientName, String consultantName,
-            String startFormatted, String endFormatted, String typeName, String spaceName) throws MessagingException {
-        if (mailSender == null) return;
-        String subject = "Session booked";
-        StringBuilder body = new StringBuilder();
-        body.append(String.format("Hello %s,\n\n", clientName));
-        body.append("Your session has been booked with the following details:\n\n");
-        body.append(String.format("Date & time: %s – %s\n", startFormatted, endFormatted));
-        body.append(String.format("Consultant: %s\n", consultantName));
-        body.append(String.format("Type: %s\n", typeName));
-        if (spaceName != null) {
-            body.append(String.format("Location: %s\n", spaceName));
+    private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationEmailKind kind) {
+        String raw = appSettings.findByCompanyIdAndKey(companyId, SettingKey.NOTIFICATION_SETTINGS_JSON)
+                .map(AppSetting::getValue)
+                .orElse(null);
+        if (raw == null || raw.isBlank()) {
+            return Optional.empty();
         }
-        body.append("\nSee you then!");
+        try {
+            JsonNode root = JSON.readTree(raw);
+            JsonNode node = root.path("email").path(kind.getJsonKey());
+            if (!node.path("enabled").asBoolean(false)) {
+                return Optional.empty();
+            }
+            String subject = node.path("subject").asText("");
+            String bodyHtml = node.path("bodyHtml").asText("");
+            return Optional.of(new NotificationEmailTemplate(subject, bodyHtml));
+        } catch (Exception e) {
+            log.warn("Invalid NOTIFICATION_SETTINGS_JSON for company {}: {}", companyId, e.getMessage());
+            return Optional.empty();
+        }
+    }
 
+    private Map<String, String> buildTemplateTokens(SessionBooking booking,
+            LocalDateTime originalStart, LocalDateTime originalEnd) {
+        Map<String, String> m = new LinkedHashMap<>();
+        Company company = booking.getCompany();
+        Long companyId = company.getId();
+
+        Client client = booking.getClient();
+        m.put("{{companyName}}", settingOr(companyId, SettingKey.COMPANY_NAME, company.getName()));
+        m.put("{{clientFirstName}}", nz(client.getFirstName()));
+        m.put("{{clientLastName}}", nz(client.getLastName()));
+        m.put("{{serviceName}}", booking.getType() != null ? nz(booking.getType().getName()) : "");
+        m.put("{{serviceCategories}}", "");
+
+        LocalDateTime start = booking.getStartTime();
+        LocalDateTime end = booking.getEndTime();
+        m.put("{{date}}", start.format(TAG_DATE));
+        m.put("{{dayName}}", start.format(DateTimeFormatter.ofPattern("EEEE", NOTIFY_LOCALE)));
+        m.put("{{year}}", String.valueOf(start.getYear()));
+        m.put("{{time}}", start.format(TAG_TIME) + "–" + end.format(TAG_TIME));
+
+        m.put("{{locationName}}", booking.getSpace() != null ? nz(booking.getSpace().getName()) : "");
+        m.put("{{locationAddress}}", formatCompanyAddress(companyId));
+        m.put("{{locationPhone}}", settingOr(companyId, SettingKey.COMPANY_TELEPHONE, ""));
+
+        User consultant = booking.getConsultant();
+        m.put("{{consultantName}}", consultant == null
+                ? ""
+                : (nz(consultant.getFirstName()) + " " + nz(consultant.getLastName())).trim());
+        m.put("{{consultantPhone}}", consultant != null && consultant.getPhone() != null ? consultant.getPhone().trim() : "");
+
+        m.put("{{rescheduleLink}}", buildRescheduleLink(company));
+
+        if (originalStart != null) {
+            LocalDateTime oEnd = originalEnd != null ? originalEnd : originalStart;
+            m.put("{{originalAppointmentDateTime}}",
+                    originalStart.format(TAG_DATETIME_FULL) + " – " + oEnd.format(TAG_TIME));
+        } else {
+            m.put("{{originalAppointmentDateTime}}", "");
+        }
+
+        return m;
+    }
+
+    private String formatCompanyAddress(Long companyId) {
+        String line1 = settingOr(companyId, SettingKey.COMPANY_ADDRESS, "").strip();
+        String pc = settingOr(companyId, SettingKey.COMPANY_POSTAL_CODE, "").strip();
+        String city = settingOr(companyId, SettingKey.COMPANY_CITY, "").strip();
+        StringBuilder sb = new StringBuilder();
+        if (!line1.isEmpty()) {
+            sb.append(line1);
+        }
+        if (!pc.isEmpty() || !city.isEmpty()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(pc);
+            if (!pc.isEmpty() && !city.isEmpty()) sb.append(" ");
+            sb.append(city);
+        }
+        return sb.toString();
+    }
+
+    private String buildRescheduleLink(Company company) {
+        String code = company.getTenantCode();
+        if (code == null || code.isBlank() || frontendBaseUrl.isBlank()) {
+            return "";
+        }
+        return frontendBaseUrl + "/widget/" + code.strip();
+    }
+
+    private String settingOr(Long companyId, SettingKey key, String fallback) {
+        return appSettings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(String::strip)
+                .filter(s -> !s.isEmpty())
+                .orElse(fallback != null ? fallback : "");
+    }
+
+    private static String nz(String s) {
+        return s == null ? "" : s.strip();
+    }
+
+    private static String replaceTokens(String input, Map<String, String> tokens) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        String out = input;
+        for (Map.Entry<String, String> e : tokens.entrySet()) {
+            out = out.replace(e.getKey(), e.getValue() != null ? e.getValue() : "");
+        }
+        return out;
+    }
+
+    private void sendHtmlMail(String to, String subject, String html) throws MessagingException {
+        String safeSubject = subject == null || subject.isBlank() ? " " : subject;
+        String safeBody = html == null || html.isBlank() ? " " : html;
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
         helper.setFrom(mailFrom);
         helper.setTo(to);
-        helper.setSubject(subject);
-        helper.setText(body.toString(), false);
+        helper.setSubject(safeSubject);
+        helper.setText(safeBody, true);
         mailSender.send(message);
-        log.info("Sent booking confirmation email to {}", to);
     }
+
+    private static String normalizeBaseUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "";
+        }
+        String u = url.strip();
+        while (u.endsWith("/")) {
+            u = u.substring(0, u.length() - 1);
+        }
+        return u;
+    }
+
+    private enum NotificationEmailKind {
+        NEW_SESSION("newSession"),
+        CHANGE_SESSION("changeSession"),
+        CANCEL_SESSION("cancelSession");
+
+        private final String jsonKey;
+
+        NotificationEmailKind(String jsonKey) {
+            this.jsonKey = jsonKey;
+        }
+
+        String getJsonKey() {
+            return jsonKey;
+        }
+    }
+
+    private record NotificationEmailTemplate(String subject, String bodyHtml) {}
 
     private void sendEmail(String to, String clientName, String consultantName, String startFormatted, String typeName) throws MessagingException {
         if (mailSender == null) return;

@@ -130,8 +130,15 @@ public class SessionBookingCreationService {
             }
             meetingLink = createMeetingUrl(consultantId, start, end, req.meetingProvider());
         }
+        LocalDateTime previousStart = booking.getStartTime();
+        LocalDateTime previousEnd = booking.getEndTime();
         apply(booking, req, me, start, end, companyId, meetingLink);
-        return SessionBookingController.toResponse(repo.save(booking));
+        booking = repo.save(booking);
+        boolean timeChanged = !previousStart.equals(booking.getStartTime()) || !previousEnd.equals(booking.getEndTime());
+        if (timeChanged) {
+            reminderService.sendSessionRescheduled(booking, previousStart, previousEnd);
+        }
+        return SessionBookingController.toResponse(booking);
     }
 
     public void validateBookingWindow(Long companyId, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,

@@ -1,6 +1,7 @@
 package com.example.app.session;
 
 import com.example.app.company.CompanyRepository;
+import com.example.app.reminder.ReminderService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.Role;
 import com.example.app.user.User;
@@ -24,18 +25,21 @@ public class SessionBookingController {
     private final CalendarTodoRepository calendarTodos;
     private final CompanyRepository companies;
     private final SessionBookingCreationService bookingCreationService;
+    private final ReminderService reminderService;
 
     public SessionBookingController(SessionBookingRepository repo,
                                     BookableSlotRepository bookableSlots,
                                     PersonalCalendarBlockRepository personalBlocks, CalendarTodoRepository calendarTodos,
                                     CompanyRepository companies,
-                                    SessionBookingCreationService bookingCreationService) {
+                                    SessionBookingCreationService bookingCreationService,
+                                    ReminderService reminderService) {
         this.repo = repo;
         this.bookableSlots = bookableSlots;
         this.personalBlocks = personalBlocks;
         this.calendarTodos = calendarTodos;
         this.companies = companies;
         this.bookingCreationService = bookingCreationService;
+        this.reminderService = reminderService;
     }
 
     public record BookingRequest(Long clientId, Long consultantId, String startTime, String endTime, Long spaceId, Long typeId, String notes, String meetingLink, Boolean online, String meetingProvider, Boolean allowPersonalBlockOverlap) {}
@@ -133,12 +137,19 @@ public class SessionBookingController {
         }
         repo.save(a);
         repo.save(b);
+        if (!a.getStartTime().equals(aStart) || !a.getEndTime().equals(aEnd)) {
+            reminderService.sendSessionRescheduled(a, aStart, aEnd);
+        }
+        if (!b.getStartTime().equals(bStart) || !b.getEndTime().equals(bEnd)) {
+            reminderService.sendSessionRescheduled(b, bStart, bEnd);
+        }
         return List.of(toResponse(a), toResponse(b));
     }
 
     public record SwapRequest(Long firstId, Long secondId) {}
 
     @DeleteMapping("/{id}")
+    @Transactional
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
         var booking = repo.findByIdAndCompanyId(id, companyId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
@@ -146,6 +157,7 @@ public class SessionBookingController {
                 && (booking.getConsultant() == null || !booking.getConsultant().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+        reminderService.sendSessionCancelled(booking);
         repo.delete(booking);
     }
 
