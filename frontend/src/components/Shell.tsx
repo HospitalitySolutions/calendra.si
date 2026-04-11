@@ -46,13 +46,13 @@ function AndroidNavIconClients() {
   )
 }
 
-/** Employees — briefcase (workforce / org), visually distinct from clients “users” icon. */
+/** Employees — add / manage team (single user + plus), distinct from clients “group” icon */
 function SidebarIconEmployees() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 20V8a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v12" />
-      <rect x="2" y="8" width="20" height="12" rx="2" />
-      <path d="M10 8V6a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M19 8v6M16 11h6" />
     </svg>
   )
 }

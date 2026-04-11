@@ -34,6 +34,10 @@ function employeeListCountLabel(count: number, locale: AppLocale): string {
 
 type UserRole = 'ADMIN' | 'CONSULTANT'
 
+function formatRoleLabel(role: UserRole, t: (key: string) => string) {
+  return role === 'ADMIN' ? t('employeesFormRoleOptionAdmin') : t('employeesFormRoleOptionConsultant')
+}
+
 type Consultant = {
   id: number
   firstName: string
@@ -191,9 +195,15 @@ export function ConsultantsPage() {
 
     return consultants.filter((consultant) => {
       const nm = `${consultant.firstName} ${consultant.lastName}`.toLowerCase()
-      return nm.includes(q) || consultant.email.toLowerCase().includes(q) || consultant.role.toLowerCase().includes(q)
+      const roleLabel = formatRoleLabel(consultant.role, t).toLowerCase()
+      return (
+        nm.includes(q) ||
+        consultant.email.toLowerCase().includes(q) ||
+        consultant.role.toLowerCase().includes(q) ||
+        roleLabel.includes(q)
+      )
     })
-  }, [consultants, search])
+  }, [consultants, search, t])
 
   const startCreate = () => {
     setEditing(null)
@@ -419,7 +429,7 @@ export function ConsultantsPage() {
                       </div>
                       <div>
                         <span>{t('employeesMetaRole')}</span>
-                        <strong>{c.role}</strong>
+                        <strong>{formatRoleLabel(c.role, t)}</strong>
                       </div>
                       <div style={{ gridColumn: '1 / -1' }}>
                         <span>{t('employeesMetaCreated')}</span>
@@ -468,7 +478,7 @@ export function ConsultantsPage() {
                           </div>
                         </td>
                         <td className="clients-muted">{c.email}</td>
-                        <td className="clients-muted">{c.role}</td>
+                        <td className="clients-muted">{formatRoleLabel(c.role, t)}</td>
                         <td className="clients-muted">{formatDate(c.createdAt)}</td>
                       </tr>
                     ))}
@@ -515,8 +525,8 @@ export function ConsultantsPage() {
               </Field>
               <Field label={t('employeesFormRole')}>
                 <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}>
-                  <option value="CONSULTANT">CONSULTANT</option>
-                  <option value="ADMIN">ADMIN</option>
+                  <option value="CONSULTANT">{t('employeesFormRoleOptionConsultant')}</option>
+                  <option value="ADMIN">{t('employeesFormRoleOptionAdmin')}</option>
                 </select>
               </Field>
               <div className="clients-detail-batch-switch-row full-span">
