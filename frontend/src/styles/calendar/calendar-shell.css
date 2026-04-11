@@ -497,6 +497,10 @@
         left: var(--sidebar-width);
         padding-left: 0;
     }
+
+    .layout:has(.sidebar-shell:hover) .calendar-bottom-panel.calendar-bottom-panel--fixed {
+        left: var(--sidebar-rail-expanded);
+    }
 }
 
 .calendar-bottom-panel__start,
@@ -1046,6 +1050,115 @@
 }
 .repeats-toggle-switch input:checked + .repeats-toggle-slider::before {
     transform: translateX(22px);
+}
+
+/* Live / Online: same switch as repeats; labels left and right */
+.online-live-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 10px;
+}
+
+/* Labels hug the switch; row stays left-aligned */
+.online-live-switch-row--inline {
+    justify-content: flex-start;
+    width: auto;
+    max-width: 100%;
+    gap: 6px;
+}
+
+.online-live-repeats-switch.repeats-toggle-switch {
+    margin-left: 0;
+    flex-shrink: 0;
+}
+
+/* Razpoložljivost Dejanje: blue track when Odpri (add / checkbox off), same as checked repeats */
+.online-live-repeats-switch.availability-intent-toggle input:not(:checked) + .repeats-toggle-slider {
+    background: var(--color-primary, #1672f3);
+}
+
+/* Ponavljanje: blue track when Omejeno (limited / checkbox off) */
+.online-live-repeats-switch.availability-repeat-toggle input:not(:checked) + .repeats-toggle-slider {
+    background: var(--color-primary, #1672f3);
+}
+
+/* Blokiraj / Neskončno: neutral track only (blue reserved for Odpri / Omejeno) */
+.online-live-repeats-switch.availability-intent-toggle input:checked + .repeats-toggle-slider,
+.online-live-repeats-switch.availability-repeat-toggle input:checked + .repeats-toggle-slider {
+    background: #cbd5e1;
+}
+
+[data-theme="dark"] .online-live-repeats-switch.availability-intent-toggle input:checked + .repeats-toggle-slider,
+[data-theme="dark"] .online-live-repeats-switch.availability-repeat-toggle input:checked + .repeats-toggle-slider {
+    background: #475569;
+}
+
+.online-live-switch-text {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-muted, #64748b);
+    white-space: nowrap;
+    transition: color 0.2s ease, font-weight 0.2s ease;
+}
+
+.online-live-switch-text--active {
+    font-weight: 700;
+    color: var(--color-text, #0f172a);
+}
+
+[data-theme="dark"] .online-live-switch-text--active {
+    color: #f8fafc;
+}
+
+/* Storitev: label + Online switch on one line; select full width below */
+.calendar-booking-service-with-online .calendar-booking-service-infield-head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+.calendar-booking-service-with-online .calendar-booking-service-infield-head .form-field-inline-label {
+    margin: 0;
+    padding: 0;
+    align-self: center;
+}
+.calendar-booking-service-online-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    align-self: center;
+}
+.calendar-booking-service-online-caption {
+    /* Match .form-field-inline-label (Storitev) */
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    color: var(--color-text-muted, #64748b);
+    white-space: nowrap;
+}
+.calendar-booking-service-online-line:has(input:checked) .calendar-booking-service-online-caption {
+    color: var(--color-text, #0f172a);
+}
+[data-theme="dark"] .calendar-booking-service-online-line:has(input:checked) .calendar-booking-service-online-caption {
+    color: #f8fafc;
+}
+.calendar-booking-service-online-toggle {
+    flex-shrink: 0;
+}
+.calendar-booking-service-with-online .calendar-booking-service-select-only {
+    display: block;
+    width: 100%;
+    min-width: 0;
+}
+.calendar-booking-service-with-online .calendar-booking-service-select-only > select {
+    width: 100%;
+    min-width: 0;
 }
 
 /* ── Repeats config panel ── */

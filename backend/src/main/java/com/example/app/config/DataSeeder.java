@@ -8,9 +8,6 @@ import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
-import com.example.app.session.SessionType;
-import com.example.app.session.SessionTypeRepository;
-import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -28,18 +25,16 @@ public class DataSeeder implements CommandLineRunner {
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final AppSettingRepository settings;
-    private final SessionTypeRepository types;
     private final TransactionServiceRepository txServices;
     private final CompanyRepository companies;
     private final PaymentMethodRepository paymentMethods;
 
     public DataSeeder(UserRepository users, PasswordEncoder encoder, AppSettingRepository settings,
-                      SessionTypeRepository types, TransactionServiceRepository txServices, CompanyRepository companies,
+                      TransactionServiceRepository txServices, CompanyRepository companies,
                       PaymentMethodRepository paymentMethods) {
         this.users = users;
         this.encoder = encoder;
         this.settings = settings;
-        this.types = types;
         this.txServices = txServices;
         this.companies = companies;
         this.paymentMethods = paymentMethods;
@@ -225,39 +220,6 @@ public class DataSeeder implements CommandLineRunner {
             s.setTaxRate(TaxRate.VAT_22);
             s.setNetPrice(new java.math.BigDecimal("50.00"));
             tx = txServices.save(s);
-        }
-
-        // Ensure default session type exists for this tenant, and link it to the default service.
-        var therapyTypeOpt = types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
-                .filter(t -> t.getName().equalsIgnoreCase("THERAPY"))
-                .findFirst();
-        if (therapyTypeOpt.isEmpty()) {
-            var type = new SessionType();
-            type.setCompany(company);
-            type.setName("THERAPY");
-            type.setDescription("Default therapy type");
-            type.setDurationMinutes(60);
-
-            var link = new TypeTransactionService();
-            link.setSessionType(type);
-            link.setTransactionService(tx);
-            link.setPrice(null);
-            type.getLinkedServices().add(link);
-            types.save(type);
-        } else {
-            var therapyType = therapyTypeOpt.get();
-            var txId = tx.getId();
-            boolean hasLink = therapyType.getLinkedServices() != null &&
-                    therapyType.getLinkedServices().stream().anyMatch(l -> l.getTransactionService() != null &&
-                            l.getTransactionService().getId().equals(txId));
-            if (!hasLink) {
-                var link = new TypeTransactionService();
-                link.setSessionType(therapyType);
-                link.setTransactionService(tx);
-                link.setPrice(null);
-                therapyType.getLinkedServices().add(link);
-                types.save(therapyType);
-            }
         }
     }
 

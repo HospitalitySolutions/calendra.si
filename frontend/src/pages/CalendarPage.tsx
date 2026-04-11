@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom'
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -39,6 +40,7 @@ import { Card, Field, PageHeader } from '../components/ui'
 import { formatDateTime, fullName, nameLastFirst, parseClientNameInput, personInitials } from '../lib/format'
 import { applyTheme, clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../theme'
 import { useLocale, type AppLocale } from '../locale'
+import { calendarBookingPanelHelpId, helpAria, helpTitle, helpTooltip } from '../helpContent'
 import { LanguageModal } from '../components/LanguageModal'
 import { ClientDetailSidePanel } from '../components/ClientDetailSidePanel'
 import { useToast } from '../components/Toast'
@@ -493,6 +495,13 @@ export default function CalendarPage() {
   const metaSpaces: any[] = Array.isArray(meta.spaces) ? meta.spaces : EMPTY_ARR
   const metaClients: any[] = Array.isArray(meta.clients) ? meta.clients : EMPTY_ARR
   const metaTypes: any[] = Array.isArray(meta.types) ? meta.types : EMPTY_ARR
+  const metaConsultants = useMemo(() => metaUsers.filter((u: any) => u.consultant), [metaUsers])
+  /** Hide Zaposleni when admin has no real choice (0–1 consultants). */
+  const showBookingConsultantRow = user.role === 'ADMIN' && metaConsultants.length > 1
+  /** Hide Prostor when there is no real choice (0–1 spaces). */
+  const showBookingSpaceRow = settings.SPACES_ENABLED !== 'false' && metaSpaces.length > 1
+  /** Hide Storitev (+ bundled Online on web) when no session types exist. */
+  const showBookingTypeRow = settings.TYPES_ENABLED !== 'false' && metaTypes.length > 0
   const [selection, setSelection] = useState<any>(null)
   const [dragSelection, setDragSelection] = useState<{
     start: string
@@ -553,6 +562,8 @@ export default function CalendarPage() {
   const [availabilitySelection, setAvailabilitySelection] = useState<any>(null)
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
   const [availabilitySaving, setAvailabilitySaving] = useState(false)
+  /** Razpoložljivost: header check runs add (bookable slot) vs block (personal AVAILABILITY_BLOCK_TASK) per toggle. */
+  const [availabilityIntent, setAvailabilityIntent] = useState<'add' | 'block'>('add')
   const [visibleRange, setVisibleRange] = useState<{ start: string; end: string } | null>(null)
   const [holidaysByDate, setHolidaysByDate] = useState<Record<string, string>>({})
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -561,6 +572,8 @@ export default function CalendarPage() {
   const [googleConnected, setGoogleConnected] = useState<boolean | null>(null)
   const [saveBookingError, setSaveBookingError] = useState<string | null>(null)
   const [saveBookingLoading, setSaveBookingLoading] = useState(false)
+  const addBookingOnlineCaptionId = useId()
+  const bookedSessionOnlineCaptionId = useId()
   const [voiceBookingConfigured, setVoiceBookingConfigured] = useState<boolean | null>(null)
   const [voiceListening, setVoiceListening] = useState(false)
   const [voiceBookingLoading, setVoiceBookingLoading] = useState(false)
@@ -642,6 +655,21 @@ export default function CalendarPage() {
   const calendarDateNavArrowsInRail = useCalendarDateNavArrowsInRail()
   const calendarMobileHeaderNav = useCalendarMobileHeaderNav()
   const useBookingSidePanel = isNativeAndroid || calendarFiltersBottomBar
+  /** Same breakpoint as bottom filters (~939px): × + check header, no title/help; wide = PageHeader + footer CTAs. */
+  const compactSelectionHeader = calendarFiltersBottomBar
+  const compactSelectionCheckAria =
+    availabilitySelection != null
+      ? availabilityIntent === 'block'
+        ? t('formBlockAvailability')
+        : availabilitySelection.slotId
+          ? t('formSaveChanges')
+          : t('formCreateAvailability')
+      : form.todo
+        ? t('formAddTodo')
+        : form.personal
+          ? t('formAddBlock')
+          : t('formBookSession')
+  const showSelectionFormFooter = !calendarFiltersBottomBar && availabilitySelection == null
   const consultantResourceLabelsCompact = useCalendarConsultantResourceInitialsLayout()
   const [androidScheduleOpen, setAndroidScheduleOpen] = useState(false)
   const [androidConfigOpen, setAndroidConfigOpen] = useState(false)
@@ -1883,6 +1911,7 @@ export default function CalendarPage() {
     const endDateOnly = endLocal.slice(0, 10)
     setSelection({ start: startLocal, end: endLocal })
     setAvailabilityError(null)
+    setAvailabilityIntent('add')
     setAvailabilitySelection({
       slotId: null,
       consultantId: defaultConsultantId,
@@ -1902,6 +1931,7 @@ export default function CalendarPage() {
     const endTime = `${date}T${endRaw.slice(0, 5)}:00`
     setSelection({ start: startTime, end: endTime })
     setAvailabilityError(null)
+    setAvailabilityIntent('add')
     setAvailabilitySelection({
       slotId: slot.fromWorkingHours ? null : slot.id,
       consultantId: slot.consultant?.id ?? consultantFilterId ?? user.id,
@@ -1916,6 +1946,7 @@ export default function CalendarPage() {
   const closeAvailabilityModal = () => {
     setSelection(null)
     setAvailabilitySelection(null)
+    setAvailabilityIntent('add')
     setAvailabilityError(null)
     setAvailabilitySaving(false)
     setClientDropdownOpen(false)
@@ -2220,6 +2251,10 @@ export default function CalendarPage() {
     }
   }
 
+  const confirmAvailabilityFromHeader = () => {
+    void (availabilityIntent === 'block' ? blockAvailabilitySlot() : saveAvailabilitySlot())
+  }
+
   const deleteAvailabilitySlot = async () => {
     if (!availabilitySelection?.slotId) return
     setAvailabilitySaving(true)
@@ -2254,6 +2289,7 @@ export default function CalendarPage() {
       setSelectedPersonalBlock(null)
       setSelectedTodo(null)
       setAvailabilitySelection(null)
+      setAvailabilityIntent('add')
       setAvailabilityError(null)
       setAvailabilitySaving(false)
     },
@@ -3324,6 +3360,39 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!form.personal) setPersonalTaskPresetDropdownOpen(false)
   }, [form.personal])
+
+  useEffect(() => {
+    if (!selection || form.todo || form.personal || availabilitySelection) return
+    setForm((f: any) => {
+      const updates: Record<string, unknown> = {}
+      if (user.role === 'ADMIN' && metaConsultants.length === 1) {
+        updates.consultantId = metaConsultants[0].id
+      }
+      if (settings.SPACES_ENABLED !== 'false') {
+        if (metaSpaces.length === 1) {
+          updates.spaceId = metaSpaces[0].id
+        } else if (metaSpaces.length === 0) {
+          updates.spaceId = null
+        }
+      }
+      if (metaTypes.length === 0) {
+        updates.typeId = null
+      }
+      if (Object.keys(updates).length === 0) return f
+      let changed = false
+      for (const [k, v] of Object.entries(updates)) {
+        if (f[k] !== v) changed = true
+      }
+      return changed ? { ...f, ...updates } : f
+    })
+  }, [selection, form.todo, form.personal, availabilitySelection, user.role, metaConsultants, metaSpaces, metaTypes.length, settings.SPACES_ENABLED])
+
+  useEffect(() => {
+    if (!availabilitySelection || user.role !== 'ADMIN' || metaConsultants.length !== 1) return
+    const id = metaConsultants[0].id
+    if (availabilitySelection.consultantId === id) return
+    setAvailabilitySelection({ ...availabilitySelection, consultantId: id })
+  }, [availabilitySelection, metaConsultants, user.role])
 
   useEffect(() => {
     if (!selectedPersonalBlock) setPersonalTaskPresetDropdownOpen(false)
@@ -4430,6 +4499,7 @@ export default function CalendarPage() {
       setSelectedPersonalBlock(null)
       setSelectedTodo(null)
       setAvailabilitySelection(null)
+      setAvailabilityIntent('add')
       setAvailabilityError(null)
       setAvailabilitySaving(false)
       setSelection(null)
@@ -4455,6 +4525,7 @@ export default function CalendarPage() {
       setSelectedPersonalBlock(null)
       setSelectedTodo(null)
       setAvailabilitySelection(null)
+      setAvailabilityIntent('add')
       setAvailabilityError(null)
       setAvailabilitySaving(false)
       setSelection(null)
@@ -5139,6 +5210,7 @@ export default function CalendarPage() {
   const closeBookingSelection = () => {
     setSelection(null)
     setAvailabilitySelection(null)
+    setAvailabilityIntent('add')
     setAvailabilityError(null)
     setAvailabilitySaving(false)
     setClientDropdownOpen(false)
@@ -5149,27 +5221,14 @@ export default function CalendarPage() {
   }
 
   const renderBookingModeTitle = () => {
-    const title = availabilitySelection
-      ? t('calendarModeAvailability')
-      : form.todo
-        ? t('formTodo')
-        : form.personal
-          ? t('formPersonalBlock')
-          : t('formBookSession')
-    const tooltip = availabilitySelection
-      ? t('calendarAvailabilityTooltip')
-      : form.todo
-      ? t('formTodoSubtitle')
-      : form.personal
-        ? t('formPersonalSubtitle')
-        : t('calendarBookSessionTooltip')
-    const aria = availabilitySelection
-      ? t('calendarAvailabilityHelpAria')
-      : form.todo
-      ? t('calendarTodoHelpAria')
-      : form.personal
-          ? t('formPersonalBlockHelpAria')
-          : t('formBookSessionHelpAria')
+    const helpId = calendarBookingPanelHelpId({
+      hasAvailabilitySelection: Boolean(availabilitySelection),
+      todo: Boolean(form.todo),
+      personal: Boolean(form.personal),
+    })
+    const title = helpTitle(t, helpId)
+    const tooltip = helpTooltip(t, helpId)
+    const aria = helpAria(t, helpId)
     return (
       <span className="booking-title-with-help">
         <span>{title}</span>
@@ -6341,11 +6400,37 @@ export default function CalendarPage() {
                   bookingsUseResourceColumns && res0?.id != null ? String(res0.id) : undefined
                 openBookingModal(start, end, props.consultant?.id, false, undefined, undefined, false, info.el, sr)
               }
+              if (calendarMode === 'spaces') {
+                const start = info.event.start ? toLocalDateTimeString(info.event.start) : selection?.start
+                const end = info.event.end ? toLocalDateTimeString(info.event.end) : selection?.end
+                const res0 = info.event.getResources?.()?.[0]
+                const rid = res0?.id
+                let preselectedSpaceId: number | null
+                if (spaceFilterId != null) preselectedSpaceId = spaceFilterId
+                else if (rid == null || rid === SPACE_RESOURCE_UNASSIGNED_ID) preselectedSpaceId = null
+                else preselectedSpaceId = Number(rid)
+                const selectionInfo = getBookableSelectionInfo(start, end)
+                const sr = spacesUseResourceColumns && rid != null ? String(rid) : undefined
+                openBookingModal(
+                  start,
+                  end,
+                  selectionInfo.consultantId ?? props.consultant?.id ?? consultantFilterId ?? user.id,
+                  false,
+                  preselectedSpaceId,
+                  undefined,
+                  !selectionInfo.isBookable,
+                  info.el,
+                  sr,
+                )
+              }
+              return
+            }
+            if (props.kind === 'booking-break' || props.kind === 'non-bookable') {
               return
             }
             const start = info.event.start ? toLocalDateTimeString(info.event.start) : selection?.start
             const end = info.event.end ? toLocalDateTimeString(info.event.end) : selection?.end
-            openBookingModal(start, end, props.consultant.id, false, undefined, undefined, false, info.el)
+            openBookingModal(start, end, props.consultant?.id, false, undefined, undefined, false, info.el)
           }}
           eventContent={(arg) => {
             const props: any = arg.event.extendedProps
@@ -6940,7 +7025,7 @@ export default function CalendarPage() {
                 </div>
                 </div>
               </div>
-              {user.role === 'ADMIN' && (
+              {showBookingConsultantRow && (
                 <div className="form-row form-row-infield">
                   <span className="form-field-inline-label">{t('formConsultant')}</span>
                   <div className="form-field-inline-control">
@@ -6956,9 +7041,60 @@ export default function CalendarPage() {
                     }}
                   >
                     <option value="">{t('formUnassigned')}</option>
-                    {metaUsers.filter((u: any) => u.consultant).map((c: any) => (
+                    {metaConsultants.map((c: any) => (
                       <option key={c.id} value={c.id}>{fullName(c)}</option>
                     ))}
+                  </select>
+                  </div>
+                </div>
+              )}
+              {showBookingTypeRow && (
+                <div className="form-row form-row-infield calendar-booking-service-with-online">
+                  <div className="calendar-booking-service-infield-head">
+                    <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
+                    <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
+                      <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
+                        <input
+                          type="checkbox"
+                          checked={!!selectedBookedSession.online}
+                          aria-labelledby={bookedSessionOnlineCaptionId}
+                          onChange={(e) => {
+                            const on = e.target.checked
+                            if (on) {
+                              setSelectedBookedSession({
+                                ...selectedBookedSession,
+                                online: true,
+                                meetingProvider: selectedBookedSession.meetingProvider || 'zoom',
+                              })
+                            } else {
+                              setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })
+                            }
+                          }}
+                        />
+                        <span className="repeats-toggle-slider" />
+                      </label>
+                      <span id={bookedSessionOnlineCaptionId} className="calendar-booking-service-online-caption">
+                        {t('formSessionOnlineShort')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="form-field-inline-control calendar-booking-service-select-only">
+                    <select value={selectedBookedSession.type?.id ?? ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, type: metaTypes.find((ty: any) => ty.id === Number(e.target.value)) })}>
+                      <option value="">{t('formNoType')}</option>
+                      {metaTypes.map((ty: any) => (
+                        <option key={ty.id} value={ty.id}>{ty.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+              {showBookingSpaceRow && (
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
+                  <div className="form-field-inline-control">
+                  <select value={selectedBookedSession.space?.id ?? ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, space: metaSpaces.find((s: any) => s.id === Number(e.target.value)) })}>
+                    <option value="">{t('formNoSpace')}</option>
+                    {metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   </div>
                 </div>
@@ -7085,49 +7221,6 @@ export default function CalendarPage() {
                   </div>
                 )
               })()}
-              {settings.SPACES_ENABLED !== 'false' && (
-                <div className="form-row form-row-infield">
-                  <span className="form-field-inline-label">{t('formSpace')}</span>
-                  <div className="form-field-inline-control">
-                  <select value={selectedBookedSession.space?.id ?? ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, space: metaSpaces.find((s: any) => s.id === Number(e.target.value)) })}>
-                    <option value="">{t('formNoSpace')}</option>
-                    {metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  </div>
-                </div>
-              )}
-              {settings.TYPES_ENABLED !== 'false' && (
-                <div className="form-row form-row-infield">
-                  <span className="form-field-inline-label">{t('formType')}</span>
-                  <div className="form-field-inline-control">
-                  <select value={selectedBookedSession.type?.id ?? ''} onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, type: metaTypes.find((t: any) => t.id === Number(e.target.value)) })}>
-                    <option value="">{t('formNoType')}</option>
-                    {metaTypes.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                  </div>
-                </div>
-              )}
-              <div className="form-row form-row-infield form-row--bare">
-                <span className="form-field-inline-label">{t('formSession')}</span>
-                <div className="form-field-inline-control">
-                  <div className="online-live-toggle">
-                    <button
-                      type="button"
-                      className={!selectedBookedSession.online ? 'toggle-btn active' : 'toggle-btn'}
-                      onClick={() => setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })}
-                    >
-                      {t('formLive')}
-                    </button>
-                    <button
-                      type="button"
-                      className={selectedBookedSession.online ? 'toggle-btn active' : 'toggle-btn'}
-                      onClick={() => setSelectedBookedSession({ ...selectedBookedSession, online: true, meetingProvider: selectedBookedSession.meetingProvider || 'zoom' })}
-                    >
-                      {t('formOnline')}
-                    </button>
-                  </div>
-                </div>
-              </div>
               {selectedBookedSession.online && (
                 <div className="form-row form-row-infield">
                   <span className="form-field-inline-label">{t('formMeeting')}</span>
@@ -7314,15 +7407,60 @@ export default function CalendarPage() {
               setEditingClientSearch(false)
             }}
           >
-            <div className="booking-side-panel-header">
-              <PageHeader
-                title={renderBookingModeTitle()}
-                actions={
-                  <button type="button" className="secondary booking-side-panel-close" onClick={closeBookingSelection} aria-label={t('formBookSessionCloseAria')}>
+            <div
+              className={`booking-side-panel-header${
+                compactSelectionHeader ? ' booking-side-panel-header--compact-booking' : ''
+              }`}
+            >
+              {compactSelectionHeader ? (
+                <div className="booking-side-panel-header-toolbar">
+                  <button
+                    type="button"
+                    className="secondary booking-side-panel-close"
+                    onClick={closeBookingSelection}
+                    aria-label={t('formBookSessionCloseAria')}
+                  >
                     ×
                   </button>
-                }
-              />
+                  <button
+                    type="button"
+                    className={`booking-side-panel-submit-check${
+                      availabilitySelection != null && availabilityIntent === 'block' ? ' booking-side-panel-submit-check--block' : ''
+                    }`}
+                    onClick={() =>
+                      void (availabilitySelection != null ? confirmAvailabilityFromHeader() : saveBooking(false))
+                    }
+                    disabled={availabilitySelection != null ? availabilitySaving : saveBookingLoading}
+                    aria-label={compactSelectionCheckAria}
+                    title={compactSelectionCheckAria}
+                  >
+                    {availabilitySelection != null ? (
+                      availabilitySaving ? (
+                        <span className="booking-side-panel-submit-check-spinner" aria-hidden />
+                      ) : (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      )
+                    ) : saveBookingLoading ? (
+                      <span className="booking-side-panel-submit-check-spinner" aria-hidden />
+                    ) : (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <PageHeader
+                  title={renderBookingModeTitle()}
+                  actions={
+                    <button type="button" className="secondary booking-side-panel-close" onClick={closeBookingSelection} aria-label={t('formBookSessionCloseAria')}>
+                      ×
+                    </button>
+                  }
+                />
+              )}
             </div>
             <div className="booking-side-panel-body">
             {!isNativeAndroid && (
@@ -7384,7 +7522,7 @@ export default function CalendarPage() {
             <div className="form-row-layout">
               {availabilitySelection ? (
                 <>
-                  {user.role === 'ADMIN' && (
+                  {showBookingConsultantRow && (
                     <div className="form-row form-row-infield">
                       <span className="form-field-inline-label">{t('formConsultant')}</span>
                       <div className="form-field-inline-control">
@@ -7393,13 +7531,31 @@ export default function CalendarPage() {
                         onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, consultantId: Number(e.target.value) || null })}
                       >
                         <option value="">{t('formSelectConsultant')}</option>
-                        {metaUsers.filter((u: any) => u.consultant).map((c: any) => (
+                        {metaConsultants.map((c: any) => (
                           <option key={c.id} value={c.id}>{fullName(c)}</option>
                         ))}
                       </select>
                       </div>
                     </div>
                   )}
+                  <div className="form-row form-row-infield form-row--bare">
+                    <span className="form-field-inline-label">{t('formAvailabilityAction')}</span>
+                    <div className="form-field-inline-control">
+                      <div className="online-live-switch-row online-live-switch-row--inline" role="group" aria-label={`${t('formAvailabilityOpenShort')} / ${t('formBlockAvailabilityShort')}`}>
+                        <span className={`online-live-switch-text${availabilityIntent === 'add' ? ' online-live-switch-text--active' : ''}`}>{t('formAvailabilityOpenShort')}</span>
+                        <label className="repeats-toggle-switch online-live-repeats-switch availability-intent-toggle">
+                          <input
+                            type="checkbox"
+                            checked={availabilityIntent === 'block'}
+                            onChange={(e) => setAvailabilityIntent(e.target.checked ? 'block' : 'add')}
+                            aria-label={t('formAvailabilityAction')}
+                          />
+                          <span className="repeats-toggle-slider" />
+                        </label>
+                        <span className={`online-live-switch-text${availabilityIntent === 'block' ? ' online-live-switch-text--active' : ''}`}>{t('formBlockAvailabilityShort')}</span>
+                      </div>
+                    </div>
+                  </div>
                   <div className="form-row form-row-timespan">
                     <CalendarLocalTimespanRow
                       startValue={availabilitySelection.startTime}
@@ -7413,9 +7569,18 @@ export default function CalendarPage() {
                   <div className="form-row form-row-infield form-row--bare">
                     <span className="form-field-inline-label">{t('calendarRepeat')}</span>
                     <div className="form-field-inline-control">
-                      <div className="online-live-toggle">
-                        <button type="button" className={availabilitySelection.indefinite ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: true })}>{t('formIndefinite')}</button>
-                        <button type="button" className={!availabilitySelection.indefinite ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: false })}>{t('formLimited')}</button>
+                      <div className="online-live-switch-row online-live-switch-row--inline" role="group" aria-label={`${t('formLimited')} / ${t('formIndefinite')}`}>
+                        <span className={`online-live-switch-text${!availabilitySelection.indefinite ? ' online-live-switch-text--active' : ''}`}>{t('formLimited')}</span>
+                        <label className="repeats-toggle-switch online-live-repeats-switch availability-repeat-toggle">
+                          <input
+                            type="checkbox"
+                            checked={!!availabilitySelection.indefinite}
+                            onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, indefinite: e.target.checked })}
+                            aria-label={t('calendarRepeat')}
+                          />
+                          <span className="repeats-toggle-slider" />
+                        </label>
+                        <span className={`online-live-switch-text${availabilitySelection.indefinite ? ' online-live-switch-text--active' : ''}`}>{t('formIndefinite')}</span>
                       </div>
                     </div>
                   </div>
@@ -7592,11 +7757,85 @@ export default function CalendarPage() {
                 </div>
                 </div>
               </div>
-              {user.role === 'ADMIN' && (
+              {showBookingConsultantRow && (
                 <div className="form-row form-row-infield">
                   <span className="form-field-inline-label">{t('formConsultant')}</span>
                   <div className="form-field-inline-control">
-                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{metaUsers.filter((u: any) => u.consultant).map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select>
+                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{metaConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </select>
+                  </div>
+                </div>
+              )}
+              {!form.todo && !form.personal && !availabilitySelection && showBookingTypeRow && (
+                <div className={`form-row form-row-infield${!isNativeAndroid ? ' calendar-booking-service-with-online' : ''}`}>
+                  {!isNativeAndroid ? (
+                    <>
+                      <div className="calendar-booking-service-infield-head">
+                        <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
+                        <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
+                          <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
+                            <input
+                              type="checkbox"
+                              checked={!!form.online}
+                              aria-labelledby={addBookingOnlineCaptionId}
+                              onChange={(e) => {
+                                const on = e.target.checked
+                                if (on) {
+                                  setForm({ ...form, online: true })
+                                  setMeetingPickerCancelUnchecksOnline(true)
+                                  setMeetingProviderPickerOpen(true)
+                                } else {
+                                  setForm({ ...form, online: false })
+                                  setMeetingProviderPickerOpen(false)
+                                  setMeetingPickerCancelUnchecksOnline(false)
+                                }
+                              }}
+                            />
+                            <span className="repeats-toggle-slider" />
+                          </label>
+                          <span id={addBookingOnlineCaptionId} className="calendar-booking-service-online-caption">
+                            {t('formSessionOnlineShort')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="form-field-inline-control calendar-booking-service-select-only">
+                        <select
+                          value={form.typeId || ''}
+                          onChange={(e) => updateBookingFormType(Number(e.target.value) || null)}
+                        >
+                          <option value="">{t('formNoType')}</option>
+                          {metaTypes.map((ty: any) => (
+                            <option key={ty.id} value={ty.id}>
+                              {ty.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
+                      <div className="form-field-inline-control">
+                        <select
+                          value={form.typeId || ''}
+                          onChange={(e) => updateBookingFormType(Number(e.target.value) || null)}
+                        >
+                          <option value="">{t('formNoType')}</option>
+                          {metaTypes.map((ty: any) => (
+                            <option key={ty.id} value={ty.id}>
+                              {ty.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {!form.todo && !form.personal && !availabilitySelection && showBookingSpaceRow && (
+                <div className="form-row form-row-infield">
+                  <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
+                  <div className="form-field-inline-control">
+                  <select value={form.spaceId || ''} onChange={(e) => setForm({ ...form, spaceId: Number(e.target.value) || null })}><option value="">{t('formNoSpace')}</option>{metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
                   </div>
                 </div>
               )}
@@ -7722,65 +7961,6 @@ export default function CalendarPage() {
                   </div>
                 )
               })()}
-              {settings.SPACES_ENABLED !== 'false' && (
-                <div className="form-row form-row-infield">
-                  <span className="form-field-inline-label">{t('formSpace')}</span>
-                  <div className="form-field-inline-control">
-                  <select value={form.spaceId || ''} onChange={(e) => setForm({ ...form, spaceId: Number(e.target.value) || null })}><option value="">{t('formNoSpace')}</option>{metaSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-                  </div>
-                </div>
-              )}
-              {settings.TYPES_ENABLED !== 'false' && (
-                <>
-                  <div className="form-row form-row-infield">
-                    <span className="form-field-inline-label">{t('formType')}</span>
-                    <div className="form-field-inline-control">
-                    <select
-                      value={form.typeId || ''}
-                      onChange={(e) => updateBookingFormType(Number(e.target.value) || null)}
-                    >
-                      <option value="">{t('formNoType')}</option>
-                      {metaTypes.map((ty: any) => (
-                        <option key={ty.id} value={ty.id}>
-                          {ty.name}
-                        </option>
-                      ))}
-                    </select>
-                    </div>
-                  </div>
-                  {!isNativeAndroid && (
-                    <div className="form-row form-row-infield form-row--bare">
-                      <span className="form-field-inline-label">{t('formSession')}</span>
-                      <div className="form-field-inline-control">
-                        <div className="online-live-toggle">
-                          <button
-                            type="button"
-                            className={!form.online ? 'toggle-btn active' : 'toggle-btn'}
-                            onClick={() => {
-                              setForm({ ...form, online: false })
-                              setMeetingProviderPickerOpen(false)
-                              setMeetingPickerCancelUnchecksOnline(false)
-                            }}
-                          >
-                            {t('formLive')}
-                          </button>
-                          <button
-                            type="button"
-                            className={form.online ? 'toggle-btn active' : 'toggle-btn'}
-                            onClick={() => {
-                              setForm({ ...form, online: true })
-                              setMeetingPickerCancelUnchecksOnline(true)
-                              setMeetingProviderPickerOpen(true)
-                            }}
-                          >
-                            {t('formOnline')}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
               {isNativeAndroid ? (
                 <>
                   <div className="form-row form-row-infield book-session-flags-row">
@@ -7889,31 +8069,26 @@ export default function CalendarPage() {
                 </div>
               </div>
             )}
-            <div
-              className={`row gap booking-side-panel-footer${availabilitySelection ? ' calendar-availability-footer' : ''}`}
-              style={{ justifyContent: availabilitySelection ? 'space-between' : 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}
-            >
-              {availabilitySelection ? (
-                <>
-                  <button type="button" className="danger secondary calendar-availability-footer-btn" onClick={blockAvailabilitySlot} disabled={availabilitySaving}>
-                    <span className="calendar-availability-btn-label calendar-availability-btn-label--full">{t('formBlockAvailability')}</span>
-                    <span className="calendar-availability-btn-label calendar-availability-btn-label--short">{t('formBlockAvailabilityShort')}</span>
-                  </button>
-                  <button type="button" className="calendar-availability-footer-btn" onClick={saveAvailabilitySlot} disabled={availabilitySaving}>
-                    <span className="calendar-availability-btn-label calendar-availability-btn-label--full">
-                      {availabilitySaving ? t('formSaving') : availabilitySelection.slotId ? t('formSaveChanges') : t('formCreateAvailability')}
-                    </span>
-                    <span className="calendar-availability-btn-label calendar-availability-btn-label--short">
-                      {availabilitySaving ? t('formSaving') : availabilitySelection.slotId ? t('formSaveAvailabilityShort') : t('formCreateAvailabilityShort')}
-                    </span>
-                  </button>
-                </>
-              ) : (
-                <button type="button" onClick={() => saveBooking(false)} disabled={saveBookingLoading}>
-                  {saveBookingLoading ? t('formSaving') : form.todo ? t('formAddTodo') : form.personal ? t('formAddBlock') : t('formBookSession')}
-                </button>
-              )}
+            {showSelectionFormFooter && (
+            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <button type="button" onClick={() => void saveBooking(false)} disabled={saveBookingLoading}>
+                {saveBookingLoading ? t('formSaving') : form.todo ? t('formAddTodo') : form.personal ? t('formAddBlock') : t('formBookSession')}
+              </button>
             </div>
+            )}
+            {!calendarFiltersBottomBar && availabilitySelection != null && (
+              <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <button type="button" onClick={() => void confirmAvailabilityFromHeader()} disabled={availabilitySaving}>
+                  {availabilitySaving
+                    ? t('formSaving')
+                    : availabilityIntent === 'block'
+                      ? t('formBlockAvailabilityShort')
+                      : availabilitySelection.slotId
+                        ? t('formSaveChanges')
+                        : t('formAvailabilityFooterAdd')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

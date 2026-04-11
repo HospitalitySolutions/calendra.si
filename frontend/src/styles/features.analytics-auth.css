@@ -926,6 +926,13 @@
     justify-content: flex-start;
 }
 
+a.config-nav-item {
+    text-decoration: none;
+    font: inherit;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
 .config-nav-item.active {
     background: var(--color-primary-soft);
     color: var(--color-primary);

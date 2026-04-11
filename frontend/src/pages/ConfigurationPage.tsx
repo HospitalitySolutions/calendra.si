@@ -2,15 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
-import type {
-  BillingService,
-  PaymentMethod,
-  PaymentType,
-  SessionType as SessionTypeT,
-  TaxRate,
-} from '../lib/types'
+import type { PaymentMethod, PaymentType } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
-import { taxLabels } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { currency, formatDate } from '../lib/format'
@@ -19,22 +12,18 @@ import { FolioLayoutEditor } from './FolioLayoutEditor'
 import { SecurityPage } from './SecurityPage'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute } from '../lib/packageAccess'
+import { helpTooltip } from '../helpContent'
 
 type Tab = 'company' | 'booking' | 'billing' | 'notifications' | 'modules' | 'security'
-type BookingSubtab = 'tasks' | 'spaces' | 'types'
-type BillingSubtab = 'paymentMethods' | 'services' | 'fiscal' | 'folioLayout'
+type BookingSubtab = 'tasks' | 'spaces'
+type BillingSubtab = 'paymentMethods' | 'fiscal' | 'folioLayout'
 type PersonalTaskPreset = { id: string; name: string; color: string }
 
-const CONFIG_TABS: Array<{ id: Tab; label: string; icon: 'company' | 'booking' | 'billing' | 'notifications' | 'modules' | 'security' }> = [
-  { id: 'company', label: 'Company', icon: 'company' },
-  { id: 'booking', label: 'Booking', icon: 'booking' },
-  { id: 'billing', label: 'Billing', icon: 'billing' },
-  { id: 'notifications', label: 'Notifications', icon: 'notifications' },
-  { id: 'modules', label: 'Modules', icon: 'modules' },
-  { id: 'security', label: 'Security', icon: 'security' },
-]
+type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'notifications' | 'modules' | 'security'
 
-function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'notifications' | 'modules' | 'security' }) {
+type ConfigNavItem = { id: Tab; icon: ConfigNavIcon }
+
+function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
   if (kind === 'company') {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -92,7 +81,8 @@ function ConfigTabIcon({ kind }: { kind: 'company' | 'booking' | 'billing' | 'no
   return null
 }
 
-function HelpHint({ text }: { text: string }) {
+function HelpHint({ helpId, t }: { helpId: string; t: (key: string) => string }) {
+  const text = helpTooltip(t, helpId)
   return (
     <span className="config-help-hint" data-tooltip={text} role="img" aria-label={text} tabIndex={0}>
       ?
@@ -106,7 +96,6 @@ function useQuery() {
 }
 
 type Space = { id: number; name: string; description?: string; createdAt?: string }
-type TypeServiceLine = { transactionServiceId: number; price: string }
 const toTimeInputValue = (value: string | undefined, fallback: string) => {
   const v = (value || '').trim()
   if (/^\d{2}:\d{2}$/.test(v)) return v
@@ -207,24 +196,14 @@ export function ConfigurationPage() {
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('spaces')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
 
-  const visibleTabs = CONFIG_TABS
-
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [savingSettings, setSavingSettings] = useState(false)
 
   const [spaces, setSpaces] = useState<Space[]>([])
-  const [types, setTypes] = useState<SessionTypeT[]>([])
-  const [services, setServices] = useState<BillingService[]>([])
   const [editingSpace, setEditingSpace] = useState<Space | null>(null)
-  const [editingType, setEditingType] = useState<SessionTypeT | null>(null)
-  const [editingServiceId, setEditingServiceId] = useState<number | null>(null)
-  const [showServiceModal, setShowServiceModal] = useState(false)
   const [showSpaceModal, setShowSpaceModal] = useState(false)
-  const [showTypeModal, setShowTypeModal] = useState(false)
   const [openSpaceMenuId, setOpenSpaceMenuId] = useState<number | null>(null)
   const [spaceForm, setSpaceForm] = useState({ name: '', description: '' })
-  const [typeForm, setTypeForm] = useState<{ name: string; description: string; durationMinutes: number; breakMinutes: number; serviceLines: TypeServiceLine[] }>({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, serviceLines: [] })
-  const [serviceForm, setServiceForm] = useState<{ code: string; description: string; taxRate: TaxRate; netPrice: string }>({ code: '', description: '', taxRate: 'VAT_22', netPrice: '0.00' })
   const [personalTaskPresets, setPersonalTaskPresets] = useState<PersonalTaskPreset[]>([])
   const [showTaskPresetModal, setShowTaskPresetModal] = useState(false)
   const [editingTaskPresetId, setEditingTaskPresetId] = useState<string | null>(null)
@@ -250,11 +229,26 @@ export function ConfigurationPage() {
   useEffect(() => {
     if (!isAdmin) return
     const q = query.get('tab')
+    if (q === 'sessionTypes') {
+      navigate('/session-types', { replace: true })
+      return
+    }
     if (q === 'consultants') {
       navigate('/consultants', { replace: true })
       return
     }
-    if (q === 'company' || q === 'booking' || q === 'billing' || q === 'notifications' || q === 'modules' || q === 'security') {
+    if (q === 'services') {
+      navigate('/session-types?subtab=transaction-services', { replace: true })
+      return
+    }
+    if (
+      q === 'company' ||
+      q === 'booking' ||
+      q === 'billing' ||
+      q === 'notifications' ||
+      q === 'modules' ||
+      q === 'security'
+    ) {
       setTab(q)
     }
   }, [query, navigate, isAdmin])
@@ -275,11 +269,9 @@ export function ConfigurationPage() {
   }
 
   const load = async () => {
-    const [settingsRes, spacesRes, typesRes, servicesRes, paymentMethodsRes, certificateMetaRes] = await Promise.all([
+    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes] = await Promise.all([
       api.get('/settings'),
       api.get('/spaces').catch(() => ({ data: [] })),
-      api.get('/types').catch(() => ({ data: [] })),
-      api.get('/billing/services').catch(() => ({ data: [] })),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
       api.get('/fiscal/certificate/meta').catch(() => ({ data: { uploaded: false } })),
     ])
@@ -288,8 +280,6 @@ export function ConfigurationPage() {
     setSettings({ ...settingsData, ...((!settingsData.WORKING_HOURS_START && !settingsData.WORKING_HOURS_END) ? fallback : {}) })
     setPersonalTaskPresets(parsePersonalTaskPresets(settingsData[PERSONAL_TASK_PRESETS_KEY]))
     setSpaces(spacesRes.data || [])
-    setTypes(typesRes.data || [])
-    setServices(servicesRes.data || [])
     setPaymentMethods((paymentMethodsRes.data || []).map((p: PaymentMethod) => normalizePaymentMethod(p)!))
     setCertificateMeta(certificateMetaRes.data || { uploaded: false })
   }
@@ -300,19 +290,29 @@ export function ConfigurationPage() {
 
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
   const spacesModuleEnabled = settings.SPACES_ENABLED === 'true'
-  const typesModuleEnabled = settings.TYPES_ENABLED === 'true'
-  const bookingSubtabsAvailable = personalModuleEnabled || spacesModuleEnabled || typesModuleEnabled
+  const bookingSubtabsAvailable = personalModuleEnabled || spacesModuleEnabled
+
+  const configNavItems = useMemo(
+    (): ConfigNavItem[] => [
+      { id: 'company', icon: 'company' },
+      { id: 'booking', icon: 'booking' },
+      { id: 'billing', icon: 'billing' },
+      { id: 'notifications', icon: 'notifications' },
+      { id: 'modules', icon: 'modules' },
+      { id: 'security', icon: 'security' },
+    ],
+    [],
+  )
 
   useEffect(() => {
     const order: BookingSubtab[] = []
     if (personalModuleEnabled) order.push('tasks')
     if (spacesModuleEnabled) order.push('spaces')
-    if (typesModuleEnabled) order.push('types')
     if (order.length === 0) return
     if (!order.includes(bookingSubtab)) {
       setBookingSubtab(order[0]!)
     }
-  }, [personalModuleEnabled, spacesModuleEnabled, typesModuleEnabled, bookingSubtab])
+  }, [personalModuleEnabled, spacesModuleEnabled, bookingSubtab])
 
   useEffect(() => {
     setOpenSpaceMenuId(null)
@@ -456,50 +456,6 @@ export function ConfigurationPage() {
     load()
   }
 
-  const serviceSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!isAdmin) return
-    const payload = { ...serviceForm, netPrice: Number(serviceForm.netPrice) }
-    if (editingServiceId) await api.put(`/billing/services/${editingServiceId}`, payload)
-    else await api.post('/billing/services', payload)
-    setEditingServiceId(null)
-    setServiceForm({ code: '', description: '', taxRate: 'VAT_22', netPrice: '0.00' })
-    setShowServiceModal(false)
-    load()
-  }
-
-  const deleteService = async (id: number) => {
-    if (!isAdmin) return
-    if (!window.confirm('Delete this transaction service?')) return
-    await api.delete(`/billing/services/${id}`)
-    load()
-  }
-
-  const submitType = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!isAdmin) return
-    const payload = {
-      name: typeForm.name,
-      description: typeForm.description,
-      durationMinutes: typeForm.durationMinutes,
-      breakMinutes: typeForm.breakMinutes,
-      services: typeForm.serviceLines.map((l) => ({ transactionServiceId: l.transactionServiceId, price: l.price ? Number(l.price) : null })),
-    }
-    if (editingType) await api.put(`/types/${editingType.id}`, payload)
-    else await api.post('/types', payload)
-    setEditingType(null)
-    setTypeForm({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, serviceLines: [] })
-    setShowTypeModal(false)
-    load()
-  }
-
-  const removeType = async (id: number) => {
-    if (!isAdmin) return
-    if (!window.confirm('Delete this type?')) return
-    await api.delete(`/types/${id}`)
-    load()
-  }
-
   const submitPaymentMethod = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isAdmin) return
@@ -593,7 +549,7 @@ export function ConfigurationPage() {
       <div className="config-shell">
         <aside className="config-nav">
           <div className="config-nav-title">{t('settingsGroup')}</div>
-          {visibleTabs.map((entry) => (
+          {configNavItems.map((entry) => (
             <button
               key={entry.id}
               type="button"
@@ -657,15 +613,15 @@ export function ConfigurationPage() {
             <SectionTitle>{t('configBookingScheduleSection')}</SectionTitle>
             <div className="stack gap-sm">
               <label className="config-setting-row">
-                <span className="field-label config-label-with-help"><HelpHint text={t('configModulesSessionLengthHelp')} />{t('configModulesSessionLengthLabel')}</span>
+                <span className="field-label config-label-with-help"><HelpHint helpId="cfg-session-length" t={t} />{t('configModulesSessionLengthLabel')}</span>
                 <input type="number" min="15" step="15" value={settings.SESSION_LENGTH_MINUTES || '60'} onChange={(e) => setSettings({ ...settings, SESSION_LENGTH_MINUTES: e.target.value })} />
               </label>
               <label className="config-setting-row">
-                <span className="field-label config-label-with-help"><HelpHint text={t('configModulesWorkFromHelp')} />{t('configModulesWorkFromLabel')}</span>
+                <span className="field-label config-label-with-help"><HelpHint helpId="cfg-work-from" t={t} />{t('configModulesWorkFromLabel')}</span>
                 <input type="time" value={toTimeInputValue(settings.WORKING_HOURS_START, '05:00')} onChange={(e) => setSettings({ ...settings, WORKING_HOURS_START: e.target.value })} />
               </label>
               <label className="config-setting-row">
-                <span className="field-label config-label-with-help"><HelpHint text={t('configModulesWorkToHelp')} />{t('configModulesWorkToLabel')}</span>
+                <span className="field-label config-label-with-help"><HelpHint helpId="cfg-work-to" t={t} />{t('configModulesWorkToLabel')}</span>
                 <input type="time" value={toTimeInputValue(settings.WORKING_HOURS_END, '23:00')} onChange={(e) => setSettings({ ...settings, WORKING_HOURS_END: e.target.value })} />
               </label>
             </div>
@@ -682,9 +638,6 @@ export function ConfigurationPage() {
               {spacesModuleEnabled ? (
                 <button type="button" className={bookingSubtab === 'spaces' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('spaces')}>{t('configBookingSpacesTab')}</button>
               ) : null}
-              {typesModuleEnabled ? (
-                <button type="button" className={bookingSubtab === 'types' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBookingSubtab('types')}>{t('configBookingTypesTab')}</button>
-              ) : null}
             </div>
           </div>
           ) : null}
@@ -692,7 +645,7 @@ export function ConfigurationPage() {
           {bookingSubtab === 'tasks' && personalModuleEnabled ? <div>
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <HelpHint text={t('configPersonalTasksHelp')} />
+                <HelpHint helpId="cfg-personal-tasks" t={t} />
                 <button type="button" className="secondary" onClick={openNewTaskPresetModal}>New</button>
               </div>
               {personalTaskPresets.length === 0 ? (
@@ -751,7 +704,7 @@ export function ConfigurationPage() {
           {bookingSubtab === 'spaces' && spacesModuleEnabled ? <div>
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <HelpHint text={t('configSpacesHelp')} />
+                <HelpHint helpId="cfg-spaces" t={t} />
                 <button type="button" className="secondary" onClick={() => { setEditingSpace(null); setSpaceForm({ name: '', description: '' }); setShowSpaceModal(true) }}>New</button>
               </div>
               {spaces.length === 0 ? <EmptyState title="No spaces" text="Click New to create your first space." /> : (
@@ -865,104 +818,6 @@ export function ConfigurationPage() {
             </div>
           )}
 
-          {bookingSubtab === 'types' && typesModuleEnabled ? <div>
-            <Card>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <HelpHint text={t('configTypesHelp')} />
-                <button type="button" className="secondary" onClick={() => { setEditingType(null); setTypeForm({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, serviceLines: [] }); setShowTypeModal(true) }}>New</button>
-              </div>
-              {types.length === 0 ? <EmptyState title="No session types" text="Click New to create your first type." /> : (
-                <div className="simple-table-wrap">
-                  <table>
-                    <thead><tr><th>Name</th><th>Description</th><th>Duration</th><th>Break</th><th>Services</th><th>Created</th><th /></tr></thead>
-                    <tbody>
-                      {types.map((type) => (
-                        <tr key={type.id}>
-                          <td>{type.name}</td>
-                          <td>{type.description || '—'}</td>
-                          <td>{type.durationMinutes ?? 60} min</td>
-                          <td>{type.breakMinutes ?? 0} min</td>
-                          <td>
-                            {(!type.linkedServices || type.linkedServices.length === 0) ? '—' : type.linkedServices.map((ls) => `${ls.code} ${ls.price != null ? `(${currency(ls.price)})` : ''}`).join(', ')}
-                          </td>
-                          <td>{formatDate(type.createdAt)}</td>
-                          <td className="table-actions">
-                            <button className="linkish-btn" onClick={() => {
-                              setEditingType(type)
-                              setTypeForm({
-                                name: type.name,
-                                description: type.description || '',
-                                durationMinutes: type.durationMinutes ?? 60,
-                                breakMinutes: type.breakMinutes ?? 0,
-                                serviceLines: (type.linkedServices || []).map((ls) => ({ transactionServiceId: ls.transactionServiceId, price: ls.price != null ? String(ls.price) : '' })),
-                              })
-                              setShowTypeModal(true)
-                            }}>Edit</button>
-                            <button className="linkish-btn danger" onClick={() => removeType(type.id)}>Delete</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          </div> : null}
-
-          {showTypeModal && (
-            <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { setShowTypeModal(false); setEditingType(null) }}>
-              <div className="modal large-modal booking-side-panel" onClick={(e) => e.stopPropagation()}>
-                <div className="booking-side-panel-header">
-                  <PageHeader title={editingType ? 'Edit type' : 'New type'} actions={<button type="button" className="secondary booking-side-panel-close" onClick={() => { setShowTypeModal(false); setEditingType(null) }} aria-label="Close">×</button>} />
-                </div>
-                <form className="form-grid booking-side-panel-body config-type-panel-form" onSubmit={submitType}>
-                  <div className="config-type-panel-hero full-span">
-                    <div>
-                      <strong>{editingType ? 'Update booking rules' : 'Create a new booking type'}</strong>
-                      <p>Duration is the visible session block. Break adds unavailable hatch time right after the session.</p>
-                    </div>
-                  </div>
-                  <Field label="Type name"><input required value={typeForm.name} onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })} /></Field>
-                  <Field label="Description"><textarea rows={4} value={typeForm.description} onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })} /></Field>
-                  <div className="full-span config-type-panel-timing-grid">
-                    <Field label="Duration (minutes)" hint="Booked session block shown on the calendar.">
-                      <input type="number" min="0" step="5" value={typeForm.durationMinutes} onChange={(e) => setTypeForm({ ...typeForm, durationMinutes: Number(e.target.value) })} />
-                    </Field>
-                    <Field label="Break (minutes)" hint="Unavailable time shown as diagonal lines after the session.">
-                      <input type="number" min="0" step="5" value={typeForm.breakMinutes} onChange={(e) => setTypeForm({ ...typeForm, breakMinutes: Number(e.target.value) })} />
-                    </Field>
-                  </div>
-                  <div className="full-span stack gap-sm config-type-panel-services">
-                    <SectionTitle action={<button type="button" className="secondary small-btn" disabled={services.length === 0} onClick={() => { const s = services[0]; if (s) setTypeForm({ ...typeForm, serviceLines: [...typeForm.serviceLines, { transactionServiceId: s.id, price: String(s.netPrice) }] }) }}>Add service</button>}>Transaction services</SectionTitle>
-                    <p className="muted">Link one or more transaction services with optional price override. Leave price empty to use the service default.</p>
-                    {typeForm.serviceLines.length === 0 ? <EmptyState title="No services linked" text="Add one or more transaction services." /> : typeForm.serviceLines.map((line, idx) => (
-                      <div key={idx} className="inline-form billing-row config-type-service-row">
-                        <select value={line.transactionServiceId} onChange={(e) => {
-                          const id = Number(e.target.value)
-                          const svc = services.find((s) => s.id === id)
-                          const next = [...typeForm.serviceLines]
-                          next[idx] = { transactionServiceId: id, price: svc ? String(svc.netPrice) : '' }
-                          setTypeForm({ ...typeForm, serviceLines: next })
-                        }}>
-                          {services.map((s) => <option key={s.id} value={s.id}>{s.code} · {s.description}</option>)}
-                        </select>
-                        <input type="number" step="0.01" placeholder="Price (optional)" value={line.price} onChange={(e) => {
-                          const next = [...typeForm.serviceLines]
-                          next[idx].price = e.target.value
-                          setTypeForm({ ...typeForm, serviceLines: next })
-                        }} />
-                        <button type="button" className="danger secondary slim-btn" onClick={() => setTypeForm({ ...typeForm, serviceLines: typeForm.serviceLines.filter((_, i) => i !== idx) })}>Remove</button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="form-actions full-span booking-side-panel-footer">
-                    <button type="submit">{editingType ? 'Save changes' : 'Create type'}</button>
-                    <button type="button" className="secondary" onClick={() => { setShowTypeModal(false); setEditingType(null) }}>Cancel</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
         </div>
       ) : tab === 'billing' ? (
         <div className="stack gap-lg">
@@ -970,9 +825,6 @@ export function ConfigurationPage() {
             <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
               <button type="button" className={billingSubtab === 'paymentMethods' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('paymentMethods')}>
                 {t('configBillingPaymentMethodsTab')}
-              </button>
-              <button type="button" className={billingSubtab === 'services' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('services')}>
-                {t('configBillingServicesTab')}
               </button>
               <button type="button" className={billingSubtab === 'fiscal' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('fiscal')}>
                 {t('configBillingFiscalTab')}
@@ -1023,36 +875,6 @@ export function ConfigurationPage() {
               </div>
             )}
           </Card>
-          ) : billingSubtab === 'services' ? (
-            <Card>
-              <SectionTitle action={<button type="button" className="secondary" onClick={() => { setEditingServiceId(null); setServiceForm({ code: '', description: '', taxRate: 'VAT_22', netPrice: '0.00' }); setShowServiceModal(true) }}>New</button>} />
-              {services.length === 0 ? <EmptyState title="No transaction services" text="Click New to create your first service." /> : (
-                <div className="simple-table-wrap">
-                  <table>
-                    <thead><tr><th>Code</th><th>Description</th><th>Tax</th><th>Net</th><th>Gross</th><th /></tr></thead>
-                    <tbody>
-                      {services.map((s) => {
-                        const mult = s.taxRate === 'VAT_22' ? 0.22 : s.taxRate === 'VAT_9_5' ? 0.095 : 0
-                        const gross = s.netPrice * (1 + mult)
-                        return (
-                          <tr key={s.id}>
-                            <td>{s.code}</td>
-                            <td>{s.description}</td>
-                            <td>{taxLabels[s.taxRate]}</td>
-                            <td>{currency(s.netPrice)}</td>
-                            <td>{currency(gross)}</td>
-                            <td className="table-actions">
-                              <button className="linkish-btn" onClick={() => { setEditingServiceId(s.id); setServiceForm({ code: s.code, description: s.description, taxRate: s.taxRate, netPrice: String(s.netPrice) }); setShowServiceModal(true) }}>Edit</button>
-                              <button className="linkish-btn danger" onClick={() => deleteService(s.id)}>Delete</button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
           ) : billingSubtab === 'fiscal' ? (
             <Card className="settings-card">
               <SectionTitle>{t('configFiscalTitle')}</SectionTitle>
@@ -1243,26 +1065,6 @@ export function ConfigurationPage() {
               </div>
             </div>
           )}
-
-          {showServiceModal && (
-            <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { setShowServiceModal(false); setEditingServiceId(null) }}>
-              <div className="modal large-modal booking-side-panel" onClick={(e) => e.stopPropagation()}>
-                <div className="booking-side-panel-header">
-                  <PageHeader title={editingServiceId ? 'Edit transaction service' : 'New transaction service'} actions={<button type="button" className="secondary booking-side-panel-close" onClick={() => { setShowServiceModal(false); setEditingServiceId(null) }} aria-label="Close">×</button>} />
-                </div>
-                <form className="form-grid booking-side-panel-body" onSubmit={serviceSubmit}>
-                  <Field label="Transaction code"><input required value={serviceForm.code} onChange={(e) => setServiceForm({ ...serviceForm, code: e.target.value })} /></Field>
-                  <Field label="Description"><input required value={serviceForm.description} onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })} /></Field>
-                  <Field label="TAX rate"><select value={serviceForm.taxRate} onChange={(e) => setServiceForm({ ...serviceForm, taxRate: e.target.value as TaxRate })}>{Object.entries(taxLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
-                  <Field label="Net price"><input required type="number" step="0.01" value={serviceForm.netPrice} onChange={(e) => setServiceForm({ ...serviceForm, netPrice: e.target.value })} /></Field>
-                  <div className="form-actions full-span booking-side-panel-footer">
-                    <button type="submit">{editingServiceId ? 'Save service' : 'Create service'}</button>
-                    <button type="button" className="secondary" onClick={() => { setShowServiceModal(false); setEditingServiceId(null) }}>Cancel</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
         </div>
       ) : tab === 'notifications' ? (
         <ConfigurationNotificationsSection
@@ -1280,35 +1082,28 @@ export function ConfigurationPage() {
             <div className="stack gap-sm">
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint text={t('configModulesSpacesHelp')} />
+                  <HelpHint helpId="cfg-mod-spaces" t={t} />
                   <strong>{t('configModulesSpacesLabel')}</strong>
                 </div>
                 <button type="button" className={settings.SPACES_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, SPACES_ENABLED: String(settings.SPACES_ENABLED !== 'true') })}>{settings.SPACES_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint text={t('configModulesTypesHelp')} />
-                  <strong>{t('configModulesTypesLabel')}</strong>
-                </div>
-                <button type="button" className={settings.TYPES_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, TYPES_ENABLED: String(settings.TYPES_ENABLED !== 'true') })}>{settings.TYPES_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <HelpHint text={t('configModulesAvailabilityHelp')} />
+                  <HelpHint helpId="cfg-mod-availability" t={t} />
                   <strong>{t('configModulesAvailabilityLabel')}</strong>
                 </div>
                 <button type="button" className={settings.BOOKABLE_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, BOOKABLE_ENABLED: String(settings.BOOKABLE_ENABLED !== 'true') })}>{settings.BOOKABLE_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}</button>
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint text={t('configModulesAiHelp')} />
+                  <HelpHint helpId="cfg-mod-ai" t={t} />
                   <strong>{t('configModulesAiLabel')}</strong>
                 </div>
                 <button type="button" className={settings.AI_BOOKING_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'} onClick={() => setSettings({ ...settings, AI_BOOKING_ENABLED: String(settings.AI_BOOKING_ENABLED === 'false') })}>{settings.AI_BOOKING_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}</button>
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint text={t('configModulesPersonalHelp')} />
+                  <HelpHint helpId="cfg-mod-personal" t={t} />
                   <strong>{t('configModulesPersonalLabel')}</strong>
                 </div>
                 <button
@@ -1326,7 +1121,7 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint text={t('configModulesTodosHelp')} />
+                  <HelpHint helpId="cfg-mod-todos" t={t} />
                   <strong>{t('configModulesTodosLabel')}</strong>
                 </div>
                 <button

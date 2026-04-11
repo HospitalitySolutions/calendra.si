@@ -19,6 +19,12 @@ import { Card, EmptyState, PageHeader } from '../components/ui'
 import { fullName } from '../lib/format'
 import { useLocale } from '../locale'
 
+/** Recharts `debounce` defaults to 0, so every ResizeObserver frame reflows charts. Sidebar width CSS transitions fire many resizes/sec; debouncing coalesces to one layout after the rail settles. */
+const ANALYTICS_CHART_RESIZE_DEBOUNCE_MS = 120
+
+/** Disable bar/line mount and update animations — charts render statically (better with sidebar resize + less motion). */
+const ANALYTICS_CHART_STATIC = { isAnimationActive: false as const }
+
 type PeriodPoint = {
   label: string
   year: number
@@ -673,21 +679,27 @@ export function AnalyticsPage() {
                 <p>{text.sessionsTrendSubtitle}</p>
               </div>
               <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  minHeight={220}
+                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
+                >
                   <BarChart data={activitySeries}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
                     <YAxis allowDecimals={false} />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="sessionsTotal" name={text.sessionsLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
+                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="sessionsTotal" name={text.sessionsLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
                     {isComparison ? (
                       <>
-                        <Line type="monotone" dataKey="clientsTotal" name={text.activeClientsLabel} stroke="#22c55e" strokeWidth={2.5} dot={false} />
-                        <Line type="monotone" dataKey="newClients" name={text.newClientsLabel} stroke="#f59e0b" strokeWidth={2.5} dot={false} />
+                        <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="clientsTotal" name={text.activeClientsLabel} stroke="#22c55e" strokeWidth={2.5} dot={false} />
+                        <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="newClients" name={text.newClientsLabel} stroke="#f59e0b" strokeWidth={2.5} dot={false} />
                       </>
                     ) : (
-                      <Line type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.5} dot={false} />
+                      <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.5} dot={false} />
                     )}
                   </BarChart>
                 </ResponsiveContainer>
@@ -700,18 +712,24 @@ export function AnalyticsPage() {
                 <p>{text.revenueTrendSubtitle}</p>
               </div>
               <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  minHeight={220}
+                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
+                >
                   <LineChart data={revenueSeries}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
                     <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
                     <Tooltip formatter={(v) => revenueFormatter(v as number)} />
                     <Legend />
-                    <Line type="monotone" dataKey="revenueGross" name={text.grossLabel} stroke="#3b82f6" strokeWidth={2.8} dot={false} />
+                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="revenueGross" name={text.grossLabel} stroke="#3b82f6" strokeWidth={2.8} dot={false} />
                     {isComparison ? (
-                      <Line type="monotone" dataKey="revenueNet" name="Net" stroke="#f97316" strokeWidth={2.4} dot={false} />
+                      <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="revenueNet" name="Net" stroke="#f97316" strokeWidth={2.4} dot={false} />
                     ) : (
-                      <Line type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.2} dot={false} />
+                      <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.2} dot={false} />
                     )}
                   </LineChart>
                 </ResponsiveContainer>
@@ -724,15 +742,21 @@ export function AnalyticsPage() {
                 <p>{text.weekdayLoadSubtitle}</p>
               </div>
               <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  minHeight={220}
+                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
+                >
                   <BarChart data={weekdaySeries}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} />
                     <Tooltip formatter={(v) => `${v} h`} />
                     <Legend />
-                    <Bar dataKey="consultantHours" name={text.consultantHoursLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
-                    <Bar dataKey="spaceHours" name={text.spaceHoursLabel} fill="#22c55e" radius={[8, 8, 0, 0]} />
+                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="consultantHours" name={text.consultantHoursLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
+                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="spaceHours" name={text.spaceHoursLabel} fill="#22c55e" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -744,16 +768,22 @@ export function AnalyticsPage() {
                 <p>{text.weeklyOpsSubtitle}</p>
               </div>
               <div className="analytics-chart-wrap analytics-chart-wrap--modern">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  minHeight={220}
+                  debounce={ANALYTICS_CHART_RESIZE_DEBOUNCE_MS}
+                >
                   <BarChart data={weeklyOpsSeries}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
                     <YAxis allowDecimals={false} />
                     <Tooltip formatter={(value, name) => name === text.revenueLabel ? revenueFormatter(value as number) : value} />
                     <Legend />
-                    <Bar dataKey="sessionsTotal" name={text.sessionsLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
-                    <Line type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.2} dot={false} />
-                    <Line type="monotone" dataKey="spaceHours" name={text.spaceHoursLabel} stroke="#f59e0b" strokeWidth={2.2} dot={false} />
+                    <Bar {...ANALYTICS_CHART_STATIC} dataKey="sessionsTotal" name={text.sessionsLabel} fill="#60a5fa" radius={[8, 8, 0, 0]} />
+                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="consultantHours" name={text.consultantHoursLabel} stroke="#22c55e" strokeWidth={2.2} dot={false} />
+                    <Line {...ANALYTICS_CHART_STATIC} type="monotone" dataKey="spaceHours" name={text.spaceHoursLabel} stroke="#f59e0b" strokeWidth={2.2} dot={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

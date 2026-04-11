@@ -25,6 +25,8 @@
     --radius-lg: 20px;
     --radius-xl: 24px;
     --sidebar-width: clamp(72px, 7vw, 92px);
+    /* Rail width when labels are shown (must match .sidebar-shell:hover width) */
+    --sidebar-rail-expanded: min(228px, calc(100vw - 36px));
     --content-padding: 24px;
     --border: #e7e4df;
 }

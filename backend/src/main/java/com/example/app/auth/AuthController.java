@@ -8,9 +8,6 @@ import com.example.app.company.CompanyRepository;
 import com.example.app.mfa.WebAuthnService;
 import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.security.JwtService;
-import com.example.app.session.SessionType;
-import com.example.app.session.SessionTypeRepository;
-import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -66,7 +63,6 @@ public class AuthController {
 
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
-    private final SessionTypeRepository types;
     private final TransactionServiceRepository txServices;
     private final PasswordResetService passwordResetService;
     private final CompanyProvisioningService companyProvisioningService;
@@ -82,7 +78,6 @@ public class AuthController {
                         ClientRegistrationRepository clientRegistrationRepository,
             CompanyRepository companies,
             AppSettingRepository settings,
-            SessionTypeRepository types,
             TransactionServiceRepository txServices,
             PasswordResetService passwordResetService,
             CompanyProvisioningService companyProvisioningService,
@@ -97,7 +92,6 @@ public class AuthController {
                 this.authorizationRequestRepository = new HttpSessionOAuth2AuthorizationRequestRepository();
         this.companies = companies;
         this.settings = settings;
-        this.types = types;
         this.txServices = txServices;
         this.passwordResetService = passwordResetService;
         this.companyProvisioningService = companyProvisioningService;
@@ -312,21 +306,7 @@ public class AuthController {
         tx.setTaxRate(TaxRate.VAT_22);
         tx.setNetPrice(new BigDecimal("50.00"));
         tx = txServices.save(tx);
-
-        // Default session type linked to the default service.
-        SessionType type = new SessionType();
-        type.setCompany(company);
-        type.setName("THERAPY");
-        type.setDescription("Default therapy type");
-        type.setDurationMinutes(60);
-
-        TypeTransactionService link = new TypeTransactionService();
-        link.setSessionType(type);
-        link.setTransactionService(tx);
-        link.setPrice(null); // use TransactionService default netPrice
-
-        type.getLinkedServices().add(link);
-        types.save(type);
+        // Session types are created explicitly by the tenant (Settings → session types).
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

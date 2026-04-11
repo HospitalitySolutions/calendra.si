@@ -28,13 +28,6 @@ export function SettingsPage() {
         </label>
         <label className="toggle-card">
           <div>
-            <strong>Types</strong>
-            <p>Enable the types tab and type selection during bookings.</p>
-          </div>
-          <input type="checkbox" checked={settings.TYPES_ENABLED === 'true'} onChange={(e) => setSettings({ ...settings, TYPES_ENABLED: String(e.target.checked) })} />
-        </label>
-        <label className="toggle-card">
-          <div>
             <strong>Bookable</strong>
             <p>Enable consultant availability (bookable sessions) and related calendar checks.</p>
           </div>

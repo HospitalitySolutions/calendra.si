@@ -57,6 +57,17 @@ function SidebarIconEmployees() {
   )
 }
 
+/** Service / session types (configuration) — matches config nav icon */
+function SidebarIconSessionTypes() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 6h16" />
+      <path d="M4 12h10" />
+      <path d="M4 18h14" />
+    </svg>
+  )
+}
+
 function AndroidNavIconInbox() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -112,6 +123,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [overdueTodoCount, setOverdueTodoCount] = useState(0)
   const [todos, setTodos] = useState<any[]>([])
   const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
+  const [typesModuleEnabled, setTypesModuleEnabled] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -175,6 +187,7 @@ function ShellInner({ children }: PropsWithChildren) {
         setCompanyName(configuredName || defaultCompanyName)
         setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED !== 'false')
         setTodosModuleEnabled(settingsData.TODOS_ENABLED !== 'false')
+        setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
       })
       .catch(() => {})
   }
@@ -443,6 +456,18 @@ function ShellInner({ children }: PropsWithChildren) {
             )}
           </div>
           <div className="mobile-nav-overlay-body-settings">
+            {isAdmin && typesModuleEnabled && (
+              <NavLink
+                to="/session-types"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/session-types')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <SidebarIconSessionTypes />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('tabSessionServiceTypes')}</span>
+              </NavLink>
+            )}
             {isAdmin && (
               <NavLink
                 to="/consultants"
@@ -522,6 +547,20 @@ function ShellInner({ children }: PropsWithChildren) {
               </span>
               <span className="mobile-nav-overlay-link-label">{theme === 'dark' ? t('lightMode') : t('darkMode')}</span>
             </button>
+            <NavLink
+              to="/help"
+              className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--sub${isActive ? ' active' : ''}`}
+              onClick={() => closeMobileNavIfAlreadyOn('/help')}
+            >
+              <span className="mobile-nav-overlay-link-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </span>
+              <span className="mobile-nav-overlay-link-label">{t('navHelp')}</span>
+            </NavLink>
           </div>
         </div>
         <footer className="mobile-nav-overlay-footer">
@@ -675,6 +714,9 @@ function ShellInner({ children }: PropsWithChildren) {
             >
               {theme === 'dark' ? t('lightMode') : t('darkMode')}
             </button>
+            <button type="button" className="config-dropdown-item" onClick={() => { navigate('/help'); setConfigOpen(false) }}>
+              {t('navHelp')}
+            </button>
           </div>
         )}
       </div>
@@ -798,39 +840,103 @@ function ShellInner({ children }: PropsWithChildren) {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
-        <nav>
-          <NavLink to="/calendar" title="Calendar" aria-label="Calendar">
-            <AndroidNavIconCalendar />
-          </NavLink>
-          <NavLink to="/clients" title="Clients" aria-label="Clients">
-            <AndroidNavIconClients />
-          </NavLink>
-          {billingAllowed && (
-            <NavLink to="/billing" title="Billing" aria-label="Billing">
-              <AndroidNavIconBilling />
+      <div className="sidebar-shell">
+        <aside className="sidebar">
+          <nav>
+            <NavLink
+              className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+              to="/calendar"
+              title={t('navCalendar')}
+              aria-label={t('navCalendar')}
+            >
+              <span className="sidebar-rail-link-icon" aria-hidden>
+                <AndroidNavIconCalendar />
+              </span>
+              <span className="sidebar-rail-link-label">{t('navCalendar')}</span>
             </NavLink>
-          )}
-          {inboxAllowed && (
-            <NavLink to="/inbox" title="Inbox" aria-label="Inbox">
-              <AndroidNavIconInbox />
+            <NavLink
+              className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+              to="/clients"
+              title={t('navClients')}
+              aria-label={t('navClients')}
+            >
+              <span className="sidebar-rail-link-icon" aria-hidden>
+                <AndroidNavIconClients />
+              </span>
+              <span className="sidebar-rail-link-label">{t('navClients')}</span>
             </NavLink>
+            {billingAllowed && (
+              <NavLink
+                className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+                to="/billing"
+                title={t('navBilling')}
+                aria-label={t('navBilling')}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <AndroidNavIconBilling />
+                </span>
+                <span className="sidebar-rail-link-label">{t('navBilling')}</span>
+              </NavLink>
+            )}
+            {inboxAllowed && (
+              <NavLink
+                className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+                to="/inbox"
+                title={t('navInbox')}
+                aria-label={t('navInbox')}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <AndroidNavIconInbox />
+                </span>
+                <span className="sidebar-rail-link-label">{t('navInbox')}</span>
+              </NavLink>
+            )}
+            <NavLink
+              className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+              to="/analytics"
+              title={t('navAnalytics')}
+              aria-label={t('navAnalytics')}
+            >
+              <span className="sidebar-rail-link-icon" aria-hidden>
+                <AndroidNavIconAnalytics />
+              </span>
+              <span className="sidebar-rail-link-label">{t('navAnalytics')}</span>
+            </NavLink>
+          </nav>
+          {isAdmin && (
+            <div className="sidebar-rail-footer">
+              {typesModuleEnabled && (
+                <NavLink
+                  to="/session-types"
+                  title={t('tabSessionServiceTypes')}
+                  aria-label={t('tabSessionServiceTypes')}
+                  className={({ isActive }) =>
+                    `sidebar-session-types sidebar-rail-link${isActive ? ' active' : ''}`
+                  }
+                >
+                  <span className="sidebar-rail-link-icon" aria-hidden>
+                    <SidebarIconSessionTypes />
+                  </span>
+                  <span className="sidebar-rail-link-label">{t('tabSessionServiceTypes')}</span>
+                </NavLink>
+              )}
+              <NavLink
+                className={({ isActive }) =>
+                  `sidebar-consultants sidebar-rail-link${isActive ? ' active' : ''}`
+                }
+                to="/consultants"
+                title={t('tabConsultants')}
+                aria-label={t('tabConsultants')}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <SidebarIconEmployees />
+                </span>
+                <span className="sidebar-rail-link-label">{t('tabConsultants')}</span>
+              </NavLink>
+            </div>
           )}
-          <NavLink to="/analytics" title="Analytics" aria-label="Analytics">
-            <AndroidNavIconAnalytics />
-          </NavLink>
-        </nav>
-        {isAdmin && (
-          <NavLink
-            className="sidebar-consultants"
-            to="/consultants"
-            title={t('tabConsultants')}
-            aria-label={t('tabConsultants')}
-          >
-            <SidebarIconEmployees />
-          </NavLink>
-        )}
-      </aside>
+        </aside>
+      </div>
       <div ref={mainAreaRef} className={isCalendarRoute ? 'main-area main-area--calendar' : 'main-area'}>
         <header
           ref={headerRef}

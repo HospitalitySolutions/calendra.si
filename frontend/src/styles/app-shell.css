@@ -1,7 +1,8 @@
 /* --- Layout --- */
 .layout {
     display: grid;
-    grid-template-columns: var(--sidebar-width) 1fr;
+    /* First column tracks the rail shell width so the main area (calendar header, etc.) shifts when the rail expands */
+    grid-template-columns: auto 1fr;
     min-height: 100vh;
 }
 
@@ -15,6 +16,24 @@
     box-sizing: border-box;
 }
 
+/* Rail shell width drives the grid column; hover widens shell so header + main shift together */
+.sidebar-shell {
+    position: relative;
+    z-index: 2;
+    align-self: stretch;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    flex-shrink: 0;
+    transition:
+        width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+        min-width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-shell:hover {
+    width: var(--sidebar-rail-expanded);
+    min-width: var(--sidebar-rail-expanded);
+}
+
 .sidebar {
     background: var(--color-sidebar);
     color: white;
@@ -24,9 +43,40 @@
     gap: 12px;
     position: sticky;
     top: 0;
-    height: 100vh;
+    align-self: stretch;
+    width: 100%;
+    min-height: 100vh;
+    box-sizing: border-box;
     box-shadow: 4px 0 24px rgba(15, 39, 77, 0.18);
-    align-items: center;
+    align-items: stretch;
+    overflow-x: hidden;
+    overflow-y: auto;
+    transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Horizontal padding 10+10 — icon column matches collapsed inner width so icons do not shift */
+    --sidebar-rail-icon-track: calc(var(--sidebar-width) - 20px);
+}
+
+.sidebar-shell:hover .sidebar {
+    box-shadow: 8px 0 28px rgba(15, 39, 77, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar-shell {
+        transition: none;
+    }
+
+    .sidebar {
+        transition: none;
+    }
+
+    .sidebar a.sidebar-rail-link,
+    .sidebar .sidebar-rail-footer a.sidebar-rail-link {
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .sidebar-rail-link-label {
+        transition: none;
+    }
 }
 
 .sidebar h2 {
@@ -54,28 +104,75 @@
     flex-direction: column;
     gap: 10px;
     flex: 1;
-    align-items: center;
+    align-items: stretch;
+    align-self: stretch;
+    width: 100%;
     margin-top: 42px;
 }
 
-.sidebar a {
-    width: 44px;
-    height: 44px;
+.sidebar a.sidebar-rail-link,
+.sidebar .sidebar-rail-footer a.sidebar-rail-link {
+    min-width: 0;
+    min-height: 44px;
     padding: 0;
     border-radius: var(--radius-md);
     color: rgba(255, 255, 255, 0.8);
-    transition: all 0.2s ease;
+    display: grid;
+    /* Icon column = collapsed inner width; labels animate in the second column only */
+    grid-template-columns: var(--sidebar-rail-icon-track) 0fr;
+    align-items: center;
+    width: 100%;
+    align-self: stretch;
+    text-decoration: none;
+    box-sizing: border-box;
+    transition:
+        background 0.2s ease,
+        color 0.2s ease,
+        grid-template-columns 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-shell:hover .sidebar a.sidebar-rail-link,
+.sidebar-shell:hover .sidebar .sidebar-rail-footer a.sidebar-rail-link {
+    grid-template-columns: var(--sidebar-rail-icon-track) minmax(0, 1fr);
+}
+
+.sidebar-rail-link-icon {
+    grid-column: 1;
+    justify-self: center;
+    width: 44px;
+    height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 
-.sidebar a:hover {
+.sidebar-rail-link-label {
+    grid-column: 2;
+    min-width: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 6px;
+    opacity: 0;
+    transition: opacity 0.2s ease 0.04s;
+}
+
+.sidebar-shell:hover .sidebar .sidebar-rail-link-label {
+    opacity: 1;
+    transition-delay: 0.06s;
+}
+
+.sidebar a.sidebar-rail-link:hover,
+.sidebar .sidebar-rail-footer a.sidebar-rail-link:hover {
     background: var(--color-sidebar-hover);
     color: white;
 }
 
-.sidebar a.active {
+.sidebar a.sidebar-rail-link.active,
+.sidebar .sidebar-rail-footer a.sidebar-rail-link.active {
     background: rgba(255, 255, 255, 0.15);
     color: white;
 }
@@ -93,26 +190,18 @@
     background: rgba(255, 255, 255, 0.2);
 }
 
-.sidebar-consultants {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
+.sidebar-rail-footer {
     margin-top: auto;
-    padding: 0;
-    border-radius: var(--radius-md);
-    color: rgba(255, 255, 255, 0.8);
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    align-self: center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    align-self: stretch;
+    width: 100%;
+    flex-shrink: 0;
 }
 
-.sidebar-consultants:hover {
-    background: var(--color-sidebar-hover);
-    color: white;
-}
-
+.sidebar-session-types:focus-visible,
 .sidebar-consultants:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.5);
     outline-offset: 2px;
@@ -1064,9 +1153,15 @@ a.credentials-popover-action-btn {
         order: 3;
     }
 
+    .sidebar-rail-footer {
+        margin-top: 0;
+        flex-direction: row;
+        order: 4;
+        gap: 6px;
+    }
+
     .sidebar-consultants {
         margin-top: 0;
-        order: 4;
     }
 
     .sidebar a { padding: 10px 14px; font-size: 0.875rem; }
@@ -1080,7 +1175,7 @@ a.credentials-popover-action-btn {
         grid-template-columns: 1fr;
     }
 
-    .sidebar {
+    .sidebar-shell {
         display: none !important;
     }
 

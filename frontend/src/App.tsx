@@ -23,6 +23,8 @@ const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage').then((m
 const ConsultantsPage = lazy(() => import('./pages/ConsultantsPage').then((mod) => ({ default: mod.ConsultantsPage })))
 const SecurityPage = lazy(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })))
 const PlatformAdminPage = lazy(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })))
+const HelpPage = lazy(() => import('./pages/HelpPage').then((mod) => ({ default: mod.HelpPage })))
+const SessionTypesPage = lazy(() => import('./pages/SessionTypesPage').then((mod) => ({ default: mod.SessionTypesPage })))
 
 export default function App() {
   const user = getStoredUser()
@@ -155,6 +157,11 @@ export default function App() {
           <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={<ConfigurationPage />} />
           <Route
+            path="/session-types"
+            element={user.role === 'ADMIN' ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
+          />
+          <Route path="/help" element={<HelpPage />} />
+          <Route
             path="/security"
             element={
               user.role === 'ADMIN' ? (
@@ -166,7 +173,7 @@ export default function App() {
           />
           <Route path="/settings" element={<Navigate to="/configuration" replace />} />
           <Route path="/sessions/spaces" element={<Navigate to="/configuration?tab=booking" replace />} />
-          <Route path="/sessions/types" element={<Navigate to="/configuration?tab=booking" replace />} />
+          <Route path="/sessions/types" element={<Navigate to="/session-types" replace />} />
           <Route path="*" element={<Navigate to={fallbackRoute} replace />} />
         </Routes>
       </Suspense>

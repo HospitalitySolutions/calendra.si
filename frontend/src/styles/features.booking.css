@@ -176,6 +176,80 @@
     line-height: 1;
 }
 
+.booking-side-panel-header--compact-booking {
+    padding-top: 16px;
+    padding-bottom: 14px;
+}
+
+.booking-side-panel-header-toolbar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.booking-side-panel-submit-check {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--color-primary);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(22, 114, 243, 0.35);
+}
+
+.booking-side-panel-submit-check svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.booking-side-panel-submit-check:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+}
+
+.booking-side-panel-submit-check:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.booking-side-panel-submit-check--block {
+    background: #ea580c;
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35);
+}
+
+.booking-side-panel-submit-check--block:hover:not(:disabled) {
+    background: #c2410c;
+}
+
+.booking-side-panel-header .header-actions .booking-side-panel-submit-check {
+    margin-inline-end: 10px;
+}
+
+.booking-side-panel-submit-check-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    animation: booking-submit-check-spin 0.7s linear infinite;
+}
+
+@keyframes booking-submit-check-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .booking-side-panel-body {
     flex: 1;
     overflow-y: auto;
