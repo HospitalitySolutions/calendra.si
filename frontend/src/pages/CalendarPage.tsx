@@ -484,6 +484,13 @@ function toIsoDateKey(date: Date) {
   return `${y}-${m}-${d}`
 }
 
+/** Resource week/three-day: keep holiday pill min-content small; full name stays in title. */
+function truncateCalendarHolidayPillText(name: string, maxChars: number) {
+  const t = name.trim()
+  if (t.length <= maxChars) return t
+  return `${t.slice(0, Math.max(0, maxChars - 1))}\u2026`
+}
+
 /** Noun form after a numeric count for "termin" (e.g. bottom pill: "3 termina"). */
 function slovenianTerminCountForm(count: number): string {
   const n = Math.abs(count) % 100
@@ -5750,12 +5757,20 @@ export default function CalendarPage() {
           schedulerLicenseKey="GPL-My-Project-Is-Open-Source"
           plugins={calendarPlugins}
           resources={calendarResources}
+          /* Multi-column resource views (Space mode, or Bookings “Vsi termini” / po osebju): weekday row above resource labels. */
+          datesAboveResources={useResourceColumns}
           eventResourceEditable={true}
           resourceLabelClassNames={
-            bookingsUseResourceColumns
+            useResourceColumns
               ? (arg) => {
                   const rid = String(arg.resource.id)
-                  if (rid === CONSULTANT_RESOURCE_UNASSIGNED_ID) return ['calendar-resource-label--unassigned']
+                  if (bookingsUseResourceColumns && rid === CONSULTANT_RESOURCE_UNASSIGNED_ID) {
+                    return ['calendar-resource-label--unassigned']
+                  }
+                  if (spacesUseResourceColumns && rid === SPACE_RESOURCE_UNASSIGNED_ID) {
+                    return ['calendar-resource-label--unassigned']
+                  }
+                  if (!bookingsUseResourceColumns) return []
                   if (!consultantResourceLabelsCompact) return []
                   const u = metaUsers.find((x: any) => String(x.id) === rid)
                   return u ? ['calendar-resource-label--initials'] : []
@@ -5763,9 +5778,23 @@ export default function CalendarPage() {
               : undefined
           }
           resourceLabelContent={
-            bookingsUseResourceColumns
+            useResourceColumns
               ? (arg) => {
                   const rid = String(arg.resource.id)
+                  if (spacesUseResourceColumns && rid === SPACE_RESOURCE_UNASSIGNED_ID) {
+                    const unassignedTitle = arg.resource.title
+                    return (
+                      <span className="calendar-resource-label-wrap" title={unassignedTitle}>
+                        <span className="calendar-resource-label-avatar calendar-resource-label-avatar--na" aria-hidden="true">
+                          N/A
+                        </span>
+                        <span className="calendar-resource-label-sr">{unassignedTitle}</span>
+                      </span>
+                    )
+                  }
+                  if (!bookingsUseResourceColumns) {
+                    return arg.resource.title
+                  }
                   if (rid === CONSULTANT_RESOURCE_UNASSIGNED_ID) {
                     const unassignedTitle = arg.resource.title
                     return (
@@ -5816,6 +5845,13 @@ export default function CalendarPage() {
               const dow = dowBase.charAt(0).toUpperCase() + dowBase.slice(1).toLowerCase()
               const dayNum = d.getDate()
               const holidayName = holidaysByDate[toIsoDateKey(d)]
+              const viewType = arg.view.type
+              const isResourceWeekLike =
+                viewType === 'resourceTimeGridWeek' || viewType === 'resourceTimeGridThreeDay'
+              const holidayPillText =
+                holidayName && isResourceWeekLike
+                  ? truncateCalendarHolidayPillText(holidayName, 18)
+                  : holidayName
               const isToday = (() => {
                 const now = new Date()
                 return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
@@ -5836,7 +5872,7 @@ export default function CalendarPage() {
                   <span className="fc-day-header-dow">{dow}</span>
                   <span className={`fc-day-header-dom${isToday ? ' fc-day-header-dom--today' : ''}`}>{dayNum}</span>
                   <span className={`calendar-header-holiday-pill${holidayName ? '' : ' calendar-header-holiday-pill--empty'}`} title={holidayName || ''}>
-                    {holidayName || '\u00A0'}
+                    {holidayPillText || '\u00A0'}
                   </span>
                 </div>
               )

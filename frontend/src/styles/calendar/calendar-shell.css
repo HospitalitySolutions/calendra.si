@@ -280,29 +280,101 @@
     scrollbar-gutter: auto;
 }
 
-/* Keep sticky weekday header bound to the main calendar scrollport in standard web timegrid views. */
+/* Keep sticky weekday header bound to the main calendar scrollport (incl. resource week / multi-column). */
 .calendar-fc-shell:has(.fc-timeGridWeek-view),
 .calendar-fc-shell:has(.fc-timeGridDay-view),
-.calendar-fc-shell:has(.fc-timeGridThreeDay-view) {
+.calendar-fc-shell:has(.fc-timeGridThreeDay-view),
+.calendar-fc-shell:has(.fc-resourceTimeGridWeek-view),
+.calendar-fc-shell:has(.fc-resourceTimeGridDay-view),
+.calendar-fc-shell:has(.fc-resourceTimeGridThreeDay-view) {
     overflow: visible;
 }
 
-/* Sticky weekday + date row while scrolling (all viewport sizes; scrollport is .content--calendar-flush on web) */
+/*
+ * Pin the timegrid header while <main.content--calendar-flush> scrolls.
+ * FullCalendar uses .fc-scrollgrid-section-sticky > th (the section’s single cell), not <tr>, for sticky.
+ * Sticky `top` is relative to the scrollport (<main>), which already begins below the app header — do not
+ * offset by --calendar-sticky-top (that produced a blank band as tall as the shell header above the days).
+ */
 .calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header {
     background: var(--color-surface);
 }
 
-/* Stick header cells (resource + standard week); axis also sticks horizontally */
-.calendar-fc-shell .fc-timegrid .fc-col-header th {
+.calendar-fc-shell .fc-timegrid .fc-scrollgrid-section-header.fc-scrollgrid-section-sticky > th {
+    position: -webkit-sticky;
     position: sticky;
-    top: var(--calendar-sticky-top, 0px);
+    top: 0;
+    z-index: 9;
+    background: var(--color-surface);
+}
+
+.calendar-fc-shell .fc-timegrid .fc-col-header th {
+    position: relative;
     z-index: 8;
     background: var(--color-surface);
 }
 
+/* Corner + time labels: stay pinned when the grid scrolls horizontally */
 .calendar-fc-shell .fc-timegrid .fc-col-header th.fc-timegrid-axis {
+    position: -webkit-sticky;
+    position: sticky;
     left: 0;
-    z-index: 9;
+    z-index: 10;
+}
+
+/*
+ * Center custom day headers (dow, date, holiday pill) in the column.
+ * Do not use display:flex on .fc-scrollgrid-sync-inner / cushion here — flex inside sticky <th>
+ * breaks position:sticky for the weekday row in several browsers (table + sticky + flex interaction).
+ */
+.calendar-fc-shell .fc-timegrid .fc-col-header th.fc-col-header-cell:not(.fc-timegrid-axis) {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.calendar-fc-shell .fc-timegrid .fc-col-header th.fc-col-header-cell:not(.fc-timegrid-axis) .fc-scrollgrid-sync-inner {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.calendar-fc-shell .fc-timegrid .fc-col-header th.fc-col-header-cell:not(.fc-timegrid-axis) .fc-col-header-cell-cushion {
+    display: inline-block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    text-align: center;
+    vertical-align: middle;
+}
+
+/*
+ * Space mode — single-calendar week/three-day: long holiday pills can inflate min-content width under
+ * table-layout:auto and skew columns. Fixed layout + min-width:0 matches Bookings week.
+ *
+ * Do NOT apply table-layout:fixed to resource* time grids: FC uses a two-row header (resource colspans + day
+ * cells), and fixed layout can mis-assign column widths and collapse the first weekday column.
+ */
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridWeek-view .fc-timegrid .fc-scrollgrid-sync-table,
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-sync-table,
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridWeek-view .fc-timegrid .fc-timegrid-cols table,
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-cols table,
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridWeek-view .fc-timegrid .fc-timegrid-slots table,
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridThreeDay-view .fc-timegrid .fc-timegrid-slots table {
+    table-layout: fixed !important;
+    width: 100% !important;
+}
+
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridWeek-view .fc-timegrid .fc-col-header-cell:not(.fc-timegrid-axis),
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridThreeDay-view .fc-timegrid .fc-col-header-cell:not(.fc-timegrid-axis) {
+    min-width: 0 !important;
+}
+
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridWeek-view .fc-timegrid .fc-col-header-cell-cushion,
+.calendar-mode-spaces .calendar-fc-shell .fc-timeGridThreeDay-view .fc-timegrid .fc-col-header-cell-cushion {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .calendar-fc-shell > .fc {
@@ -841,6 +913,7 @@
 
     /* Keep the FC "shrink" time-axis column pinned left while scrolling */
     .calendar-fc-shell .fc .fc-timegrid .fc-scrollgrid-shrink {
+        position: -webkit-sticky;
         position: sticky;
         left: 0;
         z-index: 8;

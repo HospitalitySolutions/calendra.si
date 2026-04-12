@@ -226,31 +226,6 @@ function ShellInner({ children }: PropsWithChildren) {
     setMobileNavOpen(false)
   }, [location.pathname])
 
-  useLayoutEffect(() => {
-    const mainEl = mainAreaRef.current
-    if (!mainEl) return
-    if (!isCalendarRoute) {
-      mainEl.style.removeProperty('--calendar-sticky-top')
-      return
-    }
-
-    const syncCalendarStickyTop = () => {
-      const headerEl = headerRef.current
-      if (!headerEl || !mainAreaRef.current) return
-      mainAreaRef.current.style.setProperty('--calendar-sticky-top', `${headerEl.offsetHeight}px`)
-    }
-
-    syncCalendarStickyTop()
-    const ro = headerRef.current ? new ResizeObserver(syncCalendarStickyTop) : null
-    if (ro && headerRef.current) ro.observe(headerRef.current)
-    window.addEventListener('resize', syncCalendarStickyTop)
-
-    return () => {
-      ro?.disconnect()
-      window.removeEventListener('resize', syncCalendarStickyTop)
-    }
-  }, [isCalendarRoute, calendarShellSlots])
-
   useEffect(() => {
     if (!mobileNavOpen) return
     const prev = document.body.style.overflow

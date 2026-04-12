@@ -232,9 +232,11 @@
     display: flex;
     flex-direction: column;
     background: var(--color-surface);
-    /* Scroll calendar here so the app header stays put and sticky FC day headers use top: 0 */
-    overflow-x: hidden;
-    overflow-y: auto;
+    /*
+     * One scrollport for both axes so position:sticky (FullCalendar weekday row) works on mobile
+     * WebKit: overflow-x: hidden + overflow-y: auto on the same element breaks sticky for descendants.
+     */
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
     /* Hide the main vertical scrollbar (edge of window); scrolling still works with wheel/touch/keyboard */
     scrollbar-gutter: auto;
@@ -327,8 +329,9 @@
 }
 
 .calendar-page-web-root .calendar-fc-shell {
-    overflow-x: auto;
-    overflow-y: visible;
+    /* Wide grids pan on <main.content--calendar-flush> (overflow: auto); avoid nested overflow
+       here so sticky weekday/resource headers use main as their scrollport on phones/tablets. */
+    overflow: visible;
 }
 
 .app-header {

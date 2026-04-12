@@ -36,12 +36,14 @@
         vertical-align: middle;
     }
 
+    /* inline-block — not flex — so sticky <th> weekday row keeps working (see calendar-shell.css). */
     .fc .fc-timegrid th.fc-col-header-cell .fc-col-header-cell-cushion {
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        display: inline-block;
         width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
         text-align: center;
+        vertical-align: middle;
     }
 
     .fc .fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-sync-table,

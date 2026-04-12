@@ -8,20 +8,10 @@ import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components
 import { currency, formatDate } from '../lib/format'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute } from '../lib/packageAccess'
-import { helpTooltip } from '../helpContent'
 
 const SESSION_TYPES_SUBTAB_TRANSACTION = 'transaction-services'
 
 type TypeServiceLine = { transactionServiceId: number; price: string }
-
-function HelpHint({ helpId, t }: { helpId: string; t: (key: string) => string }) {
-  const text = helpTooltip(t, helpId)
-  return (
-    <span className="config-help-hint" data-tooltip={text} role="img" aria-label={text} tabIndex={0}>
-      ?
-    </span>
-  )
-}
 
 export function SessionTypesPage() {
   const me = getStoredUser()!
@@ -62,6 +52,42 @@ export function SessionTypesPage() {
     breakMinutes: number
     serviceLines: TypeServiceLine[]
   }>({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, serviceLines: [] })
+
+  const [isSessionTypesNarrow, setIsSessionTypesNarrow] = useState(
+    () => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false),
+  )
+  const [openTypeMenuId, setOpenTypeMenuId] = useState<number | null>(null)
+  const [openServiceMenuId, setOpenServiceMenuId] = useState<number | null>(null)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 450px)')
+    const apply = () => setIsSessionTypesNarrow(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    if (openTypeMenuId == null) return
+    const onDocPointerDown = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el?.closest('.clients-card-menu-wrap')) return
+      setOpenTypeMenuId(null)
+    }
+    document.addEventListener('mousedown', onDocPointerDown)
+    return () => document.removeEventListener('mousedown', onDocPointerDown)
+  }, [openTypeMenuId])
+
+  useEffect(() => {
+    if (openServiceMenuId == null) return
+    const onDocPointerDown = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el?.closest('.clients-card-menu-wrap')) return
+      setOpenServiceMenuId(null)
+    }
+    document.addEventListener('mousedown', onDocPointerDown)
+    return () => document.removeEventListener('mousedown', onDocPointerDown)
+  }, [openServiceMenuId])
 
   const load = async () => {
     const [settingsRes, typesRes, servicesRes] = await Promise.all([
@@ -133,178 +159,303 @@ export function SessionTypesPage() {
   }
 
   if (boot) {
-    return (
-      <div className="stack gap-lg">
-        <PageHeader title={t('tabSessionServiceTypes')} />
-      </div>
-    )
+    return <div className="stack gap-lg" aria-busy="true" />
+  }
+
+  const openTypeEdit = (type: SessionTypeT) => {
+    setEditingType(type)
+    setTypeForm({
+      name: type.name,
+      description: type.description || '',
+      durationMinutes: type.durationMinutes ?? 60,
+      breakMinutes: type.breakMinutes ?? 0,
+      serviceLines: (type.linkedServices || []).map((ls) => ({
+        transactionServiceId: ls.transactionServiceId,
+        price: ls.price != null ? String(ls.price) : '',
+      })),
+    })
+    setShowTypeModal(true)
+    setOpenTypeMenuId(null)
+  }
+
+  const openServiceEdit = (s: BillingService) => {
+    setEditingServiceId(s.id)
+    setServiceForm({
+      code: s.code,
+      description: s.description,
+      taxRate: s.taxRate,
+      netPrice: String(s.netPrice),
+    })
+    setShowServiceModal(true)
+    setOpenServiceMenuId(null)
   }
 
   if (!typesModuleEnabled && !showTransactionServices) {
     return <Navigate to="/configuration" replace />
   }
 
-  const typesPanel = (
-    <Card className="settings-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <HelpHint helpId="cfg-types" t={t} />
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => {
-            setEditingType(null)
-            setTypeForm({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, serviceLines: [] })
-            setShowTypeModal(true)
-          }}
-        >
-          New
-        </button>
-      </div>
-      {types.length === 0 ? (
+  const typesPanelBody =
+    types.length === 0 ? (
         <EmptyState title="No session types" text="Click New to create your first type." />
       ) : (
-        <div className="simple-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Duration</th>
-                <th>Break</th>
-                <th>Services</th>
-                <th>Created</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {types.map((type) => (
-                <tr key={type.id}>
-                  <td>{type.name}</td>
-                  <td>{type.description || '—'}</td>
-                  <td>{type.durationMinutes ?? 60} min</td>
-                  <td>{type.breakMinutes ?? 0} min</td>
-                  <td>
-                    {!type.linkedServices || type.linkedServices.length === 0
-                      ? '—'
-                      : type.linkedServices
-                          .map((ls) => `${ls.code} ${ls.price != null ? `(${currency(ls.price)})` : ''}`)
-                          .join(', ')}
-                  </td>
-                  <td>{formatDate(type.createdAt)}</td>
-                  <td className="table-actions">
-                    <button
-                      className="linkish-btn"
-                      onClick={() => {
-                        setEditingType(type)
-                        setTypeForm({
-                          name: type.name,
-                          description: type.description || '',
-                          durationMinutes: type.durationMinutes ?? 60,
-                          breakMinutes: type.breakMinutes ?? 0,
-                          serviceLines: (type.linkedServices || []).map((ls) => ({
-                            transactionServiceId: ls.transactionServiceId,
-                            price: ls.price != null ? String(ls.price) : '',
-                          })),
-                        })
-                        setShowTypeModal(true)
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button className="linkish-btn danger" onClick={() => removeType(type.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  )
-
-  const transactionServicesPanel = (
-    <Card className="settings-card">
-      <SectionTitle
-        action={
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              setEditingServiceId(null)
-              setServiceForm({ code: '', description: '', taxRate: 'VAT_22', netPrice: '0.00' })
-              setShowServiceModal(true)
-            }}
-          >
-            New
-          </button>
-        }
-      >
-        {t('configBillingServicesTab')}
-      </SectionTitle>
-      {services.length === 0 ? (
-        <EmptyState title="No transaction services" text="Click New to create your first service." />
-      ) : (
-        <div className="simple-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Description</th>
-                <th>Tax</th>
-                <th>Net</th>
-                <th>Gross</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {services.map((s) => {
-                const mult = s.taxRate === 'VAT_22' ? 0.22 : s.taxRate === 'VAT_9_5' ? 0.095 : 0
-                const gross = s.netPrice * (1 + mult)
-                return (
-                  <tr key={s.id}>
-                    <td>{s.code}</td>
-                    <td>{s.description}</td>
-                    <td>{taxLabels[s.taxRate]}</td>
-                    <td>{currency(s.netPrice)}</td>
-                    <td>{currency(gross)}</td>
-                    <td className="table-actions">
+        <div className="clients-list-shell">
+          <div className="clients-mobile-list">
+            {types.map((type) => {
+              const linkedSummary =
+                !type.linkedServices || type.linkedServices.length === 0
+                  ? '—'
+                  : type.linkedServices
+                      .map((ls) => `${ls.code}${ls.price != null ? ` (${currency(ls.price)})` : ''}`)
+                      .join(', ')
+              return (
+                <article
+                  key={type.id}
+                  className="clients-mobile-card"
+                  onClick={() => openTypeEdit(type)}
+                >
+                  <div className="clients-mobile-card-head">
+                    <div className="clients-name-cell">
+                      <div className="clients-name-stack">
+                        <span className="clients-name">{type.name}</span>
+                        <span className="clients-id">
+                          {t('sessionTypesCardLabelDescription')}:{' '}
+                          {type.description?.trim() ? type.description : '—'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="clients-card-menu-wrap">
                       <button
-                        className="linkish-btn"
-                        onClick={() => {
-                          setEditingServiceId(s.id)
-                          setServiceForm({
-                            code: s.code,
-                            description: s.description,
-                            taxRate: s.taxRate,
-                            netPrice: String(s.netPrice),
-                          })
-                          setShowServiceModal(true)
+                        type="button"
+                        className="secondary clients-card-menu-trigger"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenTypeMenuId((prev) => (prev === type.id ? null : type.id))
                         }}
+                        aria-label="Session type actions"
+                        aria-expanded={openTypeMenuId === type.id}
                       >
+                        ...
+                      </button>
+                      {openTypeMenuId === type.id && (
+                        <div className="clients-card-menu-popover" role="dialog" aria-label="Session type actions">
+                          <button
+                            type="button"
+                            className="danger"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenTypeMenuId(null)
+                              void removeType(type.id)
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="clients-mobile-meta">
+                    <div>
+                      <span>{t('sessionTypesCardLabelDuration')}</span>
+                      <strong>{type.durationMinutes ?? 60} min</strong>
+                    </div>
+                    <div>
+                      <span>{t('sessionTypesCardLabelBreak')}</span>
+                      <strong>{type.breakMinutes ?? 0} min</strong>
+                    </div>
+                    <div>
+                      <span>{t('sessionTypesCardLabelServices')}</span>
+                      <strong title={linkedSummary === '—' ? undefined : linkedSummary}>{linkedSummary}</strong>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <div className="simple-table-wrap clients-table-wrap clients-table-desktop session-types-table-wrap">
+            <table className="clients-table session-types-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Duration</th>
+                  <th>Break</th>
+                  <th>Services</th>
+                  <th>Created</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {types.map((type) => (
+                  <tr key={type.id}>
+                    <td>{type.name}</td>
+                    <td>{type.description || '—'}</td>
+                    <td>{type.durationMinutes ?? 60} min</td>
+                    <td>{type.breakMinutes ?? 0} min</td>
+                    <td>
+                      {!type.linkedServices || type.linkedServices.length === 0
+                        ? '—'
+                        : type.linkedServices
+                            .map((ls) => `${ls.code} ${ls.price != null ? `(${currency(ls.price)})` : ''}`)
+                            .join(', ')}
+                    </td>
+                    <td>{formatDate(type.createdAt)}</td>
+                    <td className="table-actions">
+                      <button type="button" className="linkish-btn" onClick={() => openTypeEdit(type)}>
                         Edit
                       </button>
-                      <button className="linkish-btn danger" onClick={() => void deleteService(s.id)}>
+                      <button type="button" className="linkish-btn danger" onClick={() => removeType(type.id)}>
                         Delete
                       </button>
                     </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
-    </Card>
-  )
+      )
+
+  const transactionServicesPanelBody =
+    services.length === 0 ? (
+        <EmptyState title="No transaction services" text="Click New to create your first service." />
+      ) : (
+        <div className="clients-list-shell">
+          <div className="clients-mobile-list">
+            {services.map((s) => {
+              const mult = s.taxRate === 'VAT_22' ? 0.22 : s.taxRate === 'VAT_9_5' ? 0.095 : 0
+              const gross = s.netPrice * (1 + mult)
+              return (
+                <article
+                  key={s.id}
+                  className="clients-mobile-card"
+                  onClick={() => openServiceEdit(s)}
+                >
+                  <div className="clients-mobile-card-head">
+                    <div className="clients-name-cell">
+                      <div className="clients-name-stack">
+                        <span className="clients-name">{s.code}</span>
+                        <span className="clients-id">
+                          {t('sessionTypesTxLabelDescription')}:{' '}
+                          {s.description?.trim() ? s.description : '—'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="clients-card-menu-wrap">
+                      <button
+                        type="button"
+                        className="secondary clients-card-menu-trigger"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenServiceMenuId((prev) => (prev === s.id ? null : s.id))
+                        }}
+                        aria-label="Transaction service actions"
+                        aria-expanded={openServiceMenuId === s.id}
+                      >
+                        ...
+                      </button>
+                      {openServiceMenuId === s.id && (
+                        <div className="clients-card-menu-popover" role="dialog" aria-label="Transaction service actions">
+                          <button
+                            type="button"
+                            className="danger"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenServiceMenuId(null)
+                              void deleteService(s.id)
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="clients-mobile-meta">
+                    <div>
+                      <span>{t('sessionTypesTxLabelTax')}</span>
+                      <strong>{taxLabels[s.taxRate]}</strong>
+                    </div>
+                    <div>
+                      <span>{t('sessionTypesTxLabelNet')}</span>
+                      <strong>{currency(s.netPrice)}</strong>
+                    </div>
+                    <div>
+                      <span>{t('sessionTypesTxLabelGross')}</span>
+                      <strong>{currency(gross)}</strong>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <div className="simple-table-wrap clients-table-wrap clients-table-desktop session-types-table-wrap">
+            <table className="clients-table session-types-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Description</th>
+                  <th>Tax</th>
+                  <th>Net</th>
+                  <th>Gross</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {services.map((s) => {
+                  const mult = s.taxRate === 'VAT_22' ? 0.22 : s.taxRate === 'VAT_9_5' ? 0.095 : 0
+                  const gross = s.netPrice * (1 + mult)
+                  return (
+                    <tr key={s.id}>
+                      <td>{s.code}</td>
+                      <td>{s.description}</td>
+                      <td>{taxLabels[s.taxRate]}</td>
+                      <td>{currency(s.netPrice)}</td>
+                      <td>{currency(gross)}</td>
+                      <td className="table-actions">
+                        <button type="button" className="linkish-btn" onClick={() => openServiceEdit(s)}>
+                          Edit
+                        </button>
+                        <button type="button" className="linkish-btn danger" onClick={() => void deleteService(s.id)}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+
+  const openNewTypeModal = () => {
+    setEditingType(null)
+    setTypeForm({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, serviceLines: [] })
+    setShowTypeModal(true)
+  }
+
+  const openNewServiceModal = () => {
+    setEditingServiceId(null)
+    setServiceForm({ code: '', description: '', taxRate: 'VAT_22', netPrice: '0.00' })
+    setShowServiceModal(true)
+  }
+
+  const sessionTypesCardClass = `settings-card${isSessionTypesNarrow ? ' clients-mobile-shell' : ''}`
 
   return (
     <div className="stack gap-lg">
-      <PageHeader title={t('tabSessionServiceTypes')} subtitle={t('sessionTypesPageSubtitle')} />
       {typesModuleEnabled ? (
-        <>
-          <Card>
+        <Card className={sessionTypesCardClass}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
             <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
               <button
                 type="button"
@@ -321,11 +472,25 @@ export function SessionTypesPage() {
                 {t('configBillingServicesTab')}
               </button>
             </div>
-          </Card>
-          {showTransactionServices ? transactionServicesPanel : typesPanel}
-        </>
+            <button
+              type="button"
+              className="secondary"
+              onClick={showTransactionServices ? openNewServiceModal : openNewTypeModal}
+            >
+              {isSessionTypesNarrow ? t('billingNewMobile') : t('billingNew')}
+            </button>
+          </div>
+          {showTransactionServices ? transactionServicesPanelBody : typesPanelBody}
+        </Card>
       ) : (
-        transactionServicesPanel
+        <Card className={sessionTypesCardClass}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
+            <button type="button" className="secondary" onClick={openNewServiceModal}>
+              {isSessionTypesNarrow ? t('billingNewMobile') : t('billingNew')}
+            </button>
+          </div>
+          {transactionServicesPanelBody}
+        </Card>
       )}
 
       {showTypeModal ? (
@@ -347,12 +512,6 @@ export function SessionTypesPage() {
               />
             </div>
             <form className="form-grid booking-side-panel-body config-type-panel-form" onSubmit={submitType}>
-              <div className="config-type-panel-hero full-span">
-                <div>
-                  <strong>{editingType ? 'Update booking rules' : 'Create a new booking type'}</strong>
-                  <p>Duration is the visible session block. Break adds unavailable hatch time right after the session.</p>
-                </div>
-              </div>
               <Field label="Type name">
                 <input required value={typeForm.name} onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })} />
               </Field>
@@ -450,9 +609,6 @@ export function SessionTypesPage() {
               </div>
               <div className="form-actions full-span booking-side-panel-footer">
                 <button type="submit">{editingType ? 'Save changes' : 'Create type'}</button>
-                <button type="button" className="secondary" onClick={() => { setShowTypeModal(false); setEditingType(null) }}>
-                  Cancel
-                </button>
               </div>
             </form>
           </div>
@@ -497,9 +653,8 @@ export function SessionTypesPage() {
                 <input required type="number" step="0.01" value={serviceForm.netPrice} onChange={(e) => setServiceForm({ ...serviceForm, netPrice: e.target.value })} />
               </Field>
               <div className="form-actions full-span booking-side-panel-footer">
-                <button type="submit">{editingServiceId ? 'Save service' : 'Create service'}</button>
-                <button type="button" className="secondary" onClick={() => { setShowServiceModal(false); setEditingServiceId(null) }}>
-                  Cancel
+                <button type="submit">
+                  {editingServiceId ? t('sessionTypesTxModalSaveService') : t('sessionTypesTxModalCreateService')}
                 </button>
               </div>
             </form>

@@ -646,7 +646,29 @@
     line-height: 1.1;
     padding: 6px 2px;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
     cursor: pointer;
+}
+
+/* Web timegrid: lift weekday + date slightly; more room for holiday pill below */
+.calendar-fc-shell .fc-day-header-stack {
+    justify-content: flex-start;
+    padding: 2px 2px 8px;
+    gap: 3px;
+}
+
+.calendar-fc-shell .fc-day-header-dow {
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-top: -1px;
+}
+
+.calendar-fc-shell .fc-day-header-dom {
+    font-size: 1.2rem;
+    width: 30px;
+    height: 30px;
 }
 
 .fc-day-header-stack:focus-visible {
@@ -700,8 +722,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: calc(100% - 6px);
-    margin: 0 3px;
+    box-sizing: border-box;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    margin-left: auto;
+    margin-right: auto;
     padding: 1px 8px;
     min-height: 18px;
     border-radius: 999px;
