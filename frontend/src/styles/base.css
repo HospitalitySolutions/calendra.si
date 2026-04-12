@@ -381,6 +381,19 @@ button { border: none; cursor: pointer; }
     width: 100%;
 }
 
+/* Native time control: avoid stretching so the picker sits beside the value */
+.calendar-timespan-input-inner input[type="time"] {
+    width: fit-content;
+    max-width: 100%;
+    align-self: flex-start;
+}
+
+.calendar-timespan-input-inner input[type="time"]::-webkit-calendar-picker-indicator {
+    margin-inline-start: -0.2rem;
+    margin-inline-end: 0;
+    cursor: pointer;
+}
+
 .calendar-timespan-input-inner input:focus {
     outline: none;
 }

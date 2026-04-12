@@ -140,6 +140,35 @@ function SessionNotesTextarea({ value, onChange, className, ...rest }: SessionNo
   )
 }
 
+/** Trash icon for session panel “Izbriši” (matches pill footer style). */
+function CalendarFormFooterDeleteIcon() {
+  return (
+    <svg className="calendar-form-footer-btn__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M3 6h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M8 6V5a1 1 0 011-1h6a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M6 6l1 15h10l1-15" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** Rounded badge + check for session panel “Shrani” / primary footer actions. */
+function CalendarFormFooterSaveIcon() {
+  return (
+    <span className="calendar-form-footer-btn__save-mark" aria-hidden>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M6 12.5l3 3 8-9"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  )
+}
+
 /** One row: time from | time to | date (date last). */
 function CalendarLocalTimespanRow({
   startValue,
@@ -7274,12 +7303,22 @@ export default function CalendarPage() {
                 </>
               ) : (
                 <>
-                  <button className="danger secondary" onClick={() => setConfirmDelete(true)}>{t('formDeleteSession')}</button>
                   <button
+                    type="button"
+                    className="calendar-form-footer-btn calendar-form-footer-btn--delete"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <CalendarFormFooterDeleteIcon />
+                    <span className="calendar-form-footer-btn__label">{t('formDeleteSession')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="calendar-form-footer-btn calendar-form-footer-btn--save"
                     onClick={() => void updateBookedSession()}
                     disabled={!selectedBookedSession.client?.id && !bookedClientSearch.trim()}
                   >
-                    {t('formSave')}
+                    <CalendarFormFooterSaveIcon />
+                    <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
                   </button>
                 </>
               )}
@@ -7297,7 +7336,7 @@ export default function CalendarPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="booking-side-panel-header">
-              <PageHeader title={t('formPersonalBlock')} actions={<button type="button" className="secondary booking-side-panel-close" onClick={closePersonalModal} aria-label={t('mobileNavClose')}>×</button>} />
+              <PageHeader title={t('formPersonalBlockEditTitle')} actions={<button type="button" className="secondary booking-side-panel-close" onClick={closePersonalModal} aria-label={t('mobileNavClose')}>×</button>} />
             </div>
             <div className="booking-side-panel-body">
             <div className="form-row-layout">
@@ -7335,8 +7374,14 @@ export default function CalendarPage() {
             </div>
             </div>
             <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-              <button className="danger secondary" onClick={deletePersonalBlock}>{t('formDelete')}</button>
-              <button onClick={updatePersonalBlock}>{t('formSave')}</button>
+              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deletePersonalBlock}>
+                <CalendarFormFooterDeleteIcon />
+                <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
+              </button>
+              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--save" onClick={updatePersonalBlock}>
+                <CalendarFormFooterSaveIcon />
+                <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -7355,8 +7400,7 @@ export default function CalendarPage() {
           >
             <div className="booking-side-panel-header">
               <PageHeader
-                title={t('formTodo')}
-                subtitle={t('formTodoEditSubtitle')}
+                title={t('formTodoEditTitle')}
                 actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeTodoModal} aria-label={t('mobileNavClose')}>×</button>}
               />
             </div>
@@ -7385,8 +7429,14 @@ export default function CalendarPage() {
               </div>
             </div>
             <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-              <button className="danger secondary" onClick={deleteTodo}>{t('formDelete')}</button>
-              <button onClick={updateTodo}>{t('formSave')}</button>
+              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deleteTodo}>
+                <CalendarFormFooterDeleteIcon />
+                <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
+              </button>
+              <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--save" onClick={updateTodo}>
+                <CalendarFormFooterSaveIcon />
+                <span className="calendar-form-footer-btn__label">{t('formSave')}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -8071,21 +8121,39 @@ export default function CalendarPage() {
             )}
             {showSelectionFormFooter && (
             <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <button type="button" onClick={() => void saveBooking(false)} disabled={saveBookingLoading}>
-                {saveBookingLoading ? t('formSaving') : form.todo ? t('formAddTodo') : form.personal ? t('formAddBlock') : t('formBookSession')}
+              <button
+                type="button"
+                className="calendar-form-footer-btn calendar-form-footer-btn--save"
+                onClick={() => void saveBooking(false)}
+                disabled={saveBookingLoading}
+              >
+                <CalendarFormFooterSaveIcon />
+                <span className="calendar-form-footer-btn__label">
+                  {saveBookingLoading ? t('formSaving') : form.todo ? t('formAddTodo') : form.personal ? t('formAddBlock') : t('formBookSession')}
+                </span>
               </button>
             </div>
             )}
             {!calendarFiltersBottomBar && availabilitySelection != null && (
               <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                <button type="button" onClick={() => void confirmAvailabilityFromHeader()} disabled={availabilitySaving}>
-                  {availabilitySaving
-                    ? t('formSaving')
-                    : availabilityIntent === 'block'
-                      ? t('formBlockAvailabilityShort')
-                      : availabilitySelection.slotId
-                        ? t('formSaveChanges')
-                        : t('formAvailabilityFooterAdd')}
+                <button
+                  type="button"
+                  className={`calendar-form-footer-btn ${
+                    availabilityIntent === 'block' ? 'calendar-form-footer-btn--delete' : 'calendar-form-footer-btn--save'
+                  }`}
+                  onClick={() => void confirmAvailabilityFromHeader()}
+                  disabled={availabilitySaving}
+                >
+                  <CalendarFormFooterSaveIcon />
+                  <span className="calendar-form-footer-btn__label">
+                    {availabilitySaving
+                      ? t('formSaving')
+                      : availabilityIntent === 'block'
+                        ? t('formBlockAvailabilityShort')
+                        : availabilitySelection.slotId
+                          ? t('formSaveChanges')
+                          : t('formAvailabilityFooterAdd')}
+                  </span>
                 </button>
               </div>
             )}
