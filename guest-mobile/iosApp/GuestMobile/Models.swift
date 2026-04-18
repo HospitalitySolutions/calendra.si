@@ -16,6 +16,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let city: String?
     let phone: String?
     let status: String?
+    let companyAddress: String?
 
     enum CodingKeys: String, CodingKey {
         case id = "companyId"
@@ -24,6 +25,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case city = "publicCity"
         case phone = "publicPhone"
         case status
+        case companyAddress
     }
 }
 

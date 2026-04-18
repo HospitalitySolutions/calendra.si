@@ -1,5 +1,6 @@
 package si.calendra.guest.android.ui
 
+import android.util.Log
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.ComponentActivity
@@ -8,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
@@ -39,10 +41,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
+import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.auth.GoogleSignInManager
 import si.calendra.guest.android.payments.NativeCheckoutManager
 import si.calendra.guest.android.ui.screens.*
 import si.calendra.guest.shared.GuestAppContainer
+import si.calendra.guest.shared.config.GuestApiConfig
 import si.calendra.guest.shared.models.*
 import si.calendra.guest.shared.network.GuestSessionStore
 import java.time.OffsetDateTime
@@ -61,9 +65,22 @@ private sealed class RootRoute(val route: String) {
 private const val GOOGLE_WEB_CLIENT_ID = "YOUR_GOOGLE_WEB_CLIENT_ID"
 private const val STRIPE_PUBLISHABLE_KEY = "YOUR_STRIPE_PUBLISHABLE_KEY"
 
+private const val GUEST_API_DEBUG_TAG = "GuestApi"
+
+private fun logLinkedTenantsDebug(source: String, tenants: List<TenantSummary>) {
+    if (!BuildConfig.DEBUG) return
+    Log.d(GUEST_API_DEBUG_TAG, "$source baseUrl=${BuildConfig.API_BASE_URL} tenantCount=${tenants.size}")
+    tenants.forEachIndexed { index, t ->
+        Log.d(
+            GUEST_API_DEBUG_TAG,
+            "$source[$index] companyId=${t.companyId} companyName=${t.companyName} companyAddress=${t.companyAddress} publicCity=${t.publicCity}"
+        )
+    }
+}
+
 @Composable
 fun GuestMobileRoot() {
-    val container = remember { GuestAppContainer() }
+    val container = remember { GuestAppContainer(GuestApiConfig(baseUrl = BuildConfig.API_BASE_URL)) }
     val repo = remember { container.repository }
     val navController = rememberNavController()
     val state = remember { GuestMutableState() }
@@ -97,6 +114,7 @@ fun GuestMobileRoot() {
 
     suspend fun applySession(sessionToken: GuestSession) {
         GuestSessionStore.authToken = sessionToken.token
+        logLinkedTenantsDebug("applySession", sessionToken.linkedTenants)
         state.uiState = state.uiState.copy(
             session = sessionToken,
             linkedTenants = sessionToken.linkedTenants,
@@ -123,12 +141,22 @@ fun GuestMobileRoot() {
             session = state.uiState.session?.copy(linkedTenants = mergedTenants),
             tenantDashboards = state.uiState.tenantDashboards + (companyId to dashboard)
         )
+        if (BuildConfig.DEBUG) {
+            val productSummaries = dashboard.products.joinToString { p ->
+                "${p.productId}(sessionTypeId=${p.sessionTypeId},bookable=${p.bookable})"
+            }
+            Log.d(
+                GUEST_API_DEBUG_TAG,
+                "refreshTenant companyId=$companyId products=${dashboard.products.size} [$productSummaries]"
+            )
+        }
     }
 
     suspend fun refreshAllTenants() {
         state.uiState = state.uiState.copy(loading = true)
         runCatching {
             runCatching { repo.me() }.getOrNull()?.let { profile ->
+                logLinkedTenantsDebug("GET /api/guest/me", profile.linkedTenants)
                 state.uiState = state.uiState.copy(
                     linkedTenants = profile.linkedTenants,
                     session = state.uiState.session?.copy(
@@ -187,7 +215,7 @@ fun GuestMobileRoot() {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFFF8FAFC), Color(0xFFF1F5F9), Color(0xFFEEF2FF))
+                    listOf(Color(0xFFF6F9FF), Color(0xFFEFF5FF), Color(0xFFFFF2E3))
                 )
             )
     ) {
@@ -281,7 +309,7 @@ fun GuestMobileRoot() {
             composable(RootRoute.Book.route) {
                 GuestTabsScaffold(
                     current = RootRoute.Book.route,
-                    utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
+                    utilityBarVisible = false,
                     unreadNotificationCount = unreadNotificationCount(state.uiState),
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                     onScanTenant = {
@@ -302,7 +330,7 @@ fun GuestMobileRoot() {
                             ProviderOption(
                                 companyId = provider.companyId,
                                 tenantName = provider.companyName,
-                                tenantCity = provider.publicCity
+                                tenantAddress = provider.companyAddress ?: provider.publicCity
                             )
                         },
                         services = aggregatedServices(state.uiState),
@@ -312,6 +340,7 @@ fun GuestMobileRoot() {
                             savedCards = updated
                             preferencesStore.saveSavedCards(updated)
                         },
+                        onOpenNotifications = { navController.navigate(RootRoute.Inbox.route) { launchSingleTop = true; restoreState = true } },
                         onLoadAvailability = { service, date -> repo.availability(service.companyId, service.sessionTypeId, date.toString()).slots },
                         onCheckout = onCheckout@{ service, slotId, paymentMethodType ->
                             val checkout = runCatching {
@@ -524,42 +553,65 @@ private fun BottomNavBar(current: String, onTabSelected: (String) -> Unit) {
         Triple(RootRoute.Profile.route, "Profile", Icons.Rounded.Person)
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        contentAlignment = Alignment.BottomCenter
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RectangleShape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 10.dp,
+        tonalElevation = 0.dp
     ) {
-        Surface(shape = RoundedCornerShape(30.dp), shadowElevation = 14.dp, color = MaterialTheme.colorScheme.surface) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items.take(2).forEach { (route, label, icon) ->
-                    BottomItem(selected = current == route, label = label, onClick = { onTabSelected(route) }, icon = { Icon(icon, contentDescription = label) })
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items.take(2).forEach { (route, label, icon) ->
+                        BottomItem(selected = current == route, label = label, onClick = { onTabSelected(route) }, icon = { Icon(icon, contentDescription = label) })
+                    }
+                    Spacer(modifier = Modifier.width(80.dp))
+                    items.drop(2).forEach { (route, label, icon) ->
+                        BottomItem(selected = current == route, label = label, onClick = { onTabSelected(route) }, icon = { Icon(icon, contentDescription = label) })
+                    }
                 }
-                Spacer(modifier = Modifier.width(80.dp))
-                items.drop(2).forEach { (route, label, icon) ->
-                    BottomItem(selected = current == route, label = label, onClick = { onTabSelected(route) }, icon = { Icon(icon, contentDescription = label) })
+
+                FloatingActionButton(
+                    onClick = { onTabSelected(RootRoute.Book.route) },
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset(y = (-12).dp)
+                        .graphicsLayer { shadowElevation = 24.dp.toPx() },
+                    shape = CircleShape,
+                    containerColor = if (current == RootRoute.Book.route) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (current == RootRoute.Book.route) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.CalendarMonth, contentDescription = "Book", modifier = Modifier.size(28.dp))
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 3.dp, y = 3.dp)
+                                .size(16.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondary
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(11.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondary
+                                )
+                            }
+                        }
+                    }
                 }
             }
-        }
-
-        FloatingActionButton(
-            onClick = { onTabSelected(RootRoute.Book.route) },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-22).dp)
-                .graphicsLayer { shadowElevation = 24.dp.toPx() },
-            shape = CircleShape,
-            containerColor = if (current == RootRoute.Book.route) MaterialTheme.colorScheme.primary else Color(0xFFE2E8F0),
-            contentColor = if (current == RootRoute.Book.route) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-        ) {
-            Icon(Icons.Rounded.CalendarMonth, contentDescription = "Book", modifier = Modifier.size(30.dp))
         }
     }
 }
@@ -596,6 +648,7 @@ private suspend fun joinTenantWithCode(
             publicDescription = tenantLookup.publicDescription,
             publicCity = tenantLookup.publicCity,
             publicPhone = tenantLookup.publicPhone,
+            companyAddress = tenantLookup.companyAddress,
             status = "ACTIVE"
         )
     val home = repo.home(tenant.companyId)

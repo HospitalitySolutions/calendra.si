@@ -16,7 +16,7 @@ import { helpTooltip } from '../helpContent'
 
 type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'modules' | 'security'
 type BookingSubtab = 'tasks' | 'spaces'
-type BillingSubtab = 'paymentMethods' | 'fiscal' | 'folioLayout'
+type BillingSubtab = 'settings' | 'paymentMethods' | 'fiscal' | 'folioLayout'
 type PersonalTaskPreset = { id: string; name: string; color: string }
 
 type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'modules' | 'security'
@@ -767,16 +767,8 @@ export function ConfigurationPage() {
         <div className="config-content">
       {tab === 'company' ? (
         <Card className="settings-card">
-          <SectionTitle>Invoices</SectionTitle>
           <div className="form-grid">
-            <Field label="Invoice counter" hint="The next invoice number to use. Supports alphanumeric values (e.g. 1, INV-0007).">
-              <input value={settings.INVOICE_COUNTER || '1'} onChange={(e) => setSettings({ ...settings, INVOICE_COUNTER: e.target.value })} />
-            </Field>
-            <Field label="Payment deadline (days)" hint="Due date is issue date + this number of days.">
-              <input type="number" min="0" step="1" value={settings.PAYMENT_DEADLINE_DAYS || '15'} onChange={(e) => setSettings({ ...settings, PAYMENT_DEADLINE_DAYS: e.target.value })} />
-            </Field>
-
-            <div className="full-span" style={{ marginTop: 8 }}>
+            <div className="full-span">
               <strong>Company</strong>
               <p className="muted">Used on invoice PDFs. Only one company profile is stored.</p>
             </div>
@@ -1014,6 +1006,9 @@ export function ConfigurationPage() {
         <div className="stack gap-lg">
           <Card>
             <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
+              <button type="button" className={billingSubtab === 'settings' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('settings')}>
+                {t('configBillingSettingsTab')}
+              </button>
               <button type="button" className={billingSubtab === 'paymentMethods' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('paymentMethods')}>
                 {t('configBillingPaymentMethodsTab')}
               </button>
@@ -1025,7 +1020,22 @@ export function ConfigurationPage() {
               </button>
             </div>
           </Card>
-          {billingSubtab === 'paymentMethods' ? (
+          {billingSubtab === 'settings' ? (
+            <Card className="settings-card">
+              <SectionTitle>Invoices</SectionTitle>
+              <div className="form-grid">
+                <Field label="Invoice counter" hint="The next invoice number to use. Supports alphanumeric values (e.g. 1, INV-0007).">
+                  <input value={settings.INVOICE_COUNTER ?? ''} onChange={(e) => setSettings({ ...settings, INVOICE_COUNTER: e.target.value })} />
+                </Field>
+                <Field label="Payment deadline (days)" hint="Due date is issue date + this number of days.">
+                  <input type="number" min="0" step="1" value={settings.PAYMENT_DEADLINE_DAYS ?? ''} onChange={(e) => setSettings({ ...settings, PAYMENT_DEADLINE_DAYS: e.target.value })} />
+                </Field>
+                <div className="form-actions full-span">
+                  <button type="button" onClick={saveSettings} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
+                </div>
+              </div>
+            </Card>
+          ) : billingSubtab === 'paymentMethods' ? (
           <Card>
             <SectionTitle action={<button type="button" className="secondary" onClick={() => { setEditingPaymentMethodId(null); setPaymentMethodForm({ name: '', paymentType: 'CASH', fiscalized: true, stripeEnabled: false, guestEnabled: false, guestDisplayOrder: 0 }); setShowPaymentMethodModal(true) }}>New</button>} />
             {paymentMethods.length === 0 ? (

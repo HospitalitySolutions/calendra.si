@@ -9,6 +9,7 @@ data class TenantSummary(
     val publicDescription: String? = null,
     val publicCity: String? = null,
     val publicPhone: String? = null,
+    val companyAddress: String? = null,
     val status: String = "ACTIVE"
 )
 

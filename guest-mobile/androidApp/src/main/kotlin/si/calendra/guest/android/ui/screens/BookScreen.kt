@@ -1,5 +1,6 @@
 package si.calendra.guest.android.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,8 +14,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +30,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.AlertDialog
@@ -34,9 +39,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
@@ -54,15 +61,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.ui.SavedCardUi
 import si.calendra.guest.shared.models.AvailabilitySlot
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.YearMonth
 import java.time.ZoneId
@@ -74,7 +85,7 @@ import java.util.UUID
 data class ProviderOption(
     val companyId: String,
     val tenantName: String,
-    val tenantCity: String?
+    val tenantAddress: String?
 )
 
 
@@ -108,6 +119,8 @@ enum class BookingFlowStep(
     }
 }
 
+private const val GUEST_AVAILABILITY_DEBUG_TAG = "GuestAvailability"
+
 private enum class PaymentMethodUi(
     val title: String,
     val apiValue: String?,
@@ -126,6 +139,7 @@ fun BookScreen(
     services: List<ServiceOption>,
     savedCards: List<SavedCardUi> = emptyList(),
     onSaveCard: (SavedCardUi) -> Unit = {},
+    onOpenNotifications: () -> Unit,
     onLoadAvailability: suspend (ServiceOption, LocalDate) -> List<AvailabilitySlot>,
     onCheckout: suspend (ServiceOption, String, String) -> Unit
 ) {
@@ -141,6 +155,7 @@ fun BookScreen(
     var selectedPaymentMethod by remember { mutableStateOf(PaymentMethodUi.CARD) }
     var selectedSavedCardId by remember { mutableStateOf<String?>(savedCards.firstOrNull()?.id) }
     var loadingSlots by remember { mutableStateOf(false) }
+    var availabilityLoadError by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var showAddCardDialog by remember { mutableStateOf(false) }
     var showCardChooserDialog by remember { mutableStateOf(false) }
@@ -178,7 +193,29 @@ fun BookScreen(
         scope.launch {
             loadingSlots = true
             selectedSlotId = null
-            slots = runCatching { onLoadAvailability(service, selectedDate) }.getOrElse { emptyList() }
+            availabilityLoadError = null
+            runCatching { onLoadAvailability(service, selectedDate) }
+                .onSuccess { list ->
+                    slots = list
+                    if (BuildConfig.DEBUG) {
+                        Log.i(
+                            GUEST_AVAILABILITY_DEBUG_TAG,
+                            "GET /api/guest/availability companyId=${service.companyId} sessionTypeId=${service.sessionTypeId} date=$selectedDate → slots=${list.size}"
+                        )
+                    }
+                }
+                .onFailure { ex ->
+                    slots = emptyList()
+                    availabilityLoadError = ex.message?.takeIf { it.isNotBlank() }
+                        ?: "Could not load availability. Check API base URL and backend."
+                    if (BuildConfig.DEBUG) {
+                        Log.e(
+                            GUEST_AVAILABILITY_DEBUG_TAG,
+                            "GET /api/guest/availability companyId=${service.companyId} sessionTypeId=${service.sessionTypeId} date=$selectedDate failed",
+                            ex
+                        )
+                    }
+                }
             loadingSlots = false
         }
     }
@@ -215,170 +252,179 @@ fun BookScreen(
         )
     }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 124.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        item {
-            BookingHeader(
-                currentStep = currentStep,
-                onBack = {
-                    currentStep = when (currentStep) {
-                        BookingFlowStep.PROVIDER -> BookingFlowStep.PROVIDER
-                        BookingFlowStep.SERVICE -> BookingFlowStep.PROVIDER
-                        BookingFlowStep.DATE_TIME -> BookingFlowStep.SERVICE
-                        BookingFlowStep.PAYMENT_REVIEW -> BookingFlowStep.DATE_TIME
-                    }
-                }
-            )
-        }
-
-        item {
-            BookingStepper(currentStep = currentStep)
-        }
-
-        when (currentStep) {
-            BookingFlowStep.PROVIDER -> {
-                item {
-                    StepHeader(
-                        title = BookingFlowStep.PROVIDER.headerTitle,
-                        subtitle = BookingFlowStep.PROVIDER.headerSubtitle
-                    )
-                }
-
-                if (providers.isEmpty()) {
-                    item {
-                        EmptyStateCard(
-                            title = "No providers available",
-                            description = "The guest is not subscribed to any tenancy yet."
-                        )
-                    }
-                } else {
-                    items(providers, key = { it.companyId }) { provider ->
-                        ProviderCard(
-                            provider = provider,
-                            selected = provider.companyId == selectedProviderId,
-                            onClick = {
-                                selectedProviderId = provider.companyId
-                                selectedServiceId = services.firstOrNull { it.companyId == provider.companyId }?.id
-                                selectedSlotId = null
+    Column(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    BookingHeader(
+                        currentStep = currentStep,
+                        onOpenNotifications = onOpenNotifications,
+                        onBack = {
+                            currentStep = when (currentStep) {
+                                BookingFlowStep.PROVIDER -> BookingFlowStep.PROVIDER
+                                BookingFlowStep.SERVICE -> BookingFlowStep.PROVIDER
+                                BookingFlowStep.DATE_TIME -> BookingFlowStep.SERVICE
+                                BookingFlowStep.PAYMENT_REVIEW -> BookingFlowStep.DATE_TIME
                             }
-                        )
-                    }
-                }
-
-                item {
-                    ContinueButton(
-                        label = "Continue",
-                        enabled = selectedProvider != null,
-                        onClick = { currentStep = BookingFlowStep.SERVICE }
+                        }
+                    )
+                    BookingStepper(
+                        currentStep = currentStep,
+                        modifier = Modifier.offset(y = (-8).dp)
                     )
                 }
             }
 
-            BookingFlowStep.SERVICE -> {
-                item {
-                    StepHeader(
-                        title = BookingFlowStep.SERVICE.headerTitle,
-                        subtitle = BookingFlowStep.SERVICE.headerSubtitle
-                    )
-                }
-
-                if (providerScopedServices.isEmpty()) {
+            when (currentStep) {
+                BookingFlowStep.PROVIDER -> {
                     item {
-                        EmptyStateCard(
-                            title = "No services available",
-                            description = "This provider does not currently expose any guest-app services."
+                        ProviderStepHeader(
+                            title = BookingFlowStep.PROVIDER.headerTitle,
+                            subtitle = BookingFlowStep.PROVIDER.headerSubtitle
                         )
                     }
-                } else {
-                    items(providerScopedServices, key = { it.id }) { service ->
-                        ServiceCard(
-                            service = service,
-                            selected = service.id == selectedServiceId,
-                            onClick = {
-                                selectedServiceId = service.id
-                                selectedSlotId = null
-                            }
-                        )
-                    }
-                }
 
-                item {
-                    ContinueButton(
-                        label = "Continue",
-                        enabled = selectedService != null,
-                        onClick = { currentStep = BookingFlowStep.DATE_TIME }
-                    )
-                }
-            }
-
-            BookingFlowStep.DATE_TIME -> {
-                item {
-                    StepHeader(
-                        title = BookingFlowStep.DATE_TIME.headerTitle,
-                        subtitle = BookingFlowStep.DATE_TIME.headerSubtitle
-                    )
-                }
-
-                item {
-                    ElevatedCard(
-                        shape = RoundedCornerShape(28.dp),
-                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(18.dp),
-                            verticalArrangement = Arrangement.spacedBy(18.dp)
-                        ) {
-                            MonthCalendar(
-                                selectedMonth = selectedMonth,
-                                selectedDate = selectedDate,
-                                onMonthChange = { selectedMonth = it },
-                                onDateSelected = {
-                                    selectedDate = it
-                                    selectedMonth = YearMonth.from(it)
+                    if (providers.isEmpty()) {
+                        item {
+                            EmptyStateCard(
+                                title = "No providers available",
+                                description = "The guest is not subscribed to any tenancy yet."
+                            )
+                        }
+                    } else {
+                        items(providers, key = { it.companyId }) { provider ->
+                            ProviderCard(
+                                provider = provider,
+                                selected = provider.companyId == selectedProviderId,
+                                onClick = {
+                                    selectedProviderId = provider.companyId
+                                    selectedServiceId = services.firstOrNull { it.companyId == provider.companyId }?.id
                                     selectedSlotId = null
                                 }
                             )
+                        }
+                    }
+                }
 
-                            Text(
-                                selectedDate.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH)),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium
+                BookingFlowStep.SERVICE -> {
+                    item {
+                        StepHeader(
+                            title = BookingFlowStep.SERVICE.headerTitle,
+                            subtitle = BookingFlowStep.SERVICE.headerSubtitle
+                        )
+                    }
+
+                    if (providerScopedServices.isEmpty()) {
+                        item {
+                            EmptyStateCard(
+                                title = "No services available",
+                                description = "This provider does not currently expose any guest-app services."
                             )
-
-                            if (loadingSlots) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                    Text("Loading available times…")
+                        }
+                    } else {
+                        items(providerScopedServices, key = { it.id }) { service ->
+                            ServiceCard(
+                                service = service,
+                                selected = service.id == selectedServiceId,
+                                onClick = {
+                                    selectedServiceId = service.id
+                                    selectedSlotId = null
                                 }
-                            } else if (slots.isEmpty()) {
-                                Text(
-                                    "No slots available on this day.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                BookingFlowStep.DATE_TIME -> {
+                    item {
+                        StepHeader(
+                            title = BookingFlowStep.DATE_TIME.headerTitle,
+                            subtitle = BookingFlowStep.DATE_TIME.headerSubtitle
+                        )
+                    }
+
+                    item {
+                        ElevatedCard(
+                            shape = RoundedCornerShape(28.dp),
+                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(18.dp)
+                            ) {
+                                MonthCalendar(
+                                    selectedMonth = selectedMonth,
+                                    selectedDate = selectedDate,
+                                    onMonthChange = { selectedMonth = it },
+                                    onDateSelected = {
+                                        selectedDate = it
+                                        selectedMonth = YearMonth.from(it)
+                                        selectedSlotId = null
+                                    }
                                 )
-                            } else {
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    slots.chunked(4).forEach { rowSlots ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            rowSlots.forEach { slot ->
-                                                TimeChip(
-                                                    modifier = Modifier.weight(1f),
-                                                    time = slot.startsAt.asSlotTime(),
-                                                    selected = slot.slotId == selectedSlotId,
-                                                    onClick = { selectedSlotId = slot.slotId }
-                                                )
-                                            }
-                                            repeat(4 - rowSlots.size) {
-                                                Spacer(modifier = Modifier.weight(1f))
+
+                                Text(
+                                    selectedDate.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH)),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                if (loadingSlots) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        Text("Loading available times…")
+                                    }
+                                } else if (slots.isEmpty()) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        if (availabilityLoadError != null) {
+                                            Text(
+                                                availabilityLoadError!!,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                            Text(
+                                                "No slots were loaded. Fix the error above or verify the service and date on the server.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        } else {
+                                            Text(
+                                                "No slots available on this day.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        slots.chunked(4).forEach { rowSlots ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                rowSlots.forEach { slot ->
+                                                    TimeChip(
+                                                        modifier = Modifier.weight(1f),
+                                                        time = slot.startsAt.asSlotTime(),
+                                                        selected = slot.slotId == selectedSlotId,
+                                                        onClick = { selectedSlotId = slot.slotId }
+                                                    )
+                                                }
+                                                repeat(4 - rowSlots.size) {
+                                                    Spacer(modifier = Modifier.weight(1f))
+                                                }
                                             }
                                         }
                                     }
@@ -388,117 +434,132 @@ fun BookScreen(
                     }
                 }
 
-                item {
-                    ContinueButton(
-                        label = "Continue",
-                        enabled = selectedSlot != null,
-                        onClick = { currentStep = BookingFlowStep.PAYMENT_REVIEW }
-                    )
-                }
-            }
-
-            BookingFlowStep.PAYMENT_REVIEW -> {
-                item {
-                    StepHeader(
-                        title = BookingFlowStep.PAYMENT_REVIEW.headerTitle,
-                        subtitle = BookingFlowStep.PAYMENT_REVIEW.headerSubtitle
-                    )
-                }
-
-                item {
-                    val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
-                    val cardSubtitle = activeCard?.let {
-                        "**${it.last4} valid thru ${it.expiryMonth}/${it.expiryYear}"
-                    } ?: "Add a card to pay by credit card"
-
-                    ElevatedCard(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp)
-                        ) {
-                            PaymentMethodRow(
-                                label = PaymentMethodUi.CARD.title,
-                                subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
-                                selected = selectedPaymentMethod == PaymentMethodUi.CARD,
-                                trailing = { CardBrandBadges() },
-                                onClick = { selectedPaymentMethod = PaymentMethodUi.CARD },
-                                onTrailingChevronClick = {
-                                    if (savedCards.isEmpty()) showAddCardDialog = true
-                                    else showCardChooserDialog = true
-                                }
-                            )
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-
-                            PaymentMethodRow(
-                                label = PaymentMethodUi.BANK_TRANSFER.title,
-                                selected = selectedPaymentMethod == PaymentMethodUi.BANK_TRANSFER,
-                                onClick = { selectedPaymentMethod = PaymentMethodUi.BANK_TRANSFER }
-                            )
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-
-                            PaymentMethodRow(
-                                label = PaymentMethodUi.PAYPAL.title,
-                                selected = false,
-                                enabled = false,
-                                subtitle = PaymentMethodUi.PAYPAL.helper,
-                                onClick = {}
-                            )
-                        }
+                BookingFlowStep.PAYMENT_REVIEW -> {
+                    item {
+                        StepHeader(
+                            title = BookingFlowStep.PAYMENT_REVIEW.headerTitle,
+                            subtitle = BookingFlowStep.PAYMENT_REVIEW.headerSubtitle
+                        )
                     }
-                }
 
-                item {
-                    SummaryHeader(
-                        total = selectedService?.let { "${it.priceGross.formatPrice()} ${it.currency}" }.orEmpty()
-                    )
-                }
+                    item {
+                        val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
+                        val cardSubtitle = activeCard?.let {
+                            "**${it.last4} valid thru ${it.expiryMonth}/${it.expiryYear}"
+                        } ?: "Add a card to pay by credit card"
 
-                item {
-                    ElevatedCard(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ElevatedCard(
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
-                            Text(
-                                selectedService?.name.orEmpty(),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            selectedSlot?.let {
-                                Text(
-                                    it.startsAt.asSummaryDateTime(),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp)
+                            ) {
+                                PaymentMethodRow(
+                                    label = PaymentMethodUi.CARD.title,
+                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
+                                    selected = selectedPaymentMethod == PaymentMethodUi.CARD,
+                                    trailing = { CardBrandBadges() },
+                                    onClick = { selectedPaymentMethod = PaymentMethodUi.CARD },
+                                    onTrailingChevronClick = {
+                                        if (savedCards.isEmpty()) showAddCardDialog = true
+                                        else showCardChooserDialog = true
+                                    }
+                                )
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+
+                                PaymentMethodRow(
+                                    label = PaymentMethodUi.BANK_TRANSFER.title,
+                                    selected = selectedPaymentMethod == PaymentMethodUi.BANK_TRANSFER,
+                                    onClick = { selectedPaymentMethod = PaymentMethodUi.BANK_TRANSFER }
+                                )
+
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+
+                                PaymentMethodRow(
+                                    label = PaymentMethodUi.PAYPAL.title,
+                                    selected = false,
+                                    enabled = false,
+                                    subtitle = PaymentMethodUi.PAYPAL.helper,
+                                    onClick = {}
                                 )
                             }
                         }
                     }
-                }
 
-                item {
-                    ContinueButton(
-                        label = "Confirm booking",
-                        enabled = selectedService != null && selectedSlot != null && selectedPaymentMethod.enabled && !submitting,
-                        loading = submitting,
-                        onClick = {
-                            val service = selectedService ?: return@ContinueButton
-                            val slot = selectedSlot ?: return@ContinueButton
-                            val method = selectedPaymentMethod.apiValue ?: return@ContinueButton
-                            scope.launch {
-                                submitting = true
-                                runCatching { onCheckout(service, slot.slotId, method) }
-                                submitting = false
+                    item {
+                        SummaryHeader(
+                            total = selectedService?.let { "${it.priceGross.formatPrice()} ${it.currency}" }.orEmpty()
+                        )
+                    }
+
+                    item {
+                        ElevatedCard(
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    selectedService?.name.orEmpty(),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                selectedSlot?.let {
+                                    Text(
+                                        it.startsAt.asSummaryDateTime(),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
-                    )
+                    }
                 }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 6.dp)
+        ) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+            Spacer(Modifier.height(4.dp))
+            when (currentStep) {
+                BookingFlowStep.PROVIDER -> ContinueButton(
+                    label = "Continue",
+                    enabled = selectedProvider != null,
+                    onClick = { currentStep = BookingFlowStep.SERVICE }
+                )
+                BookingFlowStep.SERVICE -> ContinueButton(
+                    label = "Continue",
+                    enabled = selectedService != null,
+                    onClick = { currentStep = BookingFlowStep.DATE_TIME }
+                )
+                BookingFlowStep.DATE_TIME -> ContinueButton(
+                    label = "Continue",
+                    enabled = selectedSlot != null,
+                    onClick = { currentStep = BookingFlowStep.PAYMENT_REVIEW }
+                )
+                BookingFlowStep.PAYMENT_REVIEW -> ContinueButton(
+                    label = "Confirm booking",
+                    enabled = selectedService != null && selectedSlot != null && selectedPaymentMethod.enabled && !submitting,
+                    loading = submitting,
+                    onClick = {
+                        val service = selectedService ?: return@ContinueButton
+                        val slot = selectedSlot ?: return@ContinueButton
+                        val method = selectedPaymentMethod.apiValue ?: return@ContinueButton
+                        scope.launch {
+                            submitting = true
+                            runCatching { onCheckout(service, slot.slotId, method) }
+                            submitting = false
+                        }
+                    }
+                )
             }
         }
     }
@@ -507,24 +568,38 @@ fun BookScreen(
 @Composable
 private fun BookingHeader(
     currentStep: BookingFlowStep,
+    onOpenNotifications: () -> Unit,
     onBack: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .offset(y = (-30).dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack, enabled = currentStep != BookingFlowStep.PROVIDER) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
             }
             Text(
                 "Book a session",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
+        }
+        FilledTonalIconButton(
+            onClick = onOpenNotifications,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.size(44.dp)
+        ) {
+            Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", modifier = Modifier.size(22.dp))
         }
     }
 }
 
 @Composable
-private fun BookingStepper(currentStep: BookingFlowStep) {
+private fun BookingStepper(currentStep: BookingFlowStep, modifier: Modifier = Modifier) {
     val steps = BookingFlowStep.ordered
     val stateIndex = currentStep.index
     val primary = MaterialTheme.colorScheme.primary
@@ -532,7 +607,7 @@ private fun BookingStepper(currentStep: BookingFlowStep) {
     val inactiveConnector = MaterialTheme.colorScheme.outline
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top
     ) {
         steps.forEachIndexed { index, step ->
@@ -606,7 +681,7 @@ private fun BookingStepper(currentStep: BookingFlowStep) {
                         }
                     }
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     step.stepTitle,
                     modifier = Modifier
@@ -625,21 +700,73 @@ private fun BookingStepper(currentStep: BookingFlowStep) {
 
 @Composable
 private fun StepHeader(title: String, subtitle: String) {
-    ElevatedCard(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(
                 subtitle,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Provider step only: smaller type and a soft bottom fade into the screen background. */
+@Composable
+private fun ProviderStepHeader(title: String, subtitle: String) {
+    val fadeTarget = MaterialTheme.colorScheme.background
+    val shape = RoundedCornerShape(18.dp)
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Surface(
+            shape = shape,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                fadeTarget.copy(alpha = 0.2f),
+                                fadeTarget.copy(alpha = 0.88f)
+                            )
+                        )
+                    )
             )
         }
     }
@@ -662,18 +789,18 @@ private fun EmptyStateCard(title: String, description: String) {
 private fun ProviderCard(provider: ProviderOption, selected: Boolean, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 20.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SelectIndicator(selected = selected)
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(provider.tenantName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Text(provider.tenantCity ?: "Subscribed provider", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SelectIndicator(selected = selected, size = 26.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(provider.tenantName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(provider.tenantAddress ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -1073,9 +1200,9 @@ private fun ContinueButton(label: String, enabled: Boolean, loading: Boolean = f
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .height(50.dp),
         enabled = enabled && !loading,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = Color.White,
@@ -1085,20 +1212,21 @@ private fun ContinueButton(label: String, enabled: Boolean, loading: Boolean = f
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
                 strokeWidth = 2.dp,
                 color = Color.White
             )
         } else {
-            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
 @Composable
-private fun SelectIndicator(selected: Boolean, enabled: Boolean = true) {
+private fun SelectIndicator(selected: Boolean, enabled: Boolean = true, size: Dp = 34.dp) {
+    val iconSize = size * 0.53f
     Surface(
-        modifier = Modifier.size(34.dp),
+        modifier = Modifier.size(size),
         shape = CircleShape,
         color = when {
             selected -> MaterialTheme.colorScheme.primary
@@ -1108,9 +1236,9 @@ private fun SelectIndicator(selected: Boolean, enabled: Boolean = true) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             when {
-                selected -> Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                enabled -> Icon(Icons.Rounded.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(18.dp))
-                else -> Icon(Icons.Rounded.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(18.dp))
+                selected -> Icon(Icons.Rounded.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(iconSize))
+                enabled -> Icon(Icons.Rounded.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(iconSize))
+                else -> Icon(Icons.Rounded.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(iconSize))
             }
         }
     }
@@ -1200,10 +1328,22 @@ private fun String.asSlotTime(): String = runCatching {
     OffsetDateTime.parse(this)
         .atZoneSameInstant(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("HH:mm"))
-}.getOrElse { this }
+}.getOrElse {
+    runCatching {
+        LocalDateTime.parse(this@asSlotTime)
+            .atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("HH:mm"))
+    }.getOrElse { this@asSlotTime }
+}
 
 private fun String.asSummaryDateTime(): String = runCatching {
     OffsetDateTime.parse(this)
         .atZoneSameInstant(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("EEEE, d MMMM 'at' HH:mm", Locale.ENGLISH))
-}.getOrElse { this }
+}.getOrElse {
+    runCatching {
+        LocalDateTime.parse(this@asSummaryDateTime)
+            .atZone(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("EEEE, d MMMM 'at' HH:mm", Locale.ENGLISH))
+    }.getOrElse { this@asSummaryDateTime }
+}

@@ -18,27 +18,50 @@ public final class GuestMapper {
         );
     }
 
-    public static GuestDtos.TenantSummaryResponse toTenantSummary(GuestTenantLink link, String publicDescription, String publicCity, String publicPhone) {
+    public static GuestDtos.TenantSummaryResponse toTenantSummary(GuestTenantLink link, GuestSettingsService.GuestPublicSettings settings) {
         Company company = link.getCompany();
         return new GuestDtos.TenantSummaryResponse(
                 String.valueOf(company.getId()),
-                company.getName(),
-                publicDescription,
-                publicCity,
-                publicPhone,
+                displayCompanyName(company, settings),
+                settings.publicDescription(),
+                settings.publicCity(),
+                settings.publicPhone(),
+                displayCompanyAddressLine(settings),
                 link.getStatus().name()
         );
     }
 
-    public static GuestDtos.TenantSummaryResponse toTenantSummary(Company company, String publicDescription, String publicCity, String publicPhone) {
+    public static GuestDtos.TenantSummaryResponse toTenantSummary(Company company, GuestSettingsService.GuestPublicSettings settings) {
         return new GuestDtos.TenantSummaryResponse(
                 String.valueOf(company.getId()),
-                company.getName(),
-                publicDescription,
-                publicCity,
-                publicPhone,
+                displayCompanyName(company, settings),
+                settings.publicDescription(),
+                settings.publicCity(),
+                settings.publicPhone(),
+                displayCompanyAddressLine(settings),
                 "ACTIVE"
         );
+    }
+
+    /** Invoice / billing "Company name", then guest public name, then DB tenancy name. */
+    public static String displayCompanyName(Company company, GuestSettingsService.GuestPublicSettings settings) {
+        if (settings.invoiceCompanyName() != null && !settings.invoiceCompanyName().isBlank()) {
+            return settings.invoiceCompanyName().trim();
+        }
+        if (settings.publicName() != null && !settings.publicName().isBlank()) {
+            return settings.publicName().trim();
+        }
+        return company.getName();
+    }
+
+    public static String displayCompanyAddressLine(GuestSettingsService.GuestPublicSettings settings) {
+        if (settings.companyAddress() != null && !settings.companyAddress().isBlank()) {
+            return settings.companyAddress().trim();
+        }
+        if (settings.publicCity() != null && !settings.publicCity().isBlank()) {
+            return settings.publicCity().trim();
+        }
+        return null;
     }
 
     public static GuestDtos.EntitlementResponse toEntitlement(GuestEntitlement entitlement) {

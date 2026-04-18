@@ -982,11 +982,17 @@ export default function CalendarPage() {
 
   const computeCalendarFetchRange = () => {
     const apiCal = calendarRef.current?.getApi()
-    const from = apiCal?.view?.activeStart ? new Date(apiCal.view.activeStart) : new Date()
-    const to = apiCal?.view?.activeEnd ? new Date(apiCal.view.activeEnd) : new Date()
+    let from = apiCal?.view?.activeStart ? new Date(apiCal.view.activeStart) : new Date()
+    let to = apiCal?.view?.activeEnd ? new Date(apiCal.view.activeEnd) : new Date()
     if (!apiCal?.view?.activeEnd) to.setDate(to.getDate() + 30)
     from.setDate(from.getDate() - 7)
     to.setDate(to.getDate() + 7)
+    const today = new Date()
+    const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+    const toDay = new Date(to.getFullYear(), to.getMonth(), to.getDate())
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    if (todayDay < fromDay) from = todayDay
+    if (todayDay > toDay) to = todayDay
     const fromStr = from.toISOString().slice(0, 10)
     const toStr = to.toISOString().slice(0, 10)
     return { fromStr, toStr, key: `${fromStr}|${toStr}` }

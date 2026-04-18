@@ -52,10 +52,11 @@ public class GuestTenantService {
         var settings = guestSettings.publicSettings(company.getId());
         return new GuestDtos.TenantLookupResponse(
                 String.valueOf(company.getId()),
-                settings.publicName() != null ? settings.publicName() : company.getName(),
+                GuestMapper.displayCompanyName(company, settings),
                 settings.publicDescription(),
                 settings.publicCity(),
                 settings.publicPhone(),
+                GuestMapper.displayCompanyAddressLine(settings),
                 GuestJoinMethod.TENANT_CODE.name(),
                 settings.guestAppEnabled()
         );
@@ -72,10 +73,11 @@ public class GuestTenantService {
         var settings = guestSettings.publicSettings(company.getId());
         return new GuestDtos.TenantLookupResponse(
                 String.valueOf(company.getId()),
-                settings.publicName() != null ? settings.publicName() : company.getName(),
+                GuestMapper.displayCompanyName(company, settings),
                 settings.publicDescription(),
                 settings.publicCity(),
                 settings.publicPhone(),
+                GuestMapper.displayCompanyAddressLine(settings),
                 GuestJoinMethod.INVITE_LINK.name(),
                 settings.guestAppEnabled()
         );
@@ -88,7 +90,7 @@ public class GuestTenantService {
         for (Company company : candidates) {
             var settings = guestSettings.publicSettings(company.getId());
             if (!settings.guestAppEnabled() || !settings.publicDiscoverable()) continue;
-            out.add(GuestMapper.toTenantSummary(company, settings.publicDescription(), settings.publicCity(), settings.publicPhone()));
+            out.add(GuestMapper.toTenantSummary(company, settings));
         }
         out.sort(Comparator.comparing(GuestDtos.TenantSummaryResponse::companyName, String.CASE_INSENSITIVE_ORDER));
         return out;
@@ -136,7 +138,7 @@ public class GuestTenantService {
         return links.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
                 .map(link -> {
                     var settings = guestSettings.publicSettings(link.getCompany().getId());
-                    return GuestMapper.toTenantSummary(link, settings.publicDescription(), settings.publicCity(), settings.publicPhone());
+                    return GuestMapper.toTenantSummary(link, settings);
                 })
                 .toList();
     }

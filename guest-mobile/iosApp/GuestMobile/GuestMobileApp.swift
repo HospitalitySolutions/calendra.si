@@ -8,6 +8,7 @@ struct GuestMobileApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
+                .tint(Color(red: 0.07, green: 0.30, blue: 0.62))
         }
     }
 }

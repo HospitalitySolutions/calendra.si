@@ -14,6 +14,7 @@ data class TenantLookupResponse(
     val publicDescription: String? = null,
     val publicCity: String? = null,
     val publicPhone: String? = null,
+    val companyAddress: String? = null,
     val joinMethod: String,
     val canJoin: Boolean
 )

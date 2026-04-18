@@ -6,24 +6,29 @@ import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
-import com.example.app.session.SessionBooking;
-import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
+import com.example.app.user.Role;
 import com.example.app.user.User;
+import com.example.app.user.UserRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,10 +37,14 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class GuestCatalogService {
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final int SLOT_GRID_MINUTES = 30;
+
     private final SessionTypeRepository sessionTypes;
     private final GuestProductRepository guestProducts;
     private final BookableSlotRepository bookableSlots;
-    private final SessionBookingRepository bookings;
+    private final UserRepository users;
+    private final SessionBookingCreationService bookingCreationService;
     private final GuestSettingsService guestSettings;
     private final ZoneId zoneId;
 
@@ -43,14 +52,16 @@ public class GuestCatalogService {
             SessionTypeRepository sessionTypes,
             GuestProductRepository guestProducts,
             BookableSlotRepository bookableSlots,
-            SessionBookingRepository bookings,
+            UserRepository users,
+            SessionBookingCreationService bookingCreationService,
             GuestSettingsService guestSettings,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String timezoneId
     ) {
         this.sessionTypes = sessionTypes;
         this.guestProducts = guestProducts;
         this.bookableSlots = bookableSlots;
-        this.bookings = bookings;
+        this.users = users;
+        this.bookingCreationService = bookingCreationService;
         this.guestSettings = guestSettings;
         this.zoneId = ZoneId.of((timezoneId == null || timezoneId.isBlank()) ? "Europe/Ljubljana" : timezoneId.trim());
     }
@@ -104,24 +115,20 @@ public class GuestCatalogService {
         SessionType type = sessionTypes.findById(sessionTypeId)
                 .filter(t -> Objects.equals(t.getCompany().getId(), companyId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
-        int durationMinutes = type.getDurationMinutes() == null ? 60 : type.getDurationMinutes();
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-        List<BookableSlot> slots = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
-                .filter(slot -> slot.getDayOfWeek() == dayOfWeek)
-                .filter(slot -> slot.isIndefinite() || (slot.getStartDate() == null || !slot.getStartDate().isAfter(date)) && (slot.getEndDate() == null || !slot.getEndDate().isBefore(date)))
-                .filter(slot -> consultantSupports(slot.getConsultant(), sessionTypeId))
-                .sorted(Comparator.comparing(BookableSlot::getStartTime).thenComparing(slot -> slot.getConsultant().getId()))
-                .toList();
-        Map<String, GuestDtos.AvailabilitySlotResponse> available = new LinkedHashMap<>();
-        for (BookableSlot slot : slots) {
-            LocalDateTime start = date.atTime(slot.getStartTime());
-            LocalDateTime end = start.plusMinutes(durationMinutes);
-            if (!start.isAfter(LocalDateTime.now(zoneId))) continue;
-            if (hasOverlappingBooking(companyId, slot.getConsultant().getId(), start, end)) continue;
-            String id = slotToken(slot.getConsultant().getId(), start, end);
-            available.putIfAbsent(id, new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
+        LocalDate today = LocalDate.now(zoneId);
+        if (date.isBefore(today)) {
+            return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), List.of());
         }
-        return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), new ArrayList<>(available.values()));
+        int durationMinutes = type.getDurationMinutes() == null ? 60 : type.getDurationMinutes();
+
+        Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
+        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, merged);
+        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, merged);
+
+        List<GuestDtos.AvailabilitySlotResponse> sorted = merged.values().stream()
+                .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt).thenComparing(GuestDtos.AvailabilitySlotResponse::slotId))
+                .toList();
+        return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), sorted);
     }
 
     public ResolvedProduct resolveProduct(Long companyId, String productId) {
@@ -162,13 +169,177 @@ public class GuestCatalogService {
         return guestSettings.bookingRules(companyId);
     }
 
-    private boolean consultantSupports(User consultant, Long sessionTypeId) {
-        return consultant != null && consultant.getTypes() != null && consultant.getTypes().stream().anyMatch(t -> Objects.equals(t.getId(), sessionTypeId));
+    /**
+     * Matches public widget semantics: consultants with no explicit session types are treated as offering every type.
+     */
+    private boolean consultantSupportsSessionType(User consultant, SessionType type) {
+        if (consultant == null) {
+            return false;
+        }
+        Set<SessionType> types = consultant.getTypes();
+        if (types == null || types.isEmpty()) {
+            return true;
+        }
+        return types.stream().anyMatch(t -> Objects.equals(t.getId(), type.getId()));
     }
 
-    private boolean hasOverlappingBooking(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end) {
-        return bookings.existsOverlappingForConsultantExceptBooking(companyId, consultantId, start, end, -1L);
+    private boolean isBookableGuestConsultant(User user) {
+        return user.isConsultant() || user.getRole() == Role.CONSULTANT;
     }
+
+    private List<User> supportedGuestConsultants(Long companyId, SessionType type) {
+        return users.findAllByCompanyId(companyId).stream()
+                .filter(User::isActive)
+                .filter(this::isBookableGuestConsultant)
+                .filter(u -> consultantSupportsSessionType(u, type))
+                .sorted(Comparator.comparing(u -> ((u.getFirstName() + " " + u.getLastName()).trim()), String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private void addSlotsFromBookableWindows(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                             Map<String, GuestDtos.AvailabilitySlotResponse> merged) {
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
+                .filter(slot -> slot.getConsultant() != null)
+                .filter(slot -> slot.getConsultant().isActive())
+                .filter(slot -> slot.getDayOfWeek() == dayOfWeek)
+                .filter(slot -> slot.isIndefinite() || withinBookableDateRange(slot, date))
+                .filter(slot -> consultantSupportsSessionType(slot.getConsultant(), type))
+                .sorted(Comparator.comparing((BookableSlot s) -> s.getConsultant().getId()).thenComparing(BookableSlot::getStartTime))
+                .toList();
+
+        for (BookableSlot window : windows) {
+            LocalTime cursor = window.getStartTime();
+            while (!cursor.plusMinutes(durationMinutes).isAfter(window.getEndTime())) {
+                LocalDateTime start = date.atTime(cursor);
+                LocalDateTime end = start.plusMinutes(durationMinutes);
+                if (!isGuestSlotStartInFuture(date, start)) {
+                    cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
+                    continue;
+                }
+                if (isActuallyGuestBookable(companyId, window.getConsultant().getId(), start, end, type.getId())) {
+                    String id = slotToken(window.getConsultant().getId(), start, end);
+                    merged.putIfAbsent(id, new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
+                }
+                cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
+            }
+        }
+    }
+
+    private void addSlotsFromWorkingHours(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                          Map<String, GuestDtos.AvailabilitySlotResponse> merged) {
+        for (User consultant : supportedGuestConsultants(companyId, type)) {
+            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
+            if (dayWindow.isEmpty()) {
+                continue;
+            }
+            LocalTime rangeEnd = dayWindow.get().end();
+            LocalTime cursor = dayWindow.get().start();
+            while (!cursor.plusMinutes(durationMinutes).isAfter(rangeEnd)) {
+                LocalDateTime start = date.atTime(cursor);
+                LocalDateTime end = start.plusMinutes(durationMinutes);
+                if (!isGuestSlotStartInFuture(date, start)) {
+                    cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
+                    continue;
+                }
+                if (isActuallyGuestBookable(companyId, consultant.getId(), start, end, type.getId())) {
+                    String id = slotToken(consultant.getId(), start, end);
+                    merged.putIfAbsent(id, new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
+                }
+                cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
+            }
+        }
+    }
+
+    private boolean isGuestSlotStartInFuture(LocalDate date, LocalDateTime slotStart) {
+        LocalDate today = LocalDate.now(zoneId);
+        if (date.isBefore(today)) {
+            return false;
+        }
+        if (date.isAfter(today)) {
+            return true;
+        }
+        return slotStart.isAfter(LocalDateTime.now(zoneId));
+    }
+
+    private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
+        try {
+            bookingCreationService.validateBookingWindow(
+                    companyId,
+                    List.of(),
+                    consultantId,
+                    null,
+                    start,
+                    end,
+                    typeId,
+                    SessionBookingCreationService.bookingExcludeIds((Long) null),
+                    bookingCreationService.isSpacesEnabled(companyId),
+                    bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
+                    bookingCreationService.isMultipleClientsPerSessionEnabled(companyId),
+                    false,
+                    false
+            );
+            return true;
+        } catch (ResponseStatusException ex) {
+            return false;
+        }
+    }
+
+    private static boolean withinBookableDateRange(BookableSlot slot, LocalDate date) {
+        if (slot.getStartDate() != null && date.isBefore(slot.getStartDate())) {
+            return false;
+        }
+        if (slot.getEndDate() != null && date.isAfter(slot.getEndDate())) {
+            return false;
+        }
+        return true;
+    }
+
+    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date) {
+        String raw = consultant.getWorkingHoursJson();
+        if (raw == null || raw.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode root = JSON.readTree(raw);
+            boolean sameForAllDays = root.path("sameForAllDays").asBoolean(false);
+            JsonNode block;
+            if (sameForAllDays) {
+                block = root.get("allDays");
+            } else {
+                block = root.path("byDay").get(date.getDayOfWeek().name());
+            }
+            if (block == null || block.isNull() || !block.isObject()) {
+                return Optional.empty();
+            }
+            LocalTime start = parseWorkingHoursTime(block.path("start").asText(null));
+            LocalTime end = parseWorkingHoursTime(block.path("end").asText(null));
+            if (start == null || end == null || !end.isAfter(start)) {
+                return Optional.empty();
+            }
+            return Optional.of(new TimeWindow(start, end));
+        } catch (Exception ex) {
+            return Optional.empty();
+        }
+    }
+
+    private static LocalTime parseWorkingHoursTime(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String t = text.trim();
+        try {
+            return LocalTime.parse(t);
+        } catch (Exception ex) {
+            try {
+                return LocalTime.parse(t, DateTimeFormatter.ofPattern("H:mm"));
+            } catch (Exception ex2) {
+                return null;
+            }
+        }
+    }
+
+    private record TimeWindow(LocalTime start, LocalTime end) {}
 
     private boolean isGuestBookable(SessionType type) {
         return type != null && type.isGuestBookingEnabled();

@@ -2,19 +2,28 @@ import SwiftUI
 
 struct GuestSurfaceCard<Content: View>: View {
     var background: Color = Color(.systemBackground)
+    var contentPadding: CGFloat = 18
+    var cornerRadius: CGFloat = 28
     @ViewBuilder let content: Content
 
-    init(background: Color = Color(.systemBackground), @ViewBuilder content: () -> Content) {
+    init(
+        background: Color = Color(.systemBackground),
+        contentPadding: CGFloat = 18,
+        cornerRadius: CGFloat = 28,
+        @ViewBuilder content: () -> Content
+    ) {
         self.background = background
+        self.contentPadding = contentPadding
+        self.cornerRadius = cornerRadius
         self.content = content()
     }
 
     var body: some View {
         content
-            .padding(18)
+            .padding(contentPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(background)
                     .shadow(color: .black.opacity(0.05), radius: 18, x: 0, y: 10)
             )

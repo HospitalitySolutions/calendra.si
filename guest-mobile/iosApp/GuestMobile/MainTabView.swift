@@ -12,6 +12,8 @@ struct MainTabView: View {
     @State private var showAddOptions = false
     @State private var showManualCodeSheet = false
     @State private var showScannerSheet = false
+    private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
+    private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
 
     private var unreadNotifications: Int {
         store.notifications.filter { $0.readAt == nil }.count
@@ -20,7 +22,7 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             LinearGradient(
-                colors: [Color(.systemGroupedBackground), Color(red: 0.93, green: 0.95, blue: 0.99)],
+                colors: [Color(red: 0.95, green: 0.98, blue: 1.00), Color(red: 1.00, green: 0.95, blue: 0.88)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -36,7 +38,7 @@ struct MainTabView: View {
                     case .home:
                         HomeView()
                     case .book:
-                        BookView()
+                        BookView(onOpenNotifications: { selectedTab = .inbox })
                     case .wallet:
                         WalletView()
                     case .inbox:
@@ -47,11 +49,9 @@ struct MainTabView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 92)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                bottomBar
             }
-
-            bottomBar
         }
         .task {
             if store.tenantDashboards.isEmpty, !store.linkedTenants.isEmpty {
@@ -91,7 +91,7 @@ struct MainTabView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(brandBlue)
                         .frame(width: 44, height: 44)
                         .background(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -107,7 +107,7 @@ struct MainTabView: View {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell")
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(brandBlue)
                             .frame(width: 44, height: 44)
                             .background(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -120,7 +120,7 @@ struct MainTabView: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
-                                .background(Capsule(style: .continuous).fill(Color.red))
+                                .background(Capsule(style: .continuous).fill(brandOrange))
                                 .offset(x: 8, y: -6)
                         }
                     }
@@ -134,37 +134,53 @@ struct MainTabView: View {
     }
 
     private var bottomBar: some View {
-        ZStack {
-            HStack(spacing: 6) {
-                navItem(.home, icon: "house.fill", title: "Home")
-                navItem(.wallet, icon: "wallet.pass.fill", title: "Wallet")
-                Spacer(minLength: 76)
-                navItem(.inbox, icon: "tray.full.fill", title: "Inbox")
-                navItem(.profile, icon: "person.crop.circle.fill", title: "Profile")
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Color(.systemBackground).opacity(0.98))
-                    .shadow(color: .black.opacity(0.08), radius: 22, x: 0, y: 12)
-            )
-            .padding(.horizontal, 18)
-            .padding(.bottom, 10)
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color(.separator).opacity(0.45))
+                .frame(height: 0.5)
+            ZStack {
+                HStack(spacing: 8) {
+                    navItem(.home, icon: "house.fill", title: "Home")
+                    navItem(.wallet, icon: "wallet.pass.fill", title: "Wallet")
+                    Spacer(minLength: 72)
+                    navItem(.inbox, icon: "tray.full.fill", title: "Inbox")
+                    navItem(.profile, icon: "person.crop.circle.fill", title: "Profile")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
 
-            Button {
-                selectedTab = .book
-            } label: {
-                Image(systemName: "calendar.badge.plus")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(selectedTab == .book ? Color.white : Color.primary)
-                    .frame(width: 68, height: 68)
-                    .background(Circle().fill(selectedTab == .book ? Color.primary : Color(.secondarySystemBackground)))
-                    .shadow(color: .black.opacity(0.14), radius: 18, x: 0, y: 10)
+                Button {
+                    selectedTab = .book
+                } label: {
+                    ZStack {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(selectedTab == .book ? Color.white : brandBlue)
+                        Circle()
+                            .fill(brandOrange)
+                            .frame(width: 16, height: 16)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Color.white)
+                            )
+                            .offset(x: 13, y: 13)
+                    }
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(selectedTab == .book ? brandBlue : Color(.secondarySystemBackground)))
+                    .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 6)
+                }
+                .buttonStyle(.plain)
+                .offset(y: -12)
+                .accessibilityLabel("Book")
             }
-            .offset(y: -24)
-            .accessibilityLabel("Book")
+            .frame(maxWidth: .infinity)
+            .background(
+                Color(.systemBackground)
+                    .ignoresSafeArea(edges: .bottom)
+            )
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func navItem(_ tab: Tab, icon: String, title: String) -> some View {
@@ -177,7 +193,7 @@ struct MainTabView: View {
                 Text(title)
                     .font(.caption2.weight(selectedTab == tab ? .semibold : .medium))
             }
-            .foregroundStyle(selectedTab == tab ? Color.primary : Color.secondary)
+            .foregroundStyle(selectedTab == tab ? brandBlue : Color.secondary)
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)

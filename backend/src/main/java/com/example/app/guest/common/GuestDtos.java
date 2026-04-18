@@ -6,7 +6,7 @@ public final class GuestDtos {
     private GuestDtos() {}
 
     public record GuestUserResponse(String id, String email, String firstName, String lastName, String phone, String language) {}
-    public record TenantSummaryResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String status) {}
+    public record TenantSummaryResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String status) {}
     public record GuestSessionResponse(String token, GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record GuestProfileResponse(GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
 
@@ -15,7 +15,7 @@ public final class GuestDtos {
     public record SocialTokenRequest(String idToken) {}
 
     public record TenantLookupRequest(String tenantCode) {}
-    public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String joinMethod, boolean canJoin) {}
+    public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String joinMethod, boolean canJoin) {}
     public record JoinTenantRequest(String joinMethod, String tenantCode, String inviteCode, String companyId) {}
     public record TenantLinkResponse(String companyId, String clientId, String status, String joinedVia) {}
     public record JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType) {}

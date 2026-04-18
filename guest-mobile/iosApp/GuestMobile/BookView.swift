@@ -4,6 +4,9 @@ struct BookView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.openURL) private var openURL
 
+    /// Shown in the Book tab header (utility bar is hidden on this tab).
+    let onOpenNotifications: () -> Void
+
     @State private var currentStep: BookFlowStep = .provider
     @State private var selectedProviderId: String?
     @State private var selectedServiceId: String?
@@ -19,6 +22,8 @@ struct BookView: View {
     @State private var selectedStoredCard: String?
     @State private var showingStoredCardSheet = false
     @State private var showingAddCardSheet = false
+    private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
+    private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
 
     private var providers: [TenantModel] {
         store.linkedTenants.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -67,17 +72,38 @@ struct BookView: View {
         currentStep == .paymentReview ? "Confirm booking" : "Continue"
     }
 
+    private var unreadNotifications: Int {
+        store.notifications.filter { $0.readAt == nil }.count
+    }
+
+    init(onOpenNotifications: @escaping () -> Void = {}) {
+        self.onOpenNotifications = onOpenNotifications
+    }
+
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
-                header
-                stepper
-                stepContent
-                primaryActionButton
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        header
+                        stepper
+                            .padding(.top, -10)
+                    }
+                    stepContent
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, -8)
+                .padding(.bottom, 16)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 120)
+
+            VStack(spacing: 0) {
+                Divider()
+                primaryActionButton
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
+            }
+            .background(Color(.systemGroupedBackground))
         }
         .onAppear {
             storedProfile = LocalProfileStore.shared.load(from: store.user)
@@ -147,21 +173,44 @@ struct BookView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 8) {
             Button {
                 moveBack()
             } label: {
                 Image(systemName: "arrow.left")
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
 
             Text("Book a session")
-                .font(.system(size: 27, weight: .bold))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(.primary)
+
+            Spacer(minLength: 0)
+
+            Button {
+                onOpenNotifications()
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 36, height: 36)
+                    if unreadNotifications > 0 {
+                        Text("\(min(unreadNotifications, 99))")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(brandOrange))
+                            .offset(x: 10, y: -6)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.top, 4)
+        .offset(y: -30)
     }
 
     private var stepper: some View {
@@ -222,7 +271,7 @@ struct BookView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder
@@ -240,15 +289,28 @@ struct BookView: View {
     }
 
     private var providerStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GuestSurfaceCard {
-                VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("1. Select provider")
-                        .font(.system(size: 24, weight: .bold))
-                    Text("Choose a tenancy/organization you’re subscribed to")
-                        .font(.body)
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Choose a tenancy/organization you're subscribed to")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            }
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color(.systemGroupedBackground).opacity(0.38),
+                        Color(.systemGroupedBackground).opacity(0.94)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+                .allowsHitTesting(false)
             }
 
             if providers.isEmpty {
@@ -257,9 +319,12 @@ struct BookView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                VStack(spacing: 14) {
+                VStack(spacing: 8) {
                     ForEach(providers) { provider in
-                        let subtitle = provider.description.nilIfBlank ?? provider.city.nilIfBlank ?? "Subscribed organization"
+                        let subtitle = provider.companyAddress.nilIfBlank
+                            ?? provider.city.nilIfBlank
+                            ?? provider.description.nilIfBlank
+                            ?? "Subscribed organization"
 
                         Button {
                             selectedProviderId = provider.id
@@ -268,9 +333,11 @@ struct BookView: View {
                                 title: provider.name,
                                 subtitle: subtitle,
                                 selected: selectedProviderId == provider.id,
+                                compact: true,
+                                extraCompact: true,
                                 trailing: AnyView(
                                     Image(systemName: "chevron.right")
-                                        .font(.system(size: 18, weight: .medium))
+                                        .font(.system(size: 14, weight: .medium))
                                         .foregroundStyle(Color.secondary)
                                 )
                             )
@@ -487,24 +554,24 @@ struct BookView: View {
         Button {
             handlePrimaryAction()
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 if isSubmitting {
                     ProgressView().tint(.white)
+                        .scaleEffect(0.9)
                 }
                 Text(primaryButtonTitle)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
             }
             .foregroundStyle(Color.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 50)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(continueDisabled ? Color.primary.opacity(0.4) : Color.primary)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(continueDisabled ? brandBlue.opacity(0.4) : brandBlue)
             )
         }
         .buttonStyle(.plain)
         .disabled(continueDisabled)
-        .padding(.top, 8)
     }
 
     private func moveBack() {
@@ -591,19 +658,47 @@ struct BookView: View {
         return String(format: "%.2f", value)
     }
 
-    private func selectableRowCard(title: String, subtitle: String, selected: Bool, trailing: AnyView? = nil) -> some View {
-        GuestSurfaceCard(background: Color(.systemBackground)) {
-            HStack(spacing: 14) {
-                selectionIndicator(selected: selected)
-                VStack(alignment: .leading, spacing: 4) {
+    private func selectableRowCard(
+        title: String,
+        subtitle: String,
+        selected: Bool,
+        compact: Bool = false,
+        extraCompact: Bool = false,
+        trailing: AnyView? = nil
+    ) -> some View {
+        let pad: CGFloat = {
+            if extraCompact { return 12 }
+            return compact ? 14 : 18
+        }()
+        let radius: CGFloat = {
+            if extraCompact { return 20 }
+            return compact ? 22 : 28
+        }()
+        let indicatorSize: CGFloat = {
+            if extraCompact { return 26 }
+            return compact ? 28 : 34
+        }()
+        let titleFont: Font = {
+            if extraCompact { return .system(size: 16, weight: .semibold) }
+            return compact ? .system(size: 17, weight: .semibold) : .system(size: 22, weight: .semibold)
+        }()
+        let subtitleFont: Font = {
+            if extraCompact { return .caption2 }
+            return compact ? .caption : .title3
+        }()
+
+        return GuestSurfaceCard(background: Color(.systemBackground), contentPadding: pad, cornerRadius: radius) {
+            HStack(spacing: (compact || extraCompact) ? 10 : 14) {
+                selectionIndicator(selected: selected, size: indicatorSize)
+                VStack(alignment: .leading, spacing: (compact || extraCompact) ? 2 : 4) {
                     Text(title)
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(titleFont)
                         .foregroundStyle(.primary)
                     Text(subtitle)
-                        .font(.title3)
+                        .font(subtitleFont)
                         .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 12)
+                Spacer(minLength: (compact || extraCompact) ? 6 : 12)
                 if let trailing {
                     trailing
                 }
@@ -611,17 +706,17 @@ struct BookView: View {
         }
     }
 
-    private func selectionIndicator(selected: Bool) -> some View {
+    private func selectionIndicator(selected: Bool, size: CGFloat = 34) -> some View {
         ZStack {
             Circle()
                 .stroke(selected ? Color.primary : Color.secondary.opacity(0.35), lineWidth: 2)
-                .frame(width: 34, height: 34)
+                .frame(width: size, height: size)
             if selected {
                 Circle()
                     .fill(Color.primary)
-                    .frame(width: 34, height: 34)
+                    .frame(width: size, height: size)
                 Image(systemName: "checkmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: size * 0.41, weight: .bold))
                     .foregroundStyle(Color.white)
             }
         }

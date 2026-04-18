@@ -64,12 +64,12 @@ The included script `iosApp/build-kmp-framework.sh` is intended as the bridge po
 
 ## Default configuration
 
-- API base URL: `http://10.0.2.2:8080` on Android emulator
-- Preview mode: enabled by default in both native apps so screens are usable immediately
+- **Android (debug):** API base URL is `BuildConfig.API_BASE_URL`, defaulting to `http://10.0.2.2:4000` (emulator → host; backend default port is **4000** in `backend/src/main/resources/application.yml`). Override in `androidApp/build.gradle.kts` (`buildConfigField`) for a physical device (use your PC’s LAN IP, same port).
+- **Shared KMP default:** [`GuestApiConfig`](shared/src/commonMain/kotlin/si/calendra/guest/shared/config/GuestApiConfig.kt) uses `http://10.0.2.2:4000` when no config is passed (non-Android callers).
+- **iOS:** set the base URL in `iosApp/GuestMobile/AppEnvironment.swift` (use `http://localhost:4000` in simulator if the API listens on the host).
+- **Preview mode:** `usePreviewData` defaults to `false`; set to `true` only for offline UI demos (`GuestAppContainer(GuestApiConfig(usePreviewData = true))`).
 
-Update the base URL in:
-- `shared/src/commonMain/.../GuestApiConfig.kt`
-- `iosApp/GuestMobile/AppEnvironment.swift`
+**Local debugging:** With a debug build, Logcat tags `GuestApi` (tenant list after login/me/refresh) and `GuestAvailability` (each availability request) print the same values you would pass to `GET /api/guest/me` and `GET /api/guest/availability`.
 
 ## Important note
 

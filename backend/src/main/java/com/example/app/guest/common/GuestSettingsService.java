@@ -28,11 +28,16 @@ public class GuestSettingsService {
         String description = textOrNull(root.path("publicDescription"));
         String city = textOrNull(root.path("publicCity"));
         String phone = textOrNull(root.path("publicPhone"));
+        String street = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
+        String postal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));
+        String companyCity = textOrNull(values.get(SettingKey.COMPANY_CITY.name()));
+        String formattedAddress = formatCompanyAddressLine(street, postal, companyCity);
+        String invoiceCompanyName = textOrNull(values.get(SettingKey.COMPANY_NAME.name()));
         if (phone == null) {
             phone = textOrNull(values.get(SettingKey.COMPANY_TELEPHONE.name()));
         }
         String defaultLanguage = root.path("defaultLanguage").asText("sl");
-        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, defaultLanguage);
+        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage);
     }
 
     public GuestBookingRules bookingRules(Long companyId) {
@@ -70,6 +75,25 @@ public class GuestSettingsService {
         return raw == null || raw.isBlank() ? null : raw.trim();
     }
 
+    /** Street + postal + city, same shape as invoice PDF / reminder templates. */
+    private static String formatCompanyAddressLine(String street, String postalCode, String city) {
+        String line1 = street == null ? "" : street.strip();
+        String pc = postalCode == null ? "" : postalCode.strip();
+        String c = city == null ? "" : city.strip();
+        StringBuilder sb = new StringBuilder();
+        if (!line1.isEmpty()) {
+            sb.append(line1);
+        }
+        if (!pc.isEmpty() || !c.isEmpty()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(pc);
+            if (!pc.isEmpty() && !c.isEmpty()) sb.append(" ");
+            sb.append(c);
+        }
+        String out = sb.toString().strip();
+        return out.isEmpty() ? null : out;
+    }
+
     private static List<String> readTextArray(JsonNode node, List<String> fallback) {
         if (node == null || !node.isArray()) return fallback;
         return java.util.stream.StreamSupport.stream(node.spliterator(), false)
@@ -78,6 +102,6 @@ public class GuestSettingsService {
                 .toList();
     }
 
-    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String defaultLanguage) {}
+    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage) {}
     public record GuestBookingRules(int cancelUntilHours, int rescheduleUntilHours, boolean lateCancelConsumesCredit, boolean noShowConsumesCredit, boolean sameDayBankTransferAllowed, boolean bankTransferReservesSlot, List<String> allowBankTransferFor, List<String> allowCardFor) {}
 }

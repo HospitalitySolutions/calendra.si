@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 final class AppStore: ObservableObject {
     @Published var user = GuestUserModel(id: "guest-1", email: "ana@example.com", firstName: "Ana", lastName: "Novak", phone: nil, language: "sl")
-    @Published var currentTenant = TenantModel(id: "tenant-northside", name: "Northside Fitness", description: "Premium training studio", city: "Ljubljana", phone: nil, status: "ACTIVE")
+    @Published var currentTenant = TenantModel(id: "tenant-northside", name: "Northside Fitness", description: "Premium training studio", city: "Ljubljana", phone: nil, status: "ACTIVE", companyAddress: nil)
     @Published var linkedTenants: [TenantModel] = []
     @Published var selectedTenantId: String?
     @Published var tenantDashboards: [String: TenantDashboardModel] = [:]
@@ -146,7 +146,8 @@ final class AppStore: ObservableObject {
                         description: tenant.publicDescription,
                         city: tenant.publicCity,
                         phone: tenant.publicPhone,
-                        status: "ACTIVE"
+                        status: "ACTIVE",
+                        companyAddress: nil
                     )
                 )
             }
