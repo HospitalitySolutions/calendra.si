@@ -156,6 +156,7 @@ struct MainTabView: View {
                         Image(systemName: "calendar")
                             .font(.system(size: 24, weight: .bold))
                             .foregroundStyle(selectedTab == .book ? Color.white : brandBlue)
+                            .offset(y: -1)
                         Circle()
                             .fill(brandOrange)
                             .frame(width: 16, height: 16)
@@ -171,7 +172,7 @@ struct MainTabView: View {
                     .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 6)
                 }
                 .buttonStyle(.plain)
-                .offset(y: -12)
+                .offset(y: -14)
                 .accessibilityLabel("Book")
             }
             .frame(maxWidth: .infinity)

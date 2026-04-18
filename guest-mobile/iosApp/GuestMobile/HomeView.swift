@@ -7,8 +7,8 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 GuestSectionHeader(
-                    title: "Your next visits",
-                    subtitle: store.bookingCards.isEmpty ? "You do not have any upcoming bookings yet." : "Upcoming bookings across your subscribed tenancies."
+                    title: "Upcoming bookings",
+                    subtitle: nil
                 )
 
                 if store.bookingCards.isEmpty {
@@ -27,7 +27,11 @@ struct HomeView: View {
                                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                                     .fill(
                                         LinearGradient(
-                                            colors: [Color(red: 0.06, green: 0.09, blue: 0.16), Color(red: 0.20, green: 0.25, blue: 0.34)],
+                                            colors: [
+                                                Color(red: 0.059, green: 0.239, blue: 0.478),
+                                                Color(red: 0.071, green: 0.298, blue: 0.616),
+                                                Color(red: 0.102, green: 0.361, blue: 0.737)
+                                            ],
                                             startPoint: .leading,
                                             endPoint: .trailing
                                         )
@@ -35,12 +39,10 @@ struct HomeView: View {
                                     .frame(height: 148)
                                     .overlay(alignment: .topLeading) {
                                         VStack(alignment: .leading, spacing: 12) {
-                                            HStack {
-                                                GuestPill(title: booking.tenantName, dark: true)
+                                            HStack(alignment: .top) {
+                                                GuestPill(title: booking.tenantName, dark: true, companyAccent: true)
                                                 Spacer()
-                                                Text(formatDateTime(booking.startsAt))
-                                                    .font(.caption.weight(.semibold))
-                                                    .foregroundStyle(.white.opacity(0.82))
+                                                homeScheduleView(booking.startsAt)
                                             }
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(booking.title)
@@ -110,6 +112,24 @@ struct HomeView: View {
             .padding(.horizontal, 20)
             .padding(.top, 18)
             .padding(.bottom, 110)
+        }
+    }
+
+    @ViewBuilder
+    private func homeScheduleView(_ raw: String) -> some View {
+        if let lines = DateFormatting.homeBookingScheduleLines(raw) {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(lines.line1)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(lines.line2)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.88))
+            }
+        } else {
+            Text(formatDateTime(raw))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.82))
         }
     }
 

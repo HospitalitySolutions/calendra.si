@@ -33,17 +33,31 @@ struct GuestSurfaceCard<Content: View>: View {
 struct GuestPill: View {
     let title: String
     var dark: Bool = false
+    /// Calendra accent orange on blue booking header (company name).
+    var companyAccent: Bool = false
 
     var body: some View {
         Text(title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(dark ? Color.white : Color.primary)
+            .foregroundStyle(foreground)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
                 Capsule(style: .continuous)
-                    .fill(dark ? Color.white.opacity(0.16) : Color(.secondarySystemBackground))
+                    .fill(
+                        dark
+                            ? Color.white.opacity(companyAccent ? 0.14 : 0.16)
+                            : Color(.secondarySystemBackground)
+                    )
             )
+    }
+
+    private var foreground: Color {
+        if dark && companyAccent {
+            return Color(red: 0.902, green: 0.537, blue: 0.176)
+        }
+        if dark { return .white }
+        return Color.primary
     }
 }
 

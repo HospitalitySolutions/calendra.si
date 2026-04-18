@@ -1,6 +1,7 @@
 package si.calendra.guest.android.ui.screens
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,10 +27,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.TaskAlt
@@ -69,6 +71,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import si.calendra.guest.android.BuildConfig
+import si.calendra.guest.android.ui.PaymentCardBrand
+import si.calendra.guest.android.ui.PaymentCardBrandMark
 import si.calendra.guest.android.ui.SavedCardUi
 import si.calendra.guest.shared.models.AvailabilitySlot
 import java.time.DayOfWeek
@@ -139,6 +143,7 @@ fun BookScreen(
     services: List<ServiceOption>,
     savedCards: List<SavedCardUi> = emptyList(),
     onSaveCard: (SavedCardUi) -> Unit = {},
+    onRemoveSavedCard: (String) -> Unit = {},
     onOpenNotifications: () -> Unit,
     onLoadAvailability: suspend (ServiceOption, LocalDate) -> List<AvailabilitySlot>,
     onCheckout: suspend (ServiceOption, String, String) -> Unit
@@ -188,6 +193,20 @@ fun BookScreen(
     val selectedProvider = providers.firstOrNull { it.companyId == selectedProviderId }
     val selectedService = providerScopedServices.firstOrNull { it.id == selectedServiceId }
     val selectedSlot = slots.firstOrNull { it.slotId == selectedSlotId }
+
+    fun moveBackStep() {
+        currentStep = when (currentStep) {
+            BookingFlowStep.PROVIDER -> BookingFlowStep.PROVIDER
+            BookingFlowStep.SERVICE -> BookingFlowStep.PROVIDER
+            BookingFlowStep.DATE_TIME -> BookingFlowStep.SERVICE
+            BookingFlowStep.PAYMENT_REVIEW -> BookingFlowStep.DATE_TIME
+        }
+    }
+
+    BackHandler(enabled = currentStep != BookingFlowStep.PROVIDER) {
+        moveBackStep()
+    }
+
     fun refreshSlots() {
         val service = selectedService ?: return
         scope.launch {
@@ -245,6 +264,7 @@ fun BookScreen(
                 selectedSavedCardId = it
                 showCardChooserDialog = false
             },
+            onRemove = { id -> onRemoveSavedCard(id) },
             onAddNew = {
                 showCardChooserDialog = false
                 showAddCardDialog = true
@@ -268,14 +288,7 @@ fun BookScreen(
                     BookingHeader(
                         currentStep = currentStep,
                         onOpenNotifications = onOpenNotifications,
-                        onBack = {
-                            currentStep = when (currentStep) {
-                                BookingFlowStep.PROVIDER -> BookingFlowStep.PROVIDER
-                                BookingFlowStep.SERVICE -> BookingFlowStep.PROVIDER
-                                BookingFlowStep.DATE_TIME -> BookingFlowStep.SERVICE
-                                BookingFlowStep.PAYMENT_REVIEW -> BookingFlowStep.DATE_TIME
-                            }
-                        }
+                        onBack = ::moveBackStep
                     )
                     BookingStepper(
                         currentStep = currentStep,
@@ -287,7 +300,7 @@ fun BookScreen(
             when (currentStep) {
                 BookingFlowStep.PROVIDER -> {
                     item {
-                        ProviderStepHeader(
+                        BookSelectStepHeader(
                             title = BookingFlowStep.PROVIDER.headerTitle,
                             subtitle = BookingFlowStep.PROVIDER.headerSubtitle
                         )
@@ -317,7 +330,7 @@ fun BookScreen(
 
                 BookingFlowStep.SERVICE -> {
                     item {
-                        StepHeader(
+                        BookSelectStepHeader(
                             title = BookingFlowStep.SERVICE.headerTitle,
                             subtitle = BookingFlowStep.SERVICE.headerSubtitle
                         )
@@ -346,7 +359,7 @@ fun BookScreen(
 
                 BookingFlowStep.DATE_TIME -> {
                     item {
-                        StepHeader(
+                        BookSelectStepHeader(
                             title = BookingFlowStep.DATE_TIME.headerTitle,
                             subtitle = BookingFlowStep.DATE_TIME.headerSubtitle
                         )
@@ -354,12 +367,14 @@ fun BookScreen(
 
                     item {
                         ElevatedCard(
-                            shape = RoundedCornerShape(28.dp),
+                            shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
                             Column(
-                                modifier = Modifier.fillMaxWidth().padding(18.dp),
-                                verticalArrangement = Arrangement.spacedBy(18.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 MonthCalendar(
                                     selectedMonth = selectedMonth,
@@ -369,13 +384,14 @@ fun BookScreen(
                                         selectedDate = it
                                         selectedMonth = YearMonth.from(it)
                                         selectedSlotId = null
-                                    }
+                                    },
+                                    compact = true
                                 )
 
                                 Text(
                                     selectedDate.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH)),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
                                 )
 
                                 if (loadingSlots) {
@@ -408,7 +424,7 @@ fun BookScreen(
                                         }
                                     }
                                 } else {
-                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         slots.chunked(4).forEach { rowSlots ->
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
@@ -436,7 +452,7 @@ fun BookScreen(
 
                 BookingFlowStep.PAYMENT_REVIEW -> {
                     item {
-                        StepHeader(
+                        BookSelectStepHeader(
                             title = BookingFlowStep.PAYMENT_REVIEW.headerTitle,
                             subtitle = BookingFlowStep.PAYMENT_REVIEW.headerSubtitle
                         )
@@ -445,46 +461,43 @@ fun BookScreen(
                     item {
                         val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
                         val cardSubtitle = activeCard?.let {
-                            "**${it.last4} valid thru ${it.expiryMonth}/${it.expiryYear}"
+                            "•••• ${it.last4} · valid thru ${it.expiryMonth}/${it.expiryYear}"
                         } ?: "Add a card to pay by credit card"
 
-                        ElevatedCard(
-                            shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp)
-                            ) {
-                                PaymentMethodRow(
-                                    label = PaymentMethodUi.CARD.title,
-                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.CARD,
-                                    trailing = { CardBrandBadges() },
-                                    onClick = { selectedPaymentMethod = PaymentMethodUi.CARD },
-                                    onTrailingChevronClick = {
-                                        if (savedCards.isEmpty()) showAddCardDialog = true
-                                        else showCardChooserDialog = true
-                                    }
-                                )
-
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-
-                                PaymentMethodRow(
-                                    label = PaymentMethodUi.BANK_TRANSFER.title,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.BANK_TRANSFER,
-                                    onClick = { selectedPaymentMethod = PaymentMethodUi.BANK_TRANSFER }
-                                )
-
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-
-                                PaymentMethodRow(
-                                    label = PaymentMethodUi.PAYPAL.title,
-                                    selected = false,
-                                    enabled = false,
-                                    subtitle = PaymentMethodUi.PAYPAL.helper,
-                                    onClick = {}
-                                )
-                            }
+                            PaymentMethodCard(
+                                label = PaymentMethodUi.CARD.title,
+                                subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
+                                selected = selectedPaymentMethod == PaymentMethodUi.CARD,
+                                enabled = true,
+                                onSelect = { selectedPaymentMethod = PaymentMethodUi.CARD },
+                                trailing = { CardBrandBadges() },
+                                onManageChevron = {
+                                    if (savedCards.isEmpty()) showAddCardDialog = true
+                                    else showCardChooserDialog = true
+                                }
+                            )
+                            PaymentMethodCard(
+                                label = PaymentMethodUi.BANK_TRANSFER.title,
+                                subtitle = null,
+                                selected = selectedPaymentMethod == PaymentMethodUi.BANK_TRANSFER,
+                                enabled = true,
+                                onSelect = { selectedPaymentMethod = PaymentMethodUi.BANK_TRANSFER },
+                                trailing = null,
+                                onManageChevron = null
+                            )
+                            PaymentMethodCard(
+                                label = PaymentMethodUi.PAYPAL.title,
+                                subtitle = PaymentMethodUi.PAYPAL.helper,
+                                selected = false,
+                                enabled = false,
+                                onSelect = {},
+                                trailing = null,
+                                onManageChevron = null
+                            )
                         }
                     }
 
@@ -579,8 +592,12 @@ private fun BookingHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, enabled = currentStep != BookingFlowStep.PROVIDER) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+            IconButton(
+                onClick = onBack,
+                enabled = currentStep != BookingFlowStep.PROVIDER,
+                modifier = Modifier.offset(x = (-8).dp)
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
             }
             Text(
                 "Book a session",
@@ -591,9 +608,9 @@ private fun BookingHeader(
         FilledTonalIconButton(
             onClick = onOpenNotifications,
             colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.size(44.dp)
+            modifier = Modifier.size(40.dp)
         ) {
-            Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", modifier = Modifier.size(22.dp))
+            Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -722,9 +739,9 @@ private fun StepHeader(title: String, subtitle: String) {
     }
 }
 
-/** Provider step only: smaller type and a soft bottom fade into the screen background. */
+/** Provider and service steps: compact type and soft bottom fade into the screen background. */
 @Composable
-private fun ProviderStepHeader(title: String, subtitle: String) {
+private fun BookSelectStepHeader(title: String, subtitle: String) {
     val fadeTarget = MaterialTheme.colorScheme.background
     val shape = RoundedCornerShape(18.dp)
     Box(modifier = Modifier.fillMaxWidth()) {
@@ -811,44 +828,44 @@ private fun ProviderCard(provider: ProviderOption, selected: Boolean, onClick: (
 private fun ServiceCard(service: ServiceOption, selected: Boolean, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        )
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                SelectIndicator(selected = selected)
+                SelectIndicator(selected = selected, size = 26.dp)
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
                     Text(
                         service.name,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         service.description?.takeIf { it.isNotBlank() } ?: "Bookable service",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                PriceChip("${service.priceGross.formatPrice()} ${service.currency}")
+                PriceChipCompact("${service.priceGross.formatPrice()} ${service.currency}")
             }
             Row(
-                modifier = Modifier.padding(start = 46.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 36.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                TagPill(service.tenantName)
-                service.durationMinutes?.let { TagPill("$it min") }
+                TagPillCompact(service.tenantName)
+                service.durationMinutes?.let { TagPillCompact("$it min") }
             }
         }
     }
@@ -859,7 +876,8 @@ private fun MonthCalendar(
     selectedMonth: YearMonth,
     selectedDate: LocalDate,
     onMonthChange: (YearMonth) -> Unit,
-    onDateSelected: (LocalDate) -> Unit
+    onDateSelected: (LocalDate) -> Unit,
+    compact: Boolean = false
 ) {
     val today = LocalDate.now()
     val dayHeaders = DayOfWeek.values().toList()
@@ -873,7 +891,11 @@ private fun MonthCalendar(
     }
 
     val shortMonthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val navStyle = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
+    val monthTitleStyle = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge
+    val arrowSize = if (compact) 16.dp else 18.dp
+    val dayHeaderStyle = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium
+    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -888,20 +910,20 @@ private fun MonthCalendar(
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Icon(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
                     contentDescription = "Previous month",
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(arrowSize),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     selectedMonth.minusMonths(1).format(shortMonthFmt),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = navStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 selectedMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)),
-                style = MaterialTheme.typography.titleLarge,
+                style = monthTitleStyle,
                 fontWeight = FontWeight.SemiBold
             )
             Row(
@@ -914,13 +936,13 @@ private fun MonthCalendar(
             ) {
                 Text(
                     selectedMonth.plusMonths(1).format(shortMonthFmt),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = navStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Icon(
                     Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     contentDescription = "Next month",
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(arrowSize),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -932,7 +954,7 @@ private fun MonthCalendar(
                     headerDay.getDisplayName(TextStyle.SHORT, Locale.ENGLISH),
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = dayHeaderStyle,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -945,6 +967,7 @@ private fun MonthCalendar(
                         date = date,
                         isSelected = date == selectedDate,
                         isEnabled = date != null && !date.isBefore(today),
+                        compact = compact,
                         onClick = {
                             if (date != null && !date.isBefore(today)) onDateSelected(date)
                         }
@@ -956,19 +979,28 @@ private fun MonthCalendar(
 }
 
 @Composable
-private fun RowScope.CalendarDateCell(date: LocalDate?, isSelected: Boolean, isEnabled: Boolean, onClick: () -> Unit) {
+private fun RowScope.CalendarDateCell(
+    date: LocalDate?,
+    isSelected: Boolean,
+    isEnabled: Boolean,
+    compact: Boolean,
+    onClick: () -> Unit
+) {
+    val cellSize = if (compact) 34.dp else 42.dp
+    val placeholder = if (compact) 32.dp else 40.dp
+    val dayStyle = if (compact) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleMedium
     Box(
         modifier = Modifier
             .weight(1f)
-            .padding(vertical = 4.dp),
+            .padding(vertical = if (compact) 2.dp else 4.dp),
         contentAlignment = Alignment.Center
     ) {
         if (date == null) {
-            Spacer(Modifier.size(40.dp))
+            Spacer(Modifier.size(placeholder))
         } else {
             Surface(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(cellSize)
                     .clickable(enabled = isEnabled, onClick = onClick),
                 shape = CircleShape,
                 color = when {
@@ -984,7 +1016,7 @@ private fun RowScope.CalendarDateCell(date: LocalDate?, isSelected: Boolean, isE
                             isEnabled -> MaterialTheme.colorScheme.onSurface
                             else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         },
-                        style = MaterialTheme.typography.titleMedium,
+                        style = dayStyle,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                         textAlign = TextAlign.Center
                     )
@@ -1003,7 +1035,7 @@ private fun TimeChip(
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         tonalElevation = 0.dp
@@ -1011,65 +1043,79 @@ private fun TimeChip(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 14.dp),
+                .padding(vertical = 10.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 time,
                 color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
 }
 
+/** Same footprint as provider/service rows: compact card, 26dp indicator, optional chevron. */
 @Composable
-private fun PaymentMethodRow(
+private fun PaymentMethodCard(
     label: String,
+    subtitle: String?,
     selected: Boolean,
     enabled: Boolean = true,
-    subtitle: String? = null,
+    onSelect: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
-    onClick: () -> Unit,
-    onTrailingChevronClick: (() -> Unit)? = null
+    onManageChevron: (() -> Unit)? = null
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ElevatedCard(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        SelectIndicator(selected = selected, enabled = enabled)
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
-            subtitle?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        trailing?.invoke()
-        if (onTrailingChevronClick != null) {
-            IconButton(
-                onClick = onTrailingChevronClick,
-                enabled = enabled,
-                modifier = Modifier.size(32.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(enabled = enabled, onClick = onSelect),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = "Manage cards",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                SelectIndicator(selected = selected, enabled = enabled, size = 26.dp)
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    )
+                    subtitle?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            trailing?.invoke()
+            if (onManageChevron != null) {
+                IconButton(
+                    onClick = onManageChevron,
+                    enabled = enabled,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = "Manage cards",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -1106,6 +1152,7 @@ private fun CardChooserDialog(
     selectedCardId: String?,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
+    onRemove: (String) -> Unit,
     onAddNew: () -> Unit
 ) {
     AlertDialog(
@@ -1117,6 +1164,7 @@ private fun CardChooserDialog(
                     Text("No stored cards yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     cards.forEach { card ->
+                        val brand = PaymentCardBrand.fromDisplayName(card.brand)
                         OutlinedCard(
                             onClick = { onSelect(card.id) },
                             shape = RoundedCornerShape(16.dp),
@@ -1129,18 +1177,14 @@ private fun CardChooserDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(
-                                    Icons.Rounded.CreditCard,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                PaymentCardBrandMark(brand = brand)
                                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(
-                                        card.label,
+                                        "${card.brand} · •••• ${card.last4}",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -1148,6 +1192,16 @@ private fun CardChooserDialog(
                                         "valid thru ${card.expiryMonth}/${card.expiryYear}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { onRemove(card.id) },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.DeleteOutline,
+                                        contentDescription = "Remove card",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 if (card.id == selectedCardId) {
@@ -1258,6 +1312,19 @@ private fun PriceChip(text: String) {
 }
 
 @Composable
+private fun PriceChipCompact(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
 private fun TagPill(text: String) {
     Box(
         modifier = Modifier
@@ -1266,6 +1333,18 @@ private fun TagPill(text: String) {
             .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun TagPillCompact(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

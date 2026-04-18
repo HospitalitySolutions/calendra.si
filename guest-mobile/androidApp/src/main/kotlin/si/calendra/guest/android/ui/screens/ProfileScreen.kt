@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,15 +18,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
@@ -43,11 +41,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import si.calendra.guest.android.ui.PaymentCardBrand
+import si.calendra.guest.android.ui.PaymentCardBrandMark
 import si.calendra.guest.android.ui.PaymentCardUtils
 import si.calendra.guest.shared.models.GuestSession
 import java.time.LocalDate
@@ -184,7 +184,13 @@ fun ProfileScreen(
                         Text("No saved cards yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         profile.cards.forEach { card ->
-                            StoredCardListRow(line = card)
+                            StoredCardListRow(
+                                line = card,
+                                onRemove = {
+                                    profile = profile.copy(cards = profile.cards.filterNot { it == card })
+                                    store.save(profile)
+                                }
+                            )
                             Spacer(Modifier.height(4.dp))
                         }
                     }
@@ -319,102 +325,37 @@ private fun parseStoredCardLine(line: String): ParsedStoredCard? {
 }
 
 @Composable
-private fun StoredCardListRow(line: String) {
+private fun StoredCardListRow(line: String, onRemove: () -> Unit) {
     val parsed = remember(line) { parseStoredCardLine(line) }
     if (parsed == null) {
-        Text(line, style = MaterialTheme.typography.bodyLarge)
-        return
-    }
-    val onVar = MaterialTheme.colorScheme.onSurfaceVariant
-    val scroll = rememberScrollState()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scroll),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(parsed.brand.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-        Text(" · ", style = MaterialTheme.typography.bodyLarge, color = onVar)
-        Text("•••• ", style = MaterialTheme.typography.bodyLarge, color = onVar)
-        Text(parsed.last4, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.width(6.dp))
-        PaymentCardBrandMark(brand = parsed.brand)
-        Text(" · ", style = MaterialTheme.typography.bodyLarge, color = onVar)
-        Text(parsed.expiry, style = MaterialTheme.typography.bodyLarge, color = onVar)
-    }
-}
-
-@Composable
-private fun PaymentCardBrandMark(brand: PaymentCardBrand, modifier: Modifier = Modifier) {
-    val h = 20.dp
-    when (brand) {
-        PaymentCardBrand.Mastercard -> {
-            Box(
-                modifier
-                    .height(h)
-                    .width(30.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .align(Alignment.Center)
-                        .offset(x = (-5).dp)
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFEB001B))
-                )
-                Box(
-                    Modifier
-                        .align(Alignment.Center)
-                        .offset(x = 5.dp)
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFF79E1B))
-                )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(line, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove card", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        else -> {
-            val bg = when (brand) {
-                PaymentCardBrand.Visa -> Color(0xFF1A1F71)
-                PaymentCardBrand.Amex -> Color(0xFF006FCF)
-                PaymentCardBrand.Discover -> Color(0xFFFF6000)
-                PaymentCardBrand.Diners -> Color(0xFF0079BE)
-                PaymentCardBrand.Jcb -> Color(0xFF0C4DA2)
-                PaymentCardBrand.UnionPay -> Color(0xFFE21836)
-                PaymentCardBrand.Unknown -> MaterialTheme.colorScheme.surfaceVariant
-            }
-            val label = when (brand) {
-                PaymentCardBrand.Visa -> "VISA"
-                PaymentCardBrand.Amex -> "AMEX"
-                PaymentCardBrand.Discover -> "DISC"
-                PaymentCardBrand.Diners -> "DC"
-                PaymentCardBrand.Jcb -> "JCB"
-                PaymentCardBrand.UnionPay -> "UP"
-                PaymentCardBrand.Unknown -> "CARD"
-                PaymentCardBrand.Mastercard -> "MC"
-            }
-            val fg = if (brand == PaymentCardBrand.Unknown) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                Color.White
-            }
-            Box(
-                modifier
-                    .height(h)
-                    .widthIn(min = 34.dp, max = 52.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(bg)
-                    .padding(horizontal = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    label,
-                    color = fg,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 8.sp,
-                    maxLines = 1
-                )
-            }
+        return
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        PaymentCardBrandMark(brand = parsed.brand)
+        Text(
+            "${parsed.brand.displayName} · •••• ${parsed.last4} · ${parsed.expiry}",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove card", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

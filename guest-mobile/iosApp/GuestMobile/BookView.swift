@@ -178,10 +178,13 @@ struct BookView: View {
                 moveBack()
             } label: {
                 Image(systemName: "arrow.left")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 19, weight: .medium))
                     .foregroundStyle(.primary)
+                    .frame(width: 30, height: 30, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .padding(.leading, -6)
 
             Text("Book a session")
                 .font(.system(size: 18, weight: .bold))
@@ -194,9 +197,9 @@ struct BookView: View {
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.primary)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 32, height: 32)
                     if unreadNotifications > 0 {
                         Text("\(min(unreadNotifications, 99))")
                             .font(.caption2.weight(.bold))
@@ -204,7 +207,7 @@ struct BookView: View {
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(Capsule().fill(brandOrange))
-                            .offset(x: 10, y: -6)
+                            .offset(x: 9, y: -5)
                     }
                 }
             }
@@ -350,15 +353,28 @@ struct BookView: View {
     }
 
     private var serviceStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GuestSurfaceCard {
-                VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("2. Select service")
-                        .font(.system(size: 24, weight: .bold))
-                    Text("Choose a service from the options provided by \(selectedProvider?.name ?? "your provider")")
-                        .font(.body)
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Choose a service from the options provided by the selected provider")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            }
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color(.systemGroupedBackground).opacity(0.38),
+                        Color(.systemGroupedBackground).opacity(0.94)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+                .allowsHitTesting(false)
             }
 
             if selectedProvider == nil {
@@ -372,36 +388,29 @@ struct BookView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                VStack(spacing: 14) {
+                VStack(spacing: 8) {
                     ForEach(servicesForSelectedProvider) { service in
                         Button {
                             selectedServiceId = service.id
                         } label: {
-                            GuestSurfaceCard(background: selectedServiceId == service.id ? Color(red: 0.88, green: 0.91, blue: 1.0) : Color(.systemBackground)) {
-                                VStack(alignment: .leading, spacing: 14) {
-                                    HStack(alignment: .top, spacing: 14) {
-                                        selectionIndicator(selected: selectedServiceId == service.id)
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(service.name)
-                                                .font(.system(size: 22, weight: .bold))
-                                                .foregroundStyle(.primary)
-                                            Text(service.description.nilIfBlank ?? "Bookable service")
-                                                .font(.title3)
-                                                .foregroundStyle(.secondary)
-                                                .multilineTextAlignment(.leading)
-                                        }
-                                        Spacer(minLength: 12)
-                                        priceBadge(value: "\(priceString(service.priceGross)) \(service.currency)")
+                            VStack(alignment: .leading, spacing: 6) {
+                                selectableRowCard(
+                                    title: service.name,
+                                    subtitle: service.description.nilIfBlank ?? "Bookable service",
+                                    selected: selectedServiceId == service.id,
+                                    compact: true,
+                                    extraCompact: true,
+                                    trailing: AnyView(
+                                        priceBadgeCompact(value: "\(priceString(service.priceGross)) \(service.currency)")
+                                    )
+                                )
+                                HStack(spacing: 6) {
+                                    bookInfoPillCompact(title: service.tenantName)
+                                    if let durationMinutes = service.durationMinutes {
+                                        bookInfoPillCompact(title: "\(durationMinutes) min")
                                     }
-
-                                    HStack(spacing: 10) {
-                                        bookInfoPill(title: service.tenantName)
-                                        if let durationMinutes = service.durationMinutes {
-                                            bookInfoPill(title: "\(durationMinutes) min")
-                                        }
-                                    }
-                                    .padding(.leading, 42)
                                 }
+                                .padding(.leading, 48)
                             }
                         }
                         .buttonStyle(.plain)
@@ -412,27 +421,41 @@ struct BookView: View {
     }
 
     private var dateStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GuestSurfaceCard {
-                VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("3. Select date & time")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                     Text("Pick a date and an available time slot")
-                        .font(.body)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            }
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color(.systemGroupedBackground).opacity(0.38),
+                        Color(.systemGroupedBackground).opacity(0.94)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+                .allowsHitTesting(false)
             }
 
             if selectedService != nil {
                 GuestSurfaceCard {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
                         MonthCalendarView(
                             visibleMonth: $visibleMonth,
-                            selectedDate: $selectedDate
+                            selectedDate: $selectedDate,
+                            compact: true
                         )
 
                         Text(selectedDate.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                            .font(.title3.weight(.semibold))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.primary)
 
                         if isLoadingSlots {
@@ -443,22 +466,22 @@ struct BookView: View {
                                 .foregroundStyle(.secondary)
                                 .padding(.bottom, 6)
                         } else {
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                                 ForEach(slots) { slot in
                                     Button {
                                         selectedSlotId = slot.id
                                     } label: {
                                         Text(DateFormatting.prettyTime(slot.startsAt))
-                                            .font(.system(size: 16, weight: .semibold))
+                                            .font(.system(size: 14, weight: .semibold))
                                             .foregroundStyle(selectedSlotId == slot.id ? Color.white : Color.primary)
                                             .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 12)
+                                            .padding(.vertical, 10)
                                             .background(
-                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                                     .fill(selectedSlotId == slot.id ? Color.primary : Color(.systemBackground))
                                             )
                                             .overlay(
-                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                                     .strokeBorder(selectedSlotId == slot.id ? Color.clear : Color(.systemGray4), lineWidth: 1)
                                             )
                                     }
@@ -478,41 +501,67 @@ struct BookView: View {
     }
 
     private var paymentReviewStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GuestSurfaceCard {
-                VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("4. Payment & review")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                     Text("Choose your preferred payment method")
-                        .font(.body)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color(.systemGroupedBackground).opacity(0.38),
+                        Color(.systemGroupedBackground).opacity(0.94)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+                .allowsHitTesting(false)
+            }
 
-            GuestSurfaceCard {
-                VStack(alignment: .leading, spacing: 0) {
-                    paymentMethodRow(
-                        title: "Credit Card",
-                        subtitle: creditCardSubtitle,
-                        choice: .card,
-                        trailing: AnyView(HStack(spacing: 6) {
-                            paymentBrandBadge("VISA")
-                            paymentBrandBadge("MC")
-                        }),
-                        onChevronTap: {
-                            if storedProfile.cards.isEmpty {
-                                showingAddCardSheet = true
-                            } else {
-                                showingStoredCardSheet = true
-                            }
+            VStack(alignment: .leading, spacing: 8) {
+                paymentMethodCompactCard(
+                    title: "Credit Card",
+                    subtitle: creditCardSubtitle,
+                    selected: selectedPaymentMethod == .card,
+                    disabled: false,
+                    onSelect: { selectedPaymentMethod = .card },
+                    trailing: AnyView(HStack(spacing: 6) {
+                        paymentBrandBadge("VISA")
+                        paymentBrandBadge("MC")
+                    }),
+                    onChevronTap: {
+                        if storedProfile.cards.isEmpty {
+                            showingAddCardSheet = true
+                        } else {
+                            showingStoredCardSheet = true
                         }
-                    )
-
-                    Divider().opacity(0.35)
-                    paymentMethodRow(title: "Bank Transfer", subtitle: nil, choice: .bankTransfer, trailing: nil)
-                    Divider().opacity(0.35)
-                    paymentMethodRow(title: "PayPal", subtitle: "Coming soon", choice: .payPal, trailing: nil, disabled: true)
-                }
+                    }
+                )
+                paymentMethodCompactCard(
+                    title: "Bank Transfer",
+                    subtitle: nil,
+                    selected: selectedPaymentMethod == .bankTransfer,
+                    disabled: false,
+                    onSelect: { selectedPaymentMethod = .bankTransfer },
+                    trailing: nil,
+                    onChevronTap: nil
+                )
+                paymentMethodCompactCard(
+                    title: "PayPal",
+                    subtitle: "Coming soon",
+                    selected: false,
+                    disabled: true,
+                    onSelect: {},
+                    trailing: nil,
+                    onChevronTap: nil
+                )
             }
 
             if let service = selectedService {
@@ -731,6 +780,24 @@ struct BookView: View {
             .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
     }
 
+    private func bookInfoPillCompact(title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
+    }
+
+    private func priceBadgeCompact(value: String) -> some View {
+        Text(value)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
+    }
+
     private func priceBadge(value: String) -> some View {
         Text(value)
             .font(.headline.weight(.semibold))
@@ -749,54 +816,56 @@ struct BookView: View {
             .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(.secondarySystemBackground)))
     }
 
-    private func paymentMethodRow(
+    private func paymentMethodCompactCard(
         title: String,
         subtitle: String?,
-        choice: GuestBookingPaymentChoice,
+        selected: Bool,
+        disabled: Bool,
+        onSelect: @escaping () -> Void,
         trailing: AnyView?,
-        disabled: Bool = false,
-        onChevronTap: (() -> Void)? = nil
+        onChevronTap: (() -> Void)?
     ) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            Button {
-                guard !disabled else { return }
-                selectedPaymentMethod = choice
-            } label: {
-                HStack(alignment: .center, spacing: 14) {
-                    selectionIndicator(selected: selectedPaymentMethod == choice)
-                        .opacity(disabled ? 0.45 : 1)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(disabled ? Color.secondary : Color.primary)
-                        if let subtitle {
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+        GuestSurfaceCard(background: Color(.systemBackground), contentPadding: 12, cornerRadius: 20) {
+            HStack(alignment: .center, spacing: 10) {
+                Button {
+                    guard !disabled else { return }
+                    onSelect()
+                } label: {
+                    HStack(spacing: 10) {
+                        selectionIndicator(selected: selected, size: 26)
+                            .opacity(disabled ? 0.45 : 1)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(title)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(disabled ? Color.secondary : Color.primary)
+                            if let subtitle, !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
                         }
+                        Spacer(minLength: 4)
                     }
-                    Spacer(minLength: 8)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(disabled)
-
-            if let trailing {
-                trailing
-            }
-            if let onChevronTap {
-                Button(action: onChevronTap) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(6)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .disabled(disabled)
+
+                if let trailing {
+                    trailing
+                }
+                if let onChevronTap {
+                    Button(action: onChevronTap) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(6)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
-        .padding(.vertical, 14)
     }
 }
 
@@ -909,6 +978,7 @@ private extension Optional where Wrapped == String {
 private struct MonthCalendarView: View {
     @Binding var visibleMonth: Date
     @Binding var selectedDate: Date
+    var compact: Bool = false
 
     private var calendar: Calendar {
         var cal = Calendar(identifier: .gregorian)
@@ -957,7 +1027,7 @@ private struct MonthCalendarView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: compact ? 8 : 12) {
             HStack {
                 Button {
                     if let d = calendar.date(byAdding: .month, value: -1, to: visibleMonth) {
@@ -966,9 +1036,9 @@ private struct MonthCalendarView: View {
                 } label: {
                     HStack(spacing: 2) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: compact ? 11 : 13, weight: .semibold))
                         Text(monthName(-1))
-                            .font(.subheadline)
+                            .font(compact ? .caption : .subheadline)
                     }
                     .foregroundStyle(.secondary)
                 }
@@ -977,7 +1047,7 @@ private struct MonthCalendarView: View {
                 Spacer()
 
                 Text(monthTitle)
-                    .font(.title3.weight(.semibold))
+                    .font(compact ? .headline.weight(.semibold) : .title3.weight(.semibold))
                     .foregroundStyle(.primary)
 
                 Spacer()
@@ -989,9 +1059,9 @@ private struct MonthCalendarView: View {
                 } label: {
                     HStack(spacing: 2) {
                         Text(monthName(1))
-                            .font(.subheadline)
+                            .font(compact ? .caption : .subheadline)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: compact ? 11 : 13, weight: .semibold))
                     }
                     .foregroundStyle(.secondary)
                 }
@@ -1001,17 +1071,19 @@ private struct MonthCalendarView: View {
             HStack(spacing: 0) {
                 ForEach(weekdaySymbols, id: \.self) { sym in
                     Text(sym)
-                        .font(.caption.weight(.medium))
+                        .font(compact ? .caption2.weight(.medium) : .caption.weight(.medium))
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: compact ? 4 : 6) {
                 ForEach(Array(days.enumerated()), id: \.offset) { _, dateOrNil in
                     if let date = dateOrNil {
                         let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
                         let isPast = calendar.startOfDay(for: date) < calendar.startOfDay(for: Date())
+                        let circle: CGFloat = compact ? 30 : 36
+                        let rowHeight: CGFloat = compact ? 32 : 38
                         Button {
                             if !isPast {
                                 selectedDate = date
@@ -1021,10 +1093,10 @@ private struct MonthCalendarView: View {
                                 if isSelected {
                                     Circle()
                                         .fill(Color.primary)
-                                        .frame(width: 36, height: 36)
+                                        .frame(width: circle, height: circle)
                                 }
                                 Text("\(calendar.component(.day, from: date))")
-                                    .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
+                                    .font(.system(size: compact ? 14 : 16, weight: isSelected ? .semibold : .regular))
                                     .foregroundStyle(
                                         isSelected
                                         ? Color.white
@@ -1032,12 +1104,12 @@ private struct MonthCalendarView: View {
                                     )
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 38)
+                            .frame(height: rowHeight)
                         }
                         .buttonStyle(.plain)
                         .disabled(isPast)
                     } else {
-                        Color.clear.frame(height: 38)
+                        Color.clear.frame(height: compact ? 32 : 38)
                     }
                 }
             }

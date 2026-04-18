@@ -189,6 +189,14 @@ fun GuestMobileRoot() {
         }
     }
 
+    fun navigateToTab(route: String) {
+        navController.navigate(route) {
+            popUpTo(RootRoute.Home.route) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     LaunchedEffect(statusMessage) {
         statusMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -294,8 +302,8 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navController.navigate(RootRoute.Inbox.route) { launchSingleTop = true; restoreState = true } },
-                    onTabSelected = { route -> navController.navigate(route) { launchSingleTop = true; restoreState = true } }
+                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     HomeScreen(
                         modifier = innerModifier,
@@ -321,8 +329,8 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navController.navigate(RootRoute.Inbox.route) { launchSingleTop = true; restoreState = true } },
-                    onTabSelected = { route -> navController.navigate(route) { launchSingleTop = true; restoreState = true } }
+                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     BookScreen(
                         modifier = innerModifier,
@@ -340,7 +348,12 @@ fun GuestMobileRoot() {
                             savedCards = updated
                             preferencesStore.saveSavedCards(updated)
                         },
-                        onOpenNotifications = { navController.navigate(RootRoute.Inbox.route) { launchSingleTop = true; restoreState = true } },
+                        onRemoveSavedCard = { id ->
+                            val updated = savedCards.filterNot { it.id == id }
+                            savedCards = updated
+                            preferencesStore.saveSavedCards(updated)
+                        },
+                        onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
                         onLoadAvailability = { service, date -> repo.availability(service.companyId, service.sessionTypeId, date.toString()).slots },
                         onCheckout = onCheckout@{ service, slotId, paymentMethodType ->
                             val checkout = runCatching {
@@ -386,8 +399,8 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navController.navigate(RootRoute.Inbox.route) { launchSingleTop = true; restoreState = true } },
-                    onTabSelected = { route -> navController.navigate(route) { launchSingleTop = true; restoreState = true } }
+                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     Box(innerModifier) {
                         WalletScreen(
@@ -412,8 +425,8 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navController.navigate(RootRoute.Inbox.route) { launchSingleTop = true; restoreState = true } },
-                    onTabSelected = { route -> navController.navigate(route) { launchSingleTop = true; restoreState = true } }
+                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     val notifications = selectedTenantIds(state.uiState).flatMap { tenantId -> state.uiState.tenantDashboards[tenantId]?.notifications.orEmpty() }
                     Box(innerModifier) { InboxScreen(notifications) }
@@ -434,8 +447,8 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navController.navigate(RootRoute.Inbox.route) { launchSingleTop = true; restoreState = true } },
-                    onTabSelected = { route -> navController.navigate(route) { launchSingleTop = true; restoreState = true } }
+                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     Box(innerModifier) {
                         ProfileScreen(session = state.uiState.session, onLogout = ::logout)
@@ -584,14 +597,20 @@ private fun BottomNavBar(current: String, onTabSelected: (String) -> Unit) {
                     onClick = { onTabSelected(RootRoute.Book.route) },
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .offset(y = (-12).dp)
+                        .offset(y = (-14).dp)
                         .graphicsLayer { shadowElevation = 24.dp.toPx() },
                     shape = CircleShape,
                     containerColor = if (current == RootRoute.Book.route) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = if (current == RootRoute.Book.route) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.CalendarMonth, contentDescription = "Book", modifier = Modifier.size(28.dp))
+                        Icon(
+                            Icons.Rounded.CalendarMonth,
+                            contentDescription = "Book",
+                            modifier = Modifier
+                                .size(28.dp)
+                                .offset(y = (-1).dp)
+                        )
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)

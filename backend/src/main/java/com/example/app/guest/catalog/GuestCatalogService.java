@@ -126,7 +126,7 @@ public class GuestCatalogService {
         addSlotsFromWorkingHours(companyId, type, date, durationMinutes, merged);
 
         List<GuestDtos.AvailabilitySlotResponse> sorted = merged.values().stream()
-                .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt).thenComparing(GuestDtos.AvailabilitySlotResponse::slotId))
+                .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt).thenComparing(GuestDtos.AvailabilitySlotResponse::endsAt))
                 .toList();
         return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), sorted);
     }
@@ -219,7 +219,7 @@ public class GuestCatalogService {
                 }
                 if (isActuallyGuestBookable(companyId, window.getConsultant().getId(), start, end, type.getId())) {
                     String id = slotToken(window.getConsultant().getId(), start, end);
-                    merged.putIfAbsent(id, new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
+                    merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
                 cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
             }
@@ -244,7 +244,7 @@ public class GuestCatalogService {
                 }
                 if (isActuallyGuestBookable(companyId, consultant.getId(), start, end, type.getId())) {
                     String id = slotToken(consultant.getId(), start, end);
-                    merged.putIfAbsent(id, new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
+                    merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
                 cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
             }
@@ -351,6 +351,10 @@ public class GuestCatalogService {
 
     private static String slotToken(Long consultantId, LocalDateTime start, LocalDateTime end) {
         return consultantId + "|" + start + "|" + end;
+    }
+
+    private static String availabilityMergeKey(LocalDateTime start, LocalDateTime end) {
+        return start + "|" + end;
     }
 
     private static Long parseId(String raw) {
