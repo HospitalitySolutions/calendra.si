@@ -1,0 +1,42 @@
+{
+  "name": "therapy-frontend",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "postinstall": "patch-package",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:android": "tsc -b && vite build --mode android",
+    "build:android:emu": "tsc -b && vite build --mode androidemu",
+    "preview": "vite preview",
+    "build:staging": "tsc -b && vite build --mode staging",
+    "build:production": "tsc -b && vite build --mode production"
+  },
+  "dependencies": {
+    "@capacitor-community/speech-recognition": "^7.0.1",
+    "@capacitor/core": "^8.2.0",
+    "@fullcalendar/core": "^6.1.17",
+    "@fullcalendar/daygrid": "^6.1.17",
+    "@fullcalendar/interaction": "^6.1.17",
+    "@fullcalendar/react": "^6.1.17",
+    "@fullcalendar/resource": "^6.1.20",
+    "@fullcalendar/resource-daygrid": "^6.1.20",
+    "@fullcalendar/resource-timegrid": "^6.1.20",
+    "@fullcalendar/timegrid": "^6.1.17",
+    "@tanstack/react-query": "^5.76.1",
+    "axios": "^1.8.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.5.0",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "patch-package": "^8.0.1",
+    "typescript": "^5.8.3",
+    "vite": "^6.2.5"
+  }
+}

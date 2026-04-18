@@ -1,0 +1,509 @@
+* { box-sizing: border-box; }
+
+/* Native selects / date inputs: tell the UA to paint form popups (option list) for the active theme. */
+html {
+    color-scheme: light;
+}
+
+html[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+/* Remove native mobile tap flash/highlight on clickable elements. */
+html,
+body,
+*,
+*::before,
+*::after {
+    -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-text);
+    background: linear-gradient(135deg, #f9f8f5 0%, #f3f1ed 50%, #fdfdfc 100%);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="dark"] body {
+    background: linear-gradient(135deg, #0f172a 0%, #102a56 40%, #0c2348 100%);
+}
+
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea { font-family: inherit; }
+button { border: none; cursor: pointer; }
+
+.open-bill-block {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, #fdfdfc 0%, #f3f1ed 100%);
+}
+
+[data-theme="dark"] .open-bill-block {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-color: var(--border);
+}
+
+.theme-toggle-single {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.theme-toggle-single:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+[data-theme="dark"] .theme-toggle-single {
+    background: #0f172a;
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .theme-toggle-single:hover {
+    background: rgba(96, 165, 250, 0.12);
+}
+
+/* --- Stack & Grid --- */
+.stack { display: flex; flex-direction: column; }
+.gap-sm { gap: 12px; }
+.gap-md { gap: 16px; }
+.gap-lg { gap: 24px; }
+
+.page-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.page-grid.compact-right {
+    grid-template-columns: minmax(0, 1.5fr) minmax(300px, 400px);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.page-header h1, .page-header h3 { margin: 0; }
+.page-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text); }
+.page-header p { margin: 6px 0 0; }
+.page-header-stackable { align-items: flex-start; }
+.header-actions, .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.muted { color: var(--color-text-muted); }
+
+.eyebrow {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.content {
+    padding: var(--content-padding);
+    min-width: 0;
+    flex: 1;
+}
+
+.section {
+    margin-top: 12px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.6);
+}
+
+/* --- Detail rows --- */
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.detail-row:last-child { border-bottom: none; }
+
+.detail-label {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: 0.9em;
+    min-width: 90px;
+}
+
+.form-row-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 360px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.form-row .form-row-label {
+    font-weight: 600;
+    color: var(--color-text-muted);
+    font-size: 0.9em;
+}
+
+.form-row input,
+.form-row select,
+.form-row textarea {
+    min-width: 0;
+}
+
+.form-row.stretch { align-items: stretch; }
+.form-row.stretch .form-row-label { padding-top: 10px; }
+
+/* Small label above value, same field card (calendar booking panel) */
+.form-row.form-row-infield {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    grid-template-columns: unset;
+}
+
+.form-row.form-row-infield.stretch {
+    align-items: stretch;
+}
+
+.form-field-inline-label {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+}
+
+.form-field-inline-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.form-row.form-row-infield.stretch .form-field-inline-control {
+    align-items: stretch;
+}
+
+.calendar-input-with-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.calendar-input-with-picker > input {
+    flex: 1;
+}
+
+/* Booking modals: single combined field — time | date + calendar */
+.calendar-datetime-split {
+    flex: 1;
+    min-width: 0;
+}
+
+.calendar-datetime-split-inner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.04);
+    padding: 4px 6px 4px 10px;
+    box-sizing: border-box;
+}
+
+.calendar-datetime-split-inner:focus-within {
+    border-color: var(--color-primary, #1672f3);
+    box-shadow: 0 0 0 2px var(--color-primary-soft, rgba(22, 114, 243, 0.2));
+}
+
+.calendar-datetime-split-time,
+.calendar-datetime-split-date {
+    border: none;
+    background: transparent;
+    padding: 8px 6px;
+    margin: 0;
+    font: inherit;
+    color: var(--color-text);
+    min-width: 0;
+}
+
+.calendar-datetime-split-time {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 5.5rem;
+}
+
+.calendar-datetime-split-date {
+    flex: 1 1 120px;
+}
+
+.calendar-datetime-split-time:focus,
+.calendar-datetime-split-date:focus {
+    outline: none;
+}
+
+.calendar-datetime-split-divider {
+    width: 1px;
+    align-self: stretch;
+    min-height: 28px;
+    margin: 4px 6px;
+    background: var(--border);
+    flex-shrink: 0;
+}
+
+[data-theme="dark"] .calendar-datetime-split-inner {
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme="dark"] .calendar-datetime-split-inner:focus-within {
+    border-color: rgba(96, 165, 250, 0.65);
+    box-shadow: 0 0 0 2px rgba(22, 114, 243, 0.25);
+}
+
+[data-theme="dark"] .calendar-datetime-split-divider {
+    background: rgba(148, 163, 184, 0.28);
+}
+
+/* Booking / calendar modals: Čas od | Čas do | Datum (one row, date last) */
+.form-row.form-row-timespan {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+}
+
+.calendar-timespan-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    flex: 1;
+    min-width: 0;
+    align-items: stretch;
+}
+
+.calendar-timespan-field {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.calendar-timespan-field:not(.calendar-timespan-field--date) {
+    flex: 0 0 auto;
+    min-width: 6.25rem;
+}
+
+.calendar-timespan-field--date {
+    flex: 1 1 148px;
+    min-width: 9.5rem;
+}
+
+.calendar-timespan-row--two .calendar-timespan-field--date {
+    flex: 1 1 160px;
+}
+
+.calendar-timespan-label {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+}
+
+.calendar-timespan-date-head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.calendar-timespan-date-head .calendar-timespan-label {
+    margin: 0;
+}
+
+.calendar-timespan-all-day-line {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Match “Date” label (`.calendar-timespan-label`) size and weight */
+.calendar-timespan-all-day-caption {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.calendar-timespan-all-day-switch.repeats-toggle-switch {
+    width: 32px;
+    height: 17px;
+    margin-left: 0;
+    flex-shrink: 0;
+}
+
+.calendar-timespan-all-day-switch .repeats-toggle-slider {
+    border-radius: 17px;
+}
+
+.calendar-timespan-all-day-switch .repeats-toggle-slider::before {
+    width: 13px;
+    height: 13px;
+    left: 2px;
+    top: 2px;
+}
+
+/* Must beat `.repeats-toggle-switch input:checked + …` in calendar-shell.css (same specificity, loads later). */
+.calendar-timespan-all-day-switch.repeats-toggle-switch input:checked + .repeats-toggle-slider::before {
+    transform: translateX(15px);
+}
+
+.calendar-timespan-row--all-day .calendar-timespan-field--date {
+    flex: 1 1 auto;
+    max-width: 100%;
+}
+
+.calendar-timespan-input-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.04);
+    padding: 6px 10px 8px;
+    min-height: 0;
+    box-sizing: border-box;
+}
+
+.calendar-timespan-input-inner:focus-within {
+    border-color: var(--color-primary, #1672f3);
+    box-shadow: 0 0 0 2px var(--color-primary-soft, rgba(22, 114, 243, 0.2));
+}
+
+.calendar-timespan-input-inner input {
+    border: none;
+    background: transparent;
+    padding: 2px 0 0;
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-text);
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+}
+
+/* Native time control: avoid stretching so the picker sits beside the value */
+.calendar-timespan-input-inner input[type="time"] {
+    width: fit-content;
+    max-width: 100%;
+    align-self: flex-start;
+}
+
+.calendar-timespan-input-inner input[type="time"]::-webkit-calendar-picker-indicator {
+    margin-inline-start: -0.2rem;
+    margin-inline-end: 0;
+    cursor: pointer;
+}
+
+.calendar-timespan-input-inner input:focus {
+    outline: none;
+}
+
+[data-theme="dark"] .calendar-timespan-input-inner {
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme="dark"] .calendar-timespan-input-inner:focus-within {
+    border-color: rgba(96, 165, 250, 0.65);
+    box-shadow: 0 0 0 2px rgba(22, 114, 243, 0.25);
+}
+
+.calendar-input-picker-btn,
+button.calendar-input-picker-btn {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    padding: 0;
+}
+
+/* --- Responsive: Tablet --- */
+@media (max-width: 1024px) {
+    :root { --sidebar-width: 72px; }
+
+    .page-grid,
+    .page-grid.compact-right {
+        grid-template-columns: 1fr;
+    }
+
+    .content { padding: 18px; }
+}
+
+/* --- Responsive: Tablet portrait & mobile --- */
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 100%;
+        --content-padding: 16px;
+    }
+
+    .content { padding-top: 80px; }
+    .page-header { flex-direction: column; align-items: flex-start; }
+    .header-actions { width: 100%; }
+}
+
+/* --- Responsive: Small mobile --- */
+@media (max-width: 480px) {
+    .content { padding: 12px; padding-top: 12px; }
+    .main-area--calendar > .content.content--calendar-flush {
+        padding-top: 0;
+    }
+}

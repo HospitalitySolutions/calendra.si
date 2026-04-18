@@ -1,0 +1,113 @@
+# No credentials or API secrets belong in this file.
+# — Local: copy backend/env.local.example → backend/.env.local (loaded automatically before Spring starts).
+# — Docker: use a root .env file for compose variable substitution (see .env.example).
+# — Staging / production: AWS Secrets Manager (application-staging.yml / application-production.yml).
+#   Staging/production profiles map spring.cloud.aws.credentials from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+#   (from the secret JSON after import, or from the host). Lightsail needs host bootstrap creds for the first SM fetch.
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:eu-central-1}
+      s3:
+        # Matches app.invoice-s3.enabled; keeps S3Client off the context when archival is disabled (typical local dev).
+        enabled: ${APP_INVOICE_S3_ENABLED:false}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/calendradb}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  mail:
+    # Public SES endpoint (not a secret); credentials come from env / Secrets Manager only.
+    host: ${SPRING_MAIL_HOST:email-smtp.eu-north-1.amazonaws.com}
+    port: ${SPRING_MAIL_PORT:465}
+    test-connection: false
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: ${SPRING_MAIL_SMTP_SSL_ENABLE:true}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:false}
+server:
+  port: 4000
+  address: 0.0.0.0
+  error:
+    include-message: always
+
+# Mail is optional until SPRING_MAIL_* are set; do not fail /actuator/health when password is blank.
+management:
+  health:
+    mail:
+      enabled: false
+
+app:
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  reminders:
+    enabled: ${APP_REMINDERS_ENABLED:true}
+    timezone: ${APP_REMINDERS_TIMEZONE:Europe/Ljubljana}
+  mail:
+    from: ${APP_MAIL_FROM:}
+  auth:
+    frontend-url: ${APP_AUTH_FRONTEND_URL:}
+    cookie:
+      name: ${APP_AUTH_COOKIE_NAME:calendra_auth}
+      same-site: ${APP_AUTH_COOKIE_SAME_SITE:Lax}
+      path: ${APP_AUTH_COOKIE_PATH:/}
+      domain: ${APP_AUTH_COOKIE_DOMAIN:}
+      secure: ${APP_AUTH_COOKIE_SECURE:}
+  webauthn:
+    rp-id: ${APP_WEBAUTHN_RP_ID:}
+    rp-name: ${APP_WEBAUTHN_RP_NAME:Calendra}
+    allowed-origins: ${APP_WEBAUTHN_ALLOWED_ORIGINS:}
+  infobip:
+    base-url: ${INFOBIP_BASE_URL:https://api.infobip.com}
+    api-key: ${INFOBIP_API_KEY:}
+    sender: ${INFOBIP_SENDER:}
+  zoom:
+    client-id: ${ZOOM_CLIENT_ID:}
+    client-secret: ${ZOOM_CLIENT_SECRET:}
+    redirect-uri: ${ZOOM_REDIRECT_URI:}
+    frontend-url: ${ZOOM_FRONTEND_URL:}
+  google-meet:
+    client-id: ${GOOGLE_MEET_CLIENT_ID:}
+    client-secret: ${GOOGLE_MEET_CLIENT_SECRET:}
+    redirect-uri: ${GOOGLE_MEET_REDIRECT_URI:}
+    frontend-url: ${GOOGLE_MEET_FRONTEND_URL:}
+  jwt:
+    secret: ${APP_JWT_SECRET}
+    expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
+  fiscal:
+    trust-certificate-locations: ${APP_FISCAL_TRUST_CERTIFICATE_LOCATIONS:classpath:fiscal-certs/si-trust-root.crt,classpath:fiscal-certs/sigov-ca2.xcert.crt,classpath:fiscal-certs/blagajne-test.fu.gov.si.cer}
+  invoice-s3:
+    enabled: ${APP_INVOICE_S3_ENABLED:false}
+    bucket: ${APP_INVOICE_S3_BUCKET:}
+    prefix: ${APP_INVOICE_S3_PREFIX:invoices}
+  stripe:
+    secret-key: ${STRIPE_SECRET_KEY:}
+    publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+    base-url: ${STRIPE_BASE_URL:https://api.stripe.com}
+    currency: ${STRIPE_CURRENCY:eur}
+    success-url: ${STRIPE_SUCCESS_URL:}
+    cancel-url: ${STRIPE_CANCEL_URL:}
+    webhook-url: ${STRIPE_WEBHOOK_URL:}
+    eu-bank-transfer-country: ${STRIPE_EU_BANK_TRANSFER_COUNTRY:NL}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4000}

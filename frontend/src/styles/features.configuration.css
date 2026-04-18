@@ -1,0 +1,1237 @@
+/* Configuration → Spaces (and similar): card list on narrow viewports, same breakpoint as Clients */
+.config-entity-list-shell {
+    display: block;
+}
+
+.config-entity-table-desktop {
+    display: block;
+}
+
+.config-entity-mobile-list {
+    display: none;
+}
+
+.config-entity-mobile-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--color-surface);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.config-entity-mobile-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.config-entity-name-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+}
+
+.config-entity-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: var(--color-primary-soft, rgba(22, 114, 243, 0.14));
+    color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+.config-entity-name-stack {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.config-entity-title {
+    font-weight: 650;
+    font-size: 0.95rem;
+    color: var(--color-text);
+    word-break: break-word;
+}
+
+.config-entity-sub {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.config-entity-menu-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.config-entity-menu-trigger {
+    min-width: 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.config-entity-menu-popover {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 120px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-md);
+    padding: 6px;
+    display: grid;
+    gap: 4px;
+    z-index: 30;
+}
+
+.config-entity-menu-popover button {
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    border-radius: 8px;
+    padding: 8px 9px;
+    font-weight: 600;
+}
+
+.config-entity-menu-popover button:hover {
+    background: var(--color-primary-soft);
+}
+
+.config-entity-mobile-meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.config-entity-mobile-meta div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.config-entity-mobile-meta span {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.config-entity-mobile-meta strong {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--color-text);
+    word-break: break-word;
+}
+
+[data-theme="dark"] .config-entity-mobile-card {
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+.clients-mobile-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+[data-theme="dark"] .clients-row:hover {
+    background: rgba(96, 165, 250, 0.14);
+}
+
+[data-theme="dark"] .clients-table-wrap {
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .clients-action-btn-danger {
+    border-color: rgba(248, 113, 113, 0.42);
+}
+
+[data-theme="dark"] .clients-mobile-card {
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+.clients-detail-side-panel .page-header {
+    margin-bottom: 0;
+}
+
+.clients-detail-panel-modern .booking-side-panel-header,
+.clients-detail-panel-modern .booking-side-panel-footer {
+    background: var(--color-surface);
+    border-color: var(--border);
+}
+
+.clients-detail-panel-modern .booking-side-panel-header .page-header p {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-top: 0;
+}
+
+.clients-detail-panel-modern .booking-side-panel-header .page-header h1 {
+    color: var(--color-text);
+}
+
+.clients-detail-panel-modern .booking-side-panel-body {
+    background: linear-gradient(135deg, #f9f8f5 0%, #f3f1ed 50%, #fdfdfc 100%);
+}
+
+.clients-detail-shell {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    background: transparent;
+    display: grid;
+    gap: 12px;
+}
+
+.clients-detail-hero {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(22, 114, 243, 0.05);
+    margin-bottom: 16px;
+}
+
+.clients-detail-head-card {
+    margin-bottom: 0;
+    border-color: rgba(148, 163, 184, 0.18);
+    background: rgba(22, 114, 243, 0.16);
+}
+
+.clients-detail-avatar {
+    width: 42px;
+    height: 42px;
+    font-size: 0.78rem;
+}
+
+.clients-detail-grid {
+    margin-top: 6px;
+}
+
+.clients-detail-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.clients-detail-field-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 12px;
+    background: var(--color-surface);
+    display: grid;
+    gap: 6px;
+}
+
+.clients-detail-field-card--editing {
+    border-color: rgba(22, 114, 243, 0.45);
+    box-shadow: 0 0 0 2px rgba(22, 114, 243, 0.12);
+}
+
+.clients-detail-field-card--wide {
+    grid-column: 1 / -1;
+}
+
+.clients-detail-field-card span {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    font-weight: 700;
+}
+
+.clients-detail-field-card strong {
+    color: var(--color-text);
+    font-size: 1.02rem;
+}
+
+.clients-detail-field-card input,
+.clients-detail-field-card select {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--color-text);
+    padding: 8px 10px;
+}
+
+.clients-detail-inline-edit {
+    display: grid;
+    gap: 8px;
+}
+
+[data-theme="dark"] .clients-detail-field-card strong {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .clients-detail-field-card input,
+[data-theme="dark"] .clients-detail-field-card select {
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: rgba(15, 23, 42, 0.45);
+    color: #f8fafc;
+}
+
+.clients-detail-sessions-card {
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 14px;
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.28);
+}
+
+.clients-detail-sessions-card .section-title {
+    color: #f8fafc;
+    margin-bottom: 10px;
+}
+
+.clients-detail-empty-card {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    padding: 8px;
+    background: rgba(15, 23, 42, 0.2);
+}
+
+.clients-detail-session-list {
+    display: grid;
+    gap: 8px;
+}
+
+.clients-detail-session-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--color-surface);
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+}
+
+.clients-detail-session-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+}
+
+.clients-detail-session-top span {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+}
+
+.clients-detail-session-times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.clients-detail-session-times div {
+    display: grid;
+    gap: 3px;
+}
+
+.clients-detail-session-times span {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.66rem;
+    color: var(--color-text-muted);
+    font-weight: 700;
+}
+
+.clients-detail-sessions-card--modern {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 12px;
+}
+
+.clients-detail-sessions-card--modern .section-title {
+    color: #0f172a;
+}
+
+.clients-detail-sessions-card--modern .muted {
+    color: #64748b;
+}
+
+.clients-detail-sessions-card--modern .clients-session-tabs {
+    flex: 0 1 auto;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    padding: 4px;
+}
+
+.clients-detail-sessions-card--modern .clients-session-tab {
+    min-width: 92px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.clients-detail-sessions-card--modern .clients-detail-sessions-tab-count {
+    font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+    .clients-detail-sessions-card--modern .clients-detail-sessions-tab-count {
+        color: #64748b;
+        font-size: 0.78rem;
+    }
+}
+
+.clients-detail-sessions-card--modern .clients-session-tab.active {
+    box-shadow: 0 6px 14px rgba(22, 114, 243, 0.25);
+}
+
+.clients-detail-sessions-card--modern .clients-detail-session-list {
+    gap: 12px;
+}
+
+.clients-detail-sessions-card--modern .clients-detail-session-card {
+    border: 1px solid #d9e0ea;
+    border-radius: 18px;
+    background: #ffffff;
+    padding: 14px;
+    gap: 12px;
+}
+
+.clients-detail-session-top--modern {
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.clients-detail-session-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    min-height: 44px;
+    border-radius: 18px;
+    background: #f8fafc;
+    border: 1px solid #d9e0ea;
+    color: #334155;
+    font-size: 0.92rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.clients-detail-session-heading {
+    display: grid;
+    gap: 2px;
+}
+
+.clients-detail-session-heading strong {
+    color: #0f172a;
+    font-size: 0.96rem;
+    line-height: 1.15;
+}
+
+.clients-detail-session-heading span {
+    color: #64748b;
+    font-size: 0.74rem;
+}
+
+.clients-detail-sessions-card--modern .clients-detail-session-times {
+    gap: 12px;
+}
+
+.clients-detail-sessions-card--modern .clients-detail-session-times span {
+    color: #94a3b8;
+    font-size: 0.64rem;
+}
+
+.clients-detail-sessions-card--modern .clients-detail-session-times strong {
+    color: #0f172a;
+    font-size: 0.88rem;
+    line-height: 1.2;
+}
+
+.clients-detail-footer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+}
+
+.clients-detail-footer-left,
+.clients-detail-footer-center,
+.clients-detail-footer-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.clients-detail-footer-center {
+    justify-content: center;
+}
+
+.clients-detail-footer-right {
+    justify-content: flex-end;
+}
+
+.clients-detail-batch-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.clients-batch-switch {
+    min-width: 74px;
+    min-height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #eef2f7;
+    color: #64748b;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    box-shadow: none !important;
+}
+
+.clients-batch-switch--on {
+    background: rgba(22, 114, 243, 0.16);
+    border-color: rgba(22, 114, 243, 0.45);
+    color: #133a7c;
+}
+
+.clients-detail-panel-modern .booking-side-panel-close {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .clients-detail-panel-modern .booking-side-panel-body {
+    background: linear-gradient(135deg, #0f172a 0%, #102a56 40%, #0c2348 100%);
+}
+
+[data-theme="dark"] .clients-detail-panel-modern .booking-side-panel-close {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+.clients-create-modal-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.clients-create-shell {
+    display: grid;
+    gap: 14px;
+}
+
+.clients-create-head-card {
+    margin-bottom: 2px;
+}
+
+.clients-create-fields {
+    align-items: stretch;
+}
+
+.clients-create-fields label.clients-detail-field-card {
+    cursor: default;
+}
+
+.clients-create-fields .clients-detail-field-card input,
+.clients-create-fields .clients-detail-field-card select {
+    margin-top: 2px;
+}
+
+.clients-create-toggle-card {
+    cursor: default;
+}
+
+.clients-create-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.clients-create-toggle-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+.clients-create-note-card {
+    cursor: default;
+}
+
+.clients-create-note-card p {
+    margin: 0;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
+.clients-create-footer {
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.clients-session-tabs {
+    display: inline-flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 4px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.clients-session-tab {
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.clients-session-tab.active {
+    background: var(--color-primary);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(22, 114, 243, 0.28);
+}
+
+.clients-detail-session-tabs-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.clients-detail-session-tabs-row .clients-session-tabs {
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+
+.clients-detail-sessions-tab-count {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Match clients toolbar count chip (pill) on wider viewports */
+@media (min-width: 721px) {
+    .clients-detail-sessions-tab-count {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: var(--color-primary-soft);
+        color: var(--color-primary);
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+}
+
+.clients-inactive-badge {
+    display: inline-block;
+    margin-left: 7px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: rgba(107, 114, 128, 0.18);
+    color: var(--color-text-muted);
+    vertical-align: middle;
+}
+
+.clients-detail-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.clients-detail-invoices-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 12px;
+}
+
+.clients-detail-invoices-head {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.clients-detail-invoices-head .section-title {
+    color: #0f172a;
+    margin-bottom: 4px;
+}
+
+.clients-detail-invoices-subtitle {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.25;
+}
+
+.clients-detail-invoices-list {
+    display: grid;
+    gap: 8px;
+}
+
+.clients-detail-invoice-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    padding: 10px 12px;
+    display: grid;
+    gap: 4px;
+}
+
+.clients-detail-invoice-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.clients-detail-invoice-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.clients-detail-invoice-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.clients-detail-invoice-status--issued {
+    background: #f8fafc;
+    color: #64748b;
+    border-color: #e2e8f0;
+}
+
+.clients-detail-invoice-title {
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.clients-detail-invoice-issued {
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.clients-detail-invoice-bottom {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.clients-detail-invoice-total-wrap {
+    display: grid;
+    gap: 1px;
+}
+
+.clients-detail-invoice-total-label {
+    color: #94a3b8;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+}
+
+.clients-detail-invoice-total {
+    color: #0f172a;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.clients-detail-invoice-open {
+    border: none;
+    background: transparent;
+    color: #1d4ed8;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 2px 0;
+    box-shadow: none !important;
+}
+
+.clients-detail-invoice-open:hover {
+    text-decoration: underline;
+}
+
+.clients-detail-files-head {
+    margin-bottom: 0;
+}
+
+.clients-detail-files-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: 10px 0 12px;
+}
+
+.clients-detail-files-list {
+    display: grid;
+    gap: 8px;
+}
+
+.clients-detail-file-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.clients-detail-file-main {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.clients-detail-file-name {
+    color: #0f172a;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clients-detail-file-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.clients-detail-file-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.clients-detail-file-remove {
+    color: #b91c1c;
+}
+
+@media (max-width: 720px) {
+    .clients-detail-file-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .clients-detail-file-actions {
+        justify-content: flex-end;
+    }
+}
+
+.clients-detail-table-wrap table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.clients-detail-table-wrap th,
+.clients-detail-table-wrap td {
+    white-space: normal;
+    word-break: break-word;
+}
+
+[data-theme="dark"] .clients-detail-hero {
+    background: rgba(96, 165, 250, 0.12);
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .clients-session-tabs {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .clients-detail-table-wrap {
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .clients-detail-invoices-card {
+    background: rgba(15, 23, 42, 0.26);
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .clients-detail-invoice-status--issued {
+    background: rgba(30, 41, 59, 0.6);
+    color: #cbd5e1;
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme="dark"] .clients-detail-invoices-head .section-title {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .clients-detail-invoices-subtitle {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .clients-detail-invoice-item {
+    background: rgba(15, 23, 42, 0.58);
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .clients-detail-invoice-no {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(148, 163, 184, 0.28);
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .clients-detail-invoice-title,
+[data-theme="dark"] .clients-detail-invoice-total {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .clients-detail-invoice-issued,
+[data-theme="dark"] .clients-detail-invoice-total-label {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .clients-detail-invoice-open {
+    color: #93c5fd;
+}
+
+[data-theme="dark"] .clients-detail-file-item {
+    background: #0b1220;
+    border-color: #1f2937;
+}
+
+[data-theme="dark"] .clients-detail-file-name {
+    color: #e5eefc;
+}
+
+[data-theme="dark"] .clients-detail-file-meta {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .clients-detail-file-remove {
+    color: #fca5a5;
+}
+
+[data-theme="dark"] .clients-detail-sessions-card--modern {
+    background: rgba(15, 23, 42, 0.26);
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .clients-detail-sessions-card--modern .section-title,
+[data-theme="dark"] .clients-detail-sessions-card--modern .clients-detail-session-heading strong,
+[data-theme="dark"] .clients-detail-sessions-card--modern .clients-detail-session-times strong {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .clients-detail-sessions-card--modern .muted,
+[data-theme="dark"] .clients-detail-sessions-card--modern .clients-detail-session-heading span,
+[data-theme="dark"] .clients-detail-sessions-card--modern .clients-detail-session-times span {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .clients-detail-sessions-card--modern .clients-session-tabs {
+    background: rgba(30, 41, 59, 0.72);
+    border-color: rgba(148, 163, 184, 0.32);
+}
+
+@media (max-width: 720px) {
+    [data-theme="dark"] .clients-detail-sessions-card--modern .clients-detail-sessions-tab-count {
+        color: #94a3b8;
+    }
+}
+
+[data-theme="dark"] .clients-detail-sessions-card--modern .clients-detail-session-card {
+    background: rgba(15, 23, 42, 0.58);
+    border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .clients-detail-session-no {
+    background: rgba(30, 41, 59, 0.7);
+    border-color: rgba(148, 163, 184, 0.28);
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .clients-batch-switch {
+    background: rgba(30, 41, 59, 0.75);
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .clients-batch-switch--on {
+    background: rgba(22, 114, 243, 0.28);
+    border-color: rgba(96, 165, 250, 0.46);
+    color: #dbeafe;
+}
+
+@media (max-width: 560px) {
+    .clients-detail-table-wrap th,
+    .clients-detail-table-wrap td {
+        font-size: 0.8rem;
+        padding: 6px 5px;
+    }
+
+    .clients-detail-sessions-card {
+        overflow: hidden;
+    }
+
+    .clients-detail-sessions-card .simple-table-wrap {
+        overflow-x: hidden;
+    }
+}
+
+
+/* Security tab */
+.security-overview-card {
+    background: linear-gradient(135deg, rgba(22, 114, 243, 0.1) 0%, rgba(15, 23, 42, 0.02) 100%);
+    border-color: rgba(22, 114, 243, 0.18);
+}
+
+.security-overview-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.security-overview-kicker {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+}
+
+.security-overview-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.security-card-section {
+    display: grid;
+    gap: 14px;
+}
+
+.security-section-copy {
+    margin: -6px 0 0;
+}
+
+.security-methods-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.security-method-card,
+.security-session-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    background: var(--color-surface);
+    display: grid;
+    gap: 12px;
+}
+
+.security-method-card-head,
+.security-session-head,
+.security-activity-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.security-method-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 12px;
+}
+
+.security-method-meta span,
+.security-stat-box span,
+.security-activity-meta {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.security-method-meta strong,
+.security-stat-box strong {
+    font-size: 0.95rem;
+    color: var(--color-text);
+}
+
+.security-inline-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.security-grid-two {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.security-stat-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.security-stat-box {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    background: rgba(22, 114, 243, 0.04);
+    display: grid;
+    gap: 8px;
+}
+
+.security-recovery-panel {
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    background: rgba(15, 23, 42, 0.02);
+}
+
+.security-code-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.security-code-grid code {
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: var(--color-surface);
+    border: 1px solid var(--border);
+}
+
+.security-alert-list,
+.security-session-list,
+.security-activity-list {
+    display: grid;
+    gap: 12px;
+}
+
+.security-toggle-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    background: var(--color-surface);
+}
+
+.security-toggle-card p {
+    margin-bottom: 0;
+}
+
+.security-empty-state {
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.02);
+}
+
+.security-activity-item {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr);
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.security-activity-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    margin-top: 7px;
+    background: #60a5fa;
+}
+
+.security-activity-dot[data-tone="warning"] {
+    background: #f59e0b;
+}
+
+.security-activity-dot[data-tone="info"] {
+    background: #3b82f6;
+}
+
+.security-activity-meta {
+    margin-top: 6px;
+}
+
+@media (max-width: 900px) {
+    .security-grid-two {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .security-method-meta,
+    .security-stat-row {
+        grid-template-columns: 1fr;
+    }
+
+    .security-toggle-card,
+    .security-method-card-head,
+    .security-session-head,
+    .security-activity-row,
+    .security-overview-head {
+        flex-direction: column;
+    }
+}

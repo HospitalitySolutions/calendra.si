@@ -1,0 +1,23 @@
+diff --git a/node_modules/@fullcalendar/resource/internal-common.js b/node_modules/@fullcalendar/resource/internal-common.js
+index 2052800..62ceaa0 100644
+--- a/node_modules/@fullcalendar/resource/internal-common.js
++++ b/node_modules/@fullcalendar/resource/internal-common.js
+@@ -320,10 +320,16 @@ class ResourceDayHeader extends BaseComponent {
+         let { props, context } = this;
+         let dateFormat = this.buildDateFormat(context.options.dayHeaderFormat, props.datesRepDistinctDays, props.dates.length);
+         return (createElement(NowTimer, { unit: "day" }, (nowDate, todayRange) => {
+-            if (props.dates.length === 1) {
++            /* Stock FC: single-day always used renderResourceRow only (date row skipped), even when
++             * datesAboveResources was true — that option was never reached. Also `!undefined` is true,
++             * so a missing merged option kept the shortcut. Show day+resources when explicitly requested
++             * OR when multiple resource columns need a shared date row (Calendra ALL consultants/spaces). */
++            const datesAbove = context.options.datesAboveResources === true;
++            const multiResource = props.resources.length > 1;
++            if (props.dates.length === 1 && !datesAbove && !multiResource) {
+                 return this.renderResourceRow(props.resources, props.dates[0]);
+             }
+-            if (context.options.datesAboveResources) {
++            if (datesAbove || (props.dates.length === 1 && multiResource)) {
+                 return this.renderDayAndResourceRows(props.dates, dateFormat, todayRange, props.resources);
+             }
+             return this.renderResourceAndDayRows(props.resources, props.dates, dateFormat, todayRange);

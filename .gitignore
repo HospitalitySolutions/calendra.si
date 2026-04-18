@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+.env.local
+.env
+.env.staging
+backend/.env.local
+.idea/
+.vscode/

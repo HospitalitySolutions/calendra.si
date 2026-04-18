@@ -1,0 +1,279 @@
+.security-page {
+  display: grid;
+  gap: 16px;
+}
+
+.security-page-embedded {
+  padding: 0;
+}
+
+.security-hero-card {
+  overflow: hidden;
+}
+
+.security-hero-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.security-eyebrow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: 10px;
+}
+
+.security-hero-title {
+  margin: 0;
+  font-size: 1.6rem;
+  line-height: 1.15;
+}
+
+.security-hero-copy {
+  max-width: 56ch;
+  margin-top: 10px;
+}
+
+.security-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.security-stat-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+  background: var(--color-surface);
+  display: grid;
+  gap: 6px;
+}
+
+.security-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.security-stat-label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.security-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+  gap: 16px;
+}
+
+.security-layout-grid--bottom {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.security-right-column {
+  display: grid;
+  gap: 16px;
+}
+
+.security-section-copy {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.security-subsection {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.security-subsection-head p,
+.security-toggle-row p,
+.security-timeline-copy {
+  margin: 4px 0 0;
+}
+
+.security-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.security-list-item {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--color-surface);
+}
+
+.security-list-item-main {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+
+.security-item-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.security-item-actions,
+.security-inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.security-inline-actions--wrap {
+  margin-bottom: 14px;
+}
+
+.security-inline-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.security-meta-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 0.9rem;
+}
+
+.security-meta-grid span {
+  white-space: nowrap;
+}
+
+.security-add-box,
+.security-recovery-box {
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.security-toggle-list {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.security-toggle-row {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.security-toggle-row input[type="checkbox"] {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+}
+
+.security-recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.security-recovery-grid code {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-surface-alt);
+  font-size: 0.92rem;
+}
+
+.security-timeline {
+  display: grid;
+  gap: 14px;
+}
+
+.security-timeline-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.security-timeline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  margin-top: 4px;
+  background: var(--color-primary);
+}
+
+.security-timeline-dot--warn {
+  background: #f59e0b;
+}
+
+.security-timeline-dot--info {
+  background: #1672f3;
+}
+
+.security-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 18, 33, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 120;
+}
+
+.security-reauth-card {
+  width: min(100%, 460px);
+}
+
+.security-reauth-form {
+  display: grid;
+  gap: 14px;
+}
+
+button.danger {
+  color: #b42318;
+}
+
+[data-theme="dark"] .security-timeline-dot--warn,
+[data-theme="dark"] button.danger {
+  color: #fbbf24;
+}
+
+@media (max-width: 1100px) {
+  .security-hero-grid,
+  .security-layout-grid,
+  .security-layout-grid--bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .security-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .security-list-item,
+  .security-toggle-row {
+    flex-direction: column;
+  }
+
+  .security-item-actions,
+  .security-inline-actions {
+    width: 100%;
+  }
+}

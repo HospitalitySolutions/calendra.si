@@ -1,0 +1,9 @@
+.gradle/
+build/
+.local/
+*.iml
+.idea/
+.DS_Store
+/local.properties
+/androidApp/build/
+/shared/build/

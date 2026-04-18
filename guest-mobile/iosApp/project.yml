@@ -1,0 +1,14 @@
+name: GuestMobile
+options:
+  bundleIdPrefix: si.calendra.guest
+targets:
+  GuestMobile:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - GuestMobile
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: si.calendra.guest.mobile
+      SWIFT_VERSION: "5.0"
+      INFOPLIST_FILE: GuestMobile/Info.plist

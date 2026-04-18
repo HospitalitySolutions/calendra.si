@@ -1,0 +1,8 @@
+{
+  "appId": "com.Terminko.app",
+  "appName": "Terminko",
+  "webDir": "frontend/dist",
+  "server": {
+    "androidScheme": "http"
+  }
+}

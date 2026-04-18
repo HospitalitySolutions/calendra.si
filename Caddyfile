@@ -1,0 +1,40 @@
+staging.calendra.si {
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https: wss:; frame-ancestors 'self' https://*.zoom.us;"
+	}
+
+	handle /api/* {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	handle /oauth2/* {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	handle /login/oauth2/* {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle /widget/* {
+    		reverse_proxy backend:4000 {
+    			header_up X-Forwarded-Proto https
+    		}
+    	}
+
+	handle {
+		reverse_proxy frontend:80 {
+			header_up X-Forwarded-Proto https
+		}
+
+	}
+}

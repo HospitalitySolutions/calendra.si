@@ -1,0 +1,18 @@
+# ---- build stage ----
+FROM node:20-bookworm AS build
+
+WORKDIR /app
+
+ARG BUILD_SCRIPT=build
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run ${BUILD_SCRIPT}
+
+# ---- runtime stage ----
+FROM caddy:2-alpine
+
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /usr/share/caddy

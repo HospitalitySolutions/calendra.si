@@ -1,0 +1,570 @@
+package com.example.app.auth;
+
+import com.example.app.billing.TaxRate;
+import com.example.app.billing.TransactionService;
+import com.example.app.billing.TransactionServiceRepository;
+import com.example.app.company.Company;
+import com.example.app.company.CompanyRepository;
+import com.example.app.mfa.WebAuthnService;
+import com.example.app.securitycenter.SecurityCenterService;
+import com.example.app.security.AuthCookieService;
+import com.example.app.security.JwtService;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
+import com.example.app.user.Role;
+import com.example.app.user.User;
+import com.example.app.user.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.core.env.Environment;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizationRequestRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Arrays;
+import java.util.UUID;
+import java.util.Locale;
+import java.util.stream.Collectors;
+import com.example.app.company.CompanyProvisioningService;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
+    private final UserRepository users;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+        private final Environment environment;
+        private final Optional<ClientRegistrationRepository> clientRegistrationRepository;
+        private final HttpSessionOAuth2AuthorizationRequestRepository authorizationRequestRepository;
+
+    private final CompanyRepository companies;
+    private final AppSettingRepository settings;
+    private final TransactionServiceRepository txServices;
+    private final PasswordResetService passwordResetService;
+    private final CompanyProvisioningService companyProvisioningService;
+    private final WebAuthnService webAuthnService;
+    private final SecurityCenterService securityCenterService;
+    private final AuthCookieService authCookieService;
+
+    public AuthController(
+            UserRepository users,
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService,
+                        Environment environment,
+                        @org.springframework.beans.factory.annotation.Autowired(required = false)
+                        ClientRegistrationRepository clientRegistrationRepository,
+            CompanyRepository companies,
+            AppSettingRepository settings,
+            TransactionServiceRepository txServices,
+            PasswordResetService passwordResetService,
+            CompanyProvisioningService companyProvisioningService,
+            WebAuthnService webAuthnService,
+            SecurityCenterService securityCenterService,
+            AuthCookieService authCookieService
+    ) {
+        this.users = users;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
+                this.environment = environment;
+                this.clientRegistrationRepository = Optional.ofNullable(clientRegistrationRepository);
+                this.authorizationRequestRepository = new HttpSessionOAuth2AuthorizationRequestRepository();
+        this.companies = companies;
+        this.settings = settings;
+        this.txServices = txServices;
+        this.passwordResetService = passwordResetService;
+        this.companyProvisioningService = companyProvisioningService;
+        this.webAuthnService = webAuthnService;
+        this.securityCenterService = securityCenterService;
+        this.authCookieService = authCookieService;
+    }
+
+    /**
+     * GET check from a browser or device to confirm the API is reachable.
+     * {@code /login} is POST-only; opening it in a tab returns 405, which is expected.
+     */
+    @GetMapping("/ping")
+    public Map<String, String> ping() {
+        return Map.of(
+                "status", "ok",
+                "hint", "Login: POST /api/auth/login with JSON body { \"email\", \"password\" }"
+        );
+    }
+
+        @GetMapping("/google")
+        public void startGoogleLogin(HttpServletRequest request, HttpServletResponse response) throws IOException {
+                log.info("Google OAuth start requested. path={}, query={}", request.getRequestURI(), request.getQueryString());
+
+                if (clientRegistrationRepository.isEmpty()) {
+                        log.warn("Google OAuth start blocked: ClientRegistrationRepository missing.");
+                        redirectOauthError(response, "Google login is not configured. Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET.");
+                        return;
+                }
+
+                OAuth2AuthorizationRequestResolver resolver =
+                                new DefaultOAuth2AuthorizationRequestResolver(clientRegistrationRepository.get(), "/oauth2/authorization");
+                OAuth2AuthorizationRequest authorizationRequest = resolver.resolve(request, "google");
+                if (authorizationRequest == null) {
+                        log.warn("Google OAuth start failed: resolver returned null authorization request.");
+                        redirectOauthError(response, "Google login configuration is invalid.");
+                        return;
+                }
+
+                String providerRedirectUri = extractQueryParam(authorizationRequest.getAuthorizationRequestUri(), "redirect_uri");
+                log.info("Google OAuth redirecting to provider. registrationId=google, providerRedirectUri={}", providerRedirectUri);
+                authorizationRequestRepository.saveAuthorizationRequest(authorizationRequest, request, response);
+                response.sendRedirect(authorizationRequest.getAuthorizationRequestUri());
+        }
+
+        private void redirectOauthError(HttpServletResponse response, String message) throws IOException {
+                String encoded = URLEncoder.encode(message, StandardCharsets.UTF_8);
+                String frontendBaseUrl = environment.getProperty("APP_AUTH_FRONTEND_URL", "http://localhost:3000");
+                response.sendRedirect(frontendBaseUrl + "/login?oauth_error=" + encoded);
+        }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String normalizedEmail = request.email().trim().toLowerCase();
+        List<User> candidates = users.findAllByEmailIgnoreCase(normalizedEmail);
+
+        User user = candidates.stream()
+                .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
+                .findFirst()
+                .orElse(null);
+
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Invalid email or password."));
+        }
+
+        WebAuthnService.PrimaryLoginResult mfa = webAuthnService.startLoginChallenge(user);
+        if (mfa.mfaRequired()) {
+            return ResponseEntity.ok(Map.of(
+                    "mfaRequired", true,
+                    "pendingToken", mfa.pendingToken(),
+                    "availableMethods", List.of("webauthn", "recovery_code"),
+                    "user", Map.of(
+                            "email", user.getEmail(),
+                            "firstName", user.getFirstName(),
+                            "lastName", user.getLastName()
+                    )
+            ));
+        }
+
+        String token = securityCenterService.issueSession(user, httpRequest, "Password sign-in").token();
+        authCookieService.writeAuthCookie(httpRequest, httpResponse, token);
+
+        return ResponseEntity.ok(authSuccessResponse(user, token, httpRequest));
+    }
+
+    @GetMapping("/csrf")
+    public ResponseEntity<?> csrf(CsrfToken csrfToken) {
+        return ResponseEntity.ok(Map.of(
+                "headerName", csrfToken.getHeaderName(),
+                "parameterName", csrfToken.getParameterName(),
+                "token", csrfToken.getToken()
+        ));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> me(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Not authenticated."));
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "user", serializeUser(user, packageTypeForCompany(user.getCompany())),
+                "authorities", authentication.getAuthorities().stream()
+                        .map(a -> a.getAuthority())
+                        .collect(Collectors.toList())
+        ));
+    }
+
+    private Map<String, Object> serializeUser(User user, String packageType) {
+        Company company = user.getCompany();
+        String tenantCode = company.getTenantCode();
+        return Map.of(
+                "id", user.getId(),
+                "firstName", user.getFirstName(),
+                "lastName", user.getLastName(),
+                "email", user.getEmail(),
+                "role", user.getRole().name(),
+                "companyId", company.getId(),
+                "packageType", packageType,
+                "tenantCode", tenantCode != null && !tenantCode.isBlank() ? tenantCode : "");
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<?> signup(@RequestBody SignupRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String normalizedEmail = request.email().trim().toLowerCase();
+        if (!users.findAllByEmailIgnoreCase(normalizedEmail).isEmpty()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "An account with this email already exists."));
+        }
+
+        String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
+        String companyName = resolveCompanyName(request);
+        Company company = companyProvisioningService.createWithTenantCode(companyName);
+
+        boolean passwordProvided = request.password() != null && !request.password().isBlank();
+        String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");
+
+        User owner = new User();
+        owner.setCompany(company);
+        owner.setFirstName(request.firstName().trim());
+        owner.setLastName(request.lastName().trim());
+        owner.setEmail(normalizedEmail);
+        owner.setPasswordHash(passwordEncoder.encode(rawPassword));
+        String phone = trimToNull(request.phone());
+        owner.setPhone(phone);
+        owner.setWhatsappSenderNumber(phone);
+        owner.setWhatsappPhoneNumberId(phone);
+        owner.setRole(Role.ADMIN);
+        owner.setActive(true);
+        owner.setConsultant(true);
+        owner = users.save(owner);
+
+        seedTenantDefaults(company, companyName);
+        seedSetting(company, SettingKey.COMPANY_EMAIL, normalizedEmail);
+        if (phone != null) {
+            seedSetting(company, SettingKey.COMPANY_TELEPHONE, phone);
+        }
+        seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
+        seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
+        seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
+        seedSetting(company, SettingKey.SIGNUP_FISCALIZATION_REQUIRED, String.valueOf(Boolean.TRUE.equals(request.fiscalizationNeeded())));
+        int spaceQuota = Math.max(1, request.spaceCount() == null ? 5 : request.spaceCount());
+        seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, String.valueOf(spaceQuota));
+        seedSetting(company, SettingKey.TENANCY_SMS_SENT_COUNT, "0");
+        String interval = request.billingInterval() == null ? "MONTHLY" : request.billingInterval().trim().toUpperCase();
+        if (!"MONTHLY".equals(interval) && !"YEARLY".equals(interval)) {
+            interval = "MONTHLY";
+        }
+        LocalDate subStart = LocalDate.now(ZoneId.systemDefault());
+        LocalDate subEnd = "TRIAL".equals(normalizedPackageType)
+                ? subStart.plusDays(7)
+                : ("YEARLY".equals(interval) ? subStart.plusYears(1) : subStart.plusMonths(1));
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_START, subStart.toString());
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_END, subEnd.toString());
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, "0.00");
+
+        if (!passwordProvided) {
+            passwordResetService.requestReset(normalizedEmail);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Signup created. A password setup email has been sent.",
+                    "requiresPasswordSetup", true,
+                    "email", normalizedEmail
+            ));
+        }
+
+        String token = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
+        authCookieService.writeAuthCookie(httpRequest, httpResponse, token);
+        return ResponseEntity.ok(authSuccessResponse(owner, token, httpRequest));
+    }
+
+    private void seedTenantDefaults(Company company, String companyName) {
+        // App/module settings for a tenant.
+        seedSetting(company, SettingKey.SPACES_ENABLED, "true");
+        seedSetting(company, SettingKey.TYPES_ENABLED, "true");
+        seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
+        seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
+        seedSetting(company, SettingKey.TODOS_ENABLED, "true");
+        seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, "false");
+        seedSetting(company, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED, "false");
+        seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED, "false");
+        seedSetting(company, SettingKey.SESSION_LENGTH_MINUTES, "60");
+        seedSetting(company, SettingKey.PERSONAL_TASK_PRESETS_JSON, "[]");
+        seedSetting(company, SettingKey.INVOICE_COUNTER, "1");
+        seedSetting(company, SettingKey.COMPANY_NAME, companyName);
+        seedSetting(company, SettingKey.COMPANY_ADDRESS, "");
+        seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, "");
+        seedSetting(company, SettingKey.COMPANY_CITY, "");
+        seedSetting(company, SettingKey.COMPANY_VAT_ID, "");
+        seedSetting(company, SettingKey.COMPANY_IBAN, "");
+        seedSetting(company, SettingKey.COMPANY_EMAIL, "");
+        seedSetting(company, SettingKey.COMPANY_TELEPHONE, "");
+        seedSetting(company, SettingKey.PAYMENT_DEADLINE_DAYS, "15");
+
+        // Default transaction service.
+        TransactionService tx = new TransactionService();
+        tx.setCompany(company);
+        tx.setCode("CONSULT-001");
+        tx.setDescription("Consultation");
+        tx.setTaxRate(TaxRate.VAT_22);
+        tx.setNetPrice(new BigDecimal("50.00"));
+        tx = txServices.save(tx);
+        // Session types are created explicitly by the tenant (Settings → session types).
+    }
+
+    private void seedSetting(Company company, SettingKey key, String value) {
+        settings.findByCompanyIdAndKey(company.getId(), key).ifPresentOrElse(existing -> {
+            existing.setValue(value);
+            settings.save(existing);
+        }, () -> {
+            var s = new AppSetting();
+            s.setCompany(company);
+            s.setKey(key.name());
+            s.setValue(value);
+            settings.save(s);
+        });
+    }
+
+    private String normalizePackageType(String rawValue, String fallback) {
+        String normalizedFallback = fallback == null || fallback.isBlank() ? "PROFESSIONAL" : fallback.trim().toUpperCase(Locale.ROOT);
+        if (rawValue == null || rawValue.isBlank()) return normalizedFallback;
+        String normalized = rawValue.trim().toUpperCase(Locale.ROOT).replace(' ', '_').replace('-', '_');
+        if ("PRO".equals(normalized)) return "PROFESSIONAL";
+        if ("TRIAL".equals(normalized) || "BASIC".equals(normalized) || "PROFESSIONAL".equals(normalized) || "PREMIUM".equals(normalized) || "CUSTOM".equals(normalized)) {
+            return normalized;
+        }
+        return normalizedFallback;
+    }
+
+    private String packageTypeForCompany(Company company) {
+        return settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_PACKAGE_NAME)
+                .map(AppSetting::getValue)
+                .map(value -> normalizePackageType(value, "CUSTOM"))
+                .orElse("CUSTOM");
+    }
+
+    private String resolveCompanyName(SignupRequest request) {
+        String companyName = trimToNull(request.companyName());
+        if (companyName != null) return companyName;
+
+        String fullName = ((request.firstName() == null ? "" : request.firstName().trim()) + " " + (request.lastName() == null ? "" : request.lastName().trim())).trim();
+        if (!fullName.isBlank()) return fullName;
+
+        String email = trimToNull(request.email());
+        if (email != null && email.contains("@")) {
+            return email.substring(0, email.indexOf('@'));
+        }
+        return "New tenancy";
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String validatePasswordStrength(String password) {
+        if (password == null || password.length() < 8) {
+            return "Password must be at least 8 characters.";
+        }
+        if (!password.chars().anyMatch(Character::isDigit)) {
+            return "Password must contain at least one number.";
+        }
+        if (!password.chars().anyMatch(Character::isUpperCase)) {
+            return "Password must contain at least one uppercase letter.";
+        }
+        if (!password.chars().anyMatch(Character::isLowerCase)) {
+            return "Password must contain at least one lowercase letter.";
+        }
+        return null;
+    }
+
+    public record LoginRequest(
+            @NotBlank @Email String email,
+            @NotBlank String password
+    ) {
+    }
+
+    public record ForgotPasswordRequest(@NotBlank @Email String email) {}
+
+    public record ResetPasswordRequest(@NotBlank String token, @NotBlank String password) {}
+
+    /**
+     * Browsers and tools often issue GET when opening the URL; without this, Spring falls through to
+     * static resources and returns 404 "No static resource api/auth/forgot-password.".
+     * Password reset must use POST (see {@link #forgotPassword}).
+     */
+    @GetMapping("/forgot-password")
+    public ResponseEntity<Map<String, Object>> forgotPasswordGet() {
+        return ResponseEntity.ok(Map.of(
+                "message", "Use POST with JSON body {\"email\":\"you@example.com\"} to request a password reset.",
+                "method", "POST",
+                "path", "/api/auth/forgot-password"
+        ));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        // Respond 200 regardless of user existence to avoid account enumeration.
+        passwordResetService.requestReset(request.email());
+        return ResponseEntity.ok(Map.of("message", "If this email exists, a reset link has been sent."));
+    }
+
+    @GetMapping("/reset-password/validate")
+    public ResponseEntity<?> validateResetToken(@RequestParam("token") String token) {
+        boolean valid = passwordResetService.isTokenUsable(token);
+        if (!valid) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Invalid or expired token."));
+        }
+        return ResponseEntity.ok(Map.of("valid", true));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+        String passwordValidationMessage = validatePasswordStrength(request.password());
+        if (passwordValidationMessage != null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", passwordValidationMessage));
+        }
+        boolean ok = passwordResetService.resetPassword(request.token(), request.password());
+        if (!ok) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Invalid or expired token."));
+        }
+        return ResponseEntity.ok(Map.of("message", "Password has been reset."));
+    }
+
+    public record SignupRequest(
+            @NotBlank String companyName,
+            @NotBlank String firstName,
+            @NotBlank String lastName,
+            @NotBlank @Email String email,
+            String phone,
+            String password,
+            String packageName,
+            Integer userCount,
+            Integer smsCount,
+            Integer spaceCount,
+            /** MONTHLY or YEARLY */
+            String billingInterval,
+            Boolean fiscalizationNeeded
+    ) {
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
+        try {
+            String token = authCookieService.resolveTokenFromHeaderOrCookie(request);
+            if (authentication != null && authentication.getPrincipal() instanceof User user && token != null && !token.isBlank()) {
+                String sessionId = jwtService.extractSessionId(token);
+                if (sessionId != null && !sessionId.isBlank()) {
+                    securityCenterService.revokeSession(user, sessionId, request);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Logout session revocation skipped: {}", ex.getMessage());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+
+        authCookieService.clearAuthCookie(request, response);
+
+        ResponseCookie jsessionCookie = ResponseCookie.from("JSESSIONID", "")
+                .path("/")
+                .httpOnly(true)
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, jsessionCookie.toString());
+
+        ResponseCookie xsrfCookie = ResponseCookie.from("XSRF-TOKEN", "")
+                .path("/")
+                .httpOnly(false)
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, xsrfCookie.toString());
+
+        return ResponseEntity.ok(Map.of("message", "Signed out."));
+    }
+
+    private Map<String, Object> authSuccessResponse(User user, String token, HttpServletRequest request) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        if (authCookieService.isNativeClient(request)) {
+            body.put("token", token);
+        }
+        body.put("user", serializeUser(user, packageTypeForCompany(user.getCompany())));
+        return body;
+    }
+
+    @GetMapping("/oauth-status")
+    public Map<String, Object> oauthStatus() {
+        boolean clientConfigured = clientRegistrationRepository.isPresent();
+        boolean oauthEnabled = clientConfigured;
+        try {
+            String clientId = clientConfigured ?
+                    clientRegistrationRepository.get().findByRegistrationId("google").getClientId() :
+                    "NOT_FOUND";
+            String redirectUri = clientConfigured
+                    ? clientRegistrationRepository.get().findByRegistrationId("google").getRedirectUri()
+                    : environment.getProperty(
+                            "spring.security.oauth2.client.registration.google.redirect-uri",
+                            "NOT_SET"
+                    );
+            return Map.of(
+                    "oauthEnabled", oauthEnabled,
+                    "clientConfigured", clientConfigured,
+                    "googleClientConfigured", !clientId.isEmpty() && !clientId.equals("NOT_FOUND"),
+                    "googleRedirectUri", redirectUri,
+                    "profile", environment.getActiveProfiles().length > 0 ? environment.getActiveProfiles()[0] : "default"
+            );
+        } catch (Exception e) {
+            return Map.of(
+                    "oauthEnabled", oauthEnabled,
+                    "clientConfigured", clientConfigured,
+                    "googleClientConfigured", false,
+                    "googleRedirectUri", environment.getProperty(
+                            "spring.security.oauth2.client.registration.google.redirect-uri",
+                            "NOT_SET"
+                    ),
+                    "profile", environment.getActiveProfiles().length > 0 ? environment.getActiveProfiles()[0] : "default",
+                    "error", e.getMessage()
+            );
+        }
+    }
+
+    private String extractQueryParam(String url, String key) {
+        try {
+            URI uri = URI.create(url);
+            String query = uri.getRawQuery();
+            if (query == null || query.isBlank()) return "UNAVAILABLE";
+            for (String pair : query.split("&")) {
+                int idx = pair.indexOf('=');
+                if (idx <= 0) continue;
+                String k = java.net.URLDecoder.decode(pair.substring(0, idx), StandardCharsets.UTF_8);
+                if (!key.equals(k)) continue;
+                return java.net.URLDecoder.decode(pair.substring(idx + 1), StandardCharsets.UTF_8);
+            }
+            return "MISSING";
+        } catch (Exception ignored) {
+            return "UNAVAILABLE";
+        }
+    }
+}

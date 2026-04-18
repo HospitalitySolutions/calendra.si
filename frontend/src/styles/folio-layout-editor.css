@@ -1,0 +1,482 @@
+/* ── Folio Layout Editor ── */
+
+:root {
+  --fle-group-header: #5b8def;
+  --fle-group-document: #e07c3a;
+  --fle-group-recipient: #8b5cf6;
+  --fle-group-custom: #14b8a6;
+  --fle-group-default: #6b7280;
+  --fle-grid-dot: rgba(120, 120, 140, 0.25);
+  --fle-canvas-bg: #ffffff;
+  --fle-panel-bg: var(--card-bg, #1e1e2e);
+  --fle-panel-border: var(--border, #2d2d3d);
+}
+
+.fle-loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted, #888);
+}
+
+/* ── Root layout ── */
+.fle-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Toolbar ── */
+.fle-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--fle-panel-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.fle-toolbar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text, #ccc);
+}
+
+.fle-toolbar-item input[type="range"] {
+  width: 90px;
+  accent-color: var(--primary, #1672f3);
+}
+
+.fle-snap-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.fle-snap-toggle input[type="checkbox"] {
+  accent-color: var(--primary, #1672f3);
+}
+
+.fle-toolbar-spacer {
+  flex: 1;
+}
+
+.fle-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--fle-panel-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text, #ccc);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fle-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.fle-btn-primary {
+  background: var(--primary, #1672f3);
+  color: #fff;
+  border-color: var(--primary, #1672f3);
+}
+
+.fle-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.fle-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.fle-btn-secondary {
+  color: #f87171;
+  border-color: #f87171;
+}
+
+.fle-btn-secondary:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* ── Body (canvas + panel) ── */
+.fle-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Canvas wrap ── */
+.fle-canvas-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  background: var(--bg, #121218);
+}
+
+.fle-canvas {
+  position: relative;
+  background: var(--fle-canvas-bg);
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+  user-select: none;
+  cursor: default;
+}
+
+/* ── Grid ── */
+.fle-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ── Rulers ── */
+.fle-ruler-top,
+.fle-ruler-left {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.fle-ruler-top {
+  top: -16px;
+  left: 0;
+  right: 0;
+  height: 16px;
+}
+
+.fle-ruler-left {
+  left: -28px;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+}
+
+.fle-ruler-mark {
+  position: absolute;
+  font-size: 9px;
+  color: var(--muted, #888);
+  font-variant-numeric: tabular-nums;
+}
+
+.fle-ruler-top .fle-ruler-mark {
+  top: 2px;
+  transform: translateX(-50%);
+}
+
+.fle-ruler-left .fle-ruler-mark {
+  left: 0;
+  transform: translateY(-50%);
+  text-align: right;
+  width: 24px;
+}
+
+/* ── Field overlays ── */
+.fle-field {
+  position: absolute;
+  border: 1.5px dashed;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  cursor: grab;
+  transition: box-shadow 0.12s;
+  overflow: hidden;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.fle-field:hover {
+  box-shadow: 0 0 0 2px rgba(22, 114, 243, 0.3);
+}
+
+.fle-field--selected {
+  border-style: solid;
+  border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.35);
+  z-index: 5;
+}
+
+.fle-field--hidden {
+  opacity: 0.35;
+}
+
+.fle-field:active {
+  cursor: grabbing;
+}
+
+.fle-field-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+  pointer-events: none;
+  line-height: 1.2;
+}
+
+/* ── Resize handle ── */
+.fle-resize-handle {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 10px;
+  height: 10px;
+  background: var(--primary, #1672f3);
+  border: 1.5px solid #fff;
+  border-radius: 2px;
+  cursor: nwse-resize;
+  z-index: 10;
+}
+
+/* ── Logo overlay ── */
+.fle-logo {
+  position: absolute;
+  border: 2px dashed rgba(236, 72, 153, 0.5);
+  border-radius: 4px;
+  background: rgba(236, 72, 153, 0.03);
+  cursor: grab;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.fle-logo:hover {
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.3);
+}
+
+.fle-logo--selected {
+  border-style: solid;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.35);
+  z-index: 6;
+}
+
+.fle-logo:active {
+  cursor: grabbing;
+}
+
+.fle-logo-placeholder {
+  color: rgba(236, 72, 153, 0.5);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+}
+
+/* ── Add button ── */
+.fle-btn-add {
+  color: var(--fle-group-custom);
+  border-color: var(--fle-group-custom);
+}
+
+.fle-btn-add:hover {
+  background: rgba(20, 184, 166, 0.1);
+}
+
+/* ── Table region ── */
+.fle-table-region {
+  position: absolute;
+  border: 2px dashed rgba(16, 185, 129, 0.6);
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.04);
+  cursor: grab;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.fle-table-region:hover {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+.fle-table-region--selected {
+  border-style: solid;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35);
+  z-index: 5;
+}
+
+.fle-table-region:active {
+  cursor: grabbing;
+}
+
+.fle-table-header {
+  position: relative;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.fle-table-col-label,
+.fle-table-col-cell {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.fle-table-col-label {
+  font-weight: 700;
+  color: #333;
+}
+
+.fle-table-col-cell {
+  color: #999;
+}
+
+.fle-table-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+.fle-table-label {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 9px;
+  color: rgba(16, 185, 129, 0.6);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+}
+
+/* ── Footer items ── */
+.fle-footer-item {
+  position: absolute;
+  border: 1px dashed rgba(245, 158, 11, 0.5);
+  border-radius: 2px;
+  padding: 0 4px;
+  color: #666;
+  cursor: grab;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.fle-footer-item:hover {
+  background: rgba(245, 158, 11, 0.06);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+.fle-footer-item:active {
+  cursor: grabbing;
+}
+
+.fle-footer-item--selected {
+  border-style: solid;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+  z-index: 5;
+}
+
+/* ── Property panel ── */
+.fle-panel {
+  width: 280px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--fle-panel-border);
+  background: var(--fle-panel-bg);
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.fle-panel-empty {
+  padding: 24px 0;
+  text-align: center;
+}
+
+.fle-panel-content .page-header {
+  margin-bottom: 12px;
+}
+
+.fle-panel-content .page-header h1 {
+  font-size: 15px;
+}
+
+.fle-panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fle-panel-grid--compact {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.fle-panel-grid .field {
+  margin-bottom: 0;
+}
+
+.fle-panel-grid input[type="number"],
+.fle-panel-grid select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+
+.fle-panel-grid input[type="checkbox"] {
+  width: auto;
+  margin-top: 4px;
+}
+
+.fle-panel-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 12px 0 8px;
+  color: var(--text, #ccc);
+  border-bottom: 1px solid var(--fle-panel-border);
+  padding-bottom: 4px;
+}
+
+.fle-panel-coords {
+  font-size: 12px;
+  color: var(--muted, #888);
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fle-column-row {
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--fle-panel-border);
+  border-radius: 6px;
+}
+
+.fle-column-row strong {
+  font-size: 13px;
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text, #ccc);
+}
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  .fle-body {
+    flex-direction: column;
+  }
+  .fle-panel {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--fle-panel-border);
+    max-height: 300px;
+  }
+}

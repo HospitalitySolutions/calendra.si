@@ -1,0 +1,764 @@
+/* Native Android: modals fit narrow screens */
+.layout-android .modal-backdrop {
+    padding: 12px;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    align-items: flex-start;
+    padding-top: max(12px, env(safe-area-inset-top));
+}
+
+.layout-android .modal-backdrop.modal-backdrop-center-android {
+    align-items: center;
+    justify-content: center;
+    padding-top: max(12px, env(safe-area-inset-top));
+}
+
+.layout-android .confirm-modal-non-bookable-android .confirm-modal-non-bookable-text {
+    margin: 0 0 16px;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    line-height: 1.45;
+}
+
+.layout-android .confirm-modal-non-bookable-android .row.gap {
+    justify-content: center;
+}
+
+.layout-android .modal,
+.layout-android .modal.large-modal,
+.layout-android .modal.confirm-modal {
+    width: 100%;
+    max-width: calc(100vw - 24px);
+    margin: 0 auto;
+    padding: 16px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    max-height: min(92dvh, calc(100vh - 24px));
+}
+
+.layout-android .modal .form-row-layout {
+    min-width: 0;
+}
+
+.layout-android .modal .form-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 0;
+}
+
+.layout-android .modal .form-row.form-row-infield {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.layout-android .modal .form-row.form-row-infield.stretch {
+    align-items: stretch;
+}
+
+.layout-android .modal .form-row .form-row-label {
+    width: 100%;
+    padding-top: 0;
+}
+
+.layout-android .modal .form-row.form-row-infield .form-field-inline-label {
+    width: auto;
+    max-width: none;
+}
+
+.layout-android .modal .form-row input,
+.layout-android .modal .form-row select,
+.layout-android .modal .form-row textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.layout-android .modal .client-picker {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+/* Calendar booking modal: search + actions on one row, selected clients on the row below */
+.layout-android .modal .client-picker.calendar-client-picker {
+    flex-wrap: nowrap;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.layout-android .modal .personal-task-combo {
+    width: 100%;
+    min-width: 0;
+}
+
+.layout-android .modal .client-search-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+.layout-android .modal .notes-with-checkboxes {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    min-width: 0;
+    width: 100%;
+}
+
+.layout-android .modal .notes-with-checkboxes textarea {
+    width: 100%;
+}
+
+.layout-android .modal .checkbox-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.layout-android .modal .checkbox-row label {
+    white-space: normal;
+}
+
+.layout-android .modal .form-row span.form-row-label + div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    max-width: 100%;
+}
+
+.layout-android .modal .row.gap {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.layout-android .modal .form-grid {
+    grid-template-columns: 1fr;
+    min-width: 0;
+}
+
+.layout-android .booking-side-panel-backdrop {
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-end;
+    /* features + modal-backdrop use overflow hidden; WebView time picker is clipped */
+    overflow: visible;
+}
+
+.layout-android .booking-side-panel.modal.large-modal {
+    width: min(560px, 100vw);
+    max-width: 100vw;
+    height: min(100dvh, 100vh);
+    max-height: min(100dvh, 100vh);
+    margin: 0 0 0 auto;
+    border-radius: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    overflow-x: visible;
+}
+
+.layout-android .booking-side-panel .booking-side-panel-body {
+    overflow-x: visible;
+    -webkit-overflow-scrolling: touch;
+}
+
+.layout-android .modal-android-book .book-session-notes-android-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+}
+
+.layout-android .modal-android-book .book-session-notes-toggle {
+    align-self: flex-start;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0 12px;
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.layout-android .modal-android-book .book-session-notes-textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.layout-android .modal-android-book .book-session-checkbox-row {
+    width: 100%;
+}
+
+/* Android calendar root */
+.layout-android {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+    background: var(--color-bg);
+}
+
+.layout-android::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: max(12px, env(safe-area-inset-top));
+    background: #1f2a44;
+    z-index: 0;
+    pointer-events: none;
+}
+
+[data-theme="dark"] .layout-android {
+    background: transparent;
+}
+
+.layout-android .main-area-android > .content-android-native {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.layout-android .calendar-page-android-root {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin: calc(-1 * var(--content-padding)) calc(-1 * var(--content-padding)) 0;
+    width: calc(100% + 2 * var(--content-padding));
+    max-width: none;
+    box-sizing: border-box;
+}
+
+.layout-android .calendar-card-android.card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    background: var(--color-surface);
+}
+
+.layout-android .calendar-card-android .calendar-android-week {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.layout-android .calendar-android-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-top: max(6px, env(safe-area-inset-top));
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--color-surface);
+    z-index: 2;
+}
+
+[data-theme="dark"] .layout-android .calendar-android-toolbar {
+    background: var(--color-surface);
+}
+
+.layout-android .calendar-android-toolbar-leading {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.layout-android .calendar-android-filters-footer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: 8px 10px;
+    border-top: 1px solid var(--border);
+    background: var(--color-surface);
+    z-index: 2;
+}
+
+.layout-android .calendar-android-filter-footer-left,
+.layout-android .calendar-android-filter-footer-right,
+.layout-android .calendar-android-filter-footer-center {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.layout-android .calendar-android-filter-footer-center {
+    justify-content: center;
+}
+
+.layout-android .calendar-android-filter-footer-right {
+    justify-content: flex-end;
+}
+
+.layout-android .calendar-android-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.layout-android .calendar-android-filter-chip select {
+    max-width: 76px;
+    font-size: 0.65rem;
+    padding: 4px 2px;
+    border-radius: 4px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--border);
+}
+
+.layout-android .calendar-android-filters-footer .calendar-android-filter-chip select {
+    max-width: min(168px, 46vw);
+}
+
+.layout-android .calendar-bottom-panel-pill--android {
+    min-height: 42px;
+    padding: 0 14px;
+    max-width: min(64vw, 330px);
+}
+
+.layout-android .calendar-android-toolbar-title {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--color-text);
+    padding: 0 4px;
+    line-height: 1.25;
+}
+
+.layout-android .calendar-android-toolbar .fc-button {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+}
+
+.layout-android .calendar-android-toolbar .calendar-android-view-toggle {
+    flex-shrink: 0;
+    gap: 6px;
+    align-items: center;
+    overflow: visible;
+}
+
+.layout-android .calendar-android-config-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.layout-android .calendar-android-toolbar-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none !important;
+    background: transparent !important;
+    color: var(--color-text-muted);
+    border-radius: 8px;
+}
+
+.layout-android .calendar-android-toolbar-icon-btn:hover,
+.layout-android .calendar-android-toolbar-icon-btn:active {
+    color: var(--color-text);
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.layout-android .calendar-android-todo-btn {
+    transform: translateX(-10px);
+}
+
+.layout-android .calendar-android-pinch-scale {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    will-change: transform;
+    transform-style: flat;
+}
+
+/* Avoid transform here: it breaks position:sticky on column headers inside this scroll container. */
+.layout-android .calendar-android-pinch-scale .fc {
+    transform: none;
+}
+
+/* Android day header overrides */
+.layout-android .fc-day-header-android-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    line-height: 1.1;
+    padding: 4px 2px;
+    width: 100%;
+}
+
+.layout-android .fc-day-header-stack {
+    gap: 2px;
+    padding: 3px 2px;
+}
+
+.layout-android .fc-day-header-dow {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.layout-android .fc-day-header-dom {
+    font-size: 0.75rem;
+    font-weight: 700;
+    width: 22px;
+    height: 22px;
+}
+
+/* Android timegrid fit */
+.layout-android .calendar-android-week {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.layout-android .calendar-android-week .fc {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 1;
+    min-height: 0;
+    height: 100% !important;
+    display: flex;
+    flex-direction: column;
+    -webkit-tap-highlight-color: transparent;
+    outline: none !important;
+}
+
+.layout-android .calendar-android-week .fc:focus,
+.layout-android .calendar-android-week .fc:focus-visible,
+.layout-android .calendar-android-week .fc .fc-view-harness:focus,
+.layout-android .calendar-android-week .fc .fc-view-harness:focus-visible {
+    outline: none !important;
+}
+
+.layout-android .calendar-android-week .fc .fc-view-harness,
+.layout-android .calendar-android-week .fc .fc-view-harness-active {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid,
+.layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid table,
+.layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid-sync-table,
+.layout-android .calendar-android-week .fc-timegrid .fc-timegrid-cols table {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid col {
+    min-width: 0 !important;
+}
+
+.layout-android .calendar-android-week .fc-timegrid td.fc-timegrid-col,
+.layout-android .calendar-android-week .fc-timegrid th.fc-col-header-cell {
+    min-width: 0 !important;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid .fc-scroller {
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-scrollgrid .fc-scroller::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+/* Pin day-of-week + date row while the pinch layer scrolls (native Android webview / app) */
+.layout-android .calendar-android-pinch-scale .fc-timegrid .fc-scrollgrid-section-header {
+    background: var(--color-surface);
+}
+
+.layout-android .calendar-android-pinch-scale .fc-timegrid .fc-col-header th {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    background: var(--color-surface);
+}
+
+.layout-android .calendar-android-pinch-scale .fc-timegrid .fc-col-header th.fc-timegrid-axis {
+    left: 0;
+    z-index: 13;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-col-header-cell-cushion {
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 4px 1px;
+    line-height: 1.15;
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-timegrid-axis-cushion,
+.layout-android .calendar-android-week .fc-timegrid .fc-timegrid-slot-label-cushion {
+    font-size: 0.65rem;
+    padding: 0 2px;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-timegrid-axis-frame {
+    max-width: 44px;
+}
+
+.layout-android .calendar-android-week .calendar-android-corner-nav {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: #ffffff;
+    cursor: pointer;
+    margin: 2px auto;
+    padding: 0;
+}
+
+[data-theme="dark"] .layout-android .calendar-android-week .calendar-android-corner-nav {
+    color: #e2e8f0;
+}
+
+.layout-android .calendar-android-week .calendar-android-corner-nav svg {
+    display: block;
+}
+
+.layout-android .calendar-android-week .calendar-android-corner-nav[data-view="week"],
+.layout-android .calendar-android-week .calendar-android-corner-nav[data-view="month"] {
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+.layout-android .calendar-android-week .calendar-android-corner-nav:active {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-toolbar.fc-header-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.layout-android .calendar-android-week .fc-timegrid .fc-toolbar-title {
+    font-size: 0.9rem;
+}
+
+/* Android app shell */
+.android-app-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-shrink: 0;
+    padding: 10px 14px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--color-sidebar);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(30, 27, 75, 0.2);
+}
+
+.android-app-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 0%, #bfdbfe 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.android-app-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.android-user-pill {
+    font-size: 0.7rem;
+    line-height: 1.25;
+    padding: 6px 10px;
+    max-width: min(160px, 42vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.android-user-role {
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+}
+
+.android-logout-btn {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+}
+
+.android-logout-btn:active {
+    background: rgba(255, 255, 255, 0.26);
+}
+
+.main-area-android {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+}
+
+.app-header-android {
+    display: none;
+}
+
+.app-header-android-spacer {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.app-header-android-actions {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.content-android-native {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--content-padding);
+}
+
+.android-bottom-nav {
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 2px;
+    padding: 6px 4px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--color-surface);
+    box-shadow: 0 -4px 24px rgba(30, 41, 59, 0.08);
+    position: relative;
+    z-index: 1;
+}
+
+[data-theme="dark"] .android-bottom-nav {
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
+}
+
+.android-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 4px 2px 2px;
+    min-width: 0;
+    max-width: 96px;
+    margin: 0 auto;
+    color: var(--color-text-muted);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.android-nav-item span {
+    line-height: 1.2;
+    text-align: center;
+}
+
+.android-nav-item.active {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.android-nav-item:active:not(.active) {
+    background: rgba(22, 114, 243, 0.06);
+}
+
+/* Android-specific meeting provider */
+.layout-android .meeting-provider-picker-backdrop {
+    align-items: center;
+    justify-content: center;
+    padding-top: max(16px, env(safe-area-inset-top));
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .content.content-android-native {
+        padding-top: var(--content-padding);
+    }
+}

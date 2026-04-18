@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: calendradb
+      POSTGRES_USER: calendra
+      POSTGRES_PASSWORD: calendra
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U calendra -d calendradb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Staging profile + Secrets Manager. If needed, pass AWS creds from host/.env.
+      SPRING_PROFILES_ACTIVE: staging
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: 4000
+      APP_JWT_EXPIRATION_MS: 86400000
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_STAGING_SECRET_ID: ${AWS_STAGING_SECRET_ID:-arn:aws:secretsmanager:eu-central-1:345362761828:secret:calendra/staging-2jqRIf}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_WEB_API_URL: http://localhost:4000/api
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data_local:
