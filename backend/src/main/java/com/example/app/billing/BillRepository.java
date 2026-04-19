@@ -28,4 +28,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findByStripeInvoiceId(String stripeInvoiceId);
+    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    Optional<Bill> findFirstByCompanyIdAndSourceSessionIdSnapshotOrderByIdDesc(Long companyId, Long sourceSessionIdSnapshot);
+
 }

@@ -13,6 +13,7 @@ import com.example.app.reminder.ReminderService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionType;
+import com.example.app.session.SessionTypeRepository;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,11 +40,13 @@ public class GuestOrderService {
     private final GuestEntitlementRepository entitlements;
     private final GuestEntitlementUsageRepository entitlementUsages;
     private final SessionBookingRepository bookings;
+    private final SessionTypeRepository sessionTypes;
     private final UserRepository users;
     private final PaymentMethodRepository paymentMethods;
     private final GuestNotificationService notifications;
     private final ReminderService reminders;
     private final GuestEntitlementService entitlementService;
+    private final GuestBankTransferBillingService bankTransferBillingService;
 
     public GuestOrderService(
             GuestTenantService guestTenantService,
@@ -52,11 +55,13 @@ public class GuestOrderService {
             GuestEntitlementRepository entitlements,
             GuestEntitlementUsageRepository entitlementUsages,
             SessionBookingRepository bookings,
+            SessionTypeRepository sessionTypes,
             UserRepository users,
             PaymentMethodRepository paymentMethods,
             GuestNotificationService notifications,
             ReminderService reminders,
-            GuestEntitlementService entitlementService
+            GuestEntitlementService entitlementService,
+            GuestBankTransferBillingService bankTransferBillingService
     ) {
         this.guestTenantService = guestTenantService;
         this.catalogService = catalogService;
@@ -64,11 +69,13 @@ public class GuestOrderService {
         this.entitlements = entitlements;
         this.entitlementUsages = entitlementUsages;
         this.bookings = bookings;
+        this.sessionTypes = sessionTypes;
         this.users = users;
         this.paymentMethods = paymentMethods;
         this.notifications = notifications;
         this.reminders = reminders;
         this.entitlementService = entitlementService;
+        this.bankTransferBillingService = bankTransferBillingService;
     }
 
     @Transactional
@@ -137,19 +144,37 @@ public class GuestOrderService {
         }
 
         if (paymentMethodType == GuestPaymentMethodType.BANK_TRANSFER) {
-            maybeCreatePendingBooking(order);
-            notifications.paymentPending(order.getGuestUser(), order.getCompany(), order.getClient(), "Payment pending", "Your bank transfer will activate the purchase once received.");
+            SessionBooking booking = maybeCreateConfirmedBooking(order);
+            String referenceCode = order.getReferenceCode();
+            double responseAmount = order.getTotalGross().doubleValue();
+            if (booking != null) {
+                var bill = bankTransferBillingService.issueConfirmedBookingBill(order, booking);
+                if (bill.getBankTransferReference() != null && !bill.getBankTransferReference().isBlank()) {
+                    referenceCode = bill.getBankTransferReference();
+                }
+                if (bill.getTotalGross() != null) {
+                    order.setSubtotalGross(bill.getTotalGross());
+                    order.setTaxAmount((bill.getTotalGross().subtract(bill.getTotalNet())).max(BigDecimal.ZERO));
+                    order.setTotalGross(bill.getTotalGross());
+                    order = orders.save(order);
+                    responseAmount = bill.getTotalGross().doubleValue();
+                }
+                notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
+            }
+            notifications.paymentPending(order.getGuestUser(), order.getCompany(), order.getClient(), "Invoice sent", "Your booking is confirmed. We emailed you the bank transfer folio/invoice PDF and payment instructions.");
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),
                     order.getStatus().name(),
                     null,
-                    new GuestDtos.BankTransferInstructionsResponse(order.getTotalGross().doubleValue(), order.getCurrency(), order.getReferenceCode(), "Use the reference code when paying by bank transfer."),
+                    new GuestDtos.BankTransferInstructionsResponse(responseAmount, order.getCurrency(), referenceCode, booking != null
+                            ? "Booking confirmed. We emailed your folio/invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."
+                            : "We emailed your folio/invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."),
                     "SHOW_INSTRUCTIONS",
                     null,
                     null,
                     null,
-                    null
+                    order.getCompany().getName()
             );
         }
 
@@ -238,8 +263,13 @@ public class GuestOrderService {
     private SessionBooking maybeCreateConfirmedBooking(GuestOrder order) {
         SessionBooking existing = findBookingForOrder(order);
         if (existing != null) {
+            boolean wasConfirmed = "CONFIRMED".equalsIgnoreCase(existing.getBookingStatus());
             existing.setBookingStatus("CONFIRMED");
-            return bookings.save(existing);
+            existing = bookings.save(existing);
+            if (!wasConfirmed) {
+                reminders.sendBookingConfirmation(existing);
+            }
+            return existing;
         }
         SlotContext context = extractSlotContext(order);
         if (context == null) return null;
@@ -258,27 +288,51 @@ public class GuestOrderService {
             Object rawSlot = map.get("slotId");
             Object rawTypeId = map.get("sessionTypeId");
             if (rawSlot == null || rawTypeId == null) return null;
-            GuestCatalogService.SlotPayload slot = catalogService.parseSlotId(String.valueOf(rawSlot));
-            SessionType type = users.findByIdAndCompanyId(slot.consultantId(), order.getCompany().getId())
-                    .flatMap(user -> user.getTypes().stream().filter(t -> Objects.equals(t.getId(), Long.parseLong(String.valueOf(rawTypeId)))).findFirst())
-                    .orElse(null);
-            if (type == null) {
-                type = new SessionType();
-                type.setId(Long.parseLong(String.valueOf(rawTypeId))); // not persisted, only fallback for compile? won't work.
+
+            String[] parts = String.valueOf(rawSlot).split("\\|");
+            if (parts.length < 3) {
+                return null;
             }
-            return new SlotContext(Long.parseLong(String.valueOf(rawTypeId)), slot.consultantId(), slot.startsAt(), slot.endsAt());
+
+            Long consultantId = parseOptionalConsultantId(parts[0]);
+            return new SlotContext(
+                    Long.parseLong(String.valueOf(rawTypeId)),
+                    consultantId,
+                    java.time.LocalDateTime.parse(parts[1]),
+                    java.time.LocalDateTime.parse(parts[2])
+            );
         } catch (Exception ex) {
             return null;
         }
     }
 
+    private Long parseOptionalConsultantId(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.trim();
+        if (value.isBlank() || "null".equalsIgnoreCase(value) || "unassigned".equalsIgnoreCase(value) || "0".equals(value)) {
+            return null;
+        }
+        return Long.parseLong(value);
+    }
+
+    private User resolveBookingConsultant(GuestOrder order) {
+        List<User> activeUsers = users.findAllByCompanyId(order.getCompany().getId()).stream()
+                .filter(User::isActive)
+                .sorted(java.util.Comparator.comparing(User::getId))
+                .toList();
+
+        // Guest mobile bookings stay unassigned unless there is exactly one active user in the tenancy.
+        return activeUsers.size() == 1 ? activeUsers.get(0) : null;
+    }
+
     private SessionBooking createBooking(GuestOrder order, SlotContext slotContext, String status) {
-        User consultant = users.findByIdAndCompanyId(slotContext.consultantId(), order.getCompany().getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant not found for slot."));
-        SessionType type = consultant.getTypes().stream()
-                .filter(t -> Objects.equals(t.getId(), slotContext.sessionTypeId()))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant does not support this service."));
+        SessionType type = sessionTypes.findById(slotContext.sessionTypeId())
+                .filter(t -> Objects.equals(t.getCompany().getId(), order.getCompany().getId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not available for this tenant."));
+
+        User consultant = resolveBookingConsultant(order);
         SessionBooking booking = new SessionBooking();
         booking.setCompany(order.getCompany());
         booking.setClient(order.getClient());
