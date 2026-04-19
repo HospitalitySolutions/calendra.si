@@ -99,6 +99,11 @@ public enum SettingKey {
     /** Guest app public/discoverability settings. */
     GUEST_APP_SETTINGS_JSON,
 
+    /** Tenant PayPal seller onboarding and merchant configuration. */
+    PAYPAL_MERCHANT_ID,
+    PAYPAL_TRACKING_ID,
+    PAYPAL_ONBOARDING_STATUS,
+
     /** Public widget security. */
     WIDGET_ALLOWED_ORIGINS,
     WIDGET_TURNSTILE_SITE_KEY,

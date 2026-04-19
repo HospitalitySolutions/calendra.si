@@ -144,7 +144,7 @@ private enum class PaymentMethodUi(
     CARD("Credit Card", "CARD", true),
     BANK_TRANSFER("Bank Transfer", "BANK_TRANSFER", true),
     ENTITLEMENT("Use pass or visit", "ENTITLEMENT", true),
-    PAYPAL("PayPal", null, false, "Coming soon")
+    PAYPAL("PayPal", "PAYPAL", true, "Pay securely with PayPal")
 }
 
 @Composable
@@ -536,10 +536,10 @@ fun BookScreen(
                             )
                             PaymentMethodCard(
                                 label = PaymentMethodUi.PAYPAL.title,
-                                subtitle = PaymentMethodUi.PAYPAL.helper,
-                                selected = false,
-                                enabled = false,
-                                onSelect = {},
+                                subtitle = if (selectedPaymentMethod == PaymentMethodUi.PAYPAL) PaymentMethodUi.PAYPAL.helper else null,
+                                selected = selectedPaymentMethod == PaymentMethodUi.PAYPAL,
+                                enabled = true,
+                                onSelect = { selectedPaymentMethod = PaymentMethodUi.PAYPAL },
                                 trailing = null,
                                 onManageChevron = null
                             )

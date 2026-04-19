@@ -61,6 +61,13 @@ public class GuestOrder extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String metadataJson;
 
+    @Column(name = "paypal_order_id", length = 255)
+    private String paypalOrderId;
+
+    @Column(name = "paypal_capture_id", length = 255)
+    private String paypalCaptureId;
+
+
     private Instant paidAt;
     private Instant cancelledAt;
 }

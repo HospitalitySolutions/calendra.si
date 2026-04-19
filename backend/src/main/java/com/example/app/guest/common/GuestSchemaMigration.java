@@ -45,6 +45,9 @@ public class GuestSchemaMigration {
             jdbc.execute("UPDATE session_booking SET source_channel = 'STAFF' WHERE source_channel IS NULL");
             jdbc.execute("ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS source_order_id VARCHAR(64)");
             jdbc.execute("ALTER TABLE session_booking ADD COLUMN IF NOT EXISTS guest_user_id VARCHAR(64)");
+
+            jdbc.execute("ALTER TABLE guest_orders ADD COLUMN IF NOT EXISTS paypal_order_id VARCHAR(255)");
+            jdbc.execute("ALTER TABLE guest_orders ADD COLUMN IF NOT EXISTS paypal_capture_id VARCHAR(255)");
         } catch (Exception ex) {
             log.warn("Guest schema migration skipped/failed: {}", ex.getMessage());
         }

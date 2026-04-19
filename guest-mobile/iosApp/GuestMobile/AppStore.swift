@@ -8,6 +8,7 @@ final class AppStore: ObservableObject {
     @Published var selectedTenantId: String?
     @Published var tenantDashboards: [String: TenantDashboardModel] = [:]
     @Published var errorMessage: String?
+    @Published var noticeMessage: String?
     @Published var isLoading = false
     @Published var didRequestLogout = false
 
@@ -202,6 +203,25 @@ final class AppStore: ObservableObject {
         await refreshAllTenants()
     }
 
+    func handlePaymentReturn(url: URL) {
+        guard url.scheme == "calendra-guest", url.host == "paypal" else { return }
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let status = components?.queryItems?.first(where: { $0.name == "status" })?.value?.lowercased()
+        let message = components?.queryItems?.first(where: { $0.name == "message" })?.value
+
+        switch status {
+        case "success":
+            noticeMessage = "PayPal payment confirmed."
+            Task { await refreshOnAppBecameActive() }
+        case "cancelled", "canceled":
+            noticeMessage = "PayPal checkout canceled."
+        case "error":
+            errorMessage = message ?? "PayPal payment failed."
+        default:
+            break
+        }
+    }
+
     func loadAvailability(companyId: String, sessionTypeId: String, date: Date) async throws -> [AvailabilitySlotModel] {
         let day = Self.dayFormatter.string(from: date)
         if usePreviewData { return preview.availability(for: sessionTypeId, date: day) }
@@ -214,10 +234,10 @@ final class AppStore: ObservableObject {
             response = CheckoutResponseModel(
                 orderId: UUID().uuidString,
                 paymentMethodType: paymentMethod,
-                status: paymentMethod == "ENTITLEMENT" ? "PAID" : (paymentMethod == "CARD" ? "PAID" : "PENDING"),
-                checkoutUrl: paymentMethod == "CARD" ? "https://checkout.stripe.example/session/mock" : nil,
+                status: paymentMethod == "ENTITLEMENT" ? "PAID" : "PENDING",
+                checkoutUrl: paymentMethod == "CARD" ? "https://checkout.stripe.example/session/mock" : (paymentMethod == "PAYPAL" ? "https://www.sandbox.paypal.com/checkoutnow?token=mock" : nil),
                 bankTransfer: paymentMethod == "BANK_TRANSFER" ? BankTransferInstructionsModel(amount: 59, currency: "EUR", referenceCode: "ORD-2026-00014", instructions: "Use the reference code when paying.") : nil,
-                nextAction: paymentMethod == "ENTITLEMENT" ? "COMPLETE" : (paymentMethod == "CARD" ? "REDIRECT" : "SHOW_INSTRUCTIONS"),
+                nextAction: paymentMethod == "ENTITLEMENT" ? "COMPLETE" : ((paymentMethod == "CARD" || paymentMethod == "PAYPAL") ? "REDIRECT" : "SHOW_INSTRUCTIONS"),
                 paymentIntentClientSecret: nil,
                 customerId: nil,
                 customerEphemeralKeySecret: nil,

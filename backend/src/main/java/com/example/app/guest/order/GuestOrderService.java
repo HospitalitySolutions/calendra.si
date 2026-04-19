@@ -3,12 +3,14 @@ package com.example.app.guest.order;
 import com.example.app.billing.PaymentMethod;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
+import com.example.app.company.CompanyRepository;
 import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.*;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.tenant.GuestTenantService;
+import com.example.app.paypal.PayPalClient;
 import com.example.app.reminder.ReminderService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -36,6 +38,7 @@ public class GuestOrderService {
 
     private final GuestTenantService guestTenantService;
     private final GuestCatalogService catalogService;
+    private final CompanyRepository companies;
     private final GuestOrderRepository orders;
     private final GuestEntitlementRepository entitlements;
     private final GuestEntitlementUsageRepository entitlementUsages;
@@ -47,10 +50,12 @@ public class GuestOrderService {
     private final ReminderService reminders;
     private final GuestEntitlementService entitlementService;
     private final GuestBankTransferBillingService bankTransferBillingService;
+    private final PayPalClient payPalClient;
 
     public GuestOrderService(
             GuestTenantService guestTenantService,
             GuestCatalogService catalogService,
+            CompanyRepository companies,
             GuestOrderRepository orders,
             GuestEntitlementRepository entitlements,
             GuestEntitlementUsageRepository entitlementUsages,
@@ -61,10 +66,12 @@ public class GuestOrderService {
             GuestNotificationService notifications,
             ReminderService reminders,
             GuestEntitlementService entitlementService,
-            GuestBankTransferBillingService bankTransferBillingService
+            GuestBankTransferBillingService bankTransferBillingService,
+            PayPalClient payPalClient
     ) {
         this.guestTenantService = guestTenantService;
         this.catalogService = catalogService;
+        this.companies = companies;
         this.orders = orders;
         this.entitlements = entitlements;
         this.entitlementUsages = entitlementUsages;
@@ -76,6 +83,7 @@ public class GuestOrderService {
         this.reminders = reminders;
         this.entitlementService = entitlementService;
         this.bankTransferBillingService = bankTransferBillingService;
+        this.payPalClient = payPalClient;
     }
 
     @Transactional
@@ -178,16 +186,29 @@ public class GuestOrderService {
             );
         }
 
-        // Dev-friendly default: confirm card orders immediately unless you later swap this to Stripe PaymentSheet.
-        order.setStatus(OrderStatus.PAID);
-        order.setPaidAt(Instant.now());
-        order = orders.save(order);
-        SessionBooking booking = maybeCreateConfirmedBooking(order);
-        maybeCreateEntitlement(order);
-        notifications.paymentConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), "Payment confirmed", "Your payment was received successfully.");
-        if (booking != null) {
-            notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
+        if (paymentMethodType == GuestPaymentMethodType.PAYPAL) {
+            String merchantId = order.getCompany().getPaypalMerchantId();
+            if (merchantId == null || merchantId.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not configured for this tenancy.");
+            }
+            PayPalClient.PayPalOrderSession session = payPalClient.createOrder(order, merchantId);
+            order.setPaypalOrderId(session.paypalOrderId());
+            order = orders.save(order);
+            return new GuestDtos.CheckoutResponse(
+                    String.valueOf(order.getId()),
+                    paymentMethodType.name(),
+                    order.getStatus().name(),
+                    session.approveUrl(),
+                    null,
+                    "REDIRECT",
+                    null,
+                    null,
+                    null,
+                    order.getCompany().getName()
+            );
         }
+
+        order = markOrderPaid(order, paymentMethodType, null);
         return new GuestDtos.CheckoutResponse(
                 String.valueOf(order.getId()),
                 paymentMethodType.name(),
@@ -200,6 +221,38 @@ public class GuestOrderService {
                 null,
                 order.getCompany().getName()
         );
+    }
+
+    @Transactional
+    public PayPalCompletionResult handlePayPalReturn(Long orderId, String token) {
+        GuestOrder order = orders.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
+        if (token != null && !token.isBlank() && order.getPaypalOrderId() != null && !order.getPaypalOrderId().isBlank() && !token.equals(order.getPaypalOrderId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal return token did not match the pending order.");
+        }
+        if (order.getStatus() == OrderStatus.PAID) {
+            return new PayPalCompletionResult(order, true, "PayPal payment confirmed.");
+        }
+        String merchantId = order.getCompany().getPaypalMerchantId();
+        if (merchantId == null || merchantId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not configured for this tenancy.");
+        }
+        String paypalOrderId = order.getPaypalOrderId();
+        if (paypalOrderId == null || paypalOrderId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing PayPal checkout session for this order.");
+        }
+        PayPalClient.PayPalCaptureResult capture = payPalClient.captureOrder(paypalOrderId, merchantId);
+        order = markOrderPaid(order, GuestPaymentMethodType.PAYPAL, capture.captureId());
+        return new PayPalCompletionResult(order, true, "PayPal payment confirmed.");
+    }
+
+    public PayPalCompletionResult handlePayPalCancel(Long orderId, String token) {
+        GuestOrder order = orders.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
+        if (token != null && !token.isBlank() && order.getPaypalOrderId() != null && !order.getPaypalOrderId().isBlank() && !token.equals(order.getPaypalOrderId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal return token did not match the pending order.");
+        }
+        return new PayPalCompletionResult(order, false, "PayPal payment was canceled.");
     }
 
     private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product) {
@@ -234,12 +287,22 @@ public class GuestOrderService {
             }
             return;
         }
+        GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
+        if (paymentMethodType == GuestPaymentMethodType.PAYPAL) {
+            String merchantId = companies.findById(companyId).map(c -> c.getPaypalMerchantId()).orElse(null);
+            if (merchantId == null || merchantId.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not configured for this tenancy.");
+            }
+            if (!rules.allowCardFor().contains(productType)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This payment method is not allowed for the selected product.");
+            }
+            return;
+        }
         List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
         boolean enabled = methods.stream().anyMatch(pm -> pm.isGuestEnabled() && matches(pm, paymentMethodType));
         if (!enabled) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This payment method is not enabled for the guest app.");
         }
-        GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
         List<String> allowedFor = paymentMethodType == GuestPaymentMethodType.CARD ? rules.allowCardFor() : rules.allowBankTransferFor();
         if (!allowedFor.contains(productType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This payment method is not allowed for the selected product.");
@@ -249,6 +312,23 @@ public class GuestOrderService {
     private boolean matches(PaymentMethod method, GuestPaymentMethodType type) {
         return (type == GuestPaymentMethodType.CARD && method.getPaymentType() == PaymentType.CARD && method.isStripeEnabled())
                 || (type == GuestPaymentMethodType.BANK_TRANSFER && method.getPaymentType() == PaymentType.BANK_TRANSFER);
+    }
+
+    private GuestOrder markOrderPaid(GuestOrder order, GuestPaymentMethodType paymentMethodType, String paypalCaptureId) {
+        order.setPaymentMethodType(paymentMethodType);
+        order.setStatus(OrderStatus.PAID);
+        order.setPaidAt(Instant.now());
+        if (paypalCaptureId != null && !paypalCaptureId.isBlank()) {
+            order.setPaypalCaptureId(paypalCaptureId);
+        }
+        order = orders.save(order);
+        SessionBooking booking = maybeCreateConfirmedBooking(order);
+        maybeCreateEntitlement(order);
+        notifications.paymentConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), "Payment confirmed", "Your payment was received successfully.");
+        if (booking != null) {
+            notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
+        }
+        return order;
     }
 
     private void maybeCreatePendingBooking(GuestOrder order) {
@@ -396,6 +476,8 @@ public class GuestOrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid identifier.");
         }
     }
+
+    public record PayPalCompletionResult(GuestOrder order, boolean completed, String message) {}
 
     private record SlotContext(Long sessionTypeId, Long consultantId, java.time.LocalDateTime startsAt, java.time.LocalDateTime endsAt) {}
 }

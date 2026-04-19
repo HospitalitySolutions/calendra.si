@@ -16,7 +16,7 @@ import { helpTooltip } from '../helpContent'
 
 type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'modules' | 'security'
 type BookingSubtab = 'tasks' | 'spaces'
-type BillingSubtab = 'settings' | 'paymentMethods' | 'fiscal' | 'folioLayout'
+type BillingSubtab = 'settings' | 'paymentMethods' | 'paypal' | 'fiscal' | 'folioLayout'
 type PersonalTaskPreset = { id: string; name: string; color: string }
 
 type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'modules' | 'security'
@@ -393,6 +393,7 @@ export function ConfigurationPage() {
   const [tab, setTab] = useState<Tab>('company')
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('spaces')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
+  const [startingPaypalOnboarding, setStartingPaypalOnboarding] = useState(false)
 
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [savingSettings, setSavingSettings] = useState(false)
@@ -460,6 +461,10 @@ export function ConfigurationPage() {
     ) {
       setTab(q)
     }
+    const billingQuery = query.get('subtab')
+    if (billingQuery === 'settings' || billingQuery === 'paymentMethods' || billingQuery === 'paypal' || billingQuery === 'fiscal' || billingQuery === 'folioLayout') {
+      setBillingSubtab(billingQuery)
+    }
   }, [query, navigate, isAdmin])
 
   useEffect(() => {
@@ -478,15 +483,23 @@ export function ConfigurationPage() {
   }
 
   const load = async () => {
-    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes, guestProductsRes, sessionTypesRes] = await Promise.all([
+    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes, guestProductsRes, sessionTypesRes, paypalConfigRes] = await Promise.all([
       api.get('/settings'),
       api.get('/spaces').catch(() => ({ data: [] })),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
       api.get('/fiscal/certificate/meta').catch(() => ({ data: { uploaded: false } })),
       api.get('/guest/admin/products').catch(() => ({ data: [] })),
       api.get('/types').catch(() => ({ data: [] })),
+      api.get('/paypal/onboarding/config').catch(() => ({ data: null })),
     ])
-    const settingsData = settingsRes.data || {}
+    const paypalData = paypalConfigRes.data || {}
+    const settingsData = {
+      ...(settingsRes.data || {}),
+      ...(paypalData.merchantId ? { PAYPAL_MERCHANT_ID: paypalData.merchantId } : {}),
+      ...(paypalData.trackingId ? { PAYPAL_TRACKING_ID: paypalData.trackingId } : {}),
+      ...(paypalData.status ? { PAYPAL_ONBOARDING_STATUS: paypalData.status } : {}),
+      PAYPAL_CREDENTIALS_CONFIGURED: paypalData.credentialsConfigured ? 'true' : 'false',
+    }
     const fallback = getWorkingHoursFallback()
     setSettings({ ...settingsData, ...((!settingsData.WORKING_HOURS_START && !settingsData.WORKING_HOURS_END) ? fallback : {}) })
     setGuestAppSettings(parseGuestAppSettings(settingsData[GUEST_APP_SETTINGS_KEY]))
@@ -502,6 +515,35 @@ export function ConfigurationPage() {
   useEffect(() => {
     if (isAdmin) void load()
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    const merchantId = query.get('merchantIdInPayPal') || query.get('merchantId') || query.get('merchant_id')
+    const trackingId = query.get('tracking_id') || query.get('trackingId')
+    if (!merchantId && !trackingId) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        await api.post('/paypal/onboarding/complete', { merchantId, trackingId })
+        if (!cancelled) {
+          await load()
+          setTab('billing')
+          setBillingSubtab('paypal')
+          showToast('success', merchantId ? 'PayPal seller connected.' : 'PayPal onboarding returned. Please review the merchant ID below and save if needed.')
+          navigate('/configuration?tab=billing&subtab=paypal', { replace: true })
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          showToast('error', err?.response?.data?.message || 'Failed to save PayPal onboarding result.')
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, query, navigate, showToast])
 
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
   const spacesModuleEnabled = settings.SPACES_ENABLED === 'true'
@@ -575,6 +617,54 @@ export function ConfigurationPage() {
       showToast('success', t('configConfigurationSaved'))
     } catch (e: any) {
       window.alert(e?.response?.data?.message || 'Failed to save configuration.')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const paypalStatusLabel = useMemo(() => {
+    const status = (settings.PAYPAL_ONBOARDING_STATUS || '').trim()
+    if (!status || status === 'NOT_CONNECTED') return 'Not connected'
+    if (status === 'ONBOARDING_LINK_CREATED') return 'Onboarding link created'
+    if (status === 'ONBOARDING_RETURNED') return 'Connected'
+    return status.replaceAll('_', ' ')
+  }, [settings.PAYPAL_ONBOARDING_STATUS])
+
+  const startPaypalOnboarding = async () => {
+    setStartingPaypalOnboarding(true)
+    try {
+      const returnUrl = `${window.location.origin}/configuration?tab=billing&subtab=paypal`
+      const { data } = await api.post('/paypal/onboarding/start', { returnUrl })
+      if (!data?.actionUrl) throw new Error('PayPal did not return an onboarding URL.')
+      setSettings((prev) => ({
+        ...prev,
+        PAYPAL_TRACKING_ID: data.trackingId || prev.PAYPAL_TRACKING_ID || '',
+        PAYPAL_ONBOARDING_STATUS: 'ONBOARDING_LINK_CREATED',
+      }))
+      window.open(data.actionUrl, '_blank', 'noopener,noreferrer')
+    } catch (err: any) {
+      showToast('error', err?.response?.data?.message || err?.message || 'Failed to start PayPal onboarding.')
+    } finally {
+      setStartingPaypalOnboarding(false)
+    }
+  }
+
+  const savePaypalConfiguration = async () => {
+    setSavingSettings(true)
+    try {
+      const { data } = await api.put('/paypal/onboarding/config', {
+        merchantId: settings.PAYPAL_MERCHANT_ID || '',
+        trackingId: settings.PAYPAL_TRACKING_ID || '',
+      })
+      setSettings((prev) => ({
+        ...prev,
+        PAYPAL_MERCHANT_ID: data?.merchantId || '',
+        PAYPAL_TRACKING_ID: data?.trackingId || '',
+        PAYPAL_ONBOARDING_STATUS: data?.status || prev.PAYPAL_ONBOARDING_STATUS || 'NOT_CONNECTED',
+      }))
+      showToast('success', 'PayPal configuration saved.')
+    } catch (err: any) {
+      showToast('error', err?.response?.data?.message || 'Failed to save PayPal configuration.')
     } finally {
       setSavingSettings(false)
     }
@@ -1197,6 +1287,9 @@ export function ConfigurationPage() {
               <button type="button" className={billingSubtab === 'paymentMethods' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('paymentMethods')}>
                 {t('configBillingPaymentMethodsTab')}
               </button>
+              <button type="button" className={billingSubtab === 'paypal' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('paypal')}>
+                PayPal
+              </button>
               <button type="button" className={billingSubtab === 'fiscal' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingSubtab('fiscal')}>
                 {t('configBillingFiscalTab')}
               </button>
@@ -1277,6 +1370,32 @@ export function ConfigurationPage() {
               </div>
             )}
           </Card>
+          ) : billingSubtab === 'paypal' ? (
+            <Card className="settings-card">
+              <SectionTitle>PayPal</SectionTitle>
+              <p className="muted">Place PayPal onboarding and the tenancy merchant ID here. This is the value the guest checkout flow uses for the selected tenancy.</p>
+              <div className="form-grid">
+                <Field label="Connection status" hint="Updated when onboarding is started or when PayPal returns to this screen.">
+                  <input value={paypalStatusLabel} readOnly />
+                </Field>
+                <Field label="Sandbox / live credentials" hint="These are backend env/secrets only. Merchant users never enter client credentials here.">
+                  <input value={settings.PAYPAL_CREDENTIALS_CONFIGURED === 'true' ? 'Configured on backend' : 'Backend credentials required'} readOnly />
+                </Field>
+                <Field label="PayPal merchant ID" hint="Saved for this tenancy after seller onboarding. Guests pay the selected tenancy's PayPal account.">
+                  <input value={settings.PAYPAL_MERCHANT_ID || ''} onChange={(e) => setSettings({ ...settings, PAYPAL_MERCHANT_ID: e.target.value })} placeholder="Example: 9ABCD12345EFG" />
+                </Field>
+                <Field label="Tracking ID" hint="Generated automatically when you click Connect PayPal. Keep it to look up onboarding later.">
+                  <input value={settings.PAYPAL_TRACKING_ID || ''} onChange={(e) => setSettings({ ...settings, PAYPAL_TRACKING_ID: e.target.value })} placeholder="Auto-generated by PayPal onboarding" />
+                </Field>
+                <div className="full-span" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  <button type="button" onClick={startPaypalOnboarding} disabled={startingPaypalOnboarding}>{startingPaypalOnboarding ? 'Opening PayPal…' : 'Connect PayPal'}</button>
+                  <button type="button" className="secondary" onClick={savePaypalConfiguration} disabled={savingSettings}>{savingSettings ? t('formSaving') : 'Save PayPal configuration'}</button>
+                </div>
+                <div className="full-span muted" style={{ marginTop: 4 }}>
+                  Clicking <strong>Connect PayPal</strong> opens PayPal seller onboarding in a new tab and returns here afterwards. If PayPal already gave you a merchant ID, you can also paste it manually and save it here.
+                </div>
+              </div>
+            </Card>
           ) : billingSubtab === 'fiscal' ? (
             <Card className="settings-card">
               <SectionTitle>{t('configFiscalTitle')}</SectionTitle>

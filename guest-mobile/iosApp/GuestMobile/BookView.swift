@@ -67,7 +67,6 @@ struct BookView: View {
             return selectedSlot == nil
         case .paymentReview:
             if isSubmitting { return true }
-            if selectedPaymentMethod == .payPal { return true }
             if selectedPaymentMethod == .card { return selectedStoredCard == nil }
             if selectedPaymentMethod == .entitlement { return matchingEntitlements.isEmpty }
             return false
@@ -573,10 +572,10 @@ struct BookView: View {
                 )
                 paymentMethodCompactCard(
                     title: "PayPal",
-                    subtitle: "Coming soon",
-                    selected: false,
-                    disabled: true,
-                    onSelect: {},
+                    subtitle: selectedPaymentMethod == .payPal ? "Approve securely in PayPal" : nil,
+                    selected: selectedPaymentMethod == .payPal,
+                    disabled: false,
+                    onSelect: { selectedPaymentMethod = .payPal },
                     trailing: nil,
                     onChevronTap: nil
                 )
@@ -704,7 +703,7 @@ struct BookView: View {
 
             if let checkoutUrl = checkout.checkoutUrl, let url = URL(string: checkoutUrl) {
                 openURL(url)
-                notice = "Payment page opened."
+                notice = selectedPaymentMethod == .payPal ? "PayPal opened." : "Payment page opened."
             } else if let bankTransfer = checkout.bankTransfer {
                 notice = bankTransfer.instructions
             } else {

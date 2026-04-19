@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.auth.GoogleSignInManager
 import si.calendra.guest.android.payments.NativeCheckoutManager
+import si.calendra.guest.android.payments.PaymentRedirectBus
 import si.calendra.guest.android.ui.screens.*
 import si.calendra.guest.shared.GuestAppContainer
 import si.calendra.guest.shared.config.GuestApiConfig
@@ -202,6 +203,26 @@ fun GuestMobileRoot() {
             snackbarHostState.showSnackbar(it)
             statusMessage = null
         }
+    }
+
+    val paymentRedirectUri by PaymentRedirectBus.latest.collectAsState()
+
+    LaunchedEffect(paymentRedirectUri) {
+        val uri = paymentRedirectUri ?: return@LaunchedEffect
+        val status = uri.getQueryParameter("status")?.lowercase() ?: uri.lastPathSegment?.lowercase()
+        val message = when (status) {
+            "success" -> "PayPal payment confirmed"
+            "cancelled", "canceled" -> "PayPal checkout canceled"
+            "error" -> uri.getQueryParameter("message") ?: "PayPal payment failed"
+            else -> null
+        }
+        if (!message.isNullOrBlank()) {
+            statusMessage = message
+        }
+        if (state.uiState.session != null) {
+            refreshAllTenants()
+        }
+        PaymentRedirectBus.consume()
     }
 
     DisposableEffect(lifecycleOwner, state.uiState.session?.token) {

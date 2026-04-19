@@ -38,5 +38,10 @@ struct ContentView: View {
         } message: {
             Text(store.errorMessage ?? "Unknown error")
         }
+        .alert("Notice", isPresented: Binding(get: { store.noticeMessage != nil }, set: { _ in store.noticeMessage = nil })) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(store.noticeMessage ?? "")
+        }
     }
 }

@@ -8,4 +8,5 @@ public interface GuestOrderRepository extends JpaRepository<GuestOrder, Long> {
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(Long guestUserId, Long companyId);
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(Long guestUserId, Long companyId, OrderStatus status);
     Optional<GuestOrder> findByIdAndGuestUserId(Long id, Long guestUserId);
+    Optional<GuestOrder> findByPaypalOrderId(String paypalOrderId);
 }
