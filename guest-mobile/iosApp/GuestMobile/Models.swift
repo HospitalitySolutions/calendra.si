@@ -40,6 +40,32 @@ struct GuestProfileModel: Codable {
     let linkedTenants: [TenantModel]
 }
 
+struct GuestLinkedCompanyOptionModel: Identifiable, Codable, Hashable {
+    let id: String
+    let name: String
+}
+
+struct GuestProfileSettingsModel: Codable {
+    let guestUser: GuestUserModel
+    let companyId: String?
+    let companyName: String?
+    let linkedCompanyId: String?
+    let linkedCompanyName: String?
+    let batchPaymentEnabled: Bool
+    let linkedCompanyOptions: [GuestLinkedCompanyOptionModel]
+}
+
+struct UpdateGuestProfileSettingsPayload: Codable {
+    let firstName: String
+    let lastName: String
+    let email: String
+    let phone: String?
+    let language: String
+    let companyId: String?
+    let linkedCompanyId: String?
+    let batchPaymentEnabled: Bool?
+}
+
 struct BookingModel: Identifiable, Codable, Hashable {
     let id: String
     let title: String

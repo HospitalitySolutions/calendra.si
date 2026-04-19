@@ -8,6 +8,8 @@ interface GuestRepository {
     suspend fun loginWithGoogle(idToken: String): GuestSession
     suspend fun loginWithApple(idToken: String): GuestSession
     suspend fun me(): GuestProfile
+    suspend fun profileSettings(companyId: String? = null): GuestProfileSettings
+    suspend fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings
     suspend fun resolveTenant(code: String): TenantLookupResponse
     suspend fun searchTenants(query: String): List<TenantSummary>
     suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse

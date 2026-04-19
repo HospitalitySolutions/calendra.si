@@ -3,6 +3,11 @@ package si.calendra.guest.shared.sample
 import si.calendra.guest.shared.models.*
 
 class PreviewDataFactory {
+    private data class TenantPreference(
+        var linkedCompanyId: String? = null,
+        var batchPaymentEnabled: Boolean = false
+    )
+
     private val tenant = TenantSummary(
         companyId = "tenant-northside",
         companyName = "Northside Fitness",
@@ -19,23 +24,73 @@ class PreviewDataFactory {
         publicPhone = "+38640111333"
     )
 
+    private val linkedCompanyCatalog = mapOf(
+        tenant.companyId to listOf(
+            LinkedCompanyOption(id = "101", name = "Northside Corporate"),
+            LinkedCompanyOption(id = "102", name = "Northside Wellness d.o.o.")
+        ),
+        yogaTenant.companyId to listOf(
+            LinkedCompanyOption(id = "201", name = "Blue River Studio"),
+            LinkedCompanyOption(id = "202", name = "Yoga Partners d.o.o.")
+        )
+    )
+
+    private var currentGuestUser = GuestUser(
+        id = "guest-1",
+        email = "ana@example.com",
+        firstName = "Ana",
+        lastName = "Novak",
+        phone = "+38640123456",
+        language = "sl"
+    )
+
+    private val tenantPreferences = mutableMapOf(
+        tenant.companyId to TenantPreference(linkedCompanyId = "101", batchPaymentEnabled = true),
+        yogaTenant.companyId to TenantPreference(linkedCompanyId = null, batchPaymentEnabled = false)
+    )
+
     fun session(): GuestSession = GuestSession(
         token = "preview-token",
-        guestUser = GuestUser(
-            id = "guest-1",
-            email = "ana@example.com",
-            firstName = "Ana",
-            lastName = "Novak",
-            phone = "+38640123456",
-            language = "sl"
-        ),
+        guestUser = currentGuestUser,
         linkedTenants = listOf(tenant, yogaTenant)
     )
 
     fun profile(): GuestProfile = GuestProfile(
-        guestUser = session().guestUser,
+        guestUser = currentGuestUser,
         linkedTenants = listOf(tenant, yogaTenant)
     )
+
+    fun profileSettings(companyId: String?): GuestProfileSettings {
+        val resolvedCompanyId = companyId?.takeIf { it.isNotBlank() } ?: tenant.companyId
+        val resolvedTenant = if (resolvedCompanyId == yogaTenant.companyId) yogaTenant else tenant
+        val preference = tenantPreferences.getOrPut(resolvedTenant.companyId) { TenantPreference() }
+        val options = linkedCompanyCatalog[resolvedTenant.companyId].orEmpty()
+        val selectedCompany = options.firstOrNull { it.id == preference.linkedCompanyId }
+        return GuestProfileSettings(
+            guestUser = currentGuestUser,
+            companyId = resolvedTenant.companyId,
+            companyName = resolvedTenant.companyName,
+            linkedCompanyId = selectedCompany?.id,
+            linkedCompanyName = selectedCompany?.name,
+            batchPaymentEnabled = preference.batchPaymentEnabled,
+            linkedCompanyOptions = options
+        )
+    }
+
+    fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings {
+        currentGuestUser = currentGuestUser.copy(
+            email = request.email,
+            firstName = request.firstName,
+            lastName = request.lastName,
+            phone = request.phone,
+            language = request.language
+        )
+        val resolvedCompanyId = request.companyId?.takeIf { it.isNotBlank() } ?: tenant.companyId
+        val preference = tenantPreferences.getOrPut(resolvedCompanyId) { TenantPreference() }
+        preference.linkedCompanyId = request.linkedCompanyId
+        request.batchPaymentEnabled?.let { preference.batchPaymentEnabled = it }
+        return profileSettings(resolvedCompanyId)
+    }
 
     fun tenantLookup(code: String): TenantLookupResponse = TenantLookupResponse(
         companyId = tenant.companyId,

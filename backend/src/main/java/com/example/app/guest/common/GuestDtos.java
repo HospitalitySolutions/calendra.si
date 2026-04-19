@@ -9,6 +9,26 @@ public final class GuestDtos {
     public record TenantSummaryResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String status) {}
     public record GuestSessionResponse(String token, GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record GuestProfileResponse(GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
+    public record LinkedCompanyOptionResponse(String id, String name) {}
+    public record GuestProfileSettingsResponse(
+            GuestUserResponse guestUser,
+            String companyId,
+            String companyName,
+            String linkedCompanyId,
+            String linkedCompanyName,
+            boolean batchPaymentEnabled,
+            List<LinkedCompanyOptionResponse> linkedCompanyOptions
+    ) {}
+    public record UpdateGuestProfileSettingsRequest(
+            String firstName,
+            String lastName,
+            String email,
+            String phone,
+            String language,
+            String companyId,
+            String linkedCompanyId,
+            Boolean batchPaymentEnabled
+    ) {}
 
     public record LoginRequest(String email, String password) {}
     public record SignupRequest(String email, String password, String firstName, String lastName, String phone, String language) {}

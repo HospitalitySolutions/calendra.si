@@ -559,6 +559,25 @@
     max-width: 44px;
 }
 
+.layout-android .calendar-android-toolbar-month {
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.layout-android .calendar-android-toolbar-spacer {
+    flex: 1;
+    min-width: 0;
+}
+
 .layout-android .calendar-android-week .calendar-android-corner-nav {
     width: 24px;
     height: 24px;

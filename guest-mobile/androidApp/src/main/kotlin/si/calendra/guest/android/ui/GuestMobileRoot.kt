@@ -494,7 +494,26 @@ fun GuestMobileRoot() {
                     onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     Box(innerModifier) {
-                        ProfileScreen(session = state.uiState.session, onLogout = ::logout)
+                        ProfileScreen(
+                            session = state.uiState.session,
+                            activeTenantId = state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId,
+                            activeTenantName = state.uiState.linkedTenants.firstOrNull { it.companyId == (state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId) }?.companyName,
+                            onLoadProfileSettings = { companyId ->
+                                val settings = repo.profileSettings(companyId)
+                                state.uiState = state.uiState.copy(
+                                    session = state.uiState.session?.copy(guestUser = settings.guestUser)
+                                )
+                                settings
+                            },
+                            onSaveProfileSettings = { request ->
+                                val settings = repo.updateProfileSettings(request)
+                                state.uiState = state.uiState.copy(
+                                    session = state.uiState.session?.copy(guestUser = settings.guestUser)
+                                )
+                                settings
+                            },
+                            onLogout = ::logout
+                        )
                     }
                 }
             }

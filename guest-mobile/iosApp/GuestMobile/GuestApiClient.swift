@@ -26,6 +26,18 @@ final class GuestApiClient {
         try await get(path: "api/guest/me")
     }
 
+    func profileSettings(companyId: String?) async throws -> GuestProfileSettingsModel {
+        var query: [URLQueryItem] = []
+        if let companyId, !companyId.isEmpty {
+            query.append(URLQueryItem(name: "companyId", value: companyId))
+        }
+        return try await get(path: "api/guest/profile/settings", query: query)
+    }
+
+    func updateProfileSettings(_ payload: UpdateGuestProfileSettingsPayload) async throws -> GuestProfileSettingsModel {
+        try await put(path: "api/guest/profile/settings", body: payload)
+    }
+
     func resolveTenant(code: String) async throws -> TenantLookupModel {
         try await post(path: "api/guest/tenants/resolve-code", body: TenantCodePayload(tenantCode: code))
     }
@@ -107,6 +119,16 @@ final class GuestApiClient {
         components.queryItems = query.isEmpty ? nil : query
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(body)
+        applyHeaders(to: &request)
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func put<T: Decodable, Body: Encodable>(path: String, body: Body) async throws -> T {
+        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        request.httpMethod = "PUT"
         request.httpBody = try JSONEncoder().encode(body)
         applyHeaders(to: &request)
         let (data, response) = try await session.data(for: request)

@@ -16,6 +16,8 @@ export type CalendarShellHeaderSlots = {
   modeGroup: ReactNode
   /** When true, header uses compact row ( Week before todo ). */
   showMobileToolbar: boolean
+  /** Month name — narrow layouts, left of the view dropdown (time-grid views). */
+  toolbarMonthLabel: ReactNode | null
   viewDropdown: ReactNode
   /** AI voice control — rendered in header after todo when bottom-strip mic is not used */
   voiceButton: ReactNode | null

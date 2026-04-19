@@ -12,6 +12,8 @@ class RemoteGuestRepository(
     override suspend fun loginWithGoogle(idToken: String): GuestSession = api.loginWithGoogle(idToken).also { GuestSessionStore.authToken = it.token }
     override suspend fun loginWithApple(idToken: String): GuestSession = api.loginWithApple(idToken).also { GuestSessionStore.authToken = it.token }
     override suspend fun me(): GuestProfile = api.me()
+    override suspend fun profileSettings(companyId: String?): GuestProfileSettings = api.profileSettings(companyId)
+    override suspend fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings = api.updateProfileSettings(request)
     override suspend fun resolveTenant(code: String): TenantLookupResponse = api.resolveTenant(code)
     override suspend fun searchTenants(query: String): List<TenantSummary> = api.searchTenants(query)
     override suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse = api.joinTenant(request)

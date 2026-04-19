@@ -2,11 +2,16 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject private var store: AppStore
-    @State private var profile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", cards: [])
+    @State private var profile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", linkedCompanyId: nil, linkedCompanyName: "", batchPaymentEnabled: false, cards: [])
+    @State private var linkedCompanyOptions: [GuestLinkedCompanyOptionModel] = []
     @State private var showingEditSheet = false
     @State private var showingAddCardSheet = false
     @State private var showLanguagePicker = false
     @State private var showStoredSheet = false
+    @State private var remoteError: String?
+    @State private var loadingRemoteSettings = false
+    @State private var savingPreference = false
+    @State private var savingProfile = false
 
     private var languageDisplay: String {
         profile.language.lowercased() == "sl" ? "Slovenščina" : "English"
@@ -14,6 +19,14 @@ struct ProfileView: View {
 
     private var storedCardsSummary: String {
         profile.cards.isEmpty ? "No saved cards" : "\(profile.cards.count) saved"
+    }
+
+    private var activeTenantId: String? {
+        store.currentTenant.id
+    }
+
+    private var activeTenantName: String? {
+        store.currentTenant.name
     }
 
     var body: some View {
@@ -36,6 +49,11 @@ struct ProfileView: View {
                                     .font(.title3.weight(.semibold))
                                 Text(profile.email)
                                     .foregroundStyle(.secondary)
+                                if let activeTenantName, !activeTenantName.isEmpty {
+                                    Text("Tenant: \(activeTenantName)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
 
@@ -43,6 +61,17 @@ struct ProfileView: View {
                             showingEditSheet = true
                         }
                         .buttonStyle(.borderedProminent)
+                        .disabled(loadingRemoteSettings || savingProfile)
+
+                        if loadingRemoteSettings {
+                            ProgressView()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if let remoteError, !remoteError.isEmpty {
+                            Text(remoteError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
                 }
 
@@ -56,6 +85,21 @@ struct ProfileView: View {
                         preferenceNavigationRow(title: "Language", value: languageDisplay, systemImage: "globe") {
                             showLanguagePicker = true
                         }
+                        Divider().opacity(0.45)
+                        preferenceToggleRow(
+                            title: "Batch payment",
+                            value: profile.batchPaymentEnabled ? "On" : "Off",
+                            subtitle: activeTenantName,
+                            systemImage: "creditcard",
+                            isOn: Binding(
+                                get: { profile.batchPaymentEnabled },
+                                set: { newValue in
+                                    Task {
+                                        await updateBatchPayment(newValue)
+                                    }
+                                }
+                            )
+                        )
                         Divider().opacity(0.45)
                         preferenceNavigationRow(title: "Stored cards", value: storedCardsSummary, systemImage: "creditcard.fill") {
                             showStoredSheet = true
@@ -93,17 +137,16 @@ struct ProfileView: View {
             .padding(.top, 18)
             .padding(.bottom, 110)
         }
-        .onAppear {
+        .task(id: activeTenantId) {
             profile = LocalProfileStore.shared.load(from: store.user)
+            await loadRemoteSettings()
         }
         .confirmationDialog("Language", isPresented: $showLanguagePicker, titleVisibility: .visible) {
             Button("English") {
-                profile.language = "en"
-                LocalProfileStore.shared.save(profile)
+                Task { await updateLanguage("en") }
             }
             Button("Slovenščina") {
-                profile.language = "sl"
-                LocalProfileStore.shared.save(profile)
+                Task { await updateLanguage("sl") }
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -137,9 +180,15 @@ struct ProfileView: View {
             }
         }
         .sheet(isPresented: $showingEditSheet) {
-            ProfileEditSheet(profile: profile) { updated in
-                profile = updated
-                LocalProfileStore.shared.save(updated)
+            ProfileEditSheet(
+                profile: profile,
+                linkedCompanyOptions: linkedCompanyOptions,
+                tenantName: activeTenantName,
+                saving: savingProfile
+            ) { updated in
+                Task {
+                    await saveProfile(updated)
+                }
             }
         }
         .sheet(isPresented: $showingAddCardSheet) {
@@ -147,6 +196,102 @@ struct ProfileView: View {
                 profile.cards.append(card)
                 LocalProfileStore.shared.save(profile)
             }
+        }
+    }
+
+    private func applyRemoteSettings(_ settings: GuestProfileSettingsModel) {
+        linkedCompanyOptions = settings.linkedCompanyOptions
+        profile.firstName = settings.guestUser.firstName
+        profile.lastName = settings.guestUser.lastName
+        profile.email = settings.guestUser.email
+        profile.phone = settings.guestUser.phone ?? ""
+        profile.language = settings.guestUser.language ?? profile.language
+        profile.linkedCompanyId = settings.linkedCompanyId
+        profile.linkedCompanyName = settings.linkedCompanyName ?? ""
+        profile.batchPaymentEnabled = settings.batchPaymentEnabled
+        LocalProfileStore.shared.save(profile)
+    }
+
+    private func loadRemoteSettings() async {
+        loadingRemoteSettings = true
+        defer { loadingRemoteSettings = false }
+        do {
+            let settings = try await store.loadProfileSettings(companyId: activeTenantId)
+            remoteError = nil
+            applyRemoteSettings(settings)
+        } catch {
+            remoteError = error.localizedDescription
+        }
+    }
+
+    private func saveProfile(_ updated: StoredGuestProfile) async {
+        savingProfile = true
+        defer { savingProfile = false }
+        do {
+            let settings = try await store.updateProfileSettings(
+                UpdateGuestProfileSettingsPayload(
+                    firstName: updated.firstName,
+                    lastName: updated.lastName,
+                    email: updated.email,
+                    phone: updated.phone.nilIfBlank,
+                    language: updated.language,
+                    companyId: activeTenantId,
+                    linkedCompanyId: updated.linkedCompanyId,
+                    batchPaymentEnabled: updated.batchPaymentEnabled
+                )
+            )
+            remoteError = nil
+            applyRemoteSettings(settings)
+            showingEditSheet = false
+        } catch {
+            remoteError = error.localizedDescription
+        }
+    }
+
+    private func updateLanguage(_ language: String) async {
+        savingPreference = true
+        defer { savingPreference = false }
+        do {
+            let settings = try await store.updateProfileSettings(
+                UpdateGuestProfileSettingsPayload(
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    email: profile.email,
+                    phone: profile.phone.nilIfBlank,
+                    language: language,
+                    companyId: activeTenantId,
+                    linkedCompanyId: profile.linkedCompanyId,
+                    batchPaymentEnabled: profile.batchPaymentEnabled
+                )
+            )
+            remoteError = nil
+            applyRemoteSettings(settings)
+            showLanguagePicker = false
+        } catch {
+            remoteError = error.localizedDescription
+        }
+    }
+
+    private func updateBatchPayment(_ enabled: Bool) async {
+        savingPreference = true
+        defer { savingPreference = false }
+        do {
+            let settings = try await store.updateProfileSettings(
+                UpdateGuestProfileSettingsPayload(
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    email: profile.email,
+                    phone: profile.phone.nilIfBlank,
+                    language: profile.language,
+                    companyId: activeTenantId,
+                    linkedCompanyId: profile.linkedCompanyId,
+                    batchPaymentEnabled: enabled
+                )
+            )
+            remoteError = nil
+            applyRemoteSettings(settings)
+        } catch {
+            remoteError = error.localizedDescription
         }
     }
 
@@ -174,6 +319,33 @@ struct ProfileView: View {
         .buttonStyle(.plain)
     }
 
+    private func preferenceToggleRow(title: String, value: String, subtitle: String?, systemImage: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 22, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Text(value)
+                .foregroundStyle(.secondary)
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .disabled(activeTenantId == nil || savingPreference)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 // MARK: - Stored card display (brand mark to the right of last4)
@@ -287,29 +459,56 @@ private struct CardBrandMark: View {
 private struct ProfileEditSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State var profile: StoredGuestProfile
+    let linkedCompanyOptions: [GuestLinkedCompanyOptionModel]
+    let tenantName: String?
+    let saving: Bool
     let onSave: (StoredGuestProfile) -> Void
 
     var body: some View {
         NavigationStack {
             Form {
+                if let tenantName, !tenantName.isEmpty {
+                    Section {
+                        Text("Linked company applies to \(tenantName).")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 TextField("First name", text: $profile.firstName)
+                    .disabled(saving)
                 TextField("Last name", text: $profile.lastName)
+                    .disabled(saving)
                 TextField("Email", text: $profile.email)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
+                    .disabled(saving)
                 TextField("Phone", text: $profile.phone)
                     .keyboardType(.phonePad)
+                    .disabled(saving)
+                Picker("Linked company", selection: Binding(
+                    get: { profile.linkedCompanyId ?? "" },
+                    set: { newValue in
+                        profile.linkedCompanyId = newValue.isEmpty ? nil : newValue
+                        profile.linkedCompanyName = linkedCompanyOptions.first(where: { $0.id == profile.linkedCompanyId })?.name ?? ""
+                    }
+                )) {
+                    Text("No linked company").tag("")
+                    ForEach(linkedCompanyOptions) { option in
+                        Text(option.name).tag(option.id)
+                    }
+                }
+                .disabled(saving)
             }
             .navigationTitle("Edit personal data")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .disabled(saving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(saving ? "Saving…" : "Save") {
                         onSave(profile)
-                        dismiss()
                     }
+                    .disabled(saving)
                 }
             }
         }

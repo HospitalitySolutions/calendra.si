@@ -101,8 +101,13 @@ public class GuestProductAdminController {
         if (bookable && sessionType == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bookable products must be linked to a service type.");
         }
+        if (productType == ProductType.CLASS_TICKET && sessionType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class tickets must be linked to a service type.");
+        }
 
-        Integer usageLimit = normalizePositiveInteger(request.usageLimit(), "Usage limit");
+        Integer usageLimit = productType == ProductType.CLASS_TICKET
+                ? 1
+                : normalizePositiveInteger(request.usageLimit(), "Usage limit");
         Integer validityDays = normalizePositiveInteger(request.validityDays(), "Validity days");
         boolean autoRenews = productType == ProductType.MEMBERSHIP && Boolean.TRUE.equals(request.autoRenews());
 

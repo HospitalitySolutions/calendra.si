@@ -1035,6 +1035,7 @@ function ShellInner({ children }: PropsWithChildren) {
             <>
               <div className="app-header-calendar-left">
                 {mobileNavTrigger}
+                {calendarShellSlots.toolbarMonthLabel}
                 <div className="app-header-brand app-header-brand--calendar" title={headerBrandLabel}>
                   {headerBrandLabel}
                 </div>

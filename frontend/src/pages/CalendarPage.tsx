@@ -850,6 +850,12 @@ export default function CalendarPage() {
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   const calendarDateNavArrowsInRail = useCalendarDateNavArrowsInRail()
   const calendarMobileHeaderNav = useCalendarMobileHeaderNav()
+  const calendarToolbarMonthLabel = useMemo(() => {
+    const api = calendarRef.current?.getApi()
+    const d = api?.getDate()
+    if (!d) return ''
+    return d.toLocaleDateString(calendarLocaleTag, { month: 'long' })
+  }, [visibleRange, view, calendarLocaleTag])
   const useBookingSidePanel = isNativeAndroid || calendarFiltersBottomBar
   /** Same breakpoint as bottom filters (~939px): × + check header, no title/help; wide = PageHeader + footer CTAs. */
   const compactSelectionHeader = calendarFiltersBottomBar
@@ -1634,58 +1640,61 @@ export default function CalendarPage() {
     [calendarMode, spaceFilterId, consultantFilterId, settings.SPACES_ENABLED, user.role],
   )
 
-  const renderAndroidCornerViewToggle = useCallback((viewType?: string) => {
-    if (!isNativeAndroid) return
-    const root = calendarAndroidWeekRef.current
-    const api = calendarRef.current?.getApi()
-    if (!root || !api) return
-    root.querySelectorAll('.calendar-android-corner-nav').forEach((n) => n.remove())
-    if (viewType !== 'timeGridDay' && viewType !== 'timeGridWeek' && viewType !== 'timeGridThreeDay') return
-    const axisHeader = root.querySelector('.fc .fc-timegrid .fc-col-header tr th.fc-timegrid-axis')
-    if (!axisHeader) return
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = 'calendar-android-corner-nav'
-    btn.dataset.view = viewType === 'timeGridDay' ? 'week' : 'month'
-    btn.title = viewType === 'timeGridDay' ? 'Week view' : 'Month view'
-    btn.setAttribute('aria-label', btn.title)
-    const svgNs = 'http://www.w3.org/2000/svg'
-    const svg = document.createElementNS(svgNs, 'svg')
-    svg.setAttribute('width', '14')
-    svg.setAttribute('height', '14')
-    svg.setAttribute('viewBox', '0 0 24 24')
-    svg.setAttribute('fill', 'none')
-    svg.setAttribute('stroke', 'currentColor')
-    svg.setAttribute('stroke-width', '2')
-    svg.setAttribute('stroke-linecap', 'round')
-    svg.setAttribute('stroke-linejoin', 'round')
-    svg.setAttribute('aria-hidden', 'true')
-    const rect = document.createElementNS(svgNs, 'rect')
-    rect.setAttribute('x', '3')
-    rect.setAttribute('y', '4')
-    rect.setAttribute('width', '18')
-    rect.setAttribute('height', '18')
-    rect.setAttribute('rx', '2')
-    svg.appendChild(rect)
-    const topLine = document.createElementNS(svgNs, 'path')
-    topLine.setAttribute('d', 'M3 10h18')
-    svg.appendChild(topLine)
-    const detail = document.createElementNS(svgNs, 'path')
-    detail.setAttribute(
-      'd',
-      viewType === 'timeGridDay'
-        ? 'M8 2v4M16 2v4M7.5 15.5l2-3.5 2 3.5 2-3.5 2 3.5'
-        : 'M8 14h3M13 14h3M8 18h3M13 18h3M8 2v4M16 2v4',
-    )
-    svg.appendChild(detail)
-    btn.appendChild(svg)
-    btn.addEventListener('click', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      api.changeView(viewType === 'timeGridDay' ? 'timeGridWeek' : 'dayGridMonth')
-    })
-    axisHeader.appendChild(btn)
-  }, [])
+  const renderAndroidCornerViewToggle = useCallback(
+    (viewType?: string) => {
+      if (!isNativeAndroid) return
+      const root = calendarAndroidWeekRef.current
+      const api = calendarRef.current?.getApi()
+      if (!root || !api) return
+      root.querySelectorAll('.calendar-android-corner-nav').forEach((n) => n.remove())
+      if (viewType !== 'timeGridDay' && viewType !== 'timeGridWeek' && viewType !== 'timeGridThreeDay') return
+      const axisHeader = root.querySelector('.fc .fc-timegrid .fc-col-header tr th.fc-timegrid-axis')
+      if (!axisHeader) return
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'calendar-android-corner-nav'
+      btn.dataset.view = viewType === 'timeGridDay' ? 'week' : 'month'
+      btn.title = viewType === 'timeGridDay' ? 'Week view' : 'Month view'
+      btn.setAttribute('aria-label', btn.title)
+      const svgNs = 'http://www.w3.org/2000/svg'
+      const svg = document.createElementNS(svgNs, 'svg')
+      svg.setAttribute('width', '14')
+      svg.setAttribute('height', '14')
+      svg.setAttribute('viewBox', '0 0 24 24')
+      svg.setAttribute('fill', 'none')
+      svg.setAttribute('stroke', 'currentColor')
+      svg.setAttribute('stroke-width', '2')
+      svg.setAttribute('stroke-linecap', 'round')
+      svg.setAttribute('stroke-linejoin', 'round')
+      svg.setAttribute('aria-hidden', 'true')
+      const rect = document.createElementNS(svgNs, 'rect')
+      rect.setAttribute('x', '3')
+      rect.setAttribute('y', '4')
+      rect.setAttribute('width', '18')
+      rect.setAttribute('height', '18')
+      rect.setAttribute('rx', '2')
+      svg.appendChild(rect)
+      const topLine = document.createElementNS(svgNs, 'path')
+      topLine.setAttribute('d', 'M3 10h18')
+      svg.appendChild(topLine)
+      const detail = document.createElementNS(svgNs, 'path')
+      detail.setAttribute(
+        'd',
+        viewType === 'timeGridDay'
+          ? 'M8 2v4M16 2v4M7.5 15.5l2-3.5 2 3.5 2-3.5 2 3.5'
+          : 'M8 14h3M13 14h3M8 18h3M13 18h3M8 2v4M16 2v4',
+      )
+      svg.appendChild(detail)
+      btn.appendChild(svg)
+      btn.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        api.changeView(viewType === 'timeGridDay' ? 'timeGridWeek' : 'dayGridMonth')
+      })
+      axisHeader.appendChild(btn)
+    },
+    [isNativeAndroid],
+  )
 
   const applySettingsAndMeta = (
     s: { data?: Record<string, string> },
@@ -5043,6 +5052,13 @@ export default function CalendarPage() {
         </svg>
       </button>
     ) : null
+    const showWebToolbarMonthChip =
+      (calendarFiltersBottomBar || calendarMobileHeaderNav) && isWebTimeGridLikeView(view)
+    const toolbarMonthLabel = showWebToolbarMonthChip ? (
+      <span className="calendar-toolbar-month-chip" aria-hidden="true">
+        {calendarToolbarMonthLabel}
+      </span>
+    ) : null
     return {
       /* Narrow calendar: arrows removed — prev/next remains via rail (wider) or swipe; controls stay in header right */
       left: calendarMobileHeaderNav ? null : calendarHeaderCompact ? dateNav : null,
@@ -5050,6 +5066,7 @@ export default function CalendarPage() {
       filters: !calendarFiltersBottomBar ? shellCalendarFilters : null,
       modeGroup: modeGroupEl,
       showMobileToolbar: calendarMobileHeaderNav,
+      toolbarMonthLabel,
       viewDropdown,
       voiceButton,
     }
@@ -5060,6 +5077,7 @@ export default function CalendarPage() {
     calendarDateNavArrowsInRail,
     calendarMobileHeaderNav,
     calendarSpacesFeatureActive,
+    calendarToolbarMonthLabel,
     calendarToolbarTitle,
     shellCalendarFilters,
     calendarMode,
@@ -6845,12 +6863,15 @@ export default function CalendarPage() {
   }, [events])
 
   const bottomPillLabel = useMemo(() => {
-    const dateLabel = new Date().toLocaleDateString(calendarLocaleTag, { day: 'numeric', month: 'short' })
+    const useTodayWord = calendarFiltersBottomBar || isNativeAndroid
+    const dateLabel = useTodayWord
+      ? t('calendarToday')
+      : new Date().toLocaleDateString(calendarLocaleTag, { day: 'numeric', month: 'short' })
     const count = todayRemainingSessions.length
     const sessionsWord =
       locale === 'sl' ? slovenianTerminCountForm(count) : count === 1 ? 'session' : 'sessions'
     return `${dateLabel} · ${count} ${sessionsWord}`
-  }, [calendarLocaleTag, locale, todayRemainingSessions.length])
+  }, [calendarFiltersBottomBar, calendarLocaleTag, isNativeAndroid, locale, t, todayRemainingSessions.length])
 
   const openSessionsSheet = useCallback(() => {
     setSessionsSheetDragOffset(0)
@@ -7097,8 +7118,18 @@ export default function CalendarPage() {
             onTouchStart={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
           >
-            <div className="calendar-android-toolbar-leading" />
-            <div className="calendar-android-toolbar-title">{calendarToolbarTitle}</div>
+            <div className="calendar-android-toolbar-leading">
+              {isWebTimeGridLikeView(view) ? (
+                <span className="calendar-android-toolbar-month" aria-hidden="true">
+                  {calendarToolbarMonthLabel}
+                </span>
+              ) : null}
+            </div>
+            {isWebTimeGridLikeView(view) ? (
+              <div className="calendar-android-toolbar-spacer" aria-hidden="true" />
+            ) : (
+              <div className="calendar-android-toolbar-title">{calendarToolbarTitle}</div>
+            )}
             <div className="fc-button-group calendar-android-view-toggle" ref={androidScheduleRef} style={{ position: 'relative' }}>
               {todosModuleEnabled && (
               <button
@@ -7414,10 +7445,13 @@ export default function CalendarPage() {
                   const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
                   setAndroidMonthFirstDay(first.getDay())
                 }
+                const vtAndroid = arg.view.type
                 setCalendarToolbarTitle(
-                  anchor.toLocaleDateString(calendarLocaleTag, { month: 'long', year: 'numeric' }),
+                  isWebTimeGridLikeView(vtAndroid)
+                    ? ''
+                    : anchor.toLocaleDateString(calendarLocaleTag, { month: 'long', year: 'numeric' }),
                 )
-                renderAndroidCornerViewToggle(arg.view.type)
+                renderAndroidCornerViewToggle(vtAndroid)
                 api?.updateSize()
               })
             } else {

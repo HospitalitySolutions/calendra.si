@@ -269,6 +269,17 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   sessionTypeId: '',
 })
 
+const normalizeGuestProductFormForType = (
+  current: GuestProductFormState,
+  nextProductType: GuestAdminProductType,
+): GuestProductFormState => ({
+  ...current,
+  productType: nextProductType,
+  usageLimit: nextProductType === 'CLASS_TICKET' ? '1' : current.usageLimit,
+  sessionTypeId: nextProductType === 'CLASS_TICKET' ? current.sessionTypeId : current.sessionTypeId,
+  autoRenews: nextProductType === 'MEMBERSHIP' ? current.autoRenews : false,
+})
+
 const parsePositiveIntegerInput = (value: string): number | null => {
   const trimmed = value.trim()
   if (!trimmed) return null
@@ -484,6 +495,8 @@ export function ConfigurationPage() {
     setSpaces(spacesRes.data || [])
     setPaymentMethods((paymentMethodsRes.data || []).map((p: PaymentMethod) => normalizePaymentMethod(p)!))
     setCertificateMeta(certificateMetaRes.data || { uploaded: false })
+    setGuestProducts(guestProductsRes.data || [])
+    setGuestSessionTypes(sessionTypesRes.data || [])
   }
 
   useEffect(() => {
@@ -694,7 +707,7 @@ export function ConfigurationPage() {
 
   const openEditGuestProductModal = (product: GuestAdminProduct) => {
     setEditingGuestProductId(product.id)
-    setGuestProductForm({
+    setGuestProductForm(normalizeGuestProductFormForType({
       name: product.name,
       description: product.description || '',
       productType: product.productType,
@@ -708,13 +721,14 @@ export function ConfigurationPage() {
       autoRenews: product.autoRenews,
       sortOrder: String(product.sortOrder ?? 0),
       sessionTypeId: product.sessionTypeId == null ? '' : String(product.sessionTypeId),
-    })
+    }, product.productType))
     setShowGuestProductModal(true)
   }
 
   const submitGuestProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isAdmin) return
+    const isClassTicket = guestProductForm.productType === 'CLASS_TICKET'
     const payload = {
       name: guestProductForm.name.trim(),
       description: guestProductForm.description.trim(),
@@ -724,7 +738,7 @@ export function ConfigurationPage() {
       active: guestProductForm.active,
       guestVisible: guestProductForm.guestVisible,
       bookable: guestProductForm.bookable,
-      usageLimit: parsePositiveIntegerInput(guestProductForm.usageLimit),
+      usageLimit: isClassTicket ? 1 : parsePositiveIntegerInput(guestProductForm.usageLimit),
       validityDays: parsePositiveIntegerInput(guestProductForm.validityDays),
       autoRenews: guestProductForm.productType === 'MEMBERSHIP' ? guestProductForm.autoRenews : false,
       sortOrder: Number.parseInt(guestProductForm.sortOrder || '0', 10) || 0,
@@ -1631,7 +1645,7 @@ export function ConfigurationPage() {
                     <input required value={guestProductForm.name} onChange={(e) => setGuestProductForm({ ...guestProductForm, name: e.target.value })} />
                   </Field>
                   <Field label="Card type">
-                    <select value={guestProductForm.productType} onChange={(e) => setGuestProductForm({ ...guestProductForm, productType: e.target.value as GuestAdminProductType, autoRenews: e.target.value === 'MEMBERSHIP' ? guestProductForm.autoRenews : false })}>
+                    <select value={guestProductForm.productType} onChange={(e) => setGuestProductForm((current) => normalizeGuestProductFormForType(current, e.target.value as GuestAdminProductType))}>
                       {ADMIN_GUEST_PRODUCT_TYPES.map((productType) => (
                         <option key={productType} value={productType}>{productTypeLabel(productType)}</option>
                       ))}
@@ -1643,9 +1657,18 @@ export function ConfigurationPage() {
                   <Field label="Currency">
                     <input maxLength={3} value={guestProductForm.currency} onChange={(e) => setGuestProductForm({ ...guestProductForm, currency: e.target.value.toUpperCase() })} />
                   </Field>
-                  <Field label="Service type" hint="Optional. When selected, this card can only be used for that service type.">
-                    <select value={guestProductForm.sessionTypeId} onChange={(e) => setGuestProductForm({ ...guestProductForm, sessionTypeId: e.target.value })}>
-                      <option value="">Any service type</option>
+                  <Field
+                    label="Service type"
+                    hint={guestProductForm.productType === 'CLASS_TICKET'
+                      ? 'Required for class tickets.'
+                      : 'Optional. When selected, this card can only be used for that service type.'}
+                  >
+                    <select
+                      required={guestProductForm.productType === 'CLASS_TICKET'}
+                      value={guestProductForm.sessionTypeId}
+                      onChange={(e) => setGuestProductForm({ ...guestProductForm, sessionTypeId: e.target.value })}
+                    >
+                      {guestProductForm.productType !== 'CLASS_TICKET' && <option value="">Any service type</option>}
                       {guestSessionTypes.map((sessionType) => (
                         <option key={sessionType.id} value={sessionType.id}>{sessionType.name}</option>
                       ))}
@@ -1657,9 +1680,11 @@ export function ConfigurationPage() {
                   <Field label="Validity (days)" hint="Leave empty for no expiry.">
                     <input type="number" min="1" step="1" value={guestProductForm.validityDays} onChange={(e) => setGuestProductForm({ ...guestProductForm, validityDays: e.target.value })} />
                   </Field>
-                  <Field label="Usage limit" hint="Leave empty for unlimited usage.">
-                    <input type="number" min="1" step="1" value={guestProductForm.usageLimit} onChange={(e) => setGuestProductForm({ ...guestProductForm, usageLimit: e.target.value })} />
-                  </Field>
+                  {guestProductForm.productType !== 'CLASS_TICKET' && (
+                    <Field label="Usage limit" hint="Leave empty for unlimited usage.">
+                      <input type="number" min="1" step="1" value={guestProductForm.usageLimit} onChange={(e) => setGuestProductForm({ ...guestProductForm, usageLimit: e.target.value })} />
+                    </Field>
+                  )}
                   <Field label="Description" hint="Shown in the guest mobile wallet buy screen.">
                     <textarea rows={4} value={guestProductForm.description} onChange={(e) => setGuestProductForm({ ...guestProductForm, description: e.target.value })} />
                   </Field>
@@ -1681,12 +1706,14 @@ export function ConfigurationPage() {
                       <button type="button" className={guestProductForm.bookable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, bookable: true })}>ON</button>
                     </div>
                   </Field>
-                  <Field label="Auto-renew" hint="Available for memberships. Guests can later change this in their wallet.">
-                    <div className="online-live-toggle" style={{ maxWidth: 200 }}>
-                      <button type="button" className={!guestProductForm.autoRenews ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, autoRenews: false })} disabled={guestProductForm.productType !== 'MEMBERSHIP'}>OFF</button>
-                      <button type="button" className={guestProductForm.autoRenews ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, autoRenews: true })} disabled={guestProductForm.productType !== 'MEMBERSHIP'}>ON</button>
-                    </div>
-                  </Field>
+                  {guestProductForm.productType === 'MEMBERSHIP' && (
+                    <Field label="Auto-renew" hint="Available for memberships. Guests can later change this in their wallet.">
+                      <div className="online-live-toggle" style={{ maxWidth: 200 }}>
+                        <button type="button" className={!guestProductForm.autoRenews ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, autoRenews: false })}>OFF</button>
+                        <button type="button" className={guestProductForm.autoRenews ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, autoRenews: true })}>ON</button>
+                      </div>
+                    </Field>
+                  )}
                   <div className="form-actions full-span booking-side-panel-footer">
                     <button type="submit" disabled={savingGuestProduct}>{savingGuestProduct ? 'Saving…' : (editingGuestProductId ? 'Save changes' : 'Create card')}</button>
                     <button type="button" className="secondary" disabled={savingGuestProduct} onClick={() => { setShowGuestProductModal(false); setEditingGuestProductId(null) }}>Cancel</button>

@@ -11,6 +11,8 @@ class PreviewGuestRepository : GuestRepository {
     override suspend fun loginWithGoogle(idToken: String): GuestSession = preview.session()
     override suspend fun loginWithApple(idToken: String): GuestSession = preview.session()
     override suspend fun me(): GuestProfile = preview.profile()
+    override suspend fun profileSettings(companyId: String?): GuestProfileSettings = preview.profileSettings(companyId)
+    override suspend fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings = preview.updateProfileSettings(request)
     override suspend fun resolveTenant(code: String): TenantLookupResponse = preview.tenantLookup(code)
     override suspend fun searchTenants(query: String): List<TenantSummary> = preview.searchTenants(query)
     override suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse = preview.joinTenant(request)

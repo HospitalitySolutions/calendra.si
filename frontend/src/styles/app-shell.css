@@ -441,6 +441,20 @@
     overflow: visible;
 }
 
+.app-header--calendar .app-header-calendar-left .calendar-toolbar-month-chip {
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .app-header-calendar-right .calendar-view-dropdown-wrap {
     flex-shrink: 1;
     min-width: 0;

@@ -5,6 +5,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -58,6 +59,18 @@ class RemoteGuestApi(
     suspend fun me(): GuestProfile =
         parse(client.get("${config.baseUrl}/api/guest/me") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+        })
+
+    suspend fun profileSettings(companyId: String? = null): GuestProfileSettings =
+        parse(client.get("${config.baseUrl}/api/guest/profile/settings") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            companyId?.takeIf { it.isNotBlank() }?.let { parameter("companyId", it) }
+        })
+
+    suspend fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings =
+        parse(client.put("${config.baseUrl}/api/guest/profile/settings") {
+            jsonRequest()
+            setBody(request)
         })
 
     suspend fun loginWithGoogle(idToken: String): GuestSession =

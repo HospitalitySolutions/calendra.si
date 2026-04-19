@@ -230,6 +230,28 @@ final class AppStore: ObservableObject {
         return response
     }
 
+    func loadProfileSettings(companyId: String?) async throws -> GuestProfileSettingsModel {
+        let settings: GuestProfileSettingsModel
+        if usePreviewData {
+            settings = preview.profileSettings(companyId: companyId)
+        } else {
+            settings = try await api.profileSettings(companyId: companyId)
+        }
+        user = settings.guestUser
+        return settings
+    }
+
+    func updateProfileSettings(_ payload: UpdateGuestProfileSettingsPayload) async throws -> GuestProfileSettingsModel {
+        let settings: GuestProfileSettingsModel
+        if usePreviewData {
+            settings = preview.updateProfileSettings(payload)
+        } else {
+            settings = try await api.updateProfileSettings(payload)
+        }
+        user = settings.guestUser
+        return settings
+    }
+
     func toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Bool) async throws {
         guard !usePreviewData else { return }
         _ = try await api.toggleAutoRenew(companyId: companyId, entitlementId: entitlementId, autoRenews: autoRenews)

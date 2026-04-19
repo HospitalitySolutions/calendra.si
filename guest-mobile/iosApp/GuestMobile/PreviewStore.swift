@@ -16,6 +16,53 @@ final class PreviewStore: ObservableObject {
         TenantModel(id: "tenant-yoga", name: "Blue River Yoga", description: "Studio classes and private sessions", city: "Celje", phone: "+38640111333", status: "ACTIVE", companyAddress: nil)
     ]
 
+    private var linkedCompanyCatalog: [String: [GuestLinkedCompanyOptionModel]] = [
+        "tenant-northside": [
+            GuestLinkedCompanyOptionModel(id: "101", name: "Northside Corporate"),
+            GuestLinkedCompanyOptionModel(id: "102", name: "Northside Wellness d.o.o.")
+        ],
+        "tenant-yoga": [
+            GuestLinkedCompanyOptionModel(id: "201", name: "Blue River Studio"),
+            GuestLinkedCompanyOptionModel(id: "202", name: "Yoga Partners d.o.o.")
+        ]
+    ]
+
+    private var tenantProfilePreferences: [String: (linkedCompanyId: String?, batchPaymentEnabled: Bool)] = [
+        "tenant-northside": (linkedCompanyId: "101", batchPaymentEnabled: true),
+        "tenant-yoga": (linkedCompanyId: nil, batchPaymentEnabled: false)
+    ]
+
+    func profileSettings(companyId: String?) -> GuestProfileSettingsModel {
+        let resolvedCompanyId = companyId ?? linkedTenants.first?.id
+        let tenant = linkedTenants.first(where: { $0.id == resolvedCompanyId }) ?? linkedTenants.first
+        let options = linkedCompanyCatalog[tenant?.id ?? ""] ?? []
+        let preference = tenantProfilePreferences[tenant?.id ?? ""] ?? (linkedCompanyId: nil, batchPaymentEnabled: false)
+        let selectedCompany = options.first(where: { $0.id == preference.linkedCompanyId })
+        return GuestProfileSettingsModel(
+            guestUser: user,
+            companyId: tenant?.id,
+            companyName: tenant?.name,
+            linkedCompanyId: selectedCompany?.id,
+            linkedCompanyName: selectedCompany?.name,
+            batchPaymentEnabled: preference.batchPaymentEnabled,
+            linkedCompanyOptions: options
+        )
+    }
+
+    func updateProfileSettings(_ payload: UpdateGuestProfileSettingsPayload) -> GuestProfileSettingsModel {
+        user = GuestUserModel(
+            id: user.id,
+            email: payload.email,
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            phone: payload.phone,
+            language: payload.language
+        )
+        let companyId = payload.companyId ?? linkedTenants.first?.id ?? "tenant-northside"
+        tenantProfilePreferences[companyId] = (linkedCompanyId: payload.linkedCompanyId, batchPaymentEnabled: payload.batchPaymentEnabled ?? false)
+        return profileSettings(companyId: companyId)
+    }
+
     func dashboard(for companyId: String) -> TenantDashboardModel {
         let tenant = linkedTenants.first(where: { $0.id == companyId }) ?? linkedTenants[0]
         if companyId == "tenant-yoga" {
