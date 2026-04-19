@@ -2,8 +2,7 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject private var store: AppStore
-    @State private var profile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", linkedCompanyId: nil, linkedCompanyName: "", batchPaymentEnabled: false, cards: [])
-    @State private var linkedCompanyOptions: [GuestLinkedCompanyOptionModel] = []
+    @State private var profile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", cards: [])
     @State private var showingEditSheet = false
     @State private var showingAddCardSheet = false
     @State private var showLanguagePicker = false
@@ -86,21 +85,6 @@ struct ProfileView: View {
                             showLanguagePicker = true
                         }
                         Divider().opacity(0.45)
-                        preferenceToggleRow(
-                            title: "Batch payment",
-                            value: profile.batchPaymentEnabled ? "On" : "Off",
-                            subtitle: activeTenantName,
-                            systemImage: "creditcard",
-                            isOn: Binding(
-                                get: { profile.batchPaymentEnabled },
-                                set: { newValue in
-                                    Task {
-                                        await updateBatchPayment(newValue)
-                                    }
-                                }
-                            )
-                        )
-                        Divider().opacity(0.45)
                         preferenceNavigationRow(title: "Stored cards", value: storedCardsSummary, systemImage: "creditcard.fill") {
                             showStoredSheet = true
                         }
@@ -182,8 +166,6 @@ struct ProfileView: View {
         .sheet(isPresented: $showingEditSheet) {
             ProfileEditSheet(
                 profile: profile,
-                linkedCompanyOptions: linkedCompanyOptions,
-                tenantName: activeTenantName,
                 saving: savingProfile
             ) { updated in
                 Task {
@@ -200,15 +182,11 @@ struct ProfileView: View {
     }
 
     private func applyRemoteSettings(_ settings: GuestProfileSettingsModel) {
-        linkedCompanyOptions = settings.linkedCompanyOptions
         profile.firstName = settings.guestUser.firstName
         profile.lastName = settings.guestUser.lastName
         profile.email = settings.guestUser.email
         profile.phone = settings.guestUser.phone ?? ""
         profile.language = settings.guestUser.language ?? profile.language
-        profile.linkedCompanyId = settings.linkedCompanyId
-        profile.linkedCompanyName = settings.linkedCompanyName ?? ""
-        profile.batchPaymentEnabled = settings.batchPaymentEnabled
         LocalProfileStore.shared.save(profile)
     }
 
@@ -236,8 +214,8 @@ struct ProfileView: View {
                     phone: updated.phone.nilIfBlank,
                     language: updated.language,
                     companyId: activeTenantId,
-                    linkedCompanyId: updated.linkedCompanyId,
-                    batchPaymentEnabled: updated.batchPaymentEnabled
+                    linkedCompanyId: nil,
+                    batchPaymentEnabled: nil
                 )
             )
             remoteError = nil
@@ -260,36 +238,13 @@ struct ProfileView: View {
                     phone: profile.phone.nilIfBlank,
                     language: language,
                     companyId: activeTenantId,
-                    linkedCompanyId: profile.linkedCompanyId,
-                    batchPaymentEnabled: profile.batchPaymentEnabled
+                    linkedCompanyId: nil,
+                    batchPaymentEnabled: nil
                 )
             )
             remoteError = nil
             applyRemoteSettings(settings)
             showLanguagePicker = false
-        } catch {
-            remoteError = error.localizedDescription
-        }
-    }
-
-    private func updateBatchPayment(_ enabled: Bool) async {
-        savingPreference = true
-        defer { savingPreference = false }
-        do {
-            let settings = try await store.updateProfileSettings(
-                UpdateGuestProfileSettingsPayload(
-                    firstName: profile.firstName,
-                    lastName: profile.lastName,
-                    email: profile.email,
-                    phone: profile.phone.nilIfBlank,
-                    language: profile.language,
-                    companyId: activeTenantId,
-                    linkedCompanyId: profile.linkedCompanyId,
-                    batchPaymentEnabled: enabled
-                )
-            )
-            remoteError = nil
-            applyRemoteSettings(settings)
         } catch {
             remoteError = error.localizedDescription
         }
@@ -319,33 +274,6 @@ struct ProfileView: View {
         .buttonStyle(.plain)
     }
 
-    private func preferenceToggleRow(title: String, value: String, subtitle: String?, systemImage: String, isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .frame(width: 22, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            Text(value)
-                .foregroundStyle(.secondary)
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .disabled(activeTenantId == nil || savingPreference)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
 }
 
 // MARK: - Stored card display (brand mark to the right of last4)
@@ -459,20 +387,12 @@ private struct CardBrandMark: View {
 private struct ProfileEditSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State var profile: StoredGuestProfile
-    let linkedCompanyOptions: [GuestLinkedCompanyOptionModel]
-    let tenantName: String?
     let saving: Bool
     let onSave: (StoredGuestProfile) -> Void
 
     var body: some View {
         NavigationStack {
             Form {
-                if let tenantName, !tenantName.isEmpty {
-                    Section {
-                        Text("Linked company applies to \(tenantName).")
-                            .foregroundStyle(.secondary)
-                    }
-                }
                 TextField("First name", text: $profile.firstName)
                     .disabled(saving)
                 TextField("Last name", text: $profile.lastName)
@@ -484,19 +404,6 @@ private struct ProfileEditSheet: View {
                 TextField("Phone", text: $profile.phone)
                     .keyboardType(.phonePad)
                     .disabled(saving)
-                Picker("Linked company", selection: Binding(
-                    get: { profile.linkedCompanyId ?? "" },
-                    set: { newValue in
-                        profile.linkedCompanyId = newValue.isEmpty ? nil : newValue
-                        profile.linkedCompanyName = linkedCompanyOptions.first(where: { $0.id == profile.linkedCompanyId })?.name ?? ""
-                    }
-                )) {
-                    Text("No linked company").tag("")
-                    ForEach(linkedCompanyOptions) { option in
-                        Text(option.name).tag(option.id)
-                    }
-                }
-                .disabled(saving)
             }
             .navigationTitle("Edit personal data")
             .toolbar {

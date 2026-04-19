@@ -18,7 +18,7 @@ struct BookView: View {
     @State private var isLoadingSlots = false
     @State private var isSubmitting = false
     @State private var notice: String?
-    @State private var storedProfile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", linkedCompanyId: nil, linkedCompanyName: "", batchPaymentEnabled: false, cards: [])
+    @State private var storedProfile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", cards: [])
     @State private var selectedStoredCard: String?
     @State private var showingStoredCardSheet = false
     @State private var showingAddCardSheet = false

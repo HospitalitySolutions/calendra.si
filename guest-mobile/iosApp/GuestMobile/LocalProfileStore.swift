@@ -6,9 +6,6 @@ struct StoredGuestProfile {
     var email: String
     var phone: String
     var language: String
-    var linkedCompanyId: String?
-    var linkedCompanyName: String
-    var batchPaymentEnabled: Bool
     var cards: [String]
 }
 
@@ -25,9 +22,6 @@ final class LocalProfileStore {
             email: decode("guest_profile_email") ?? user.email,
             phone: decode("guest_profile_phone") ?? (user.phone ?? ""),
             language: decode("guest_profile_language") ?? (user.language ?? "en"),
-            linkedCompanyId: decode("guest_profile_linkedCompanyId"),
-            linkedCompanyName: decode("guest_profile_linkedCompanyName") ?? "",
-            batchPaymentEnabled: Bool(decode("guest_profile_batchPaymentEnabled") ?? "") ?? false,
             cards: decode("guest_profile_cards")?.components(separatedBy: "||").filter { !$0.isEmpty } ?? []
         )
     }
@@ -38,9 +32,6 @@ final class LocalProfileStore {
         defaults.set(encode(profile.email), forKey: "guest_profile_email")
         defaults.set(encode(profile.phone), forKey: "guest_profile_phone")
         defaults.set(encode(profile.language), forKey: "guest_profile_language")
-        defaults.set(profile.linkedCompanyId.map(encode), forKey: "guest_profile_linkedCompanyId")
-        defaults.set(encode(profile.linkedCompanyName), forKey: "guest_profile_linkedCompanyName")
-        defaults.set(encode(String(profile.batchPaymentEnabled)), forKey: "guest_profile_batchPaymentEnabled")
         defaults.set(encode(profile.cards.joined(separator: "||")), forKey: "guest_profile_cards")
     }
 

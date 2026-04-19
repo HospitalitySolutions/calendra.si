@@ -51,14 +51,15 @@ fun WalletScreen(
             ElevatedCard(shape = RoundedCornerShape(24.dp), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(ent.productName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    val validUntil = ent.validUntil
                     Text(
                         buildString {
                             append(ent.status)
                             append(" • remaining ")
                             append(ent.remainingUses?.toString() ?: "unlimited")
-                            if (!ent.validUntil.isNullOrBlank()) {
+                            if (!validUntil.isNullOrBlank()) {
                                 append(" • valid until ")
-                                append(ent.validUntil.take(10))
+                                append(validUntil.take(10))
                             }
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant

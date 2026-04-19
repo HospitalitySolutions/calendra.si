@@ -14,7 +14,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         // Android emulator → host machine (backend default port in application.yml is 4000)
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:4000\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.83:4000\"")
     }
 
     buildFeatures {

@@ -33,10 +33,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,11 +40,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.menuAnchor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,7 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,7 +66,6 @@ import si.calendra.guest.android.ui.PaymentCardBrandMark
 import si.calendra.guest.android.ui.PaymentCardUtils
 import si.calendra.guest.shared.models.GuestProfileSettings
 import si.calendra.guest.shared.models.GuestSession
-import si.calendra.guest.shared.models.LinkedCompanyOption
 import si.calendra.guest.shared.models.UpdateGuestProfileSettingsRequest
 import java.time.LocalDate
 
@@ -83,9 +75,6 @@ data class LocalGuestProfile(
     val email: String,
     val phone: String,
     val language: String,
-    val linkedCompanyId: String? = null,
-    val linkedCompanyName: String = "",
-    val batchPaymentEnabled: Boolean = false,
     val cards: List<String>
 )
 
@@ -102,7 +91,6 @@ fun ProfileScreen(
     val store = remember { LocalProfileStore(context) }
     val scope = rememberCoroutineScope()
     var profile by remember(session) { mutableStateOf(store.load(session)) }
-    var linkedCompanyOptions by remember(activeTenantId) { mutableStateOf<List<LinkedCompanyOption>>(emptyList()) }
     var editing by remember { mutableStateOf(false) }
     var addingCard by remember { mutableStateOf(false) }
     var showLanguagePicker by remember { mutableStateOf(false) }
@@ -113,16 +101,12 @@ fun ProfileScreen(
     var remoteError by remember(activeTenantId) { mutableStateOf<String?>(null) }
 
     fun mergeRemoteSettings(remote: GuestProfileSettings) {
-        linkedCompanyOptions = remote.linkedCompanyOptions
         profile = profile.copy(
             firstName = remote.guestUser.firstName,
             lastName = remote.guestUser.lastName,
             email = remote.guestUser.email,
             phone = remote.guestUser.phone.orEmpty(),
-            language = remote.guestUser.language,
-            linkedCompanyId = remote.linkedCompanyId,
-            linkedCompanyName = remote.linkedCompanyName.orEmpty(),
-            batchPaymentEnabled = remote.batchPaymentEnabled
+            language = remote.guestUser.language
         )
         store.save(profile)
     }
@@ -137,8 +121,8 @@ fun ProfileScreen(
                     phone = updated.phone.trim().ifBlank { null },
                     language = updated.language,
                     companyId = activeTenantId,
-                    linkedCompanyId = updated.linkedCompanyId?.takeIf { it.isNotBlank() },
-                    batchPaymentEnabled = updated.batchPaymentEnabled
+                    linkedCompanyId = null,
+                    batchPaymentEnabled = null
                 )
             )
         }.onSuccess { response ->
@@ -217,22 +201,6 @@ fun ProfileScreen(
                             value = languageDisplayName(profile.language),
                             leadingIcon = Icons.Rounded.Language,
                             onClick = { showLanguagePicker = true }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-                        PreferenceSwitchRow(
-                            title = "Batch payment",
-                            value = if (profile.batchPaymentEnabled) "On" else "Off",
-                            supportingText = activeTenantName?.takeIf { it.isNotBlank() },
-                            leadingIcon = Icons.Rounded.CreditCard,
-                            checked = profile.batchPaymentEnabled,
-                            enabled = activeTenantId != null && !savingPreference,
-                            onCheckedChange = { checked ->
-                                scope.launch {
-                                    savingPreference = true
-                                    persistRemote(profile.copy(batchPaymentEnabled = checked))
-                                    savingPreference = false
-                                }
-                            }
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                         PreferenceNavigationRow(
@@ -340,8 +308,6 @@ fun ProfileScreen(
     if (editing) {
         EditProfileDialog(
             initial = profile,
-            linkedCompanyOptions = linkedCompanyOptions,
-            tenantName = activeTenantName,
             saving = savingProfile,
             onDismiss = { if (!savingProfile) editing = false },
             onSave = { updated ->
@@ -405,48 +371,6 @@ private fun PreferenceNavigationRow(title: String, value: String, leadingIcon: I
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
             )
-        }
-    }
-}
-
-@Composable
-private fun PreferenceSwitchRow(
-    title: String,
-    value: String,
-    supportingText: String?,
-    leadingIcon: ImageVector,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                leadingIcon,
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                supportingText?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
         }
     }
 }
@@ -531,12 +455,9 @@ private fun StoredCardListRow(line: String, onRemove: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditProfileDialog(
     initial: LocalGuestProfile,
-    linkedCompanyOptions: List<LinkedCompanyOption>,
-    tenantName: String?,
     saving: Boolean,
     onDismiss: () -> Unit,
     onSave: (LocalGuestProfile) -> Unit
@@ -545,57 +466,16 @@ private fun EditProfileDialog(
     var lastName by remember(initial) { mutableStateOf(initial.lastName) }
     var email by remember(initial) { mutableStateOf(initial.email) }
     var phone by remember(initial) { mutableStateOf(initial.phone) }
-    var linkedCompanyId by remember(initial) { mutableStateOf(initial.linkedCompanyId) }
-    var companyMenuExpanded by remember { mutableStateOf(false) }
-    val selectedCompanyName = remember(linkedCompanyId, linkedCompanyOptions, initial.linkedCompanyName) {
-        when {
-            linkedCompanyId.isNullOrBlank() -> "No linked company"
-            else -> linkedCompanyOptions.firstOrNull { it.id == linkedCompanyId }?.name ?: initial.linkedCompanyName.ifBlank { "No linked company" }
-        }
-    }
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
         title = { Text("Edit personal data") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                tenantName?.takeIf { it.isNotBlank() }?.let {
-                    Text("Linked company applies to $it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
                 OutlinedTextField(value = firstName, onValueChange = { firstName = it }, label = { Text("First name") }, singleLine = true, enabled = !saving)
                 OutlinedTextField(value = lastName, onValueChange = { lastName = it }, label = { Text("Last name") }, singleLine = true, enabled = !saving)
                 OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                 OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), leadingIcon = { Icon(Icons.Rounded.Phone, contentDescription = null) })
-                ExposedDropdownMenuBox(expanded = companyMenuExpanded, onExpandedChange = { if (!saving) companyMenuExpanded = it }) {
-                    OutlinedTextField(
-                        value = selectedCompanyName,
-                        onValueChange = {},
-                        readOnly = true,
-                        singleLine = true,
-                        enabled = !saving,
-                        label = { Text("Linked company") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = companyMenuExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(expanded = companyMenuExpanded, onDismissRequest = { companyMenuExpanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text("No linked company") },
-                            onClick = {
-                                linkedCompanyId = null
-                                companyMenuExpanded = false
-                            }
-                        )
-                        linkedCompanyOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option.name) },
-                                onClick = {
-                                    linkedCompanyId = option.id
-                                    companyMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
             }
         },
         confirmButton = {
@@ -606,9 +486,7 @@ private fun EditProfileDialog(
                             firstName = firstName,
                             lastName = lastName,
                             email = email,
-                            phone = phone,
-                            linkedCompanyId = linkedCompanyId,
-                            linkedCompanyName = linkedCompanyOptions.firstOrNull { it.id == linkedCompanyId }?.name.orEmpty()
+                            phone = phone
                         )
                     )
                 },
@@ -717,9 +595,6 @@ private class LocalProfileStore(context: Context) {
             email = session?.guestUser?.email.orEmpty(),
             phone = session?.guestUser?.phone.orEmpty(),
             language = session?.guestUser?.language ?: "en",
-            linkedCompanyId = null,
-            linkedCompanyName = "",
-            batchPaymentEnabled = false,
             cards = emptyList()
         )
         return LocalGuestProfile(
@@ -728,9 +603,6 @@ private class LocalProfileStore(context: Context) {
             email = decode("email") ?: fallback.email,
             phone = decode("phone") ?: fallback.phone,
             language = decode("language") ?: fallback.language,
-            linkedCompanyId = decode("linked_company_id") ?: fallback.linkedCompanyId,
-            linkedCompanyName = decode("linked_company_name") ?: fallback.linkedCompanyName,
-            batchPaymentEnabled = decode("batch_payment_enabled")?.toBooleanStrictOrNull() ?: fallback.batchPaymentEnabled,
             cards = decode("cards")?.split("||")?.filter { it.isNotBlank() } ?: fallback.cards
         )
     }
@@ -742,9 +614,6 @@ private class LocalProfileStore(context: Context) {
             .putString("email", encode(profile.email))
             .putString("phone", encode(profile.phone))
             .putString("language", encode(profile.language))
-            .putString("linked_company_id", profile.linkedCompanyId?.let(::encode))
-            .putString("linked_company_name", encode(profile.linkedCompanyName))
-            .putString("batch_payment_enabled", encode(profile.batchPaymentEnabled.toString()))
             .putString("cards", encode(profile.cards.joinToString("||")))
             .apply()
     }

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { getStoredUser } from './auth'
 import { useToast } from './components/Toast'
@@ -17,18 +17,43 @@ import { storeAuthenticatedSession } from './lib/session'
 import { clearAuthStoragePreservingTheme } from './theme'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
+const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
 
-const CalendarPage = lazy(() => import('./pages/CalendarPage'))
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((mod) => ({ default: mod.AnalyticsPage })))
-const InboxPage = lazy(() => import('./pages/InboxPage').then((mod) => ({ default: mod.InboxPage })))
-const BillingPage = lazy(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })))
-const ClientsPage = lazy(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })))
-const ConfigurationPage = lazy(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })))
-const ConsultantsPage = lazy(() => import('./pages/ConsultantsPage').then((mod) => ({ default: mod.ConsultantsPage })))
-const SecurityPage = lazy(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })))
-const PlatformAdminPage = lazy(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })))
-const HelpPage = lazy(() => import('./pages/HelpPage').then((mod) => ({ default: mod.HelpPage })))
-const SessionTypesPage = lazy(() => import('./pages/SessionTypesPage').then((mod) => ({ default: mod.SessionTypesPage })))
+function lazyWithReload<T extends ComponentType<any>>(
+  importer: () => Promise<{ default: T }>,
+  reloadKey: string,
+) {
+  return lazy(async () => {
+    try {
+      const mod = await importer()
+      sessionStorage.removeItem(reloadKey)
+      return mod
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const isChunkLoadError = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError/i.test(message)
+
+      if (isChunkLoadError && sessionStorage.getItem(reloadKey) !== 'true') {
+        sessionStorage.setItem(reloadKey, 'true')
+        window.location.reload()
+        return new Promise<never>(() => undefined)
+      }
+
+      throw error
+    }
+  })
+}
+
+const CalendarPage = lazyWithReload(() => import('./pages/CalendarPage'), CHUNK_RELOAD_KEY)
+const AnalyticsPage = lazyWithReload(() => import('./pages/AnalyticsPage').then((mod) => ({ default: mod.AnalyticsPage })), CHUNK_RELOAD_KEY)
+const InboxPage = lazyWithReload(() => import('./pages/InboxPage').then((mod) => ({ default: mod.InboxPage })), CHUNK_RELOAD_KEY)
+const BillingPage = lazyWithReload(() => import('./pages/BillingPage').then((mod) => ({ default: mod.BillingPage })), CHUNK_RELOAD_KEY)
+const ClientsPage = lazyWithReload(() => import('./pages/ClientsPage').then((mod) => ({ default: mod.ClientsPage })), CHUNK_RELOAD_KEY)
+const ConfigurationPage = lazyWithReload(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })), CHUNK_RELOAD_KEY)
+const ConsultantsPage = lazyWithReload(() => import('./pages/ConsultantsPage').then((mod) => ({ default: mod.ConsultantsPage })), CHUNK_RELOAD_KEY)
+const SecurityPage = lazyWithReload(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })), CHUNK_RELOAD_KEY)
+const PlatformAdminPage = lazyWithReload(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })), CHUNK_RELOAD_KEY)
+const HelpPage = lazyWithReload(() => import('./pages/HelpPage').then((mod) => ({ default: mod.HelpPage })), CHUNK_RELOAD_KEY)
+const SessionTypesPage = lazyWithReload(() => import('./pages/SessionTypesPage').then((mod) => ({ default: mod.SessionTypesPage })), CHUNK_RELOAD_KEY)
 
 export default function App() {
   const [user, setUser] = useState(() => getStoredUser())
