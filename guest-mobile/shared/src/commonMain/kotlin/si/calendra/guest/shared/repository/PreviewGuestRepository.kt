@@ -20,6 +20,7 @@ class PreviewGuestRepository : GuestRepository {
     override suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse = preview.createOrder(request)
     override suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse = preview.checkout(orderId, request)
     override suspend fun wallet(companyId: String): WalletPayload = preview.wallet(companyId)
+    override suspend fun toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Boolean): ToggleAutoRenewResponse = ToggleAutoRenewResponse(entitlementId, autoRenews)
     override suspend fun bookingHistory(companyId: String): List<BookingHistoryItem> = preview.history()
     override suspend fun notifications(companyId: String): NotificationsPayload = preview.notifications(companyId)
 }

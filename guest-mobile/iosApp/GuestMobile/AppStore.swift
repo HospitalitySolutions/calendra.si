@@ -52,14 +52,39 @@ final class AppStore: ObservableObject {
             return dashboard.entitlements.map {
                 AccessCardModel(
                     id: "\(tenantId)-\($0.id)",
+                    companyId: tenantId,
                     name: $0.name,
                     type: $0.type,
                     tenantName: dashboard.tenant.name,
                     remainingUses: $0.remainingUses,
-                    validUntil: $0.validUntil
+                    validUntil: $0.validUntil,
+                    sessionTypeId: $0.sessionTypeId,
+                    autoRenews: $0.autoRenews ?? false
                 )
             }
         }
+    }
+
+    var walletOffers: [WalletOfferModel] {
+        activeTenantIds.flatMap { tenantId -> [WalletOfferModel] in
+            guard let dashboard = tenantDashboards[tenantId] else { return [] }
+            return dashboard.products
+                .filter { !$0.bookable || $0.productType == "PACK" || $0.productType == "MEMBERSHIP" || $0.productType == "CLASS_TICKET" }
+                .map {
+                    WalletOfferModel(
+                        id: "\(tenantId)-\($0.id)",
+                        companyId: tenantId,
+                        productId: $0.id,
+                        name: $0.name,
+                        productType: $0.productType,
+                        priceGross: $0.priceGross,
+                        currency: $0.currency,
+                        description: $0.description,
+                        sessionTypeName: $0.sessionTypeName
+                    )
+                }
+        }
+        .sorted { $0.name < $1.name }
     }
 
     var serviceOptions: [ServiceOptionModel] {
@@ -189,10 +214,10 @@ final class AppStore: ObservableObject {
             response = CheckoutResponseModel(
                 orderId: UUID().uuidString,
                 paymentMethodType: paymentMethod,
-                status: paymentMethod == "CARD" ? "PAID" : "PENDING",
+                status: paymentMethod == "ENTITLEMENT" ? "PAID" : (paymentMethod == "CARD" ? "PAID" : "PENDING"),
                 checkoutUrl: paymentMethod == "CARD" ? "https://checkout.stripe.example/session/mock" : nil,
                 bankTransfer: paymentMethod == "BANK_TRANSFER" ? BankTransferInstructionsModel(amount: 59, currency: "EUR", referenceCode: "ORD-2026-00014", instructions: "Use the reference code when paying.") : nil,
-                nextAction: paymentMethod == "CARD" ? "REDIRECT" : "SHOW_INSTRUCTIONS",
+                nextAction: paymentMethod == "ENTITLEMENT" ? "COMPLETE" : (paymentMethod == "CARD" ? "REDIRECT" : "SHOW_INSTRUCTIONS"),
                 paymentIntentClientSecret: nil,
                 customerId: nil,
                 customerEphemeralKeySecret: nil,
@@ -203,6 +228,16 @@ final class AppStore: ObservableObject {
         }
         try await refreshTenant(companyId: companyId)
         return response
+    }
+
+    func toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Bool) async throws {
+        guard !usePreviewData else { return }
+        _ = try await api.toggleAutoRenew(companyId: companyId, entitlementId: entitlementId, autoRenews: autoRenews)
+        try await refreshTenant(companyId: companyId)
+    }
+
+    func matchingEntitlements(companyId: String, sessionTypeId: String) -> [AccessCardModel] {
+        accessCards.filter { $0.companyId == companyId && ($0.sessionTypeId == nil || $0.sessionTypeId == sessionTypeId) }
     }
 
     private func fetchTenantDashboard(companyId: String) async throws -> TenantDashboardModel {

@@ -52,6 +52,11 @@ struct BookView: View {
         slots.first(where: { $0.id == selectedSlotId })
     }
 
+    private var matchingEntitlements: [AccessCardModel] {
+        guard let selectedService else { return [] }
+        return store.matchingEntitlements(companyId: selectedService.companyId, sessionTypeId: selectedService.sessionTypeId)
+    }
+
     private var continueDisabled: Bool {
         switch currentStep {
         case .provider:
@@ -64,6 +69,7 @@ struct BookView: View {
             if isSubmitting { return true }
             if selectedPaymentMethod == .payPal { return true }
             if selectedPaymentMethod == .card { return selectedStoredCard == nil }
+            if selectedPaymentMethod == .entitlement { return matchingEntitlements.isEmpty }
             return false
         }
     }
@@ -527,6 +533,18 @@ struct BookView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 paymentMethodCompactCard(
+                    title: "Use pass or visit",
+                    subtitle: matchingEntitlements.first.map { entitlement in
+                        let remaining = entitlement.remainingUses.map(String.init) ?? "Unlimited"
+                        return "\(entitlement.name) • \(remaining) left"
+                    } ?? "No valid pass or pack available",
+                    selected: selectedPaymentMethod == .entitlement,
+                    disabled: matchingEntitlements.isEmpty,
+                    onSelect: { selectedPaymentMethod = .entitlement },
+                    trailing: nil,
+                    onChevronTap: nil
+                )
+                paymentMethodCompactCard(
                     title: "Credit Card",
                     subtitle: creditCardSubtitle,
                     selected: selectedPaymentMethod == .card,
@@ -890,12 +908,14 @@ private enum BookFlowStep: Int, CaseIterable, Identifiable {
 private enum GuestBookingPaymentChoice: String {
     case card
     case bankTransfer
+    case entitlement
     case payPal
 
     var apiValue: String {
         switch self {
         case .card: return "CARD"
         case .bankTransfer: return "BANK_TRANSFER"
+        case .entitlement: return "ENTITLEMENT"
         case .payPal: return "PAYPAL"
         }
     }

@@ -17,7 +17,10 @@ data class EntitlementSummary(
     val entitlementType: String,
     val remainingUses: Int? = null,
     val validUntil: String? = null,
-    val status: String = "ACTIVE"
+    val status: String = "ACTIVE",
+    val sessionTypeId: String? = null,
+    val sessionTypeName: String? = null,
+    val autoRenews: Boolean = false
 )
 
 @Serializable

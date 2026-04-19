@@ -21,7 +21,7 @@ public final class GuestDtos {
     public record JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType) {}
 
     public record UpcomingBookingResponse(String bookingId, String sessionTypeName, String startsAt, String bookingStatus) {}
-    public record EntitlementResponse(String entitlementId, String productName, String entitlementType, Integer remainingUses, String validUntil, String status) {}
+    public record EntitlementResponse(String entitlementId, String productName, String entitlementType, Integer remainingUses, String validUntil, String status, String sessionTypeId, String sessionTypeName, boolean autoRenews) {}
     public record PendingOrderResponse(String orderId, String status, String paymentMethodType, double totalGross, String referenceCode) {}
     public record HomeResponse(TenantSummaryResponse tenant, List<UpcomingBookingResponse> upcomingBookings, List<EntitlementResponse> activeEntitlements, List<PendingOrderResponse> pendingOrders) {}
 
@@ -41,6 +41,8 @@ public final class GuestDtos {
     public record WalletOrderResponse(String orderId, String status, String paymentMethodType, double totalGross, String paidAt) {}
     public record WalletResponse(List<EntitlementResponse> entitlements, List<WalletOrderResponse> orders) {}
     public record BookingHistoryItemResponse(String bookingId, String sessionTypeName, String startsAt, String bookingStatus) {}
+    public record ToggleAutoRenewRequest(Boolean autoRenews) {}
+    public record ToggleAutoRenewResponse(String entitlementId, boolean autoRenews) {}
 
     public record NotificationResponse(String notificationId, String notificationType, String title, String body, String readAt, String createdAt) {}
     public record NotificationsResponse(List<NotificationResponse> items) {}

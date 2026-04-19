@@ -2,9 +2,12 @@ package com.example.app.guest.common;
 
 import com.example.app.company.Company;
 import com.example.app.guest.model.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 
 public final class GuestMapper {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private GuestMapper() {}
 
     public static GuestDtos.GuestUserResponse toGuestUser(GuestUser guestUser) {
@@ -65,14 +68,32 @@ public final class GuestMapper {
     }
 
     public static GuestDtos.EntitlementResponse toEntitlement(GuestEntitlement entitlement) {
+        boolean autoRenews = autoRenewSetting(entitlement);
         return new GuestDtos.EntitlementResponse(
                 String.valueOf(entitlement.getId()),
                 entitlement.getProduct().getName(),
                 entitlement.getEntitlementType().name(),
                 entitlement.getRemainingUses(),
                 entitlement.getValidUntil() == null ? null : entitlement.getValidUntil().toString(),
-                entitlement.getStatus().name()
+                entitlement.getStatus().name(),
+                entitlement.getProduct().getSessionType() == null ? null : String.valueOf(entitlement.getProduct().getSessionType().getId()),
+                entitlement.getProduct().getSessionType() == null ? null : entitlement.getProduct().getSessionType().getName(),
+                autoRenews
         );
+    }
+
+    private static boolean autoRenewSetting(GuestEntitlement entitlement) {
+        String raw = entitlement.getMetadataJson();
+        if (raw != null && !raw.isBlank()) {
+            try {
+                JsonNode root = JSON.readTree(raw);
+                if (root.has("autoRenews")) {
+                    return root.path("autoRenews").asBoolean(false);
+                }
+            } catch (Exception ignore) {
+            }
+        }
+        return entitlement.getProduct() != null && entitlement.getProduct().isAutoRenews();
     }
 
     public static GuestDtos.NotificationResponse toNotification(GuestNotification notification) {

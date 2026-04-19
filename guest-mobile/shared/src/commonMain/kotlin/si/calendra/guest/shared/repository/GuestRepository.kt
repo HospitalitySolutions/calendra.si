@@ -17,6 +17,7 @@ interface GuestRepository {
     suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse
     suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse
     suspend fun wallet(companyId: String): WalletPayload
+    suspend fun toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Boolean): ToggleAutoRenewResponse
     suspend fun bookingHistory(companyId: String): List<BookingHistoryItem>
     suspend fun notifications(companyId: String): NotificationsPayload
 }

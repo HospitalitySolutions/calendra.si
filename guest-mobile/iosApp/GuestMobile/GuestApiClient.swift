@@ -60,6 +60,14 @@ final class GuestApiClient {
         try await get(path: "api/guest/wallet", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
 
+    func toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Bool) async throws -> ToggleAutoRenewResponseModel {
+        try await post(
+            path: "api/guest/wallet/entitlements/\(entitlementId)/auto-renew",
+            query: [URLQueryItem(name: "companyId", value: companyId)],
+            body: ToggleAutoRenewPayload(autoRenews: autoRenews)
+        )
+    }
+
     func history(companyId: String) async throws -> [BookingModel] {
         try await get(path: "api/guest/bookings/history", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
@@ -91,7 +99,13 @@ final class GuestApiClient {
     }
 
     private func post<T: Decodable, Body: Encodable>(path: String, body: Body) async throws -> T {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        try await post(path: path, query: [], body: body)
+    }
+
+    private func post<T: Decodable, Body: Encodable>(path: String, query: [URLQueryItem], body: Body) async throws -> T {
+        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        components.queryItems = query.isEmpty ? nil : query
+        var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(body)
         applyHeaders(to: &request)
@@ -99,6 +113,7 @@ final class GuestApiClient {
         try validate(response: response, data: data)
         return try JSONDecoder().decode(T.self, from: data)
     }
+
 
     private func applyHeaders(to request: inout URLRequest) {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

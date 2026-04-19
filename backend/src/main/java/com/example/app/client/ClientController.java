@@ -4,6 +4,12 @@ import com.example.app.company.ClientCompanyRepository;
 import com.example.app.files.ClientFileRepository;
 import com.example.app.files.StoredFileResponse;
 import com.example.app.files.TenantFileS3Service;
+import com.example.app.guest.model.EntitlementStatus;
+import com.example.app.guest.model.GuestEntitlement;
+import com.example.app.guest.model.GuestEntitlementRepository;
+import com.example.app.guest.model.GuestEntitlementUsage;
+import com.example.app.guest.model.GuestEntitlementUsageRepository;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -15,6 +21,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -37,6 +44,9 @@ public class ClientController {
     private final ClientCompanyRepository clientCompanies;
     private final ClientFileRepository clientFiles;
     private final TenantFileS3Service fileStorage;
+    private final GuestEntitlementRepository guestEntitlements;
+    private final GuestEntitlementUsageRepository guestEntitlementUsages;
+    private final GuestEntitlementService guestEntitlementService;
 
     public ClientController(
             ClientRepository repository,
@@ -45,7 +55,10 @@ public class ClientController {
             ClientAnonymizationService anonymizationService,
             ClientCompanyRepository clientCompanies,
             ClientFileRepository clientFiles,
-            TenantFileS3Service fileStorage
+            TenantFileS3Service fileStorage,
+            GuestEntitlementRepository guestEntitlements,
+            GuestEntitlementUsageRepository guestEntitlementUsages,
+            GuestEntitlementService guestEntitlementService
     ) {
         this.repository = repository;
         this.users = users;
@@ -54,6 +67,9 @@ public class ClientController {
         this.clientCompanies = clientCompanies;
         this.clientFiles = clientFiles;
         this.fileStorage = fileStorage;
+        this.guestEntitlements = guestEntitlements;
+        this.guestEntitlementUsages = guestEntitlementUsages;
+        this.guestEntitlementService = guestEntitlementService;
     }
 
     public record PreferredSlotRequest(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {}
@@ -110,6 +126,37 @@ public class ClientController {
             String consultantFirstName,
             String consultantLastName,
             boolean paid
+    ) {}
+
+
+    public record ClientWalletEntitlementResponse(
+            Long id,
+            String productName,
+            String entitlementType,
+            Integer remainingUses,
+            Instant validFrom,
+            Instant validUntil,
+            String status,
+            Long sourceOrderId,
+            String sessionTypeName,
+            boolean autoRenews,
+            Instant createdAt
+    ) {}
+
+    public record ClientWalletUsageResponse(
+            Long id,
+            Long entitlementId,
+            String productName,
+            Instant usedAt,
+            Integer unitsUsed,
+            String reason,
+            Long bookingId
+    ) {}
+
+    public record ClientWalletResponse(
+            List<ClientWalletEntitlementResponse> activeEntitlements,
+            List<ClientWalletEntitlementResponse> inactiveEntitlements,
+            List<ClientWalletUsageResponse> usageHistory
     ) {}
 
     @GetMapping
@@ -194,6 +241,29 @@ public class ClientController {
     }
 
 
+    @GetMapping("/{id}/wallet")
+    @Transactional(readOnly = true)
+    public ClientWalletResponse clientWallet(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        var client = loadClientForDetailAccess(id, me);
+        var allEntitlements = guestEntitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(client.getId(), me.getCompany().getId());
+        var activeEntitlements = allEntitlements.stream()
+                .filter(entitlement -> entitlement.getStatus() == EntitlementStatus.ACTIVE || entitlement.getStatus() == EntitlementStatus.PENDING)
+                .sorted(Comparator.comparing(GuestEntitlement::getCreatedAt).reversed())
+                .map(this::toWalletEntitlementResponse)
+                .toList();
+        var inactiveEntitlements = allEntitlements.stream()
+                .filter(entitlement -> entitlement.getStatus() != EntitlementStatus.ACTIVE && entitlement.getStatus() != EntitlementStatus.PENDING)
+                .sorted(Comparator.comparing(GuestEntitlement::getCreatedAt).reversed())
+                .map(this::toWalletEntitlementResponse)
+                .toList();
+        var usageHistory = allEntitlements.stream()
+                .flatMap(entitlement -> guestEntitlementUsages.findAllByEntitlementIdOrderByUsedAtDesc(entitlement.getId()).stream())
+                .sorted(Comparator.comparing(GuestEntitlementUsage::getUsedAt).reversed())
+                .map(this::toWalletUsageResponse)
+                .toList();
+        return new ClientWalletResponse(activeEntitlements, inactiveEntitlements, usageHistory);
+    }
+
     @GetMapping("/{id}/files")
     @Transactional(readOnly = true)
     public List<StoredFileResponse> listFiles(@PathVariable Long id, @AuthenticationPrincipal User me) {
@@ -277,6 +347,40 @@ public class ClientController {
                 u == null ? "Unassigned" : u.getFirstName(),
                 u == null ? "" : u.getLastName(),
                 b.getBilledAt() != null
+        );
+    }
+
+
+    private ClientWalletEntitlementResponse toWalletEntitlementResponse(GuestEntitlement entitlement) {
+        var product = entitlement.getProduct();
+        var sessionType = product == null ? null : product.getSessionType();
+        return new ClientWalletEntitlementResponse(
+                entitlement.getId(),
+                product == null ? null : product.getName(),
+                entitlement.getEntitlementType() == null ? null : entitlement.getEntitlementType().name(),
+                entitlement.getRemainingUses(),
+                entitlement.getValidFrom(),
+                entitlement.getValidUntil(),
+                entitlement.getStatus() == null ? null : entitlement.getStatus().name(),
+                entitlement.getSourceOrder() == null ? null : entitlement.getSourceOrder().getId(),
+                sessionType == null ? null : sessionType.getName(),
+                guestEntitlementService.autoRenews(entitlement),
+                entitlement.getCreatedAt()
+        );
+    }
+
+    private ClientWalletUsageResponse toWalletUsageResponse(GuestEntitlementUsage usage) {
+        var entitlement = usage.getEntitlement();
+        var product = entitlement == null ? null : entitlement.getProduct();
+        var booking = usage.getSessionBooking();
+        return new ClientWalletUsageResponse(
+                usage.getId(),
+                entitlement == null ? null : entitlement.getId(),
+                product == null ? null : product.getName(),
+                usage.getUsedAt(),
+                usage.getUnitsUsed(),
+                usage.getReason() == null ? null : usage.getReason().name(),
+                booking == null ? null : booking.getId()
         );
     }
 

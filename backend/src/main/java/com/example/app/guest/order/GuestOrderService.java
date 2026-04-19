@@ -3,10 +3,8 @@ package com.example.app.guest.order;
 import com.example.app.billing.PaymentMethod;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
-import com.example.app.client.Client;
 import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.common.GuestDtos;
-import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.*;
 import com.example.app.guest.notifications.GuestNotificationService;
@@ -39,32 +37,38 @@ public class GuestOrderService {
     private final GuestCatalogService catalogService;
     private final GuestOrderRepository orders;
     private final GuestEntitlementRepository entitlements;
+    private final GuestEntitlementUsageRepository entitlementUsages;
     private final SessionBookingRepository bookings;
     private final UserRepository users;
     private final PaymentMethodRepository paymentMethods;
     private final GuestNotificationService notifications;
     private final ReminderService reminders;
+    private final GuestEntitlementService entitlementService;
 
     public GuestOrderService(
             GuestTenantService guestTenantService,
             GuestCatalogService catalogService,
             GuestOrderRepository orders,
             GuestEntitlementRepository entitlements,
+            GuestEntitlementUsageRepository entitlementUsages,
             SessionBookingRepository bookings,
             UserRepository users,
             PaymentMethodRepository paymentMethods,
             GuestNotificationService notifications,
-            ReminderService reminders
+            ReminderService reminders,
+            GuestEntitlementService entitlementService
     ) {
         this.guestTenantService = guestTenantService;
         this.catalogService = catalogService;
         this.orders = orders;
         this.entitlements = entitlements;
+        this.entitlementUsages = entitlementUsages;
         this.bookings = bookings;
         this.users = users;
         this.paymentMethods = paymentMethods;
         this.notifications = notifications;
         this.reminders = reminders;
+        this.entitlementService = entitlementService;
     }
 
     @Transactional
@@ -82,9 +86,10 @@ public class GuestOrderService {
         order.setStatus(OrderStatus.PENDING);
         order.setPaymentMethodType(paymentMethodType);
         order.setCurrency(product.currency());
-        order.setSubtotalGross(product.priceGross());
+        BigDecimal orderSubtotal = paymentMethodType == GuestPaymentMethodType.ENTITLEMENT ? BigDecimal.ZERO : product.priceGross();
+        order.setSubtotalGross(orderSubtotal);
         order.setTaxAmount(BigDecimal.ZERO);
-        order.setTotalGross(product.priceGross());
+        order.setTotalGross(orderSubtotal);
         order.setReferenceCode("ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
         order.setMetadataJson(buildMetadataJson(request.slotId(), product));
         order = orders.save(order);
@@ -102,6 +107,34 @@ public class GuestOrderService {
             order.setPaymentMethodType(paymentMethodType);
         }
         assertPaymentMethodAllowed(order.getCompany().getId(), paymentMethodType, inferProductType(order));
+
+        if (paymentMethodType == GuestPaymentMethodType.ENTITLEMENT) {
+            order.setStatus(OrderStatus.PAID);
+            order.setPaidAt(Instant.now());
+            order = orders.save(order);
+            SessionBooking booking = maybeCreateConfirmedBooking(order);
+            if (booking == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entitlement checkout requires a booking slot.");
+            }
+            SlotContext slotContext = extractSlotContext(order);
+            if (slotContext == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entitlement checkout requires a valid service.");
+            }
+            entitlementService.consumeBestMatchingEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), booking);
+            notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
+            return new GuestDtos.CheckoutResponse(
+                    String.valueOf(order.getId()),
+                    paymentMethodType.name(),
+                    order.getStatus().name(),
+                    null,
+                    null,
+                    "COMPLETE",
+                    null,
+                    null,
+                    null,
+                    order.getCompany().getName()
+            );
+        }
 
         if (paymentMethodType == GuestPaymentMethodType.BANK_TRANSFER) {
             maybeCreatePendingBooking(order);
@@ -149,7 +182,10 @@ public class GuestOrderService {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("slotId", slotId);
             map.put("productType", product.productType());
+            map.put("guestProductId", product.persistedProduct() == null ? null : product.persistedProduct().getId());
             map.put("sessionTypeId", product.sessionType() == null ? null : product.sessionType().getId());
+            map.put("currency", product.currency());
+            map.put("priceGross", product.priceGross() == null ? null : product.priceGross().doubleValue());
             return JSON.writeValueAsString(map);
         } catch (Exception ex) {
             return "{}";
@@ -167,6 +203,12 @@ public class GuestOrderService {
     }
 
     private void assertPaymentMethodAllowed(Long companyId, GuestPaymentMethodType paymentMethodType, String productType) {
+        if (paymentMethodType == GuestPaymentMethodType.ENTITLEMENT) {
+            if (!("SESSION_SINGLE".equals(productType) || "CLASS_TICKET".equals(productType))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Memberships and packs can only be used to pay for bookable sessions.");
+            }
+            return;
+        }
         List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
         boolean enabled = methods.stream().anyMatch(pm -> pm.isGuestEnabled() && matches(pm, paymentMethodType));
         if (!enabled) {
@@ -260,17 +302,15 @@ public class GuestOrderService {
         try {
             Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
             Object productType = map.get("productType");
-            if (productType == null) return;
+            Object guestProductId = map.get("guestProductId");
+            if (productType == null || guestProductId == null) return;
             String productTypeName = String.valueOf(productType);
             if (!("PACK".equals(productTypeName) || "MEMBERSHIP".equals(productTypeName) || "CLASS_TICKET".equals(productTypeName))) return;
-        } catch (Exception ex) {
-            return;
-        }
-        // Only persisted guest products currently create entitlements.
-        try {
-            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
-            Object slotId = map.get("slotId");
-            // no-op, just parse safely
+            Long guestProductIdLong = Long.parseLong(String.valueOf(guestProductId));
+            GuestProduct product = catalogService.resolveProduct(order.getCompany().getId(), String.valueOf(guestProductIdLong)).persistedProduct();
+            if (product != null) {
+                entitlementService.ensureEntitlementForOrder(order, product);
+            }
         } catch (Exception ignore) {
         }
     }

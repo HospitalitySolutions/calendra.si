@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface GuestOrderItemRepository extends JpaRepository<GuestOrderItem, Long> {
     List<GuestOrderItem> findAllByOrderIdOrderByIdAsc(Long orderId);
+    long countByProductId(Long productId);
 }

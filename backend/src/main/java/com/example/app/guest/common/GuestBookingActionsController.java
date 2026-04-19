@@ -5,6 +5,7 @@ import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.guest.model.GuestUser;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -26,14 +27,16 @@ public class GuestBookingActionsController {
     private final GuestCatalogService catalogService;
     private final UserRepository users;
     private final GuestOrderRepository orders;
+    private final GuestEntitlementService entitlementService;
 
-    public GuestBookingActionsController(GuestAuthContextService authContextService, SessionBookingRepository bookings, GuestTenantService tenantService, GuestCatalogService catalogService, UserRepository users, GuestOrderRepository orders) {
+    public GuestBookingActionsController(GuestAuthContextService authContextService, SessionBookingRepository bookings, GuestTenantService tenantService, GuestCatalogService catalogService, UserRepository users, GuestOrderRepository orders, GuestEntitlementService entitlementService) {
         this.authContextService = authContextService;
         this.bookings = bookings;
         this.tenantService = tenantService;
         this.catalogService = catalogService;
         this.users = users;
         this.orders = orders;
+        this.entitlementService = entitlementService;
     }
 
     @PostMapping("/bookings/{bookingId}/cancel")
@@ -41,13 +44,19 @@ public class GuestBookingActionsController {
         GuestUser guestUser = authContextService.requireGuest(request);
         SessionBooking booking = requireGuestBooking(guestUser, bookingId);
         var rules = catalogService.bookingRules(booking.getCompany().getId());
-        long hoursUntil = Duration.between(LocalDateTime.now(), booking.getStartTime()).toHours();
-        if (hoursUntil < rules.cancelUntilHours()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cancellation window has passed.");
+        LocalDateTime now = LocalDateTime.now();
+        if (booking.getStartTime() != null && !booking.getStartTime().isAfter(now)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking has already started.");
         }
+        long hoursUntil = booking.getStartTime() == null ? Long.MAX_VALUE : Duration.between(now, booking.getStartTime()).toHours();
+        boolean lateCancel = hoursUntil < rules.cancelUntilHours();
+        boolean creditConsumed = lateCancel && rules.lateCancelConsumesCredit();
         booking.setBookingStatus("CANCELLED");
         bookings.save(booking);
-        return new GuestDtos.BookingActionResponse(String.valueOf(booking.getId()), booking.getBookingStatus(), false, booking.getStartTime().toString(), booking.getEndTime().toString());
+        if (!creditConsumed) {
+            entitlementService.maybeRestoreCreditForBooking(booking);
+        }
+        return new GuestDtos.BookingActionResponse(String.valueOf(booking.getId()), booking.getBookingStatus(), creditConsumed, booking.getStartTime().toString(), booking.getEndTime().toString());
     }
 
     @PostMapping("/bookings/{bookingId}/reschedule")

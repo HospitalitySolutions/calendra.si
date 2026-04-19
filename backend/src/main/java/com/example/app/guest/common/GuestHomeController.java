@@ -78,6 +78,13 @@ public class GuestHomeController {
         return walletService.history(guestUser, Long.parseLong(companyId));
     }
 
+    @PostMapping("/wallet/entitlements/{entitlementId}/auto-renew")
+    public GuestDtos.ToggleAutoRenewResponse toggleAutoRenew(@PathVariable Long entitlementId, @RequestParam String companyId, @RequestBody GuestDtos.ToggleAutoRenewRequest payload, HttpServletRequest request) {
+        GuestUser guestUser = authContextService.requireGuest(request);
+        boolean autoRenews = payload != null && Boolean.TRUE.equals(payload.autoRenews());
+        return walletService.updateAutoRenew(guestUser, Long.parseLong(companyId), entitlementId, autoRenews);
+    }
+
     @GetMapping("/notifications")
     public GuestDtos.NotificationsResponse notifications(@RequestParam String companyId, HttpServletRequest request) {
         GuestUser guestUser = authContextService.requireGuest(request);

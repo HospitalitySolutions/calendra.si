@@ -25,7 +25,7 @@ final class PreviewStore: ObservableObject {
                     BookingModel(id: "booking-2", title: "Yoga Flow", startsAt: "2026-04-20T08:00:00Z", status: "CONFIRMED")
                 ],
                 entitlements: [
-                    EntitlementModel(id: "ent-2", name: "Yoga 10 Pack", type: "PACK", remainingUses: 7, validUntil: "2026-06-11T00:00:00Z", status: "ACTIVE")
+                    EntitlementModel(id: "ent-2", name: "Yoga 10 Pack", type: "PACK", remainingUses: 7, validUntil: "2026-06-11T00:00:00Z", status: "ACTIVE", sessionTypeId: "session-yoga", sessionTypeName: "Yoga Flow", autoRenews: false)
                 ],
                 orders: [
                     OrderModel(id: "order-2", status: "PAID", paymentMethod: "CARD", totalGross: 24.0, paidAt: "2026-04-10T08:00:00Z")
@@ -47,8 +47,8 @@ final class PreviewStore: ObservableObject {
                 BookingModel(id: "booking-3", title: "Recovery Session", startsAt: "2026-04-23T17:00:00Z", status: "CONFIRMED")
             ],
             entitlements: [
-                EntitlementModel(id: "ent-1", name: "5 PT Pack", type: "PACK", remainingUses: 4, validUntil: "2026-06-01T00:00:00Z", status: "ACTIVE"),
-                EntitlementModel(id: "ent-3", name: "Monthly Gym", type: "MEMBERSHIP", remainingUses: nil, validUntil: "2026-05-01T00:00:00Z", status: "ACTIVE")
+                EntitlementModel(id: "ent-1", name: "5 PT Pack", type: "PACK", remainingUses: 4, validUntil: "2026-06-01T00:00:00Z", status: "ACTIVE", sessionTypeId: "session-pt", sessionTypeName: "Personal Training", autoRenews: false),
+                EntitlementModel(id: "ent-3", name: "Monthly Gym", type: "MEMBERSHIP", remainingUses: nil, validUntil: "2026-05-01T00:00:00Z", status: "ACTIVE", sessionTypeId: nil, sessionTypeName: nil, autoRenews: true)
             ],
             orders: [
                 OrderModel(id: "order-1", status: "PENDING", paymentMethod: "BANK_TRANSFER", totalGross: 59.0, paidAt: nil)

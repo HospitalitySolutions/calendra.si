@@ -107,6 +107,16 @@ data class ServiceOption(
     val sessionTypeId: String
 )
 
+data class RedeemableEntitlementOption(
+    val entitlementId: String,
+    val companyId: String,
+    val productName: String,
+    val remainingUses: Int?,
+    val validUntil: String?,
+    val sessionTypeId: String? = null,
+    val autoRenews: Boolean = false
+)
+
 enum class BookingFlowStep(
     val index: Int,
     val stepTitle: String,
@@ -133,6 +143,7 @@ private enum class PaymentMethodUi(
 ) {
     CARD("Credit Card", "CARD", true),
     BANK_TRANSFER("Bank Transfer", "BANK_TRANSFER", true),
+    ENTITLEMENT("Use pass or visit", "ENTITLEMENT", true),
     PAYPAL("PayPal", null, false, "Coming soon")
 }
 
@@ -142,6 +153,7 @@ fun BookScreen(
     providers: List<ProviderOption>,
     services: List<ServiceOption>,
     savedCards: List<SavedCardUi> = emptyList(),
+    redeemableEntitlements: List<RedeemableEntitlementOption> = emptyList(),
     onSaveCard: (SavedCardUi) -> Unit = {},
     onRemoveSavedCard: (String) -> Unit = {},
     onOpenNotifications: () -> Unit,
@@ -193,6 +205,10 @@ fun BookScreen(
     val selectedProvider = providers.firstOrNull { it.companyId == selectedProviderId }
     val selectedService = providerScopedServices.firstOrNull { it.id == selectedServiceId }
     val selectedSlot = slots.firstOrNull { it.slotId == selectedSlotId }
+    val matchingEntitlements = redeemableEntitlements.filter { entitlement ->
+        selectedService != null && entitlement.companyId == selectedService.companyId
+                && (entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == selectedService.sessionTypeId)
+    }
 
     fun moveBackStep() {
         currentStep = when (currentStep) {
@@ -241,6 +257,12 @@ fun BookScreen(
 
     LaunchedEffect(selectedService?.id, selectedDate) {
         if (selectedService != null) refreshSlots()
+    }
+
+    LaunchedEffect(selectedService?.id, matchingEntitlements.size) {
+        if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT && matchingEntitlements.isEmpty()) {
+            selectedPaymentMethod = PaymentMethodUi.CARD
+        }
     }
 
     if (showAddCardDialog) {
@@ -463,11 +485,34 @@ fun BookScreen(
                         val cardSubtitle = activeCard?.let {
                             "•••• ${it.last4} · valid thru ${it.expiryMonth}/${it.expiryYear}"
                         } ?: "Add a card to pay by credit card"
+                        val bestEntitlement = matchingEntitlements.firstOrNull()
+                        val entitlementSubtitle = bestEntitlement?.let {
+                            buildString {
+                                append(it.productName)
+                                append(" • ")
+                                append(it.remainingUses?.let { remaining -> "$remaining left" } ?: "unlimited")
+                                if (!it.validUntil.isNullOrBlank()) {
+                                    append(" • valid until ")
+                                    append(it.validUntil.take(10))
+                                }
+                            }
+                        } ?: "No valid pass or pack available for this service"
 
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            if (matchingEntitlements.isNotEmpty()) {
+                                PaymentMethodCard(
+                                    label = PaymentMethodUi.ENTITLEMENT.title,
+                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT) entitlementSubtitle else null,
+                                    selected = selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT,
+                                    enabled = true,
+                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.ENTITLEMENT },
+                                    trailing = null,
+                                    onManageChevron = null
+                                )
+                            }
                             PaymentMethodCard(
                                 label = PaymentMethodUi.CARD.title,
                                 subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
@@ -560,7 +605,7 @@ fun BookScreen(
                 )
                 BookingFlowStep.PAYMENT_REVIEW -> ContinueButton(
                     label = "Confirm booking",
-                    enabled = selectedService != null && selectedSlot != null && selectedPaymentMethod.enabled && !submitting,
+                    enabled = selectedService != null && selectedSlot != null && selectedPaymentMethod.enabled && !submitting && (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || matchingEntitlements.isNotEmpty()),
                     loading = submitting,
                     onClick = {
                         val service = selectedService ?: return@ContinueButton

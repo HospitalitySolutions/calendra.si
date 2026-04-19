@@ -45,6 +45,36 @@ type ClientSession = {
   paid: boolean
 }
 
+type ClientWalletEntitlement = {
+  id: number
+  productName: string
+  entitlementType: string | null
+  remainingUses: number | null
+  validFrom: string | null
+  validUntil: string | null
+  status: string | null
+  sourceOrderId: number | null
+  sessionTypeName: string | null
+  autoRenews: boolean
+  createdAt: string | null
+}
+
+type ClientWalletUsage = {
+  id: number
+  entitlementId: number | null
+  productName: string
+  usedAt: string
+  unitsUsed: number
+  reason: string | null
+  bookingId: number | null
+}
+
+type ClientWalletResponse = {
+  activeEntitlements: ClientWalletEntitlement[]
+  inactiveEntitlements: ClientWalletEntitlement[]
+  usageHistory: ClientWalletUsage[]
+}
+
 const emptyClientForm: ClientForm = {
   firstName: '',
   lastName: '',
@@ -220,6 +250,28 @@ export function ClientsPage() {
     dragDropFilesHint: 'Povlecite datoteke sem ali uporabite gumb zgoraj.',
     clientDetailMainTabsAria: 'Zavihki podrobnosti stranke',
     clientDetailTabSettings: 'Nastavitve',
+    clientDetailTabWallet: 'Denarnica',
+    walletActive: 'Aktivno',
+    walletInactive: 'Preteklo',
+    walletUsageHistory: 'Zgodovina uporabe',
+    walletLoading: 'Nalagam kartice in članstva…',
+    walletNoneActiveTitle: 'Ni aktivnih kartic ali članstev',
+    walletNoneActiveText: 'Kupljene kartice in članstva se bodo prikazala tukaj.',
+    walletNoneInactiveTitle: 'Ni preteklih kartic ali članstev',
+    walletNoneInactiveText: 'Potekla, porabljena ali preklicana članstva se bodo prikazala tukaj.',
+    walletNoUsageTitle: 'Ni uporabe',
+    walletNoUsageText: 'Ko bo stranka porabila obisk ali članstvo, se bo zgodovina prikazala tukaj.',
+    walletRemainingUses: 'Preostali obiski',
+    walletUnlimited: 'Neomejeno',
+    walletValidFrom: 'Velja od',
+    walletValidUntil: 'Velja do',
+    walletCreated: 'Kupljeno',
+    walletOrder: 'Naročilo',
+    walletServiceType: 'Vrsta storitve',
+    walletAutoRenew: 'Samodejna obnova',
+    walletStatus: 'Status',
+    walletBooking: 'Rezervacija',
+    walletUsedUnits: 'Porabljene enote',
     companyDetailMainTabsAria: 'Zavihki podrobnosti podjetja',
     companyDatotekeSubTabsAria: 'Podzavihki datotek in računov',
     companySubTabInvoices: 'Računi',
@@ -335,6 +387,28 @@ export function ClientsPage() {
     dragDropFilesHint: 'Drag files here or use the button above.',
     clientDetailMainTabsAria: 'Client detail sections',
     clientDetailTabSettings: 'Settings',
+    clientDetailTabWallet: 'Wallet',
+    walletActive: 'Active',
+    walletInactive: 'Past',
+    walletUsageHistory: 'Usage history',
+    walletLoading: 'Loading cards and memberships…',
+    walletNoneActiveTitle: 'No active cards or memberships',
+    walletNoneActiveText: 'Purchased cards and memberships will appear here.',
+    walletNoneInactiveTitle: 'No past cards or memberships',
+    walletNoneInactiveText: 'Expired, used-up, or cancelled memberships will appear here.',
+    walletNoUsageTitle: 'No usage yet',
+    walletNoUsageText: 'Usage history will appear here after the client spends a visit or membership credit.',
+    walletRemainingUses: 'Remaining visits',
+    walletUnlimited: 'Unlimited',
+    walletValidFrom: 'Valid from',
+    walletValidUntil: 'Valid until',
+    walletCreated: 'Purchased',
+    walletOrder: 'Order',
+    walletServiceType: 'Service type',
+    walletAutoRenew: 'Auto-renew',
+    walletStatus: 'Status',
+    walletBooking: 'Booking',
+    walletUsedUnits: 'Units used',
     companyDetailMainTabsAria: 'Company detail tabs',
     companyDatotekeSubTabsAria: 'Files and invoices sections',
     companySubTabInvoices: 'Invoices',
@@ -396,11 +470,14 @@ export function ClientsPage() {
   const [detailClientFilesLoading, setDetailClientFilesLoading] = useState(false)
   const [detailCompanyFilesLoading, setDetailCompanyFilesLoading] = useState(false)
   const [detailSessionsError, setDetailSessionsError] = useState('')
+  const [detailWallet, setDetailWallet] = useState<ClientWalletResponse | null>(null)
+  const [detailWalletLoading, setDetailWalletLoading] = useState(false)
+  const [detailWalletError, setDetailWalletError] = useState('')
   const [detailCompanyError, setDetailCompanyError] = useState('')
   const [detailClientFilesError, setDetailClientFilesError] = useState('')
   const [detailCompanyFilesError, setDetailCompanyFilesError] = useState('')
   const [sessionTab, setSessionTab] = useState<'future' | 'past'>('future')
-  const [clientDetailMainTab, setClientDetailMainTab] = useState<'sessions' | 'files' | 'settings'>('sessions')
+  const [clientDetailMainTab, setClientDetailMainTab] = useState<'sessions' | 'wallet' | 'files' | 'settings'>('sessions')
   const [companyDetailMainTab, setCompanyDetailMainTab] = useState<'datoteke' | 'nastavitve'>('datoteke')
   const [companyDetailDatotekeSubTab, setCompanyDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
   const [anonymizingClientId, setAnonymizingClientId] = useState<number | null>(null)
@@ -591,6 +668,28 @@ export function ClientsPage() {
   }, [detailClient])
 
   useEffect(() => {
+    if (!detailClient) return
+    let cancelled = false
+    setDetailWalletLoading(true)
+    setDetailWalletError('')
+    setDetailWallet(null)
+    api
+      .get<ClientWalletResponse>(`/clients/${detailClient.id}/wallet`)
+      .then((res) => {
+        if (!cancelled) setDetailWallet(res.data ?? { activeEntitlements: [], inactiveEntitlements: [], usageHistory: [] })
+      })
+      .catch(() => {
+        if (!cancelled) setDetailWalletError('Failed to load wallet.')
+      })
+      .finally(() => {
+        if (!cancelled) setDetailWalletLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [detailClient])
+
+  useEffect(() => {
     if (!detailCompany) return
     let cancelled = false
     setDetailCompanyBillsLoading(true)
@@ -633,6 +732,28 @@ export function ClientsPage() {
       cancelled = true
     }
   }, [detailClient, locale])
+
+  useEffect(() => {
+    if (!detailClient) return
+    let cancelled = false
+    setDetailWalletLoading(true)
+    setDetailWalletError('')
+    setDetailWallet(null)
+    api
+      .get<ClientWalletResponse>(`/clients/${detailClient.id}/wallet`)
+      .then((res) => {
+        if (!cancelled) setDetailWallet(res.data ?? { activeEntitlements: [], inactiveEntitlements: [], usageHistory: [] })
+      })
+      .catch(() => {
+        if (!cancelled) setDetailWalletError('Failed to load wallet.')
+      })
+      .finally(() => {
+        if (!cancelled) setDetailWalletLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [detailClient])
 
   useEffect(() => {
     if (!detailCompany) return
@@ -2085,6 +2206,15 @@ export function ClientsPage() {
                     <button
                       type="button"
                       role="tab"
+                      className={clientDetailMainTab === 'wallet' ? 'clients-session-tab active' : 'clients-session-tab'}
+                      aria-selected={clientDetailMainTab === 'wallet'}
+                      onClick={() => setClientDetailMainTab('wallet')}
+                    >
+                      {clientsCopy.clientDetailTabWallet}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
                       className={clientDetailMainTab === 'files' ? 'clients-session-tab active' : 'clients-session-tab'}
                       aria-selected={clientDetailMainTab === 'files'}
                       onClick={() => setClientDetailMainTab('files')}
@@ -2102,6 +2232,109 @@ export function ClientsPage() {
                     </button>
                   </div>
                 </div>
+
+                {clientDetailMainTab === 'wallet' && (
+                  <div className="clients-detail-sessions-card clients-detail-invoices-card" role="tabpanel">
+                    {detailWalletError && <div className="error">{detailWalletError}</div>}
+                    {detailWalletLoading ? (
+                      <div className="muted">{clientsCopy.walletLoading}</div>
+                    ) : (
+                      <div className="clients-detail-wallet-stack">
+                        <section className="clients-detail-wallet-section">
+                          <div className="clients-detail-session-tabs-row">
+                            <strong>{clientsCopy.walletActive}</strong>
+                            <span className="clients-detail-sessions-tab-count">{detailWallet?.activeEntitlements?.length ?? 0}</span>
+                          </div>
+                          {!detailWallet || detailWallet.activeEntitlements.length === 0 ? (
+                            <div className="clients-detail-empty-card">
+                              <EmptyState title={clientsCopy.walletNoneActiveTitle} text={clientsCopy.walletNoneActiveText} />
+                            </div>
+                          ) : (
+                            <div className="clients-detail-files-list">
+                              {detailWallet.activeEntitlements.map((entitlement) => (
+                                <article key={entitlement.id} className="clients-detail-file-item">
+                                  <div className="clients-detail-file-main">
+                                    <div className="clients-detail-file-name">{entitlement.productName}</div>
+                                    <div className="clients-detail-file-meta">
+                                      <span>{entitlement.entitlementType ?? 'ENTITLEMENT'}</span>
+                                      <span>•</span>
+                                      <span>{clientsCopy.walletRemainingUses}: {entitlement.remainingUses == null ? clientsCopy.walletUnlimited : entitlement.remainingUses}</span>
+                                      {entitlement.validUntil ? <><span>•</span><span>{clientsCopy.walletValidUntil} {formatDate(entitlement.validUntil)}</span></> : null}
+                                    </div>
+                                    <div className="clients-detail-file-meta">
+                                      {entitlement.validFrom ? <span>{clientsCopy.walletValidFrom} {formatDate(entitlement.validFrom)}</span> : null}
+                                      {entitlement.createdAt ? <><span>•</span><span>{clientsCopy.walletCreated} {formatDate(entitlement.createdAt)}</span></> : null}
+                                      {entitlement.sessionTypeName ? <><span>•</span><span>{clientsCopy.walletServiceType}: {entitlement.sessionTypeName}</span></> : null}
+                                      {entitlement.sourceOrderId ? <><span>•</span><span>{clientsCopy.walletOrder} #{entitlement.sourceOrderId}</span></> : null}
+                                      <><span>•</span><span>{clientsCopy.walletAutoRenew}: {entitlement.autoRenews ? clientsCopy.toggleOn : clientsCopy.toggleOff}</span></>
+                                    </div>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+
+                        <section className="clients-detail-wallet-section">
+                          <div className="clients-detail-session-tabs-row">
+                            <strong>{clientsCopy.walletInactive}</strong>
+                            <span className="clients-detail-sessions-tab-count">{detailWallet?.inactiveEntitlements?.length ?? 0}</span>
+                          </div>
+                          {!detailWallet || detailWallet.inactiveEntitlements.length === 0 ? (
+                            <div className="clients-detail-empty-card">
+                              <EmptyState title={clientsCopy.walletNoneInactiveTitle} text={clientsCopy.walletNoneInactiveText} />
+                            </div>
+                          ) : (
+                            <div className="clients-detail-files-list">
+                              {detailWallet.inactiveEntitlements.map((entitlement) => (
+                                <article key={entitlement.id} className="clients-detail-file-item">
+                                  <div className="clients-detail-file-main">
+                                    <div className="clients-detail-file-name">{entitlement.productName}</div>
+                                    <div className="clients-detail-file-meta">
+                                      <span>{clientsCopy.walletStatus}: {entitlement.status ?? '—'}</span>
+                                      <span>•</span>
+                                      <span>{clientsCopy.walletRemainingUses}: {entitlement.remainingUses == null ? clientsCopy.walletUnlimited : entitlement.remainingUses}</span>
+                                      {entitlement.validUntil ? <><span>•</span><span>{clientsCopy.walletValidUntil} {formatDate(entitlement.validUntil)}</span></> : null}
+                                    </div>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+
+                        <section className="clients-detail-wallet-section">
+                          <div className="clients-detail-session-tabs-row">
+                            <strong>{clientsCopy.walletUsageHistory}</strong>
+                            <span className="clients-detail-sessions-tab-count">{detailWallet?.usageHistory?.length ?? 0}</span>
+                          </div>
+                          {!detailWallet || detailWallet.usageHistory.length === 0 ? (
+                            <div className="clients-detail-empty-card">
+                              <EmptyState title={clientsCopy.walletNoUsageTitle} text={clientsCopy.walletNoUsageText} />
+                            </div>
+                          ) : (
+                            <div className="clients-detail-files-list">
+                              {detailWallet.usageHistory.map((usage) => (
+                                <article key={usage.id} className="clients-detail-file-item">
+                                  <div className="clients-detail-file-main">
+                                    <div className="clients-detail-file-name">{usage.productName}</div>
+                                    <div className="clients-detail-file-meta">
+                                      <span>{formatDateTime(usage.usedAt)}</span>
+                                      <span>•</span>
+                                      <span>{clientsCopy.walletUsedUnits}: {usage.unitsUsed}</span>
+                                      {usage.bookingId ? <><span>•</span><span>{clientsCopy.walletBooking} #{usage.bookingId}</span></> : null}
+                                      {usage.reason ? <><span>•</span><span>{usage.reason}</span></> : null}
+                                    </div>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {clientDetailMainTab === 'files' && (
                   <div className="clients-detail-sessions-card clients-detail-invoices-card" role="tabpanel">

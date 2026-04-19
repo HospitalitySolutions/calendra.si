@@ -2,5 +2,6 @@ package com.example.app.guest.model;
 
 public enum GuestPaymentMethodType {
     CARD,
-    BANK_TRANSFER
+    BANK_TRANSFER,
+    ENTITLEMENT
 }

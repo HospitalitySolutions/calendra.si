@@ -343,6 +343,7 @@ fun GuestMobileRoot() {
                         },
                         services = aggregatedServices(state.uiState),
                         savedCards = savedCards,
+                        redeemableEntitlements = aggregatedRedeemableEntitlements(state.uiState),
                         onSaveCard = { card ->
                             val updated = savedCards.filterNot { it.id == card.id } + card
                             savedCards = updated
@@ -405,7 +406,49 @@ fun GuestMobileRoot() {
                     Box(innerModifier) {
                         WalletScreen(
                             wallet = aggregatedWallet(state.uiState),
-                            history = aggregatedWalletHistory(state.uiState)
+                            history = aggregatedWalletHistory(state.uiState),
+                            offers = aggregatedWalletOffers(state.uiState),
+                            onBuyOffer = { offer ->
+                                scope.launch {
+                                    val checkout = runCatching {
+                                        val order = repo.createOrder(
+                                            CreateOrderRequest(
+                                                companyId = offer.companyId,
+                                                productId = offer.productId,
+                                                paymentMethodType = "CARD"
+                                            )
+                                        )
+                                        repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = "CARD", saveCard = true))
+                                    }.getOrElse {
+                                        statusMessage = it.message ?: "Purchase failed"
+                                        return@launch
+                                    }
+
+                                    buildCheckoutManager()?.handle(
+                                        checkout = checkout,
+                                        onComplete = { statusMessage = checkout.bankTransfer?.instructions ?: "Purchase complete" },
+                                        onError = { error -> statusMessage = error }
+                                    ) ?: run {
+                                        statusMessage = checkout.bankTransfer?.instructions ?: checkout.status
+                                    }
+                                    refreshTenant(offer.companyId)
+                                }
+                            },
+                            onToggleAutoRenew = { entitlementId, autoRenews ->
+                                scope.launch {
+                                    val tenantId = findTenantForEntitlement(state.uiState, entitlementId)
+                                    if (tenantId == null) {
+                                        statusMessage = "Membership not found"
+                                        return@launch
+                                    }
+                                    runCatching { repo.toggleAutoRenew(tenantId, entitlementId, autoRenews) }
+                                        .onSuccess {
+                                            refreshTenant(tenantId)
+                                            statusMessage = if (autoRenews) "Auto-renew enabled" else "Auto-renew disabled"
+                                        }
+                                        .onFailure { statusMessage = it.message ?: "Unable to update membership" }
+                                }
+                            }
                         )
                     }
                 }
@@ -783,3 +826,41 @@ private fun aggregatedServices(state: GuestUiState): List<ServiceOption> =
             }
         }
     }.sortedBy { it.name }
+
+private fun aggregatedRedeemableEntitlements(state: GuestUiState): List<RedeemableEntitlementOption> =
+    selectedTenantIds(state).flatMap { tenantId ->
+        state.tenantDashboards[tenantId]?.wallet?.entitlements.orEmpty().map { entitlement ->
+            RedeemableEntitlementOption(
+                entitlementId = entitlement.entitlementId,
+                companyId = tenantId,
+                productName = entitlement.productName,
+                remainingUses = entitlement.remainingUses,
+                validUntil = entitlement.validUntil,
+                sessionTypeId = entitlement.sessionTypeId,
+                autoRenews = entitlement.autoRenews
+            )
+        }
+    }
+
+private fun aggregatedWalletOffers(state: GuestUiState): List<WalletOfferCard> =
+    selectedTenantIds(state).flatMap { tenantId ->
+        state.tenantDashboards[tenantId]?.products.orEmpty()
+            .filter { !it.bookable || it.productType == "PACK" || it.productType == "MEMBERSHIP" || it.productType == "CLASS_TICKET" }
+            .map { product ->
+                WalletOfferCard(
+                    companyId = tenantId,
+                    productId = product.productId,
+                    name = product.name,
+                    productType = product.productType,
+                    priceGross = product.priceGross,
+                    currency = product.currency,
+                    description = product.description,
+                    sessionTypeName = product.sessionTypeName
+                )
+            }
+    }.sortedBy { it.name }
+
+private fun findTenantForEntitlement(state: GuestUiState, entitlementId: String): String? =
+    state.tenantDashboards.entries.firstOrNull { (_, dashboard) ->
+        dashboard.wallet?.entitlements.orEmpty().any { it.entitlementId == entitlementId }
+    }?.key

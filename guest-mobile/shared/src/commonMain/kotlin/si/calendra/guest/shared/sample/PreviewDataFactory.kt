@@ -106,7 +106,9 @@ class PreviewDataFactory {
                         productName = "Yoga 10 Pack",
                         entitlementType = "PACK",
                         remainingUses = 7,
-                        validUntil = "2026-06-11T00:00:00Z"
+                        validUntil = "2026-06-11T00:00:00Z",
+                        sessionTypeId = "session-yoga",
+                        sessionTypeName = "Yoga Flow"
                     )
                 )
             } else {
@@ -116,13 +118,16 @@ class PreviewDataFactory {
                         productName = "5 PT Pack",
                         entitlementType = "PACK",
                         remainingUses = 4,
-                        validUntil = "2026-06-01T00:00:00Z"
+                        validUntil = "2026-06-01T00:00:00Z",
+                        sessionTypeId = "session-pt",
+                        sessionTypeName = "Personal Training"
                     ),
                     EntitlementSummary(
                         entitlementId = "ent-3",
                         productName = "Monthly Gym",
                         entitlementType = "MEMBERSHIP",
-                        validUntil = "2026-05-01T00:00:00Z"
+                        validUntil = "2026-05-01T00:00:00Z",
+                        autoRenews = true
                     )
                 )
             },
@@ -224,11 +229,11 @@ class PreviewDataFactory {
     fun createOrder(request: CreateOrderRequest): CreateOrderResponse = CreateOrderResponse(
         order = OrderSummary(
             orderId = "order-created",
-            status = "PENDING",
+            status = if (request.paymentMethodType == "ENTITLEMENT") "PAID" else "PENDING",
             paymentMethodType = request.paymentMethodType,
-            subtotalGross = 45.0,
+            subtotalGross = if (request.paymentMethodType == "ENTITLEMENT") 0.0 else 45.0,
             taxAmount = 0.0,
-            totalGross = 45.0,
+            totalGross = if (request.paymentMethodType == "ENTITLEMENT") 0.0 else 45.0,
             currency = "EUR"
         ),
         booking = request.slotId?.let { BookingSummary("booking-created", "PENDING_PAYMENT") },
@@ -248,6 +253,13 @@ class PreviewDataFactory {
                     instructions = "Use the reference code when paying."
                 ),
                 nextAction = "SHOW_INSTRUCTIONS"
+            )
+        } else if (request.paymentMethodType == "ENTITLEMENT") {
+            CheckoutResponse(
+                orderId = orderId,
+                paymentMethodType = "ENTITLEMENT",
+                status = "PAID",
+                nextAction = "COMPLETE"
             )
         } else {
             CheckoutResponse(

@@ -24,3 +24,14 @@ data class BookingHistoryItem(
     val startsAt: String,
     val bookingStatus: String
 )
+
+@Serializable
+data class ToggleAutoRenewRequest(
+    val autoRenews: Boolean
+)
+
+@Serializable
+data class ToggleAutoRenewResponse(
+    val entitlementId: String,
+    val autoRenews: Boolean
+)

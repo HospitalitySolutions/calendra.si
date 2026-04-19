@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
-import type { PaymentMethod, PaymentType } from '../lib/types'
+import type { PaymentMethod, PaymentType, SessionType as SessionTypeT } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -213,6 +213,72 @@ type GuestBookingRulesForm = {
   allowCardFor: string[]
 }
 
+type GuestAdminProductType = 'CLASS_TICKET' | 'PACK' | 'MEMBERSHIP'
+
+type GuestAdminProduct = {
+  id: number
+  name: string
+  description?: string | null
+  productType: GuestAdminProductType
+  priceGross: number
+  currency: string
+  active: boolean
+  guestVisible: boolean
+  bookable: boolean
+  usageLimit?: number | null
+  validityDays?: number | null
+  autoRenews: boolean
+  sortOrder: number
+  sessionTypeId?: number | null
+  sessionTypeName?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+type GuestProductFormState = {
+  name: string
+  description: string
+  productType: GuestAdminProductType
+  priceGross: string
+  currency: string
+  active: boolean
+  guestVisible: boolean
+  bookable: boolean
+  usageLimit: string
+  validityDays: string
+  autoRenews: boolean
+  sortOrder: string
+  sessionTypeId: string
+}
+
+const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = ['PACK', 'MEMBERSHIP', 'CLASS_TICKET']
+
+const defaultGuestProductForm = (): GuestProductFormState => ({
+  name: '',
+  description: '',
+  productType: 'PACK',
+  priceGross: '0.00',
+  currency: 'EUR',
+  active: true,
+  guestVisible: true,
+  bookable: false,
+  usageLimit: '',
+  validityDays: '',
+  autoRenews: false,
+  sortOrder: '0',
+  sessionTypeId: '',
+})
+
+const parsePositiveIntegerInput = (value: string): number | null => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number.parseInt(trimmed, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
+}
+
+const productTypeLabel = (productType: GuestAdminProductType) => GUEST_PRODUCT_TYPE_LABELS[productType] || productType
+
 const GUEST_APP_SETTINGS_KEY = 'GUEST_APP_SETTINGS_JSON'
 const GUEST_BOOKING_RULES_KEY = 'GUEST_BOOKING_RULES_JSON'
 const GUEST_PRODUCT_TYPES = ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP'] as const
@@ -321,6 +387,12 @@ export function ConfigurationPage() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [guestAppSettings, setGuestAppSettings] = useState<GuestAppSettingsForm>(defaultGuestAppSettings)
   const [guestBookingRules, setGuestBookingRules] = useState<GuestBookingRulesForm>(defaultGuestBookingRules)
+  const [guestProducts, setGuestProducts] = useState<GuestAdminProduct[]>([])
+  const [guestSessionTypes, setGuestSessionTypes] = useState<SessionTypeT[]>([])
+  const [showGuestProductModal, setShowGuestProductModal] = useState(false)
+  const [editingGuestProductId, setEditingGuestProductId] = useState<number | null>(null)
+  const [savingGuestProduct, setSavingGuestProduct] = useState(false)
+  const [guestProductForm, setGuestProductForm] = useState<GuestProductFormState>(defaultGuestProductForm)
 
   const [spaces, setSpaces] = useState<Space[]>([])
   const [editingSpace, setEditingSpace] = useState<Space | null>(null)
@@ -395,11 +467,13 @@ export function ConfigurationPage() {
   }
 
   const load = async () => {
-    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes] = await Promise.all([
+    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes, guestProductsRes, sessionTypesRes] = await Promise.all([
       api.get('/settings'),
       api.get('/spaces').catch(() => ({ data: [] })),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
       api.get('/fiscal/certificate/meta').catch(() => ({ data: { uploaded: false } })),
+      api.get('/guest/admin/products').catch(() => ({ data: [] })),
+      api.get('/types').catch(() => ({ data: [] })),
     ])
     const settingsData = settingsRes.data || {}
     const fallback = getWorkingHoursFallback()
@@ -609,6 +683,103 @@ export function ConfigurationPage() {
       window.alert(e?.response?.data?.message || 'Failed to delete predefined personal task.')
     } finally {
       setSavingTaskPreset(false)
+    }
+  }
+
+  const openNewGuestProductModal = () => {
+    setEditingGuestProductId(null)
+    setGuestProductForm(defaultGuestProductForm())
+    setShowGuestProductModal(true)
+  }
+
+  const openEditGuestProductModal = (product: GuestAdminProduct) => {
+    setEditingGuestProductId(product.id)
+    setGuestProductForm({
+      name: product.name,
+      description: product.description || '',
+      productType: product.productType,
+      priceGross: Number(product.priceGross ?? 0).toFixed(2),
+      currency: product.currency || 'EUR',
+      active: product.active,
+      guestVisible: product.guestVisible,
+      bookable: product.bookable,
+      usageLimit: product.usageLimit == null ? '' : String(product.usageLimit),
+      validityDays: product.validityDays == null ? '' : String(product.validityDays),
+      autoRenews: product.autoRenews,
+      sortOrder: String(product.sortOrder ?? 0),
+      sessionTypeId: product.sessionTypeId == null ? '' : String(product.sessionTypeId),
+    })
+    setShowGuestProductModal(true)
+  }
+
+  const submitGuestProduct = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!isAdmin) return
+    const payload = {
+      name: guestProductForm.name.trim(),
+      description: guestProductForm.description.trim(),
+      productType: guestProductForm.productType,
+      priceGross: Number.parseFloat(guestProductForm.priceGross || '0') || 0,
+      currency: guestProductForm.currency.trim().toUpperCase() || 'EUR',
+      active: guestProductForm.active,
+      guestVisible: guestProductForm.guestVisible,
+      bookable: guestProductForm.bookable,
+      usageLimit: parsePositiveIntegerInput(guestProductForm.usageLimit),
+      validityDays: parsePositiveIntegerInput(guestProductForm.validityDays),
+      autoRenews: guestProductForm.productType === 'MEMBERSHIP' ? guestProductForm.autoRenews : false,
+      sortOrder: Number.parseInt(guestProductForm.sortOrder || '0', 10) || 0,
+      sessionTypeId: guestProductForm.sessionTypeId ? Number.parseInt(guestProductForm.sessionTypeId, 10) : null,
+    }
+    setSavingGuestProduct(true)
+    try {
+      if (editingGuestProductId) await api.put(`/guest/admin/products/${editingGuestProductId}`, payload)
+      else await api.post('/guest/admin/products', payload)
+      setShowGuestProductModal(false)
+      setEditingGuestProductId(null)
+      setGuestProductForm(defaultGuestProductForm())
+      await load()
+      showToast('success', editingGuestProductId ? 'Card updated.' : 'Card created.')
+    } catch (e: any) {
+      window.alert(e?.response?.data?.message || 'Failed to save card.')
+    } finally {
+      setSavingGuestProduct(false)
+    }
+  }
+
+  const toggleGuestProductActive = async (product: GuestAdminProduct, active: boolean) => {
+    if (!isAdmin) return
+    try {
+      await api.put(`/guest/admin/products/${product.id}`, {
+        name: product.name,
+        description: product.description || '',
+        productType: product.productType,
+        priceGross: product.priceGross,
+        currency: product.currency,
+        active,
+        guestVisible: product.guestVisible,
+        bookable: product.bookable,
+        usageLimit: product.usageLimit ?? null,
+        validityDays: product.validityDays ?? null,
+        autoRenews: product.autoRenews,
+        sortOrder: product.sortOrder,
+        sessionTypeId: product.sessionTypeId ?? null,
+      })
+      await load()
+      showToast('success', active ? 'Card activated.' : 'Card archived.')
+    } catch (e: any) {
+      window.alert(e?.response?.data?.message || 'Failed to update card status.')
+    }
+  }
+
+  const deleteGuestProduct = async (product: GuestAdminProduct) => {
+    if (!isAdmin) return
+    if (!window.confirm(`Delete ${product.name}? This only works if it has never been sold.`)) return
+    try {
+      await api.delete(`/guest/admin/products/${product.id}`)
+      await load()
+      showToast('success', 'Card deleted.')
+    } catch (e: any) {
+      window.alert(e?.response?.data?.message || 'Failed to delete card.')
     }
   }
 
@@ -1392,6 +1563,138 @@ export function ConfigurationPage() {
               </div>
             </div>
           </Card>
+
+          <Card className="settings-card">
+            <SectionTitle action={<button type="button" className="secondary" onClick={openNewGuestProductModal}>New card</button>}>Cards & memberships</SectionTitle>
+            <p className="muted">Create memberships, visit packs, and class tickets sold in the guest mobile Wallet. Add a service type to restrict where the entitlement can be used.</p>
+            {guestProducts.length === 0 ? (
+              <EmptyState title="No cards yet" text="Create your first membership or visit pack to start selling it in the guest app wallet." />
+            ) : (
+              <div className="simple-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Service type</th>
+                      <th>Price</th>
+                      <th>Validity</th>
+                      <th>Uses</th>
+                      <th>Guest app</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {guestProducts.map((product) => (
+                      <tr key={product.id}>
+                        <td>
+                          <div style={{ display: 'grid', gap: 4 }}>
+                            <strong>{product.name}</strong>
+                            <span className="muted">
+                              {product.autoRenews ? 'Auto-renew enabled · ' : ''}
+                              {product.bookable ? 'Requires slot in checkout' : 'Wallet product'}
+                            </span>
+                          </div>
+                        </td>
+                        <td>{productTypeLabel(product.productType)}</td>
+                        <td>{product.sessionTypeName || 'Any service type'}</td>
+                        <td>{currency(product.priceGross, product.currency)}</td>
+                        <td>{product.validityDays ? `${product.validityDays} days` : 'No expiry'}</td>
+                        <td>{product.usageLimit ?? 'Unlimited'}</td>
+                        <td>{product.guestVisible ? 'Visible' : 'Hidden'}</td>
+                        <td>{product.active ? 'Active' : 'Archived'}</td>
+                        <td className="table-actions">
+                          <button className="linkish-btn" onClick={() => openEditGuestProductModal(product)}>Edit</button>
+                          <button className="linkish-btn" onClick={() => void toggleGuestProductActive(product, !product.active)}>{product.active ? 'Archive' : 'Activate'}</button>
+                          <button className="linkish-btn danger" onClick={() => void deleteGuestProduct(product)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          {showGuestProductModal && (
+            <div className="modal-backdrop booking-side-panel-backdrop" onClick={() => { if (!savingGuestProduct) { setShowGuestProductModal(false); setEditingGuestProductId(null) } }}>
+              <div className="modal large-modal booking-side-panel" onClick={(e) => e.stopPropagation()}>
+                <div className="booking-side-panel-header">
+                  <PageHeader
+                    title={editingGuestProductId ? 'Edit card' : 'New card'}
+                    actions={<button type="button" className="secondary booking-side-panel-close" onClick={() => { if (!savingGuestProduct) { setShowGuestProductModal(false); setEditingGuestProductId(null) } }} aria-label="Close">×</button>}
+                  />
+                </div>
+                <form className="form-grid booking-side-panel-body" onSubmit={submitGuestProduct}>
+                  <Field label="Name">
+                    <input required value={guestProductForm.name} onChange={(e) => setGuestProductForm({ ...guestProductForm, name: e.target.value })} />
+                  </Field>
+                  <Field label="Card type">
+                    <select value={guestProductForm.productType} onChange={(e) => setGuestProductForm({ ...guestProductForm, productType: e.target.value as GuestAdminProductType, autoRenews: e.target.value === 'MEMBERSHIP' ? guestProductForm.autoRenews : false })}>
+                      {ADMIN_GUEST_PRODUCT_TYPES.map((productType) => (
+                        <option key={productType} value={productType}>{productTypeLabel(productType)}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Price gross">
+                    <input type="number" min="0" step="0.01" value={guestProductForm.priceGross} onChange={(e) => setGuestProductForm({ ...guestProductForm, priceGross: e.target.value })} />
+                  </Field>
+                  <Field label="Currency">
+                    <input maxLength={3} value={guestProductForm.currency} onChange={(e) => setGuestProductForm({ ...guestProductForm, currency: e.target.value.toUpperCase() })} />
+                  </Field>
+                  <Field label="Service type" hint="Optional. When selected, this card can only be used for that service type.">
+                    <select value={guestProductForm.sessionTypeId} onChange={(e) => setGuestProductForm({ ...guestProductForm, sessionTypeId: e.target.value })}>
+                      <option value="">Any service type</option>
+                      {guestSessionTypes.map((sessionType) => (
+                        <option key={sessionType.id} value={sessionType.id}>{sessionType.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Sort order">
+                    <input type="number" step="1" value={guestProductForm.sortOrder} onChange={(e) => setGuestProductForm({ ...guestProductForm, sortOrder: e.target.value })} />
+                  </Field>
+                  <Field label="Validity (days)" hint="Leave empty for no expiry.">
+                    <input type="number" min="1" step="1" value={guestProductForm.validityDays} onChange={(e) => setGuestProductForm({ ...guestProductForm, validityDays: e.target.value })} />
+                  </Field>
+                  <Field label="Usage limit" hint="Leave empty for unlimited usage.">
+                    <input type="number" min="1" step="1" value={guestProductForm.usageLimit} onChange={(e) => setGuestProductForm({ ...guestProductForm, usageLimit: e.target.value })} />
+                  </Field>
+                  <Field label="Description" hint="Shown in the guest mobile wallet buy screen.">
+                    <textarea rows={4} value={guestProductForm.description} onChange={(e) => setGuestProductForm({ ...guestProductForm, description: e.target.value })} />
+                  </Field>
+                  <Field label="Visible in guest app">
+                    <div className="online-live-toggle" style={{ maxWidth: 200 }}>
+                      <button type="button" className={!guestProductForm.guestVisible ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, guestVisible: false })}>OFF</button>
+                      <button type="button" className={guestProductForm.guestVisible ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, guestVisible: true })}>ON</button>
+                    </div>
+                  </Field>
+                  <Field label="Active">
+                    <div className="online-live-toggle" style={{ maxWidth: 200 }}>
+                      <button type="button" className={!guestProductForm.active ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, active: false })}>OFF</button>
+                      <button type="button" className={guestProductForm.active ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, active: true })}>ON</button>
+                    </div>
+                  </Field>
+                  <Field label="Requires booking slot" hint="Only turn this on if the guest should choose a slot during checkout. Most memberships and packs should keep this OFF.">
+                    <div className="online-live-toggle" style={{ maxWidth: 200 }}>
+                      <button type="button" className={!guestProductForm.bookable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, bookable: false })}>OFF</button>
+                      <button type="button" className={guestProductForm.bookable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, bookable: true })}>ON</button>
+                    </div>
+                  </Field>
+                  <Field label="Auto-renew" hint="Available for memberships. Guests can later change this in their wallet.">
+                    <div className="online-live-toggle" style={{ maxWidth: 200 }}>
+                      <button type="button" className={!guestProductForm.autoRenews ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, autoRenews: false })} disabled={guestProductForm.productType !== 'MEMBERSHIP'}>OFF</button>
+                      <button type="button" className={guestProductForm.autoRenews ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, autoRenews: true })} disabled={guestProductForm.productType !== 'MEMBERSHIP'}>ON</button>
+                    </div>
+                  </Field>
+                  <div className="form-actions full-span booking-side-panel-footer">
+                    <button type="submit" disabled={savingGuestProduct}>{savingGuestProduct ? 'Saving…' : (editingGuestProductId ? 'Save changes' : 'Create card')}</button>
+                    <button type="button" className="secondary" disabled={savingGuestProduct} onClick={() => { setShowGuestProductModal(false); setEditingGuestProductId(null) }}>Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           <Card className="settings-card">
             <SectionTitle>Guest payment methods</SectionTitle>

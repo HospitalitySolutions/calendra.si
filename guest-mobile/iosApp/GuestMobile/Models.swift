@@ -61,6 +61,9 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
     let remainingUses: Int?
     let validUntil: String?
     let status: String?
+    let sessionTypeId: String?
+    let sessionTypeName: String?
+    let autoRenews: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id = "entitlementId"
@@ -69,6 +72,9 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
         case remainingUses
         case validUntil
         case status
+        case sessionTypeId
+        case sessionTypeName
+        case autoRenews
     }
 }
 
@@ -164,6 +170,15 @@ struct WalletPayloadModel: Codable {
     let orders: [OrderModel]
 }
 
+struct ToggleAutoRenewPayload: Codable {
+    let autoRenews: Bool
+}
+
+struct ToggleAutoRenewResponseModel: Codable {
+    let entitlementId: String
+    let autoRenews: Bool
+}
+
 struct NotificationsPayloadModel: Codable {
     let items: [NotificationModel]
 }
@@ -189,11 +204,26 @@ struct BookingCardModel: Identifiable, Hashable {
 
 struct AccessCardModel: Identifiable, Hashable {
     let id: String
+    let companyId: String
     let name: String
     let type: String
     let tenantName: String
     let remainingUses: Int?
     let validUntil: String?
+    let sessionTypeId: String?
+    let autoRenews: Bool
+}
+
+struct WalletOfferModel: Identifiable, Hashable {
+    let id: String
+    let companyId: String
+    let productId: String
+    let name: String
+    let productType: String
+    let priceGross: Double
+    let currency: String
+    let description: String?
+    let sessionTypeName: String?
 }
 
 struct ServiceOptionModel: Identifiable, Hashable {

@@ -128,6 +128,13 @@ class RemoteGuestApi(
             parameter("companyId", companyId)
         })
 
+    suspend fun toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Boolean): ToggleAutoRenewResponse =
+        parse(client.post("${config.baseUrl}/api/guest/wallet/entitlements/$entitlementId/auto-renew") {
+            jsonRequest()
+            parameter("companyId", companyId)
+            setBody(ToggleAutoRenewRequest(autoRenews))
+        })
+
     suspend fun bookingHistory(companyId: String): List<BookingHistoryItem> =
         parse(client.get("${config.baseUrl}/api/guest/bookings/history") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())

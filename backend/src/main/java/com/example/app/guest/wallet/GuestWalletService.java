@@ -3,6 +3,7 @@ package com.example.app.guest.wallet;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.model.*;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.session.SessionBookingRepository;
 import java.time.LocalDateTime;
@@ -16,12 +17,14 @@ public class GuestWalletService {
     private final GuestEntitlementRepository entitlements;
     private final GuestOrderRepository orders;
     private final SessionBookingRepository bookings;
+    private final GuestEntitlementService entitlementService;
 
-    public GuestWalletService(GuestTenantService guestTenantService, GuestEntitlementRepository entitlements, GuestOrderRepository orders, SessionBookingRepository bookings) {
+    public GuestWalletService(GuestTenantService guestTenantService, GuestEntitlementRepository entitlements, GuestOrderRepository orders, SessionBookingRepository bookings, GuestEntitlementService entitlementService) {
         this.guestTenantService = guestTenantService;
         this.entitlements = entitlements;
         this.orders = orders;
         this.bookings = bookings;
+        this.entitlementService = entitlementService;
     }
 
     @Transactional(readOnly = true)
@@ -52,5 +55,14 @@ public class GuestWalletService {
                         b.getBookingStatus() == null ? "COMPLETED" : b.getBookingStatus()
                 ))
                 .toList();
+    }
+
+    @Transactional
+    public GuestDtos.ToggleAutoRenewResponse updateAutoRenew(GuestUser guestUser, Long companyId, Long entitlementId, boolean autoRenews) {
+        GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
+        GuestEntitlement entitlement = entitlementService.findOwnedEntitlement(entitlementId, link.getClient().getId(), companyId)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Entitlement not found."));
+        GuestEntitlement updated = entitlementService.updateAutoRenew(entitlement, autoRenews);
+        return new GuestDtos.ToggleAutoRenewResponse(String.valueOf(updated.getId()), entitlementService.autoRenews(updated));
     }
 }
