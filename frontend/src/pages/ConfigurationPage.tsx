@@ -1613,7 +1613,7 @@ export function ConfigurationPage() {
                         </td>
                         <td>{productTypeLabel(product.productType)}</td>
                         <td>{product.sessionTypeName || 'Any service type'}</td>
-                        <td>{currency(product.priceGross, product.currency)}</td>
+                        <td>{currency(product.priceGross)}</td>
                         <td>{product.validityDays ? `${product.validityDays} days` : 'No expiry'}</td>
                         <td>{product.usageLimit ?? 'Unlimited'}</td>
                         <td>{product.guestVisible ? 'Visible' : 'Hidden'}</td>
