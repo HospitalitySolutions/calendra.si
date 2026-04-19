@@ -627,7 +627,7 @@ export function ConfigurationPage() {
     if (!status || status === 'NOT_CONNECTED') return 'Not connected'
     if (status === 'ONBOARDING_LINK_CREATED') return 'Onboarding link created'
     if (status === 'ONBOARDING_RETURNED') return 'Connected'
-    return status.replaceAll('_', ' ')
+    return status.replace(/_/g, ' ')
   }, [settings.PAYPAL_ONBOARDING_STATUS])
 
   const startPaypalOnboarding = async () => {
