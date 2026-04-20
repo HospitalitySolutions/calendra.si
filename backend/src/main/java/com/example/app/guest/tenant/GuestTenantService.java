@@ -58,7 +58,8 @@ public class GuestTenantService {
                 settings.publicPhone(),
                 GuestMapper.displayCompanyAddressLine(settings),
                 GuestJoinMethod.TENANT_CODE.name(),
-                settings.guestAppEnabled()
+                settings.guestAppEnabled(),
+                settings.employeeSelectionStep()
         );
     }
 
@@ -79,7 +80,8 @@ public class GuestTenantService {
                 settings.publicPhone(),
                 GuestMapper.displayCompanyAddressLine(settings),
                 GuestJoinMethod.INVITE_LINK.name(),
-                settings.guestAppEnabled()
+                settings.guestAppEnabled(),
+                settings.employeeSelectionStep()
         );
     }
 

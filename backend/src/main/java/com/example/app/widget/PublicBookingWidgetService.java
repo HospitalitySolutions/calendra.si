@@ -1,9 +1,13 @@
 package com.example.app.widget;
 
+import com.example.app.billing.PaymentMethod;
+import com.example.app.billing.PaymentMethodRepository;
+import com.example.app.billing.PaymentType;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.reminder.ReminderService;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
@@ -68,6 +72,8 @@ public class PublicBookingWidgetService {
     private final WidgetTurnstileService widgetTurnstileService;
     private final WidgetBookingIdempotencyService widgetBookingIdempotencyService;
     private final WidgetPublicAuditLogger widgetPublicAuditLogger;
+    private final GuestSettingsService guestSettingsService;
+    private final PaymentMethodRepository paymentMethods;
 
     public PublicBookingWidgetService(
             CompanyRepository companies,
@@ -84,6 +90,8 @@ public class PublicBookingWidgetService {
             WidgetTurnstileService widgetTurnstileService,
             WidgetBookingIdempotencyService widgetBookingIdempotencyService,
             WidgetPublicAuditLogger widgetPublicAuditLogger,
+            GuestSettingsService guestSettingsService,
+            PaymentMethodRepository paymentMethods,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String widgetTimezoneId
     ) {
         this.companies = companies;
@@ -100,6 +108,8 @@ public class PublicBookingWidgetService {
         this.widgetTurnstileService = widgetTurnstileService;
         this.widgetBookingIdempotencyService = widgetBookingIdempotencyService;
         this.widgetPublicAuditLogger = widgetPublicAuditLogger;
+        this.guestSettingsService = guestSettingsService;
+        this.paymentMethods = paymentMethods;
         this.widgetZoneId = (widgetTimezoneId == null || widgetTimezoneId.isBlank())
                 ? ZoneId.of("Europe/Ljubljana")
                 : ZoneId.of(widgetTimezoneId.trim());
@@ -109,6 +119,8 @@ public class PublicBookingWidgetService {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "config");
         var cfg = loadConfig(company.getId());
+        var publicSettings = guestSettingsService.publicSettings(company.getId());
+        var allowedPaymentMethods = resolveAllowedPaymentMethods(company);
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
                 cfg.companyName(),
@@ -119,8 +131,31 @@ public class PublicBookingWidgetService {
                 cfg.workingHoursEnd().toString(),
                 widgetZoneId.getId(),
                 widgetTurnstileService.isEnabled(company),
-                widgetTurnstileService.siteKey(company)
+                widgetTurnstileService.siteKey(company),
+                publicSettings.employeeSelectionStep(),
+                allowedPaymentMethods
         );
+    }
+
+    /**
+     * Computes the widget's allowed payment methods for a single bookable session
+     * ({@code SESSION_SINGLE}) by mirroring the rules applied in
+     * {@code GuestOrderService.assertPaymentMethodAllowed}.
+     */
+    private PublicBookingWidgetController.AllowedPaymentMethodsResponse resolveAllowedPaymentMethods(Company company) {
+        GuestSettingsService.GuestBookingRules rules = guestSettingsService.bookingRules(company.getId());
+        List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId());
+        boolean cardConfigured = methods.stream().anyMatch(pm ->
+                pm.isGuestEnabled() && pm.getPaymentType() == PaymentType.CARD && pm.isStripeEnabled());
+        boolean bankConfigured = methods.stream().anyMatch(pm ->
+                pm.isGuestEnabled() && pm.getPaymentType() == PaymentType.BANK_TRANSFER);
+        String productType = "SESSION_SINGLE";
+        boolean card = cardConfigured && rules.allowCardFor().contains(productType);
+        boolean bankTransfer = bankConfigured && rules.allowBankTransferFor().contains(productType);
+        boolean paypal = company.getPaypalMerchantId() != null
+                && !company.getPaypalMerchantId().isBlank()
+                && rules.allowCardFor().contains(productType);
+        return new PublicBookingWidgetController.AllowedPaymentMethodsResponse(card, bankTransfer, paypal);
     }
 
     public List<PublicBookingWidgetController.WidgetServiceResponse> services(String tenantCode, HttpServletRequest request) {
@@ -501,8 +536,10 @@ public class PublicBookingWidgetService {
                             ? iso + "::" + window.getConsultant().getId()
                             : iso;
                     deduped.putIfAbsent(key, new PublicBookingWidgetController.AvailabilitySlotResponse(
+                            window.getConsultant().getId() + "|" + start + "|" + end,
                             cursor.format(SLOT_LABEL_FORMAT),
                             iso,
+                            DATE_TIME_FORMAT.format(end),
                             window.getConsultant().getId(),
                             consultantFullName(window.getConsultant())
                     ));
@@ -557,8 +594,10 @@ public class PublicBookingWidgetService {
                             ? iso + "::" + consultant.getId()
                             : iso;
                     deduped.putIfAbsent(key, new PublicBookingWidgetController.AvailabilitySlotResponse(
+                            consultant.getId() + "|" + start + "|" + end,
                             cursor.format(SLOT_LABEL_FORMAT),
                             iso,
+                            DATE_TIME_FORMAT.format(end),
                             consultant.getId(),
                             consultantFullName(consultant)
                     ));
@@ -688,9 +727,12 @@ public class PublicBookingWidgetService {
                 cursor = cursor.plusMinutes(30);
                 continue;
             }
+            LocalDateTime fallbackEnd = start.plusMinutes(durationMinutes);
             items.add(new PublicBookingWidgetController.AvailabilitySlotResponse(
+                    (consultantId != null ? consultantId : 0L) + "|" + start + "|" + fallbackEnd,
                     cursor.format(SLOT_LABEL_FORMAT),
                     DATE_TIME_FORMAT.format(start),
+                    DATE_TIME_FORMAT.format(fallbackEnd),
                     consultantId,
                     null
             ));

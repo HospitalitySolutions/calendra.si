@@ -120,17 +120,40 @@ data class RedeemableEntitlementOption(
 enum class BookingFlowStep(
     val index: Int,
     val stepTitle: String,
-    val headerTitle: String,
+    val headerTitleBase: String,
     val headerSubtitle: String
 ) {
-    PROVIDER(1, "Provider", "1. Select provider", "Choose a tenancy/organization you're subscribed to"),
-    SERVICE(2, "Service", "2. Select service", "Choose a service from the options provided by the selected provider"),
-    DATE_TIME(3, "Date & time", "3. Select date & time", "Pick a date and an available time slot"),
-    PAYMENT_REVIEW(4, "Payment & review", "4. Payment & review", "Choose your preferred payment method");
+    PROVIDER(1, "Provider", "Select provider", "Choose a tenancy/organization you're subscribed to"),
+    SERVICE(2, "Service", "Select service", "Choose a service from the options provided by the selected provider"),
+    EMPLOYEE(3, "Employee", "Select employee", "Choose the employee to perform the service"),
+    DATE_TIME(4, "Date & time", "Select date & time", "Pick a date and an available time slot"),
+    PAYMENT_REVIEW(5, "Payment & review", "Payment & review", "Choose your preferred payment method");
 
     companion object {
-        val ordered = listOf(PROVIDER, SERVICE, DATE_TIME, PAYMENT_REVIEW)
+        val ordered = listOf(PROVIDER, SERVICE, EMPLOYEE, DATE_TIME, PAYMENT_REVIEW)
     }
+}
+
+internal fun visibleBookingSteps(employeeStepEnabled: Boolean): List<BookingFlowStep> =
+    BookingFlowStep.ordered.filter { it != BookingFlowStep.EMPLOYEE || employeeStepEnabled }
+
+internal fun BookingFlowStep.headerTitleFor(employeeStepEnabled: Boolean): String {
+    val visible = visibleBookingSteps(employeeStepEnabled)
+    val ordinal = visible.indexOf(this).takeIf { it >= 0 }?.plus(1) ?: this.index
+    return "$ordinal. $headerTitleBase"
+}
+
+data class ConsultantOption(
+    val id: String,
+    val firstName: String,
+    val lastName: String,
+    val email: String? = null
+) {
+    val fullName: String
+        get() {
+            val trimmed = "$firstName $lastName".trim()
+            return trimmed.ifBlank { email ?: "Employee" }
+        }
 }
 
 private const val GUEST_AVAILABILITY_DEBUG_TAG = "GuestAvailability"
@@ -157,14 +180,19 @@ fun BookScreen(
     onSaveCard: (SavedCardUi) -> Unit = {},
     onRemoveSavedCard: (String) -> Unit = {},
     onOpenNotifications: () -> Unit,
-    onLoadAvailability: suspend (ServiceOption, LocalDate) -> List<AvailabilitySlot>,
-    onCheckout: suspend (ServiceOption, String, String) -> Unit
+    onLoadAvailability: suspend (ServiceOption, LocalDate, String?) -> List<AvailabilitySlot>,
+    onLoadConsultants: suspend (ServiceOption) -> List<ConsultantOption> = { _ -> emptyList() },
+    employeeSelectionStepEnabled: (String) -> Boolean = { false },
+    onCheckout: suspend (ServiceOption, String, String, String?) -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
     var currentStep by remember { mutableStateOf(BookingFlowStep.PROVIDER) }
     var selectedProviderId by remember { mutableStateOf<String?>(providers.firstOrNull()?.companyId) }
     var selectedServiceId by remember { mutableStateOf<String?>(null) }
+    var selectedConsultantId by remember { mutableStateOf<String?>(null) }
+    var consultants by remember { mutableStateOf<List<ConsultantOption>>(emptyList()) }
+    var loadingConsultants by remember { mutableStateOf(false) }
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
     var slots by remember { mutableStateOf<List<AvailabilitySlot>>(emptyList()) }
@@ -176,6 +204,9 @@ fun BookScreen(
     var submitting by remember { mutableStateOf(false) }
     var showAddCardDialog by remember { mutableStateOf(false) }
     var showCardChooserDialog by remember { mutableStateOf(false) }
+
+    val employeeStepActive = selectedProviderId?.let(employeeSelectionStepEnabled) == true
+    val visibleSteps = visibleBookingSteps(employeeStepActive)
 
     val providerScopedServices = remember(services, selectedProviderId) {
         services.filter { it.companyId == selectedProviderId }.sortedBy { it.name }
@@ -211,11 +242,9 @@ fun BookScreen(
     }
 
     fun moveBackStep() {
-        currentStep = when (currentStep) {
-            BookingFlowStep.PROVIDER -> BookingFlowStep.PROVIDER
-            BookingFlowStep.SERVICE -> BookingFlowStep.PROVIDER
-            BookingFlowStep.DATE_TIME -> BookingFlowStep.SERVICE
-            BookingFlowStep.PAYMENT_REVIEW -> BookingFlowStep.DATE_TIME
+        val idx = visibleSteps.indexOf(currentStep)
+        if (idx > 0) {
+            currentStep = visibleSteps[idx - 1]
         }
     }
 
@@ -229,7 +258,8 @@ fun BookScreen(
             loadingSlots = true
             selectedSlotId = null
             availabilityLoadError = null
-            runCatching { onLoadAvailability(service, selectedDate) }
+            val consultantIdForLoad = if (employeeStepActive) selectedConsultantId else null
+            runCatching { onLoadAvailability(service, selectedDate, consultantIdForLoad) }
                 .onSuccess { list ->
                     slots = list
                     if (BuildConfig.DEBUG) {
@@ -255,8 +285,22 @@ fun BookScreen(
         }
     }
 
-    LaunchedEffect(selectedService?.id, selectedDate) {
+    LaunchedEffect(selectedService?.id, selectedDate, selectedConsultantId, employeeStepActive) {
         if (selectedService != null) refreshSlots()
+    }
+
+    LaunchedEffect(selectedService?.id, employeeStepActive) {
+        if (employeeStepActive && selectedService != null) {
+            loadingConsultants = true
+            consultants = runCatching { onLoadConsultants(selectedService) }.getOrElse { emptyList() }
+            loadingConsultants = false
+            if (consultants.none { it.id == selectedConsultantId }) {
+                selectedConsultantId = null
+            }
+        } else {
+            consultants = emptyList()
+            selectedConsultantId = null
+        }
     }
 
     LaunchedEffect(selectedService?.id, matchingEntitlements.size) {
@@ -314,6 +358,7 @@ fun BookScreen(
                     )
                     BookingStepper(
                         currentStep = currentStep,
+                        visibleSteps = visibleSteps,
                         modifier = Modifier.offset(y = (-8).dp)
                     )
                 }
@@ -323,7 +368,7 @@ fun BookScreen(
                 BookingFlowStep.PROVIDER -> {
                     item {
                         BookSelectStepHeader(
-                            title = BookingFlowStep.PROVIDER.headerTitle,
+                            title = BookingFlowStep.PROVIDER.headerTitleFor(employeeStepActive),
                             subtitle = BookingFlowStep.PROVIDER.headerSubtitle
                         )
                     }
@@ -353,7 +398,7 @@ fun BookScreen(
                 BookingFlowStep.SERVICE -> {
                     item {
                         BookSelectStepHeader(
-                            title = BookingFlowStep.SERVICE.headerTitle,
+                            title = BookingFlowStep.SERVICE.headerTitleFor(employeeStepActive),
                             subtitle = BookingFlowStep.SERVICE.headerSubtitle
                         )
                     }
@@ -379,10 +424,50 @@ fun BookScreen(
                     }
                 }
 
+                BookingFlowStep.EMPLOYEE -> {
+                    item {
+                        BookSelectStepHeader(
+                            title = BookingFlowStep.EMPLOYEE.headerTitleFor(employeeStepActive),
+                            subtitle = BookingFlowStep.EMPLOYEE.headerSubtitle
+                        )
+                    }
+
+                    if (loadingConsultants) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Text("Loading employees…")
+                            }
+                        }
+                    } else if (consultants.isEmpty()) {
+                        item {
+                            EmptyStateCard(
+                                title = "No employees available",
+                                description = "This service has no bookable employees."
+                            )
+                        }
+                    } else {
+                        items(consultants, key = { it.id }) { consultant ->
+                            ConsultantCard(
+                                consultant = consultant,
+                                selected = consultant.id == selectedConsultantId,
+                                onClick = {
+                                    selectedConsultantId = consultant.id
+                                    selectedSlotId = null
+                                }
+                            )
+                        }
+                    }
+                }
+
                 BookingFlowStep.DATE_TIME -> {
                     item {
                         BookSelectStepHeader(
-                            title = BookingFlowStep.DATE_TIME.headerTitle,
+                            title = BookingFlowStep.DATE_TIME.headerTitleFor(employeeStepActive),
                             subtitle = BookingFlowStep.DATE_TIME.headerSubtitle
                         )
                     }
@@ -475,7 +560,7 @@ fun BookScreen(
                 BookingFlowStep.PAYMENT_REVIEW -> {
                     item {
                         BookSelectStepHeader(
-                            title = BookingFlowStep.PAYMENT_REVIEW.headerTitle,
+                            title = BookingFlowStep.PAYMENT_REVIEW.headerTitleFor(employeeStepActive),
                             subtitle = BookingFlowStep.PAYMENT_REVIEW.headerSubtitle
                         )
                     }
@@ -587,21 +672,32 @@ fun BookScreen(
         ) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
             Spacer(Modifier.height(4.dp))
+            val advanceStep: () -> Unit = {
+                val idx = visibleSteps.indexOf(currentStep)
+                if (idx >= 0 && idx < visibleSteps.size - 1) {
+                    currentStep = visibleSteps[idx + 1]
+                }
+            }
             when (currentStep) {
                 BookingFlowStep.PROVIDER -> ContinueButton(
                     label = "Continue",
                     enabled = selectedProvider != null,
-                    onClick = { currentStep = BookingFlowStep.SERVICE }
+                    onClick = advanceStep
                 )
                 BookingFlowStep.SERVICE -> ContinueButton(
                     label = "Continue",
                     enabled = selectedService != null,
-                    onClick = { currentStep = BookingFlowStep.DATE_TIME }
+                    onClick = advanceStep
+                )
+                BookingFlowStep.EMPLOYEE -> ContinueButton(
+                    label = "Continue",
+                    enabled = selectedConsultantId != null,
+                    onClick = advanceStep
                 )
                 BookingFlowStep.DATE_TIME -> ContinueButton(
                     label = "Continue",
                     enabled = selectedSlot != null,
-                    onClick = { currentStep = BookingFlowStep.PAYMENT_REVIEW }
+                    onClick = advanceStep
                 )
                 BookingFlowStep.PAYMENT_REVIEW -> ContinueButton(
                     label = "Confirm booking",
@@ -613,7 +709,8 @@ fun BookScreen(
                         val method = selectedPaymentMethod.apiValue ?: return@ContinueButton
                         scope.launch {
                             submitting = true
-                            runCatching { onCheckout(service, slot.slotId, method) }
+                            val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null
+                            runCatching { onCheckout(service, slot.slotId, method, consultantIdForOrder) }
                             submitting = false
                         }
                     }
@@ -661,9 +758,13 @@ private fun BookingHeader(
 }
 
 @Composable
-private fun BookingStepper(currentStep: BookingFlowStep, modifier: Modifier = Modifier) {
-    val steps = BookingFlowStep.ordered
-    val stateIndex = currentStep.index
+private fun BookingStepper(
+    currentStep: BookingFlowStep,
+    visibleSteps: List<BookingFlowStep> = BookingFlowStep.ordered,
+    modifier: Modifier = Modifier
+) {
+    val steps = visibleSteps
+    val stateIndex = steps.indexOf(currentStep)
     val primary = MaterialTheme.colorScheme.primary
     val inactiveCircle = MaterialTheme.colorScheme.surfaceVariant
     val inactiveConnector = MaterialTheme.colorScheme.outline
@@ -674,10 +775,10 @@ private fun BookingStepper(currentStep: BookingFlowStep, modifier: Modifier = Mo
     ) {
         steps.forEachIndexed { index, step ->
             val active = step == currentStep
-            val completed = step.index < stateIndex
+            val completed = index < stateIndex
             val circleColor = if (active || completed) primary else inactiveCircle
-            val leftActive = index > 0 && step.index <= stateIndex
-            val rightActive = index < steps.lastIndex && step.index < stateIndex
+            val leftActive = index > 0 && index <= stateIndex
+            val rightActive = index < steps.lastIndex && index < stateIndex
 
             Column(
                 modifier = Modifier.weight(1f),
@@ -734,7 +835,7 @@ private fun BookingStepper(currentStep: BookingFlowStep, modifier: Modifier = Mo
                                 )
                             } else {
                                 Text(
-                                    step.index.toString(),
+                                    (index + 1).toString(),
                                     color = if (active) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
@@ -912,6 +1013,30 @@ private fun ServiceCard(service: ServiceOption, selected: Boolean, onClick: () -
                 TagPillCompact(service.tenantName)
                 service.durationMinutes?.let { TagPillCompact("$it min") }
             }
+        }
+    }
+}
+
+@Composable
+private fun ConsultantCard(consultant: ConsultantOption, selected: Boolean, onClick: () -> Unit) {
+    ElevatedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SelectIndicator(selected = selected, size = 26.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(consultant.fullName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                consultant.email?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

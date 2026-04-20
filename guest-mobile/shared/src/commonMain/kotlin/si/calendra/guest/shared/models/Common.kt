@@ -10,7 +10,8 @@ data class TenantSummary(
     val publicCity: String? = null,
     val publicPhone: String? = null,
     val companyAddress: String? = null,
-    val status: String = "ACTIVE"
+    val status: String = "ACTIVE",
+    val employeeSelectionStep: Boolean = false
 )
 
 @Serializable

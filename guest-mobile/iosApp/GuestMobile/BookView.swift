@@ -10,6 +10,9 @@ struct BookView: View {
     @State private var currentStep: BookFlowStep = .provider
     @State private var selectedProviderId: String?
     @State private var selectedServiceId: String?
+    @State private var selectedConsultantId: String?
+    @State private var consultants: [ConsultantSummaryModel] = []
+    @State private var isLoadingConsultants = false
     @State private var selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
     @State private var visibleMonth: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var slots: [AvailabilitySlotModel] = []
@@ -52,6 +55,24 @@ struct BookView: View {
         slots.first(where: { $0.id == selectedSlotId })
     }
 
+    private var selectedConsultant: ConsultantSummaryModel? {
+        consultants.first(where: { $0.id == selectedConsultantId })
+    }
+
+    private var employeeStepEnabled: Bool {
+        selectedProvider?.employeeSelectionStep ?? false
+    }
+
+    private var visibleSteps: [BookFlowStep] {
+        BookFlowStep.allCases.filter { step in
+            step != .employee || employeeStepEnabled
+        }
+    }
+
+    private func stepOrdinal(_ step: BookFlowStep) -> Int {
+        (visibleSteps.firstIndex(of: step) ?? 0) + 1
+    }
+
     private var matchingEntitlements: [AccessCardModel] {
         guard let selectedService else { return [] }
         return store.matchingEntitlements(companyId: selectedService.companyId, sessionTypeId: selectedService.sessionTypeId)
@@ -63,6 +84,8 @@ struct BookView: View {
             return selectedProvider == nil
         case .service:
             return selectedService == nil
+        case .employee:
+            return selectedConsultant == nil
         case .dateTime:
             return selectedSlot == nil
         case .paymentReview:
@@ -133,12 +156,22 @@ struct BookView: View {
                 selectedServiceId = nil
                 selectedSlotId = nil
                 slots = []
+                selectedConsultantId = nil
+                consultants = []
             }
             if providerId == nil {
                 currentStep = .provider
             }
         }
         .onChange(of: selectedServiceId) { _ in
+            selectedSlotId = nil
+            selectedConsultantId = nil
+            consultants = []
+            if employeeStepEnabled, let selectedService {
+                Task { await loadConsultants(for: selectedService) }
+            }
+        }
+        .onChange(of: selectedConsultantId) { _ in
             selectedSlotId = nil
         }
         .onChange(of: selectedDate) { newDate in
@@ -150,7 +183,11 @@ struct BookView: View {
             }
         }
         .task(id: availabilityTaskKey) {
-            guard let selectedService, currentStep.rawValue >= BookFlowStep.dateTime.rawValue else { return }
+            guard let selectedService else { return }
+            let steps = visibleSteps
+            guard let currentIdx = steps.firstIndex(of: currentStep),
+                  let dateIdx = steps.firstIndex(of: .dateTime),
+                  currentIdx >= dateIdx else { return }
             await loadAvailability(for: selectedService)
         }
         .sheet(isPresented: $showingStoredCardSheet) {
@@ -222,16 +259,16 @@ struct BookView: View {
     }
 
     private var stepper: some View {
-        let steps = BookFlowStep.allCases
-        let stateIndex = currentStep.rawValue
+        let steps = visibleSteps
+        let currentIndex = steps.firstIndex(of: currentStep) ?? 0
         return HStack(alignment: .top, spacing: 0) {
             ForEach(Array(steps.enumerated()), id: \.element.id) { idx, step in
                 let active = step == currentStep
-                let completed = step.rawValue < stateIndex
+                let completed = idx < currentIndex
                 let isFirst = idx == 0
                 let isLast = idx == steps.count - 1
-                let leftActive = !isFirst && step.rawValue <= stateIndex
-                let rightActive = !isLast && step.rawValue < stateIndex
+                let leftActive = !isFirst && idx <= currentIndex
+                let rightActive = !isLast && idx < currentIndex
 
                 Button {
                     guard canNavigate(to: step) else { return }
@@ -258,7 +295,7 @@ struct BookView: View {
                                                 .font(.system(size: 14, weight: .bold))
                                                 .foregroundStyle(Color.white)
                                         } else {
-                                            Text("\(step.rawValue)")
+                                            Text("\(idx + 1)")
                                                 .font(.subheadline.weight(.semibold))
                                                 .foregroundStyle(active ? Color.white : Color.secondary)
                                         }
@@ -289,10 +326,56 @@ struct BookView: View {
             providerStep
         case .service:
             serviceStep
+        case .employee:
+            employeeStep
         case .dateTime:
             dateStep
         case .paymentReview:
             paymentReviewStep
+        }
+    }
+
+    private var employeeStep: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("3. Select employee")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Choose the employee to perform the service")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if isLoadingConsultants {
+                GuestSurfaceCard {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading employees…")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else if consultants.isEmpty {
+                GuestSurfaceCard {
+                    Text("No employees available for this service yet.")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(consultants) { consultant in
+                        Button {
+                            selectedConsultantId = consultant.id
+                        } label: {
+                            selectableRowCard(
+                                title: consultant.fullName,
+                                subtitle: consultant.email ?? "",
+                                selected: selectedConsultantId == consultant.id
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
     }
 
@@ -429,7 +512,7 @@ struct BookView: View {
         VStack(alignment: .leading, spacing: 10) {
             GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("3. Select date & time")
+                    Text("\(stepOrdinal(.dateTime)). Select date & time")
                         .font(.system(size: 16, weight: .bold))
                     Text("Pick a date and an available time slot")
                         .font(.caption2)
@@ -509,7 +592,7 @@ struct BookView: View {
         VStack(alignment: .leading, spacing: 10) {
             GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("4. Payment & review")
+                    Text("\(stepOrdinal(.paymentReview)). Payment & review")
                         .font(.system(size: 16, weight: .bold))
                     Text("Choose your preferred payment method")
                         .font(.caption2)
@@ -641,9 +724,9 @@ struct BookView: View {
     }
 
     private func moveBack() {
-        if let previous = BookFlowStep(rawValue: max(BookFlowStep.provider.rawValue, currentStep.rawValue - 1)) {
-            currentStep = previous
-        }
+        let steps = visibleSteps
+        guard let idx = steps.firstIndex(of: currentStep), idx > 0 else { return }
+        currentStep = steps[idx - 1]
     }
 
     private func canNavigate(to step: BookFlowStep) -> Bool {
@@ -652,32 +735,42 @@ struct BookView: View {
             return true
         case .service:
             return selectedProvider != nil
-        case .dateTime:
+        case .employee:
             return selectedService != nil
+        case .dateTime:
+            return selectedService != nil && (!employeeStepEnabled || selectedConsultant != nil)
         case .paymentReview:
             return selectedSlot != nil
         }
     }
 
     private func handlePrimaryAction() {
-        switch currentStep {
-        case .provider:
-            currentStep = .service
-        case .service:
-            currentStep = .dateTime
-        case .dateTime:
-            currentStep = .paymentReview
-        case .paymentReview:
+        let steps = visibleSteps
+        guard let idx = steps.firstIndex(of: currentStep) else { return }
+        if currentStep == .paymentReview {
             guard let selectedService, let selectedSlot else { return }
             Task { await confirmBooking(service: selectedService, slot: selectedSlot) }
+            return
+        }
+        let nextIdx = idx + 1
+        if nextIdx < steps.count {
+            currentStep = steps[nextIdx]
         }
     }
 
     private func loadAvailability(for service: ServiceOptionModel) async {
-        guard currentStep.rawValue >= BookFlowStep.dateTime.rawValue else { return }
+        let steps = visibleSteps
+        guard let currentIdx = steps.firstIndex(of: currentStep),
+              let dateIdx = steps.firstIndex(of: .dateTime),
+              currentIdx >= dateIdx else { return }
         do {
             isLoadingSlots = true
-            slots = try await store.loadAvailability(companyId: service.companyId, sessionTypeId: service.sessionTypeId, date: selectedDate)
+            slots = try await store.loadAvailability(
+                companyId: service.companyId,
+                sessionTypeId: service.sessionTypeId,
+                date: selectedDate,
+                consultantId: employeeStepEnabled ? selectedConsultantId : nil
+            )
             if slots.contains(where: { $0.id == selectedSlotId }) == false {
                 selectedSlotId = nil
             }
@@ -690,6 +783,17 @@ struct BookView: View {
         }
     }
 
+    private func loadConsultants(for service: ServiceOptionModel) async {
+        isLoadingConsultants = true
+        do {
+            consultants = try await store.loadConsultants(companyId: service.companyId, sessionTypeId: service.sessionTypeId)
+        } catch {
+            consultants = []
+            store.errorMessage = error.localizedDescription
+        }
+        isLoadingConsultants = false
+    }
+
     private func confirmBooking(service: ServiceOptionModel, slot: AvailabilitySlotModel) async {
         do {
             isSubmitting = true
@@ -697,7 +801,8 @@ struct BookView: View {
                 companyId: service.companyId,
                 productId: service.productId,
                 slotId: slot.id,
-                paymentMethod: selectedPaymentMethod.apiValue
+                paymentMethod: selectedPaymentMethod.apiValue,
+                consultantId: employeeStepEnabled ? selectedConsultantId : nil
             )
             isSubmitting = false
 
@@ -716,7 +821,7 @@ struct BookView: View {
     }
 
     private var availabilityTaskKey: String {
-        "\(selectedService?.id ?? "none")-\(DateFormatting.dayString(selectedDate))"
+        "\(selectedService?.id ?? "none")-\(DateFormatting.dayString(selectedDate))-\(selectedConsultantId ?? "any")"
     }
 
     private func priceString(_ value: Double) -> String {
@@ -889,8 +994,9 @@ struct BookView: View {
 private enum BookFlowStep: Int, CaseIterable, Identifiable {
     case provider = 1
     case service = 2
-    case dateTime = 3
-    case paymentReview = 4
+    case employee = 3
+    case dateTime = 4
+    case paymentReview = 5
 
     var id: Int { rawValue }
 
@@ -898,6 +1004,7 @@ private enum BookFlowStep: Int, CaseIterable, Identifiable {
         switch self {
         case .provider: return "Provider"
         case .service: return "Service"
+        case .employee: return "Employee"
         case .dateTime: return "Date & time"
         case .paymentReview: return "Payment & review"
         }

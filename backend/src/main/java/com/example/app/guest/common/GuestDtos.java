@@ -6,7 +6,7 @@ public final class GuestDtos {
     private GuestDtos() {}
 
     public record GuestUserResponse(String id, String email, String firstName, String lastName, String phone, String language) {}
-    public record TenantSummaryResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String status) {}
+    public record TenantSummaryResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String status, boolean employeeSelectionStep) {}
     public record GuestSessionResponse(String token, GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record GuestProfileResponse(GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record LinkedCompanyOptionResponse(String id, String name) {}
@@ -35,7 +35,7 @@ public final class GuestDtos {
     public record SocialTokenRequest(String idToken) {}
 
     public record TenantLookupRequest(String tenantCode) {}
-    public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String joinMethod, boolean canJoin) {}
+    public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String joinMethod, boolean canJoin, boolean employeeSelectionStep) {}
     public record JoinTenantRequest(String joinMethod, String tenantCode, String inviteCode, String companyId) {}
     public record TenantLinkResponse(String companyId, String clientId, String status, String joinedVia) {}
     public record JoinTenantResponse(TenantLinkResponse tenantLink, boolean clientMatched, String matchType) {}
@@ -48,6 +48,7 @@ public final class GuestDtos {
     public record ProductResponse(String productId, String name, String productType, double priceGross, String currency, String sessionTypeId, String sessionTypeName, boolean bookable, String description, Integer durationMinutes) {}
     public record AvailabilitySlotResponse(String slotId, String startsAt, String endsAt, boolean available) {}
     public record AvailabilityResponse(String sessionTypeId, String date, List<AvailabilitySlotResponse> slots) {}
+    public record ConsultantResponse(String id, String firstName, String lastName, String email) {}
 
     public record CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType) {}
     public record OrderSummaryResponse(String orderId, String status, String paymentMethodType, double subtotalGross, double taxAmount, double totalGross, String currency) {}

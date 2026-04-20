@@ -397,7 +397,18 @@ public class GuestOrderService {
         return Long.parseLong(value);
     }
 
-    private User resolveBookingConsultant(GuestOrder order) {
+    private User resolveBookingConsultant(GuestOrder order, SlotContext slotContext) {
+        // Prefer the employee encoded in the slot the guest booked (format: consultantId|start|end).
+        if (slotContext != null && slotContext.consultantId() != null) {
+            User fromSlot = users.findById(slotContext.consultantId())
+                    .filter(u -> Objects.equals(u.getCompany().getId(), order.getCompany().getId()))
+                    .filter(User::isActive)
+                    .orElse(null);
+            if (fromSlot != null) {
+                return fromSlot;
+            }
+        }
+
         List<User> activeUsers = users.findAllByCompanyId(order.getCompany().getId()).stream()
                 .filter(User::isActive)
                 .sorted(java.util.Comparator.comparing(User::getId))
@@ -412,7 +423,7 @@ public class GuestOrderService {
                 .filter(t -> Objects.equals(t.getCompany().getId(), order.getCompany().getId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not available for this tenant."));
 
-        User consultant = resolveBookingConsultant(order);
+        User consultant = resolveBookingConsultant(order, slotContext);
         SessionBooking booking = new SessionBooking();
         booking.setCompany(order.getCompany());
         booking.setClient(order.getClient());

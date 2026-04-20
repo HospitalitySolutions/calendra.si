@@ -7,7 +7,16 @@ data class CreateOrderRequest(
     val companyId: String,
     val productId: String,
     val slotId: String? = null,
-    val paymentMethodType: String
+    val paymentMethodType: String,
+    val consultantId: String? = null
+)
+
+@Serializable
+data class ConsultantSummary(
+    val id: String,
+    val firstName: String,
+    val lastName: String,
+    val email: String? = null
 )
 
 @Serializable

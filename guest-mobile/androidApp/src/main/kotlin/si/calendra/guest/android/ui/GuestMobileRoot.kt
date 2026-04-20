@@ -376,15 +376,23 @@ fun GuestMobileRoot() {
                             preferencesStore.saveSavedCards(updated)
                         },
                         onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
-                        onLoadAvailability = { service, date -> repo.availability(service.companyId, service.sessionTypeId, date.toString()).slots },
-                        onCheckout = onCheckout@{ service, slotId, paymentMethodType ->
+                        onLoadAvailability = { service, date, consultantId -> repo.availability(service.companyId, service.sessionTypeId, date.toString(), consultantId).slots },
+                        onLoadConsultants = { service ->
+                            runCatching { repo.consultants(service.companyId, service.sessionTypeId) }.getOrElse { emptyList() }
+                                .map { si.calendra.guest.android.ui.screens.ConsultantOption(id = it.id, firstName = it.firstName, lastName = it.lastName, email = it.email) }
+                        },
+                        employeeSelectionStepEnabled = { companyId ->
+                            state.uiState.linkedTenants.firstOrNull { it.companyId == companyId }?.employeeSelectionStep == true
+                        },
+                        onCheckout = onCheckout@{ service, slotId, paymentMethodType, consultantId ->
                             val checkout = runCatching {
                                 val order = repo.createOrder(
                                     CreateOrderRequest(
                                         companyId = service.companyId,
                                         productId = service.productId,
                                         slotId = slotId,
-                                        paymentMethodType = paymentMethodType
+                                        paymentMethodType = paymentMethodType,
+                                        consultantId = consultantId
                                     )
                                 )
                                 repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = paymentMethodType == "CARD"))

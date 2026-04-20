@@ -115,12 +115,20 @@ class RemoteGuestApi(
             parameter("companyId", companyId)
         })
 
-    suspend fun availability(companyId: String, sessionTypeId: String, date: String): AvailabilityResponse =
+    suspend fun availability(companyId: String, sessionTypeId: String, date: String, consultantId: String? = null): AvailabilityResponse =
         parse(client.get("${config.baseUrl}/api/guest/availability") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
             parameter("companyId", companyId)
             parameter("sessionTypeId", sessionTypeId)
             parameter("date", date)
+            consultantId?.takeIf { it.isNotBlank() }?.let { parameter("consultantId", it) }
+        })
+
+    suspend fun consultants(companyId: String, sessionTypeId: String): List<ConsultantSummary> =
+        parse(client.get("${config.baseUrl}/api/guest/consultants") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            parameter("companyId", companyId)
+            parameter("sessionTypeId", sessionTypeId)
         })
 
     suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse =

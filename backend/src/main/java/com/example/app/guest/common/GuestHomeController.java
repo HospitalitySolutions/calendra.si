@@ -53,9 +53,16 @@ public class GuestHomeController {
     }
 
     @GetMapping("/availability")
-    public GuestDtos.AvailabilityResponse availability(@RequestParam String companyId, @RequestParam String sessionTypeId, @RequestParam String date, HttpServletRequest request) {
+    public GuestDtos.AvailabilityResponse availability(@RequestParam String companyId, @RequestParam String sessionTypeId, @RequestParam String date, @RequestParam(required = false) String consultantId, HttpServletRequest request) {
         authContextService.requireGuest(request);
-        return catalogService.availability(Long.parseLong(companyId), Long.parseLong(sessionTypeId), date);
+        Long consultantIdNum = (consultantId == null || consultantId.isBlank()) ? null : Long.parseLong(consultantId.trim());
+        return catalogService.availability(Long.parseLong(companyId), Long.parseLong(sessionTypeId), date, consultantIdNum);
+    }
+
+    @GetMapping("/consultants")
+    public List<GuestDtos.ConsultantResponse> consultants(@RequestParam String companyId, @RequestParam String sessionTypeId, HttpServletRequest request) {
+        authContextService.requireGuest(request);
+        return catalogService.consultants(Long.parseLong(companyId), Long.parseLong(sessionTypeId));
     }
 
     @PostMapping("/orders")

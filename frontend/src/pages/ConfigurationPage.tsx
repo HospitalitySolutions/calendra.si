@@ -200,6 +200,7 @@ type GuestAppSettingsForm = {
   publicDescription: string
   publicCity: string
   defaultLanguage: 'sl' | 'en'
+  employeeSelectionStep: boolean
 }
 
 type GuestBookingRulesForm = {
@@ -307,6 +308,7 @@ const defaultGuestAppSettings = (): GuestAppSettingsForm => ({
   publicDescription: '',
   publicCity: '',
   defaultLanguage: 'sl',
+  employeeSelectionStep: false,
 })
 
 const defaultGuestBookingRules = (): GuestBookingRulesForm => ({
@@ -331,6 +333,7 @@ const parseGuestAppSettings = (raw: string | undefined): GuestAppSettingsForm =>
       publicDescription: String(parsed?.publicDescription || ''),
       publicCity: String(parsed?.publicCity || ''),
       defaultLanguage: parsed?.defaultLanguage === 'en' ? 'en' : 'sl',
+      employeeSelectionStep: parsed?.employeeSelectionStep === true,
     }
   } catch {
     return defaultGuestAppSettings()
@@ -366,6 +369,7 @@ const serializeGuestAppSettings = (value: GuestAppSettingsForm) => JSON.stringif
   publicDescription: value.publicDescription.trim(),
   publicCity: value.publicCity.trim(),
   defaultLanguage: value.defaultLanguage,
+  employeeSelectionStep: value.employeeSelectionStep,
 })
 
 const serializeGuestBookingRules = (value: GuestBookingRulesForm) => JSON.stringify({
@@ -1607,6 +1611,12 @@ export function ConfigurationPage() {
                 <div className="online-live-toggle" style={{ maxWidth: 220 }}>
                   <button type="button" className={!guestAppSettings.publicDiscoverable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, publicDiscoverable: false })}>OFF</button>
                   <button type="button" className={guestAppSettings.publicDiscoverable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, publicDiscoverable: true })}>ON</button>
+                </div>
+              </Field>
+              <Field label="Employee selection step" hint="When ON, guest clients pick an employee after choosing the service in the mobile app and website booking widget.">
+                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+                  <button type="button" className={!guestAppSettings.employeeSelectionStep ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, employeeSelectionStep: false })}>OFF</button>
+                  <button type="button" className={guestAppSettings.employeeSelectionStep ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, employeeSelectionStep: true })}>ON</button>
                 </div>
               </Field>
               <Field label="Default language">

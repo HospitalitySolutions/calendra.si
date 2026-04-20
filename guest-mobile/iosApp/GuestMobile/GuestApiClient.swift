@@ -57,13 +57,24 @@ final class GuestApiClient {
         try await get(path: "api/guest/products", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
 
-    func availability(companyId: String, sessionTypeId: String, date: String) async throws -> AvailabilityResponseModel {
+    func availability(companyId: String, sessionTypeId: String, date: String, consultantId: String? = nil) async throws -> AvailabilityResponseModel {
+        var query: [URLQueryItem] = [
+            URLQueryItem(name: "companyId", value: companyId),
+            URLQueryItem(name: "sessionTypeId", value: sessionTypeId),
+            URLQueryItem(name: "date", value: date)
+        ]
+        if let consultantId, !consultantId.isEmpty {
+            query.append(URLQueryItem(name: "consultantId", value: consultantId))
+        }
+        return try await get(path: "api/guest/availability", query: query)
+    }
+
+    func consultants(companyId: String, sessionTypeId: String) async throws -> [ConsultantSummaryModel] {
         try await get(
-            path: "api/guest/availability",
+            path: "api/guest/consultants",
             query: [
                 URLQueryItem(name: "companyId", value: companyId),
-                URLQueryItem(name: "sessionTypeId", value: sessionTypeId),
-                URLQueryItem(name: "date", value: date)
+                URLQueryItem(name: "sessionTypeId", value: sessionTypeId)
             ]
         )
     }
@@ -88,10 +99,10 @@ final class GuestApiClient {
         try await get(path: "api/guest/notifications", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String) async throws -> CheckoutResponseModel {
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil) async throws -> CheckoutResponseModel {
         let order: CreateOrderEnvelope = try await post(
             path: "api/guest/orders",
-            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType)
+            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId)
         )
         return try await post(
             path: "api/guest/orders/\(order.order.orderId)/checkout",

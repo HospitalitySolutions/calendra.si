@@ -17,6 +17,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let phone: String?
     let status: String?
     let companyAddress: String?
+    let employeeSelectionStep: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id = "companyId"
@@ -26,6 +27,42 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case phone = "publicPhone"
         case status
         case companyAddress
+        case employeeSelectionStep
+    }
+
+    init(id: String, name: String, description: String?, city: String?, phone: String?, status: String?, companyAddress: String?, employeeSelectionStep: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.city = city
+        self.phone = phone
+        self.status = status
+        self.companyAddress = companyAddress
+        self.employeeSelectionStep = employeeSelectionStep
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(String.self, forKey: .id)
+        self.name = try c.decode(String.self, forKey: .name)
+        self.description = try c.decodeIfPresent(String.self, forKey: .description)
+        self.city = try c.decodeIfPresent(String.self, forKey: .city)
+        self.phone = try c.decodeIfPresent(String.self, forKey: .phone)
+        self.status = try c.decodeIfPresent(String.self, forKey: .status)
+        self.companyAddress = try c.decodeIfPresent(String.self, forKey: .companyAddress)
+        self.employeeSelectionStep = try c.decodeIfPresent(Bool.self, forKey: .employeeSelectionStep)
+    }
+}
+
+struct ConsultantSummaryModel: Identifiable, Hashable, Codable {
+    let id: String
+    let firstName: String
+    let lastName: String
+    let email: String?
+
+    var fullName: String {
+        let trimmed = "\(firstName) \(lastName)".trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? email ?? "Employee" : trimmed
     }
 }
 
@@ -292,6 +329,15 @@ struct CreateOrderPayload: Codable {
     let productId: String
     let slotId: String?
     let paymentMethodType: String
+    let consultantId: String?
+
+    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil) {
+        self.companyId = companyId
+        self.productId = productId
+        self.slotId = slotId
+        self.paymentMethodType = paymentMethodType
+        self.consultantId = consultantId
+    }
 }
 
 struct CheckoutPayload: Codable {

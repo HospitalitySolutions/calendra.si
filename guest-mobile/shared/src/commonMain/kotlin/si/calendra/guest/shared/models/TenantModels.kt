@@ -16,7 +16,8 @@ data class TenantLookupResponse(
     val publicPhone: String? = null,
     val companyAddress: String? = null,
     val joinMethod: String,
-    val canJoin: Boolean
+    val canJoin: Boolean,
+    val employeeSelectionStep: Boolean = false
 )
 
 @Serializable

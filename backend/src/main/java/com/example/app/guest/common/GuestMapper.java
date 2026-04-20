@@ -30,7 +30,8 @@ public final class GuestMapper {
                 settings.publicCity(),
                 settings.publicPhone(),
                 displayCompanyAddressLine(settings),
-                link.getStatus().name()
+                link.getStatus().name(),
+                settings.employeeSelectionStep()
         );
     }
 
@@ -42,7 +43,8 @@ public final class GuestMapper {
                 settings.publicCity(),
                 settings.publicPhone(),
                 displayCompanyAddressLine(settings),
-                "ACTIVE"
+                "ACTIVE",
+                settings.employeeSelectionStep()
         );
     }
 

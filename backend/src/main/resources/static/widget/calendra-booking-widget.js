@@ -19,13 +19,26 @@
       confirmed: 'Booking confirmed.',
       confirmationSent: 'Confirmation sent to',
       sectionService: 'Choose service',
-      sectionConsultant: 'Choose consultant',
+      sectionConsultant: 'Choose employee',
       sectionDateTime: 'Choose date and time',
-      sectionGuest: 'Guest details',
+      sectionGuest: 'Payment & review',
       stepService: 'Service',
-      stepConsultant: 'Consultant',
+      stepConsultant: 'Employee',
       stepDateTime: 'Date & time',
-      stepGuest: 'Your details',
+      stepGuest: 'Payment & review',
+      paymentMethodTitle: 'Payment method',
+      paymentMethodCard: 'Credit / Debit card',
+      paymentMethodCardSubtitle: 'Pay securely by card.',
+      paymentMethodBank: 'Bank transfer',
+      paymentMethodBankSubtitle: 'Reserve now, pay via bank transfer with QR code.',
+      paymentMethodPaypal: 'PayPal',
+      paymentMethodPaypalSubtitle: 'Redirect to PayPal to approve the payment.',
+      paymentMethodsNone: 'No online payment methods are available for this tenant.',
+      bankTransferTitle: 'Bank transfer instructions',
+      bankTransferAmount: 'Amount',
+      bankTransferReference: 'Reference',
+      paypalRedirecting: 'Redirecting to PayPal…',
+      payment: 'payment method',
       summaryTitle: 'Your booking',
       summaryEmpty: 'Choose a service to begin.',
       summaryPrivacyTitle: 'Your booking is private and secure.',
@@ -92,13 +105,26 @@
       confirmed: 'Rezervacija potrjena.',
       confirmationSent: 'Potrditev poslana na',
       sectionService: 'Izberite storitev',
-      sectionConsultant: 'Izberite svetovalca',
+      sectionConsultant: 'Izberite zaposlenega',
       sectionDateTime: 'Izberite datum in uro',
-      sectionGuest: 'Podatki gosta',
+      sectionGuest: 'Plačilo in pregled',
       stepService: 'Storitev',
-      stepConsultant: 'Svetovalec',
+      stepConsultant: 'Zaposleni',
       stepDateTime: 'Datum in ura',
-      stepGuest: 'Vaši podatki',
+      stepGuest: 'Plačilo in pregled',
+      paymentMethodTitle: 'Način plačila',
+      paymentMethodCard: 'Kreditna / debetna kartica',
+      paymentMethodCardSubtitle: 'Varno plačilo s kartico.',
+      paymentMethodBank: 'Bančno nakazilo',
+      paymentMethodBankSubtitle: 'Rezervirajte zdaj, plačajte prek bančnega nakazila s QR kodo.',
+      paymentMethodPaypal: 'PayPal',
+      paymentMethodPaypalSubtitle: 'Preusmeritev na PayPal za potrditev plačila.',
+      paymentMethodsNone: 'Za to tenancy ni na voljo spletnih načinov plačila.',
+      bankTransferTitle: 'Navodila za bančno nakazilo',
+      bankTransferAmount: 'Znesek',
+      bankTransferReference: 'Sklic',
+      paypalRedirecting: 'Preusmerjanje na PayPal…',
+      payment: 'način plačila',
       summaryTitle: 'Vaša rezervacija',
       summaryEmpty: 'Za začetek izberite storitev.',
       summaryPrivacyTitle: 'Vaša rezervacija je zasebna in varna.',
@@ -218,6 +244,8 @@
         turnstileToken: '',
         turnstileWidgetId: null,
         turnstileRenderedSiteKey: null,
+        paymentMethod: null,
+        paymentResult: null,
       };
       this.options = { ...DEFAULTS };
       this.resizeObserver = null;
@@ -384,7 +412,9 @@
 
     shouldShowConsultantStep() {
       if (this.currentServiceSupportsGroupSessions()) return false;
-      return this.state.consultants.length > 1;
+      // Tenant-level override: when the "Employee selection step" setting is ON in
+      // Configuration -> Guest app, always show the employee step; when OFF, never show it.
+      return Boolean(this.state.config?.employeeSelectionStep);
     }
 
     ensureValidActiveStep(nextState) {
@@ -472,13 +502,14 @@
           `/api/public/widget/${encodeURIComponent(this.options.tenant)}/consultants?typeId=${encodeURIComponent(this.state.selectedServiceId)}`
         );
         const existingSelectionStillValid = consultants.some((consultant) => consultant.id === this.state.selectedConsultantId);
-        const selectedConsultantId = consultants.length === 1
+        // Don't auto-pick when the tenant-level step is ON: the user must actively confirm an employee.
+        const selectedConsultantId = !this.shouldShowConsultantStep() && consultants.length === 1
           ? consultants[0].id
           : existingSelectionStillValid
             ? this.state.selectedConsultantId
             : null;
 
-        const nextActiveStep = this.state.activeStep === 'consultant' && consultants.length <= 1
+        const nextActiveStep = this.state.activeStep === 'consultant' && !this.shouldShowConsultantStep()
           ? 'datetime'
           : this.state.activeStep;
 
@@ -511,7 +542,12 @@
       if (!selectedServiceId || !selectedDate) return;
 
       const supportsGroupSessions = this.currentServiceSupportsGroupSessions();
-      const consultantRequiredForRegularSlots = !supportsGroupSessions && consultants.length > 1 && config?.availabilityEnabled && !selectedConsultantId;
+      // When the employee-selection step is on we wait for the user to pick a consultant
+      // before loading slots; without the step we show merged slots for all consultants.
+      const consultantRequiredForRegularSlots = !supportsGroupSessions
+        && this.shouldShowConsultantStep()
+        && config?.availabilityEnabled
+        && !selectedConsultantId;
 
       if (!config?.availabilityEnabled && !supportsGroupSessions) {
         this.setState({ slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: false, error: '' });
@@ -607,8 +643,22 @@
         return this.state.config?.availabilityEnabled ? Boolean(this.state.selectedSlot) : Boolean(this.state.manualTime);
       }
       if (stepId === 'details') {
-        return Boolean(form.firstName.trim() && form.lastName.trim() && form.email.trim() && form.phone.trim());
+        const hasGuestDetails = Boolean(form.firstName.trim() && form.lastName.trim() && form.email.trim() && form.phone.trim());
+        const hasPayment = Boolean(this.state.paymentMethod) && this.isPaymentMethodAvailable(this.state.paymentMethod);
+        return hasGuestDetails && hasPayment;
       }
+      return false;
+    }
+
+    allowedPaymentMethods() {
+      return this.state.config?.allowedPaymentMethods || { card: false, bankTransfer: false, paypal: false };
+    }
+
+    isPaymentMethodAvailable(method) {
+      const allowed = this.allowedPaymentMethods();
+      if (method === 'CARD') return Boolean(allowed.card);
+      if (method === 'BANK_TRANSFER') return Boolean(allowed.bankTransfer);
+      if (method === 'PAYPAL') return Boolean(allowed.paypal);
       return false;
     }
 
@@ -638,6 +688,7 @@
         if (!this.state.form.lastName.trim()) missing.push(t.lastName);
         if (!this.state.form.email.trim()) missing.push(t.email);
         if (!this.state.form.phone.trim()) missing.push(t.phone);
+        if (!this.state.paymentMethod || !this.isPaymentMethodAvailable(this.state.paymentMethod)) missing.push(t.payment);
 
         if (this.state.config?.turnstileEnabled && !this.state.turnstileToken) {
           missing.push(t.verificationRequired);
@@ -810,54 +861,97 @@
     }
 
     async submitBooking() {
+      if (!this.validateCurrentStep()) return;
 
-      const { selectedServiceId, selectedConsultantId, selectedDate, selectedSlot, selectedGroupSession, consultants, form, config, manualTime } = this.state;
+      const { selectedServiceId, selectedDate, selectedSlot, selectedConsultantId, form, config, paymentMethod } = this.state;
       const t = this.text();
-      const missing = [];
-      if (!selectedServiceId) missing.push(t.service);
-      const derivedConsultantId = selectedGroupSession?.consultantId ?? (config?.availabilityEnabled ? (selectedSlot?.consultantId ?? selectedConsultantId) : selectedConsultantId);
-      if (consultants.length > 1 && !selectedGroupSession && !derivedConsultantId && !this.consultantSelectionOptional()) missing.push(t.consultant);
-      if (!selectedDate) missing.push(t.date);
-      if (!selectedGroupSession) {
-        if (config?.availabilityEnabled && !selectedSlot) missing.push(t.time);
-        if (!config?.availabilityEnabled && !manualTime) missing.push(t.time);
+
+      // Slot is required — the full flow is only intended for slot-based availability.
+      if (!config?.availabilityEnabled || !selectedSlot) {
+        this.setState({ error: `${t.completePrefix} ${t.time}.`, activeStep: 'datetime' });
+        return;
       }
-      if (!form.firstName.trim()) missing.push(t.firstName);
-      if (!form.lastName.trim()) missing.push(t.lastName);
-      if (!form.email.trim()) missing.push(t.email);
-      if (!form.phone.trim()) missing.push(t.phone);
-
-      if (this.shouldRenderTurnstile() && !this.state.turnstileToken) missing.push(t.verificationRequired);
-
-      if (missing.length) {
-        this.setState({ error: `${t.completePrefix} ${missing.join(', ')}.`, activeStep: missing.includes(t.time) || missing.includes(t.date) ? 'datetime' : 'details' });
+      if (!selectedDate) {
+        this.setState({ error: `${t.completePrefix} ${t.date}.`, activeStep: 'datetime' });
         return;
       }
 
       this.setState({ saving: true, error: '' });
-      try {
-        const payload = {
-          typeId: selectedServiceId,
-          date: selectedDate,
-          startTime: selectedGroupSession ? selectedGroupSession.startTime : (config?.availabilityEnabled ? selectedSlot.startTime : `${selectedDate}T${manualTime}:00`),
-          consultantId: derivedConsultantId,
-          groupSessionId: selectedGroupSession?.id ?? null,
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim(),
-          turnstileToken: this.state.turnstileToken || null,
-        };
 
-        const booking = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/bookings`, {
+      try {
+        const tenant = encodeURIComponent(this.options.tenant);
+
+        // Step A: exchange first/last/email/phone + Turnstile token for a short-lived guest JWT.
+        const session = await this.fetchJson(`/api/public/widget/${tenant}/guest-session`, {
           method: 'POST',
-          headers: { 'Idempotency-Key': (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2)) },
-          body: payload,
+          body: {
+            firstName: form.firstName.trim(),
+            lastName: form.lastName.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            turnstileToken: this.state.turnstileToken || null,
+          },
         });
+
+        if (!session?.token) {
+          throw new Error(t.bookingFailed || 'Booking failed.');
+        }
+
+        const authHeaders = { Authorization: `Bearer ${session.token}` };
+
+        // Step B: create the order. The consultant is encoded into the slotId by the backend.
+        // We still include selectedConsultantId when the employee step is used so the slot can be
+        // resolved unambiguously for single-consultant tenants.
+        const slotId = selectedSlot.slotId || selectedSlot.id;
+        if (!slotId) {
+          throw new Error('Slot identifier missing.');
+        }
+
+        const productId = `session-${selectedServiceId}`;
+
+        const createResponse = await this.fetchJson(`/api/public/widget/${tenant}/orders`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: {
+            companyId: session.companyId || '',
+            productId,
+            slotId,
+            paymentMethodType: paymentMethod,
+          },
+        });
+
+        const orderId = createResponse?.order?.orderId;
+        if (!orderId) {
+          throw new Error(t.bookingFailed || 'Booking failed.');
+        }
+
+        // Step C: checkout according to the selected payment method.
+        const checkout = await this.fetchJson(`/api/public/widget/${tenant}/orders/${encodeURIComponent(orderId)}/checkout`, {
+          method: 'POST',
+          headers: {
+            ...authHeaders,
+            'Idempotency-Key': (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2)),
+          },
+          body: { paymentMethodType: paymentMethod },
+        });
+
+        // PayPal: redirect the user to the PayPal approval URL (returned as `checkoutUrl`).
+        if (paymentMethod === 'PAYPAL' && checkout?.checkoutUrl) {
+          this.setState({ saving: false, paymentResult: { type: 'PAYPAL', approveUrl: checkout.checkoutUrl } });
+          window.location.href = checkout.checkoutUrl;
+          return;
+        }
 
         this.setState({
           saving: false,
-          bookingSuccess: booking,
+          bookingSuccess: {
+            id: orderId,
+            serviceName: this.currentService()?.name,
+            startsAtLabel: selectedSlot.label,
+            startTime: selectedSlot.startTime,
+            email: form.email.trim(),
+          },
+          paymentResult: checkout ? { type: paymentMethod, ...checkout } : null,
           selectedSlot: null,
           selectedGroupSession: null,
         });
@@ -881,6 +975,8 @@
         groupSessions: [],
         manualTime: '',
         form: { firstName: '', lastName: '', email: '', phone: '' },
+        paymentMethod: null,
+        paymentResult: null,
         activeStep: this.shouldShowConsultantStep() ? 'consultant' : 'datetime',
       });
 
@@ -1051,6 +1147,7 @@
       const showConsultantStep = this.shouldShowConsultantStep();
 
       if (this.state.bookingSuccess) {
+        const bt = this.state.paymentResult?.type === 'BANK_TRANSFER' ? this.state.paymentResult.bankTransfer : null;
         return `
           <div class="success-screen">
             <div class="success-icon">✓</div>
@@ -1059,6 +1156,14 @@
               ${escapeHtml(this.state.bookingSuccess.serviceName || service?.name || t.sessionFallback)} · ${escapeHtml(this.state.bookingSuccess.startsAtLabel || this.state.bookingSuccess.startTime || '')}
             </p>
             <p class="success-copy">${escapeHtml(t.confirmationSent)} ${escapeHtml(this.state.bookingSuccess.email || this.state.form.email)}.</p>
+            ${bt ? `
+              <div class="bank-transfer-box">
+                <div class="bank-transfer-title">${escapeHtml(t.bankTransferTitle)}</div>
+                <div class="bank-transfer-row"><span>${escapeHtml(t.bankTransferAmount)}:</span> <strong>${escapeHtml(String(bt.amount))} ${escapeHtml(bt.currency || '')}</strong></div>
+                <div class="bank-transfer-row"><span>${escapeHtml(t.bankTransferReference)}:</span> <strong>${escapeHtml(bt.referenceCode || '')}</strong></div>
+                ${bt.instructions ? `<p class="bank-transfer-instructions">${escapeHtml(bt.instructions)}</p>` : ''}
+              </div>
+            ` : ''}
             <button class="primary" type="button" data-action="restart">${escapeHtml(t.bookAnother)}</button>
           </div>
         `;
@@ -1185,7 +1290,9 @@
                                 class="slot-chip ${this.state.selectedSlot?.startTime === slot.startTime && this.state.selectedSlot?.consultantId === slot.consultantId ? 'is-active' : ''}"
                                 type="button"
                                 data-action="slot"
+                                data-slot-id="${escapeHtml(slot.slotId || '')}"
                                 data-start="${escapeHtml(slot.startTime)}"
+                                data-end="${escapeHtml(slot.endTime || '')}"
                                 data-label="${escapeHtml(slot.label)}"
                                 data-consultant-id="${slot.consultantId == null ? '' : slot.consultantId}"
                                 data-consultant-name="${escapeHtml(slot.consultantName || '')}"
@@ -1215,6 +1322,22 @@
         `;
       }
 
+      const allowed = this.allowedPaymentMethods();
+      const hasAnyPaymentMethod = Boolean(allowed.card || allowed.bankTransfer || allowed.paypal);
+      const methodCard = (type, title, subtitle, enabled) => `
+        <button
+          class="payment-method-card ${this.state.paymentMethod === type ? 'is-active' : ''}"
+          type="button"
+          data-action="payment-method"
+          data-method="${type}"
+          ${enabled ? '' : 'disabled'}
+        >
+          <div class="payment-method-main">
+            <div class="payment-method-title">${escapeHtml(title)}</div>
+            <div class="payment-method-subtitle">${escapeHtml(subtitle)}</div>
+          </div>
+        </button>
+      `;
       return `
         <section class="panel-section panel-section--split panel-section--details">
           <div>
@@ -1241,9 +1364,22 @@
                 <input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" />
               </div>
             </div>
+
+            <div class="payment-methods">
+              <div class="payment-methods-title">${escapeHtml(t.paymentMethodTitle)}</div>
+              ${hasAnyPaymentMethod ? `
+                <div class="payment-methods-grid">
+                  ${allowed.card ? methodCard('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, true) : ''}
+                  ${allowed.bankTransfer ? methodCard('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, true) : ''}
+                  ${allowed.paypal ? methodCard('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, true) : ''}
+                </div>
+              ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
+            </div>
+
             ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap"><slot name="turnstile-slot"></slot></div>` : ''}
             <div class="panel-actions panel-actions--details-mobile">
               <button class="secondary" type="button" data-action="back">${escapeHtml(t.back)}</button>
+              <button class="primary" type="button" data-action="submit" ${!this.isStepComplete('details') || this.state.saving ? 'disabled' : ''}>${escapeHtml(this.state.saving ? t.submitting : t.submit)}</button>
             </div>
           </div>
           ${this.summaryMarkup()}
@@ -1485,6 +1621,28 @@
           padding: 18px; border-radius: 20px; border: 1px dashed var(--calendra-border); background: var(--calendra-surface-soft); color: var(--calendra-muted);
         }
         .empty--compact { padding: 14px; }
+        .payment-methods { margin-top: 18px; display: grid; gap: 10px; }
+        .payment-methods-title { font-weight: 700; color: var(--calendra-text); font-size: 15px; }
+        .payment-methods-grid { display: grid; gap: 10px; grid-template-columns: 1fr; }
+        .payment-method-card {
+          display: flex; align-items: center; justify-content: space-between; gap: 14px;
+          padding: 14px 16px; border-radius: 14px; border: 1px solid var(--calendra-border);
+          background: var(--calendra-surface); color: var(--calendra-text);
+          text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s;
+        }
+        .payment-method-card:hover:not([disabled]) { border-color: var(--calendra-primary); }
+        .payment-method-card.is-active { border-color: var(--calendra-primary); background: var(--calendra-primary-soft); box-shadow: inset 0 0 0 1px var(--calendra-primary); }
+        .payment-method-card[disabled] { opacity: 0.5; cursor: not-allowed; }
+        .payment-method-title { font-weight: 700; }
+        .payment-method-subtitle { color: var(--calendra-muted); font-size: 13px; margin-top: 2px; }
+        .bank-transfer-box {
+          margin-top: 14px; text-align: left; padding: 16px; border-radius: 14px;
+          border: 1px solid var(--calendra-border); background: var(--calendra-surface-soft); display: grid; gap: 6px;
+        }
+        .bank-transfer-title { font-weight: 800; color: var(--calendra-text); margin-bottom: 4px; }
+        .bank-transfer-row { color: var(--calendra-text); font-size: 14px; }
+        .bank-transfer-row span { color: var(--calendra-muted); margin-right: 6px; }
+        .bank-transfer-instructions { margin: 6px 0 0; color: var(--calendra-muted); font-size: 13px; }
         :host([data-layout="compact"]) .panel-section--split,
         :host([data-layout="narrow"]) .panel-section--split,
         :host([data-layout="micro"]) .panel-section--split {
@@ -1740,7 +1898,9 @@
         button.addEventListener('click', () => {
           this.setState({
             selectedSlot: {
+              slotId: button.dataset.slotId || '',
               startTime: button.dataset.start,
+              endTime: button.dataset.end || '',
               consultantId: parseOptionalNumber(button.dataset.consultantId),
               consultantName: button.dataset.consultantName || '',
               label: button.dataset.label || button.textContent.trim(),
@@ -1806,8 +1966,17 @@
         });
       });
 
-      const submit = this.shadowRoot.querySelector('[data-action="submit"]');
-      if (submit) submit.addEventListener('click', () => this.submitBooking());
+      this.shadowRoot.querySelectorAll('[data-action="submit"]').forEach((button) => {
+        button.addEventListener('click', () => this.submitBooking());
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="payment-method"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const method = button.dataset.method;
+          if (!method || !this.isPaymentMethodAvailable(method)) return;
+          this.setState({ paymentMethod: method, error: '' });
+        });
+      });
 
       const restart = this.shadowRoot.querySelector('[data-action="restart"]');
       if (restart) restart.addEventListener('click', () => this.resetForAnotherBooking());

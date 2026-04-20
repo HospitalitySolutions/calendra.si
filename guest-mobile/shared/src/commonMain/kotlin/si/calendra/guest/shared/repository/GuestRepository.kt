@@ -15,7 +15,8 @@ interface GuestRepository {
     suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse
     suspend fun home(companyId: String): HomePayload
     suspend fun products(companyId: String): List<ProductSummary>
-    suspend fun availability(companyId: String, sessionTypeId: String, date: String): AvailabilityResponse
+    suspend fun availability(companyId: String, sessionTypeId: String, date: String, consultantId: String? = null): AvailabilityResponse
+    suspend fun consultants(companyId: String, sessionTypeId: String): List<ConsultantSummary>
     suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse
     suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse
     suspend fun wallet(companyId: String): WalletPayload

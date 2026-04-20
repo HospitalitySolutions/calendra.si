@@ -111,6 +111,11 @@ public class GuestCatalogService {
 
     @Transactional(readOnly = true)
     public GuestDtos.AvailabilityResponse availability(Long companyId, Long sessionTypeId, String dateText) {
+        return availability(companyId, sessionTypeId, dateText, null);
+    }
+
+    @Transactional(readOnly = true)
+    public GuestDtos.AvailabilityResponse availability(Long companyId, Long sessionTypeId, String dateText, Long consultantId) {
         LocalDate date = LocalDate.parse(dateText);
         SessionType type = sessionTypes.findById(sessionTypeId)
                 .filter(t -> Objects.equals(t.getCompany().getId(), companyId))
@@ -122,13 +127,28 @@ public class GuestCatalogService {
         int durationMinutes = type.getDurationMinutes() == null ? 60 : type.getDurationMinutes();
 
         Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
-        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, merged);
-        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, merged);
+        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, consultantId, merged);
+        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, consultantId, merged);
 
         List<GuestDtos.AvailabilitySlotResponse> sorted = merged.values().stream()
                 .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt).thenComparing(GuestDtos.AvailabilitySlotResponse::endsAt))
                 .toList();
         return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), sorted);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestDtos.ConsultantResponse> consultants(Long companyId, Long sessionTypeId) {
+        SessionType type = sessionTypes.findById(sessionTypeId)
+                .filter(t -> Objects.equals(t.getCompany().getId(), companyId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+        return supportedGuestConsultants(companyId, type).stream()
+                .map(u -> new GuestDtos.ConsultantResponse(
+                        String.valueOf(u.getId()),
+                        u.getFirstName(),
+                        u.getLastName(),
+                        u.getEmail()
+                ))
+                .toList();
     }
 
     public ResolvedProduct resolveProduct(Long companyId, String productId) {
@@ -197,11 +217,14 @@ public class GuestCatalogService {
     }
 
     private void addSlotsFromBookableWindows(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                             Long requiredConsultantId,
                                              Map<String, GuestDtos.AvailabilitySlotResponse> merged) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
                 .filter(slot -> slot.getConsultant() != null)
                 .filter(slot -> slot.getConsultant().isActive())
+                .filter(slot -> requiredConsultantId == null
+                        || Objects.equals(slot.getConsultant().getId(), requiredConsultantId))
                 .filter(slot -> slot.getDayOfWeek() == dayOfWeek)
                 .filter(slot -> slot.isIndefinite() || withinBookableDateRange(slot, date))
                 .filter(slot -> consultantSupportsSessionType(slot.getConsultant(), type))
@@ -227,8 +250,12 @@ public class GuestCatalogService {
     }
 
     private void addSlotsFromWorkingHours(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                          Long requiredConsultantId,
                                           Map<String, GuestDtos.AvailabilitySlotResponse> merged) {
         for (User consultant : supportedGuestConsultants(companyId, type)) {
+            if (requiredConsultantId != null && !Objects.equals(consultant.getId(), requiredConsultantId)) {
+                continue;
+            }
             Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
             if (dayWindow.isEmpty()) {
                 continue;

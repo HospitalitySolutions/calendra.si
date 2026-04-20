@@ -33,7 +33,15 @@ public class PublicBookingWidgetController {
             String workingHoursEnd,
             String timezone,
             boolean turnstileEnabled,
-            String turnstileSiteKey
+            String turnstileSiteKey,
+            boolean employeeSelectionStep,
+            AllowedPaymentMethodsResponse allowedPaymentMethods
+    ) {}
+
+    public record AllowedPaymentMethodsResponse(
+            boolean card,
+            boolean bankTransfer,
+            boolean paypal
     ) {}
 
     public record WidgetServiceResponse(
@@ -52,8 +60,10 @@ public class PublicBookingWidgetController {
     ) {}
 
     public record AvailabilitySlotResponse(
+            String slotId,
             String label,
             String startTime,
+            String endTime,
             Long consultantId,
             String consultantName
     ) {}

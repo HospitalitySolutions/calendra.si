@@ -37,7 +37,8 @@ public class GuestSettingsService {
             phone = textOrNull(values.get(SettingKey.COMPANY_TELEPHONE.name()));
         }
         String defaultLanguage = root.path("defaultLanguage").asText("sl");
-        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage);
+        boolean employeeSelectionStep = root.path("employeeSelectionStep").asBoolean(false);
+        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep);
     }
 
     public GuestBookingRules bookingRules(Long companyId) {
@@ -102,6 +103,6 @@ public class GuestSettingsService {
                 .toList();
     }
 
-    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage) {}
+    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep) {}
     public record GuestBookingRules(int cancelUntilHours, int rescheduleUntilHours, boolean lateCancelConsumesCredit, boolean noShowConsumesCredit, boolean sameDayBankTransferAllowed, boolean bankTransferReservesSlot, List<String> allowBankTransferFor, List<String> allowCardFor) {}
 }
