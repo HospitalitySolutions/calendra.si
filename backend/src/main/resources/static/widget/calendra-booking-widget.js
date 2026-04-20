@@ -662,6 +662,46 @@
       return false;
     }
 
+    // Inline brand logos for the payment method picker. Kept inline so the widget
+    // doesn't incur extra network requests and no third-party assets are pulled in.
+    paymentMethodLogos(type) {
+      if (type === 'CARD') {
+        return `
+          <span class="pm-logo-row">
+            <svg class="pm-logo pm-logo-visa" viewBox="0 0 48 18" xmlns="http://www.w3.org/2000/svg" aria-label="Visa">
+              <path fill="#1A1F71" d="M20.4 17.2h-3.9L19 .8h3.9l-2.5 16.4zM33.7 1.2C32.9.9 31.7.5 30.1.5c-4.1 0-7 2.2-7 5.3 0 2.3 2.1 3.6 3.7 4.4 1.6.8 2.2 1.3 2.2 2 0 1.1-1.3 1.6-2.5 1.6-1.7 0-2.6-.3-3.9-.9l-.5-.3-.6 3.5c1 .5 2.8.8 4.7.9 4.4 0 7.2-2.2 7.3-5.5 0-1.8-1.1-3.2-3.5-4.3-1.5-.7-2.4-1.2-2.4-1.9 0-.6.7-1.3 2.3-1.3 1.3 0 2.3.3 3 .6l.4.2.6-3.4zM39 11.5c.3-.8 1.6-4.3 1.6-4.3 0 .1.3-.9.5-1.4l.3 1.3s.8 3.8.9 4.4H39zm4.9-10.7h-3c-.9 0-1.6.3-2.1 1.3l-5.8 15.1h4.1s.7-1.9.8-2.3h5c.1.5.4 2.3.4 2.3h3.6L43.9.8zM13.8.8l-3.8 11.2-.4-2.1C8.9 7.4 6.6 4.7 4 3.4l3.5 13.8h4.4L18.2.8h-4.4z"/>
+              <path fill="#F9A51A" d="M6.3.8H.2L.1 1.2c4.8 1.2 8 4.2 9.4 7.7L7.9 2.1C7.7 1.1 7 .8 6.3.8z"/>
+            </svg>
+            <svg class="pm-logo pm-logo-mc" viewBox="0 0 36 22" xmlns="http://www.w3.org/2000/svg" aria-label="Mastercard">
+              <circle cx="13" cy="11" r="9" fill="#EB001B"/>
+              <circle cx="23" cy="11" r="9" fill="#F79E1B"/>
+              <path fill="#FF5F00" d="M18 4.2a9 9 0 0 0 0 13.6 9 9 0 0 0 0-13.6z"/>
+            </svg>
+          </span>
+        `;
+      }
+      if (type === 'BANK_TRANSFER') {
+        return `
+          <svg class="pm-logo pm-logo-qr" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-label="QR code">
+            <path fill="currentColor" d="M3 3h10v10H3V3zm2 2v6h6V5H5zm2 2h2v2H7V7zm12-4h10v10H19V3zm2 2v6h6V5h-6zm2 2h2v2h-2V7zM3 19h10v10H3V19zm2 2v6h6v-6H5zm2 2h2v2H7v-2zm10-4h2v2h-2v-2zm4 0h2v2h-2v-2zm4 0h2v4h-4v-2h2v-2zm-8 4h2v2h2v2h-4v-4zm8 0h2v2h-2v-2zm-4 4h2v2h-2v-2zm4 0h4v2h-4v-2z"/>
+          </svg>
+        `;
+      }
+      if (type === 'PAYPAL') {
+        return `
+          <svg class="pm-logo pm-logo-paypal" viewBox="0 0 60 18" xmlns="http://www.w3.org/2000/svg" aria-label="PayPal">
+            <path fill="#003087" d="M7.5 1.8H3.1c-.3 0-.6.2-.6.5L.7 13.9c0 .2.1.4.3.4h2.1c.3 0 .6-.2.6-.5l.5-3.1c0-.3.3-.5.6-.5h1.4c2.9 0 4.6-1.4 5-4.2.2-1.2 0-2.2-.6-2.9-.7-.8-1.9-1.3-3.1-1.3zm.5 4.2c-.2 1.5-1.4 1.5-2.5 1.5h-.6L5.4 4h.7c.8 0 1.5 0 1.9.5.2.2.3.6.2 1.5z"/>
+            <path fill="#003087" d="M22.5 5.9h-2.1c-.2 0-.3.1-.3.3l-.1.6-.1-.2c-.4-.6-1.4-.8-2.4-.8-2.3 0-4.3 1.7-4.7 4.2-.2 1.2.1 2.4.8 3.2.6.8 1.6 1.1 2.7 1.1 1.9 0 2.9-1.2 2.9-1.2l-.1.6c0 .2.1.4.3.4h1.9c.3 0 .6-.2.6-.5l1.1-7.3c.1-.2-.1-.4-.5-.4zm-2.9 4.1c-.2 1.2-1.1 2-2.3 2-.6 0-1.1-.2-1.4-.5-.3-.4-.4-.9-.3-1.5.2-1.2 1.1-2 2.3-2 .6 0 1.1.2 1.4.5.3.4.4.9.3 1.5z"/>
+            <path fill="#003087" d="M33.5 5.9h-2.1c-.2 0-.4.1-.5.3L28 10.4 26.8 6.3c-.1-.3-.3-.4-.6-.4h-2.1c-.2 0-.4.2-.3.5l2.3 6.8-2.2 3.1c-.2.2 0 .6.3.6h2.1c.2 0 .4-.1.5-.3l7.1-10.1c.2-.3 0-.6-.4-.6z"/>
+            <path fill="#009CDE" d="M40.5 1.8h-4.4c-.3 0-.6.2-.6.5l-1.8 11.6c0 .2.1.4.3.4H36c.2 0 .4-.2.4-.4l.5-3.3c0-.3.3-.5.6-.5h1.4c2.9 0 4.6-1.4 5-4.2.2-1.2 0-2.2-.6-2.9-.6-.7-1.9-1.2-3.1-1.2zm.5 4.2c-.2 1.5-1.4 1.5-2.5 1.5h-.6L38.4 4h.7c.8 0 1.5 0 1.9.5.2.2.2.6.1 1.5z"/>
+            <path fill="#009CDE" d="M55.5 5.9h-2.1c-.2 0-.3.1-.3.3l-.1.6-.1-.2c-.4-.6-1.4-.8-2.4-.8-2.3 0-4.3 1.7-4.7 4.2-.2 1.2.1 2.4.8 3.2.6.8 1.6 1.1 2.7 1.1 1.9 0 2.9-1.2 2.9-1.2l-.1.6c0 .2.1.4.3.4h1.9c.3 0 .6-.2.6-.5l1.1-7.3c.1-.2-.1-.4-.5-.4zm-2.9 4.1c-.2 1.2-1.1 2-2.3 2-.6 0-1.1-.2-1.4-.5-.3-.4-.4-.9-.3-1.5.2-1.2 1.1-2 2.3-2 .6 0 1.1.2 1.4.5.3.4.4.9.3 1.5z"/>
+            <path fill="#009CDE" d="M58 2.1l-1.8 11.8c0 .2.1.4.3.4h1.8c.3 0 .6-.2.6-.5l1.8-11.6c0-.2-.1-.4-.3-.4h-2c-.2 0-.4.2-.4.3z"/>
+          </svg>
+        `;
+      }
+      return '';
+    }
+
     initials(name) {
       const safe = String(name || '').trim();
       if (!safe) return '•';
@@ -1071,7 +1111,6 @@
       const service = this.currentService();
       const consultant = this.currentSummaryConsultant();
       const selectedTime = this.selectedTimeLabel();
-      const canSubmit = this.isStepComplete('datetime');
 
       return `
         <aside class="summary-card ${this.state.activeStep === 'details' ? 'summary-card--final' : ''}">
@@ -1112,12 +1151,6 @@
             </div>
           </div>
 
-          ${this.state.activeStep === 'details' ? `
-            <div class="summary-actions">
-              <button class="secondary secondary--full" type="button" data-action="refresh">${escapeHtml(this.state.config?.availabilityEnabled ? t.refreshAvailability : t.refreshSlots)}</button>
-              <button class="primary primary--full" type="button" data-action="submit" ${this.state.saving || !canSubmit ? 'disabled' : ''}>${escapeHtml(this.state.saving ? t.submitting : t.submit)}</button>
-            </div>
-          ` : ''}
         </aside>
       `;
     }
@@ -1230,94 +1263,105 @@
       }
 
       if (this.state.activeStep === 'datetime') {
-        return `
-          <section class="panel-section panel-section--split">
-            <div>
-              <div class="panel-copy panel-copy--compact">
-                <div class="eyebrow">${showConsultantStep ? '3' : '2'}</div>
-                <h3>${escapeHtml(t.sectionDateTime)}</h3>
-              </div>
-              ${this.calendarMarkup()}
-              ${this.currentServiceSupportsGroupSessions() ? `
-                <div class="times-card">
-                  <div class="times-head">
-                    <div>
-                      <div class="times-title">${escapeHtml(t.groupSessionsTitle)}</div>
-                      <div class="times-subtitle">${escapeHtml(t.groupSessionsSubtitle)}</div>
-                    </div>
-                  </div>
-                  ${this.state.loadingAvailability
-                    ? `<div class="loading-inline">${escapeHtml(t.loadingAvailability)}</div>`
-                    : this.state.groupSessions.length
-                      ? `<div class="slot-grid">${this.state.groupSessions.map((session) => `
-                          <button
-                            class="slot-chip ${this.state.selectedGroupSession?.id === session.id ? 'is-active' : ''}"
-                            type="button"
-                            data-action="group-session"
-                            data-id="${session.id}"
-                            data-start="${escapeHtml(session.startTime)}"
-                            data-end="${escapeHtml(session.endTime)}"
-                            data-label="${escapeHtml(session.label)}"
-                            data-consultant-id="${session.consultantId == null ? '' : session.consultantId}"
-                            data-consultant-name="${escapeHtml(session.consultantName || '')}"
-                            data-remaining-spots="${session.remainingSpots == null ? '' : session.remainingSpots}"
-                            data-booked-participants="${session.bookedParticipants == null ? '' : session.bookedParticipants}"
-                          >
-                            <span>${escapeHtml(session.label)}</span>
-                            <small>${escapeHtml(session.consultantName || t.groupSessionAvailable)}${session.remainingSpots != null ? ` · ${escapeHtml(String(session.remainingSpots))} ${escapeHtml(t.groupSessionSpotsLeft)}` : ''}</small>
-                          </button>
-                        `).join('')}</div>`
-                      : `<div class="empty">${escapeHtml(t.groupSessionNoOptions)}</div>`}
-                </div>
-              ` : ''}
-              ${this.currentServiceSupportsGroupSessions() ? '' : `
-                <div class="times-card">
-                  <div class="times-head">
-                    <div>
-                      <div class="times-title">${escapeHtml(this.state.config?.availabilityEnabled ? t.labelSlots : t.labelTime)}</div>
-                      <div class="times-subtitle">${escapeHtml(this.displaySelectedDate())}</div>
-                    </div>
-                    <button class="text-link" type="button" data-action="refresh">${escapeHtml(this.state.config?.availabilityEnabled ? t.refreshAvailability : t.refreshSlots)}</button>
-                  </div>
-                  ${this.state.config?.availabilityEnabled ? `
-                    ${showConsultantStep && !this.state.selectedConsultantId
-                      ? `<div class="empty">${escapeHtml(t.consultantRequiredHint)}</div>`
-                      : this.state.loadingAvailability
-                        ? `<div class="loading-inline">${escapeHtml(t.loadingAvailability)}</div>`
-                        : this.state.slots.length
-                          ? `<div class="slot-grid">${this.state.slots.map((slot) => `
-                              <button
-                                class="slot-chip ${this.state.selectedSlot?.startTime === slot.startTime && this.state.selectedSlot?.consultantId === slot.consultantId ? 'is-active' : ''}"
-                                type="button"
-                                data-action="slot"
-                                data-slot-id="${escapeHtml(slot.slotId || '')}"
-                                data-start="${escapeHtml(slot.startTime)}"
-                                data-end="${escapeHtml(slot.endTime || '')}"
-                                data-label="${escapeHtml(slot.label)}"
-                                data-consultant-id="${slot.consultantId == null ? '' : slot.consultantId}"
-                                data-consultant-name="${escapeHtml(slot.consultantName || '')}"
-                              >
-                                <span>${escapeHtml(slot.label)}</span>
-                                ${((!showConsultantStep || !this.state.selectedConsultantId) && slot.consultantName) ? `<small>${escapeHtml(slot.consultantName)}</small>` : ''}
-                              </button>
-                            `).join('')}</div>`
-                          : `<div class="empty">${escapeHtml(t.noSlots)}</div>`}
-                  ` : `
-                    <div class="manual-time-wrap">
-                      <select id="manual-time">
-                        <option value="">${escapeHtml(t.chooseTime)}</option>
-                        ${this.manualTimeOptions(this.state.config).map((time) => `<option value="${time}" ${this.state.manualTime === time ? 'selected' : ''}>${time}</option>`).join('')}
-                      </select>
-                    </div>
-                  `}
-                </div>
-              `}
-              <div class="panel-actions">
-                <button class="secondary" type="button" data-action="back">${escapeHtml(t.back)}</button>
-                <button class="primary" type="button" data-action="next" ${!this.isStepComplete('datetime') ? 'disabled' : ''}>${escapeHtml(t.continue)}</button>
+        const groupSessionsCard = `
+          <div class="times-card">
+            <div class="times-head">
+              <div>
+                <div class="times-title">${escapeHtml(t.groupSessionsTitle)}</div>
+                <div class="times-subtitle">${escapeHtml(t.groupSessionsSubtitle)}</div>
               </div>
             </div>
-            ${this.summaryMarkup()}
+            ${this.state.loadingAvailability
+              ? `<div class="loading-inline">${escapeHtml(t.loadingAvailability)}</div>`
+              : this.state.groupSessions.length
+                ? `<div class="slot-grid">${this.state.groupSessions.map((session) => `
+                    <button
+                      class="slot-chip ${this.state.selectedGroupSession?.id === session.id ? 'is-active' : ''}"
+                      type="button"
+                      data-action="group-session"
+                      data-id="${session.id}"
+                      data-start="${escapeHtml(session.startTime)}"
+                      data-end="${escapeHtml(session.endTime)}"
+                      data-label="${escapeHtml(session.label)}"
+                      data-consultant-id="${session.consultantId == null ? '' : session.consultantId}"
+                      data-consultant-name="${escapeHtml(session.consultantName || '')}"
+                      data-remaining-spots="${session.remainingSpots == null ? '' : session.remainingSpots}"
+                      data-booked-participants="${session.bookedParticipants == null ? '' : session.bookedParticipants}"
+                    >
+                      <span>${escapeHtml(session.label)}</span>
+                      <small>${escapeHtml(session.consultantName || t.groupSessionAvailable)}${session.remainingSpots != null ? ` · ${escapeHtml(String(session.remainingSpots))} ${escapeHtml(t.groupSessionSpotsLeft)}` : ''}</small>
+                    </button>
+                  `).join('')}</div>`
+                : `<div class="empty">${escapeHtml(t.groupSessionNoOptions)}</div>`}
+          </div>
+        `;
+
+        const slotsCard = `
+          <div class="times-card">
+            <div class="times-head">
+              <div>
+                <div class="times-title">${escapeHtml(this.state.config?.availabilityEnabled ? t.labelSlots : t.labelTime)}</div>
+                <div class="times-subtitle">${escapeHtml(this.displaySelectedDate())}</div>
+              </div>
+              <button class="text-link" type="button" data-action="refresh">${escapeHtml(this.state.config?.availabilityEnabled ? t.refreshAvailability : t.refreshSlots)}</button>
+            </div>
+            ${this.state.config?.availabilityEnabled ? `
+              ${showConsultantStep && !this.state.selectedConsultantId
+                ? `<div class="empty">${escapeHtml(t.consultantRequiredHint)}</div>`
+                : this.state.loadingAvailability
+                  ? `<div class="loading-inline">${escapeHtml(t.loadingAvailability)}</div>`
+                  : this.state.slots.length
+                    ? `<div class="slot-grid">${this.state.slots.map((slot) => `
+                        <button
+                          class="slot-chip ${this.state.selectedSlot?.startTime === slot.startTime && this.state.selectedSlot?.consultantId === slot.consultantId ? 'is-active' : ''}"
+                          type="button"
+                          data-action="slot"
+                          data-slot-id="${escapeHtml(slot.slotId || '')}"
+                          data-start="${escapeHtml(slot.startTime)}"
+                          data-end="${escapeHtml(slot.endTime || '')}"
+                          data-label="${escapeHtml(slot.label)}"
+                          data-consultant-id="${slot.consultantId == null ? '' : slot.consultantId}"
+                          data-consultant-name="${escapeHtml(slot.consultantName || '')}"
+                        >
+                          <span>${escapeHtml(slot.label)}</span>
+                          ${((!showConsultantStep || !this.state.selectedConsultantId) && slot.consultantName) ? `<small>${escapeHtml(slot.consultantName)}</small>` : ''}
+                        </button>
+                      `).join('')}</div>`
+                    : `<div class="empty">${escapeHtml(t.noSlots)}</div>`}
+            ` : `
+              <div class="manual-time-wrap">
+                <select id="manual-time">
+                  <option value="">${escapeHtml(t.chooseTime)}</option>
+                  ${this.manualTimeOptions(this.state.config).map((time) => `<option value="${time}" ${this.state.manualTime === time ? 'selected' : ''}>${time}</option>`).join('')}
+                </select>
+              </div>
+            `}
+          </div>
+        `;
+
+        const timesMarkup = this.currentServiceSupportsGroupSessions() ? groupSessionsCard : slotsCard;
+
+        return `
+          <section class="panel-section panel-section--datetime">
+            <div class="datetime-top-grid">
+              <div class="datetime-calendar-col">
+                <div class="panel-copy panel-copy--compact">
+                  <div class="eyebrow">${showConsultantStep ? '3' : '2'}</div>
+                  <h3>${escapeHtml(t.sectionDateTime)}</h3>
+                </div>
+                ${this.calendarMarkup()}
+              </div>
+              <div class="times-panel">
+                ${timesMarkup}
+              </div>
+            </div>
+            <div class="summary-below">
+              ${this.summaryMarkup()}
+            </div>
+            <div class="panel-actions">
+              <button class="secondary" type="button" data-action="back">${escapeHtml(t.back)}</button>
+              <button class="primary" type="button" data-action="next" ${!this.isStepComplete('datetime') ? 'disabled' : ''}>${escapeHtml(t.continue)}</button>
+            </div>
           </section>
         `;
       }
@@ -1332,57 +1376,69 @@
           data-method="${type}"
           ${enabled ? '' : 'disabled'}
         >
+          <div class="payment-method-icon">${this.paymentMethodLogos(type)}</div>
           <div class="payment-method-main">
             <div class="payment-method-title">${escapeHtml(title)}</div>
             <div class="payment-method-subtitle">${escapeHtml(subtitle)}</div>
           </div>
+          <div class="payment-method-check" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="12" height="12"><path d="M4 10.5 8 14l8-8.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
         </button>
       `;
       return `
-        <section class="panel-section panel-section--split panel-section--details">
-          <div>
-            <div class="panel-copy panel-copy--compact">
-              <div class="eyebrow">${showConsultantStep ? '4' : '3'}</div>
-              <h3>${escapeHtml(t.sectionGuest)}</h3>
-              <p>${escapeHtml(t.summaryPrivacyText)}</p>
-            </div>
-            <div class="details-grid">
-              <div>
-                <label for="first-name">${escapeHtml(t.labelFirstName)}</label>
-                <input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" />
+        <section class="panel-section panel-section--details">
+          <div class="details-top-grid">
+            <div class="details-col">
+              <div class="panel-copy panel-copy--compact">
+                <div class="eyebrow">${showConsultantStep ? '4' : '3'}</div>
+                <h3>${escapeHtml(t.sectionGuest)}</h3>
+                <p>${escapeHtml(t.summaryPrivacyText)}</p>
               </div>
-              <div>
-                <label for="last-name">${escapeHtml(t.labelLastName)}</label>
-                <input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" />
-              </div>
-              <div class="full">
-                <label for="email">${escapeHtml(t.labelEmail)}</label>
-                <input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" />
-              </div>
-              <div class="full">
-                <label for="phone">${escapeHtml(t.labelPhone)}</label>
-                <input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" />
-              </div>
-            </div>
-
-            <div class="payment-methods">
-              <div class="payment-methods-title">${escapeHtml(t.paymentMethodTitle)}</div>
-              ${hasAnyPaymentMethod ? `
-                <div class="payment-methods-grid">
-                  ${allowed.card ? methodCard('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, true) : ''}
-                  ${allowed.bankTransfer ? methodCard('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, true) : ''}
-                  ${allowed.paypal ? methodCard('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, true) : ''}
+              <div class="details-grid">
+                <div>
+                  <label for="first-name">${escapeHtml(t.labelFirstName)}</label>
+                  <input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" />
                 </div>
-              ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
+                <div>
+                  <label for="last-name">${escapeHtml(t.labelLastName)}</label>
+                  <input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" />
+                </div>
+                <div class="full">
+                  <label for="email">${escapeHtml(t.labelEmail)}</label>
+                  <input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" />
+                </div>
+                <div class="full">
+                  <label for="phone">${escapeHtml(t.labelPhone)}</label>
+                  <input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" />
+                </div>
+              </div>
             </div>
 
-            ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap"><slot name="turnstile-slot"></slot></div>` : ''}
-            <div class="panel-actions panel-actions--details-mobile">
-              <button class="secondary" type="button" data-action="back">${escapeHtml(t.back)}</button>
-              <button class="primary" type="button" data-action="submit" ${!this.isStepComplete('details') || this.state.saving ? 'disabled' : ''}>${escapeHtml(this.state.saving ? t.submitting : t.submit)}</button>
+            <div class="payment-col">
+              <div class="payment-methods">
+                <div class="payment-methods-title">${escapeHtml(t.paymentMethodTitle)}</div>
+                ${hasAnyPaymentMethod ? `
+                  <div class="payment-methods-grid">
+                    ${allowed.card ? methodCard('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, true) : ''}
+                    ${allowed.bankTransfer ? methodCard('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, true) : ''}
+                    ${allowed.paypal ? methodCard('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, true) : ''}
+                  </div>
+                ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
+              </div>
             </div>
           </div>
-          ${this.summaryMarkup()}
+
+          ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap turnstile-wrap--full"><slot name="turnstile-slot"></slot></div>` : ''}
+
+          <div class="summary-below">
+            ${this.summaryMarkup()}
+          </div>
+
+          <div class="panel-actions">
+            <button class="secondary" type="button" data-action="back">${escapeHtml(t.back)}</button>
+            <button class="primary" type="button" data-action="submit" ${!this.isStepComplete('details') || this.state.saving ? 'disabled' : ''}>${escapeHtml(this.state.saving ? t.submitting : t.submit)}</button>
+          </div>
         </section>
       `;
     }
@@ -1478,6 +1534,26 @@
         .success-copy { margin: 0; color: var(--calendra-muted); line-height: 1.6; }
         .panel-section { display: grid; gap: 22px; }
         .panel-section--split { grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr); align-items: start; gap: 22px; }
+        .panel-section--datetime { gap: 18px; }
+        .datetime-top-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.95fr);
+          gap: 22px; align-items: start;
+        }
+        .datetime-calendar-col { display: grid; gap: 14px; }
+        .times-panel { display: grid; gap: 14px; }
+        .times-panel .times-card { height: auto; }
+        .times-panel .slot-grid { max-height: none; overflow: visible; }
+        .summary-below .summary-card { position: static; max-width: none; }
+        .panel-section--details { gap: 18px; }
+        .details-top-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr);
+          gap: 22px; align-items: start;
+        }
+        .details-col { display: grid; gap: 14px; }
+        .payment-col { display: grid; gap: 14px; }
+        .turnstile-wrap--full { margin-top: 0; }
         .panel-copy h3 { margin: 0; font-size: 22px; font-weight: 850; }
         .panel-copy p { margin: 8px 0 0; color: var(--calendra-muted); line-height: 1.6; }
         .panel-copy--compact p { font-size: 14px; }
@@ -1621,20 +1697,50 @@
           padding: 18px; border-radius: 20px; border: 1px dashed var(--calendra-border); background: var(--calendra-surface-soft); color: var(--calendra-muted);
         }
         .empty--compact { padding: 14px; }
-        .payment-methods { margin-top: 18px; display: grid; gap: 10px; }
+        .payment-methods { margin-top: 0; display: grid; gap: 10px; }
         .payment-methods-title { font-weight: 700; color: var(--calendra-text); font-size: 15px; }
         .payment-methods-grid { display: grid; gap: 10px; grid-template-columns: 1fr; }
         .payment-method-card {
-          display: flex; align-items: center; justify-content: space-between; gap: 14px;
-          padding: 14px 16px; border-radius: 14px; border: 1px solid var(--calendra-border);
+          display: grid;
+          grid-template-columns: 56px 1fr auto;
+          align-items: center;
+          gap: 14px;
+          padding: 14px 16px; border-radius: 14px; border: 2px solid var(--calendra-border);
           background: var(--calendra-surface); color: var(--calendra-text);
-          text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s;
+          text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s, transform .12s ease;
         }
-        .payment-method-card:hover:not([disabled]) { border-color: var(--calendra-primary); }
-        .payment-method-card.is-active { border-color: var(--calendra-primary); background: var(--calendra-primary-soft); box-shadow: inset 0 0 0 1px var(--calendra-primary); }
+        .payment-method-card:hover:not([disabled]) {
+          border-color: color-mix(in srgb, var(--calendra-primary) 55%, var(--calendra-border));
+          transform: translateY(-1px);
+        }
+        .payment-method-card.is-active {
+          border-color: var(--calendra-primary);
+          background: color-mix(in srgb, var(--calendra-primary) 8%, white);
+          box-shadow: 0 8px 20px rgba(22,114,243,0.12);
+        }
         .payment-method-card[disabled] { opacity: 0.5; cursor: not-allowed; }
-        .payment-method-title { font-weight: 700; }
+        .payment-method-icon {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 56px; height: 34px;
+          color: var(--calendra-muted);
+        }
+        .payment-method-icon svg.pm-logo { max-width: 100%; max-height: 100%; display: block; }
+        .pm-logo-row { display: inline-flex; align-items: center; gap: 6px; }
+        .pm-logo-row .pm-logo { max-height: 22px; }
+        .payment-method-card .pm-logo-qr { color: var(--calendra-text); }
+        .payment-method-title { font-weight: 700; line-height: 1.2; }
         .payment-method-subtitle { color: var(--calendra-muted); font-size: 13px; margin-top: 2px; }
+        .payment-method-check {
+          width: 22px; height: 22px; border-radius: 999px;
+          border: 2px solid var(--calendra-border);
+          display: inline-grid; place-items: center;
+          color: transparent; transition: background .15s, border-color .15s, color .15s;
+        }
+        .payment-method-card.is-active .payment-method-check {
+          background: var(--calendra-primary);
+          border-color: var(--calendra-primary);
+          color: white;
+        }
         .bank-transfer-box {
           margin-top: 14px; text-align: left; padding: 16px; border-radius: 14px;
           border: 1px solid var(--calendra-border); background: var(--calendra-surface-soft); display: grid; gap: 6px;
@@ -1646,6 +1752,16 @@
         :host([data-layout="compact"]) .panel-section--split,
         :host([data-layout="narrow"]) .panel-section--split,
         :host([data-layout="micro"]) .panel-section--split {
+          grid-template-columns: 1fr;
+        }
+        :host([data-layout="compact"]) .datetime-top-grid,
+        :host([data-layout="narrow"]) .datetime-top-grid,
+        :host([data-layout="micro"]) .datetime-top-grid {
+          grid-template-columns: 1fr;
+        }
+        :host([data-layout="compact"]) .details-top-grid,
+        :host([data-layout="narrow"]) .details-top-grid,
+        :host([data-layout="micro"]) .details-top-grid {
           grid-template-columns: 1fr;
         }
         :host([data-layout="compact"]) .summary-card,
