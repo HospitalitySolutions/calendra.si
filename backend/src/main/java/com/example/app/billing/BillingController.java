@@ -605,7 +605,9 @@ public class BillingController {
 
             OpenBill open = null;
             var client = sb.getClient();
-            var linkedCompany = client == null ? null : client.getBillingCompany();
+            // OpenBill always requires a client; sessions without one cannot be synced into open bills.
+            if (client == null) continue;
+            var linkedCompany = client.getBillingCompany();
             final boolean companyBatchEnabled = linkedCompany != null && linkedCompany.isBatchPaymentEnabled();
             final boolean clientBatchEnabled = !companyBatchEnabled && client != null && client.isBatchPaymentEnabled();
 

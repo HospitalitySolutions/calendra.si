@@ -2883,10 +2883,6 @@ export function ClientsPage() {
                         {form.whatsappOptIn ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                       </button>
                     </div>
-                    <div className="clients-detail-field-card clients-detail-field-card--wide clients-create-note-card">
-                      <span>{clientsCopy.messaging}</span>
-                      <p>{clientsCopy.messagingNote}</p>
-                    </div>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
                       <span>{clientsCopy.linkedCompany}</span>
                       <select
