@@ -50,10 +50,18 @@
       labelLastName: 'Last name',
       labelEmail: 'Email',
       labelPhone: 'Phone',
+      labelCompanyName: 'Company name (optional)',
+      sectionEnterDetails: 'Enter your details',
       firstNamePlaceholder: 'First name',
       lastNamePlaceholder: 'Last name',
       emailPlaceholder: 'name@example.com',
       phonePlaceholder: 'Phone number',
+      companyNamePlaceholder: 'Enter company name',
+      summaryService: 'Service',
+      summaryDateTime: 'Date and time',
+      summaryDuration: 'Duration',
+      summaryEmployee: 'Employee',
+      summaryPrice: 'Price',
       consultantRequiredHint: 'Choose a consultant to see available slots.',
       noSlots: 'No available slots for this date.',
       verificationRequired: 'Please complete the verification challenge.',
@@ -136,10 +144,18 @@
       labelLastName: 'Priimek',
       labelEmail: 'E-pošta',
       labelPhone: 'Telefon',
+      labelCompanyName: 'Naziv podjetja (neobvezno)',
+      sectionEnterDetails: 'Vnesite podatke',
       firstNamePlaceholder: 'Ime',
       lastNamePlaceholder: 'Priimek',
       emailPlaceholder: 'npr. ime@email.si',
-      phonePlaceholder: 'Telefonska številka',
+      phonePlaceholder: 'Vpišite telefonsko številko',
+      companyNamePlaceholder: 'Vpišite naziv podjetja',
+      summaryService: 'Storitev',
+      summaryDateTime: 'Datum in ura',
+      summaryDuration: 'Trajanje',
+      summaryEmployee: 'Zaposleni',
+      summaryPrice: 'Cena',
       consultantRequiredHint: 'Najprej izberite svetovalca za prikaz prostih terminov.',
       noSlots: 'Za izbrani datum ni prostih terminov.',
       verificationRequired: 'Izpolnite varnostni preveritveni izziv.',
@@ -239,7 +255,7 @@
         selectedGroupSession: null,
         manualTime: '',
         activeStep: 'service',
-        form: { firstName: '', lastName: '', email: '', phone: '' },
+        form: { firstName: '', lastName: '', email: '', phone: '', companyName: '' },
         bookingSuccess: null,
         turnstileToken: '',
         turnstileWidgetId: null,
@@ -929,6 +945,7 @@
             lastName: form.lastName.trim(),
             email: form.email.trim(),
             phone: form.phone.trim(),
+            companyName: form.companyName?.trim() || null,
             turnstileToken: this.state.turnstileToken || null,
           },
         });
@@ -1014,7 +1031,7 @@
         selectedGroupSession: null,
         groupSessions: [],
         manualTime: '',
-        form: { firstName: '', lastName: '', email: '', phone: '' },
+        form: { firstName: '', lastName: '', email: '', phone: '', companyName: '' },
         paymentMethod: null,
         paymentResult: null,
         activeStep: this.shouldShowConsultantStep() ? 'consultant' : 'datetime',
@@ -1111,46 +1128,74 @@
       const service = this.currentService();
       const consultant = this.currentSummaryConsultant();
       const selectedTime = this.selectedTimeLabel();
+      const hasDate = Boolean(this.state.selectedDate || selectedTime);
+      const durationMinutes = service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60;
+
+      if (!service && !hasDate && !consultant) {
+        return `
+          <aside class="summary-card ${this.state.activeStep === 'details' ? 'summary-card--final' : ''}">
+            <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
+            <div class="empty empty--compact">${escapeHtml(t.summaryEmpty)}</div>
+          </aside>
+        `;
+      }
 
       return `
         <aside class="summary-card ${this.state.activeStep === 'details' ? 'summary-card--final' : ''}">
           <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
-          ${service ? `
-            <div class="summary-service">
-              <div>
-                <div class="summary-service-name">${escapeHtml(service.name)}</div>
-                <div class="summary-service-meta">${escapeHtml(String(service.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}</div>
+          <div class="summary-rows">
+            ${service ? `
+              <div class="summary-row">
+                <span class="summary-row-label">${escapeHtml(t.summaryService)}:</span>
+                <strong class="summary-row-value">${escapeHtml(service.name)}</strong>
               </div>
-              ${service.priceLabel ? `<div class="price-badge">${escapeHtml(service.priceLabel)}</div>` : ''}
-            </div>
-          ` : `<div class="empty empty--compact">${escapeHtml(t.summaryEmpty)}</div>`}
-
-          ${consultant ? `
-            <div class="summary-person">
-              <div class="summary-avatar">${escapeHtml(this.initials(consultant.name))}</div>
-              <div>
-                <div class="summary-person-name">${escapeHtml(consultant.name)}</div>
-                <div class="summary-person-meta">${escapeHtml(t.stepConsultant)}</div>
+            ` : ''}
+            ${hasDate ? `
+              <div class="summary-row">
+                <span class="summary-row-label">${escapeHtml(t.summaryDateTime)}:</span>
+                <strong class="summary-row-value">
+                  ${escapeHtml(this.displaySelectedDate())}${selectedTime ? ` - <em>${escapeHtml(selectedTime)}</em>` : ''}
+                </strong>
               </div>
-            </div>
-          ` : (this.shouldShowConsultantStep() && !this.consultantSelectionOptional()) ? '' : this.currentServiceSupportsGroupSessions() ? '' : `
-            <div class="summary-inline-meta">${escapeHtml(t.stepConsultant)}: ${escapeHtml(t.optionalConsultant)}</div>
-          `}
-
-          ${(this.state.selectedDate || selectedTime) ? `
-            <div class="summary-inline-meta summary-inline-meta--date">
-              ${escapeHtml(this.displaySelectedDate())}${selectedTime ? ` · <strong>${escapeHtml(selectedTime)}</strong>` : ''}
+            ` : ''}
+            ${service ? `
+              <div class="summary-row">
+                <span class="summary-row-label">${escapeHtml(t.summaryDuration)}:</span>
+                <strong class="summary-row-value">${escapeHtml(String(durationMinutes))} ${escapeHtml(t.durationSuffix)}</strong>
+              </div>
+            ` : ''}
+            ${consultant ? `
+              <div class="summary-row">
+                <span class="summary-row-label">${escapeHtml(t.summaryEmployee)}:</span>
+                <strong class="summary-row-value">${escapeHtml(consultant.name)}</strong>
+              </div>
+            ` : ''}
+          </div>
+          ${service?.priceLabel ? `
+            <div class="summary-divider" aria-hidden="true"></div>
+            <div class="summary-row summary-row--price">
+              <span class="summary-row-label">${escapeHtml(t.summaryPrice)}</span>
+              <strong class="summary-row-value summary-price-value">${escapeHtml(service.priceLabel)}</strong>
             </div>
           ` : ''}
+        </aside>
+      `;
+    }
 
+    privacyNoteMarkup() {
+      const t = this.text();
+      return `
+        <aside class="summary-card summary-card--privacy">
+          <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
           <div class="summary-note">
-            <div class="summary-note-icon">✓</div>
+            <div class="summary-note-icon">
+              <svg viewBox="0 0 20 20" width="12" height="12"><path d="M4 10.5 8 14l8-8.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
             <div>
               <strong>${escapeHtml(t.summaryPrivacyTitle)}</strong>
               <p>${escapeHtml(t.summaryPrivacyText)}</p>
             </div>
           </div>
-
         </aside>
       `;
     }
@@ -1257,7 +1302,10 @@
                 <button class="primary" type="button" data-action="next" ${!this.isStepComplete('consultant') ? 'disabled' : ''}>${escapeHtml(t.continue)}</button>
               </div>
             </div>
-            ${this.summaryMarkup()}
+            <div class="summary-stack">
+              ${this.summaryMarkup()}
+              ${this.privacyNoteMarkup()}
+            </div>
           </section>
         `;
       }
@@ -1356,7 +1404,10 @@
               </div>
             </div>
             <div class="summary-below">
-              ${this.summaryMarkup()}
+              <div class="summary-stack summary-stack--inline">
+                ${this.summaryMarkup()}
+                ${this.privacyNoteMarkup()}
+              </div>
             </div>
             <div class="panel-actions">
               <button class="secondary" type="button" data-action="back">${escapeHtml(t.back)}</button>
@@ -1395,27 +1446,36 @@
                 <h3>${escapeHtml(t.sectionGuest)}</h3>
                 <p>${escapeHtml(t.summaryPrivacyText)}</p>
               </div>
-              <div class="details-grid">
-                <div>
-                  <label for="first-name">${escapeHtml(t.labelFirstName)}</label>
-                  <input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" />
-                </div>
-                <div>
-                  <label for="last-name">${escapeHtml(t.labelLastName)}</label>
-                  <input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" />
-                </div>
-                <div class="full">
-                  <label for="email">${escapeHtml(t.labelEmail)}</label>
-                  <input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" />
-                </div>
-                <div class="full">
-                  <label for="phone">${escapeHtml(t.labelPhone)}</label>
-                  <input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" />
+              <div class="details-card">
+                <div class="details-card-title">${escapeHtml(t.sectionEnterDetails)}</div>
+                <div class="details-grid">
+                  <div>
+                    <label for="first-name">${escapeHtml(t.labelFirstName)}</label>
+                    <input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" />
+                  </div>
+                  <div>
+                    <label for="last-name">${escapeHtml(t.labelLastName)}</label>
+                    <input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" />
+                  </div>
+                  <div class="full">
+                    <label for="company-name">${escapeHtml(t.labelCompanyName)}</label>
+                    <input id="company-name" type="text" value="${escapeHtml(this.state.form.companyName || '')}" placeholder="${escapeHtml(t.companyNamePlaceholder)}" />
+                  </div>
+                  <div class="full">
+                    <label for="email">${escapeHtml(t.labelEmail)}</label>
+                    <input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" />
+                  </div>
+                  <div class="full">
+                    <label for="phone">${escapeHtml(t.labelPhone)}</label>
+                    <input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" />
+                  </div>
                 </div>
               </div>
             </div>
 
             <div class="payment-col">
+              ${this.summaryMarkup()}
+
               <div class="payment-methods">
                 <div class="payment-methods-title">${escapeHtml(t.paymentMethodTitle)}</div>
                 ${hasAnyPaymentMethod ? `
@@ -1425,17 +1485,14 @@
                     ${allowed.paypal ? methodCard('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, true) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
+                ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap turnstile-wrap--under-payments"><slot name="turnstile-slot"></slot></div>` : ''}
               </div>
+
+              ${this.privacyNoteMarkup()}
             </div>
           </div>
 
-          ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap turnstile-wrap--full"><slot name="turnstile-slot"></slot></div>` : ''}
-
-          <div class="summary-below">
-            ${this.summaryMarkup()}
-          </div>
-
-          <div class="panel-actions">
+          <div class="panel-actions panel-actions--details">
             <button class="secondary" type="button" data-action="back">${escapeHtml(t.back)}</button>
             <button class="primary" type="button" data-action="submit" ${!this.isStepComplete('details') || this.state.saving ? 'disabled' : ''}>${escapeHtml(this.state.saving ? t.submitting : t.submit)}</button>
           </div>
@@ -1551,9 +1608,17 @@
           grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr);
           gap: 22px; align-items: start;
         }
-        .details-col { display: grid; gap: 14px; }
-        .payment-col { display: grid; gap: 14px; }
+        .details-col { display: grid; gap: 14px; align-content: start; }
+        .payment-col { display: grid; gap: 16px; align-content: start; }
+        .payment-col .summary-card { position: static; }
+        .details-card {
+          background: white; border: 1px solid var(--calendra-border); border-radius: 24px; padding: 18px;
+          box-shadow: 0 12px 28px rgba(16,24,40,0.05); display: grid; gap: 14px;
+        }
+        .details-card-title { font-size: 18px; font-weight: 850; color: var(--calendra-text); }
         .turnstile-wrap--full { margin-top: 0; }
+        .turnstile-wrap--under-payments { margin-top: 6px; min-height: 70px; display: grid; justify-items: start; }
+        .panel-actions--details { margin-top: 6px; }
         .panel-copy h3 { margin: 0; font-size: 22px; font-weight: 850; }
         .panel-copy p { margin: 8px 0 0; color: var(--calendra-muted); line-height: 1.6; }
         .panel-copy--compact p { font-size: 14px; }
@@ -1647,9 +1712,27 @@
         label {
           display: block; margin-bottom: 8px; font-size: 14px; font-weight: 700;
         }
-        .summary-card { position: sticky; top: 18px; display: grid; gap: 16px; }
+        .summary-card { position: sticky; top: 18px; display: grid; gap: 14px; }
         .summary-card--final { box-shadow: 0 18px 36px rgba(22,114,243,0.08); }
-        .summary-heading { font-size: 18px; font-weight: 850; }
+        .summary-card--privacy { position: static; padding: 16px 18px; }
+        .summary-heading { font-size: 18px; font-weight: 850; color: var(--calendra-text); }
+        .summary-rows { display: grid; gap: 10px; }
+        .summary-row {
+          display: flex; align-items: baseline; gap: 8px; font-size: 15px;
+          line-height: 1.4; color: var(--calendra-text); flex-wrap: wrap;
+        }
+        .summary-row-label { color: var(--calendra-text); font-weight: 600; }
+        .summary-row-value { font-weight: 700; color: var(--calendra-text); }
+        .summary-row-value em { font-style: normal; font-weight: 900; color: var(--calendra-text); }
+        .summary-divider {
+          height: 1px; background: var(--calendra-border); border: 0; margin: 4px 0;
+        }
+        .summary-row--price {
+          display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 17px;
+        }
+        .summary-row--price .summary-row-label { font-weight: 800; font-size: 17px; }
+        .summary-price-value { font-size: 20px; font-weight: 900; }
+        .summary-stack { display: grid; gap: 14px; align-content: start; }
         .summary-service {
           display: flex; align-items: start; justify-content: space-between; gap: 12px; padding-bottom: 2px;
         }
@@ -1661,12 +1744,11 @@
         .summary-person-name { font-size: 16px; font-weight: 800; }
         .summary-inline-meta--date strong { color: var(--calendra-text); }
         .summary-note {
-          display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; padding: 14px;
-          border-radius: 20px; background: color-mix(in srgb, var(--calendra-primary) 7%, white); border: 1px solid var(--calendra-border);
+          display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start;
         }
         .summary-note-icon {
-          width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center;
-          background: white; color: var(--calendra-primary-strong); font-weight: 900;
+          width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center;
+          background: var(--calendra-primary-strong); color: white; flex-shrink: 0;
         }
         .summary-note p { margin: 6px 0 0; color: var(--calendra-muted); line-height: 1.55; font-size: 14px; }
         .summary-actions { display: grid; gap: 10px; }
@@ -1697,8 +1779,8 @@
           padding: 18px; border-radius: 20px; border: 1px dashed var(--calendra-border); background: var(--calendra-surface-soft); color: var(--calendra-muted);
         }
         .empty--compact { padding: 14px; }
-        .payment-methods { margin-top: 0; display: grid; gap: 10px; }
-        .payment-methods-title { font-weight: 700; color: var(--calendra-text); font-size: 15px; }
+        .payment-methods { margin-top: 0; display: grid; gap: 12px; }
+        .payment-methods-title { font-weight: 850; color: var(--calendra-text); font-size: 18px; letter-spacing: -0.01em; padding-left: 4px; }
         .payment-methods-grid { display: grid; gap: 10px; grid-template-columns: 1fr; }
         .payment-method-card {
           display: grid;
@@ -2053,11 +2135,11 @@
         });
       }
 
-      ['first-name', 'last-name', 'email', 'phone'].forEach((id) => {
+      ['first-name', 'last-name', 'email', 'phone', 'company-name'].forEach((id) => {
         const input = this.shadowRoot.getElementById(id);
         if (!input) return;
         input.addEventListener('input', (event) => {
-          const fieldMap = { 'first-name': 'firstName', 'last-name': 'lastName', email: 'email', phone: 'phone' };
+          const fieldMap = { 'first-name': 'firstName', 'last-name': 'lastName', email: 'email', phone: 'phone', 'company-name': 'companyName' };
           this.updateForm(fieldMap[id], event.target.value);
         });
       });

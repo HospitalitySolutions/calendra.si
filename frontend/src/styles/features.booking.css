@@ -898,8 +898,19 @@
 
 .config-type-panel-timing-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 14px;
+}
+
+.config-type-panel-timing-numbers {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    align-items: end;
+}
+
+.config-type-panel-timing-numbers .field input[type='number'] {
+    width: 100%;
 }
 
 .config-type-panel-timing-grid .field,
@@ -916,6 +927,161 @@
 
 .config-type-panel-services > .muted {
     margin: 0;
+}
+
+/* Session type modal — description grows from one line with content */
+.session-type-description-autogrow {
+    resize: none;
+    overflow: hidden;
+    min-height: 2.75rem;
+    line-height: 1.5;
+}
+
+/* Session type modal — modern guest booking picker (custom list, not native select) */
+.guest-booking-select {
+    position: relative;
+    width: 100%;
+}
+
+.guest-booking-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 16px 14px 18px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        background 0.15s ease;
+}
+
+.guest-booking-select-trigger:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 35%, var(--border));
+    box-shadow: var(--shadow-md);
+}
+
+.guest-booking-select.is-open .guest-booking-select-trigger {
+    border-color: color-mix(in srgb, var(--color-primary) 55%, var(--border));
+    box-shadow:
+        0 0 0 3px var(--color-primary-soft),
+        var(--shadow-md);
+}
+
+.guest-booking-select-trigger-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.guest-booking-select-value {
+    font-size: 0.9375rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--color-text);
+}
+
+.guest-booking-select-line {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+}
+
+.guest-booking-select-chevron {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    color: var(--color-text-muted);
+    transition: transform 0.2s ease;
+}
+
+.guest-booking-select.is-open .guest-booking-select-chevron {
+    transform: rotate(180deg);
+    color: var(--color-primary);
+}
+
+.guest-booking-select-menu {
+    position: absolute;
+    z-index: 40;
+    left: 0;
+    right: 0;
+    top: calc(100% + 8px);
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-lg);
+    max-height: min(320px, 55vh);
+    overflow-y: auto;
+}
+
+.guest-booking-select-menu li {
+    margin: 0;
+}
+
+.guest-booking-select-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    width: 100%;
+    padding: 12px 14px;
+    margin: 0;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s ease;
+}
+
+.guest-booking-select-option:hover {
+    background: var(--color-primary-soft);
+}
+
+.guest-booking-select-option.is-selected {
+    background: var(--color-primary-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.guest-booking-select-option-label {
+    font-size: 0.8125rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+}
+
+.guest-booking-select-option-line {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+}
+
+[data-theme="dark"] .guest-booking-select-trigger {
+    background: #0f172a;
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .guest-booking-select-menu {
+    background: #0f172a;
+    border-color: var(--border);
+    box-shadow: var(--shadow-lg);
+}
+
+[data-theme="dark"] .guest-booking-select-option:hover,
+[data-theme="dark"] .guest-booking-select-option.is-selected {
+    background: rgba(96, 165, 250, 0.12);
 }
 
 .config-type-service-row {
@@ -938,8 +1104,8 @@
     background: rgba(15, 23, 42, 0.55);
 }
 
-@media (max-width: 860px) {
-    .config-type-panel-timing-grid {
+@media (max-width: 640px) {
+    .config-type-panel-timing-numbers {
         grid-template-columns: 1fr;
     }
 }

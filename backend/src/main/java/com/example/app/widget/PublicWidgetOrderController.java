@@ -30,6 +30,7 @@ public class PublicWidgetOrderController {
             @NotBlank String lastName,
             @NotBlank @Email String email,
             String phone,
+            String companyName,
             String turnstileToken
     ) {}
 

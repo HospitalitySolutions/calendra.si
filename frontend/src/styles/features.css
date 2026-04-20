@@ -5389,8 +5389,19 @@ a.config-nav-item {
 
 .config-type-panel-timing-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 14px;
+}
+
+.config-type-panel-timing-numbers {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    align-items: end;
+}
+
+.config-type-panel-timing-numbers .field input[type='number'] {
+    width: 100%;
 }
 
 .config-type-panel-timing-grid .field,
@@ -5429,8 +5440,8 @@ a.config-nav-item {
     background: rgba(15, 23, 42, 0.55);
 }
 
-@media (max-width: 860px) {
-    .config-type-panel-timing-grid {
+@media (max-width: 640px) {
+    .config-type-panel-timing-numbers {
         grid-template-columns: 1fr;
     }
 }

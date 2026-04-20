@@ -154,9 +154,9 @@ public class SessionTypeController {
 
     private Integer normalizeMaxParticipantsPerSession(Integer value) {
         if (value == null) return null;
-        if (value < 1 || value > 99) {
+        if (value < 1 || value > 999) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Max participants per session must be between 1 and 99.");
+                    "Max participants per session must be between 1 and 999.");
         }
         return value;
     }

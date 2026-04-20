@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
@@ -13,14 +22,66 @@ const SESSION_TYPES_SUBTAB_TRANSACTION = 'transaction-services'
 
 type TypeServiceLine = { transactionServiceId: number; price: string }
 
+/** Maps to widget + guest-app booleans on the API (see flagsFromGuestBookingMode). */
+type GuestBookingMode = 'ALL' | 'WEBSITE' | 'GUEST' | 'DISABLED'
+
+function guestBookingModeFromFlags(widget: boolean, guest: boolean): GuestBookingMode {
+  if (widget && guest) return 'ALL'
+  if (widget && !guest) return 'WEBSITE'
+  if (!widget && guest) return 'GUEST'
+  return 'DISABLED'
+}
+
+function flagsFromGuestBookingMode(mode: GuestBookingMode): {
+  widgetGroupBookingEnabled: boolean
+  guestBookingEnabled: boolean
+} {
+  switch (mode) {
+    case 'ALL':
+      return { widgetGroupBookingEnabled: true, guestBookingEnabled: true }
+    case 'WEBSITE':
+      return { widgetGroupBookingEnabled: true, guestBookingEnabled: false }
+    case 'GUEST':
+      return { widgetGroupBookingEnabled: false, guestBookingEnabled: true }
+    case 'DISABLED':
+      return { widgetGroupBookingEnabled: false, guestBookingEnabled: false }
+  }
+}
+
+const GUEST_BOOKING_OPTIONS: { value: GuestBookingMode; label: string; line: string }[] = [
+  { value: 'ALL', label: 'ALL', line: 'Website and guest mobile app' },
+  { value: 'WEBSITE', label: 'WEBSITE', line: 'Website only' },
+  { value: 'GUEST', label: 'GUEST', line: 'Guest mobile app only' },
+  { value: 'DISABLED', label: 'DISABLED', line: 'Not bookable by guests' },
+]
+
+function guestBookingOptionMeta(mode: GuestBookingMode) {
+  return GUEST_BOOKING_OPTIONS.find((o) => o.value === mode) ?? GUEST_BOOKING_OPTIONS[2]
+}
+
+/** Session type timing fields: integers 0–999 (max three digits). */
+function clampSessionTypeInt0to999(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(999, Math.floor(n)))
+}
+
+function normalizeOptionalParticipantsField(raw: string): string {
+  const t = raw.trim()
+  if (!t) return ''
+  const n = Number(t)
+  if (!Number.isFinite(n)) return ''
+  const x = Math.floor(n)
+  if (x < 1) return ''
+  return String(Math.min(999, x))
+}
+
 type TypeFormState = {
   name: string
   description: string
   durationMinutes: number
   breakMinutes: number
   maxParticipantsPerSession: string
-  widgetGroupBookingEnabled: boolean
-  guestBookingEnabled: boolean
+  guestBookingMode: GuestBookingMode
   serviceLines: TypeServiceLine[]
 }
 
@@ -30,8 +91,7 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   if (a.durationMinutes !== b.durationMinutes) return false
   if (a.breakMinutes !== b.breakMinutes) return false
   if (a.maxParticipantsPerSession.trim() !== b.maxParticipantsPerSession.trim()) return false
-  if (a.widgetGroupBookingEnabled !== b.widgetGroupBookingEnabled) return false
-  if (a.guestBookingEnabled !== b.guestBookingEnabled) return false
+  if (a.guestBookingMode !== b.guestBookingMode) return false
   if (a.serviceLines.length !== b.serviceLines.length) return false
   for (let i = 0; i < a.serviceLines.length; i++) {
     if (a.serviceLines[i].transactionServiceId !== b.serviceLines[i].transactionServiceId) return false
@@ -134,12 +194,14 @@ export function SessionTypesPage() {
     durationMinutes: 60,
     breakMinutes: 0,
     maxParticipantsPerSession: '',
-    widgetGroupBookingEnabled: false,
-    guestBookingEnabled: true,
+    guestBookingMode: 'GUEST',
     serviceLines: [],
   })
   /** Snapshot when the type modal opens; used to detect edits (footer only when dirty). */
   const [typeFormSnapshot, setTypeFormSnapshot] = useState<TypeFormState | null>(null)
+  const [guestBookingPickerOpen, setGuestBookingPickerOpen] = useState(false)
+  const guestBookingSelectRef = useRef<HTMLDivElement>(null)
+  const sessionTypeDescriptionRef = useRef<HTMLTextAreaElement>(null)
 
   const [isSessionTypesNarrow, setIsSessionTypesNarrow] = useState(
     () => (typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false),
@@ -156,6 +218,39 @@ export function SessionTypesPage() {
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [])
+
+  useEffect(() => {
+    if (!showTypeModal) setGuestBookingPickerOpen(false)
+  }, [showTypeModal])
+
+  const syncSessionTypeDescriptionHeight = useCallback(() => {
+    const el = sessionTypeDescriptionRef.current
+    if (!el) return
+    el.style.height = '0px'
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!showTypeModal) return
+    syncSessionTypeDescriptionHeight()
+  }, [showTypeModal, typeForm.description, syncSessionTypeDescriptionHeight])
+
+  useEffect(() => {
+    if (!guestBookingPickerOpen) return
+    const onPointerDown = (e: MouseEvent) => {
+      const root = guestBookingSelectRef.current
+      if (root && !root.contains(e.target as Node)) setGuestBookingPickerOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setGuestBookingPickerOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [guestBookingPickerOpen])
 
   useEffect(() => {
     if (openTypeMenuId == null) return
@@ -237,14 +332,25 @@ export function SessionTypesPage() {
     e.preventDefault()
     if (!isAdmin) return
     if (!isTypeFormDirty) return
+    const { widgetGroupBookingEnabled, guestBookingEnabled } = flagsFromGuestBookingMode(typeForm.guestBookingMode)
+    const maxParticipantsTrimmed = typeForm.maxParticipantsPerSession.trim()
+    const maxParticipantsParsed =
+      maxParticipantsTrimmed === ''
+        ? null
+        : (() => {
+            const n = Number(maxParticipantsTrimmed)
+            if (!Number.isFinite(n)) return null
+            return Math.min(999, Math.max(1, Math.floor(n)))
+          })()
+
     const payload = {
       name: typeForm.name,
       description: typeForm.description,
-      durationMinutes: typeForm.durationMinutes,
-      breakMinutes: typeForm.breakMinutes,
-      maxParticipantsPerSession: typeForm.maxParticipantsPerSession.trim() ? Number(typeForm.maxParticipantsPerSession) : null,
-      widgetGroupBookingEnabled: typeForm.widgetGroupBookingEnabled,
-      guestBookingEnabled: typeForm.guestBookingEnabled,
+      durationMinutes: clampSessionTypeInt0to999(typeForm.durationMinutes),
+      breakMinutes: clampSessionTypeInt0to999(typeForm.breakMinutes),
+      maxParticipantsPerSession: maxParticipantsParsed,
+      widgetGroupBookingEnabled,
+      guestBookingEnabled,
       services: typeForm.serviceLines.map((l) => ({
         transactionServiceId: l.transactionServiceId,
         price: l.price ? Number(l.price) : null,
@@ -253,7 +359,7 @@ export function SessionTypesPage() {
     if (editingType) await api.put(`/types/${editingType.id}`, payload)
     else await api.post('/types', payload)
     setEditingType(null)
-    setTypeForm({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, maxParticipantsPerSession: '', widgetGroupBookingEnabled: false, guestBookingEnabled: true, serviceLines: [] })
+    setTypeForm({ name: '', description: '', durationMinutes: 60, breakMinutes: 0, maxParticipantsPerSession: '', guestBookingMode: 'GUEST', serviceLines: [] })
     setTypeFormSnapshot(null)
     setShowTypeModal(false)
     void load()
@@ -306,14 +412,16 @@ export function SessionTypesPage() {
     const next: TypeFormState = {
       name: type.name,
       description: type.description || '',
-      durationMinutes: type.durationMinutes ?? 60,
-      breakMinutes: type.breakMinutes ?? 0,
+      durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
+      breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
       maxParticipantsPerSession:
         type.maxParticipantsPerSession != null && Number(type.maxParticipantsPerSession) >= 1
-          ? String(type.maxParticipantsPerSession)
+          ? normalizeOptionalParticipantsField(String(type.maxParticipantsPerSession))
           : '',
-      widgetGroupBookingEnabled: type.widgetGroupBookingEnabled === true,
-      guestBookingEnabled: type.guestBookingEnabled !== false,
+      guestBookingMode: guestBookingModeFromFlags(
+        type.widgetGroupBookingEnabled === true,
+        type.guestBookingEnabled !== false,
+      ),
       serviceLines: (type.linkedServices || []).map((ls) => ({
         transactionServiceId: ls.transactionServiceId,
         price: ls.price != null ? String(ls.price) : '',
@@ -430,12 +538,13 @@ export function SessionTypesPage() {
                     <strong>{type.maxParticipantsPerSession ?? '—'}</strong>
                   </div>
                   <div>
-                    <span>Website booking</span>
-                    <strong>{type.widgetGroupBookingEnabled ? 'On' : 'Off'}</strong>
-                  </div>
-                  <div>
-                    <span>Guest app</span>
-                    <strong>{type.guestBookingEnabled !== false ? 'On' : 'Off'}</strong>
+                    <span>Guest booking</span>
+                    <strong>
+                      {guestBookingModeFromFlags(
+                        type.widgetGroupBookingEnabled === true,
+                        type.guestBookingEnabled !== false,
+                      )}
+                    </strong>
                   </div>
                   <div>
                     <span>{t('sessionTypesCardLabelServices')}</span>
@@ -455,8 +564,7 @@ export function SessionTypesPage() {
                 <th>{t('sessionTypesCardLabelDuration')}</th>
                 <th>{t('sessionTypesCardLabelBreak')}</th>
                 <th>Group max participants</th>
-                <th>Website booking</th>
-                <th>Guest app</th>
+                <th>Guest booking</th>
                 <th>{t('sessionTypesCardLabelServices')}</th>
                 <th>{t('employeesTableCreated')}</th>
                 <th />
@@ -496,8 +604,12 @@ export function SessionTypesPage() {
                     <td className="clients-muted">{type.durationMinutes ?? 60} min</td>
                     <td className="clients-muted">{type.breakMinutes ?? 0} min</td>
                     <td className="clients-muted">{type.maxParticipantsPerSession ?? '—'}</td>
-                    <td className="clients-muted">{type.widgetGroupBookingEnabled ? 'On' : 'Off'}</td>
-                    <td className="clients-muted">{type.guestBookingEnabled !== false ? 'On' : 'Off'}</td>
+                    <td className="clients-muted">
+                      {guestBookingModeFromFlags(
+                        type.widgetGroupBookingEnabled === true,
+                        type.guestBookingEnabled !== false,
+                      )}
+                    </td>
                     <td className="clients-muted">{linkedCell}</td>
                     <td className="clients-muted">{formatDate(type.createdAt)}</td>
                     <td className="clients-actions">
@@ -676,7 +788,15 @@ export function SessionTypesPage() {
 
   const openNewTypeModal = () => {
     setEditingType(null)
-    const empty: TypeFormState = { name: '', description: '', durationMinutes: 60, breakMinutes: 0, maxParticipantsPerSession: '', widgetGroupBookingEnabled: false, guestBookingEnabled: true, serviceLines: [] }
+    const empty: TypeFormState = {
+      name: '',
+      description: '',
+      durationMinutes: 60,
+      breakMinutes: 0,
+      maxParticipantsPerSession: '',
+      guestBookingMode: 'GUEST',
+      serviceLines: [],
+    }
     setTypeForm(empty)
     setTypeFormSnapshot({ ...empty, serviceLines: [] })
     setShowTypeModal(true)
@@ -838,57 +958,131 @@ export function SessionTypesPage() {
                   <input required value={typeForm.name} onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })} />
                 </Field>
                 <Field label="Description">
-                  <textarea rows={4} value={typeForm.description} onChange={(e) => setTypeForm({ ...typeForm, description: e.target.value })} />
+                  <textarea
+                    ref={sessionTypeDescriptionRef}
+                    className="session-type-description-autogrow"
+                    rows={1}
+                    value={typeForm.description}
+                    onChange={(e) => {
+                      const el = e.target
+                      setTypeForm({ ...typeForm, description: el.value })
+                      el.style.height = '0px'
+                      el.style.height = `${el.scrollHeight}px`
+                    }}
+                  />
                 </Field>
                 <div className="full-span config-type-panel-timing-grid">
-                  <Field label="Duration (minutes)" hint="Booked session block shown on the calendar.">
-                    <input
-                      type="number"
-                      min={0}
-                      step={5}
-                      value={typeForm.durationMinutes}
-                      onChange={(e) => setTypeForm({ ...typeForm, durationMinutes: Number(e.target.value) })}
-                    />
-                  </Field>
-                  <Field label="Break (minutes)" hint="Unavailable time shown as diagonal lines after the session.">
-                    <input
-                      type="number"
-                      min={0}
-                      step={5}
-                      value={typeForm.breakMinutes}
-                      onChange={(e) => setTypeForm({ ...typeForm, breakMinutes: Number(e.target.value) })}
-                    />
-                  </Field>
-                  <Field label="Group max participants" hint="Optional capacity for group sessions. When set, website booking only allows joining existing calendar group bookings for this service type.">
-                    <input
-                      type="number"
-                      min={1}
-                      max={99}
-                      value={typeForm.maxParticipantsPerSession}
-                      onChange={(e) => setTypeForm({ ...typeForm, maxParticipantsPerSession: e.target.value })}
-                      placeholder="No limit"
-                    />
-                  </Field>
-                  <Field label="Website booking" hint="Show this service type on the website widget. When Group max participants is set, the widget only allows joining existing calendar group bookings for this service type.">
-                    <label className="inline-checkbox" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="config-type-panel-timing-numbers">
+                    <Field label="Duration (minutes)">
                       <input
-                        type="checkbox"
-                        checked={typeForm.widgetGroupBookingEnabled}
-                        onChange={(e) => setTypeForm({ ...typeForm, widgetGroupBookingEnabled: e.target.checked })}
+                        type="number"
+                        min={0}
+                        max={999}
+                        step={1}
+                        inputMode="numeric"
+                        value={typeForm.durationMinutes}
+                        onChange={(e) =>
+                          setTypeForm({
+                            ...typeForm,
+                            durationMinutes: clampSessionTypeInt0to999(Number(e.target.value)),
+                          })
+                        }
                       />
-                      <span>Enable website booking</span>
-                    </label>
-                  </Field>
-                  <Field label="Guest app" hint="Show this service type inside the guest mobile booking flow.">
-                    <label className="inline-checkbox" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    </Field>
+                    <Field label="Break (minutes)">
                       <input
-                        type="checkbox"
-                        checked={typeForm.guestBookingEnabled}
-                        onChange={(e) => setTypeForm({ ...typeForm, guestBookingEnabled: e.target.checked })}
+                        type="number"
+                        min={0}
+                        max={999}
+                        step={1}
+                        inputMode="numeric"
+                        value={typeForm.breakMinutes}
+                        onChange={(e) =>
+                          setTypeForm({
+                            ...typeForm,
+                            breakMinutes: clampSessionTypeInt0to999(Number(e.target.value)),
+                          })
+                        }
                       />
-                      <span>Enable guest app booking</span>
-                    </label>
-                  </Field>
+                    </Field>
+                    <Field label="Group max participants">
+                      <input
+                        type="number"
+                        min={1}
+                        max={999}
+                        step={1}
+                        inputMode="numeric"
+                        value={typeForm.maxParticipantsPerSession}
+                        onChange={(e) =>
+                          setTypeForm({
+                            ...typeForm,
+                            maxParticipantsPerSession: normalizeOptionalParticipantsField(e.target.value),
+                          })
+                        }
+                        placeholder="No limit"
+                      />
+                    </Field>
+                  </div>
+                  <div className="full-span">
+                    <Field label="Guest booking">
+                      <div
+                        className={`guest-booking-select${guestBookingPickerOpen ? ' is-open' : ''}`}
+                        ref={guestBookingSelectRef}
+                      >
+                        <button
+                          type="button"
+                          className="guest-booking-select-trigger"
+                          aria-haspopup="listbox"
+                          aria-expanded={guestBookingPickerOpen}
+                          onClick={() => setGuestBookingPickerOpen((o) => !o)}
+                        >
+                          <span className="guest-booking-select-trigger-main">
+                            <span className="guest-booking-select-value">
+                              {guestBookingOptionMeta(typeForm.guestBookingMode).label}
+                            </span>
+                            <span className="guest-booking-select-line">
+                              {guestBookingOptionMeta(typeForm.guestBookingMode).line}
+                            </span>
+                          </span>
+                          <span className="guest-booking-select-chevron" aria-hidden>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                              <path
+                                d="M5.5 8.25 10 12.75 14.5 8.25"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </span>
+                        </button>
+                        {guestBookingPickerOpen ? (
+                          <ul className="guest-booking-select-menu" role="listbox">
+                            {GUEST_BOOKING_OPTIONS.map((opt) => {
+                              const selected = typeForm.guestBookingMode === opt.value
+                              return (
+                                <li key={opt.value} role="presentation">
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    aria-selected={selected}
+                                    className={`guest-booking-select-option${selected ? ' is-selected' : ''}`}
+                                    onClick={() => {
+                                      setTypeForm({ ...typeForm, guestBookingMode: opt.value })
+                                      setGuestBookingPickerOpen(false)
+                                    }}
+                                  >
+                                    <span className="guest-booking-select-option-label">{opt.label}</span>
+                                    <span className="guest-booking-select-option-line">{opt.line}</span>
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        ) : null}
+                      </div>
+                    </Field>
+                  </div>
                 </div>
                 <div className="full-span stack gap-sm config-type-panel-services">
                   <SectionTitle
@@ -913,7 +1107,6 @@ export function SessionTypesPage() {
                   >
                     Transaction services
                   </SectionTitle>
-                  <p className="muted">Link one or more transaction services with optional price override. Leave price empty to use the service default.</p>
                   {typeForm.serviceLines.length === 0 ? (
                     <EmptyState title="No services linked" text="Add one or more transaction services." />
                   ) : (

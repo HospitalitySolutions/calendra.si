@@ -56,7 +56,7 @@ public enum SettingKey {
 
     /** Paid space quota for the tenancy (signup / billing). */
     TENANCY_SPACE_QUOTA,
-    /** Cumulative reminder SMS successfully sent (Infobip). */
+    /** Cumulative outbound SMS parts successfully sent via the configured provider. */
     TENANCY_SMS_SENT_COUNT,
     BILLING_SUBSCRIPTION_START,
     BILLING_SUBSCRIPTION_END,

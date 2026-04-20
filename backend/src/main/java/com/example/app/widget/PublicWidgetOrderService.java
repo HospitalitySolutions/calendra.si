@@ -2,6 +2,8 @@ package com.example.app.widget;
 
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
+import com.example.app.company.ClientCompany;
+import com.example.app.company.ClientCompanyRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.auth.GuestTokenService;
@@ -35,6 +37,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class PublicWidgetOrderService {
     private final CompanyRepository companies;
+    private final ClientCompanyRepository clientCompanies;
     private final GuestUserRepository guestUsers;
     private final GuestTenantLinkRepository guestTenantLinks;
     private final ClientRepository clients;
@@ -48,6 +51,7 @@ public class PublicWidgetOrderService {
 
     public PublicWidgetOrderService(
             CompanyRepository companies,
+            ClientCompanyRepository clientCompanies,
             GuestUserRepository guestUsers,
             GuestTenantLinkRepository guestTenantLinks,
             ClientRepository clients,
@@ -60,6 +64,7 @@ public class PublicWidgetOrderService {
             WidgetPublicAuditLogger widgetPublicAuditLogger
     ) {
         this.companies = companies;
+        this.clientCompanies = clientCompanies;
         this.guestUsers = guestUsers;
         this.guestTenantLinks = guestTenantLinks;
         this.clients = clients;
@@ -89,6 +94,7 @@ public class PublicWidgetOrderService {
         String firstName = blankToFallback(request.firstName(), "Guest");
         String lastName = blankToFallback(request.lastName(), "User");
         String phone = normalizePhone(request.phone());
+        String companyName = normalizeCompanyName(request.companyName());
 
         GuestUser guestUser = guestUsers.findByEmailIgnoreCase(email).orElseGet(() -> {
             GuestUser fresh = new GuestUser();
@@ -113,7 +119,7 @@ public class PublicWidgetOrderService {
         guestUser.setLastLoginAt(Instant.now());
         guestUser = guestUsers.save(guestUser);
 
-        ensureTenantLink(guestUser, company, firstName, lastName, email, phone);
+        ensureTenantLink(guestUser, company, firstName, lastName, email, phone, companyName);
 
         String token = guestTokenService.issueToken(guestUser.getId());
         return new PublicWidgetOrderController.GuestSessionResponse(
@@ -160,13 +166,23 @@ public class PublicWidgetOrderService {
         return guestOrderService.checkout(guestUser, orderId, request);
     }
 
-    private void ensureTenantLink(GuestUser guestUser, Company company, String firstName, String lastName, String email, String phone) {
+    private void ensureTenantLink(GuestUser guestUser, Company company, String firstName, String lastName, String email, String phone, String companyName) {
         GuestTenantLink existing = guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
         Client client;
         if (existing != null && existing.getClient() != null) {
             client = existing.getClient();
         } else {
             client = matchOrCreateClient(company, firstName, lastName, email, phone);
+        }
+        // When the widget includes a company name, resolve (or create) a ClientCompany for the
+        // tenant and attach it as the client's linked/billing company. We only set it when the
+        // client does not already have a linked company so returning guests don't get overridden.
+        if (companyName != null) {
+            ClientCompany billingCompany = resolveOrCreateClientCompany(company, companyName);
+            if (client.getBillingCompany() == null) {
+                client.setBillingCompany(billingCompany);
+                client = clients.save(client);
+            }
         }
         GuestTenantLink link = existing != null ? existing : new GuestTenantLink();
         link.setGuestUser(guestUser);
@@ -250,6 +266,34 @@ public class PublicWidgetOrderService {
             widgetPublicAuditLogger.logAttempt(company, request, action, "rejected", ex.getMessage());
             throw ex;
         }
+    }
+
+    private ClientCompany resolveOrCreateClientCompany(Company ownerCompany, String name) {
+        List<ClientCompany> existing = clientCompanies.findAllByOwnerCompanyIdOrderByNameAsc(ownerCompany.getId());
+        ClientCompany match = existing.stream()
+                .filter(c -> c.getName() != null && c.getName().trim().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+        if (match != null) {
+            if (!match.isActive()) {
+                match.setActive(true);
+                return clientCompanies.save(match);
+            }
+            return match;
+        }
+        ClientCompany created = new ClientCompany();
+        created.setOwnerCompany(ownerCompany);
+        created.setName(name);
+        created.setActive(true);
+        created.setBatchPaymentEnabled(false);
+        return clientCompanies.save(created);
+    }
+
+    private static String normalizeCompanyName(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return null;
+        return trimmed;
     }
 
     private static String normalizeEmail(String email) {

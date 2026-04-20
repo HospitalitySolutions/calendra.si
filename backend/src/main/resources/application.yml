@@ -76,10 +76,10 @@ app:
     rp-id: ${APP_WEBAUTHN_RP_ID:}
     rp-name: ${APP_WEBAUTHN_RP_NAME:Calendra}
     allowed-origins: ${APP_WEBAUTHN_ALLOWED_ORIGINS:}
-  infobip:
-    base-url: ${INFOBIP_BASE_URL:https://api.infobip.com}
-    api-key: ${INFOBIP_API_KEY:}
-    sender: ${INFOBIP_SENDER:}
+  sms:
+    a1:
+      auth-token: ${A1_CROSSCHAT_SMS_AUTH_TOKEN:}
+      use-test-environment: ${A1_CROSSCHAT_SMS_USE_TEST_ENVIRONMENT:true}
   zoom:
     client-id: ${ZOOM_CLIENT_ID:}
     client-secret: ${ZOOM_CLIENT_SECRET:}
