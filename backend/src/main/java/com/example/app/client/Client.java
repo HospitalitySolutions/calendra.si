@@ -46,7 +46,8 @@ public class Client extends BaseEntity {
     @Column(nullable = false)
     private boolean batchPaymentEnabled = false;
 
-    @ManyToOne(optional = false)
+    @ManyToOne
+    @JoinColumn(name = "assigned_to_id", nullable = true)
     private User assignedTo;
 
     @ManyToOne

@@ -14,8 +14,7 @@ import com.example.app.paypal.PayPalClient;
 import com.example.app.reminder.ReminderService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
-import com.example.app.session.SessionType;
-import com.example.app.session.SessionTypeRepository;
+import com.example.app.session.SessionBookingCreationService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,7 +42,7 @@ public class GuestOrderService {
     private final GuestEntitlementRepository entitlements;
     private final GuestEntitlementUsageRepository entitlementUsages;
     private final SessionBookingRepository bookings;
-    private final SessionTypeRepository sessionTypes;
+    private final SessionBookingCreationService bookingCreationService;
     private final UserRepository users;
     private final PaymentMethodRepository paymentMethods;
     private final GuestNotificationService notifications;
@@ -60,7 +59,7 @@ public class GuestOrderService {
             GuestEntitlementRepository entitlements,
             GuestEntitlementUsageRepository entitlementUsages,
             SessionBookingRepository bookings,
-            SessionTypeRepository sessionTypes,
+            SessionBookingCreationService bookingCreationService,
             UserRepository users,
             PaymentMethodRepository paymentMethods,
             GuestNotificationService notifications,
@@ -76,7 +75,7 @@ public class GuestOrderService {
         this.entitlements = entitlements;
         this.entitlementUsages = entitlementUsages;
         this.bookings = bookings;
-        this.sessionTypes = sessionTypes;
+        this.bookingCreationService = bookingCreationService;
         this.users = users;
         this.paymentMethods = paymentMethods;
         this.notifications = notifications;
@@ -357,9 +356,8 @@ public class GuestOrderService {
     }
 
     private SessionBooking findBookingForOrder(GuestOrder order) {
-        return bookings.findAllByCompanyId(order.getCompany().getId()).stream()
-                .filter(b -> Objects.equals(String.valueOf(order.getId()), b.getSourceOrderId()))
-                .findFirst().orElse(null);
+        return bookings.findFirstByCompanyIdAndSourceOrderId(order.getCompany().getId(), String.valueOf(order.getId()))
+                .orElse(null);
     }
 
     private SlotContext extractSlotContext(GuestOrder order) {
@@ -419,28 +417,36 @@ public class GuestOrderService {
     }
 
     private SessionBooking createBooking(GuestOrder order, SlotContext slotContext, String status) {
-        SessionType type = sessionTypes.findById(slotContext.sessionTypeId())
-                .filter(t -> Objects.equals(t.getCompany().getId(), order.getCompany().getId()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not available for this tenant."));
-
         User consultant = resolveBookingConsultant(order, slotContext);
-        SessionBooking booking = new SessionBooking();
-        booking.setCompany(order.getCompany());
-        booking.setClient(order.getClient());
-        booking.setConsultant(consultant);
-        booking.setType(type);
-        booking.setStartTime(slotContext.startsAt());
-        booking.setEndTime(slotContext.endsAt());
-        booking.setNotes("Booked via guest mobile app");
-        booking.setBookingStatus(status);
-        booking.setSourceChannel("GUEST_APP");
-        booking.setSourceOrderId(String.valueOf(order.getId()));
-        booking.setGuestUserId(String.valueOf(order.getGuestUser().getId()));
-        booking = bookings.save(booking);
-        if ("CONFIRMED".equals(status)) {
-            reminders.sendBookingConfirmation(booking);
+        try {
+            return bookingCreationService.createChannelBooking(new SessionBookingCreationService.ChannelBookingRequest(
+                    order.getCompany().getId(),
+                    order.getClient().getId(),
+                    consultant != null ? consultant.getId() : null,
+                    slotContext.startsAt(),
+                    slotContext.endsAt(),
+                    null,
+                    slotContext.sessionTypeId(),
+                    "Booked via guest mobile app",
+                    null,
+                    false,
+                    null,
+                    false,
+                    "GUEST_APP",
+                    String.valueOf(order.getId()),
+                    String.valueOf(order.getGuestUser().getId()),
+                    status,
+                    "CONFIRMED".equalsIgnoreCase(status)
+            ));
+        } catch (ResponseStatusException ex) {
+            if (HttpStatus.CONFLICT.equals(ex.getStatusCode())) {
+                SessionBooking existing = findBookingForOrder(order);
+                if (existing != null) {
+                    return existing;
+                }
+            }
+            throw ex;
         }
-        return booking;
     }
 
     private void maybeCreateEntitlement(GuestOrder order) {

@@ -26,7 +26,7 @@ function slovenianTerminCountForm(count: number): string {
   if (n >= 11 && n <= 14) return 'terminov'
   const last = n % 10
   if (last === 1) return 'termin'
-  if (last >= 2 && last <= 4) return 'termina'
+  if (last >= 2 && last <= 4) return count >= 3 ? 'termini' : 'termina'
   return 'terminov'
 }
 
@@ -36,6 +36,7 @@ type Draft = {
   email: string
   phone: string
   billingCompanyId: number | null
+  assignedToId: number | null
 }
 
 export function ClientDetailSidePanel({
@@ -59,6 +60,8 @@ export function ClientDetailSidePanel({
     email: 'E-pošta',
     phone: 'Telefon',
     linkedCompany: 'Povezano podjetje',
+    assignedConsultant: 'Dodeljeni zaposleni',
+    unassignedConsultant: 'Nedodeljen',
     batchPayment: 'Paketno plačilo',
     toggleOn: 'VKLOPLJENO',
     toggleOff: 'IZKLOPLJENO',
@@ -105,6 +108,8 @@ export function ClientDetailSidePanel({
     email: 'Email',
     phone: 'Phone',
     linkedCompany: 'Linked company',
+    assignedConsultant: 'Assigned consultant',
+    unassignedConsultant: 'Unassigned',
     batchPayment: 'Batch payment',
     toggleOn: 'ON',
     toggleOff: 'OFF',
@@ -154,13 +159,14 @@ export function ClientDetailSidePanel({
   const [detailSessionsLoading, setDetailSessionsLoading] = useState(false)
   const [detailSessionsError, setDetailSessionsError] = useState('')
   const [sessionTab, setSessionTab] = useState<'future' | 'past'>('future')
-  const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | null>(null)
+  const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId' | null>(null)
   const [detailEditDraft, setDetailEditDraft] = useState<Draft>({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     billingCompanyId: null,
+    assignedToId: null,
   })
   const [savingDetailEdit, setSavingDetailEdit] = useState(false)
   const [savingBatchPaymentClient, setSavingBatchPaymentClient] = useState(false)
@@ -195,6 +201,7 @@ export function ClientDetailSidePanel({
           email: c.email ?? '',
           phone: c.phone ?? '',
           billingCompanyId: c.billingCompany?.id ?? null,
+          assignedToId: c.assignedTo?.id ?? null,
         })
         setSessionTab('future')
         setConfirmAnonymize(false)
@@ -292,9 +299,10 @@ export function ClientDetailSidePanel({
       (detailEditDraft.lastName ?? '') !== (detailClient.lastName ?? '') ||
       (detailEditDraft.email ?? '') !== (detailClient.email ?? '') ||
       (detailEditDraft.phone ?? '') !== (detailClient.phone ?? '') ||
-      (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
+      (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null) ||
+      (isAdmin && (detailEditDraft.assignedToId ?? null) !== (detailClient.assignedTo?.id ?? null))
     )
-  }, [detailClient, detailEditDraft])
+  }, [detailClient, detailEditDraft, isAdmin])
 
   const saveDetailClientInline = async () => {
     if (!detailClient || savingDetailEdit) return
@@ -308,7 +316,7 @@ export function ClientDetailSidePanel({
         phone: detailEditDraft.phone.trim() || null,
         billingCompanyId: detailEditDraft.billingCompanyId,
         batchPaymentEnabled: detailClient.batchPaymentEnabled ?? false,
-        assignedToId: detailClient.assignedTo?.id ?? consultants[0]?.id,
+        ...(isAdmin ? { assignedToId: detailEditDraft.assignedToId ?? null } : {}),
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
       setDetailClient(response.data)
@@ -318,6 +326,7 @@ export function ClientDetailSidePanel({
         email: response.data.email ?? '',
         phone: response.data.phone ?? '',
         billingCompanyId: response.data.billingCompany?.id ?? null,
+        assignedToId: response.data.assignedTo?.id ?? null,
       })
       setDetailEditField(null)
       window.dispatchEvent(new Event('clients-updated'))
@@ -340,7 +349,7 @@ export function ClientDetailSidePanel({
         phone: detailClient.phone?.trim() || null,
         billingCompanyId: detailClient.billingCompany?.id ?? null,
         batchPaymentEnabled: !(detailClient.batchPaymentEnabled ?? false),
-        assignedToId: detailClient.assignedTo?.id ?? consultants[0]?.id,
+        ...(isAdmin ? { assignedToId: detailEditDraft.assignedToId ?? null } : {}),
       })
       setDetailClient(response.data)
       window.dispatchEvent(new Event('clients-updated'))
@@ -384,11 +393,12 @@ export function ClientDetailSidePanel({
   }
 
   const renderClientEditableField = (
-    key: 'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId',
+    key: 'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId',
     label: string,
     wide = false,
   ) => {
     if (!detailClient) return null
+    if (key === 'assignedToId' && !isAdmin) return null
     const isEditing = detailEditField === key
     return (
       <div
@@ -410,7 +420,11 @@ export function ClientDetailSidePanel({
           <strong>
             {key === 'billingCompanyId'
               ? (detailClient.billingCompany?.name || '—')
-              : ((detailClient[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')}
+              : key === 'assignedToId'
+                ? (detailClient.assignedTo
+                  ? `${fullName(detailClient.assignedTo)} (${detailClient.assignedTo.email})`
+                  : copy.unassignedConsultant)
+                : ((detailClient[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')}
           </strong>
         ) : (
           <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
@@ -429,10 +443,35 @@ export function ClientDetailSidePanel({
                   </option>
                 ))}
               </select>
+            ) : key === 'assignedToId' ? (
+              <select
+                autoFocus
+                value={detailEditDraft.assignedToId ?? ''}
+                onChange={(e) =>
+                  setDetailEditDraft({
+                    ...detailEditDraft,
+                    assignedToId: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void saveDetailClientInline()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setDetailEditField(null)
+                  }
+                }}
+              >
+                <option value="">{copy.unassignedConsultant}</option>
+                {consultants.map((u) => (
+                  <option key={u.id} value={u.id}>{fullName(u)} ({u.email})</option>
+                ))}
+              </select>
             ) : (
               <input
                 autoFocus
-                value={detailEditDraft[key] ?? ''}
+                value={detailEditDraft[key as 'firstName' | 'lastName' | 'email' | 'phone'] ?? ''}
                 onChange={(e) => setDetailEditDraft({ ...detailEditDraft, [key]: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -508,6 +547,7 @@ export function ClientDetailSidePanel({
                 {renderClientEditableField('email', copy.email, true)}
                 {renderClientEditableField('phone', copy.phone, true)}
                 {renderClientEditableField('billingCompanyId', copy.linkedCompany, true)}
+                {renderClientEditableField('assignedToId', copy.assignedConsultant, true)}
                 <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
                   <span>{copy.batchPayment}</span>
                   <button

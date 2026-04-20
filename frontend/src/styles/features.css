@@ -622,7 +622,95 @@
     }
 }
 
+/* Clients page: Stranke / Podjetja / Skupine + search + status filters */
+.clients-page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.clients-page-header__entity {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 @media (max-width: 450px) {
+    .clients-mobile-shell {
+        --clients-mobile-filter-h: 28px;
+    }
+
+    .clients-mobile-shell .clients-page-header--sticky-mobile {
+        position: sticky;
+        top: var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 56px));
+        z-index: 60;
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        /* Opaque page-tone strip so list cards scroll under it cleanly (not “through” the header row). */
+        background: var(--color-bg);
+        box-shadow: 0 1px 0 var(--border);
+    }
+
+    /*
+     * Stranke / Podjetja / Skupine + Novo — compact.
+     * Aktivna / Neaktivna uses the same pill metrics as entity tabs (below).
+     */
+    .clients-mobile-shell .clients-page-header__entity {
+        flex-wrap: nowrap;
+        gap: 5px;
+        align-items: stretch;
+    }
+
+    .clients-mobile-shell .clients-page-header__entity .clients-session-tabs {
+        flex: 1;
+        min-width: 0;
+        margin-bottom: 0;
+        align-self: center;
+        min-height: var(--clients-mobile-filter-h);
+        align-items: stretch;
+    }
+
+    .clients-mobile-shell .clients-page-header__entity > button.secondary {
+        flex-shrink: 0;
+        align-self: center;
+        padding: 4px 7px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        white-space: nowrap;
+        border-radius: 8px;
+    }
+
+    /* One visual system for entity + Active/Inactive pill strips */
+    .clients-mobile-shell .clients-page-header__entity .clients-session-tabs,
+    .clients-mobile-shell .clients-toolbar .clients-session-tabs {
+        padding: 2px;
+        gap: 2px;
+        border-radius: 7px;
+        box-sizing: border-box;
+    }
+
+    .clients-mobile-shell .clients-page-header__entity .clients-session-tab,
+    .clients-mobile-shell .clients-toolbar .clients-session-tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        padding: 3px 2px;
+        font-size: 0.6rem;
+        font-weight: 600;
+        line-height: 1.12;
+        border-radius: 5px;
+    }
+
+    .clients-mobile-shell .clients-session-tab.active {
+        box-shadow: 0 2px 7px rgba(22, 114, 243, 0.22);
+    }
+
     .clients-mobile-shell .clients-toolbar {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -630,7 +718,23 @@
             "search search"
             "tabs count";
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+    }
+
+    .clients-mobile-shell .clients-toolbar .clients-search-input {
+        min-height: var(--clients-mobile-filter-h);
+        padding-top: 5px;
+        padding-bottom: 5px;
+        padding-left: 9px;
+        padding-right: 30px;
+        font-size: 0.74rem;
+        box-sizing: border-box;
+        line-height: 1.2;
+    }
+
+    .clients-mobile-shell .clients-toolbar .clients-search-icon {
+        font-size: 0.76rem;
+        right: 9px;
     }
 
     .clients-mobile-shell .clients-toolbar .clients-search-wrap {
@@ -639,15 +743,30 @@
 
     .clients-mobile-shell .clients-toolbar .clients-session-tabs {
         grid-area: tabs;
+        display: flex;
         margin-bottom: 0;
-        width: fit-content;
-        justify-self: start;
+        width: 100%;
+        min-width: 0;
+        justify-self: stretch;
         align-self: center;
+        min-height: var(--clients-mobile-filter-h);
+        align-items: stretch;
     }
 
     .clients-mobile-shell .clients-toolbar .clients-count-chip {
         grid-area: count;
         justify-self: end;
+        align-self: center;
+        min-height: var(--clients-mobile-filter-h);
+        display: inline-flex;
+        align-items: center;
+        padding: 0 6px;
+        font-size: 0.62rem;
+    }
+
+    .clients-mobile-shell .clients-toolbar .clients-count-chip.clients-count-chip--mobile-open {
+        min-height: var(--clients-mobile-filter-h);
+        padding: 0 0 0 6px;
         align-self: center;
     }
 
@@ -660,13 +779,13 @@
 
     .clients-mobile-shell .clients-toolbar .clients-search-input,
     .clients-mobile-shell .clients-mobile-card,
-    .clients-mobile-shell > div:first-child > button.secondary {
+    .clients-mobile-shell .clients-page-header__entity > button.secondary {
         background: #ffffff;
     }
 
     [data-theme="dark"] .clients-mobile-shell .clients-toolbar .clients-search-input,
     [data-theme="dark"] .clients-mobile-shell .clients-mobile-card,
-    [data-theme="dark"] .clients-mobile-shell > div:first-child > button.secondary {
+    [data-theme="dark"] .clients-mobile-shell .clients-page-header__entity > button.secondary {
         background: var(--color-surface);
         border-color: var(--border);
     }
@@ -1532,7 +1651,47 @@ a.clients-contact-link:hover {
 
 .clients-detail-main-tabs-inner .clients-session-tab {
     flex: 1;
+    min-width: 0;
     text-align: center;
+}
+
+/* Client / company / group detail section switch (Termini, Denarnica, …) — compact on phones */
+@media (max-width: 600px) {
+    .clients-detail-main-tabs {
+        margin-top: 2px;
+        margin-bottom: 8px;
+    }
+
+    .clients-detail-main-tabs .clients-session-tabs {
+        gap: 3px;
+        padding: 3px;
+        margin-bottom: 0;
+    }
+
+    .clients-detail-main-tabs .clients-session-tab {
+        padding: 5px 4px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        border-radius: 7px;
+        line-height: 1.2;
+    }
+
+    .clients-detail-main-tabs .clients-session-tab.active {
+        box-shadow: 0 3px 10px rgba(22, 114, 243, 0.22);
+    }
+}
+
+@media (max-width: 380px) {
+    .clients-detail-main-tabs .clients-session-tabs {
+        gap: 2px;
+        padding: 2px;
+    }
+
+    .clients-detail-main-tabs .clients-session-tab {
+        padding: 4px 2px;
+        font-size: 0.65rem;
+        letter-spacing: -0.01em;
+    }
 }
 
 .clients-detail-datoteke-sub-tabs {
@@ -1824,6 +1983,13 @@ a.clients-contact-link:hover {
 .clients-detail-footer--client-save-only .clients-detail-footer-center {
     grid-column: 1 / -1;
     justify-content: center;
+    width: 100%;
+}
+
+@media (min-width: 769px) {
+    .clients-detail-footer--client-save-only .clients-detail-footer-center {
+        justify-content: flex-end;
+    }
 }
 
 .clients-detail-batch-switch-row {

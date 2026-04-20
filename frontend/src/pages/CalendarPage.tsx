@@ -614,13 +614,13 @@ function truncateCalendarHolidayPillText(name: string, maxChars: number) {
   return `${t.slice(0, Math.max(0, maxChars - 1))}\u2026`
 }
 
-/** Noun form after a numeric count for "termin" (e.g. bottom pill: "3 termina"). */
+/** Noun form after a numeric count for "termin" (e.g. "2 termina", "4 termini"). */
 function slovenianTerminCountForm(count: number): string {
   const n = Math.abs(count) % 100
   if (n >= 11 && n <= 14) return 'terminov'
   const last = n % 10
   if (last === 1) return 'termin'
-  if (last >= 2 && last <= 4) return 'termina'
+  if (last >= 2 && last <= 4) return count >= 3 ? 'termini' : 'termina'
   return 'terminov'
 }
 

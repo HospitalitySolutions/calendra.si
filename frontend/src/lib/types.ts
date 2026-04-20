@@ -36,7 +36,7 @@ export type Client = {
   anonymizedAt?: string | null
   active?: boolean
   batchPaymentEnabled?: boolean
-  assignedTo: User
+  assignedTo?: User | null
   billingCompany?: CompanySummary | null
   preferredSlots: PreferredSlot[]
   createdAt?: string

@@ -269,6 +269,205 @@ public class SessionBookingCreationService {
         return SessionBookingController.toGroupedResponse(saved);
     }
 
+
+    public record ChannelBookingRequest(
+            Long companyId,
+            Long clientId,
+            Long consultantId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Long spaceId,
+            Long typeId,
+            String notes,
+            String meetingLink,
+            Boolean online,
+            String meetingProvider,
+            boolean allowPersonalBlockOverlap,
+            String sourceChannel,
+            String sourceOrderId,
+            String guestUserId,
+            String bookingStatus,
+            boolean sendConfirmation
+    ) {}
+
+    public record GroupJoinRequest(
+            Long companyId,
+            Long representativeBookingId,
+            Long clientId,
+            String sourceChannel,
+            String sourceOrderId,
+            String guestUserId,
+            String bookingStatus,
+            boolean sendConfirmation
+    ) {}
+
+    @Transactional
+    public SessionBooking createChannelBooking(ChannelBookingRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking request is required.");
+        }
+        Long companyId = request.companyId();
+        if (companyId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Company is required.");
+        }
+        LocalDateTime start = request.start();
+        LocalDateTime end = request.end();
+        if (start == null || end == null || !end.isAfter(start)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid booking time window.");
+        }
+
+        Client client = requireClientForCompany(request.clientId(), companyId);
+        companies.findByIdForUpdate(companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found"));
+
+        boolean spacesEnabled = isSpacesEnabled(companyId);
+        boolean multipleSessionsPerSpaceEnabled = isMultipleSessionsPerSpaceEnabled(companyId);
+        validateTypeParticipantLimit(request.typeId(), companyId, 1);
+        validateBookingWindow(
+                companyId,
+                List.of(client.getId()),
+                request.consultantId(),
+                request.spaceId(),
+                start,
+                end,
+                request.typeId(),
+                bookingExcludeIds((Long) null),
+                spacesEnabled,
+                multipleSessionsPerSpaceEnabled,
+                false,
+                Boolean.TRUE.equals(request.online()) || (request.meetingLink() != null && !request.meetingLink().isBlank()),
+                request.allowPersonalBlockOverlap()
+        );
+
+        User actor = resolveAdminActor(companyId);
+        String meetingLink = request.meetingLink();
+        if (Boolean.TRUE.equals(request.online()) && (meetingLink == null || meetingLink.isBlank())) {
+            if (request.consultantId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Online sessions require a meeting link when no consultant is assigned.");
+            }
+            meetingLink = createMeetingUrl(request.consultantId(), start, end, request.meetingProvider());
+        }
+
+        SessionBookingController.BookingRequest internalRequest = new SessionBookingController.BookingRequest(
+                client.getId(),
+                List.of(client.getId()),
+                request.consultantId(),
+                start.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                end.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                request.spaceId(),
+                request.typeId(),
+                request.notes(),
+                meetingLink,
+                request.online(),
+                request.meetingProvider(),
+                request.allowPersonalBlockOverlap(),
+                null,
+                null,
+                null
+        );
+
+        SessionBooking booking = new SessionBooking();
+        booking.setBookingGroupKey(UUID.randomUUID().toString());
+        applySharedFields(booking, internalRequest, actor, start, end, companyId, meetingLink);
+        booking.setClient(client);
+        applyChannelMetadata(booking, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
+        booking = repo.save(booking);
+        if (request.sendConfirmation()) {
+            reminderService.sendBookingConfirmation(booking);
+        }
+        return booking;
+    }
+
+    @Transactional
+    public SessionBooking joinClientToGroupSession(GroupJoinRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group join request is required.");
+        }
+        Long companyId = request.companyId();
+        if (companyId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Company is required.");
+        }
+        if (request.representativeBookingId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group session is required.");
+        }
+
+        companies.findByIdForUpdate(companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found"));
+
+        SessionBooking representative = repo.findByIdAndCompanyId(request.representativeBookingId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group session not found."));
+        if (representative.getClientGroup() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session is not a group session.");
+        }
+        if (!representative.getStartTime().isAfter(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
+        }
+
+        List<SessionBooking> existingRows = loadGroupedRows(representative, companyId);
+        long bookedParticipants = existingRows.stream()
+                .map(SessionBooking::getClient)
+                .filter(clientRow -> clientRow != null)
+                .map(Client::getId)
+                .distinct()
+                .count();
+        SessionType type = representative.getType();
+        if (type == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session has no session type.");
+        }
+        Integer maxParticipants = type.getMaxParticipantsPerSession();
+        if (maxParticipants != null && bookedParticipants >= maxParticipants) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This group session is already full.");
+        }
+
+        Client client = requireClientForCompany(request.clientId(), companyId);
+        boolean alreadyBooked = existingRows.stream()
+                .map(SessionBooking::getClient)
+                .filter(existing -> existing != null)
+                .anyMatch(existing -> existing.getId().equals(client.getId()));
+        if (alreadyBooked) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This guest is already booked into the selected group session.");
+        }
+
+        validateBookingWindow(
+                companyId,
+                List.of(client.getId()),
+                representative.getConsultant() != null ? representative.getConsultant().getId() : null,
+                representative.getSpace() != null ? representative.getSpace().getId() : null,
+                representative.getStartTime(),
+                representative.getEndTime(),
+                representative.getType() != null ? representative.getType().getId() : null,
+                existingRows.stream().map(SessionBooking::getId).toList(),
+                isSpacesEnabled(companyId),
+                isMultipleSessionsPerSpaceEnabled(companyId),
+                true,
+                representative.getMeetingLink() != null && !representative.getMeetingLink().isBlank(),
+                false
+        );
+
+        SessionBooking joined = new SessionBooking();
+        joined.setCompany(representative.getCompany());
+        joined.setClient(client);
+        joined.setBookingGroupKey(SessionBookingController.groupKey(representative));
+        joined.setConsultant(representative.getConsultant());
+        joined.setStartTime(representative.getStartTime());
+        joined.setEndTime(representative.getEndTime());
+        joined.setSpace(representative.getSpace());
+        joined.setType(representative.getType());
+        joined.setNotes(representative.getNotes());
+        joined.setMeetingLink(representative.getMeetingLink());
+        joined.setMeetingProvider(representative.getMeetingProvider());
+        joined.setClientGroup(representative.getClientGroup());
+        joined.setSessionGroupEmailOverride(representative.getSessionGroupEmailOverride());
+        joined.setSessionGroupBillingCompany(representative.getSessionGroupBillingCompany());
+        applyChannelMetadata(joined, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
+        joined = repo.save(joined);
+        if (request.sendConfirmation()) {
+            reminderService.sendBookingConfirmation(joined);
+        }
+        return joined;
+    }
+
     public void validateBookingWindow(Long companyId, List<Long> clientIds, Long consultantId, Long spaceId, LocalDateTime start, LocalDateTime end,
                                       Long typeId, List<Long> excludeIds, boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
                                       boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap) {
@@ -410,6 +609,29 @@ public class SessionBookingCreationService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Client is not assigned to you.");
         }
         return client;
+    }
+
+    private Client requireClientForCompany(Long clientId, Long companyId) {
+        if (clientId == null || clientId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid client");
+        }
+        return clients.findByIdAndCompanyId(clientId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid client"));
+    }
+
+    private User resolveAdminActor(Long companyId) {
+        return users.findAllByCompanyId(companyId).stream()
+                .filter(User::isActive)
+                .filter(user -> user.getRole() == Role.ADMIN)
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No admin user available for tenancy."));
+    }
+
+    private void applyChannelMetadata(SessionBooking booking, String sourceChannel, String sourceOrderId, String guestUserId, String bookingStatus) {
+        booking.setSourceChannel(sourceChannel == null || sourceChannel.isBlank() ? "STAFF" : sourceChannel.trim());
+        booking.setSourceOrderId(sourceOrderId == null || sourceOrderId.isBlank() ? null : sourceOrderId.trim());
+        booking.setGuestUserId(guestUserId == null || guestUserId.isBlank() ? null : guestUserId.trim());
+        booking.setBookingStatus(bookingStatus == null || bookingStatus.isBlank() ? "CONFIRMED" : bookingStatus.trim());
     }
 
     private void applySharedFields(SessionBooking booking, SessionBookingController.BookingRequest req, User me, LocalDateTime start, LocalDateTime end, Long companyId, String meetingLink) {

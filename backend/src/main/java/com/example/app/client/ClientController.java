@@ -182,7 +182,9 @@ public class ClientController {
     public ClientResponse update(@PathVariable Long id, @RequestBody ClientRequest req, @AuthenticationPrincipal User me) {
         var c = repository.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!SecurityUtils.isAdmin(me) && !c.getAssignedTo().getId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if (!SecurityUtils.isAdmin(me) && (c.getAssignedTo() == null || !c.getAssignedTo().getId().equals(me.getId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
         apply(c, req, me);
         return toResponse(repository.save(c));
     }
@@ -207,7 +209,9 @@ public class ClientController {
     public ClientResponse deactivate(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var c = repository.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!SecurityUtils.isAdmin(me) && !c.getAssignedTo().getId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if (!SecurityUtils.isAdmin(me) && (c.getAssignedTo() == null || !c.getAssignedTo().getId().equals(me.getId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
         c.setActive(false);
         return toResponse(repository.save(c));
     }
@@ -217,7 +221,9 @@ public class ClientController {
     public ClientResponse activate(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var c = repository.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!SecurityUtils.isAdmin(me) && !c.getAssignedTo().getId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if (!SecurityUtils.isAdmin(me) && (c.getAssignedTo() == null || !c.getAssignedTo().getId().equals(me.getId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
         c.setActive(true);
         return toResponse(repository.save(c));
     }
@@ -410,20 +416,20 @@ public class ClientController {
         } else if (c.getId() == null) {
             c.setBatchPaymentEnabled(false);
         }
-        User assigned;
         if (SecurityUtils.isAdmin(me)) {
             if (req.assignedToId() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "assignedToId is required for admin");
-            }
-            assigned = users.findByIdAndCompanyId(req.assignedToId(), me.getCompany().getId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant"));
-            if (!assigned.isConsultant() && assigned.getRole() != Role.CONSULTANT) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant");
+                c.setAssignedTo(null);
+            } else {
+                User assigned = users.findByIdAndCompanyId(req.assignedToId(), me.getCompany().getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant"));
+                if (!assigned.isConsultant() && assigned.getRole() != Role.CONSULTANT) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant");
+                }
+                c.setAssignedTo(assigned);
             }
         } else {
-            assigned = me;
+            c.setAssignedTo(me);
         }
-        c.setAssignedTo(assigned);
         c.getPreferredSlots().clear();
         if (req.preferredSlots() != null) {
             req.preferredSlots().forEach(ps -> {
@@ -439,7 +445,7 @@ public class ClientController {
 
     private static ClientResponse toResponse(Client c) {
         var assigned = c.getAssignedTo();
-        var assignedSummary = new UserSummary(
+        UserSummary assignedSummary = assigned == null ? null : new UserSummary(
                 assigned.getId(),
                 assigned.getFirstName(),
                 assigned.getLastName(),

@@ -8,12 +8,10 @@ import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.common.GuestSettingsService;
-import com.example.app.reminder.ReminderService;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
-import com.example.app.session.SessionBookingController;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
@@ -65,7 +63,6 @@ public class PublicBookingWidgetService {
     private final UserRepository users;
     private final ClientRepository clients;
     private final SessionBookingCreationService bookingCreationService;
-    private final ReminderService reminderService;
     private final ZoneId widgetZoneId;
     private final WidgetOriginValidator widgetOriginValidator;
     private final WidgetRateLimiter widgetRateLimiter;
@@ -84,7 +81,6 @@ public class PublicBookingWidgetService {
             UserRepository users,
             ClientRepository clients,
             SessionBookingCreationService bookingCreationService,
-            ReminderService reminderService,
             WidgetOriginValidator widgetOriginValidator,
             WidgetRateLimiter widgetRateLimiter,
             WidgetTurnstileService widgetTurnstileService,
@@ -102,7 +98,6 @@ public class PublicBookingWidgetService {
         this.users = users;
         this.clients = clients;
         this.bookingCreationService = bookingCreationService;
-        this.reminderService = reminderService;
         this.widgetOriginValidator = widgetOriginValidator;
         this.widgetRateLimiter = widgetRateLimiter;
         this.widgetTurnstileService = widgetTurnstileService;
@@ -253,33 +248,34 @@ public class PublicBookingWidgetService {
             User actor = consultant != null ? consultant : resolveAdminActor(company.getId());
             Client client = findOrCreateClient(company, actor, request);
 
-            SessionBookingController.BookingRequest internalRequest = new SessionBookingController.BookingRequest(
-                    client.getId(),
-                    List.of(client.getId()),
-                    consultant != null ? consultant.getId() : null,
-                    DATE_TIME_FORMAT.format(start),
-                    DATE_TIME_FORMAT.format(end),
-                    null,
-                    type.getId(),
-                    "Booked via website widget",
-                    null,
-                    false,
-                    null,
-                    false,
-                    null,
-                    null,
-                    null);
-
             PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(company, "booking", idempotencyKey, request, PublicBookingWidgetController.BookingResponse.class, () -> {
-                var booking = bookingCreationService.create(internalRequest, actor);
-                String consultantName = booking.consultant() == null
+                SessionBooking booking = bookingCreationService.createChannelBooking(new SessionBookingCreationService.ChannelBookingRequest(
+                        company.getId(),
+                        client.getId(),
+                        consultant != null ? consultant.getId() : null,
+                        start,
+                        end,
+                        null,
+                        type.getId(),
+                        "Booked via website widget",
+                        null,
+                        false,
+                        null,
+                        false,
+                        "WEBSITE_WIDGET",
+                        null,
+                        null,
+                        "CONFIRMED",
+                        true
+                ));
+                String consultantName = booking.getConsultant() == null
                         ? null
-                        : (booking.consultant().firstName() + " " + booking.consultant().lastName()).trim();
+                        : consultantFullName(booking.getConsultant());
                 return new PublicBookingWidgetController.BookingResponse(
-                        booking.id(),
-                        booking.type() == null ? type.getName() : booking.type().name(),
-                        booking.startTime().format(DATE_TIME_FORMAT),
-                        booking.startTime().format(HUMAN_FORMAT),
+                        booking.getId(),
+                        booking.getType() == null ? type.getName() : booking.getType().getName(),
+                        booking.getStartTime().format(DATE_TIME_FORMAT),
+                        booking.getStartTime().format(HUMAN_FORMAT),
                         client.getEmail(),
                         consultantName
                 );
@@ -314,66 +310,18 @@ public class PublicBookingWidgetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
         }
 
-        List<SessionBooking> existingRows = loadGroupedRows(representative, company.getId());
-        long bookedParticipants = existingRows.stream()
-                .map(SessionBooking::getClient)
-                .filter(Objects::nonNull)
-                .map(Client::getId)
-                .distinct()
-                .count();
-        Integer maxParticipants = type.getMaxParticipantsPerSession();
-        if (maxParticipants != null && bookedParticipants >= maxParticipants) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This group session is already full.");
-        }
-
         User actor = representative.getConsultant() != null ? representative.getConsultant() : resolveAdminActor(company.getId());
         Client client = findOrCreateClient(company, actor, request);
-        boolean alreadyBooked = existingRows.stream()
-                .map(SessionBooking::getClient)
-                .filter(Objects::nonNull)
-                .anyMatch(existing -> Objects.equals(existing.getId(), client.getId()));
-        if (alreadyBooked) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This guest is already booked into the selected group session.");
-        }
-
-        if (maxParticipants != null && bookedParticipants + 1 > maxParticipants) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "This service type allows at most " + maxParticipants + " participants per session.");
-        }
-
-        bookingCreationService.validateBookingWindow(
+        SessionBooking joined = bookingCreationService.joinClientToGroupSession(new SessionBookingCreationService.GroupJoinRequest(
                 company.getId(),
-                List.of(client.getId()),
-                representative.getConsultant() != null ? representative.getConsultant().getId() : null,
-                representative.getSpace() != null ? representative.getSpace().getId() : null,
-                representative.getStartTime(),
-                representative.getEndTime(),
-                representative.getType() != null ? representative.getType().getId() : null,
-                existingRows.stream().map(SessionBooking::getId).toList(),
-                bookingCreationService.isSpacesEnabled(company.getId()),
-                bookingCreationService.isMultipleSessionsPerSpaceEnabled(company.getId()),
-                true,
-                representative.getMeetingLink() != null && !representative.getMeetingLink().isBlank(),
-                false
-        );
-
-        SessionBooking joined = new SessionBooking();
-        joined.setCompany(company);
-        joined.setClient(client);
-        joined.setBookingGroupKey(groupKeyOf(representative));
-        joined.setConsultant(representative.getConsultant());
-        joined.setStartTime(representative.getStartTime());
-        joined.setEndTime(representative.getEndTime());
-        joined.setSpace(representative.getSpace());
-        joined.setType(representative.getType());
-        joined.setNotes(representative.getNotes());
-        joined.setMeetingLink(representative.getMeetingLink());
-        joined.setMeetingProvider(representative.getMeetingProvider());
-        joined.setClientGroup(representative.getClientGroup());
-        joined.setSessionGroupEmailOverride(representative.getSessionGroupEmailOverride());
-        joined.setSessionGroupBillingCompany(representative.getSessionGroupBillingCompany());
-        joined = bookings.save(joined);
-        reminderService.sendBookingConfirmation(joined);
+                representative.getId(),
+                client.getId(),
+                "WEBSITE_WIDGET",
+                null,
+                null,
+                "CONFIRMED",
+                true
+        ));
 
         String consultantName = joined.getConsultant() == null
                 ? null

@@ -19,7 +19,7 @@ type ClientForm = {
   phone: string
   whatsappOptIn: boolean
   viberConnected: boolean
-  assignedToId?: number
+  assignedToId?: number | null
   billingCompanyId?: number | null
 }
 
@@ -82,6 +82,7 @@ const emptyClientForm: ClientForm = {
   phone: '',
   whatsappOptIn: false,
   viberConnected: false,
+  assignedToId: null,
   billingCompanyId: null,
 }
 
@@ -157,7 +158,7 @@ function slovenianTerminCountForm(count: number): string {
   if (n >= 11 && n <= 14) return 'terminov'
   const last = n % 10
   if (last === 1) return 'termin'
-  if (last >= 2 && last <= 4) return 'termina'
+  if (last >= 2 && last <= 4) return count >= 3 ? 'termini' : 'termina'
   return 'terminov'
 }
 
@@ -223,6 +224,7 @@ export function ClientsPage() {
     messaging: 'Sporočanje',
     messagingNote: 'WhatsApp uporablja telefonsko številko stranke. Povezava z Viberjem bo na voljo, ko se stranka poveže z vašim Viber botom.',
     noLinkedCompany: 'Brez povezanega podjetja',
+    unassignedConsultant: 'Nedodeljen',
     assignedConsultant: 'Dodeljeni zaposleni',
     createClient: 'Ustvari stranko',
     newCompanyTitle: 'Novo podjetje',
@@ -360,6 +362,7 @@ export function ClientsPage() {
     messaging: 'Messaging',
     messagingNote: 'WhatsApp uses the client phone number. Viber linking becomes available after the client connects to your Viber bot.',
     noLinkedCompany: 'No linked company',
+    unassignedConsultant: 'Unassigned',
     assignedConsultant: 'Assigned consultant',
     createClient: 'Create client',
     newCompanyTitle: 'New company',
@@ -485,7 +488,7 @@ export function ClientsPage() {
   const [activatingCompanyId, setActivatingCompanyId] = useState<number | null>(null)
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive'>('active')
   const [companyActiveFilter, setCompanyActiveFilter] = useState<'active' | 'inactive'>('active')
-  const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | null>(null)
+  const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId' | null>(null)
   const [detailEditDraft, setDetailEditDraft] = useState<{
     firstName: string
     lastName: string
@@ -494,6 +497,7 @@ export function ClientsPage() {
     whatsappOptIn: boolean
     batchPaymentEnabled: boolean
     billingCompanyId: number | null
+    assignedToId: number | null
   }>({
     firstName: '',
     lastName: '',
@@ -502,6 +506,7 @@ export function ClientsPage() {
     whatsappOptIn: false,
     batchPaymentEnabled: false,
     billingCompanyId: null,
+    assignedToId: null,
   })
   const [savingDetailEdit, setSavingDetailEdit] = useState(false)
   const [companyDetailEditField, setCompanyDetailEditField] = useState<'name' | 'address' | 'postalCode' | 'city' | 'vatId' | 'iban' | 'email' | 'telephone' | null>(null)
@@ -891,7 +896,8 @@ export function ClientsPage() {
       || (detailEditDraft.whatsappOptIn ?? false) !== (detailClient.whatsappOptIn ?? false)
       || (detailEditDraft.batchPaymentEnabled ?? false) !== (detailClient.batchPaymentEnabled ?? false)
       || (detailEditDraft.billingCompanyId ?? null) !== (detailClient.billingCompany?.id ?? null)
-  }, [detailClient, detailEditDraft])
+      || (isAdmin && (detailEditDraft.assignedToId ?? null) !== (detailClient.assignedTo?.id ?? null))
+  }, [detailClient, detailEditDraft, isAdmin])
 
   const companyDetailHasChanges = useMemo(() => {
     if (!detailCompany) return false
@@ -923,6 +929,7 @@ export function ClientsPage() {
       whatsappOptIn: c.whatsappOptIn ?? false,
       batchPaymentEnabled: c.batchPaymentEnabled ?? false,
       billingCompanyId: c.billingCompany?.id ?? null,
+      assignedToId: c.assignedTo?.id ?? null,
     })
     setSessionTab('future')
     setClientDetailMainTab('sessions')
@@ -1090,7 +1097,7 @@ export function ClientsPage() {
         whatsappOptIn: detailEditDraft.whatsappOptIn,
         billingCompanyId: detailEditDraft.billingCompanyId,
         batchPaymentEnabled: detailEditDraft.batchPaymentEnabled ?? false,
-        assignedToId: detailClient.assignedTo?.id ?? consultants[0]?.id,
+        ...(isAdmin ? { assignedToId: detailEditDraft.assignedToId ?? null } : {}),
       }
       const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
       setDetailClient(response.data)
@@ -1102,6 +1109,7 @@ export function ClientsPage() {
         whatsappOptIn: response.data.whatsappOptIn ?? false,
         batchPaymentEnabled: response.data.batchPaymentEnabled ?? false,
         billingCompanyId: response.data.billingCompany?.id ?? null,
+        assignedToId: response.data.assignedTo?.id ?? null,
       })
       setClients((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
       setDetailEditField(null)
@@ -1162,10 +1170,11 @@ export function ClientsPage() {
   }
 
   const renderClientEditableField = (
-    key: 'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId',
+    key: 'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId',
     label: string,
     wide = false,
   ) => {
+    if (key === 'assignedToId' && !isAdmin) return null
     const isEditing = detailEditField === key
     return (
       <div
@@ -1188,7 +1197,11 @@ export function ClientsPage() {
           <strong>
             {key === 'billingCompanyId'
               ? (detailClient?.billingCompany?.name || '—')
-              : ((detailClient?.[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')}
+              : key === 'assignedToId'
+                ? (detailClient?.assignedTo
+                  ? `${fullName(detailClient.assignedTo)} (${detailClient.assignedTo.email})`
+                  : clientsCopy.unassignedConsultant)
+                : ((detailClient?.[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')}
           </strong>
         ) : (
           <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
@@ -1198,15 +1211,40 @@ export function ClientsPage() {
                 value={detailEditDraft.billingCompanyId ?? ''}
                 onChange={(e) => setDetailEditDraft({ ...detailEditDraft, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
               >
-                <option value="">No linked company</option>
+                <option value="">{clientsCopy.noLinkedCompany}</option>
                 {companies.map((company) => (
                   <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </select>
+            ) : key === 'assignedToId' ? (
+              <select
+                autoFocus
+                value={detailEditDraft.assignedToId ?? ''}
+                onChange={(e) =>
+                  setDetailEditDraft({
+                    ...detailEditDraft,
+                    assignedToId: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void saveDetailClientInline()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setDetailEditField(null)
+                  }
+                }}
+              >
+                <option value="">{clientsCopy.unassignedConsultant}</option>
+                {consultants.map((u) => (
+                  <option key={u.id} value={u.id}>{fullName(u)} ({u.email})</option>
                 ))}
               </select>
             ) : (
               <input
                 autoFocus
-                value={detailEditDraft[key] ?? ''}
+                value={detailEditDraft[key as 'firstName' | 'lastName' | 'email' | 'phone'] ?? ''}
                 onChange={(e) => setDetailEditDraft({ ...detailEditDraft, [key]: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -1369,6 +1407,7 @@ export function ClientsPage() {
           whatsappOptIn: updated.whatsappOptIn ?? false,
           batchPaymentEnabled: updated.batchPaymentEnabled ?? false,
           billingCompanyId: updated.billingCompany?.id ?? null,
+          assignedToId: updated.assignedTo?.id ?? null,
         })
       }
       await loadClients()
@@ -1424,7 +1463,7 @@ export function ClientsPage() {
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
         whatsappOptIn: form.whatsappOptIn,
-        assignedToId: isAdmin ? (form.assignedToId ?? consultants[0]?.id) : undefined,
+        assignedToId: isAdmin ? (form.assignedToId ?? null) : undefined,
         preferredSlots: [],
       }
 
@@ -1783,38 +1822,78 @@ export function ClientsPage() {
   return (
     <div className="stack gap-lg">
       <Card className={isClientsMobile ? 'clients-mobile-shell' : ''}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
-          <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-            <button type="button" className={entityTab === 'clients' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('clients')}>{t('clientsTabClients')}</button>
-            <button type="button" className={entityTab === 'companies' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('companies')}>{t('clientsTabCompanies')}</button>
-            {groupBookingEnabled && <button type="button" className={entityTab === 'groups' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('groups')}>{clientsCopy.groupsTab}</button>}
+        <div className={`clients-page-header${isClientsMobile ? ' clients-page-header--sticky-mobile' : ''}`}>
+          <div className="clients-page-header__entity">
+            <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
+              <button type="button" className={entityTab === 'clients' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('clients')}>{t('clientsTabClients')}</button>
+              <button type="button" className={entityTab === 'companies' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('companies')}>{t('clientsTabCompanies')}</button>
+              {groupBookingEnabled && <button type="button" className={entityTab === 'groups' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('groups')}>{clientsCopy.groupsTab}</button>}
+            </div>
+            <button
+              type="button"
+              className="secondary"
+              onClick={entityTab === 'clients' ? openNewModal : entityTab === 'companies' ? openNewCompanyModal : () => { setGroupForm({ name: '', email: '' }); setGroupErrorMessage(''); setShowGroupModal(true) }}
+            >
+              {isClientsMobile ? clientsCopy.newButtonMobile : clientsCopy.newButton}
+            </button>
           </div>
-          <button
-            type="button"
-            className="secondary"
-            onClick={entityTab === 'clients' ? openNewModal : entityTab === 'companies' ? openNewCompanyModal : () => { setGroupForm({ name: '', email: '' }); setGroupErrorMessage(''); setShowGroupModal(true) }}
-          >
-            {isClientsMobile ? clientsCopy.newButtonMobile : clientsCopy.newButton}
-          </button>
+          {entityTab === 'clients' && (
+            <div className="clients-toolbar">
+              <div className="clients-search-wrap">
+                <input
+                  className="clients-search-input"
+                  placeholder={clientsCopy.searchClientsPlaceholder}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <span className="clients-search-icon" aria-hidden>⌕</span>
+              </div>
+              <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
+                <button type="button" className={activeFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('active')}>{clientsCopy.activeFilter}</button>
+                <button type="button" className={activeFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('inactive')}>{clientsCopy.inactive}</button>
+              </div>
+              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listClientsCount(filteredClients.length)}</div>
+            </div>
+          )}
+          {entityTab === 'companies' && (
+            <div className="clients-toolbar">
+              <div className="clients-search-wrap">
+                <input
+                  className="clients-search-input"
+                  placeholder={clientsCopy.searchCompaniesPlaceholder}
+                  value={companySearch}
+                  onChange={(e) => setCompanySearch(e.target.value)}
+                />
+                <span className="clients-search-icon" aria-hidden>⌕</span>
+              </div>
+              <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
+                <button type="button" className={companyActiveFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('active')}>{clientsCopy.activeFilter}</button>
+                <button type="button" className={companyActiveFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('inactive')}>{clientsCopy.inactive}</button>
+              </div>
+              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listCompaniesCount(filteredCompanies.length)}</div>
+            </div>
+          )}
+          {entityTab === 'groups' && groupBookingEnabled && (
+            <div className="clients-toolbar">
+              <div className="clients-search-wrap">
+                <input
+                  className="clients-search-input"
+                  placeholder={clientsCopy.searchGroupsPlaceholder}
+                  value={groupSearch}
+                  onChange={(e) => setGroupSearch(e.target.value)}
+                />
+                <span className="clients-search-icon" aria-hidden>⌕</span>
+              </div>
+              <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
+                <button type="button" className={groupActiveFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setGroupActiveFilter('active')}>{clientsCopy.activeFilter}</button>
+                <button type="button" className={groupActiveFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setGroupActiveFilter('inactive')}>{clientsCopy.inactive}</button>
+              </div>
+              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listGroupsCount(filteredGroups.length)}</div>
+            </div>
+          )}
         </div>
         {entityTab === 'clients' ? (
           <>
-        <div className="clients-toolbar">
-          <div className="clients-search-wrap">
-            <input
-              className="clients-search-input"
-              placeholder={clientsCopy.searchClientsPlaceholder}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <span className="clients-search-icon" aria-hidden>⌕</span>
-          </div>
-          <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-            <button type="button" className={activeFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('active')}>{clientsCopy.activeFilter}</button>
-            <button type="button" className={activeFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setActiveFilter('inactive')}>{clientsCopy.inactive}</button>
-          </div>
-          <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listClientsCount(filteredClients.length)}</div>
-        </div>
         {errorMessage && !showModal && <div className="error">{errorMessage}</div>}
         {loading ? (
           <div className="muted">Loading clients...</div>
@@ -1832,7 +1911,7 @@ export function ClientsPage() {
                       </span>
                       <div className="clients-name-stack">
                         <span className="clients-name">{fullName(c)}{c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
-                        <span className="clients-id">ID #{c.id}{isAdmin ? clientsCopy.assignedToLine(c.assignedTo ? fullName(c.assignedTo) : '—') : ''}</span>
+                        <span className="clients-id">ID #{c.id}{isAdmin ? clientsCopy.assignedToLine(c.assignedTo ? fullName(c.assignedTo) : clientsCopy.unassignedConsultant) : ''}</span>
                       </div>
                     </div>
                     {renderClientRowOverflowMenu(c)}
@@ -1911,7 +1990,7 @@ export function ClientsPage() {
                           '—'
                         )}
                       </td>
-                      {isAdmin && <td className="clients-muted">{c.assignedTo ? fullName(c.assignedTo) : '—'}</td>}
+                      {isAdmin && <td className="clients-muted">{c.assignedTo ? fullName(c.assignedTo) : clientsCopy.unassignedConsultant}</td>}
                       <td className="clients-muted">{formatDate(c.createdAt)}</td>
                       <td className="clients-actions">
                         <div className="clients-actions-inner">{renderClientRowOverflowMenu(c)}</div>
@@ -1926,22 +2005,6 @@ export function ClientsPage() {
       </>
         ) : entityTab === 'companies' ? (
           <>
-            <div className="clients-toolbar">
-              <div className="clients-search-wrap">
-                <input
-                  className="clients-search-input"
-                  placeholder={clientsCopy.searchCompaniesPlaceholder}
-                  value={companySearch}
-                  onChange={(e) => setCompanySearch(e.target.value)}
-                />
-                <span className="clients-search-icon" aria-hidden>⌕</span>
-              </div>
-              <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-                <button type="button" className={companyActiveFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('active')}>{clientsCopy.activeFilter}</button>
-                <button type="button" className={companyActiveFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setCompanyActiveFilter('inactive')}>{clientsCopy.inactive}</button>
-              </div>
-              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listCompaniesCount(filteredCompanies.length)}</div>
-            </div>
             {companyErrorMessage && !showCompanyModal && <div className="error">{companyErrorMessage}</div>}
             {loadingCompanies ? (
               <div className="muted">Loading companies...</div>
@@ -2047,22 +2110,6 @@ export function ClientsPage() {
           </>
         ) : entityTab === 'groups' && groupBookingEnabled ? (
           <>
-            <div className="clients-toolbar">
-              <div className="clients-search-wrap">
-                <input
-                  className="clients-search-input"
-                  placeholder={clientsCopy.searchGroupsPlaceholder}
-                  value={groupSearch}
-                  onChange={(e) => setGroupSearch(e.target.value)}
-                />
-                <span className="clients-search-icon" aria-hidden>⌕</span>
-              </div>
-              <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
-                <button type="button" className={groupActiveFilter === 'active' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setGroupActiveFilter('active')}>{clientsCopy.activeFilter}</button>
-                <button type="button" className={groupActiveFilter === 'inactive' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setGroupActiveFilter('inactive')}>{clientsCopy.inactive}</button>
-              </div>
-              <div className={`clients-count-chip${isClientsMobile ? ' clients-count-chip--mobile-open' : ''}`}>{clientsCopy.listGroupsCount(filteredGroups.length)}</div>
-            </div>
             {groupErrorMessage && !showGroupModal && <div className="error">{groupErrorMessage}</div>}
             {loadingGroups ? (
               <div className="muted">Loading groups...</div>
@@ -2190,6 +2237,7 @@ export function ClientsPage() {
                   {renderClientEditableField('email', clientsCopy.email, true)}
                   {renderClientEditableField('phone', clientsCopy.phone, true)}
                   {renderClientEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
+                  {renderClientEditableField('assignedToId', clientsCopy.assignedConsultant, true)}
                 </div>
 
                 <div className="clients-detail-main-tabs" onClick={(e) => e.stopPropagation()}>
@@ -2824,7 +2872,7 @@ export function ClientsPage() {
                     <button
                       type="submit"
                       className="booking-side-panel-submit-check"
-                      disabled={saving || (isAdmin && consultants.length === 0)}
+                      disabled={saving}
                       aria-label={clientsCopy.createClient}
                       title={clientsCopy.createClient}
                     >
@@ -2899,10 +2947,15 @@ export function ClientsPage() {
                       <label className="clients-detail-field-card clients-detail-field-card--wide">
                         <span>{clientsCopy.assignedConsultant}</span>
                         <select
-                          value={form.assignedToId ?? consultants[0]?.id ?? ''}
-                          onChange={(e) => setForm({ ...form, assignedToId: Number(e.target.value) })}
-                          required
+                          value={form.assignedToId ?? ''}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              assignedToId: e.target.value ? Number(e.target.value) : null,
+                            })
+                          }
                         >
+                          <option value="">{clientsCopy.unassignedConsultant}</option>
                           {consultants.map((u) => (
                             <option key={u.id} value={u.id}>{fullName(u)} ({u.email})</option>
                           ))}
@@ -2919,7 +2972,7 @@ export function ClientsPage() {
                   className={`${isNativeAndroid ? 'form-actions' : 'form-actions booking-side-panel-footer'} clients-create-footer`}
                   style={{ marginTop: isNativeAndroid ? 16 : 0 }}
                 >
-                  <button type="submit" disabled={saving || (isAdmin && consultants.length === 0)}>{saving ? clientsCopy.saving : clientsCopy.createClient}</button>
+                  <button type="submit" disabled={saving}>{saving ? clientsCopy.saving : clientsCopy.createClient}</button>
                 </div>
               )}
             </form>

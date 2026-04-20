@@ -24,7 +24,7 @@ public class ClientAnonymizationService {
     public Client anonymize(Long clientId, User me) {
         var client = clients.findByIdAndCompanyId(clientId, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!SecurityUtils.isAdmin(me) && !client.getAssignedTo().getId().equals(me.getId())) {
+        if (!SecurityUtils.isAdmin(me) && (client.getAssignedTo() == null || !client.getAssignedTo().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         if (client.isAnonymized()) {
