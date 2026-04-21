@@ -47,6 +47,10 @@ public class GuestNotificationService {
         create(guestUser, company, client, GuestNotificationType.PAYMENT_CONFIRMED, title, body, null);
     }
 
+    public void guestMessage(GuestUser guestUser, Company company, Client client, String title, String body, String payloadJson) {
+        create(guestUser, company, client, GuestNotificationType.GUEST_MESSAGE, title, body, payloadJson);
+    }
+
     @Transactional(readOnly = true)
     public GuestDtos.NotificationsResponse list(GuestUser guestUser, Long companyId) {
         return new GuestDtos.NotificationsResponse(

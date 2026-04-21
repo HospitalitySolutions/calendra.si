@@ -11,7 +11,9 @@ data class TenantDashboard(
     val products: List<ProductSummary> = emptyList(),
     val wallet: WalletPayload? = null,
     val history: List<BookingHistoryItem> = emptyList(),
-    val notifications: List<GuestNotification> = emptyList()
+    val notifications: List<GuestNotification> = emptyList(),
+    val inboxThread: GuestInboxThread? = null,
+    val inboxMessages: List<GuestInboxMessage> = emptyList()
 )
 
 data class GuestUiState(

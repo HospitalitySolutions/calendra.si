@@ -40,11 +40,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.auth.GoogleSignInManager
+import si.calendra.guest.android.files.GuestAttachmentManager
 import si.calendra.guest.android.payments.NativeCheckoutManager
 import si.calendra.guest.android.payments.PaymentRedirectBus
+import si.calendra.guest.android.push.GuestInboxDeepLinkBus
+import si.calendra.guest.android.push.GuestPushManager
 import si.calendra.guest.android.ui.screens.*
 import si.calendra.guest.shared.GuestAppContainer
 import si.calendra.guest.shared.config.GuestApiConfig
@@ -119,7 +123,7 @@ fun GuestMobileRoot() {
         state.uiState = state.uiState.copy(
             session = sessionToken,
             linkedTenants = sessionToken.linkedTenants,
-            selectedTenantId = null,
+            selectedTenantId = state.uiState.selectedTenantId,
             tenantDashboards = emptyMap()
         )
     }
@@ -135,7 +139,9 @@ fun GuestMobileRoot() {
             products = repo.products(companyId),
             wallet = repo.wallet(companyId),
             history = repo.bookingHistory(companyId),
-            notifications = repo.notifications(companyId).items
+            notifications = repo.notifications(companyId).items,
+            inboxThread = repo.inboxThreads(companyId).firstOrNull(),
+            inboxMessages = state.uiState.tenantDashboards[companyId]?.inboxMessages.orEmpty()
         )
         state.uiState = state.uiState.copy(
             linkedTenants = mergedTenants,
@@ -198,6 +204,39 @@ fun GuestMobileRoot() {
         }
     }
 
+    suspend fun openInboxFromPush(companyId: String) {
+        if (companyId.isBlank()) return
+        runCatching {
+            state.uiState = state.uiState.copy(selectedTenantId = companyId)
+            if (state.uiState.session != null) {
+                navigateToTab(RootRoute.Inbox.route)
+            }
+            if (state.uiState.linkedTenants.any { it.companyId == companyId }) {
+                refreshTenant(companyId)
+                val items = repo.inboxMessages(companyId)
+                val refreshedThread = repo.inboxThreads(companyId).firstOrNull()
+                val dashboard = state.uiState.tenantDashboards[companyId]
+                if (dashboard != null) {
+                    state.uiState = state.uiState.copy(
+                        tenantDashboards = state.uiState.tenantDashboards + (companyId to dashboard.copy(
+                            inboxMessages = items,
+                            inboxThread = refreshedThread ?: dashboard.inboxThread?.copy(unreadCount = 0)
+                        ))
+                    )
+                }
+            }
+        }.onFailure {
+            statusMessage = it.message ?: "Unable to open message thread"
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        GuestInboxDeepLinkBus.consumePending()?.let { openInboxFromPush(it) }
+        GuestInboxDeepLinkBus.events.collectLatest { companyId ->
+            openInboxFromPush(companyId)
+        }
+    }
+
     LaunchedEffect(statusMessage) {
         statusMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -223,6 +262,12 @@ fun GuestMobileRoot() {
             refreshAllTenants()
         }
         PaymentRedirectBus.consume()
+    }
+
+    LaunchedEffect(state.uiState.session?.token) {
+        if (state.uiState.session?.token.isNullOrBlank()) return@LaunchedEffect
+        runCatching { GuestPushManager.syncCurrentToken(context.applicationContext, repo) }
+            .onFailure { if (BuildConfig.DEBUG) Log.d(GUEST_API_DEBUG_TAG, "Push token sync skipped: ${it.message}") }
     }
 
     DisposableEffect(lifecycleOwner, state.uiState.session?.token) {
@@ -501,8 +546,93 @@ fun GuestMobileRoot() {
                     onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
                     onTabSelected = ::navigateToTab
                 ) { innerModifier ->
-                    val notifications = selectedTenantIds(state.uiState).flatMap { tenantId -> state.uiState.tenantDashboards[tenantId]?.notifications.orEmpty() }
-                    Box(innerModifier) { InboxScreen(notifications) }
+                    val activeTenantId = state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                    val activeDashboard = activeTenantId?.let { state.uiState.tenantDashboards[it] }
+                    LaunchedEffect(activeTenantId) {
+                        val tenantId = activeTenantId ?: return@LaunchedEffect
+                        runCatching {
+                            val items = repo.inboxMessages(tenantId)
+                            val refreshedThread = repo.inboxThreads(tenantId).firstOrNull()
+                            items to refreshedThread
+                        }
+                            .onSuccess { (items, refreshedThread) ->
+                                val dashboard = state.uiState.tenantDashboards[tenantId]
+                                if (dashboard != null) {
+                                    state.uiState = state.uiState.copy(
+                                        tenantDashboards = state.uiState.tenantDashboards + (tenantId to dashboard.copy(
+                                            inboxMessages = items,
+                                            inboxThread = refreshedThread ?: dashboard.inboxThread?.copy(unreadCount = 0)
+                                        ))
+                                    )
+                                }
+                            }
+                            .onFailure { statusMessage = it.message ?: "Unable to load messages" }
+                    }
+                    Box(innerModifier) {
+                        InboxScreen(
+                            tenantName = activeDashboard?.tenant?.companyName,
+                            messages = activeDashboard?.inboxMessages.orEmpty(),
+                            onSend = { body ->
+                                val tenantId = activeTenantId
+                                if (tenantId == null) {
+                                    statusMessage = "Select a tenancy first"
+                                } else {
+                                    scope.launch {
+                                        runCatching { repo.sendInboxMessage(tenantId, body) }
+                                            .onSuccess {
+                                                refreshTenant(tenantId)
+                                                val items = repo.inboxMessages(tenantId)
+                                                val refreshedThread = repo.inboxThreads(tenantId).firstOrNull()
+                                                val dashboard = state.uiState.tenantDashboards[tenantId]
+                                                if (dashboard != null) {
+                                                    state.uiState = state.uiState.copy(
+                                                        tenantDashboards = state.uiState.tenantDashboards + (tenantId to dashboard.copy(
+                                                            inboxMessages = items,
+                                                            inboxThread = refreshedThread ?: dashboard.inboxThread
+                                                        ))
+                                                    )
+                                                }
+                                            }
+                                            .onFailure { statusMessage = it.message ?: "Unable to send message" }
+                                    }
+                                }
+                            },
+                            onOpenAttachment = { attachment ->
+                                val tenantId = activeTenantId
+                                val authToken = GuestSessionStore.authToken
+                                if (tenantId == null || authToken.isNullOrBlank()) {
+                                    statusMessage = "Attachment is unavailable until you are signed in."
+                                } else {
+                                    scope.launch {
+                                        runCatching {
+                                            GuestAttachmentManager.downloadAndOpen(
+                                                context = context,
+                                                baseUrl = BuildConfig.API_BASE_URL,
+                                                companyId = tenantId,
+                                                authToken = authToken,
+                                                attachment = attachment
+                                            )
+                                        }.onFailure { statusMessage = it.message ?: "Unable to open attachment" }
+                                    }
+                                }
+                            },
+                            loadAttachmentPreview = { attachment ->
+                                val tenantId = activeTenantId
+                                val authToken = GuestSessionStore.authToken
+                                if (tenantId == null || authToken.isNullOrBlank()) {
+                                    null
+                                } else {
+                                    GuestAttachmentManager.loadImagePreview(
+                                        context = context,
+                                        baseUrl = BuildConfig.API_BASE_URL,
+                                        companyId = tenantId,
+                                        authToken = authToken,
+                                        attachment = attachment
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
             }
             composable(RootRoute.Profile.route) {
@@ -769,7 +899,8 @@ private suspend fun joinTenantWithCode(
         products = repo.products(tenant.companyId),
         wallet = repo.wallet(tenant.companyId),
         history = repo.bookingHistory(tenant.companyId),
-        notifications = repo.notifications(tenant.companyId).items
+        notifications = repo.notifications(tenant.companyId).items,
+        inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
     )
     state.uiState = state.uiState.copy(
         session = GuestSession(
@@ -798,8 +929,12 @@ private fun extractTenantCode(raw: String?): String? {
 
 private fun unreadNotificationCount(state: GuestUiState): Int =
     selectedTenantIds(state)
-        .flatMap { tenantId -> state.tenantDashboards[tenantId]?.notifications.orEmpty() }
-        .count { it.readAt == null }
+        .sumOf { tenantId ->
+            val dashboard = state.tenantDashboards[tenantId]
+            val notificationsUnread = dashboard?.notifications.orEmpty().count { it.readAt == null }
+            val inboxUnread = dashboard?.inboxThread?.unreadCount?.toInt() ?: 0
+            notificationsUnread + inboxUnread
+        }
 
 private fun aggregatedWallet(state: GuestUiState): WalletPayload? {
     val dashboards = state.linkedTenants.mapNotNull { state.tenantDashboards[it.companyId] }

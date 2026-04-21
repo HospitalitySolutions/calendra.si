@@ -3,6 +3,17 @@ package com.example.app.inbox;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
+import com.example.app.guest.model.GuestTenantLink;
+import com.example.app.guest.model.GuestTenantLinkRepository;
+import com.example.app.guest.model.GuestTenantLinkStatus;
+import com.example.app.guest.model.GuestUser;
+import com.example.app.guest.notifications.GuestNotificationService;
+import com.example.app.guest.notifications.GuestPushService;
+import com.example.app.files.ClientFile;
+import com.example.app.files.ClientFileRepository;
+import com.example.app.files.ClientFileUploadPolicy;
+import com.example.app.files.StoredFileResponse;
+import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -39,6 +50,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -50,6 +62,12 @@ public class ClientMessageService {
 
     private final ClientMessageRepository messages;
     private final ClientRepository clients;
+    private final GuestTenantLinkRepository guestTenantLinks;
+    private final ClientFileRepository clientFiles;
+    private final TenantFileS3Service fileStorage;
+    private final ClientMessageAttachmentRepository messageAttachments;
+    private final GuestNotificationService guestNotifications;
+    private final GuestPushService guestPush;
     private final AppSettingRepository settings;
     private final UserRepository users;
     private final SettingsCryptoService crypto;
@@ -63,6 +81,12 @@ public class ClientMessageService {
     public ClientMessageService(
             ClientMessageRepository messages,
             ClientRepository clients,
+            GuestTenantLinkRepository guestTenantLinks,
+            ClientFileRepository clientFiles,
+            TenantFileS3Service fileStorage,
+            ClientMessageAttachmentRepository messageAttachments,
+            GuestNotificationService guestNotifications,
+            GuestPushService guestPush,
             AppSettingRepository settings,
             UserRepository users,
             SettingsCryptoService crypto,
@@ -74,6 +98,12 @@ public class ClientMessageService {
     ) {
         this.messages = messages;
         this.clients = clients;
+        this.guestTenantLinks = guestTenantLinks;
+        this.clientFiles = clientFiles;
+        this.fileStorage = fileStorage;
+        this.messageAttachments = messageAttachments;
+        this.guestNotifications = guestNotifications;
+        this.guestPush = guestPush;
         this.settings = settings;
         this.users = users;
         this.crypto = crypto;
@@ -107,7 +137,34 @@ public class ClientMessageService {
             String lastSenderName,
             String lastSenderPhone,
             Instant lastSentAt,
-            long messageCount
+            long messageCount,
+            long unreadCount
+    ) {}
+
+    public record GuestThreadSummary(
+            Long clientId,
+            String clientFirstName,
+            String clientLastName,
+            String lastPreview,
+            String lastSenderName,
+            Instant lastSentAt,
+            long messageCount,
+            long unreadCount
+    ) {}
+
+    public record MessageAttachmentView(
+            Long id,
+            Long clientFileId,
+            String fileName,
+            String contentType,
+            long sizeBytes,
+            Instant uploadedAt
+    ) {}
+
+    public record AttachmentDownload(
+            String fileName,
+            String contentType,
+            byte[] bytes
     ) {}
 
     public record MessageView(
@@ -126,15 +183,89 @@ public class ClientMessageService {
             String senderName,
             String senderPhone,
             Instant sentAt,
-            Instant createdAt
+            Instant createdAt,
+            List<MessageAttachmentView> attachments
     ) {}
 
-    public record SendMessageRequest(Long clientId, MessageChannel channel, String subject, String body) {}
+    public record SendMessageRequest(Long clientId, MessageChannel channel, String subject, String body, List<Long> attachmentFileIds) {}
+
+    @Transactional(readOnly = true)
+    public List<GuestThreadSummary> listGuestThreads(GuestUser guestUser, Long companyId) {
+        GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
+                .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
+                .toList();
+        if (rows.isEmpty()) return List.of();
+        ClientMessage latest = rows.get(rows.size() - 1);
+        Client client = link.getClient();
+        return List.of(new GuestThreadSummary(
+                client.getId(),
+                client.getFirstName(),
+                client.getLastName(),
+                summarizeMessage(latest),
+                messageDisplaySender(latest),
+                latest.getSentAt() != null ? latest.getSentAt() : latest.getCreatedAt(),
+                rows.size(),
+                countGuestUnread(rows, link)
+        ));
+    }
+
+    @Transactional
+    public List<MessageView> listGuestMessages(GuestUser guestUser, Long companyId, Integer limit) {
+        GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
+                .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
+                .toList();
+        markGuestMessagesRead(link, rows);
+        List<MessageView> out = rows.stream().map(this::toView).toList();
+        if (limit != null && limit > 0 && out.size() > limit) return out.subList(out.size() - limit, out.size());
+        return out;
+    }
+
+    @Transactional(noRollbackFor = ResponseStatusException.class)
+    public MessageView sendGuestMessage(GuestUser guestUser, Long companyId, String body) {
+        GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        String normalizedBody = normalizeBody(body);
+        if (normalizedBody.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body is required.");
+
+        ClientMessage row = new ClientMessage();
+        row.setCompany(link.getCompany());
+        row.setClient(link.getClient());
+        row.setGuestUser(guestUser);
+        row.setDirection(MessageDirection.INBOUND);
+        row.setChannel(MessageChannel.GUEST_APP);
+        row.setStatus(MessageStatus.RECEIVED);
+        row.setRecipient(blankToNull(guestUser.getEmail()) != null ? guestUser.getEmail().trim() : String.valueOf(guestUser.getId()));
+        Instant sentAt = Instant.now();
+        row.setBody(normalizedBody);
+        row.setSentAt(sentAt);
+        row.setErrorMessage(null);
+        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
+                .filter(message -> message.getChannel() == MessageChannel.GUEST_APP)
+                .toList();
+        markGuestMessagesRead(link, existingRows, sentAt);
+        ClientMessage saved = messages.save(row);
+        return toView(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public AttachmentDownload downloadGuestAttachment(GuestUser guestUser, Long companyId, Long attachmentId) {
+        GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        ClientMessageAttachment attachment = messageAttachments
+                .findByIdAndMessageCompanyIdAndMessageClientIdAndMessageChannel(attachmentId, companyId, link.getClient().getId(), MessageChannel.GUEST_APP)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found."));
+        ClientFile file = attachment.getClientFile();
+        byte[] bytes = fileStorage.download(file.getS3ObjectKey());
+        String contentType = blankToNull(file.getContentType()) == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : file.getContentType();
+        return new AttachmentDownload(file.getOriginalFileName(), contentType, bytes);
+    }
 
     @Transactional(readOnly = true)
     public List<ThreadSummary> listThreads(User me, ThreadFilter filter) {
         List<ClientMessage> visible = filterVisibleMessages(me);
         List<ClientMessage> filtered = visible.stream().filter(row -> matchesFilter(row, filter)).toList();
+        Map<Long, GuestTenantLink> activeGuestLinksByClientId = guestTenantLinks.findAllByCompanyIdAndStatus(me.getCompany().getId(), GuestTenantLinkStatus.ACTIVE).stream()
+                .collect(Collectors.toMap(link -> link.getClient().getId(), link -> link, (left, right) -> left, LinkedHashMap::new));
         Map<Long, List<ClientMessage>> grouped = filtered.stream()
                 .collect(Collectors.groupingBy(row -> row.getClient().getId(), LinkedHashMap::new, Collectors.toList()));
 
@@ -156,21 +287,23 @@ public class ClientMessageService {
                     latest.getDirection(),
                     latest.getStatus(),
                     blankToNull(latest.getSubject()),
-                    summarize(latest.getBody()),
+                    summarizeMessage(latest),
                     displayUserName(latestSender) != null ? displayUserName(latestSender) : inboundSenderName,
                     blankToNull(latestSender != null ? latestSender.getPhone() : null) != null ? blankToNull(latestSender != null ? latestSender.getPhone() : null) : inboundSenderPhone,
                     latest.getSentAt() != null ? latest.getSentAt() : latest.getCreatedAt(),
-                    rows.size()
+                    rows.size(),
+                    countStaffUnread(rows, activeGuestLinksByClientId.get(client.getId()))
             ));
         }
         out.sort(Comparator.comparing((ThreadSummary row) -> row.lastSentAt() != null ? row.lastSentAt() : Instant.EPOCH).reversed());
         return out;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<MessageView> listClientMessages(User me, Long clientId, MessageChannel channel, Integer limit) {
         Client client = requireVisibleClient(me, clientId);
         List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
+        if (channel == null || channel == MessageChannel.GUEST_APP) markStaffMessagesRead(me.getCompany().getId(), client.getId(), rows);
         List<MessageView> out = rows.stream()
                 .filter(row -> channel == null || row.getChannel() == channel)
                 .map(this::toView)
@@ -186,11 +319,85 @@ public class ClientMessageService {
     @Transactional(noRollbackFor = ResponseStatusException.class)
     public MessageView send(User me, SendMessageRequest request) {
         if (request == null || request.clientId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
+        Client client = requireVisibleClient(me, request.clientId());
+        List<ClientFile> attachmentFiles = resolveAttachmentFiles(me, client, request.attachmentFileIds());
+        return sendInternal(me, client, request, attachmentFiles);
+    }
+
+    @Transactional(noRollbackFor = ResponseStatusException.class)
+    public MessageView sendWithAttachments(
+            User me,
+            Long clientId,
+            MessageChannel channel,
+            String subject,
+            String body,
+            List<MultipartFile> files
+    ) {
+        if (clientId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
+        Client client = requireVisibleClient(me, clientId);
+        List<ClientFile> attachmentFiles = persistUploadedClientFiles(me, client, files);
+        return sendInternal(me, client, new SendMessageRequest(clientId, channel, subject, body, null), attachmentFiles);
+    }
+
+    @Transactional
+    public StoredFileResponse preuploadInboxAttachment(User me, Long clientId, MultipartFile file) {
+        if (clientId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
+        if (file == null || file.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Attachment file is required.");
+        Client client = requireVisibleClient(me, clientId);
+        ClientFileUploadPolicy.validateInboxAttachments(List.of(file));
+        var stored = fileStorage.uploadClientFile(me.getCompany(), client, file);
+        ClientFile row = new ClientFile();
+        row.setClient(client);
+        row.setOwnerCompany(me.getCompany());
+        row.setOriginalFileName(file.getOriginalFilename() == null || file.getOriginalFilename().isBlank() ? "file" : file.getOriginalFilename().trim());
+        row.setContentType(stored.contentType());
+        row.setSizeBytes(stored.sizeBytes());
+        row.setS3ObjectKey(stored.objectKey());
+        row.setUploadedByUserId(me.getId());
+        row.setPendingInboxAttachment(true);
+        return StoredFileResponse.from(clientFiles.save(row));
+    }
+
+    @Transactional
+    public void discardPendingInboxAttachment(User me, Long clientId, Long fileId) {
+        if (clientId == null || fileId == null) return;
+        requireVisibleClient(me, clientId);
+        var file = clientFiles.findByIdAndClientIdAndOwnerCompanyId(fileId, clientId, me.getCompany().getId()).orElse(null);
+        if (file == null || !file.isPendingInboxAttachment()) return;
+        if (messageAttachments.existsByClientFileId(file.getId())) {
+            file.setPendingInboxAttachment(false);
+            clientFiles.save(file);
+            return;
+        }
+        fileStorage.deleteQuietly(file.getS3ObjectKey());
+        clientFiles.delete(file);
+    }
+
+    @Transactional
+    public void cleanupExpiredPendingInboxAttachments(Instant cutoff) {
+        if (cutoff == null) return;
+        List<ClientFile> staleFiles = clientFiles.findAllByPendingInboxAttachmentTrueAndCreatedAtBefore(cutoff);
+        for (ClientFile file : staleFiles) {
+            if (file == null) continue;
+            if (messageAttachments.existsByClientFileId(file.getId())) {
+                file.setPendingInboxAttachment(false);
+                clientFiles.save(file);
+                continue;
+            }
+            fileStorage.deleteQuietly(file.getS3ObjectKey());
+            clientFiles.delete(file);
+        }
+    }
+
+    private MessageView sendInternal(User me, Client client, SendMessageRequest request, List<ClientFile> attachmentFiles) {
         MessageChannel channel = request.channel() == null ? MessageChannel.EMAIL : request.channel();
         String body = normalizeBody(request.body());
-        if (body.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body is required.");
+        List<ClientFile> safeAttachments = attachmentFiles == null ? List.of() : attachmentFiles;
+        if (body.isBlank() && safeAttachments.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body or at least one attachment is required.");
+        if (!safeAttachments.isEmpty() && channel != MessageChannel.GUEST_APP) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Attachments are currently supported only for Guest App messages.");
+        }
 
-        Client client = requireVisibleClient(me, request.clientId());
         ClientMessage row = new ClientMessage();
         row.setCompany(me.getCompany());
         row.setClient(client);
@@ -206,10 +413,11 @@ public class ClientMessageService {
                 case EMAIL -> sendEmail(client, row.getSubject(), body, me);
                 case WHATSAPP -> sendWhatsAppText(client, row.getSubject(), body, me);
                 case VIBER -> sendViberText(client, body);
+                case GUEST_APP -> sendGuestAppMessage(client, body, me, row, safeAttachments);
             };
             row.setRecipient(result.recipient());
             row.setExternalMessageId(result.externalMessageId());
-            row.setStatus(MessageStatus.SENT);
+            row.setStatus(result.status() == null ? MessageStatus.SENT : result.status());
             row.setSentAt(Instant.now());
             row.setErrorMessage(null);
         } catch (ResponseStatusException ex) {
@@ -221,11 +429,19 @@ public class ClientMessageService {
         }
 
         ClientMessage saved = messages.save(row);
+        linkAttachments(saved, safeAttachments);
+        finalizePendingInboxAttachments(safeAttachments);
         if (saved.getStatus() == MessageStatus.FAILED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     saved.getErrorMessage() == null || saved.getErrorMessage().isBlank()
                             ? "Failed to send message."
                             : saved.getErrorMessage());
+        }
+        if (saved.getChannel() == MessageChannel.GUEST_APP && saved.getSentAt() != null) {
+            List<ClientMessage> guestAppRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(saved.getCompany().getId(), saved.getClient().getId()).stream()
+                    .filter(message -> message.getChannel() == MessageChannel.GUEST_APP)
+                    .toList();
+            markStaffMessagesRead(saved.getCompany().getId(), saved.getClient().getId(), guestAppRows, saved.getSentAt());
         }
         return toView(saved);
     }
@@ -436,6 +652,192 @@ public class ClientMessageService {
         return label.isBlank() ? null : label;
     }
 
+    private GuestTenantLink requireActiveGuestLink(GuestUser guestUser, Long companyId) {
+        return guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), companyId)
+                .filter(link -> link.getStatus() == GuestTenantLinkStatus.ACTIVE)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant membership not found."));
+    }
+
+    private long countStaffUnread(List<ClientMessage> rows, GuestTenantLink guestLink) {
+        Instant readAt = guestLink == null ? null : guestLink.getStaffInboxLastReadAt();
+        return rows.stream()
+                .filter(row -> row.getDirection() == MessageDirection.INBOUND)
+                .filter(row -> {
+                    if (row.getChannel() != MessageChannel.GUEST_APP) return row.getStatus() == MessageStatus.RECEIVED;
+                    if (readAt == null) return row.getStatus() == MessageStatus.RECEIVED;
+                    return messageInstant(row).isAfter(readAt);
+                })
+                .count();
+    }
+
+    private long countGuestUnread(List<ClientMessage> rows, GuestTenantLink guestLink) {
+        Instant readAt = guestLink == null ? null : guestLink.getGuestInboxLastReadAt();
+        return rows.stream()
+                .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
+                .filter(row -> row.getDirection() == MessageDirection.OUTBOUND)
+                .filter(row -> row.getStatus() != MessageStatus.FAILED)
+                .filter(row -> {
+                    if (readAt == null) return row.getStatus() == MessageStatus.SENT || row.getStatus() == MessageStatus.DELIVERED;
+                    return messageInstant(row).isAfter(readAt);
+                })
+                .count();
+    }
+
+    private void markStaffMessagesRead(Long companyId, Long clientId, List<ClientMessage> rows) {
+        markStaffMessagesRead(companyId, clientId, rows, Instant.now());
+    }
+
+    private void markStaffMessagesRead(Long companyId, Long clientId, List<ClientMessage> rows, Instant readAt) {
+        GuestTenantLink link = guestTenantLinks.findByCompanyIdAndClientIdAndStatus(companyId, clientId, GuestTenantLinkStatus.ACTIVE).orElse(null);
+        if (link != null) {
+            Instant existing = link.getStaffInboxLastReadAt();
+            if (existing == null || readAt.isAfter(existing)) {
+                link.setStaffInboxLastReadAt(readAt);
+                guestTenantLinks.save(link);
+            }
+        }
+        rows.stream()
+                .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
+                .filter(row -> row.getDirection() == MessageDirection.INBOUND)
+                .filter(row -> row.getStatus() == MessageStatus.RECEIVED)
+                .filter(row -> !messageInstant(row).isAfter(readAt))
+                .forEach(row -> {
+                    row.setStatus(MessageStatus.READ);
+                    messages.save(row);
+                });
+    }
+
+    private void markGuestMessagesRead(GuestTenantLink link, List<ClientMessage> rows) {
+        markGuestMessagesRead(link, rows, Instant.now());
+    }
+
+    private void markGuestMessagesRead(GuestTenantLink link, List<ClientMessage> rows, Instant readAt) {
+        Instant existing = link.getGuestInboxLastReadAt();
+        if (existing == null || readAt.isAfter(existing)) {
+            link.setGuestInboxLastReadAt(readAt);
+            guestTenantLinks.save(link);
+        }
+        rows.stream()
+                .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
+                .filter(row -> row.getDirection() == MessageDirection.OUTBOUND)
+                .filter(row -> row.getStatus() == MessageStatus.SENT || row.getStatus() == MessageStatus.DELIVERED)
+                .filter(row -> !messageInstant(row).isAfter(readAt))
+                .forEach(row -> {
+                    row.setStatus(MessageStatus.READ);
+                    messages.save(row);
+                });
+    }
+
+    private Instant messageInstant(ClientMessage row) {
+        return row.getSentAt() != null ? row.getSentAt() : row.getCreatedAt();
+    }
+
+    private String messageDisplaySender(ClientMessage row) {
+        if (row == null) return null;
+        if (row.getDirection() == MessageDirection.INBOUND) {
+            return clientDisplayName(row.getClient());
+        }
+        String userName = displayUserName(row.getSenderUser());
+        return userName != null ? userName : "Staff";
+    }
+
+    private List<ClientFile> resolveAttachmentFiles(User me, Client client, List<Long> attachmentFileIds) {
+        if (attachmentFileIds == null || attachmentFileIds.isEmpty()) return List.of();
+        List<Long> ids = attachmentFileIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return List.of();
+        List<ClientFile> files = clientFiles.findAllByIdInAndClientIdAndOwnerCompanyId(ids, client.getId(), me.getCompany().getId());
+        if (files.size() != ids.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more attachments could not be found for this client.");
+        }
+        Map<Long, ClientFile> byId = files.stream().collect(Collectors.toMap(ClientFile::getId, file -> file));
+        return ids.stream().map(byId::get).filter(Objects::nonNull).toList();
+    }
+
+    private List<ClientFile> persistUploadedClientFiles(User me, Client client, List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) return List.of();
+        List<MultipartFile> validFiles = files.stream()
+                .filter(Objects::nonNull)
+                .filter(file -> !file.isEmpty())
+                .toList();
+        if (validFiles.isEmpty()) return List.of();
+        ClientFileUploadPolicy.validateInboxAttachments(validFiles);
+        List<ClientFile> out = new ArrayList<>();
+        for (MultipartFile file : validFiles) {
+            var stored = fileStorage.uploadClientFile(me.getCompany(), client, file);
+            ClientFile row = new ClientFile();
+            row.setClient(client);
+            row.setOwnerCompany(me.getCompany());
+            row.setOriginalFileName(file.getOriginalFilename() == null || file.getOriginalFilename().isBlank() ? "file" : file.getOriginalFilename().trim());
+            row.setContentType(stored.contentType());
+            row.setSizeBytes(stored.sizeBytes());
+            row.setS3ObjectKey(stored.objectKey());
+            row.setUploadedByUserId(me.getId());
+            out.add(clientFiles.save(row));
+        }
+        return out;
+    }
+
+
+
+    private void linkAttachments(ClientMessage message, List<ClientFile> files) {
+        if (message == null || files == null || files.isEmpty()) return;
+        for (ClientFile file : files) {
+            ClientMessageAttachment attachment = new ClientMessageAttachment();
+            attachment.setMessage(message);
+            attachment.setClientFile(file);
+            messageAttachments.save(attachment);
+            message.getAttachments().add(attachment);
+        }
+    }
+
+    private void finalizePendingInboxAttachments(List<ClientFile> files) {
+        if (files == null || files.isEmpty()) return;
+        for (ClientFile file : files) {
+            if (file == null || !file.isPendingInboxAttachment()) continue;
+            file.setPendingInboxAttachment(false);
+            clientFiles.save(file);
+        }
+    }
+
+    private List<MessageAttachmentView> toAttachmentViews(ClientMessage row) {
+        if (row.getAttachments() == null || row.getAttachments().isEmpty()) return List.of();
+        return row.getAttachments().stream()
+                .filter(Objects::nonNull)
+                .map(attachment -> {
+                    ClientFile file = attachment.getClientFile();
+                    return file == null ? null : new MessageAttachmentView(
+                            attachment.getId(),
+                            file.getId(),
+                            file.getOriginalFileName(),
+                            file.getContentType(),
+                            file.getSizeBytes(),
+                            file.getCreatedAt()
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private String summarizeMessage(ClientMessage row) {
+        String preview = summarize(row.getBody());
+        if (preview != null && !preview.isBlank()) return preview;
+        return attachmentSummary(toAttachmentViews(row));
+    }
+
+    private String messagePreview(String body, List<ClientFile> attachments) {
+        String preview = summarize(body);
+        if (preview != null && !preview.isBlank()) return preview;
+        if (attachments == null || attachments.isEmpty()) return null;
+        if (attachments.size() == 1) return "Attachment: " + attachments.get(0).getOriginalFileName();
+        return attachments.size() + " attachments";
+    }
+
+    private String attachmentSummary(List<MessageAttachmentView> attachments) {
+        if (attachments == null || attachments.isEmpty()) return null;
+        if (attachments.size() == 1) return "Attachment: " + attachments.get(0).fileName();
+        return attachments.size() + " attachments";
+    }
+
     private MessageView toView(ClientMessage row) {
         Client client = row.getClient();
         User senderUser = row.getSenderUser();
@@ -457,7 +859,8 @@ public class ClientMessageService {
                 displayUserName(senderUser) != null ? displayUserName(senderUser) : inboundSenderName,
                 blankToNull(senderUser != null ? senderUser.getPhone() : null) != null ? blankToNull(senderUser != null ? senderUser.getPhone() : null) : inboundSenderPhone,
                 row.getSentAt(),
-                row.getCreatedAt()
+                row.getCreatedAt(),
+                toAttachmentViews(row)
         );
     }
 
@@ -468,6 +871,43 @@ public class ClientMessageService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to message this client.");
         }
         return client;
+    }
+
+    private ChannelDeliveryResult sendGuestAppMessage(Client client, String body, User me, ClientMessage row, List<ClientFile> attachments) {
+        GuestTenantLink link = guestTenantLinks.findByCompanyIdAndClientIdAndStatus(
+                        client.getCompany().getId(),
+                        client.getId(),
+                        GuestTenantLinkStatus.ACTIVE
+                )
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client is not linked to the guest mobile app."));
+        row.setGuestUser(link.getGuestUser());
+        String recipient = blankToNull(link.getGuestUser().getEmail()) != null
+                ? link.getGuestUser().getEmail().trim()
+                : String.valueOf(link.getGuestUser().getId());
+        String payloadJson = null;
+        try {
+            payloadJson = objectMapper.writeValueAsString(Map.of(
+                    "type", "guest_chat_message",
+                    "companyId", String.valueOf(client.getCompany().getId()),
+                    "clientId", String.valueOf(client.getId()),
+                    "channel", MessageChannel.GUEST_APP.name(),
+                    "screen", "inbox",
+                    "deeplink", "guest://inbox?companyId=" + client.getCompany().getId()
+            ));
+        } catch (Exception ignore) {
+        }
+        String title = "New message from " + (displayUserName(me) != null ? displayUserName(me) : client.getCompany().getName());
+        String preview = messagePreview(body, attachments);
+        guestNotifications.guestMessage(
+                link.getGuestUser(),
+                client.getCompany(),
+                client,
+                title,
+                preview,
+                payloadJson
+        );
+        GuestPushService.DeliveryResult delivery = guestPush.notifyGuestMessage(link.getGuestUser(), client.getCompany(), client, title, preview);
+        return new ChannelDeliveryResult(recipient, null, delivery.delivered() ? MessageStatus.DELIVERED : MessageStatus.SENT);
     }
 
     private ChannelDeliveryResult sendEmail(Client client, String subject, String body, User me) {
@@ -485,7 +925,7 @@ public class ClientMessageService {
             if (replyTo != null && !replyTo.isBlank()) helper.setReplyTo(replyTo.trim());
             else if (me.getEmail() != null && !me.getEmail().isBlank()) helper.setReplyTo(me.getEmail().trim());
             mailSender.send(message);
-            return new ChannelDeliveryResult(to, null);
+            return new ChannelDeliveryResult(to, null, null);
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to send email: " + safeMessage(ex));
         }
@@ -516,7 +956,7 @@ public class ClientMessageService {
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "WhatsApp returned " + response.getStatusCode().value() + ".");
             }
-            return new ChannelDeliveryResult(to, extractMetaMessageId(response.getBody()));
+            return new ChannelDeliveryResult(to, extractMetaMessageId(response.getBody()), null);
         } catch (RestClientException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "WhatsApp send failed: " + safeMessage(ex));
         }
@@ -552,7 +992,7 @@ public class ClientMessageService {
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Viber returned " + response.getStatusCode().value() + ".");
             }
-            return new ChannelDeliveryResult(client.getViberUserId().trim(), extractViberMessageToken(response.getBody()));
+            return new ChannelDeliveryResult(client.getViberUserId().trim(), extractViberMessageToken(response.getBody()), null);
         } catch (RestClientException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Viber send failed: " + safeMessage(ex));
         }
@@ -652,6 +1092,7 @@ public class ClientMessageService {
             case EMAIL -> blankToNull(client.getEmail()) != null ? client.getEmail().trim() : "";
             case WHATSAPP -> blankToNull(client.getWhatsappPhone()) != null ? client.getWhatsappPhone().trim() : blankToNull(client.getPhone()) != null ? client.getPhone().trim() : "";
             case VIBER -> blankToNull(client.getViberUserId()) != null ? client.getViberUserId().trim() : "";
+            case GUEST_APP -> blankToNull(client.getEmail()) != null ? client.getEmail().trim() : String.valueOf(client.getId());
         };
     }
 
@@ -710,5 +1151,5 @@ public class ClientMessageService {
         return lower.contains("http://") || lower.contains("https://");
     }
 
-    private record ChannelDeliveryResult(String recipient, String externalMessageId) {}
+    private record ChannelDeliveryResult(String recipient, String externalMessageId, MessageStatus status) {}
 }

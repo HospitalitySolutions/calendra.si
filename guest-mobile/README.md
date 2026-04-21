@@ -74,3 +74,26 @@ The included script `iosApp/build-kmp-framework.sh` is intended as the bridge po
 ## Important note
 
 Because this environment cannot run Xcode, the iOS project is scaffolded carefully but not compiled here. Android Gradle sync was not executed in this environment either because external dependency resolution is unavailable. The delivered project is structured for local development in Android Studio and Xcode.
+
+## Push notifications
+
+The guest mobile chat now supports real mobile push delivery.
+
+### Android
+
+Android uses Firebase Cloud Messaging. The app initializes Firebase manually from build-time environment variables, so a `google-services.json` file is not required for the current MVP. Provide these values before building `guest-mobile/androidApp`:
+
+- `APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID`
+- `APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID`
+- `APP_GUEST_MOBILE_ANDROID_FCM_API_KEY`
+- `APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID`
+
+You can export them in your shell or pass them as Gradle properties with the same names.
+
+### iOS
+
+iOS uses direct APNS registration. The app now requests notification permission on launch and registers the APNS device token with the backend after login. To make delivery work on-device, enable the **Push Notifications** capability in the `GuestMobile` Xcode target and use a provisioning profile that contains the APNS entitlement for the same bundle id (`si.calendra.guest.mobile`).
+
+### Backend
+
+The backend sends Android pushes through FCM HTTP v1 and iOS pushes through APNS token-based auth. See `backend/env.local.example` for the required `APP_GUEST_PUSH_*` variables.

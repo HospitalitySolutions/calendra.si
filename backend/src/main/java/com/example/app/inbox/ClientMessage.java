@@ -3,6 +3,7 @@ package com.example.app.inbox;
 import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
+import com.example.app.guest.model.GuestUser;
 import com.example.app.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,7 +13,11 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import java.util.ArrayList;
+import java.util.List;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
@@ -33,6 +38,10 @@ public class ClientMessage extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_user_id")
     private User senderUser;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "guest_user_id")
+    private GuestUser guestUser;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -61,4 +70,8 @@ public class ClientMessage extends BaseEntity {
     private String errorMessage;
 
     private Instant sentAt;
+    @OneToMany(mappedBy = "message", fetch = FetchType.LAZY, orphanRemoval = true)
+    @OrderBy("createdAt asc, id asc")
+    private List<ClientMessageAttachment> attachments = new ArrayList<>();
+
 }

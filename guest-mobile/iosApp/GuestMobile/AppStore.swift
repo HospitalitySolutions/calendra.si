@@ -1,4 +1,6 @@
 import Foundation
+import ImageIO
+import UIKit
 
 @MainActor
 final class AppStore: ObservableObject {
@@ -11,10 +13,13 @@ final class AppStore: ObservableObject {
     @Published var noticeMessage: String?
     @Published var isLoading = false
     @Published var didRequestLogout = false
+    @Published var pendingInboxOpenCompanyId: String?
 
     private let api: GuestApiClient
     private let usePreviewData: Bool
     private let preview = PreviewStore()
+    private var pendingPushToken: String?
+    private var inboxAttachmentCache: [String: URL] = [:]
 
     init(environment: AppEnvironment = .shared) {
         self.api = GuestApiClient(baseURL: environment.baseURL)
@@ -134,11 +139,22 @@ final class AppStore: ObservableObject {
         currentTenant = linkedTenants.first(where: { $0.id == tenantId }) ?? linkedTenants.first ?? currentTenant
     }
 
+    func consumePendingInboxOpen() {
+        pendingInboxOpenCompanyId = nil
+    }
+
     func logout() {
         linkedTenants = []
         selectedTenantId = nil
         tenantDashboards = [:]
+        pendingInboxOpenCompanyId = nil
         didRequestLogout = true
+    }
+
+    func updatePushToken(_ token: String) async {
+        guard !usePreviewData else { return }
+        pendingPushToken = token
+        await registerPushTokenIfPossible()
     }
 
     func login(email: String, password: String) async {
@@ -195,12 +211,116 @@ final class AppStore: ObservableObject {
         } else {
             linkedTenants.append(dashboard.tenant)
         }
-        currentTenant = linkedTenants.first ?? dashboard.tenant
+        currentTenant = linkedTenants.first(where: { $0.id == selectedTenantId }) ?? linkedTenants.first(where: { $0.id == companyId }) ?? linkedTenants.first ?? dashboard.tenant
+    }
+
+
+    func loadInboxMessages(companyId: String) async {
+        guard !usePreviewData else { return }
+        await run {
+            let items = try await api.inboxMessages(companyId: companyId)
+            let refreshedThread = (try await api.inboxThreads(companyId: companyId)).first
+            if let dashboard = tenantDashboards[companyId] {
+                tenantDashboards[companyId] = TenantDashboardModel(
+                    tenant: dashboard.tenant,
+                    upcomingBookings: dashboard.upcomingBookings,
+                    entitlements: dashboard.entitlements,
+                    orders: dashboard.orders,
+                    notifications: dashboard.notifications,
+                    products: dashboard.products,
+                    inboxThread: refreshedThread ?? dashboard.inboxThread.map { GuestInboxThreadModel(clientId: $0.clientId, clientFirstName: $0.clientFirstName, clientLastName: $0.clientLastName, lastPreview: $0.lastPreview, lastSenderName: $0.lastSenderName, lastSentAt: $0.lastSentAt, messageCount: $0.messageCount, unreadCount: 0) },
+                    inboxMessages: items
+                )
+            }
+        }
+    }
+
+    func sendInboxMessage(companyId: String, body: String) async {
+        guard !usePreviewData else { return }
+        await run {
+            _ = try await api.sendInboxMessage(companyId: companyId, body: body)
+            try await refreshTenant(companyId: companyId)
+            let items = try await api.inboxMessages(companyId: companyId)
+            let refreshedThread = (try await api.inboxThreads(companyId: companyId)).first
+            if let dashboard = tenantDashboards[companyId] {
+                tenantDashboards[companyId] = TenantDashboardModel(
+                    tenant: dashboard.tenant,
+                    upcomingBookings: dashboard.upcomingBookings,
+                    entitlements: dashboard.entitlements,
+                    orders: dashboard.orders,
+                    notifications: dashboard.notifications,
+                    products: dashboard.products,
+                    inboxThread: refreshedThread ?? dashboard.inboxThread,
+                    inboxMessages: items
+                )
+            }
+        }
+    }
+
+    func downloadInboxAttachment(companyId: String, attachment: GuestInboxAttachmentModel) async throws -> URL {
+        let cacheKey = inboxAttachmentCacheKey(companyId: companyId, attachment: attachment)
+        if let cached = inboxAttachmentCache[cacheKey], FileManager.default.fileExists(atPath: cached.path) {
+            return cached
+        }
+        if usePreviewData {
+            let name = attachment.fileName.isEmpty ? "attachment-\(attachment.id).txt" : attachment.fileName
+            let target = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "-" + name)
+            let previewText = "Preview attachment for \(name)"
+            if let data = previewText.data(using: .utf8) {
+                try data.write(to: target)
+            }
+            inboxAttachmentCache[cacheKey] = target
+            return target
+        }
+        let url = try await api.downloadInboxAttachment(companyId: companyId, attachmentId: attachment.id, suggestedFileName: attachment.fileName)
+        inboxAttachmentCache[cacheKey] = url
+        return url
+    }
+
+    func loadInboxAttachmentThumbnail(companyId: String, attachment: GuestInboxAttachmentModel, maxPixelSize: CGFloat = 720) async throws -> UIImage? {
+        guard attachment.isImageAttachment else { return nil }
+        let url = try await downloadInboxAttachment(companyId: companyId, attachment: attachment)
+        return try await Task.detached(priority: .utility) {
+            let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else {
+                return UIImage(contentsOfFile: url.path)
+            }
+            let thumbnailOptions = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+            ] as CFDictionary
+            guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions) else {
+                return UIImage(contentsOfFile: url.path)
+            }
+            return UIImage(cgImage: cgImage)
+        }.value
+    }
+
+    private func inboxAttachmentCacheKey(companyId: String, attachment: GuestInboxAttachmentModel) -> String {
+        "\(companyId)|\(attachment.id)|\(attachment.fileName)|\(attachment.sizeBytes)"
     }
 
     func refreshOnAppBecameActive() async {
         guard !usePreviewData, !linkedTenants.isEmpty else { return }
         await refreshAllTenants()
+    }
+
+    func openInboxFromPush(companyId: String) async {
+        let normalized = companyId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        selectedTenantId = normalized
+        if let tenant = linkedTenants.first(where: { $0.id == normalized }) {
+            currentTenant = tenant
+        }
+        pendingInboxOpenCompanyId = normalized
+        guard linkedTenants.contains(where: { $0.id == normalized }) else { return }
+        do {
+            try await refreshTenant(companyId: normalized)
+            await loadInboxMessages(companyId: normalized)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func handlePaymentReturn(url: URL) {
@@ -298,13 +418,16 @@ final class AppStore: ObservableObject {
         let feed = try await api.notifications(companyId: companyId)
         let catalog = try await api.products(companyId: companyId)
         _ = history
+        let inboxThread = (try await api.inboxThreads(companyId: companyId)).first
         return TenantDashboardModel(
             tenant: home.tenant,
             upcomingBookings: home.upcomingBookings,
             entitlements: wallet.entitlements,
             orders: wallet.orders,
             notifications: feed.items,
-            products: catalog
+            products: catalog,
+            inboxThread: inboxThread,
+            inboxMessages: tenantDashboards[companyId]?.inboxMessages ?? []
         )
     }
 
@@ -317,24 +440,39 @@ final class AppStore: ObservableObject {
         for tenant in linkedTenants {
             try await refreshTenant(companyId: tenant.id)
         }
+        if let selectedTenantId, let tenant = linkedTenants.first(where: { $0.id == selectedTenantId }) {
+            currentTenant = tenant
+        }
     }
 
     private func applySession(_ session: GuestSessionModel) {
         api.updateToken(session.token)
         user = session.guestUser
         linkedTenants = session.linkedTenants
-        selectedTenantId = nil
-        currentTenant = session.linkedTenants.first ?? currentTenant
+        currentTenant = session.linkedTenants.first(where: { $0.id == selectedTenantId }) ?? session.linkedTenants.first ?? currentTenant
         tenantDashboards = [:]
+        pendingInboxOpenCompanyId = selectedTenantId
         didRequestLogout = false
+        Task { await registerPushTokenIfPossible() }
+    }
+
+    private func registerPushTokenIfPossible() async {
+        guard !usePreviewData else { return }
+        guard let token = pendingPushToken, !token.isEmpty else { return }
+        do {
+            let locale = Locale.current.language.languageCode?.identifier ?? Locale.current.identifier
+            _ = try await api.registerDeviceToken(platform: "IOS", pushToken: token, locale: locale)
+        } catch {
+            // Keep the token cached and try again after the next successful session refresh.
+        }
     }
 
     private func applyPreview() {
         user = preview.user
         linkedTenants = preview.linkedTenants
-        selectedTenantId = nil
-        currentTenant = linkedTenants.first ?? currentTenant
+        currentTenant = linkedTenants.first(where: { $0.id == selectedTenantId }) ?? linkedTenants.first ?? currentTenant
         tenantDashboards = Dictionary(uniqueKeysWithValues: linkedTenants.map { ($0.id, preview.dashboard(for: $0.id)) })
+        pendingInboxOpenCompanyId = selectedTenantId
         didRequestLogout = false
     }
 

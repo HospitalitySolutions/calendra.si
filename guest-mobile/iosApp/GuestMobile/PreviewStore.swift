@@ -83,6 +83,10 @@ final class PreviewStore: ObservableObject {
                 products: [
                     ProductModel(id: "prod-yoga-ticket", name: "Yoga Flow", productType: "CLASS_TICKET", priceGross: 12.0, currency: "EUR", sessionTypeId: "session-yoga", sessionTypeName: "Yoga Flow", bookable: true, description: "Group class for mobility, breathwork, and full-body flow.", durationMinutes: 60),
                     ProductModel(id: "prod-yoga-private", name: "Private Yoga", productType: "SESSION_SINGLE", priceGross: 38.0, currency: "EUR", sessionTypeId: "session-yoga-private", sessionTypeName: "Private Yoga", bookable: true, description: "One-on-one guided session tailored to your goals.", durationMinutes: 45)
+                ],
+                inboxThread: GuestInboxThreadModel(clientId: 2, clientFirstName: "Ana", clientLastName: "Novak", lastPreview: "Welcome to Blue River Yoga", lastSenderName: "Studio team", lastSentAt: "2026-04-16T08:00:00Z", messageCount: 1, unreadCount: 1),
+                inboxMessages: [
+                    GuestInboxMessageModel(id: 11, clientId: 2, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "OUTBOUND", status: "SENT", subject: nil, body: "Welcome to Blue River Yoga", externalMessageId: nil, errorMessage: nil, senderName: "Studio team", senderPhone: nil, sentAt: "2026-04-16T08:00:00Z", createdAt: "2026-04-16T08:00:00Z")
                 ]
             )
         }
@@ -107,6 +111,11 @@ final class PreviewStore: ObservableObject {
                 ProductModel(id: "prod-pt-single", name: "Personal Training", productType: "SESSION_SINGLE", priceGross: 45.0, currency: "EUR", sessionTypeId: "session-pt", sessionTypeName: "Personal Training", bookable: true, description: "Focused one-on-one coaching session in the studio.", durationMinutes: 45),
                 ProductModel(id: "prod-recovery", name: "Recovery Session", productType: "SESSION_SINGLE", priceGross: 35.0, currency: "EUR", sessionTypeId: "session-recovery", sessionTypeName: "Recovery Session", bookable: true, description: "Mobility and recovery work to reset after intense training.", durationMinutes: 30),
                 ProductModel(id: "prod-pack-5", name: "5 Session Pack", productType: "PACK", priceGross: 180.0, currency: "EUR", sessionTypeId: "session-pt", sessionTypeName: "Personal Training", bookable: false, description: "Best value bundle for regular personal training.", durationMinutes: 45)
+            ],
+            inboxThread: GuestInboxThreadModel(clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", lastPreview: "Can you confirm my visit?", lastSenderName: "Ana Novak", lastSentAt: "2026-04-16T08:00:00Z", messageCount: 2, unreadCount: 0),
+            inboxMessages: [
+                GuestInboxMessageModel(id: 1, clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "OUTBOUND", status: "READ", subject: nil, body: "Welcome to Northside Fitness", externalMessageId: nil, errorMessage: nil, senderName: "Studio team", senderPhone: nil, sentAt: "2026-04-15T08:00:00Z", createdAt: "2026-04-15T08:00:00Z"),
+                GuestInboxMessageModel(id: 2, clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "INBOUND", status: "RECEIVED", subject: nil, body: "Can you confirm my visit?", externalMessageId: nil, errorMessage: nil, senderName: "Ana Novak", senderPhone: nil, sentAt: "2026-04-16T08:00:00Z", createdAt: "2026-04-16T08:00:00Z")
             ]
         )
     }

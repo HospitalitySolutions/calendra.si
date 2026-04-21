@@ -6,5 +6,6 @@ public enum GuestNotificationType {
     BOOKING_CANCELLED,
     PAYMENT_PENDING,
     PAYMENT_CONFIRMED,
-    ANNOUNCEMENT
+    ANNOUNCEMENT,
+    GUEST_MESSAGE
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { useToast } from '../components/Toast'
@@ -7,8 +7,279 @@ import type { Client, ClientMessage, InboxChannel, InboxStatus, InboxThread } fr
 import { formatDateTime } from '../lib/format'
 import { useLocale } from '../locale'
 
-const CHANNELS: InboxChannel[] = ['EMAIL', 'WHATSAPP', 'VIBER']
+const CHANNELS: InboxChannel[] = ['EMAIL', 'WHATSAPP', 'VIBER', 'GUEST_APP']
 type RecipientMode = 'single' | 'bulk'
+type ComposeAttachmentStatus = 'pending' | 'uploading' | 'uploaded' | 'failed'
+type ComposeAttachmentItem = {
+  id: string
+  file: File
+  progress: number
+  status: ComposeAttachmentStatus
+  error: string
+  uploadedFileId?: number
+}
+
+const MAX_COMPOSE_ATTACHMENT_COUNT = 10
+const MAX_COMPOSE_ATTACHMENT_BYTES = 50 * 1024 * 1024
+const ACCEPTED_ATTACHMENT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']
+const ACCEPTED_ATTACHMENT_CONTENT_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+])
+const ACCEPTED_ATTACHMENT_INPUT = ACCEPTED_ATTACHMENT_EXTENSIONS.map((ext) => `.${ext}`).join(',')
+
+function formatFileSize(sizeBytes?: number | null) {
+  if (!sizeBytes || sizeBytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = sizeBytes
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index += 1
+  }
+  return `${value >= 10 || index === 0 ? Math.round(value) : value.toFixed(1)} ${units[index]}`
+}
+
+function fileExtension(name?: string | null) {
+  if (!name) return ''
+  const parts = name.toLowerCase().split('.')
+  return parts.length > 1 ? parts[parts.length - 1] : ''
+}
+
+function isImageMime(contentType?: string | null) {
+  return !!contentType && contentType.toLowerCase().startsWith('image/')
+}
+
+function isPdfMime(contentType?: string | null) {
+  return (contentType || '').toLowerCase() === 'application/pdf'
+}
+
+function isImageAttachment(attachment: { fileName: string; contentType?: string | null }) {
+  return isImageMime(attachment.contentType) || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'].includes(fileExtension(attachment.fileName))
+}
+
+function isPdfAttachment(attachment: { fileName: string; contentType?: string | null }) {
+  return isPdfMime(attachment.contentType) || fileExtension(attachment.fileName) === 'pdf'
+}
+
+function attachmentKindLabel(attachment: { fileName: string; contentType?: string | null }, copy: any) {
+  if (isImageAttachment(attachment)) return copy.imageFileLabel
+  if (isPdfAttachment(attachment)) return copy.pdfFileLabel
+  const ext = fileExtension(attachment.fileName)
+  return ext ? ext.toUpperCase() : copy.fileLabel
+}
+
+function newComposeAttachmentItem(file: File): ComposeAttachmentItem {
+  return {
+    id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+    file,
+    progress: 0,
+    status: 'pending',
+    error: '',
+  }
+}
+
+function normalizeAttachmentSelection(existing: ComposeAttachmentItem[], files: File[], copy: any) {
+  const accepted = [...existing]
+  const errors: string[] = []
+  const seen = new Set(accepted.map((entry) => `${entry.file.name}-${entry.file.size}-${entry.file.lastModified}`))
+  let totalBytes = accepted.reduce((sum, entry) => sum + Math.max(entry.file.size, 0), 0)
+  for (const file of files) {
+    const key = `${file.name}-${file.size}-${file.lastModified}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (accepted.length >= MAX_COMPOSE_ATTACHMENT_COUNT) {
+      errors.push(copy.attachmentsTooMany(MAX_COMPOSE_ATTACHMENT_COUNT))
+      break
+    }
+    const normalizedType = (file.type || '').toLowerCase()
+    const extension = fileExtension(file.name)
+    const supported = ACCEPTED_ATTACHMENT_CONTENT_TYPES.has(normalizedType) || ACCEPTED_ATTACHMENT_EXTENSIONS.includes(extension)
+    if (!supported) {
+      errors.push(copy.attachmentUnsupported(file.name))
+      continue
+    }
+    if (file.size > MAX_COMPOSE_ATTACHMENT_BYTES) {
+      errors.push(copy.attachmentTooLarge(file.name, formatFileSize(MAX_COMPOSE_ATTACHMENT_BYTES)))
+      continue
+    }
+    if (totalBytes + file.size > MAX_COMPOSE_ATTACHMENT_BYTES) {
+      errors.push(copy.attachmentsTotalTooLarge(formatFileSize(MAX_COMPOSE_ATTACHMENT_BYTES)))
+      continue
+    }
+    accepted.push(newComposeAttachmentItem(file))
+    totalBytes += file.size
+  }
+  return { files: accepted, errors: Array.from(new Set(errors)) }
+}
+
+function AttachmentPreviewCard({
+  clientId,
+  attachment,
+  copy,
+  onDownload,
+}: {
+  clientId: number
+  attachment: NonNullable<ClientMessage['attachments']>[number]
+  copy: any
+  onDownload: (clientId: number, attachment: { clientFileId: number; fileName: string; contentType?: string | null }) => Promise<void>
+}) {
+  const previewable = isImageAttachment(attachment) || isPdfAttachment(attachment)
+  const previewQuery = useQuery({
+    queryKey: ['inbox-attachment-preview', clientId, attachment.id],
+    enabled: previewable,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const response = await api.get(`/clients/${clientId}/files/${attachment.clientFileId}`, { responseType: 'blob' })
+      return response.data as Blob
+    },
+  })
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!previewQuery.data) {
+      setPreviewUrl((current) => {
+        if (current) window.URL.revokeObjectURL(current)
+        return null
+      })
+      return
+    }
+    const nextUrl = window.URL.createObjectURL(previewQuery.data)
+    setPreviewUrl((current) => {
+      if (current) window.URL.revokeObjectURL(current)
+      return nextUrl
+    })
+    return () => {
+      window.URL.revokeObjectURL(nextUrl)
+    }
+  }, [previewQuery.data])
+
+  const openPreview = () => {
+    if (!previewUrl) return
+    window.open(previewUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: 16, padding: 12, background: 'var(--color-surface)' }}>
+      {isImageAttachment(attachment) && previewUrl ? (
+        <button
+          type="button"
+          onClick={openPreview}
+          title={copy.openPreview}
+          style={{ border: 0, background: 'transparent', padding: 0, cursor: 'pointer', display: 'block', marginBottom: 10 }}
+        >
+          <img
+            src={previewUrl}
+            alt={attachment.fileName}
+            style={{ display: 'block', maxWidth: 240, maxHeight: 180, borderRadius: 12, objectFit: 'cover', border: '1px solid var(--color-border)' }}
+          />
+        </button>
+      ) : null}
+      <div className="stack gap-xs">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+          <strong style={{ wordBreak: 'break-word' }}>{attachment.fileName}</strong>
+          <Pill tone={isImageAttachment(attachment) ? 'green' : isPdfAttachment(attachment) ? 'blue' : 'default'}>{attachmentKindLabel(attachment, copy)}</Pill>
+        </div>
+        <div className="analytics-inbox-thread__sender muted">{formatFileSize(attachment.sizeBytes)}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {previewable ? (
+            <button type="button" className="secondary" onClick={openPreview} disabled={!previewUrl || previewQuery.isLoading}>
+              {previewQuery.isLoading ? copy.loadingPreview : copy.openPreview}
+            </button>
+          ) : null}
+          <button type="button" className="secondary" onClick={() => void onDownload(clientId, attachment)}>{copy.downloadAttachment}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ComposeAttachmentCard({
+  attachment,
+  onRemove,
+  onRetry,
+  copy,
+}: {
+  attachment: ComposeAttachmentItem
+  onRemove: () => void
+  onRetry: () => void
+  copy: any
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const { file } = attachment
+
+  useEffect(() => {
+    if (!isImageMime(file.type)) return
+    const nextUrl = window.URL.createObjectURL(file)
+    setPreviewUrl(nextUrl)
+    return () => window.URL.revokeObjectURL(nextUrl)
+  }, [file])
+
+  const tone = attachment.status === 'failed'
+    ? 'red'
+    : attachment.status === 'uploaded'
+      ? 'green'
+      : attachment.status === 'uploading'
+        ? 'blue'
+        : isImageMime(file.type)
+          ? 'green'
+          : fileExtension(file.name) === 'pdf'
+            ? 'blue'
+            : 'default'
+
+  const statusLabel = attachment.status === 'uploaded'
+    ? copy.attachmentUploaded
+    : attachment.status === 'uploading'
+      ? copy.attachmentUploading(attachment.progress)
+      : attachment.status === 'failed'
+        ? copy.attachmentUploadFailed
+        : copy.attachmentPending
+
+  return (
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: 16, padding: 12, background: 'var(--color-surface)' }}>
+      {previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={file.name}
+          style={{ display: 'block', maxWidth: 220, maxHeight: 160, borderRadius: 12, objectFit: 'cover', marginBottom: 10, border: '1px solid var(--color-border)' }}
+        />
+      ) : null}
+      <div className="stack gap-xs">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+          <strong style={{ wordBreak: 'break-word' }}>{file.name}</strong>
+          <Pill tone={tone as any}>
+            {isImageMime(file.type) ? copy.imageFileLabel : fileExtension(file.name) === 'pdf' ? copy.pdfFileLabel : fileExtension(file.name).toUpperCase() || copy.fileLabel}
+          </Pill>
+        </div>
+        <div className="analytics-inbox-thread__sender muted">{formatFileSize(file.size)}</div>
+        <div className="analytics-inbox-thread__sender muted">{statusLabel}</div>
+        {attachment.status === 'uploading' ? (
+          <progress value={Math.max(0, Math.min(100, attachment.progress))} max={100} style={{ width: '100%' }} />
+        ) : null}
+        {attachment.error ? <div className="error">{attachment.error}</div> : null}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {attachment.status === 'failed' ? (
+            <button type="button" className="secondary" onClick={onRetry}>{copy.retryAttachment}</button>
+          ) : null}
+          <button type="button" className="secondary" onClick={onRemove}>{copy.removeAttachment}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function clientName(row: { firstName?: string | null; lastName?: string | null }) {
   return [row.firstName, row.lastName].filter(Boolean).join(' ').trim() || 'Client'
@@ -17,12 +288,14 @@ function clientName(row: { firstName?: string | null; lastName?: string | null }
 function channelLabel(channel: InboxChannel) {
   if (channel === 'WHATSAPP') return 'WhatsApp'
   if (channel === 'VIBER') return 'Viber'
+  if (channel === 'GUEST_APP') return 'Guest App'
   return 'Email'
 }
 
 function channelTone(channel: InboxChannel): 'default' | 'green' | 'red' | 'blue' {
   if (channel === 'EMAIL') return 'blue'
   if (channel === 'WHATSAPP') return 'green'
+  if (channel === 'GUEST_APP') return 'blue'
   return 'default'
 }
 
@@ -81,11 +354,16 @@ function hasViberTarget(client?: Client | null) {
   return !!client?.viberConnected
 }
 
+function hasGuestAppTarget(client?: Client | null) {
+  return !!client?.guestAppLinked
+}
+
 function isClientEligibleForChannel(client: Client | null | undefined, channel: InboxChannel) {
   if (!client) return false
   if (channel === 'EMAIL') return hasEmailTarget(client)
   if (channel === 'WHATSAPP') return !!client.whatsappOptIn && hasWhatsAppTarget(client)
-  return hasViberTarget(client)
+  if (channel === 'VIBER') return hasViberTarget(client)
+  return hasGuestAppTarget(client)
 }
 
 function clientEligibilityLabel(client: Client, channel: InboxChannel, copy: any) {
@@ -94,7 +372,8 @@ function clientEligibilityLabel(client: Client, channel: InboxChannel, copy: any
     if (!client.whatsappOptIn) return copy.optInNeeded
     return hasWhatsAppTarget(client) ? copy.ready : copy.missingPhone
   }
-  return client.viberConnected ? copy.ready : copy.notLinked
+  if (channel === 'VIBER') return client.viberConnected ? copy.ready : copy.notLinked
+  return client.guestAppLinked ? copy.ready : copy.notLinkedGuestApp
 }
 
 export function AnalyticsInboxTab() {
@@ -108,6 +387,7 @@ export function AnalyticsInboxTab() {
     optInNeeded: 'Potrebno soglasje',
     missingPhone: 'Manjka telefon',
     notLinked: 'Ni povezano',
+    notLinkedGuestApp: 'Ni povezano z gost aplikacijo',
     sent: 'Poslano',
     received: 'Prejeto',
     delivered: 'Dostavljeno',
@@ -140,6 +420,7 @@ export function AnalyticsInboxTab() {
     addEmailAddress: 'Dodajte e-poštni naslov stranke.',
     addWhatsApp: 'Dodajte telefonsko številko stranke in soglasje za WhatsApp.',
     viberOnlyLinked: 'Viber je na voljo samo za povezane stranke.',
+    guestAppOnlyLinked: 'Gost aplikacija je na voljo samo za povezane goste.',
     subject: 'Zadeva',
     message: 'Sporočilo',
     writeEmail: 'Napišite e-pošto...',
@@ -152,11 +433,35 @@ export function AnalyticsInboxTab() {
     whatsappNoteOptIn: 'Pred pošiljanjem označite to stranko kot WhatsApp opt-in.',
     viberNoteReady: 'Viber uporablja uradni bot API in pošilja samo strankam, ki so že povezane z vašim Viber botom.',
     viberNotePending: 'Viber je na voljo, ko je stranka povezana z vašim Viber botom.',
+    guestAppNoteReady: 'Guest App pošlje sporočilo neposredno v nabiralnik gostove mobilne aplikacije.',
+    guestAppNotePending: 'Gost mora imeti aktivno povezavo z vašim tenantom v mobilni aplikaciji.',
     sending: 'Pošiljanje…',
     sendSingle: (channel: string) => `Pošlji ${channel}`,
     sendBulk: (channel: string, count: number) => `Pošlji ${channel} ${count} ${count === 1 ? 'stranki' : 'strankam'}`,
     messageSent: (channel: string) => `${channel} sporočilo je poslano.`,
     sendFailed: 'Pošiljanje sporočila ni uspelo.',
+    attachments: 'Priponke',
+    addAttachments: 'Dodaj priponke',
+    attachmentsReady: 'Priponke bodo shranjene med datotekami stranke in poslane v pogovor Guest App.',
+    attachmentsGuestOnly: 'Priponke so trenutno podprte samo za posamezni pogovor Guest App.',
+    removeAttachment: 'Odstrani',
+    attachmentLabel: (count: number) => `${count} ${count === 1 ? 'priponka' : 'priponke'}`,
+    imageFileLabel: 'Slika',
+    pdfFileLabel: 'PDF',
+    fileLabel: 'Datoteka',
+    openPreview: 'Odpri predogled',
+    loadingPreview: 'Nalagam predogled…',
+    downloadAttachment: 'Prenesi',
+    attachmentUnsupported: (name: string) => `${name} ni podprt tip datoteke. Dovoljene so slike, PDF, TXT, CSV, DOC, DOCX, XLS, XLSX, PPT in PPTX.`,
+    attachmentTooLarge: (name: string, max: string) => `${name} presega največjo velikost ${max}.`,
+    attachmentsTooMany: (max: number) => `Na sporočilo lahko dodate največ ${max} priponk.`,
+    attachmentsTotalTooLarge: (max: string) => `Skupna velikost priponk mora biti ${max} ali manj.`,
+    attachmentPending: 'Pripravljeno za nalaganje',
+    attachmentUploading: (progress: number) => `Nalagam ${progress}%`,
+    attachmentUploaded: 'Naloženo',
+    attachmentUploadFailed: 'Nalaganje ni uspelo',
+    retryAttachment: 'Poskusi znova',
+    attachmentsNeedRetry: 'Odstranite ali ponovno naložite neuspele priponke, nato pošljite sporočilo.',
     bulkSuccess: (parts: string[]) => `Poslano: ${parts.join(' · ')}.`,
     bulkFailed: (channel: string) => `Pošiljanje ${channel.toLowerCase()} sporočil ni uspelo.`,
   } : {
@@ -166,6 +471,7 @@ export function AnalyticsInboxTab() {
     optInNeeded: 'Opt-in needed',
     missingPhone: 'Missing phone',
     notLinked: 'Not linked',
+    notLinkedGuestApp: 'Not linked to Guest App',
     sent: 'Sent',
     received: 'Received',
     delivered: 'Delivered',
@@ -198,6 +504,7 @@ export function AnalyticsInboxTab() {
     addEmailAddress: 'Add a client email address.',
     addWhatsApp: 'Add a client phone number and WhatsApp opt-in.',
     viberOnlyLinked: 'Viber is available only for linked clients.',
+    guestAppOnlyLinked: 'Guest App is available only for clients linked to the guest mobile app.',
     subject: 'Subject',
     message: 'Message',
     writeEmail: 'Write your email...',
@@ -210,11 +517,35 @@ export function AnalyticsInboxTab() {
     whatsappNoteOptIn: 'Mark this client as WhatsApp opt-in before sending.',
     viberNoteReady: 'Viber uses the official bot API and sends only to clients already linked to your Viber bot.',
     viberNotePending: 'Viber becomes available after the client is linked to your Viber bot.',
+    guestAppNoteReady: 'Guest App delivers the message directly into the guest mobile inbox.',
+    guestAppNotePending: 'The client must have an active guest mobile app link for this tenant.',
     sending: 'Sending…',
     sendSingle: (channel: string) => `Send ${channel}`,
     sendBulk: (channel: string, count: number) => `Send ${channel} to ${count} client${count === 1 ? '' : 's'}`,
     messageSent: (channel: string) => `${channel} message sent.`,
     sendFailed: 'Failed to send message.',
+    attachments: 'Attachments',
+    addAttachments: 'Add attachments',
+    attachmentsReady: 'Attachments will be stored with the client files and delivered into the Guest App conversation.',
+    attachmentsGuestOnly: 'Attachments are currently supported only for a single Guest App conversation.',
+    removeAttachment: 'Remove',
+    attachmentLabel: (count: number) => `${count} attachment${count === 1 ? '' : 's'}`,
+    imageFileLabel: 'Image',
+    pdfFileLabel: 'PDF',
+    fileLabel: 'File',
+    openPreview: 'Open preview',
+    loadingPreview: 'Loading preview…',
+    downloadAttachment: 'Download',
+    attachmentUnsupported: (name: string) => `${name} is not a supported file type. Allowed: images, PDF, TXT, CSV, DOC, DOCX, XLS, XLSX, PPT, PPTX.`,
+    attachmentTooLarge: (name: string, max: string) => `${name} is larger than the ${max} limit.`,
+    attachmentsTooMany: (max: number) => `You can add up to ${max} attachments per message.`,
+    attachmentsTotalTooLarge: (max: string) => `The combined attachment size must be ${max} or smaller.`,
+    attachmentPending: 'Ready to upload',
+    attachmentUploading: (progress: number) => `Uploading ${progress}%`,
+    attachmentUploaded: 'Uploaded',
+    attachmentUploadFailed: 'Upload failed',
+    retryAttachment: 'Retry',
+    attachmentsNeedRetry: 'Remove or retry failed attachments, then send the message again.',
     bulkSuccess: (parts: string[]) => `${parts.join(' · ')}.`,
     bulkFailed: (channel: string) => `Failed to send ${channel} messages.`,
   }
@@ -231,7 +562,11 @@ export function AnalyticsInboxTab() {
   const [composeChannel, setComposeChannel] = useState<InboxChannel>('EMAIL')
   const [composeSubject, setComposeSubject] = useState('')
   const [composeBody, setComposeBody] = useState('')
+  const [composeAttachments, setComposeAttachments] = useState<ComposeAttachmentItem[]>([])
   const [sending, setSending] = useState(false)
+  const composeAttachmentsRef = useRef<ComposeAttachmentItem[]>([])
+  const selectedClientIdRef = useRef<number | null>(null)
+  const previousSelectedClientIdRef = useRef<number | null>(null)
 
   const clientsQuery = useQuery<Client[]>({
     queryKey: ['inbox-clients'],
@@ -243,6 +578,7 @@ export function AnalyticsInboxTab() {
 
   const threadsQuery = useQuery<InboxThread[]>({
     queryKey: ['inbox-threads', search, clientIdFilter, channelFilter, statusFilter, from, to],
+    refetchInterval: 10000,
     queryFn: async () => {
       const res = await api.get<InboxThread[]>('/inbox/threads', {
         params: {
@@ -285,12 +621,63 @@ export function AnalyticsInboxTab() {
   }, [selectedThread?.lastChannel, recipientMode])
 
   useEffect(() => {
-    if (recipientMode === 'bulk' && composeChannel === 'VIBER') setComposeChannel('EMAIL')
+    composeAttachmentsRef.current = composeAttachments
+  }, [composeAttachments])
+
+  useEffect(() => {
+    selectedClientIdRef.current = selectedClientId ?? null
+  }, [selectedClientId])
+
+  const discardComposeAttachments = async (clientId: number | null | undefined, attachments: ComposeAttachmentItem[]) => {
+    if (clientId == null || attachments.length === 0) return
+    const uploadedIds = attachments
+      .map((attachment) => attachment.uploadedFileId)
+      .filter((value): value is number => typeof value === 'number')
+    if (uploadedIds.length === 0) return
+    await Promise.allSettled(
+      uploadedIds.map((fileId) => api.post(`/inbox/clients/${clientId}/attachments/${fileId}/discard`)),
+    )
+  }
+
+  useEffect(() => {
+    if (recipientMode === 'bulk' && (composeChannel === 'VIBER' || composeChannel === 'GUEST_APP')) setComposeChannel('EMAIL')
+    if (recipientMode === 'bulk' && composeAttachmentsRef.current.length > 0) {
+      const attachments = [...composeAttachmentsRef.current]
+      setComposeAttachments([])
+      void discardComposeAttachments(selectedClientIdRef.current, attachments)
+    }
   }, [recipientMode, composeChannel])
+
+  useEffect(() => {
+    if (composeChannel !== 'GUEST_APP' && composeAttachmentsRef.current.length > 0) {
+      const attachments = [...composeAttachmentsRef.current]
+      setComposeAttachments([])
+      void discardComposeAttachments(selectedClientIdRef.current, attachments)
+    }
+  }, [composeChannel])
+
+  useEffect(() => {
+    const previousClientId = previousSelectedClientIdRef.current
+    previousSelectedClientIdRef.current = selectedClientId ?? null
+    if (previousClientId != null && previousClientId !== selectedClientId && composeAttachmentsRef.current.length > 0) {
+      const attachments = [...composeAttachmentsRef.current]
+      setComposeAttachments([])
+      void discardComposeAttachments(previousClientId, attachments)
+    }
+  }, [selectedClientId])
+
+  useEffect(() => () => {
+    const clientId = selectedClientIdRef.current
+    const attachments = composeAttachmentsRef.current
+    if (clientId != null && attachments.length > 0) {
+      void discardComposeAttachments(clientId, attachments)
+    }
+  }, [])
 
   const messagesQuery = useQuery<ClientMessage[]>({
     queryKey: ['inbox-messages', selectedClientId],
     enabled: selectedClientId != null,
+    refetchInterval: selectedClientId != null ? 5000 : false,
     queryFn: async () => {
       const res = await api.get<ClientMessage[]>(`/inbox/clients/${selectedClientId}/messages`)
       return res.data ?? []
@@ -321,8 +708,16 @@ export function AnalyticsInboxTab() {
 
   const recentMessages = messagesQuery.data ?? []
 
-  const singleSendReady = !!selectedClientId && !!composeBody.trim() && isClientEligibleForChannel(selectedClient, composeChannel)
-  const bulkSendReady = composeChannel !== 'VIBER' && !!composeBody.trim() && eligibleBulkClients.length > 0
+  useEffect(() => {
+    if (selectedClientId == null || !messagesQuery.data) return
+    queryClient.setQueriesData<InboxThread[]>({ queryKey: ['inbox-threads'] }, (current) => (
+      current?.map((thread) => thread.clientId === selectedClientId ? { ...thread, unreadCount: 0 } : thread) ?? current
+    ))
+  }, [queryClient, selectedClientId, messagesQuery.dataUpdatedAt])
+
+  const canAttachFiles = recipientMode === 'single' && composeChannel === 'GUEST_APP' && selectedClientId != null
+  const singleSendReady = !!selectedClientId && (!!composeBody.trim() || composeAttachments.length > 0) && isClientEligibleForChannel(selectedClient, composeChannel)
+  const bulkSendReady = composeChannel !== 'VIBER' && composeChannel !== 'GUEST_APP' && !!composeBody.trim() && eligibleBulkClients.length > 0
 
   const toggleBulkClient = (clientId: number) => {
     setBulkSelectedClientIds((prev) => (
@@ -348,7 +743,83 @@ export function AnalyticsInboxTab() {
 
   const resetComposerAfterSend = () => {
     setComposeBody('')
+    setComposeAttachments([])
     if (composeChannel === 'EMAIL') setComposeSubject('')
+  }
+
+  const handleComposeAttachmentSelection = (files: FileList | null) => {
+    const normalized = normalizeAttachmentSelection(composeAttachments, Array.from(files ?? []), copy)
+    setComposeAttachments(normalized.files)
+    if (normalized.errors.length) {
+      showToast('error', normalized.errors[0])
+    }
+  }
+
+  const updateComposeAttachment = (attachmentId: string, updater: (current: ComposeAttachmentItem) => ComposeAttachmentItem) => {
+    setComposeAttachments((prev) => prev.map((entry) => (entry.id === attachmentId ? updater(entry) : entry)))
+  }
+
+  const uploadComposeAttachment = async (clientId: number, attachment: ComposeAttachmentItem) => {
+    if (attachment.uploadedFileId) return attachment.uploadedFileId
+    updateComposeAttachment(attachment.id, (current) => ({ ...current, status: 'uploading', progress: current.progress > 0 ? current.progress : 0, error: '' }))
+    try {
+      const body = new FormData()
+      body.append('file', attachment.file)
+      const response = await api.post(`/inbox/clients/${clientId}/attachments`, body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (event) => {
+          const total = event.total || attachment.file.size || 1
+          const nextProgress = Math.max(1, Math.min(100, Math.round((event.loaded / total) * 100)))
+          updateComposeAttachment(attachment.id, (current) => ({ ...current, status: 'uploading', progress: nextProgress, error: '' }))
+        },
+      })
+      const uploadedFileId = response.data?.id as number | undefined
+      if (!uploadedFileId) throw new Error('Missing uploaded file id.')
+      updateComposeAttachment(attachment.id, (current) => ({ ...current, status: 'uploaded', progress: 100, error: '', uploadedFileId }))
+      return uploadedFileId
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || copy.attachmentUploadFailed
+      updateComposeAttachment(attachment.id, (current) => ({ ...current, status: 'failed', error: message, progress: 0 }))
+      throw error
+    }
+  }
+
+  const retryComposeAttachment = async (attachmentId: string) => {
+    if (!selectedClientId) return
+    const attachment = composeAttachments.find((entry) => entry.id === attachmentId)
+    if (!attachment) return
+    try {
+      await uploadComposeAttachment(selectedClientId, attachment)
+    } catch {
+      // handled in state
+    }
+  }
+
+  const removeComposeAttachment = (attachmentId: string) => {
+    const attachment = composeAttachmentsRef.current.find((entry) => entry.id === attachmentId)
+    setComposeAttachments((prev) => prev.filter((entry) => entry.id !== attachmentId))
+    if (selectedClientIdRef.current != null && attachment?.uploadedFileId) {
+      void discardComposeAttachments(selectedClientIdRef.current, [attachment])
+    }
+  }
+
+  const ensureComposeAttachmentsUploaded = async (clientId: number) => {
+    const currentAttachments = [...composeAttachments]
+    const uploadedIds: number[] = []
+    let failed = false
+    for (const attachment of currentAttachments) {
+      if (attachment.uploadedFileId) {
+        uploadedIds.push(attachment.uploadedFileId)
+        continue
+      }
+      try {
+        const uploadedId = await uploadComposeAttachment(clientId, attachment)
+        uploadedIds.push(uploadedId)
+      } catch {
+        failed = true
+      }
+    }
+    return { uploadedIds, failed }
   }
 
   const invalidateInboxQueries = async (sentClientIds: number[]) => {
@@ -359,15 +830,36 @@ export function AnalyticsInboxTab() {
     window.dispatchEvent(new Event('clients-updated'))
   }
 
+  const downloadAttachment = async (clientId: number, attachment: { clientFileId: number; fileName: string; contentType?: string | null }) => {
+    const response = await api.get(`/clients/${clientId}/files/${attachment.clientFileId}`, { responseType: 'blob' })
+    const blob = new Blob([response.data], { type: attachment.contentType || 'application/octet-stream' })
+    const url = window.URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = attachment.fileName || 'attachment'
+    anchor.click()
+    window.URL.revokeObjectURL(url)
+  }
+
   const sendSingleMessage = async () => {
-    if (!selectedClientId || !composeBody.trim()) return
+    if (!selectedClientId || (!composeBody.trim() && composeAttachments.length === 0)) return
     setSending(true)
     try {
+      let attachmentFileIds: number[] = []
+      if (composeAttachments.length > 0) {
+        const uploadResult = await ensureComposeAttachmentsUploaded(selectedClientId)
+        attachmentFileIds = uploadResult.uploadedIds
+        if (uploadResult.failed) {
+          showToast('error', copy.attachmentsNeedRetry)
+          return
+        }
+      }
       await api.post('/inbox/messages', {
         clientId: selectedClientId,
         channel: composeChannel,
         subject: composeChannel === 'EMAIL' ? composeSubject.trim() || null : null,
         body: composeBody.trim(),
+        attachmentFileIds,
       })
       showToast('success', copy.messageSent(channelLabel(composeChannel)))
       resetComposerAfterSend()
@@ -441,7 +933,7 @@ export function AnalyticsInboxTab() {
         <div className="analytics-inbox-hero__copy">
           <SectionTitle>Inbox</SectionTitle>
           <p className="muted analytics-inbox-hero__text">
-            A unified communication hub for email, direct WhatsApp Cloud API, and opt-in Viber Bot messages. Every inbound and outbound message is saved under the client timeline.
+            A unified communication hub for email, direct WhatsApp Cloud API, opt-in Viber Bot messages, and the guest mobile app inbox. Every inbound and outbound message is saved under the client timeline.
           </p>
         </div>
         <div className="analytics-inbox-hero__stats">
@@ -519,6 +1011,9 @@ export function AnalyticsInboxTab() {
                     <div className="analytics-inbox-thread__meta">
                       <Pill tone={channelTone(thread.lastChannel)}>{channelLabel(thread.lastChannel)}</Pill>
                       <Pill tone={statusTone(thread.lastStatus)}>{statusLabel(thread.lastStatus, copy)}</Pill>
+                      {thread.unreadCount && thread.unreadCount > 0 ? (
+                        <Pill tone="red">{thread.unreadCount} {locale === 'sl' ? 'novo' : 'new'}</Pill>
+                      ) : null}
                       <span>{thread.messageCount} {locale === 'sl' ? 'sporočil' : 'msg'}</span>
                     </div>
                     {threadSenderLabel(thread, copy) && (
@@ -565,7 +1060,20 @@ export function AnalyticsInboxTab() {
                     )}
                   </div>
                   {message.subject && <strong className="analytics-inbox-bubble__subject">{message.subject}</strong>}
-                  <div className="analytics-inbox-bubble__body">{message.body}</div>
+                  {message.body && <div className="analytics-inbox-bubble__body">{message.body}</div>}
+                  {message.attachments && message.attachments.length > 0 && selectedClientId != null && (
+                    <div className="stack gap-sm" style={{ marginTop: 10 }}>
+                      {message.attachments.map((attachment) => (
+                        <AttachmentPreviewCard
+                          key={attachment.id}
+                          clientId={selectedClientId}
+                          attachment={attachment}
+                          copy={copy}
+                          onDownload={downloadAttachment}
+                        />
+                      ))}
+                    </div>
+                  )}
                   {message.errorMessage && <div className="analytics-inbox-bubble__error">{message.errorMessage}</div>}
                 </div>
               ))
@@ -659,21 +1167,25 @@ export function AnalyticsInboxTab() {
             <div className="analytics-inbox-channel-switch">
               {CHANNELS.map((channel) => {
                 const disabled = recipientMode === 'bulk'
-                  ? channel === 'VIBER'
+                  ? channel === 'VIBER' || channel === 'GUEST_APP'
                   : channel === 'WHATSAPP'
                     ? !selectedClient?.whatsappOptIn || !hasWhatsAppTarget(selectedClient)
                     : channel === 'VIBER'
                       ? !selectedClient?.viberConnected
-                      : channel === 'EMAIL'
-                        ? !hasEmailTarget(selectedClient)
-                        : false
+                      : channel === 'GUEST_APP'
+                        ? !selectedClient?.guestAppLinked
+                        : channel === 'EMAIL'
+                          ? !hasEmailTarget(selectedClient)
+                          : false
                 const disabledTitle = recipientMode === 'bulk'
-                  ? (channel === 'VIBER' ? copy.bulkSendTitle : undefined)
+                  ? ((channel === 'VIBER' || channel === 'GUEST_APP') ? copy.bulkSendTitle : undefined)
                   : channel === 'EMAIL'
                     ? copy.addEmailAddress
                     : channel === 'WHATSAPP'
                       ? copy.addWhatsApp
-                      : copy.viberOnlyLinked
+                      : channel === 'GUEST_APP'
+                        ? copy.guestAppOnlyLinked
+                        : copy.viberOnlyLinked
                 return (
                   <button
                     key={channel}
@@ -708,6 +1220,35 @@ export function AnalyticsInboxTab() {
               />
             </Field>
 
+            {canAttachFiles ? (
+              <Field label={`${copy.attachments} · ${copy.attachmentLabel(composeAttachments.length)}`}>
+                <div className="stack gap-sm">
+                  <input
+                    type="file"
+                    multiple
+                    accept={ACCEPTED_ATTACHMENT_INPUT}
+                    onChange={(e) => {
+                      handleComposeAttachmentSelection(e.target.files)
+                      e.currentTarget.value = ''
+                    }}
+                  />
+                  {composeAttachments.length > 0 ? (
+                    <div className="stack gap-sm">
+                      {composeAttachments.map((attachment) => (
+                        <ComposeAttachmentCard
+                          key={attachment.id}
+                          attachment={attachment}
+                          copy={copy}
+                          onRetry={() => void retryComposeAttachment(attachment.id)}
+                          onRemove={() => removeComposeAttachment(attachment.id)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </Field>
+            ) : null}
+
             <div className="analytics-inbox-channel-note muted">
               {recipientMode === 'bulk'
                 ? composeChannel === 'EMAIL'
@@ -719,7 +1260,9 @@ export function AnalyticsInboxTab() {
                   ? copy.emailNote
                   : composeChannel === 'WHATSAPP'
                     ? (selectedClient?.whatsappOptIn ? copy.whatsappNoteReady : copy.whatsappNoteOptIn)
-                    : (selectedClient?.viberConnected ? copy.viberNoteReady : copy.viberNotePending)}
+                    : composeChannel === 'VIBER'
+                      ? (selectedClient?.viberConnected ? copy.viberNoteReady : copy.viberNotePending)
+                      : (selectedClient?.guestAppLinked ? `${copy.guestAppNoteReady} ${copy.attachmentsReady}` : copy.guestAppNotePending)}
             </div>
 
             <div className="form-actions">

@@ -99,6 +99,42 @@ final class GuestApiClient {
         try await get(path: "api/guest/notifications", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
 
+    func inboxThreads(companyId: String) async throws -> [GuestInboxThreadModel] {
+        try await get(path: "api/guest/inbox/threads", query: [URLQueryItem(name: "companyId", value: companyId)])
+    }
+
+    func inboxMessages(companyId: String) async throws -> [GuestInboxMessageModel] {
+        try await get(path: "api/guest/inbox/messages", query: [URLQueryItem(name: "companyId", value: companyId)])
+    }
+
+    func sendInboxMessage(companyId: String, body: String) async throws -> GuestInboxMessageModel {
+        try await post(path: "api/guest/inbox/messages", body: GuestInboxSendPayload(companyId: companyId, body: body))
+    }
+
+    func downloadInboxAttachment(companyId: String, attachmentId: Int64, suggestedFileName: String) async throws -> URL {
+        let query = [URLQueryItem(name: "companyId", value: companyId)]
+        var components = URLComponents(url: baseURL.appendingPathComponent("api/guest/inbox/attachments/\(attachmentId)"), resolvingAgainstBaseURL: false)!
+        components.queryItems = query
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("native", forHTTPHeaderField: "X-App-Platform")
+        if let authToken {
+            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        let fileName = suggestedFileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "attachment-\(attachmentId)" : suggestedFileName
+        let safeName = fileName.replacingOccurrences(of: "/", with: "-")
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "-" + safeName)
+        try data.write(to: destination, options: .atomic)
+        return destination
+    }
+
+
+    func registerDeviceToken(platform: String, pushToken: String, locale: String? = nil) async throws -> DeviceTokenResponseModel {
+        try await post(path: "api/guest/device-tokens", body: DeviceTokenPayload(platform: platform, pushToken: pushToken, locale: locale))
+    }
+
     func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil) async throws -> CheckoutResponseModel {
         let order: CreateOrderEnvelope = try await post(
             path: "api/guest/orders",

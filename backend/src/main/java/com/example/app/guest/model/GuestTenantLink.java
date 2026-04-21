@@ -37,4 +37,8 @@ public class GuestTenantLink extends BaseEntity {
     private Instant joinedAt = Instant.now();
 
     private Instant lastUsedAt;
+
+    private Instant guestInboxLastReadAt;
+
+    private Instant staffInboxLastReadAt;
 }

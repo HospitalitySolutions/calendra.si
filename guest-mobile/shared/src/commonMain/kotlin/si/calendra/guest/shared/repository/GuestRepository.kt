@@ -23,4 +23,8 @@ interface GuestRepository {
     suspend fun toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Boolean): ToggleAutoRenewResponse
     suspend fun bookingHistory(companyId: String): List<BookingHistoryItem>
     suspend fun notifications(companyId: String): NotificationsPayload
+    suspend fun inboxThreads(companyId: String): List<GuestInboxThread>
+    suspend fun inboxMessages(companyId: String): List<GuestInboxMessage>
+    suspend fun sendInboxMessage(companyId: String, body: String): GuestInboxMessage
+    suspend fun registerDeviceToken(platform: String, pushToken: String, locale: String? = null): Boolean
 }

@@ -167,4 +167,29 @@ class RemoteGuestApi(
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
             parameter("companyId", companyId)
         })
+
+    suspend fun inboxThreads(companyId: String): List<GuestInboxThread> =
+        parse(client.get("${config.baseUrl}/api/guest/inbox/threads") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            parameter("companyId", companyId)
+        })
+
+    suspend fun inboxMessages(companyId: String): List<GuestInboxMessage> =
+        parse(client.get("${config.baseUrl}/api/guest/inbox/messages") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            parameter("companyId", companyId)
+        })
+
+    suspend fun sendInboxMessage(companyId: String, body: String): GuestInboxMessage =
+        parse(client.post("${config.baseUrl}/api/guest/inbox/messages") {
+            jsonRequest()
+            setBody(SendGuestInboxMessageRequest(companyId = companyId, body = body))
+        })
+
+
+    suspend fun registerDeviceToken(platform: String, pushToken: String, locale: String? = null): RegisterDeviceTokenResponse =
+        parse(client.post("${config.baseUrl}/api/guest/device-tokens") {
+            jsonRequest()
+            setBody(RegisterDeviceTokenRequest(platform = platform, pushToken = pushToken, locale = locale))
+        })
 }

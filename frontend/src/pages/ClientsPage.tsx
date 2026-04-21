@@ -102,6 +102,38 @@ const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() 
 
 /** Must match backend TenantFileS3Service and spring.servlet.multipart.max-file-size. */
 const MAX_CLIENT_OR_COMPANY_FILE_BYTES = 50 * 1024 * 1024
+const CLIENT_FILE_ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']
+const CLIENT_FILE_ALLOWED_CONTENT_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+])
+const CLIENT_FILE_ACCEPT_INPUT = CLIENT_FILE_ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
+
+function clientFileExtension(name: string) {
+  const parts = name.toLowerCase().split('.')
+  return parts.length > 1 ? parts[parts.length - 1] : ''
+}
+
+function validateClientStoredFile(file: File, copy: { fileTooLarge: string; fileUnsupported: (name: string) => string }) {
+  if (file.size > MAX_CLIENT_OR_COMPANY_FILE_BYTES) return copy.fileTooLarge
+  const normalizedType = (file.type || '').toLowerCase()
+  const extension = clientFileExtension(file.name)
+  const supported = CLIENT_FILE_ALLOWED_CONTENT_TYPES.has(normalizedType) || CLIENT_FILE_ALLOWED_EXTENSIONS.includes(extension)
+  return supported ? '' : copy.fileUnsupported(file.name)
+}
 
 function contactMailtoHref(email: string) {
   const e = email.trim()
@@ -249,6 +281,7 @@ export function ClientsPage() {
     removeFile: 'Odstrani',
     deleteFileConfirm: 'Odstranim to datoteko?',
     fileTooLarge: 'Datoteka ne sme biti večja od 50 MB.',
+    fileUnsupported: (name: string) => `${name} ni podprt tip datoteke. Dovoljene so slike, PDF, TXT, CSV, DOC, DOCX, XLS, XLSX, PPT in PPTX.`,
     dragDropFilesHint: 'Povlecite datoteke sem ali uporabite gumb zgoraj.',
     clientDetailMainTabsAria: 'Zavihki podrobnosti stranke',
     clientDetailTabSettings: 'Nastavitve',
@@ -387,6 +420,7 @@ export function ClientsPage() {
     removeFile: 'Remove',
     deleteFileConfirm: 'Remove this file?',
     fileTooLarge: 'Files must be 50 MB or smaller.',
+    fileUnsupported: (name: string) => `${name} is not a supported file type. Allowed: images, PDF, TXT, CSV, DOC, DOCX, XLS, XLSX, PPT, PPTX.`,
     dragDropFilesHint: 'Drag files here or use the button above.',
     clientDetailMainTabsAria: 'Client detail sections',
     clientDetailTabSettings: 'Settings',
@@ -1533,9 +1567,10 @@ export function ClientsPage() {
     void toggleCompanyActiveById(detailCompany.id, detailCompany.active !== false)
   }
 
-  const pickFile = (handler: (file: File) => void) => {
+  const pickFile = (handler: (file: File) => void, options?: { accept?: string }) => {
     const input = document.createElement('input')
     input.type = 'file'
+    if (options?.accept) input.accept = options.accept
     input.onchange = () => {
       const file = input.files?.[0]
       if (file) handler(file)
@@ -1556,8 +1591,9 @@ export function ClientsPage() {
 
   const uploadClientFile = async (file: File) => {
     if (!detailClient || uploadingClientFile) return
-    if (file.size > MAX_CLIENT_OR_COMPANY_FILE_BYTES) {
-      setDetailClientFilesError(clientsCopy.fileTooLarge)
+    const validationError = validateClientStoredFile(file, clientsCopy)
+    if (validationError) {
+      setDetailClientFilesError(validationError)
       return
     }
     setUploadingClientFile(true)
@@ -2390,7 +2426,7 @@ export function ClientsPage() {
                       <button
                         type="button"
                         className="secondary"
-                        onClick={() => pickFile((file) => void uploadClientFile(file))}
+                        onClick={() => pickFile((file) => void uploadClientFile(file), { accept: CLIENT_FILE_ACCEPT_INPUT })}
                         disabled={uploadingClientFile}
                       >
                         {uploadingClientFile ? clientsCopy.uploadingFile : clientsCopy.uploadFile}

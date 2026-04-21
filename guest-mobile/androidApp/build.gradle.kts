@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+fun esc(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
+fun envOrProp(name: String, defaultValue: String = ""): String = (project.findProperty(name) as String?) ?: System.getenv(name) ?: defaultValue
+fun quotedEnv(name: String, defaultValue: String = ""): String = "\"${esc(envOrProp(name, defaultValue))}\""
+
 android {
     namespace = "si.calendra.guest.android"
     compileSdk = 36
@@ -14,7 +18,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         // Android emulator → host machine (backend default port in application.yml is 4000)
-        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.83:4000\"")
+        buildConfigField("String", "API_BASE_URL", quotedEnv("API_BASE_URL", "http://192.168.1.83:4000"))
+        buildConfigField("String", "FCM_PROJECT_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID"))
+        buildConfigField("String", "FCM_APPLICATION_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID"))
+        buildConfigField("String", "FCM_API_KEY", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_API_KEY"))
+        buildConfigField("String", "FCM_GCM_SENDER_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID"))
     }
 
     buildFeatures {
@@ -51,6 +59,9 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
     implementation("com.stripe:stripe-android:23.3.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

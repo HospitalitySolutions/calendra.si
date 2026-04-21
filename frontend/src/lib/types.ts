@@ -32,6 +32,7 @@ export type Client = {
   whatsappOptIn?: boolean
   viberUserId?: string | null
   viberConnected?: boolean
+  guestAppLinked?: boolean
   anonymized?: boolean
   anonymizedAt?: string | null
   active?: boolean
@@ -256,7 +257,7 @@ export type OpenBill = {
 }
 
 
-export type InboxChannel = 'EMAIL' | 'WHATSAPP' | 'VIBER'
+export type InboxChannel = 'EMAIL' | 'WHATSAPP' | 'VIBER' | 'GUEST_APP'
 export type InboxDirection = 'INBOUND' | 'OUTBOUND'
 export type InboxStatus = 'SENT' | 'DELIVERED' | 'READ' | 'RECEIVED' | 'FAILED'
 
@@ -275,6 +276,16 @@ export type InboxThread = {
   lastSenderPhone?: string | null
   lastSentAt?: string | null
   messageCount: number
+  unreadCount?: number
+}
+
+export type MessageAttachment = {
+  id: number
+  clientFileId: number
+  fileName: string
+  contentType?: string | null
+  sizeBytes: number
+  uploadedAt?: string | null
 }
 
 export type ClientMessage = {
@@ -294,6 +305,7 @@ export type ClientMessage = {
   senderPhone?: string | null
   sentAt?: string | null
   createdAt: string
+  attachments?: MessageAttachment[]
 }
 
 export type SettingsMap = Record<string, string>

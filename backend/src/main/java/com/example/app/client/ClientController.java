@@ -2,6 +2,7 @@ package com.example.app.client;
 
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.files.ClientFileRepository;
+import com.example.app.files.ClientFileUploadPolicy;
 import com.example.app.files.StoredFileResponse;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.guest.model.EntitlementStatus;
@@ -9,6 +10,8 @@ import com.example.app.guest.model.GuestEntitlement;
 import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
+import com.example.app.guest.model.GuestTenantLinkRepository;
+import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
@@ -47,6 +50,7 @@ public class ClientController {
     private final GuestEntitlementRepository guestEntitlements;
     private final GuestEntitlementUsageRepository guestEntitlementUsages;
     private final GuestEntitlementService guestEntitlementService;
+    private final GuestTenantLinkRepository guestTenantLinks;
 
     public ClientController(
             ClientRepository repository,
@@ -58,7 +62,8 @@ public class ClientController {
             TenantFileS3Service fileStorage,
             GuestEntitlementRepository guestEntitlements,
             GuestEntitlementUsageRepository guestEntitlementUsages,
-            GuestEntitlementService guestEntitlementService
+            GuestEntitlementService guestEntitlementService,
+            GuestTenantLinkRepository guestTenantLinks
     ) {
         this.repository = repository;
         this.users = users;
@@ -70,6 +75,7 @@ public class ClientController {
         this.guestEntitlements = guestEntitlements;
         this.guestEntitlementUsages = guestEntitlementUsages;
         this.guestEntitlementService = guestEntitlementService;
+        this.guestTenantLinks = guestTenantLinks;
     }
 
     public record PreferredSlotRequest(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {}
@@ -109,6 +115,7 @@ public class ClientController {
             boolean whatsappOptIn,
             String viberUserId,
             boolean viberConnected,
+            boolean guestAppLinked,
             boolean anonymized,
             Instant anonymizedAt,
             boolean active,
@@ -166,7 +173,7 @@ public class ClientController {
         List<Client> rows = SecurityUtils.isAdmin(me)
                 ? repository.findAllByCompanyId(companyId)
                 : repository.findByAssignedToIdAndCompanyId(me.getId(), companyId);
-        return rows.stream().map(ClientController::toResponse).toList();
+        return rows.stream().map(this::toResponse).toList();
     }
 
     @PostMapping
@@ -288,6 +295,7 @@ public class ClientController {
             @AuthenticationPrincipal User me
     ) {
         var client = loadClientForDetailAccess(id, me);
+        ClientFileUploadPolicy.validateClientFile(file);
         var stored = fileStorage.uploadClientFile(me.getCompany(), client, file);
 
         var row = new com.example.app.files.ClientFile();
@@ -443,7 +451,7 @@ public class ClientController {
         }
     }
 
-    private static ClientResponse toResponse(Client c) {
+    private ClientResponse toResponse(Client c) {
         var assigned = c.getAssignedTo();
         UserSummary assignedSummary = assigned == null ? null : new UserSummary(
                 assigned.getId(),
@@ -451,6 +459,11 @@ public class ClientController {
                 assigned.getLastName(),
                 assigned.getEmail(),
                 assigned.getRole()
+        );
+        boolean guestAppLinked = guestTenantLinks.existsByCompanyIdAndClientIdAndStatus(
+                c.getCompany().getId(),
+                c.getId(),
+                GuestTenantLinkStatus.ACTIVE
         );
 
         return new ClientResponse(
@@ -463,6 +476,7 @@ public class ClientController {
                 c.isWhatsappOptIn(),
                 c.getViberUserId(),
                 c.isViberConnected(),
+                guestAppLinked,
                 c.isAnonymized(),
                 c.getAnonymizedAt(),
                 c.isActive(),

@@ -8,6 +8,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import si.calendra.guest.android.payments.PaymentRedirectBus
+import si.calendra.guest.android.push.GuestInboxDeepLinkBus
+import si.calendra.guest.android.push.GuestPushManager
 import si.calendra.guest.android.ui.GuestMobileRoot
 import si.calendra.guest.android.ui.theme.GuestMobileTheme
 
@@ -18,7 +20,10 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(Color.argb(235, 248, 250, 252), Color.argb(235, 17, 24, 39))
         )
         super.onCreate(savedInstanceState)
+        GuestPushManager.initialize(applicationContext)
+        GuestPushManager.requestNotificationPermission(this)
         PaymentRedirectBus.publish(intent?.data)
+        GuestInboxDeepLinkBus.publishFromIntent(intent)
         setContent {
             GuestMobileTheme {
                 GuestMobileRoot()
@@ -30,5 +35,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         PaymentRedirectBus.publish(intent.data)
+        GuestInboxDeepLinkBus.publishFromIntent(intent)
     }
 }

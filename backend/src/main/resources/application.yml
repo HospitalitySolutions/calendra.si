@@ -93,6 +93,25 @@ app:
   jwt:
     secret: ${APP_JWT_SECRET}
     expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
+  guest:
+    push:
+      enabled: ${APP_GUEST_PUSH_ENABLED:false}
+      connect-timeout-seconds: ${APP_GUEST_PUSH_CONNECT_TIMEOUT_SECONDS:10}
+      fcm:
+        project-id: ${APP_GUEST_PUSH_FCM_PROJECT_ID:}
+        service-account-json: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON:}
+        service-account-json-base64: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON_BASE64:}
+        service-account-file: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_FILE:}
+        token-uri: ${APP_GUEST_PUSH_FCM_TOKEN_URI:https://oauth2.googleapis.com/token}
+        scope: ${APP_GUEST_PUSH_FCM_SCOPE:https://www.googleapis.com/auth/firebase.messaging}
+      apns:
+        team-id: ${APP_GUEST_PUSH_APNS_TEAM_ID:}
+        key-id: ${APP_GUEST_PUSH_APNS_KEY_ID:}
+        bundle-id: ${APP_GUEST_PUSH_APNS_BUNDLE_ID:si.calendra.guest.mobile}
+        private-key-pem: ${APP_GUEST_PUSH_APNS_PRIVATE_KEY_PEM:}
+        private-key-base64: ${APP_GUEST_PUSH_APNS_PRIVATE_KEY_BASE64:}
+        private-key-file: ${APP_GUEST_PUSH_APNS_PRIVATE_KEY_FILE:}
+        use-sandbox: ${APP_GUEST_PUSH_APNS_USE_SANDBOX:true}
   fiscal:
     trust-certificate-locations: ${APP_FISCAL_TRUST_CERTIFICATE_LOCATIONS:classpath:fiscal-certs/si-trust-root.crt,classpath:fiscal-certs/sigov-ca2.xcert.crt,classpath:fiscal-certs/blagajne-test.fu.gov.si.cer}
   invoice-s3:

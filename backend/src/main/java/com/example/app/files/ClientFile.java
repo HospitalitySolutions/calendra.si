@@ -39,4 +39,7 @@ public class ClientFile extends BaseEntity {
 
     @Column(name = "uploaded_by_user_id")
     private Long uploadedByUserId;
+
+    @Column(name = "pending_inbox_attachment", nullable = false)
+    private boolean pendingInboxAttachment;
 }

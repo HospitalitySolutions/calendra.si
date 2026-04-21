@@ -261,6 +261,103 @@ struct NotificationsPayloadModel: Codable {
     let items: [NotificationModel]
 }
 
+
+struct GuestInboxThreadModel: Codable, Hashable {
+    let clientId: Int64
+    let clientFirstName: String
+    let clientLastName: String
+    let lastPreview: String?
+    let lastSenderName: String?
+    let lastSentAt: String?
+    let messageCount: Int64
+    let unreadCount: Int64
+}
+
+struct GuestInboxAttachmentModel: Codable, Hashable {
+    let id: Int64
+    let clientFileId: Int64
+    let fileName: String
+    let contentType: String?
+    let sizeBytes: Int64
+    let uploadedAt: String?
+}
+
+extension GuestInboxAttachmentModel {
+    var isImageAttachment: Bool {
+        let lowercasedName = fileName.lowercased()
+        return (contentType ?? "").lowercased().hasPrefix("image/") ||
+            lowercasedName.hasSuffix(".png") ||
+            lowercasedName.hasSuffix(".jpg") ||
+            lowercasedName.hasSuffix(".jpeg") ||
+            lowercasedName.hasSuffix(".gif") ||
+            lowercasedName.hasSuffix(".webp") ||
+            lowercasedName.hasSuffix(".bmp") ||
+            lowercasedName.hasSuffix(".heic") ||
+            lowercasedName.hasSuffix(".heif")
+    }
+
+    var isPdfAttachment: Bool {
+        let lowercasedName = fileName.lowercased()
+        return (contentType ?? "").lowercased().contains("pdf") || lowercasedName.hasSuffix(".pdf")
+    }
+
+    var fileTypeLabel: String {
+        if isPdfAttachment { return "PDF" }
+        if isImageAttachment { return "IMAGE" }
+        let ext = fileName.split(separator: ".").last.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return ext.isEmpty ? "FILE" : ext.uppercased()
+    }
+
+    var formattedSize: String? {
+        guard sizeBytes > 0 else { return nil }
+        let bytes = Double(sizeBytes)
+        let kb = 1024.0
+        let mb = kb * 1024.0
+        if bytes >= mb {
+            return String(format: "%.1f MB", bytes / mb)
+        }
+        if bytes >= kb {
+            return String(format: "%.0f KB", bytes / kb)
+        }
+        return "\(sizeBytes) B"
+    }
+}
+
+struct GuestInboxMessageModel: Identifiable, Codable, Hashable {
+    let id: Int64
+    let clientId: Int64
+    let clientFirstName: String
+    let clientLastName: String
+    let recipient: String
+    let channel: String
+    let direction: String
+    let status: String
+    let subject: String?
+    let body: String
+    let externalMessageId: String?
+    let errorMessage: String?
+    let senderName: String?
+    let senderPhone: String?
+    let sentAt: String?
+    let createdAt: String
+    let attachments: [GuestInboxAttachmentModel]? = nil
+}
+
+struct GuestInboxSendPayload: Codable {
+    let companyId: String
+    let body: String
+}
+
+struct DeviceTokenPayload: Codable {
+    let platform: String
+    let pushToken: String
+    let locale: String?
+}
+
+struct DeviceTokenResponseModel: Codable {
+    let registered: Bool
+}
+
 struct TenantDashboardModel: Hashable {
     let tenant: TenantModel
     let upcomingBookings: [BookingModel]
@@ -268,6 +365,8 @@ struct TenantDashboardModel: Hashable {
     let orders: [OrderModel]
     let notifications: [NotificationModel]
     let products: [ProductModel]
+    let inboxThread: GuestInboxThreadModel?
+    let inboxMessages: [GuestInboxMessageModel]
 }
 
 struct BookingCardModel: Identifiable, Hashable {

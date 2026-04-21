@@ -63,6 +63,11 @@ struct MainTabView: View {
                 Task { await store.refreshOnAppBecameActive() }
             }
         }
+        .onChange(of: store.pendingInboxOpenCompanyId) { companyId in
+            guard companyId != nil else { return }
+            selectedTab = .inbox
+            store.consumePendingInboxOpen()
+        }
         .confirmationDialog("Add tenancy", isPresented: $showAddOptions, titleVisibility: .visible) {
             Button("Add code manually") { showManualCodeSheet = true }
             Button("QR scan") { showScannerSheet = true }
