@@ -316,6 +316,13 @@ class PreviewDataFactory {
                 status = "PAID",
                 nextAction = "COMPLETE"
             )
+        } else if (request.paymentMethodType == "PAY_AT_VENUE") {
+            CheckoutResponse(
+                orderId = orderId,
+                paymentMethodType = "PAY_AT_VENUE",
+                status = "PAID",
+                nextAction = "COMPLETE"
+            )
         } else {
             CheckoutResponse(
                 orderId = orderId,

@@ -21,7 +21,11 @@ public final class GuestMapper {
         );
     }
 
-    public static GuestDtos.TenantSummaryResponse toTenantSummary(GuestTenantLink link, GuestSettingsService.GuestPublicSettings settings) {
+    public static GuestDtos.TenantSummaryResponse toTenantSummary(
+            GuestTenantLink link,
+            GuestSettingsService.GuestPublicSettings settings,
+            boolean requireOnlinePayment
+    ) {
         Company company = link.getCompany();
         return new GuestDtos.TenantSummaryResponse(
                 String.valueOf(company.getId()),
@@ -31,11 +35,16 @@ public final class GuestMapper {
                 settings.publicPhone(),
                 displayCompanyAddressLine(settings),
                 link.getStatus().name(),
-                settings.employeeSelectionStep()
+                settings.employeeSelectionStep(),
+                requireOnlinePayment
         );
     }
 
-    public static GuestDtos.TenantSummaryResponse toTenantSummary(Company company, GuestSettingsService.GuestPublicSettings settings) {
+    public static GuestDtos.TenantSummaryResponse toTenantSummary(
+            Company company,
+            GuestSettingsService.GuestPublicSettings settings,
+            boolean requireOnlinePayment
+    ) {
         return new GuestDtos.TenantSummaryResponse(
                 String.valueOf(company.getId()),
                 displayCompanyName(company, settings),
@@ -44,7 +53,8 @@ public final class GuestMapper {
                 settings.publicPhone(),
                 displayCompanyAddressLine(settings),
                 "ACTIVE",
-                settings.employeeSelectionStep()
+                settings.employeeSelectionStep(),
+                requireOnlinePayment
         );
     }
 

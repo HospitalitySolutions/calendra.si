@@ -53,7 +53,8 @@ public class GuestSettingsService {
                 root.path("sameDayBankTransferAllowed").asBoolean(false),
                 root.path("bankTransferReservesSlot").asBoolean(false),
                 readTextArray(root.path("allowBankTransferFor"), List.of("PACK", "MEMBERSHIP")),
-                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP"))
+                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP")),
+                root.path("requireOnlinePayment").asBoolean(true)
         );
     }
 
@@ -104,5 +105,15 @@ public class GuestSettingsService {
     }
 
     public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep) {}
-    public record GuestBookingRules(int cancelUntilHours, int rescheduleUntilHours, boolean lateCancelConsumesCredit, boolean noShowConsumesCredit, boolean sameDayBankTransferAllowed, boolean bankTransferReservesSlot, List<String> allowBankTransferFor, List<String> allowCardFor) {}
+    public record GuestBookingRules(
+            int cancelUntilHours,
+            int rescheduleUntilHours,
+            boolean lateCancelConsumesCredit,
+            boolean noShowConsumesCredit,
+            boolean sameDayBankTransferAllowed,
+            boolean bankTransferReservesSlot,
+            List<String> allowBankTransferFor,
+            List<String> allowCardFor,
+            boolean requireOnlinePayment
+    ) {}
 }

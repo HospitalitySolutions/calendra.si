@@ -115,6 +115,7 @@ public class PublicBookingWidgetService {
         guardPublicWidgetRequest(company, request, false, "config");
         var cfg = loadConfig(company.getId());
         var publicSettings = guestSettingsService.publicSettings(company.getId());
+        var bookingRules = guestSettingsService.bookingRules(company.getId());
         var allowedPaymentMethods = resolveAllowedPaymentMethods(company);
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
@@ -128,6 +129,7 @@ public class PublicBookingWidgetService {
                 widgetTurnstileService.isEnabled(company),
                 widgetTurnstileService.siteKey(company),
                 publicSettings.employeeSelectionStep(),
+                bookingRules.requireOnlinePayment(),
                 allowedPaymentMethods
         );
     }

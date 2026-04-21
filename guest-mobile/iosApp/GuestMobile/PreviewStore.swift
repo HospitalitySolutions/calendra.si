@@ -12,8 +12,8 @@ final class PreviewStore: ObservableObject {
     )
 
     @Published var linkedTenants: [TenantModel] = [
-        TenantModel(id: "tenant-northside", name: "Northside Fitness", description: "Premium training studio", city: "Ljubljana", phone: "+38640111222", status: "ACTIVE", companyAddress: "Dunajska cesta 1, 1000 Ljubljana"),
-        TenantModel(id: "tenant-yoga", name: "Blue River Yoga", description: "Studio classes and private sessions", city: "Celje", phone: "+38640111333", status: "ACTIVE", companyAddress: nil)
+        TenantModel(id: "tenant-northside", name: "Northside Fitness", description: "Premium training studio", city: "Ljubljana", phone: "+38640111222", status: "ACTIVE", companyAddress: "Dunajska cesta 1, 1000 Ljubljana", requireOnlinePayment: true),
+        TenantModel(id: "tenant-yoga", name: "Blue River Yoga", description: "Studio classes and private sessions", city: "Celje", phone: "+38640111333", status: "ACTIVE", companyAddress: nil, requireOnlinePayment: true)
     ]
 
     private var linkedCompanyCatalog: [String: [GuestLinkedCompanyOptionModel]] = [

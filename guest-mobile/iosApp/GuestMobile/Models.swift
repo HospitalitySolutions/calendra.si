@@ -18,6 +18,8 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let status: String?
     let companyAddress: String?
     let employeeSelectionStep: Bool?
+    /// When false, session bookings complete with pay-at-venue (no online payment step).
+    let requireOnlinePayment: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id = "companyId"
@@ -28,9 +30,20 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case status
         case companyAddress
         case employeeSelectionStep
+        case requireOnlinePayment
     }
 
-    init(id: String, name: String, description: String?, city: String?, phone: String?, status: String?, companyAddress: String?, employeeSelectionStep: Bool? = nil) {
+    init(
+        id: String,
+        name: String,
+        description: String?,
+        city: String?,
+        phone: String?,
+        status: String?,
+        companyAddress: String?,
+        employeeSelectionStep: Bool? = nil,
+        requireOnlinePayment: Bool? = nil
+    ) {
         self.id = id
         self.name = name
         self.description = description
@@ -39,6 +52,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.status = status
         self.companyAddress = companyAddress
         self.employeeSelectionStep = employeeSelectionStep
+        self.requireOnlinePayment = requireOnlinePayment
     }
 
     init(from decoder: Decoder) throws {
@@ -51,6 +65,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.status = try c.decodeIfPresent(String.self, forKey: .status)
         self.companyAddress = try c.decodeIfPresent(String.self, forKey: .companyAddress)
         self.employeeSelectionStep = try c.decodeIfPresent(Bool.self, forKey: .employeeSelectionStep)
+        self.requireOnlinePayment = try c.decodeIfPresent(Bool.self, forKey: .requireOnlinePayment)
     }
 }
 

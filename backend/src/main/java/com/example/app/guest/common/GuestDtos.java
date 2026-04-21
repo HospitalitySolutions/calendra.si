@@ -6,7 +6,17 @@ public final class GuestDtos {
     private GuestDtos() {}
 
     public record GuestUserResponse(String id, String email, String firstName, String lastName, String phone, String language) {}
-    public record TenantSummaryResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String status, boolean employeeSelectionStep) {}
+    public record TenantSummaryResponse(
+            String companyId,
+            String companyName,
+            String publicDescription,
+            String publicCity,
+            String publicPhone,
+            String companyAddress,
+            String status,
+            boolean employeeSelectionStep,
+            boolean requireOnlinePayment
+    ) {}
     public record GuestSessionResponse(String token, GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record GuestProfileResponse(GuestUserResponse guestUser, List<TenantSummaryResponse> linkedTenants) {}
     public record LinkedCompanyOptionResponse(String id, String name) {}

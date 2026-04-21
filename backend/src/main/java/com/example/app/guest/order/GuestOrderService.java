@@ -100,7 +100,8 @@ public class GuestOrderService {
         order.setStatus(OrderStatus.PENDING);
         order.setPaymentMethodType(paymentMethodType);
         order.setCurrency(product.currency());
-        BigDecimal orderSubtotal = paymentMethodType == GuestPaymentMethodType.ENTITLEMENT ? BigDecimal.ZERO : product.priceGross();
+        BigDecimal orderSubtotal =
+                paymentMethodType == GuestPaymentMethodType.ENTITLEMENT ? BigDecimal.ZERO : product.priceGross();
         order.setSubtotalGross(orderSubtotal);
         order.setTaxAmount(BigDecimal.ZERO);
         order.setTotalGross(orderSubtotal);
@@ -135,6 +136,30 @@ public class GuestOrderService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entitlement checkout requires a valid service.");
             }
             entitlementService.consumeBestMatchingEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), booking);
+            notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
+            return new GuestDtos.CheckoutResponse(
+                    String.valueOf(order.getId()),
+                    paymentMethodType.name(),
+                    order.getStatus().name(),
+                    null,
+                    null,
+                    "COMPLETE",
+                    null,
+                    null,
+                    null,
+                    order.getCompany().getName()
+            );
+        }
+
+        if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE) {
+            // PAID clears pending-order noise in the app; amount is informational until collected at venue.
+            order.setStatus(OrderStatus.PAID);
+            order.setPaidAt(Instant.now());
+            order = orders.save(order);
+            SessionBooking booking = maybeCreateConfirmedBooking(order);
+            if (booking == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pay at venue checkout requires a booking slot.");
+            }
             notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
@@ -279,14 +304,33 @@ public class GuestOrderService {
         }
     }
 
+    private static boolean isSessionLikeProductType(String productType) {
+        return "SESSION_SINGLE".equals(productType) || "CLASS_TICKET".equals(productType);
+    }
+
     private void assertPaymentMethodAllowed(Long companyId, GuestPaymentMethodType paymentMethodType, String productType) {
+        GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
+
+        if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE) {
+            if (!isSessionLikeProductType(productType)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pay at venue is only allowed for session bookings.");
+            }
+            if (rules.requireOnlinePayment()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This tenant requires online payment for bookings.");
+            }
+            return;
+        }
+
+        if (!rules.requireOnlinePayment() && isSessionLikeProductType(productType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use pay at venue to complete this booking without online payment.");
+        }
+
         if (paymentMethodType == GuestPaymentMethodType.ENTITLEMENT) {
             if (!("SESSION_SINGLE".equals(productType) || "CLASS_TICKET".equals(productType))) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Memberships and packs can only be used to pay for bookable sessions.");
             }
             return;
         }
-        GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
         if (paymentMethodType == GuestPaymentMethodType.PAYPAL) {
             String merchantId = companies.findById(companyId).map(c -> c.getPaypalMerchantId()).orElse(null);
             if (merchantId == null || merchantId.isBlank()) {

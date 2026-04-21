@@ -76,7 +76,7 @@ export function buildNewSlotSearchParams(q: NewSlotQuery): string {
       sp.set('spaceId', String(q.spaceId))
     }
   }
-  if (q.clientId != null && Number.isFinite(Number(q.clientId))) {
+  if (q.clientId != null && Number.isInteger(Number(q.clientId)) && Number(q.clientId) > 0) {
     sp.set('clientId', String(q.clientId))
   }
   if (q.resourceId != null && q.resourceId !== '') {
@@ -114,7 +114,7 @@ export function parseNewSlotQuery(search: string): Partial<NewSlotQuery> & { sta
   }
   if (clientRaw != null && clientRaw !== '') {
     const n = Number(clientRaw)
-    if (Number.isFinite(n)) out.clientId = n
+    if (Number.isInteger(n) && n > 0) out.clientId = n
   }
   if (resourceId) out.resourceId = resourceId
   if (outsideBookable) out.outsideBookable = true

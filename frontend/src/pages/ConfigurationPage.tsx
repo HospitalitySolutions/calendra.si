@@ -210,6 +210,7 @@ type GuestBookingRulesForm = {
   noShowConsumesCredit: boolean
   sameDayBankTransferAllowed: boolean
   bankTransferReservesSlot: boolean
+  requireOnlinePayment: boolean
   allowBankTransferFor: string[]
   allowCardFor: string[]
 }
@@ -318,6 +319,7 @@ const defaultGuestBookingRules = (): GuestBookingRulesForm => ({
   noShowConsumesCredit: true,
   sameDayBankTransferAllowed: false,
   bankTransferReservesSlot: false,
+  requireOnlinePayment: true,
   allowBankTransferFor: ['PACK', 'MEMBERSHIP'],
   allowCardFor: ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP'],
 })
@@ -354,6 +356,7 @@ const parseGuestBookingRules = (raw: string | undefined): GuestBookingRulesForm 
       noShowConsumesCredit: parsed?.noShowConsumesCredit !== false,
       sameDayBankTransferAllowed: parsed?.sameDayBankTransferAllowed === true,
       bankTransferReservesSlot: parsed?.bankTransferReservesSlot === true,
+      requireOnlinePayment: parsed?.requireOnlinePayment !== false,
       allowBankTransferFor: normalizeAllowed(parsed?.allowBankTransferFor, ['PACK', 'MEMBERSHIP']),
       allowCardFor: normalizeAllowed(parsed?.allowCardFor, ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP']),
     }
@@ -379,6 +382,7 @@ const serializeGuestBookingRules = (value: GuestBookingRulesForm) => JSON.string
   noShowConsumesCredit: value.noShowConsumesCredit,
   sameDayBankTransferAllowed: value.sameDayBankTransferAllowed,
   bankTransferReservesSlot: value.bankTransferReservesSlot,
+  requireOnlinePayment: value.requireOnlinePayment,
   allowBankTransferFor: value.allowBankTransferFor,
   allowCardFor: value.allowCardFor,
 })
@@ -1665,6 +1669,24 @@ export function ConfigurationPage() {
                 <div className="online-live-toggle" style={{ maxWidth: 220 }}>
                   <button type="button" className={!guestBookingRules.bankTransferReservesSlot ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, bankTransferReservesSlot: false })}>OFF</button>
                   <button type="button" className={guestBookingRules.bankTransferReservesSlot ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, bankTransferReservesSlot: true })}>ON</button>
+                </div>
+              </Field>
+              <Field label={t('configGuestRequireOnlinePayment')} hint={t('configGuestRequireOnlinePaymentHint')}>
+                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+                  <button
+                    type="button"
+                    className={!guestBookingRules.requireOnlinePayment ? 'toggle-btn active' : 'toggle-btn'}
+                    onClick={() => setGuestBookingRules({ ...guestBookingRules, requireOnlinePayment: false })}
+                  >
+                    OFF
+                  </button>
+                  <button
+                    type="button"
+                    className={guestBookingRules.requireOnlinePayment ? 'toggle-btn active' : 'toggle-btn'}
+                    onClick={() => setGuestBookingRules({ ...guestBookingRules, requireOnlinePayment: true })}
+                  >
+                    ON
+                  </button>
                 </div>
               </Field>
 

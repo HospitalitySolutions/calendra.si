@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 final class AppStore: ObservableObject {
     @Published var user = GuestUserModel(id: "guest-1", email: "ana@example.com", firstName: "Ana", lastName: "Novak", phone: nil, language: "sl")
-    @Published var currentTenant = TenantModel(id: "tenant-northside", name: "Northside Fitness", description: "Premium training studio", city: "Ljubljana", phone: nil, status: "ACTIVE", companyAddress: nil)
+    @Published var currentTenant = TenantModel(id: "tenant-northside", name: "Northside Fitness", description: "Premium training studio", city: "Ljubljana", phone: nil, status: "ACTIVE", companyAddress: nil, requireOnlinePayment: true)
     @Published var linkedTenants: [TenantModel] = []
     @Published var selectedTenantId: String?
     @Published var tenantDashboards: [String: TenantDashboardModel] = [:]
@@ -236,13 +236,14 @@ final class AppStore: ObservableObject {
     func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil) async throws -> CheckoutResponseModel {
         let response: CheckoutResponseModel
         if usePreviewData {
+            let completeImmediately = paymentMethod == "ENTITLEMENT" || paymentMethod == "PAY_AT_VENUE"
             response = CheckoutResponseModel(
                 orderId: UUID().uuidString,
                 paymentMethodType: paymentMethod,
-                status: paymentMethod == "ENTITLEMENT" ? "PAID" : "PENDING",
+                status: completeImmediately ? "PAID" : "PENDING",
                 checkoutUrl: paymentMethod == "CARD" ? "https://checkout.stripe.example/session/mock" : (paymentMethod == "PAYPAL" ? "https://www.sandbox.paypal.com/checkoutnow?token=mock" : nil),
                 bankTransfer: paymentMethod == "BANK_TRANSFER" ? BankTransferInstructionsModel(amount: 59, currency: "EUR", referenceCode: "ORD-2026-00014", instructions: "Use the reference code when paying.") : nil,
-                nextAction: paymentMethod == "ENTITLEMENT" ? "COMPLETE" : ((paymentMethod == "CARD" || paymentMethod == "PAYPAL") ? "REDIRECT" : "SHOW_INSTRUCTIONS"),
+                nextAction: completeImmediately ? "COMPLETE" : ((paymentMethod == "CARD" || paymentMethod == "PAYPAL") ? "REDIRECT" : "SHOW_INSTRUCTIONS"),
                 paymentIntentClientSecret: nil,
                 customerId: nil,
                 customerEphemeralKeySecret: nil,

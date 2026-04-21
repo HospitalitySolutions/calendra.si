@@ -63,6 +63,11 @@ struct BookView: View {
         selectedProvider?.employeeSelectionStep ?? false
     }
 
+    /// When false, book flow uses pay-at-venue (no payment method UI) for session bookings.
+    private var skipsOnlinePaymentMethods: Bool {
+        !(selectedProvider?.requireOnlinePayment ?? true)
+    }
+
     private var visibleSteps: [BookFlowStep] {
         BookFlowStep.allCases.filter { step in
             step != .employee || employeeStepEnabled
@@ -90,6 +95,7 @@ struct BookView: View {
             return selectedSlot == nil
         case .paymentReview:
             if isSubmitting { return true }
+            if skipsOnlinePaymentMethods { return false }
             if selectedPaymentMethod == .card { return selectedStoredCard == nil }
             if selectedPaymentMethod == .entitlement { return matchingEntitlements.isEmpty }
             return false
@@ -304,7 +310,7 @@ struct BookView: View {
                         }
                         .frame(height: 36)
 
-                        Text(step.shortTitle)
+                        Text(stepDisplayTitle(step))
                             .font(.caption.weight(active ? .semibold : .regular))
                             .foregroundStyle(active ? Color.primary : Color.secondary)
                             .multilineTextAlignment(.center)
@@ -592,9 +598,9 @@ struct BookView: View {
         VStack(alignment: .leading, spacing: 10) {
             GuestSurfaceCard(contentPadding: 12, cornerRadius: 18) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("\(stepOrdinal(.paymentReview)). Payment & review")
+                    Text(skipsOnlinePaymentMethods ? "\(stepOrdinal(.paymentReview)). Review booking" : "\(stepOrdinal(.paymentReview)). Payment & review")
                         .font(.system(size: 16, weight: .bold))
-                    Text("Choose your preferred payment method")
+                    Text(skipsOnlinePaymentMethods ? "Confirm your booking without online payment (pay at venue)." : "Choose your preferred payment method")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -613,55 +619,63 @@ struct BookView: View {
                 .allowsHitTesting(false)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                paymentMethodCompactCard(
-                    title: "Use pass or visit",
-                    subtitle: matchingEntitlements.first.map { entitlement in
-                        let remaining = entitlement.remainingUses.map(String.init) ?? "Unlimited"
-                        return "\(entitlement.name) • \(remaining) left"
-                    } ?? "No valid pass or pack available",
-                    selected: selectedPaymentMethod == .entitlement,
-                    disabled: matchingEntitlements.isEmpty,
-                    onSelect: { selectedPaymentMethod = .entitlement },
-                    trailing: nil,
-                    onChevronTap: nil
-                )
-                paymentMethodCompactCard(
-                    title: "Credit Card",
-                    subtitle: creditCardSubtitle,
-                    selected: selectedPaymentMethod == .card,
-                    disabled: false,
-                    onSelect: { selectedPaymentMethod = .card },
-                    trailing: AnyView(HStack(spacing: 6) {
-                        paymentBrandBadge("VISA")
-                        paymentBrandBadge("MC")
-                    }),
-                    onChevronTap: {
-                        if storedProfile.cards.isEmpty {
-                            showingAddCardSheet = true
-                        } else {
-                            showingStoredCardSheet = true
+            if skipsOnlinePaymentMethods {
+                GuestSurfaceCard {
+                    Text("Payment is collected at the venue. Tap Confirm booking to reserve your slot.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    paymentMethodCompactCard(
+                        title: "Use pass or visit",
+                        subtitle: matchingEntitlements.first.map { entitlement in
+                            let remaining = entitlement.remainingUses.map(String.init) ?? "Unlimited"
+                            return "\(entitlement.name) • \(remaining) left"
+                        } ?? "No valid pass or pack available",
+                        selected: selectedPaymentMethod == .entitlement,
+                        disabled: matchingEntitlements.isEmpty,
+                        onSelect: { selectedPaymentMethod = .entitlement },
+                        trailing: nil,
+                        onChevronTap: nil
+                    )
+                    paymentMethodCompactCard(
+                        title: "Credit Card",
+                        subtitle: creditCardSubtitle,
+                        selected: selectedPaymentMethod == .card,
+                        disabled: false,
+                        onSelect: { selectedPaymentMethod = .card },
+                        trailing: AnyView(HStack(spacing: 6) {
+                            paymentBrandBadge("VISA")
+                            paymentBrandBadge("MC")
+                        }),
+                        onChevronTap: {
+                            if storedProfile.cards.isEmpty {
+                                showingAddCardSheet = true
+                            } else {
+                                showingStoredCardSheet = true
+                            }
                         }
-                    }
-                )
-                paymentMethodCompactCard(
-                    title: "Bank Transfer",
-                    subtitle: nil,
-                    selected: selectedPaymentMethod == .bankTransfer,
-                    disabled: false,
-                    onSelect: { selectedPaymentMethod = .bankTransfer },
-                    trailing: nil,
-                    onChevronTap: nil
-                )
-                paymentMethodCompactCard(
-                    title: "PayPal",
-                    subtitle: selectedPaymentMethod == .payPal ? "Approve securely in PayPal" : nil,
-                    selected: selectedPaymentMethod == .payPal,
-                    disabled: false,
-                    onSelect: { selectedPaymentMethod = .payPal },
-                    trailing: nil,
-                    onChevronTap: nil
-                )
+                    )
+                    paymentMethodCompactCard(
+                        title: "Bank Transfer",
+                        subtitle: nil,
+                        selected: selectedPaymentMethod == .bankTransfer,
+                        disabled: false,
+                        onSelect: { selectedPaymentMethod = .bankTransfer },
+                        trailing: nil,
+                        onChevronTap: nil
+                    )
+                    paymentMethodCompactCard(
+                        title: "PayPal",
+                        subtitle: selectedPaymentMethod == .payPal ? "Approve securely in PayPal" : nil,
+                        selected: selectedPaymentMethod == .payPal,
+                        disabled: false,
+                        onSelect: { selectedPaymentMethod = .payPal },
+                        trailing: nil,
+                        onChevronTap: nil
+                    )
+                }
             }
 
             if let service = selectedService {
@@ -688,6 +702,13 @@ struct BookView: View {
                 }
             }
         }
+    }
+
+    private func stepDisplayTitle(_ step: BookFlowStep) -> String {
+        if step == .paymentReview, skipsOnlinePaymentMethods {
+            return "Review"
+        }
+        return step.shortTitle
     }
 
     private var creditCardSubtitle: String {
@@ -797,11 +818,12 @@ struct BookView: View {
     private func confirmBooking(service: ServiceOptionModel, slot: AvailabilitySlotModel) async {
         do {
             isSubmitting = true
+            let paymentApi = skipsOnlinePaymentMethods ? "PAY_AT_VENUE" : selectedPaymentMethod.apiValue
             let checkout = try await store.createOrder(
                 companyId: service.companyId,
                 productId: service.productId,
                 slotId: slot.id,
-                paymentMethod: selectedPaymentMethod.apiValue,
+                paymentMethod: paymentApi,
                 consultantId: employeeStepEnabled ? selectedConsultantId : nil
             )
             isSubmitting = false

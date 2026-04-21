@@ -11,7 +11,8 @@ data class TenantSummary(
     val publicPhone: String? = null,
     val companyAddress: String? = null,
     val status: String = "ACTIVE",
-    val employeeSelectionStep: Boolean = false
+    val employeeSelectionStep: Boolean = false,
+    val requireOnlinePayment: Boolean = true
 )
 
 @Serializable

@@ -89,7 +89,8 @@ import java.util.UUID
 data class ProviderOption(
     val companyId: String,
     val tenantName: String,
-    val tenantAddress: String?
+    val tenantAddress: String?,
+    val requireOnlinePayment: Boolean = true
 )
 
 
@@ -234,6 +235,7 @@ fun BookScreen(
     }
 
     val selectedProvider = providers.firstOrNull { it.companyId == selectedProviderId }
+    val skipsOnlinePayment = selectedProvider?.requireOnlinePayment == false
     val selectedService = providerScopedServices.firstOrNull { it.id == selectedServiceId }
     val selectedSlot = slots.firstOrNull { it.slotId == selectedSlotId }
     val matchingEntitlements = redeemableEntitlements.filter { entitlement ->
@@ -359,6 +361,7 @@ fun BookScreen(
                     BookingStepper(
                         currentStep = currentStep,
                         visibleSteps = visibleSteps,
+                        skipsOnlinePayment = skipsOnlinePayment,
                         modifier = Modifier.offset(y = (-8).dp)
                     )
                 }
@@ -559,75 +562,98 @@ fun BookScreen(
 
                 BookingFlowStep.PAYMENT_REVIEW -> {
                     item {
+                        val payOrdinal = visibleSteps.indexOf(BookingFlowStep.PAYMENT_REVIEW).takeIf { it >= 0 }?.plus(1) ?: BookingFlowStep.PAYMENT_REVIEW.index
                         BookSelectStepHeader(
-                            title = BookingFlowStep.PAYMENT_REVIEW.headerTitleFor(employeeStepActive),
-                            subtitle = BookingFlowStep.PAYMENT_REVIEW.headerSubtitle
+                            title = if (skipsOnlinePayment) {
+                                "$payOrdinal. Review booking"
+                            } else {
+                                BookingFlowStep.PAYMENT_REVIEW.headerTitleFor(employeeStepActive)
+                            },
+                            subtitle = if (skipsOnlinePayment) {
+                                "Confirm without online payment (pay at venue)."
+                            } else {
+                                BookingFlowStep.PAYMENT_REVIEW.headerSubtitle
+                            }
                         )
                     }
 
                     item {
-                        val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
-                        val cardSubtitle = activeCard?.let {
-                            "•••• ${it.last4} · valid thru ${it.expiryMonth}/${it.expiryYear}"
-                        } ?: "Add a card to pay by credit card"
-                        val bestEntitlement = matchingEntitlements.firstOrNull()
-                        val entitlementSubtitle = bestEntitlement?.let {
-                            buildString {
-                                append(it.productName)
-                                append(" • ")
-                                append(it.remainingUses?.let { remaining -> "$remaining left" } ?: "unlimited")
-                                if (!it.validUntil.isNullOrBlank()) {
-                                    append(" • valid until ")
-                                    append(it.validUntil.take(10))
-                                }
+                        if (skipsOnlinePayment) {
+                            ElevatedCard(
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Text(
+                                    "Payment is collected at the venue. Tap Confirm booking to reserve your slot.",
+                                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                        } ?: "No valid pass or pack available for this service"
+                        } else {
+                            val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
+                            val cardSubtitle = activeCard?.let {
+                                "•••• ${it.last4} · valid thru ${it.expiryMonth}/${it.expiryYear}"
+                            } ?: "Add a card to pay by credit card"
+                            val bestEntitlement = matchingEntitlements.firstOrNull()
+                            val entitlementSubtitle = bestEntitlement?.let {
+                                buildString {
+                                    append(it.productName)
+                                    append(" • ")
+                                    append(it.remainingUses?.let { remaining -> "$remaining left" } ?: "unlimited")
+                                    if (!it.validUntil.isNullOrBlank()) {
+                                        append(" • valid until ")
+                                        append(it.validUntil.take(10))
+                                    }
+                                }
+                            } ?: "No valid pass or pack available for this service"
 
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (matchingEntitlements.isNotEmpty()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (matchingEntitlements.isNotEmpty()) {
+                                    PaymentMethodCard(
+                                        label = PaymentMethodUi.ENTITLEMENT.title,
+                                        subtitle = if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT) entitlementSubtitle else null,
+                                        selected = selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT,
+                                        enabled = true,
+                                        onSelect = { selectedPaymentMethod = PaymentMethodUi.ENTITLEMENT },
+                                        trailing = null,
+                                        onManageChevron = null
+                                    )
+                                }
                                 PaymentMethodCard(
-                                    label = PaymentMethodUi.ENTITLEMENT.title,
-                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT) entitlementSubtitle else null,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT,
+                                    label = PaymentMethodUi.CARD.title,
+                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
+                                    selected = selectedPaymentMethod == PaymentMethodUi.CARD,
                                     enabled = true,
-                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.ENTITLEMENT },
+                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.CARD },
+                                    trailing = { CardBrandBadges() },
+                                    onManageChevron = {
+                                        if (savedCards.isEmpty()) showAddCardDialog = true
+                                        else showCardChooserDialog = true
+                                    }
+                                )
+                                PaymentMethodCard(
+                                    label = PaymentMethodUi.BANK_TRANSFER.title,
+                                    subtitle = null,
+                                    selected = selectedPaymentMethod == PaymentMethodUi.BANK_TRANSFER,
+                                    enabled = true,
+                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.BANK_TRANSFER },
+                                    trailing = null,
+                                    onManageChevron = null
+                                )
+                                PaymentMethodCard(
+                                    label = PaymentMethodUi.PAYPAL.title,
+                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.PAYPAL) PaymentMethodUi.PAYPAL.helper else null,
+                                    selected = selectedPaymentMethod == PaymentMethodUi.PAYPAL,
+                                    enabled = true,
+                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.PAYPAL },
                                     trailing = null,
                                     onManageChevron = null
                                 )
                             }
-                            PaymentMethodCard(
-                                label = PaymentMethodUi.CARD.title,
-                                subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
-                                selected = selectedPaymentMethod == PaymentMethodUi.CARD,
-                                enabled = true,
-                                onSelect = { selectedPaymentMethod = PaymentMethodUi.CARD },
-                                trailing = { CardBrandBadges() },
-                                onManageChevron = {
-                                    if (savedCards.isEmpty()) showAddCardDialog = true
-                                    else showCardChooserDialog = true
-                                }
-                            )
-                            PaymentMethodCard(
-                                label = PaymentMethodUi.BANK_TRANSFER.title,
-                                subtitle = null,
-                                selected = selectedPaymentMethod == PaymentMethodUi.BANK_TRANSFER,
-                                enabled = true,
-                                onSelect = { selectedPaymentMethod = PaymentMethodUi.BANK_TRANSFER },
-                                trailing = null,
-                                onManageChevron = null
-                            )
-                            PaymentMethodCard(
-                                label = PaymentMethodUi.PAYPAL.title,
-                                subtitle = if (selectedPaymentMethod == PaymentMethodUi.PAYPAL) PaymentMethodUi.PAYPAL.helper else null,
-                                selected = selectedPaymentMethod == PaymentMethodUi.PAYPAL,
-                                enabled = true,
-                                onSelect = { selectedPaymentMethod = PaymentMethodUi.PAYPAL },
-                                trailing = null,
-                                onManageChevron = null
-                            )
                         }
                     }
 
@@ -701,12 +727,18 @@ fun BookScreen(
                 )
                 BookingFlowStep.PAYMENT_REVIEW -> ContinueButton(
                     label = "Confirm booking",
-                    enabled = selectedService != null && selectedSlot != null && selectedPaymentMethod.enabled && !submitting && (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || matchingEntitlements.isNotEmpty()),
+                    enabled = selectedService != null && selectedSlot != null && !submitting && (
+                        skipsOnlinePayment || (
+                            selectedPaymentMethod.enabled &&
+                                (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || matchingEntitlements.isNotEmpty()) &&
+                                (selectedPaymentMethod != PaymentMethodUi.CARD || selectedSavedCardId != null)
+                            )
+                        ),
                     loading = submitting,
                     onClick = {
                         val service = selectedService ?: return@ContinueButton
                         val slot = selectedSlot ?: return@ContinueButton
-                        val method = selectedPaymentMethod.apiValue ?: return@ContinueButton
+                        val method = if (skipsOnlinePayment) "PAY_AT_VENUE" else (selectedPaymentMethod.apiValue ?: return@ContinueButton)
                         scope.launch {
                             submitting = true
                             val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null
@@ -761,6 +793,7 @@ private fun BookingHeader(
 private fun BookingStepper(
     currentStep: BookingFlowStep,
     visibleSteps: List<BookingFlowStep> = BookingFlowStep.ordered,
+    skipsOnlinePayment: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val steps = visibleSteps
@@ -846,7 +879,7 @@ private fun BookingStepper(
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    step.stepTitle,
+                    if (skipsOnlinePayment && step == BookingFlowStep.PAYMENT_REVIEW) "Review" else step.stepTitle,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 2.dp),

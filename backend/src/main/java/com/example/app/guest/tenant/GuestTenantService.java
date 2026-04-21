@@ -92,7 +92,7 @@ public class GuestTenantService {
         for (Company company : candidates) {
             var settings = guestSettings.publicSettings(company.getId());
             if (!settings.guestAppEnabled() || !settings.publicDiscoverable()) continue;
-            out.add(GuestMapper.toTenantSummary(company, settings));
+            out.add(GuestMapper.toTenantSummary(company, settings, guestSettings.bookingRules(company.getId()).requireOnlinePayment()));
         }
         out.sort(Comparator.comparing(GuestDtos.TenantSummaryResponse::companyName, String.CASE_INSENSITIVE_ORDER));
         return out;
@@ -140,7 +140,7 @@ public class GuestTenantService {
         return links.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
                 .map(link -> {
                     var settings = guestSettings.publicSettings(link.getCompany().getId());
-                    return GuestMapper.toTenantSummary(link, settings);
+                    return GuestMapper.toTenantSummary(link, settings, guestSettings.bookingRules(link.getCompany().getId()).requireOnlinePayment());
                 })
                 .toList();
     }

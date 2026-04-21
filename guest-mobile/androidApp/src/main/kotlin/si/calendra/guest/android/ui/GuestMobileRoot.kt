@@ -359,7 +359,8 @@ fun GuestMobileRoot() {
                             ProviderOption(
                                 companyId = provider.companyId,
                                 tenantName = provider.companyName,
-                                tenantAddress = provider.companyAddress ?: provider.publicCity
+                                tenantAddress = provider.companyAddress ?: provider.publicCity,
+                                requireOnlinePayment = provider.requireOnlinePayment
                             )
                         },
                         services = aggregatedServices(state.uiState),

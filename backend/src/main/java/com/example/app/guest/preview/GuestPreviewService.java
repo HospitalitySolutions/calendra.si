@@ -115,7 +115,8 @@ final class GuestPreviewService {
                 "Premium training studio",
                 "Ljubljana",
                 "+38640111222",
-                "ACTIVE"
+                "ACTIVE",
+                true
         );
     }
 
@@ -126,7 +127,8 @@ final class GuestPreviewService {
                 "Studio classes and private sessions",
                 "Celje",
                 "+38640111333",
-                "ACTIVE"
+                "ACTIVE",
+                true
         );
     }
 }

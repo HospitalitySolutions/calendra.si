@@ -29,7 +29,8 @@ public class GuestHomeService {
     public GuestDtos.HomeResponse home(GuestUser guestUser, Long companyId) {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         var publicSettings = settingsService.publicSettings(companyId);
-        GuestDtos.TenantSummaryResponse tenant = GuestMapper.toTenantSummary(link, publicSettings);
+        boolean requireOnlinePayment = settingsService.bookingRules(companyId).requireOnlinePayment();
+        GuestDtos.TenantSummaryResponse tenant = GuestMapper.toTenantSummary(link, publicSettings, requireOnlinePayment);
         List<GuestDtos.UpcomingBookingResponse> upcoming = bookings.findByClientIdAndCompanyId(link.getClient().getId(), companyId).stream()
                 .filter(b -> b.getStartTime() != null && b.getStartTime().isAfter(LocalDateTime.now()))
                 .sorted(Comparator.comparing(com.example.app.session.SessionBooking::getStartTime))

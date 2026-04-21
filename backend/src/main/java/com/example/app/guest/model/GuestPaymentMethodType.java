@@ -4,5 +4,7 @@ public enum GuestPaymentMethodType {
     CARD,
     BANK_TRANSFER,
     ENTITLEMENT,
-    PAYPAL
+    PAYPAL,
+    /** Guest completes booking without online payment; settle at venue (not cash-received in reporting sense). */
+    PAY_AT_VENUE
 }

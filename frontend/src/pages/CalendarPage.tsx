@@ -1945,8 +1945,13 @@ export default function CalendarPage() {
       const pendingGroupIdRaw = pending.groupId != null ? Number(pending.groupId) : NaN
       const pendingGroupId = Number.isFinite(pendingGroupIdRaw) && pendingGroupIdRaw > 0 ? pendingGroupIdRaw : null
       const pendingClientIds = Array.isArray(pending.clientIds)
-        ? pending.clientIds.map((v: any) => Number(v)).filter((v: number) => Number.isFinite(v))
-        : (pending.clientId ? [Number(pending.clientId)] : [])
+        ? pending.clientIds
+            .map((v: any) => Number(v))
+            .filter((v: number) => Number.isInteger(v) && v > 0)
+        : (() => {
+            const n = Number(pending.clientId)
+            return Number.isInteger(n) && n > 0 ? [n] : []
+          })()
       const hasClients = pendingClientIds.length > 0
       if ((!hasClients && !pendingGroupId) || !pending.consultantId || !pending.startTime || !pending.endTime) return
       Promise.all([
@@ -2358,7 +2363,7 @@ export default function CalendarPage() {
         end: endLocal,
         consultantId: defaultConsultantId,
         spaceId: form.spaceId !== undefined ? form.spaceId : undefined,
-        clientId: form.clientId != null && Number.isFinite(Number(form.clientId)) ? form.clientId : undefined,
+        clientId: form.clientId != null && Number.isInteger(Number(form.clientId)) && Number(form.clientId) > 0 ? form.clientId : undefined,
         resourceId:
           selection?.resourceId != null && selection.resourceId !== ''
             ? String(selection.resourceId)
@@ -3835,10 +3840,10 @@ export default function CalendarPage() {
     const out: number[] = []
     ids.forEach((value: any) => {
       const n = Number(value)
-      if (Number.isFinite(n) && !out.includes(n)) out.push(n)
+      if (Number.isInteger(n) && n > 0 && !out.includes(n)) out.push(n)
     })
     const fallback = Number(fallbackClientId)
-    if (Number.isFinite(fallback) && !out.includes(fallback)) out.push(fallback)
+    if (Number.isInteger(fallback) && fallback > 0 && !out.includes(fallback)) out.push(fallback)
     return out
   }
 

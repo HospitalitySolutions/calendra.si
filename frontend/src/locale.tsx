@@ -24,6 +24,9 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     tabBooking: 'Booking',
     tabBilling: 'Billing',
     tabGuestApp: 'Guest app',
+    configGuestRequireOnlinePayment: 'Require online payment',
+    configGuestRequireOnlinePaymentHint:
+      'When OFF, guests confirm single-session and class-ticket bookings on the last step without a payment method (pay at venue). Packs and memberships still require online payment.',
     tabConsultants: 'Employees',
     tabSessionServiceTypes: 'Service type',
     sessionTypesPageSubtitle: 'Define session categories and link billing services.',
@@ -510,6 +513,9 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     tabBooking: 'Rezervacije',
     tabBilling: 'Obračun',
     tabGuestApp: 'Guest aplikacija',
+    configGuestRequireOnlinePayment: 'Zahtevaj spletno plačilo',
+    configGuestRequireOnlinePaymentHint:
+      'Če je IZKLOPLJENO, gostje ob posamezni seansi in vstopnicah za tečaj na zadnjem koraku potrdijo rezervacijo brez izbire plačila (plačilo na lokaciji). Paketi in članstva še vedno zahtevajo spletno plačilo.',
     tabConsultants: 'Zaposleni',
     tabSessionServiceTypes: 'Tip storitve',
     sessionTypesPageSubtitle: 'Določite kategorije seans in povežite obračunske storitve.',

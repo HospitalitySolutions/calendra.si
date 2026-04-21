@@ -22,10 +22,13 @@
       sectionConsultant: 'Choose employee',
       sectionDateTime: 'Choose date and time',
       sectionGuest: 'Payment & review',
+      sectionGuestReviewOnly: 'Review booking',
       stepService: 'Service',
       stepConsultant: 'Employee',
       stepDateTime: 'Date & time',
       stepGuest: 'Payment & review',
+      stepGuestReviewOnly: 'Review',
+      payAtVenueNote: 'No online payment for this booking. You will pay at the venue according to the provider’s rules.',
       paymentMethodTitle: 'Payment method',
       paymentMethodCard: 'Credit / Debit card',
       paymentMethodCardSubtitle: 'Pay securely by card.',
@@ -116,10 +119,13 @@
       sectionConsultant: 'Izberite zaposlenega',
       sectionDateTime: 'Izberite datum in uro',
       sectionGuest: 'Plačilo in pregled',
+      sectionGuestReviewOnly: 'Pregled rezervacije',
       stepService: 'Storitev',
       stepConsultant: 'Zaposleni',
       stepDateTime: 'Datum in ura',
       stepGuest: 'Plačilo in pregled',
+      stepGuestReviewOnly: 'Pregled',
+      payAtVenueNote: 'Za to rezervacijo ni spletnega plačila. Plačilo poteka na lokaciji po pravilih ponudnika.',
       paymentMethodTitle: 'Način plačila',
       paymentMethodCard: 'Kreditna / debetna kartica',
       paymentMethodCardSubtitle: 'Varno plačilo s kartico.',
@@ -422,7 +428,7 @@
         { id: 'service', label: t.stepService },
         ...(showConsultantStep ? [{ id: 'consultant', label: t.stepConsultant }] : []),
         { id: 'datetime', label: t.stepDateTime },
-        { id: 'details', label: t.stepGuest },
+        { id: 'details', label: this.requiresOnlinePaymentChoice() ? t.stepGuest : t.stepGuestReviewOnly },
       ];
     }
 
@@ -660,7 +666,9 @@
       }
       if (stepId === 'details') {
         const hasGuestDetails = Boolean(form.firstName.trim() && form.lastName.trim() && form.email.trim() && form.phone.trim());
-        const hasPayment = Boolean(this.state.paymentMethod) && this.isPaymentMethodAvailable(this.state.paymentMethod);
+        const hasPayment =
+          !this.requiresOnlinePaymentChoice()
+          || (Boolean(this.state.paymentMethod) && this.isPaymentMethodAvailable(this.state.paymentMethod));
         return hasGuestDetails && hasPayment;
       }
       return false;
@@ -668,6 +676,11 @@
 
     allowedPaymentMethods() {
       return this.state.config?.allowedPaymentMethods || { card: false, bankTransfer: false, paypal: false };
+    }
+
+    /** When false, widget books with PAY_AT_VENUE (session widget only; backend enforces). */
+    requiresOnlinePaymentChoice() {
+      return this.state.config?.requireOnlinePayment !== false;
     }
 
     isPaymentMethodAvailable(method) {
@@ -744,7 +757,12 @@
         if (!this.state.form.lastName.trim()) missing.push(t.lastName);
         if (!this.state.form.email.trim()) missing.push(t.email);
         if (!this.state.form.phone.trim()) missing.push(t.phone);
-        if (!this.state.paymentMethod || !this.isPaymentMethodAvailable(this.state.paymentMethod)) missing.push(t.payment);
+        if (
+          this.requiresOnlinePaymentChoice()
+          && (!this.state.paymentMethod || !this.isPaymentMethodAvailable(this.state.paymentMethod))
+        ) {
+          missing.push(t.payment);
+        }
 
         if (this.state.config?.turnstileEnabled && !this.state.turnstileToken) {
           missing.push(t.verificationRequired);
@@ -920,6 +938,7 @@
       if (!this.validateCurrentStep()) return;
 
       const { selectedServiceId, selectedDate, selectedSlot, selectedConsultantId, form, config, paymentMethod } = this.state;
+      const effectivePaymentMethod = this.requiresOnlinePaymentChoice() ? paymentMethod : 'PAY_AT_VENUE';
       const t = this.text();
 
       // Slot is required — the full flow is only intended for slot-based availability.
@@ -973,7 +992,7 @@
             companyId: session.companyId || '',
             productId,
             slotId,
-            paymentMethodType: paymentMethod,
+            paymentMethodType: effectivePaymentMethod,
           },
         });
 
@@ -989,11 +1008,11 @@
             ...authHeaders,
             'Idempotency-Key': (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2)),
           },
-          body: { paymentMethodType: paymentMethod },
+          body: { paymentMethodType: effectivePaymentMethod },
         });
 
         // PayPal: redirect the user to the PayPal approval URL (returned as `checkoutUrl`).
-        if (paymentMethod === 'PAYPAL' && checkout?.checkoutUrl) {
+        if (effectivePaymentMethod === 'PAYPAL' && checkout?.checkoutUrl) {
           this.setState({ saving: false, paymentResult: { type: 'PAYPAL', approveUrl: checkout.checkoutUrl } });
           window.location.href = checkout.checkoutUrl;
           return;
@@ -1008,7 +1027,7 @@
             startTime: selectedSlot.startTime,
             email: form.email.trim(),
           },
-          paymentResult: checkout ? { type: paymentMethod, ...checkout } : null,
+          paymentResult: checkout ? { type: effectivePaymentMethod, ...checkout } : null,
           selectedSlot: null,
           selectedGroupSession: null,
         });
@@ -1418,6 +1437,7 @@
       }
 
       const allowed = this.allowedPaymentMethods();
+      const skipOnlinePayment = !this.requiresOnlinePaymentChoice();
       const hasAnyPaymentMethod = Boolean(allowed.card || allowed.bankTransfer || allowed.paypal);
       const methodCard = (type, title, subtitle, enabled) => `
         <button
@@ -1443,7 +1463,7 @@
             <div class="details-col">
               <div class="panel-copy panel-copy--compact">
                 <div class="eyebrow">${showConsultantStep ? '4' : '3'}</div>
-                <h3>${escapeHtml(t.sectionGuest)}</h3>
+                <h3>${escapeHtml(skipOnlinePayment ? t.sectionGuestReviewOnly : t.sectionGuest)}</h3>
                 <p>${escapeHtml(t.summaryPrivacyText)}</p>
               </div>
               <div class="details-card">
@@ -1477,14 +1497,18 @@
               ${this.summaryMarkup()}
 
               <div class="payment-methods">
-                <div class="payment-methods-title">${escapeHtml(t.paymentMethodTitle)}</div>
-                ${hasAnyPaymentMethod ? `
-                  <div class="payment-methods-grid">
-                    ${allowed.card ? methodCard('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, true) : ''}
-                    ${allowed.bankTransfer ? methodCard('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, true) : ''}
-                    ${allowed.paypal ? methodCard('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, true) : ''}
-                  </div>
-                ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
+                ${skipOnlinePayment ? `
+                  <p class="empty" style="text-align:left;line-height:1.5">${escapeHtml(t.payAtVenueNote)}</p>
+                ` : `
+                  <div class="payment-methods-title">${escapeHtml(t.paymentMethodTitle)}</div>
+                  ${hasAnyPaymentMethod ? `
+                    <div class="payment-methods-grid">
+                      ${allowed.card ? methodCard('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, true) : ''}
+                      ${allowed.bankTransfer ? methodCard('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, true) : ''}
+                      ${allowed.paypal ? methodCard('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, true) : ''}
+                    </div>
+                  ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
+                `}
                 ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap turnstile-wrap--under-payments"><slot name="turnstile-slot"></slot></div>` : ''}
               </div>
 

@@ -20,7 +20,8 @@ public final class GuestPreviewDtos {
             String publicDescription,
             String publicCity,
             String publicPhone,
-            String status
+            String status,
+            boolean requireOnlinePayment
     ) {}
 
     public record GuestSessionResponse(
