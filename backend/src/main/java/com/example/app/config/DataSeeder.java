@@ -203,7 +203,7 @@ public class DataSeeder implements CommandLineRunner {
         seedSetting(company, SettingKey.COMPANY_EMAIL, "");
         seedSetting(company, SettingKey.COMPANY_TELEPHONE, "");
         seedSetting(company, SettingKey.PAYMENT_DEADLINE_DAYS, "15");
-        seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, "PROFESSIONAL");
+        seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, "PREMIUM");
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, "10");
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, "500");
         seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, "10");
