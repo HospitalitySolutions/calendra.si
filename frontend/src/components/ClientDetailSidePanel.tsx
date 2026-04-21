@@ -88,6 +88,9 @@ export function ClientDetailSidePanel({
     whatsappMessage: 'WhatsApp sporočilo',
     viberMessage: 'Viber sporočilo',
     sent: 'Poslano',
+    delivered: 'Dostavljeno',
+    read: 'Prebrano',
+    received: 'Prejeto',
     failed: 'Napaka',
     when: 'Kdaj',
     to: 'Za',
@@ -136,6 +139,9 @@ export function ClientDetailSidePanel({
     whatsappMessage: 'WhatsApp message',
     viberMessage: 'Viber message',
     sent: 'Sent',
+    delivered: 'Delivered',
+    read: 'Read',
+    received: 'Received',
     failed: 'Failed',
     when: 'When',
     to: 'To',
@@ -806,7 +812,7 @@ export function ClientDetailSidePanel({
                           <span className="clients-detail-session-no">{message.channel === 'WHATSAPP' ? 'WA' : message.channel === 'VIBER' ? 'VB' : 'EM'}</span>
                           <div className="clients-detail-session-heading">
                             <strong>{message.subject || (message.channel === 'EMAIL' ? copy.emailMessage : message.channel === 'WHATSAPP' ? copy.whatsappMessage : copy.viberMessage)}</strong>
-                            <span>{message.status === 'SENT' ? copy.sent : copy.failed}</span>
+                            <span>{message.status === 'SENT' ? copy.sent : message.status === 'DELIVERED' ? copy.delivered : message.status === 'READ' ? copy.read : message.status === 'RECEIVED' ? copy.received : copy.failed}</span>
                           </div>
                         </div>
                         <div className="clients-detail-session-times">

@@ -27,11 +27,15 @@ function channelTone(channel: InboxChannel): 'default' | 'green' | 'red' | 'blue
 }
 
 function statusTone(status: InboxStatus): 'default' | 'green' | 'red' | 'blue' {
-  return status === 'SENT' ? 'green' : 'red'
+  if (status === 'FAILED') return 'red'
+  if (status === 'RECEIVED') return 'blue'
+  return 'green'
 }
 
 function statusLabel(status: InboxStatus, copy: any) {
   if (status === 'SENT') return copy.sent
+  if (status === 'DELIVERED') return copy.delivered
+  if (status === 'READ') return copy.read
   if (status === 'RECEIVED') return copy.received
   return copy.failed
 }
@@ -106,6 +110,8 @@ export function AnalyticsInboxTab() {
     notLinked: 'Ni povezano',
     sent: 'Poslano',
     received: 'Prejeto',
+    delivered: 'Dostavljeno',
+    read: 'Prebrano',
     failed: 'Neuspešno',
     clientPrefix: 'Stranka',
     sentBy: 'Poslal',
@@ -162,6 +168,8 @@ export function AnalyticsInboxTab() {
     notLinked: 'Not linked',
     sent: 'Sent',
     received: 'Received',
+    delivered: 'Delivered',
+    read: 'Read',
     failed: 'Failed',
     clientPrefix: 'Client',
     sentBy: 'Sent by',
@@ -470,6 +478,8 @@ export function AnalyticsInboxTab() {
           <select value={statusFilter} onChange={(e) => setStatusFilter((e.target.value || '') as '' | InboxStatus)}>
             <option value="">{locale === 'sl' ? 'Vsi statusi' : 'All statuses'}</option>
             <option value="SENT">{copy.sent}</option>
+            <option value="DELIVERED">{copy.delivered}</option>
+            <option value="READ">{copy.read}</option>
             <option value="RECEIVED">{copy.received}</option>
             <option value="FAILED">{copy.failed}</option>
           </select>

@@ -254,21 +254,28 @@ public class ClientMessageService {
                 }
                 JsonNode messagesNode = value.path("messages");
                 JsonNode contactsNode = value.path("contacts");
-                if (!messagesNode.isArray()) continue;
-                for (int i = 0; i < messagesNode.size(); i++) {
-                    JsonNode message = messagesNode.get(i);
-                    String externalId = blankToNull(message.path("id").asText(null));
-                    if (externalId != null && messages.findFirstByCompanyIdAndExternalMessageId(companyId, externalId).isPresent()) continue;
-                    String from = normalizeMsisdn(message.path("from").asText(null));
-                    Client client = findWhatsAppClient(companyId, from);
-                    if (client == null) continue;
-                    String senderName = contactsNode.isArray() && contactsNode.size() > i
-                            ? blankToNull(contactsNode.get(i).path("profile").path("name").asText(null))
-                            : null;
-                    String body = extractWhatsAppInboundBody(message, senderName);
-                    if (body == null || body.isBlank()) continue;
-                    persistInboundMessage(client.getCompany(), client, MessageChannel.WHATSAPP, from, blankToNull(senderName), body, externalId);
-                    savedCount++;
+                if (messagesNode.isArray()) {
+                    for (int i = 0; i < messagesNode.size(); i++) {
+                        JsonNode message = messagesNode.get(i);
+                        String externalId = blankToNull(message.path("id").asText(null));
+                        if (externalId != null && messages.findFirstByCompanyIdAndExternalMessageId(companyId, externalId).isPresent()) continue;
+                        String from = normalizeMsisdn(message.path("from").asText(null));
+                        Client client = findWhatsAppClient(companyId, from);
+                        if (client == null) continue;
+                        String senderName = contactsNode.isArray() && contactsNode.size() > i
+                                ? blankToNull(contactsNode.get(i).path("profile").path("name").asText(null))
+                                : null;
+                        String body = extractWhatsAppInboundBody(message, senderName);
+                        if (body == null || body.isBlank()) continue;
+                        persistInboundMessage(client.getCompany(), client, MessageChannel.WHATSAPP, from, blankToNull(senderName), body, externalId);
+                        savedCount++;
+                    }
+                }
+                JsonNode statusesNode = value.path("statuses");
+                if (statusesNode.isArray()) {
+                    for (JsonNode statusNode : statusesNode) {
+                        if (applyWhatsAppStatusUpdate(companyId, statusNode)) savedCount++;
+                    }
                 }
             }
         }
@@ -320,6 +327,64 @@ public class ClientMessageService {
         row.setExternalMessageId(externalId);
         row.setSentAt(Instant.now());
         messages.save(row);
+    }
+
+
+    private boolean applyWhatsAppStatusUpdate(Long companyId, JsonNode statusNode) {
+        String externalId = blankToNull(statusNode.path("id").asText(null));
+        if (externalId == null) return false;
+        ClientMessage row = messages.findFirstByCompanyIdAndExternalMessageId(companyId, externalId).orElse(null);
+        if (row == null || row.getDirection() != MessageDirection.OUTBOUND || row.getChannel() != MessageChannel.WHATSAPP) return false;
+
+        MessageStatus nextStatus = mapWhatsAppStatus(statusNode.path("status").asText(null));
+        if (nextStatus == null) return false;
+
+        row.setStatus(nextStatus);
+        if (nextStatus == MessageStatus.FAILED) {
+            row.setErrorMessage(trimToLength(extractWhatsAppStatusError(statusNode), 1800));
+        } else {
+            row.setErrorMessage(null);
+        }
+        JsonNode timestampNode = statusNode.path("timestamp");
+        if (!timestampNode.isMissingNode()) {
+            Instant statusInstant = parseEpochSecond(timestampNode.asText(null));
+            if (statusInstant != null) row.setSentAt(statusInstant);
+        }
+        messages.save(row);
+        return true;
+    }
+
+    private MessageStatus mapWhatsAppStatus(String status) {
+        if (status == null || status.isBlank()) return null;
+        return switch (status.trim().toLowerCase(Locale.ROOT)) {
+            case "sent" -> MessageStatus.SENT;
+            case "delivered" -> MessageStatus.DELIVERED;
+            case "read" -> MessageStatus.READ;
+            case "failed" -> MessageStatus.FAILED;
+            default -> null;
+        };
+    }
+
+    private String extractWhatsAppStatusError(JsonNode statusNode) {
+        JsonNode errorsNode = statusNode.path("errors");
+        if (!errorsNode.isArray() || errorsNode.isEmpty()) return null;
+        JsonNode errorNode = errorsNode.get(0);
+        String title = blankToNull(errorNode.path("title").asText(null));
+        String message = blankToNull(errorNode.path("message").asText(null));
+        String code = blankToNull(errorNode.path("code").asText(null));
+        String details = blankToNull(errorNode.path("error_data").path("details").asText(null));
+        return List.of(title, message, details, code == null ? null : "code " + code).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(" · "));
+    }
+
+    private Instant parseEpochSecond(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Instant.ofEpochSecond(Long.parseLong(raw.trim()));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private List<ClientMessage> filterVisibleMessages(User me) {

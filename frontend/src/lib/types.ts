@@ -258,7 +258,7 @@ export type OpenBill = {
 
 export type InboxChannel = 'EMAIL' | 'WHATSAPP' | 'VIBER'
 export type InboxDirection = 'INBOUND' | 'OUTBOUND'
-export type InboxStatus = 'SENT' | 'RECEIVED' | 'FAILED'
+export type InboxStatus = 'SENT' | 'DELIVERED' | 'READ' | 'RECEIVED' | 'FAILED'
 
 export type InboxThread = {
   clientId: number
