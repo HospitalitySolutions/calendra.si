@@ -1716,6 +1716,18 @@ a.clients-contact-link:hover {
     grid-column: 1 / -1;
 }
 
+.clients-detail-guest-pickers {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.clients-detail-guest-pickers .field {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+}
+
 .clients-detail-field-card span {
     text-transform: uppercase;
     letter-spacing: 0.12em;

@@ -59,6 +59,15 @@ function guestBookingOptionMeta(mode: GuestBookingMode) {
   return GUEST_BOOKING_OPTIONS.find((o) => o.value === mode) ?? GUEST_BOOKING_OPTIONS[2]
 }
 
+/** Same order as the former native `<select>` (see `taxLabels`). */
+const TAX_RATE_ORDER: TaxRate[] = ['VAT_0', 'VAT_9_5', 'VAT_22', 'NO_VAT']
+
+const TAX_RATE_LINE_I18N_KEY: Record<Exclude<TaxRate, 'NO_VAT'>, string> = {
+  VAT_0: 'sessionTypesTxTaxLineVat0',
+  VAT_9_5: 'sessionTypesTxTaxLineVat95',
+  VAT_22: 'sessionTypesTxTaxLineVat22',
+}
+
 /** Session type timing fields: integers 0–999 (max three digits). */
 function clampSessionTypeInt0to999(n: number): number {
   if (!Number.isFinite(n)) return 0
@@ -201,6 +210,8 @@ export function SessionTypesPage() {
   const [typeFormSnapshot, setTypeFormSnapshot] = useState<TypeFormState | null>(null)
   const [guestBookingPickerOpen, setGuestBookingPickerOpen] = useState(false)
   const guestBookingSelectRef = useRef<HTMLDivElement>(null)
+  const [taxRatePickerOpen, setTaxRatePickerOpen] = useState(false)
+  const taxRateSelectRef = useRef<HTMLDivElement>(null)
   const sessionTypeDescriptionRef = useRef<HTMLTextAreaElement>(null)
 
   const [isSessionTypesNarrow, setIsSessionTypesNarrow] = useState(
@@ -210,6 +221,26 @@ export function SessionTypesPage() {
   const [openServiceMenuId, setOpenServiceMenuId] = useState<number | null>(null)
   const [typeSearch, setTypeSearch] = useState('')
   const [serviceSearch, setServiceSearch] = useState('')
+
+  const taxRateSelectOptions = useMemo(
+    () =>
+      TAX_RATE_ORDER.map((value) =>
+        value === 'NO_VAT'
+          ? { value, label: t('sessionTypesTxTaxOptionNoVat'), line: '' as const }
+          : { value, label: taxLabels[value], line: t(TAX_RATE_LINE_I18N_KEY[value]) },
+      ),
+    [t],
+  )
+
+  const taxRateOptionSelected = useMemo(
+    () => taxRateSelectOptions.find((o) => o.value === serviceForm.taxRate) ?? taxRateSelectOptions[2],
+    [taxRateSelectOptions, serviceForm.taxRate],
+  )
+
+  const transactionServiceTaxDisplay = useCallback(
+    (rate: TaxRate) => (rate === 'NO_VAT' ? t('sessionTypesTxTaxOptionNoVat') : taxLabels[rate]),
+    [t],
+  )
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 450px)')
@@ -222,6 +253,10 @@ export function SessionTypesPage() {
   useEffect(() => {
     if (!showTypeModal) setGuestBookingPickerOpen(false)
   }, [showTypeModal])
+
+  useEffect(() => {
+    if (!showServiceModal) setTaxRatePickerOpen(false)
+  }, [showServiceModal])
 
   const syncSessionTypeDescriptionHeight = useCallback(() => {
     const el = sessionTypeDescriptionRef.current
@@ -251,6 +286,23 @@ export function SessionTypesPage() {
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [guestBookingPickerOpen])
+
+  useEffect(() => {
+    if (!taxRatePickerOpen) return
+    const onPointerDown = (e: MouseEvent) => {
+      const root = taxRateSelectRef.current
+      if (root && !root.contains(e.target as Node)) setTaxRatePickerOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTaxRatePickerOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [taxRatePickerOpen])
 
   useEffect(() => {
     if (openTypeMenuId == null) return
@@ -306,10 +358,14 @@ export function SessionTypesPage() {
     const q = serviceSearch.trim().toLowerCase()
     if (!q) return services
     return services.filter((s) => {
-      const hay = [s.code, s.description, String(s.id), taxLabels[s.taxRate], String(s.netPrice)].join(' ').toLowerCase()
+      const taxHay =
+        s.taxRate === 'NO_VAT'
+          ? `${taxLabels[s.taxRate]} ${t('sessionTypesTxTaxOptionNoVat')}`
+          : taxLabels[s.taxRate]
+      const hay = [s.code, s.description, String(s.id), taxHay, String(s.netPrice)].join(' ').toLowerCase()
       return hay.includes(q)
     })
-  }, [services, serviceSearch])
+  }, [services, serviceSearch, t])
 
   const typesModuleEnabled = settings.TYPES_ENABLED !== 'false'
 
@@ -704,7 +760,7 @@ export function SessionTypesPage() {
                   </div>
                   <div>
                     <span>{t('sessionTypesTxLabelTax')}</span>
-                    <strong>{taxLabels[s.taxRate]}</strong>
+                    <strong>{transactionServiceTaxDisplay(s.taxRate)}</strong>
                   </div>
                   <div>
                     <span>{t('sessionTypesTxLabelNet')}</span>
@@ -759,7 +815,7 @@ export function SessionTypesPage() {
                       </div>
                     </td>
                     <td className="clients-muted">{s.description}</td>
-                    <td className="clients-muted">{taxLabels[s.taxRate]}</td>
+                    <td className="clients-muted">{transactionServiceTaxDisplay(s.taxRate)}</td>
                     <td className="clients-muted">{currency(s.netPrice)}</td>
                     <td className="clients-muted">{currency(gross)}</td>
                     <td className="clients-muted">{formatDate(s.createdAt)}</td>
@@ -1196,13 +1252,57 @@ export function SessionTypesPage() {
                   <input required value={serviceForm.description} onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })} />
                 </Field>
                 <Field label={t('sessionTypesTxFieldTax')}>
-                  <select value={serviceForm.taxRate} onChange={(e) => setServiceForm({ ...serviceForm, taxRate: e.target.value as TaxRate })}>
-                    {Object.entries(taxLabels).map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
+                  <div className={`guest-booking-select${taxRatePickerOpen ? ' is-open' : ''}`} ref={taxRateSelectRef}>
+                    <button
+                      type="button"
+                      className="guest-booking-select-trigger"
+                      aria-haspopup="listbox"
+                      aria-expanded={taxRatePickerOpen}
+                      onClick={() => setTaxRatePickerOpen((o) => !o)}
+                    >
+                      <span className="guest-booking-select-trigger-main">
+                        <span className="guest-booking-select-value">{taxRateOptionSelected.label}</span>
+                        {taxRateOptionSelected.line ? (
+                          <span className="guest-booking-select-line">{taxRateOptionSelected.line}</span>
+                        ) : null}
+                      </span>
+                      <span className="guest-booking-select-chevron" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path
+                            d="M5.5 8.25 10 12.75 14.5 8.25"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                    {taxRatePickerOpen ? (
+                      <ul className="guest-booking-select-menu" role="listbox">
+                        {taxRateSelectOptions.map((opt) => {
+                          const selected = serviceForm.taxRate === opt.value
+                          return (
+                            <li key={opt.value} role="presentation">
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                className={`guest-booking-select-option${selected ? ' is-selected' : ''}`}
+                                onClick={() => {
+                                  setServiceForm({ ...serviceForm, taxRate: opt.value })
+                                  setTaxRatePickerOpen(false)
+                                }}
+                              >
+                                <span className="guest-booking-select-option-label">{opt.label}</span>
+                                {opt.line ? <span className="guest-booking-select-option-line">{opt.line}</span> : null}
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
                 </Field>
                 <Field label={t('sessionTypesTxFieldGross')}>
                   <input

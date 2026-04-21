@@ -140,7 +140,9 @@ export default function App() {
       const last = sessionStorage.getItem(OAUTH_HANDLED_KEY)
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
-      navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
+      if (location.pathname !== '/zoom/install') {
+        navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
+      }
       showToast('success', copy.zoomConnected)
     } else if (zoomError) {
       if (handledRef.current) return
@@ -149,7 +151,9 @@ export default function App() {
       const last = sessionStorage.getItem(OAUTH_HANDLED_KEY)
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
-      navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
+      if (location.pathname !== '/zoom/install') {
+        navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
+      }
       showToast('error', copy.zoomAuthorizationFailed + decodeURIComponent(zoomError))
     } else if (googleConnected) {
       if (handledRef.current) return

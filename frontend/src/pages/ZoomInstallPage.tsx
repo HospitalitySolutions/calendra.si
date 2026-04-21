@@ -21,6 +21,19 @@ export function ZoomInstallPage() {
   const nextPath = getPostZoomReturnPath(params.get('next') || '/calendar')
 
   useEffect(() => {
+    if (!zoomConnected) return
+
+    setStatus('done')
+    setError('')
+    const returnTarget = consumePostZoomReturnPath(nextPath)
+    const timeoutId = window.setTimeout(() => {
+      navigate(returnTarget, { replace: true })
+    }, 1200)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [navigate, nextPath, zoomConnected])
+
+  useEffect(() => {
     const target = params.get('next') || nextPath
     setPostZoomReturnPath(target)
 

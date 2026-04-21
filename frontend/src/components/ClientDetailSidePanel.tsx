@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
 import type { Client, ClientMessage, Company, User } from '../lib/types'
-import { EmptyState, PageHeader, SectionTitle } from './ui'
+import { EmptyState, Field, PageHeader, SectionTitle } from './ui'
 import { formatDateTime, fullName } from '../lib/format'
 import { useLocale } from '../locale'
 
@@ -159,7 +159,11 @@ export function ClientDetailSidePanel({
   const [detailSessionsLoading, setDetailSessionsLoading] = useState(false)
   const [detailSessionsError, setDetailSessionsError] = useState('')
   const [sessionTab, setSessionTab] = useState<'future' | 'past'>('future')
-  const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId' | null>(null)
+  const [detailEditField, setDetailEditField] = useState<'firstName' | 'lastName' | 'email' | 'phone' | null>(null)
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false)
+  const [consultantPickerOpen, setConsultantPickerOpen] = useState(false)
+  const companySelectRef = useRef<HTMLDivElement>(null)
+  const consultantSelectRef = useRef<HTMLDivElement>(null)
   const [detailEditDraft, setDetailEditDraft] = useState<Draft>({
     firstName: '',
     lastName: '',
@@ -180,6 +184,8 @@ export function ClientDetailSidePanel({
       setDetailClient(null)
       setLoadError('')
       setDetailEditField(null)
+      setCompanyPickerOpen(false)
+      setConsultantPickerOpen(false)
       return
     }
     let cancelled = false
@@ -206,6 +212,8 @@ export function ClientDetailSidePanel({
         setSessionTab('future')
         setConfirmAnonymize(false)
         setDetailEditField(null)
+        setCompanyPickerOpen(false)
+        setConsultantPickerOpen(false)
         setPanelError('')
       })
       .catch(() => {
@@ -234,6 +242,29 @@ export function ClientDetailSidePanel({
       .then((res) => setConsultants((res.data ?? []).filter((u: ConsultantSummary) => u.consultant)))
       .catch(() => setConsultants([]))
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!companyPickerOpen && !consultantPickerOpen) return
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      const c = companySelectRef.current
+      const k = consultantSelectRef.current
+      if (companyPickerOpen && c && !c.contains(t)) setCompanyPickerOpen(false)
+      if (consultantPickerOpen && k && !k.contains(t)) setConsultantPickerOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCompanyPickerOpen(false)
+        setConsultantPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [companyPickerOpen, consultantPickerOpen])
 
   useEffect(() => {
     if (!detailClient) return
@@ -392,13 +423,22 @@ export function ClientDetailSidePanel({
     }
   }
 
-  const renderClientEditableField = (
-    key: 'firstName' | 'lastName' | 'email' | 'phone' | 'billingCompanyId' | 'assignedToId',
-    label: string,
-    wide = false,
-  ) => {
+  const linkedCompanyTriggerLabel = useMemo(() => {
+    if (detailEditDraft.billingCompanyId == null) return locale === 'sl' ? 'Brez povezanega podjetja' : 'No linked company'
+    return (
+      companies.find((c) => c.id === detailEditDraft.billingCompanyId)?.name ??
+      (locale === 'sl' ? 'Brez povezanega podjetja' : 'No linked company')
+    )
+  }, [detailEditDraft.billingCompanyId, companies, locale])
+
+  const assignedConsultantTriggerLabel = useMemo(() => {
+    if (detailEditDraft.assignedToId == null) return copy.unassignedConsultant
+    const u = consultants.find((c) => c.id === detailEditDraft.assignedToId)
+    return u ? `${fullName(u)} (${u.email})` : copy.unassignedConsultant
+  }, [detailEditDraft.assignedToId, consultants, copy.unassignedConsultant])
+
+  const renderClientEditableField = (key: 'firstName' | 'lastName' | 'email' | 'phone', label: string, wide = false) => {
     if (!detailClient) return null
-    if (key === 'assignedToId' && !isAdmin) return null
     const isEditing = detailEditField === key
     return (
       <div
@@ -417,78 +457,29 @@ export function ClientDetailSidePanel({
       >
         <span>{label}</span>
         {!isEditing ? (
-          <strong>
-            {key === 'billingCompanyId'
-              ? (detailClient.billingCompany?.name || '—')
-              : key === 'assignedToId'
-                ? (detailClient.assignedTo
-                  ? `${fullName(detailClient.assignedTo)} (${detailClient.assignedTo.email})`
-                  : copy.unassignedConsultant)
-                : ((detailClient[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')}
-          </strong>
+          <strong>{(detailClient[key] as string | undefined) || '—'}</strong>
         ) : (
           <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
-            {key === 'billingCompanyId' ? (
-              <select
-                autoFocus
-                value={detailEditDraft.billingCompanyId ?? ''}
-                onChange={(e) =>
-                  setDetailEditDraft({ ...detailEditDraft, billingCompanyId: e.target.value ? Number(e.target.value) : null })
+            <input
+              autoFocus
+              value={detailEditDraft[key] ?? ''}
+              onChange={(e) => setDetailEditDraft({ ...detailEditDraft, [key]: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void saveDetailClientInline()
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setDetailEditField(null)
                 }
-              >
-                <option value="">{locale === 'sl' ? 'Brez povezanega podjetja' : 'No linked company'}</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            ) : key === 'assignedToId' ? (
-              <select
-                autoFocus
-                value={detailEditDraft.assignedToId ?? ''}
-                onChange={(e) =>
-                  setDetailEditDraft({
-                    ...detailEditDraft,
-                    assignedToId: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void saveDetailClientInline()
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault()
-                    setDetailEditField(null)
-                  }
-                }}
-              >
-                <option value="">{copy.unassignedConsultant}</option>
-                {consultants.map((u) => (
-                  <option key={u.id} value={u.id}>{fullName(u)} ({u.email})</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                autoFocus
-                value={detailEditDraft[key as 'firstName' | 'lastName' | 'email' | 'phone'] ?? ''}
-                onChange={(e) => setDetailEditDraft({ ...detailEditDraft, [key]: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void saveDetailClientInline()
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault()
-                    setDetailEditField(null)
-                  }
-                }}
-              />
-            )}
+              }}
+            />
           </div>
         )}
       </div>
     )
   }
+
 
   if (!clientId) return null
 
@@ -546,8 +537,148 @@ export function ClientDetailSidePanel({
                 {renderClientEditableField('lastName', copy.lastName)}
                 {renderClientEditableField('email', copy.email, true)}
                 {renderClientEditableField('phone', copy.phone, true)}
-                {renderClientEditableField('billingCompanyId', copy.linkedCompany, true)}
-                {renderClientEditableField('assignedToId', copy.assignedConsultant, true)}
+                <div className="clients-detail-field-card clients-detail-field-card--wide clients-detail-guest-pickers">
+                  <Field label={copy.linkedCompany}>
+                    <div className={`guest-booking-select${companyPickerOpen ? ' is-open' : ''}`} ref={companySelectRef}>
+                      <button
+                        type="button"
+                        className="guest-booking-select-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded={companyPickerOpen}
+                        disabled={savingDetailEdit}
+                        onClick={() => {
+                          setConsultantPickerOpen(false)
+                          setCompanyPickerOpen((o) => !o)
+                        }}
+                      >
+                        <span className="guest-booking-select-trigger-main">
+                          <span className="guest-booking-select-value">{linkedCompanyTriggerLabel}</span>
+                        </span>
+                        <span className="guest-booking-select-chevron" aria-hidden>
+                          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path
+                              d="M5.5 8.25 10 12.75 14.5 8.25"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                      {companyPickerOpen ? (
+                        <ul className="guest-booking-select-menu" role="listbox">
+                          <li role="presentation">
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={detailEditDraft.billingCompanyId == null}
+                              className={`guest-booking-select-option${detailEditDraft.billingCompanyId == null ? ' is-selected' : ''}`}
+                              onClick={() => {
+                                setDetailEditDraft({ ...detailEditDraft, billingCompanyId: null })
+                                setCompanyPickerOpen(false)
+                              }}
+                            >
+                              <span className="guest-booking-select-option-label">
+                                {locale === 'sl' ? 'Brez povezanega podjetja' : 'No linked company'}
+                              </span>
+                            </button>
+                          </li>
+                          {companies.map((company) => {
+                            const selected = detailEditDraft.billingCompanyId === company.id
+                            return (
+                              <li key={company.id} role="presentation">
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  className={`guest-booking-select-option${selected ? ' is-selected' : ''}`}
+                                  onClick={() => {
+                                    setDetailEditDraft({ ...detailEditDraft, billingCompanyId: company.id })
+                                    setCompanyPickerOpen(false)
+                                  }}
+                                >
+                                  <span className="guest-booking-select-option-label">{company.name}</span>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
+                  </Field>
+                  {isAdmin ? (
+                    <Field label={copy.assignedConsultant}>
+                      <div className={`guest-booking-select${consultantPickerOpen ? ' is-open' : ''}`} ref={consultantSelectRef}>
+                        <button
+                          type="button"
+                          className="guest-booking-select-trigger"
+                          aria-haspopup="listbox"
+                          aria-expanded={consultantPickerOpen}
+                          disabled={savingDetailEdit}
+                          onClick={() => {
+                            setCompanyPickerOpen(false)
+                            setConsultantPickerOpen((o) => !o)
+                          }}
+                        >
+                          <span className="guest-booking-select-trigger-main">
+                            <span className="guest-booking-select-value">{assignedConsultantTriggerLabel}</span>
+                          </span>
+                          <span className="guest-booking-select-chevron" aria-hidden>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                              <path
+                                d="M5.5 8.25 10 12.75 14.5 8.25"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </span>
+                        </button>
+                        {consultantPickerOpen ? (
+                          <ul className="guest-booking-select-menu" role="listbox">
+                            <li role="presentation">
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={detailEditDraft.assignedToId == null}
+                                className={`guest-booking-select-option${detailEditDraft.assignedToId == null ? ' is-selected' : ''}`}
+                                onClick={() => {
+                                  setDetailEditDraft({ ...detailEditDraft, assignedToId: null })
+                                  setConsultantPickerOpen(false)
+                                }}
+                              >
+                                <span className="guest-booking-select-option-label">{copy.unassignedConsultant}</span>
+                              </button>
+                            </li>
+                            {consultants.map((u) => {
+                              const selected = detailEditDraft.assignedToId === u.id
+                              return (
+                                <li key={u.id} role="presentation">
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    aria-selected={selected}
+                                    className={`guest-booking-select-option${selected ? ' is-selected' : ''}`}
+                                    onClick={() => {
+                                      setDetailEditDraft({ ...detailEditDraft, assignedToId: u.id })
+                                      setConsultantPickerOpen(false)
+                                    }}
+                                  >
+                                    <span className="guest-booking-select-option-label">
+                                      {fullName(u)} ({u.email})
+                                    </span>
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        ) : null}
+                      </div>
+                    </Field>
+                  ) : null}
+                </div>
                 <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
                   <span>{copy.batchPayment}</span>
                   <button
