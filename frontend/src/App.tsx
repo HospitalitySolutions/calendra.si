@@ -126,6 +126,7 @@ export default function App() {
     const zoomError = params.get('zoom_error')
     const googleConnected = params.get('google_connected')
     const googleError = params.get('google_error')
+    const onZoomInstallPage = location.pathname === '/zoom/install'
     if (oauthError) {
       if (!user) return
       if (handledRef.current) return
@@ -134,26 +135,24 @@ export default function App() {
       navigate(location.pathname, { replace: true })
       showToast('error', copy.googleSignInFailed + decodeURIComponent(oauthError))
     } else if (zoomConnected) {
+      if (onZoomInstallPage) return
       if (handledRef.current) return
       handledRef.current = true
       const now = Date.now()
       const last = sessionStorage.getItem(OAUTH_HANDLED_KEY)
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
-      if (location.pathname !== '/zoom/install') {
-        navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
-      }
+      navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
       showToast('success', copy.zoomConnected)
     } else if (zoomError) {
+      if (onZoomInstallPage) return
       if (handledRef.current) return
       handledRef.current = true
       const now = Date.now()
       const last = sessionStorage.getItem(OAUTH_HANDLED_KEY)
       if (last && now - parseInt(last, 10) < 2000) return
       sessionStorage.setItem(OAUTH_HANDLED_KEY, String(now))
-      if (location.pathname !== '/zoom/install') {
-        navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
-      }
+      navigate(location.pathname === '/' ? '/calendar' : location.pathname, { replace: true })
       showToast('error', copy.zoomAuthorizationFailed + decodeURIComponent(zoomError))
     } else if (googleConnected) {
       if (handledRef.current) return
