@@ -28,6 +28,12 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
 
     @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
             "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +
+            "WHERE o.company.id = :companyId AND (o.sessionBooking.id = :sessionBookingId OR EXISTS (" +
+            "SELECT 1 FROM OpenBillItem oi WHERE oi.openBill = o AND oi.sourceSessionBookingId = :sessionBookingId))")
+    Optional<OpenBill> findContainingSession(Long companyId, Long sessionBookingId);
+
+    @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
+            "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +
             "WHERE o.company.id = :companyId AND o.batchScope = :batchScope AND o.batchTargetClientId = :clientId")
     Optional<OpenBill> findBatchByClientTarget(Long companyId, String batchScope, Long clientId);
 

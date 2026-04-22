@@ -93,7 +93,16 @@ export type PreferredSlot = {
 
 export type Space = { id: number; name: string; description?: string; createdAt?: string }
 
-export type TypeServiceLink = { id?: number; transactionServiceId: number; code: string; description: string; price: number | null }
+export type TypeServiceLink = {
+  id?: number
+  transactionServiceId: number
+  code: string
+  description: string
+  /** Net override on the type–service link (null = use transaction service net). */
+  price: number | null
+  /** Per-line gross for one unit, derived server-side for guest-card pricing. */
+  unitGross?: number | null
+}
 export type SessionType = {
   id: number
   name: string
@@ -187,6 +196,8 @@ export type BillItem = {
 export type Bill = {
   id: number
   billNumber: string
+  /** Fiscal document kind from API (`INVOICE` | `ADVANCE`). */
+  billType?: 'INVOICE' | 'ADVANCE' | string | null
   sessionId?: number | null
   client?: Client | null
   recipientCompany?: CompanySummary | null

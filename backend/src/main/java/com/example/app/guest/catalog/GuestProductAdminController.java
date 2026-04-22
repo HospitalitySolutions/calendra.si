@@ -4,9 +4,11 @@ import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestOrderItemRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
+import com.example.app.billing.PriceMath;
 import com.example.app.guest.model.ProductType;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
+import com.example.app.session.TypeTransactionService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -104,10 +106,18 @@ public class GuestProductAdminController {
         if (productType == ProductType.CLASS_TICKET && sessionType == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class tickets must be linked to a service type.");
         }
+        if (productType == ProductType.PACK && sessionType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pack cards must be linked to a service type.");
+        }
 
         Integer usageLimit = productType == ProductType.CLASS_TICKET
                 ? 1
                 : normalizePositiveInteger(request.usageLimit(), "Usage limit");
+        if (productType == ProductType.PACK && (usageLimit == null || usageLimit < 1)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pack cards must have a usage limit.");
+        }
+        validatePackOrClassPriceGross(productType, sessionType, usageLimit, priceGross);
+
         Integer validityDays = normalizePositiveInteger(request.validityDays(), "Validity days");
         boolean autoRenews = productType == ProductType.MEMBERSHIP && Boolean.TRUE.equals(request.autoRenews());
 
@@ -140,9 +150,54 @@ public class GuestProductAdminController {
 
     private SessionType resolveSessionType(Long sessionTypeId, Long companyId) {
         if (sessionTypeId == null) return null;
-        return sessionTypes.findById(sessionTypeId)
-                .filter(type -> type.getCompany() != null && companyId.equals(type.getCompany().getId()))
+        return sessionTypes.findByIdAndCompanyIdWithLinkedServices(sessionTypeId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type was not found."));
+    }
+
+    /** PACK / CLASS_TICKET price must equal sum(link unit gross) × usage (usage 1 for class). */
+    private static void validatePackOrClassPriceGross(
+            ProductType productType,
+            SessionType sessionType,
+            Integer usageLimit,
+            BigDecimal priceGross
+    ) {
+        if (productType != ProductType.PACK && productType != ProductType.CLASS_TICKET) {
+            return;
+        }
+        BigDecimal expected = expectedGuestCardGrossFromSessionType(sessionType, productType, usageLimit);
+        if (expected == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "The service type must have at least one transaction service line with a price.");
+        }
+        if (priceGross.subtract(expected).abs().compareTo(new BigDecimal("0.01")) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Price gross must match the configured transaction services for this service type (expected " + expected + ").");
+        }
+    }
+
+    private static BigDecimal expectedGuestCardGrossFromSessionType(
+            SessionType sessionType,
+            ProductType productType,
+            Integer usageLimit
+    ) {
+        if (sessionType == null || sessionType.getLinkedServices() == null || sessionType.getLinkedServices().isEmpty()) {
+            return null;
+        }
+        BigDecimal unitSum = BigDecimal.ZERO;
+        for (TypeTransactionService link : sessionType.getLinkedServices()) {
+            var tx = link.getTransactionService();
+            if (tx == null) {
+                return null;
+            }
+            BigDecimal effectiveNet = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            BigDecimal unitGross = PriceMath.unitGrossFromNet(effectiveNet, tx.getTaxRate());
+            if (unitGross == null) {
+                return null;
+            }
+            unitSum = unitSum.add(unitGross);
+        }
+        int factor = productType == ProductType.CLASS_TICKET ? 1 : usageLimit;
+        return unitSum.multiply(BigDecimal.valueOf(factor)).setScale(2, RoundingMode.HALF_UP);
     }
 
     private Integer normalizePositiveInteger(Integer value, String label) {

@@ -27,4 +27,7 @@ public class OpenBillItem extends BaseEntity {
 
     @Column(name = "source_session_booking_id")
     private Long sourceSessionBookingId;
+
+    @Column(name = "source_advance_bill_id")
+    private Long sourceAdvanceBillId;
 }

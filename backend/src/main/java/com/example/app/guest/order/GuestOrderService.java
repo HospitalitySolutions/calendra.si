@@ -380,9 +380,19 @@ public class GuestOrderService {
         order = orders.save(order);
         SessionBooking booking = maybeCreateConfirmedBooking(order);
         maybeCreateEntitlement(order);
+        if (booking != null
+                && (paymentMethodType == GuestPaymentMethodType.CARD
+                || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
+            try {
+                var bill = bankTransferBillingService.issuePaidAdvanceBill(order, booking, paymentMethodType.name());
+                order.setBillId(bill.getId());
+                order = orders.save(order);
+            } catch (Exception ignore) {
+                // Swallowing so a bookkeeping failure can't unwind a successful payment.
+            }
+        }
         // Wallet product purchases (no booking) should also land in the web-app Billing
-        // UI as a PAID invoice. Session-linked orders already receive their folio via
-        // GuestBankTransferBillingService.issueConfirmedBookingBill and similar flows.
+        // UI as a PAID invoice. Session-linked orders now receive an ADVANCE invoice at booking time.
         if (booking == null
                 && (paymentMethodType == GuestPaymentMethodType.CARD
                         || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {

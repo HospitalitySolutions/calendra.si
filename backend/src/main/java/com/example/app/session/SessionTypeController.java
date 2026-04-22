@@ -1,5 +1,6 @@
 package com.example.app.session;
 
+import com.example.app.billing.PriceMath;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.user.User;
@@ -35,7 +36,15 @@ public class SessionTypeController {
             Boolean guestBookingEnabled,
             List<TypeServiceItem> services
     ) {}
-    public record ServiceLinkDto(Long id, Long transactionServiceId, String code, String description, BigDecimal price) {}
+    /** {@code price} is net override on the type–service link (null = use transaction service net). {@code unitGross} is derived for guest-card pricing UI. */
+    public record ServiceLinkDto(
+            Long id,
+            Long transactionServiceId,
+            String code,
+            String description,
+            BigDecimal price,
+            BigDecimal unitGross
+    ) {}
     public record TypeResponse(
             Long id,
             String name,
@@ -128,12 +137,15 @@ public class SessionTypeController {
         var services = t.getLinkedServices().stream()
                 .map(link -> {
                     var tx = link.getTransactionService();
+                    BigDecimal effectiveNet = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+                    BigDecimal unitGross = PriceMath.unitGrossFromNet(effectiveNet, tx.getTaxRate());
                     return new ServiceLinkDto(
                             link.getId(),
                             tx.getId(),
                             tx.getCode(),
                             tx.getDescription(),
-                            link.getPrice()
+                            link.getPrice(),
+                            unitGross
                     );
                 })
                 .collect(Collectors.toList());

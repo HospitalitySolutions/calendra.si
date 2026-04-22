@@ -102,6 +102,15 @@ function slovenianRacunCountForm(count: number): string {
   if (last === 3 || last === 4) return 'računi'
   return 'računov'
 }
+type BillDocumentType = 'INVOICE' | 'ADVANCE'
+
+/** API `billType`; missing values default to invoice. */
+function normalizeBillType(bill: Bill): BillDocumentType {
+  const raw = String(bill.billType ?? '').toUpperCase().trim()
+  if (raw === 'ADVANCE') return 'ADVANCE'
+  return 'INVOICE'
+}
+
 type OpenBillsSortField = 'gross' | 'client' | 'date'
 type HistorySortField = 'gross' | 'folio'
 type SortDir = 'asc' | 'desc'
@@ -155,6 +164,11 @@ export function BillingPage() {
     historyStatusCancelled: 'Preklicano',
     historyFilterStatusAria: 'Filtriraj po statusu plačila',
     historyFilterDateAria: 'Filtriraj po datumu izdaje',
+    historyFilterBillTypeAria: 'Filtriraj po vrsti dokumenta',
+    historyBillTypeAll: 'Vsi dokumenti',
+    historyBillTypeInvoice: 'Račun',
+    historyBillTypeAdvance: 'Avans',
+    historyBillTypeColumn: 'Vrsta',
     historyEmptyTitle: 'Ni še računov',
     historyEmptyText:
       'Pod odprtimi računi uporabite gumb Novo za ustvarjanje računa ali pretvorbo odprtega računa. Bančni izpisek uvozite z gumbom Uvozi bančni CSV.',
@@ -213,6 +227,11 @@ export function BillingPage() {
     historyStatusCancelled: 'Cancelled',
     historyFilterStatusAria: 'Filter by payment status',
     historyFilterDateAria: 'Filter by issued date',
+    historyFilterBillTypeAria: 'Filter by document type',
+    historyBillTypeAll: 'All',
+    historyBillTypeInvoice: 'Invoice',
+    historyBillTypeAdvance: 'Advance',
+    historyBillTypeColumn: 'Type',
     historyEmptyTitle: 'No bills yet',
     historyEmptyText: 'Use New under Open bills to create a bill, or convert an open bill.',
     importBankCsv: 'Import bank CSV',
@@ -273,6 +292,7 @@ export function BillingPage() {
   const [historySearch, setHistorySearch] = useState('')
   const [historyIssuedDate, setHistoryIssuedDate] = useState('')
   const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'paid' | 'payment_pending' | 'open' | 'cancelled'>('all')
+  const [historyBillTypeFilter, setHistoryBillTypeFilter] = useState<'all' | BillDocumentType>('all')
   const [billingTab, setBillingTab] = useState<'open' | 'history'>('open')
   const [newCompanyName, setNewCompanyName] = useState('')
   const [newCompanyEmail, setNewCompanyEmail] = useState('')
@@ -406,8 +426,12 @@ export function BillingPage() {
     const byStatus = historyStatusFilter === 'all'
       ? byDate
       : byDate.filter((bill) => (bill.paymentStatus || 'open') === historyStatusFilter)
-    if (!q) return byStatus
-    return byStatus.filter((bill) => {
+    const byBillType =
+      historyBillTypeFilter === 'all'
+        ? byStatus
+        : byStatus.filter((bill) => normalizeBillType(bill) === historyBillTypeFilter)
+    if (!q) return byBillType
+    return byBillType.filter((bill) => {
       const billNo = String(bill.billNumber || '').toLowerCase()
       const sessionId = String(bill.sessionId ?? '').toLowerCase()
       const client = bill.client ? fullName(bill.client).toLowerCase() : ''
@@ -416,7 +440,7 @@ export function BillingPage() {
       const method = String(bill.paymentMethod?.name || '').toLowerCase()
       return billNo.includes(q) || sessionId.includes(q) || client.includes(q) || recipientCompany.includes(q) || consultant.includes(q) || method.includes(q)
     })
-  }, [bills, historySearch, historyIssuedDate, historyStatusFilter])
+  }, [bills, historySearch, historyIssuedDate, historyStatusFilter, historyBillTypeFilter])
 
   const sortedHistoryBills = useMemo(() => {
     const list = [...filteredHistoryBills]
@@ -1350,6 +1374,15 @@ export function BillingPage() {
                 <option value="open">{billingCopy.historyStatusOpen}</option>
                 <option value="cancelled">{billingCopy.historyStatusCancelled}</option>
               </select>
+              <select
+                value={historyBillTypeFilter}
+                onChange={(e) => setHistoryBillTypeFilter(e.target.value as 'all' | BillDocumentType)}
+                aria-label={billingCopy.historyFilterBillTypeAria}
+              >
+                <option value="all">{billingCopy.historyBillTypeAll}</option>
+                <option value="INVOICE">{billingCopy.historyBillTypeInvoice}</option>
+                <option value="ADVANCE">{billingCopy.historyBillTypeAdvance}</option>
+              </select>
               <input
                 type="date"
                 value={historyIssuedDate}
@@ -1423,6 +1456,9 @@ export function BillingPage() {
                         <div className="billing-open-mobile-card-top">
                           <div className="billing-open-mobile-client">
                             {`Folio #${bill.billNumber || bill.id}`}
+                            <span className="muted" style={{ marginLeft: 8, fontWeight: 600 }}>
+                              {normalizeBillType(bill)}
+                            </span>
                           </div>
                           <button
                             type="button"
@@ -1488,11 +1524,12 @@ export function BillingPage() {
               ) : (
                 <div className="simple-table-wrap">
                   <table>
-                    <thead><tr><th>Bill no.</th><th>Session ID</th><th>Client</th><th>Consultant</th><th>Payment method</th><th>Issued</th><th>Total gross</th><th>Payment</th><th>Fiscal</th><th /></tr></thead>
+                    <thead><tr><th>Bill no.</th><th>{billingCopy.historyBillTypeColumn}</th><th>Session ID</th><th>Client</th><th>Consultant</th><th>Payment method</th><th>Issued</th><th>Total gross</th><th>Payment</th><th>Fiscal</th><th /></tr></thead>
                     <tbody>
                       {sortedHistoryBills.map((bill) => (
                         <tr key={bill.id} className="billing-history-row" onClick={() => { void openFolioPanel(bill) }}>
                           <td>{bill.billNumber}</td>
+                          <td>{normalizeBillType(bill)}</td>
                           <td>{bill.sessionId ? `#${bill.sessionId}` : '—'}</td>
                           <td>{bill.billingTarget === 'COMPANY'
                             ? (bill.recipientCompany?.name || '—')

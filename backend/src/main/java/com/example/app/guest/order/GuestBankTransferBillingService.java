@@ -2,20 +2,26 @@ package com.example.app.guest.order;
 
 import com.example.app.billing.*;
 import com.example.app.client.Client;
-import com.example.app.guest.model.GuestOrder;
 import com.example.app.fiscal.FiscalizationService;
+import com.example.app.guest.model.GuestPaymentMethodType;
+import com.example.app.guest.model.GuestOrder;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.user.User;
+import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -37,6 +43,8 @@ public class GuestBankTransferBillingService {
     private final InvoicePdfS3Service invoicePdfS3Service;
     private final FolioPdfService folioPdfService;
     private final UpnQrPayloadBuilder upnQrPayloadBuilder;
+    private final UserRepository users;
+    private final BillPdfService billPdfService;
 
     public GuestBankTransferBillingService(
             BillRepository bills,
@@ -47,7 +55,9 @@ public class GuestBankTransferBillingService {
             BillingEmailService billingEmailService,
             InvoicePdfS3Service invoicePdfS3Service,
             FolioPdfService folioPdfService,
-            UpnQrPayloadBuilder upnQrPayloadBuilder
+            UpnQrPayloadBuilder upnQrPayloadBuilder,
+            UserRepository users,
+            BillPdfService billPdfService
     ) {
         this.bills = bills;
         this.paymentMethods = paymentMethods;
@@ -58,37 +68,53 @@ public class GuestBankTransferBillingService {
         this.invoicePdfS3Service = invoicePdfS3Service;
         this.folioPdfService = folioPdfService;
         this.upnQrPayloadBuilder = upnQrPayloadBuilder;
+        this.users = users;
+        this.billPdfService = billPdfService;
     }
 
     @Transactional
     public Bill issueConfirmedBookingBill(GuestOrder order, SessionBooking booking) {
+        return issueAdvanceBill(order, booking, GuestPaymentMethodType.BANK_TRANSFER.name(), BillPaymentStatus.PAYMENT_PENDING, null);
+    }
+
+    @Transactional
+    public Bill issuePaidAdvanceBill(GuestOrder order, SessionBooking booking, String paymentMethodType) {
+        return issueAdvanceBill(order, booking, paymentMethodType, BillPaymentStatus.PAID, OffsetDateTime.now());
+    }
+
+    private Bill issueAdvanceBill(GuestOrder order, SessionBooking booking, String paymentMethodType, String targetPaymentStatus, OffsetDateTime paidAt) {
         if (booking == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking is required for bank transfer billing.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking is required for advance billing.");
         }
         Long companyId = order.getCompany().getId();
-        Bill existing = bills.findFirstByCompanyIdAndSourceSessionIdSnapshotOrderByIdDesc(companyId, booking.getId()).orElse(null);
+        Bill existing = bills.findFirstByCompanyIdAndSourceSessionIdSnapshotAndBillTypeOrderByIdDesc(companyId, booking.getId(), BillType.ADVANCE)
+                .orElse(null);
         if (existing != null) {
-            return existing;
+            return finalizeExistingAdvance(existing, targetPaymentStatus, paidAt, order.getId());
         }
 
-        PaymentMethod paymentMethod = resolveBankTransferPaymentMethod(companyId);
+        PaymentMethod paymentMethod = resolvePaymentMethod(companyId, paymentMethodType);
         Bill bill = new Bill();
         bill.setCompany(order.getCompany());
         bill.setBillNumber(nextInvoiceNumber(companyId));
+        bill.setBillType(BillType.ADVANCE);
         bill.setClient(order.getClient());
         setBillClientSnapshot(bill, order.getClient());
         setBillRecipientPersonSnapshot(bill);
-        bill.setConsultant(booking.getConsultant());
+        bill.setConsultant(resolveBillConsultant(companyId, booking));
         bill.setPaymentMethod(paymentMethod);
         bill.setIssueDate(LocalDate.now());
         bill.setSourceSessionIdSnapshot(booking.getId());
-        bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
-        if (bill.getBankTransferReference() == null || bill.getBankTransferReference().isBlank()) {
+        bill.setPaymentStatus(targetPaymentStatus);
+        if (BillPaymentStatus.PAID.equals(targetPaymentStatus)) {
+            bill.setPaidAt(paidAt == null ? OffsetDateTime.now() : paidAt);
+        }
+        if (isBankTransferPayment(paymentMethod)) {
             bill.setBankTransferReference(BankStatementReconciliationService.bankReferenceForBill(bill));
         }
 
         if (booking.getType() == null || booking.getType().getLinkedServices() == null || booking.getType().getLinkedServices().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no linked billing services, so an invoice cannot be generated.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no linked billing services, so an advance invoice cannot be generated.");
         }
 
         BigDecimal totalNet = BigDecimal.ZERO;
@@ -111,7 +137,7 @@ public class GuestBankTransferBillingService {
             bill.getItems().add(item);
         }
         if (bill.getItems().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no valid billing lines, so an invoice cannot be generated.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no valid billing lines, so an advance invoice cannot be generated.");
         }
         bill.setTotalNet(totalNet.setScale(2, RoundingMode.HALF_UP));
         bill.setTotalGross(totalGross.setScale(2, RoundingMode.HALF_UP));
@@ -120,29 +146,77 @@ public class GuestBankTransferBillingService {
         if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
             saved = fiscalizationService.fiscalizeBill(saved, companyId);
         }
-
-        booking.setBilledAt(LocalDate.now());
-        sessionBookings.save(booking);
-        sessionBookings.flush();
-
-        try {
-            byte[] pdf = generateArchiveFolioPdf(saved, companyId);
-            invoicePdfS3Service.uploadAndPersistKey(saved, pdf);
-            billingEmailService.sendBankTransferFolio(saved, pdf);
-        } catch (Exception ex) {
-            log.warn("Failed to archive/email bank transfer folio for guest order {} and bill {}", order.getId(), saved.getId(), ex);
-        }
+        deliverAdvance(saved, companyId, order.getId());
         return saved;
     }
 
-    private PaymentMethod resolveBankTransferPaymentMethod(Long companyId) {
-        return paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId).stream()
-                .filter(pm -> pm.getPaymentType() == PaymentType.BANK_TRANSFER && pm.isGuestEnabled())
+    private Bill finalizeExistingAdvance(Bill existing, String targetPaymentStatus, OffsetDateTime paidAt, Long orderId) {
+        if (!BillPaymentStatus.PAID.equals(targetPaymentStatus) || BillPaymentStatus.PAID.equals(existing.getPaymentStatus())) {
+            return existing;
+        }
+        existing.setPaymentStatus(BillPaymentStatus.PAID);
+        if (existing.getPaidAt() == null) {
+            existing.setPaidAt(paidAt == null ? OffsetDateTime.now() : paidAt);
+        }
+        Bill saved = bills.saveAndFlush(existing);
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())
+                && (saved.getFiscalStatus() == null
+                || saved.getFiscalStatus() == BillFiscalStatus.NOT_SENT
+                || saved.getFiscalStatus() == BillFiscalStatus.PENDING
+                || saved.getFiscalStatus() == BillFiscalStatus.FAILED)) {
+            saved = fiscalizationService.fiscalizeBill(saved, saved.getCompany().getId());
+        }
+        deliverAdvance(saved, saved.getCompany().getId(), orderId);
+        return saved;
+    }
+
+    private void deliverAdvance(Bill bill, Long companyId, Long orderId) {
+        try {
+            if (isBankTransferPayment(bill.getPaymentMethod()) && !BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
+                byte[] pdf = generateArchiveFolioPdf(bill, companyId);
+                invoicePdfS3Service.uploadAndPersistKey(bill, pdf);
+                billingEmailService.sendBankTransferFolio(bill, pdf);
+            } else {
+                byte[] pdf = billPdfService.generatePdf(bill, companyId);
+                invoicePdfS3Service.uploadAndPersistKey(bill, pdf);
+                billingEmailService.sendPaidBillReceipt(bill, pdf);
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to archive/email advance invoice for guest order {} and bill {}", orderId, bill.getId(), ex);
+        }
+    }
+
+    private PaymentMethod resolvePaymentMethod(Long companyId, String paymentMethodType) {
+        List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
+        PaymentType desired = switch ((paymentMethodType == null ? "" : paymentMethodType).trim().toUpperCase(Locale.ROOT)) {
+            case "BANK_TRANSFER" -> PaymentType.BANK_TRANSFER;
+            case "PAYPAL", "CARD" -> PaymentType.CARD;
+            default -> PaymentType.CARD;
+        };
+        return all.stream()
+                .filter(pm -> pm.getPaymentType() == desired)
+                .filter(PaymentMethod::isGuestEnabled)
                 .findFirst()
-                .or(() -> paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId).stream()
-                        .filter(pm -> pm.getPaymentType() == PaymentType.BANK_TRANSFER)
-                        .findFirst())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No bank transfer payment method is configured for this company."));
+                .or(() -> all.stream().filter(pm -> pm.getPaymentType() == desired).findFirst())
+                .or(() -> all.stream().findFirst())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No payment method is configured for this company."));
+    }
+
+    private User resolveBillConsultant(Long companyId, SessionBooking booking) {
+        if (booking.getConsultant() != null) {
+            return booking.getConsultant();
+        }
+        return users.findAllByCompanyId(companyId).stream()
+                .filter(User::isActive)
+                .min(Comparator.comparing(User::getId))
+                .or(() -> users.findAllByCompanyId(companyId).stream().min(Comparator.comparing(User::getId)))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Tenancy has no users available to issue the advance invoice against."));
+    }
+
+    private static boolean isBankTransferPayment(PaymentMethod paymentMethod) {
+        return paymentMethod != null && paymentMethod.getPaymentType() == PaymentType.BANK_TRANSFER;
     }
 
     private byte[] generateArchiveFolioPdf(Bill bill, Long companyId) {

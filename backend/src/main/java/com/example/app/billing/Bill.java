@@ -28,6 +28,10 @@ public class Bill extends BaseEntity {
 
     @Column(nullable = false)
     private String billNumber;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private BillType billType = BillType.INVOICE;
     @ManyToOne
     private Client client;
     @Column(nullable = false)

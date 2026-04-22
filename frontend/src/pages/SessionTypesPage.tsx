@@ -17,8 +17,10 @@ import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components
 import { currency, formatDate } from '../lib/format'
 import { useLocale, type AppLocale } from '../locale'
 import { getDefaultAllowedRoute } from '../lib/packageAccess'
+import { CardsMembershipsSection, type CardsMembershipsSectionHandle } from './CardsMembershipsSection'
 
 const SESSION_TYPES_SUBTAB_TRANSACTION = 'transaction-services'
+const SESSION_TYPES_SUBTAB_CARDS = 'cards-memberships'
 
 type TypeServiceLine = { transactionServiceId: number; price: string }
 
@@ -163,17 +165,30 @@ function transactionServiceListCountLabel(count: number, locale: AppLocale): str
   return `${count} storitev`
 }
 
+function guestCardListCountLabel(count: number, locale: AppLocale): string {
+  if (locale !== 'sl') return `${count} ${count === 1 ? 'card' : 'cards'}`
+  const n = Math.abs(count) % 100
+  const last = n % 10
+  if (n >= 11 && n <= 14) return `${count} kartic`
+  if (last === 1) return `${count} kartica`
+  if (last === 2) return `${count} kartici`
+  return `${count} kartic`
+}
+
 export function SessionTypesPage() {
   const me = getStoredUser()!
   const isAdmin = me.role === 'ADMIN'
   const { t, locale } = useLocale()
   const [searchParams, setSearchParams] = useSearchParams()
+  const showCardsMemberships = searchParams.get('subtab') === SESSION_TYPES_SUBTAB_CARDS
   const showTransactionServices = searchParams.get('subtab') === SESSION_TYPES_SUBTAB_TRANSACTION
 
   const setSessionTypesSubtab = useCallback(
-    (next: 'types' | 'transactionServices') => {
+    (next: 'types' | 'transactionServices' | 'cardsMemberships') => {
       if (next === 'transactionServices') {
         setSearchParams({ subtab: SESSION_TYPES_SUBTAB_TRANSACTION }, { replace: true })
+      } else if (next === 'cardsMemberships') {
+        setSearchParams({ subtab: SESSION_TYPES_SUBTAB_CARDS }, { replace: true })
       } else {
         setSearchParams({}, { replace: true })
       }
@@ -221,6 +236,20 @@ export function SessionTypesPage() {
   const [openServiceMenuId, setOpenServiceMenuId] = useState<number | null>(null)
   const [typeSearch, setTypeSearch] = useState('')
   const [serviceSearch, setServiceSearch] = useState('')
+  const [cardSearch, setCardSearch] = useState('')
+  const [guestCardsFilteredCount, setGuestCardsFilteredCount] = useState(0)
+  const cardsMembershipsRef = useRef<CardsMembershipsSectionHandle>(null)
+
+  const onGuestCardsFilteredCount = useCallback((n: number) => {
+    setGuestCardsFilteredCount(n)
+  }, [])
+
+  useEffect(() => {
+    if (!showCardsMemberships) {
+      setCardSearch('')
+      setGuestCardsFilteredCount(0)
+    }
+  }, [showCardsMemberships])
 
   const taxRateSelectOptions = useMemo(
     () =>
@@ -506,7 +535,7 @@ export function SessionTypesPage() {
     setOpenServiceMenuId(null)
   }
 
-  if (!typesModuleEnabled && !showTransactionServices) {
+  if (!typesModuleEnabled && !showTransactionServices && !showCardsMemberships) {
     return <Navigate to="/configuration" replace />
   }
 
@@ -908,8 +937,8 @@ export function SessionTypesPage() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={!showTransactionServices}
-                className={!showTransactionServices ? 'clients-session-tab active' : 'clients-session-tab'}
+                aria-selected={!showTransactionServices && !showCardsMemberships}
+                className={!showTransactionServices && !showCardsMemberships ? 'clients-session-tab active' : 'clients-session-tab'}
                 onClick={() => setSessionTypesSubtab('types')}
               >
                 {t('sessionTypesSubtabTypes')}
@@ -923,11 +952,26 @@ export function SessionTypesPage() {
               >
                 {t('configBillingServicesTab')}
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showCardsMemberships}
+                className={showCardsMemberships ? 'clients-session-tab active' : 'clients-session-tab'}
+                onClick={() => setSessionTypesSubtab('cardsMemberships')}
+              >
+                {t('sessionTypesSubtabCards')}
+              </button>
             </div>
             <button
               type="button"
               className="secondary"
-              onClick={showTransactionServices ? openNewServiceModal : openNewTypeModal}
+              onClick={
+                showCardsMemberships
+                  ? () => cardsMembershipsRef.current?.openNew()
+                  : showTransactionServices
+                    ? openNewServiceModal
+                    : openNewTypeModal
+              }
             >
               {isSessionTypesNarrow ? t('billingNewMobile') : t('billingNew')}
             </button>
@@ -937,13 +981,21 @@ export function SessionTypesPage() {
               <input
                 className="clients-search-input"
                 placeholder={
-                  showTransactionServices
-                    ? t('sessionTypesSearchServicesPlaceholder')
-                    : t('sessionTypesSearchTypesPlaceholder')
+                  showCardsMemberships
+                    ? t('sessionTypesSearchCardsPlaceholder')
+                    : showTransactionServices
+                      ? t('sessionTypesSearchServicesPlaceholder')
+                      : t('sessionTypesSearchTypesPlaceholder')
                 }
-                value={showTransactionServices ? serviceSearch : typeSearch}
+                value={
+                  showCardsMemberships ? cardSearch : showTransactionServices ? serviceSearch : typeSearch
+                }
                 onChange={(e) =>
-                  showTransactionServices ? setServiceSearch(e.target.value) : setTypeSearch(e.target.value)
+                  showCardsMemberships
+                    ? setCardSearch(e.target.value)
+                    : showTransactionServices
+                      ? setServiceSearch(e.target.value)
+                      : setTypeSearch(e.target.value)
                 }
               />
               <span className="clients-search-icon" aria-hidden>
@@ -951,18 +1003,63 @@ export function SessionTypesPage() {
               </span>
             </div>
             <div className={`clients-count-chip${isSessionTypesNarrow ? ' clients-count-chip--mobile-open' : ''}`}>
-              {showTransactionServices
-                ? transactionServiceListCountLabel(filteredServices.length, locale)
-                : sessionTypeListCountLabel(filteredTypes.length, locale)}
+              {showCardsMemberships
+                ? guestCardListCountLabel(guestCardsFilteredCount, locale)
+                : showTransactionServices
+                  ? transactionServiceListCountLabel(filteredServices.length, locale)
+                  : sessionTypeListCountLabel(filteredTypes.length, locale)}
             </div>
           </div>
-          {showTransactionServices ? transactionServicesPanelBody : typesPanelBody}
+          {showCardsMemberships ? (
+            <CardsMembershipsSection
+              ref={cardsMembershipsRef}
+              sessionTypes={types}
+              searchQuery={cardSearch}
+              onFilteredCountChange={onGuestCardsFilteredCount}
+            />
+          ) : showTransactionServices ? (
+            transactionServicesPanelBody
+          ) : (
+            typesPanelBody
+          )}
         </Card>
       ) : (
         <Card className={sessionTypesCardClass}>
-          <div className="section-title-row" style={{ marginBottom: 12 }}>
-            <h3 style={{ margin: 0 }}>{t('configBillingServicesTab')}</h3>
-            <button type="button" className="secondary" onClick={openNewServiceModal}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div className="clients-session-tabs" style={{ marginBottom: 0 }} role="tablist" aria-label={t('sessionTypesSubtabsAria')}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showTransactionServices && !showCardsMemberships}
+                className={showTransactionServices && !showCardsMemberships ? 'clients-session-tab active' : 'clients-session-tab'}
+                onClick={() => setSessionTypesSubtab('transactionServices')}
+              >
+                {t('configBillingServicesTab')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showCardsMemberships}
+                className={showCardsMemberships ? 'clients-session-tab active' : 'clients-session-tab'}
+                onClick={() => setSessionTypesSubtab('cardsMemberships')}
+              >
+                {t('sessionTypesSubtabCards')}
+              </button>
+            </div>
+            <button
+              type="button"
+              className="secondary"
+              onClick={showCardsMemberships ? () => cardsMembershipsRef.current?.openNew() : openNewServiceModal}
+            >
               {isSessionTypesNarrow ? t('billingNewMobile') : t('billingNew')}
             </button>
           </div>
@@ -970,19 +1067,36 @@ export function SessionTypesPage() {
             <div className="clients-search-wrap">
               <input
                 className="clients-search-input"
-                placeholder={t('sessionTypesSearchServicesPlaceholder')}
-                value={serviceSearch}
-                onChange={(e) => setServiceSearch(e.target.value)}
+                placeholder={
+                  showCardsMemberships
+                    ? t('sessionTypesSearchCardsPlaceholder')
+                    : t('sessionTypesSearchServicesPlaceholder')
+                }
+                value={showCardsMemberships ? cardSearch : serviceSearch}
+                onChange={(e) =>
+                  showCardsMemberships ? setCardSearch(e.target.value) : setServiceSearch(e.target.value)
+                }
               />
               <span className="clients-search-icon" aria-hidden>
                 ⌕
               </span>
             </div>
             <div className={`clients-count-chip${isSessionTypesNarrow ? ' clients-count-chip--mobile-open' : ''}`}>
-              {transactionServiceListCountLabel(filteredServices.length, locale)}
+              {showCardsMemberships
+                ? guestCardListCountLabel(guestCardsFilteredCount, locale)
+                : transactionServiceListCountLabel(filteredServices.length, locale)}
             </div>
           </div>
-          {transactionServicesPanelBody}
+          {showCardsMemberships ? (
+            <CardsMembershipsSection
+              ref={cardsMembershipsRef}
+              sessionTypes={types}
+              searchQuery={cardSearch}
+              onFilteredCountChange={onGuestCardsFilteredCount}
+            />
+          ) : (
+            transactionServicesPanelBody
+          )}
         </Card>
       )}
 

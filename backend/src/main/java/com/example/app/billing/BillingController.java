@@ -119,6 +119,7 @@ public class BillingController {
     public record BillResponse(
             Long id,
             String billNumber,
+            String billType,
             Long sessionId,
             ClientSummary client,
             RecipientCompanySummary recipientCompany,
@@ -145,7 +146,7 @@ public class BillingController {
     ) {}
 
     public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId) {}
-    public record OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId) {}
+    public record OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record OpenBillSessionSummary(
             Long sessionId,
             String sessionDisplayId,
@@ -602,97 +603,194 @@ public class BillingController {
     private void syncOpenBillsFromPastSessions(Long companyId) {
         var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(LocalDateTime.now(), companyId);
         for (SessionBooking sb : past) {
-            if (sb.getConsultant() == null) continue;
             var type = sb.getType();
             if (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty()) continue;
 
-            OpenBill open = null;
             var client = sb.getClient();
-            // OpenBill always requires a client; sessions without one cannot be synced into open bills.
             if (client == null) continue;
+
+            var consultant = resolveOpenBillConsultant(sb, companyId);
+            if (consultant == null) continue;
+
             var linkedCompany = client.getBillingCompany();
             final boolean companyBatchEnabled = linkedCompany != null && linkedCompany.isBatchPaymentEnabled();
-            final boolean clientBatchEnabled = !companyBatchEnabled && client != null && client.isBatchPaymentEnabled();
+            final boolean clientBatchEnabled = !companyBatchEnabled && client.isBatchPaymentEnabled();
 
             var legacyOpen = openBillRepo.findBySessionBookingIdAndCompanyId(sb.getId(), companyId).orElse(null);
             if (legacyOpen != null && legacyOpen.isManualSplitLocked()) {
-                // Explicitly split by user - keep separate and never auto-merge back.
                 continue;
             }
-            if (legacyOpen != null && !companyBatchEnabled && !clientBatchEnabled) {
-                // Legacy single-session open bill is still correct when no batch mode is enabled.
-                continue;
-            }
-            if (legacyOpen == null && openBillRepo.existsItemBySourceSessionBookingIdAndCompanyId(sb.getId(), companyId)) {
-                // Already represented in a grouped bill.
-                continue;
-            }
+            var containingOpen = legacyOpen != null
+                    ? legacyOpen
+                    : openBillRepo.findContainingSession(companyId, sb.getId()).orElse(null);
 
-            if (companyBatchEnabled) {
-                open = openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, linkedCompany.getId()).orElse(null);
-                if (open == null) {
-                    open = new OpenBill();
-                    open.setCompany(sb.getCompany());
-                    open.setClient(client);
-                    open.setConsultant(sb.getConsultant());
-                    open.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
-                    open.setSessionBooking(null);
-                    open.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
-                    open.setBatchTargetCompanyId(linkedCompany.getId());
-                    open.setBatchTargetClientId(null);
-                }
-            } else if (clientBatchEnabled) {
-                open = openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, client.getId()).orElse(null);
-                if (open == null) {
-                    open = new OpenBill();
-                    open.setCompany(sb.getCompany());
-                    open.setClient(client);
-                    open.setConsultant(sb.getConsultant());
-                    open.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
-                    open.setSessionBooking(null);
-                    open.setBatchScope(OpenBill.BATCH_SCOPE_CLIENT);
-                    open.setBatchTargetClientId(client.getId());
-                    open.setBatchTargetCompanyId(null);
-                }
-            } else {
-                open = new OpenBill();
-                open.setCompany(sb.getCompany());
-                open.setClient(client);
-                open.setConsultant(sb.getConsultant());
-                open.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
-                open.setSessionBooking(sb);
-                open.setBatchScope(OpenBill.BATCH_SCOPE_NONE);
-                open.setBatchTargetClientId(null);
-                open.setBatchTargetCompanyId(null);
-            }
+            OpenBill open = resolveSyncTargetOpenBill(sb, client, consultant, linkedCompany, companyBatchEnabled, clientBatchEnabled, containingOpen, companyId);
+            boolean changed = false;
 
-            if (legacyOpen != null) {
-                for (var item : new ArrayList<>(legacyOpen.getItems())) {
-                    var moved = new OpenBillItem();
-                    moved.setOpenBill(open);
-                    moved.setTransactionService(item.getTransactionService());
-                    moved.setQuantity(item.getQuantity());
-                    moved.setNetPrice(item.getNetPrice());
-                    moved.setSourceSessionBookingId(sb.getId());
-                    open.getItems().add(moved);
-                }
-                openBillRepo.save(open);
+            if (legacyOpen != null && !sameOpenBill(legacyOpen, open)) {
+                changed |= moveItemsToResolvedOpenBill(legacyOpen, open, sb.getId());
                 openBillRepo.delete(legacyOpen);
-            } else {
-                for (TypeTransactionService link : type.getLinkedServices()) {
-                    var tx = link.getTransactionService();
-                    var price = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
-                    var obi = new OpenBillItem();
-                    obi.setOpenBill(open);
-                    obi.setTransactionService(tx);
-                    obi.setQuantity(1);
-                    obi.setNetPrice(price);
-                    obi.setSourceSessionBookingId(sb.getId());
-                    open.getItems().add(obi);
-                }
+            }
+
+            changed |= ensureSessionServiceLines(open, sb);
+            changed |= ensureAdvanceOffsetLines(open, sb, companyId);
+
+            if (changed || open.getId() == null) {
                 openBillRepo.save(open);
             }
         }
+    }
+
+    private User resolveOpenBillConsultant(SessionBooking session, Long companyId) {
+        if (session.getConsultant() != null) {
+            return session.getConsultant();
+        }
+        return users.findAllByCompanyId(companyId).stream()
+                .filter(User::isActive)
+                .min(Comparator.comparing(User::getId))
+                .orElse(null);
+    }
+
+    private OpenBill resolveSyncTargetOpenBill(
+            SessionBooking session,
+            com.example.app.client.Client client,
+            User consultant,
+            ClientCompany linkedCompany,
+            boolean companyBatchEnabled,
+            boolean clientBatchEnabled,
+            OpenBill containingOpen,
+            Long companyId
+    ) {
+        if (companyBatchEnabled) {
+            return openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, linkedCompany.getId())
+                    .orElseGet(() -> {
+                        if (containingOpen != null
+                                && OpenBill.BATCH_SCOPE_COMPANY.equals(containingOpen.getBatchScope())
+                                && Objects.equals(containingOpen.getBatchTargetCompanyId(), linkedCompany.getId())) {
+                            return containingOpen;
+                        }
+                        return newOpenBillSkeleton(session, client, consultant, null, OpenBill.BATCH_SCOPE_COMPANY, null, linkedCompany.getId());
+                    });
+        }
+        if (clientBatchEnabled) {
+            return openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, client.getId())
+                    .orElseGet(() -> {
+                        if (containingOpen != null
+                                && OpenBill.BATCH_SCOPE_CLIENT.equals(containingOpen.getBatchScope())
+                                && Objects.equals(containingOpen.getBatchTargetClientId(), client.getId())) {
+                            return containingOpen;
+                        }
+                        return newOpenBillSkeleton(session, client, consultant, null, OpenBill.BATCH_SCOPE_CLIENT, client.getId(), null);
+                    });
+        }
+        if (containingOpen != null) {
+            return containingOpen;
+        }
+        return newOpenBillSkeleton(session, client, consultant, session, OpenBill.BATCH_SCOPE_NONE, null, null);
+    }
+
+    private OpenBill newOpenBillSkeleton(
+            SessionBooking session,
+            com.example.app.client.Client client,
+            User consultant,
+            SessionBooking singleSession,
+            String batchScope,
+            Long batchTargetClientId,
+            Long batchTargetCompanyId
+    ) {
+        OpenBill open = new OpenBill();
+        open.setCompany(session.getCompany());
+        open.setClient(client);
+        open.setConsultant(consultant);
+        open.setPaymentMethod(resolveDefaultPaymentMethod(session.getCompany().getId()));
+        open.setSessionBooking(singleSession);
+        open.setBatchScope(batchScope);
+        open.setBatchTargetClientId(batchTargetClientId);
+        open.setBatchTargetCompanyId(batchTargetCompanyId);
+        return open;
+    }
+
+    private boolean sameOpenBill(OpenBill a, OpenBill b) {
+        return a != null && b != null && a.getId() != null && a.getId().equals(b.getId());
+    }
+
+    private boolean moveItemsToResolvedOpenBill(OpenBill from, OpenBill to, Long sessionId) {
+        boolean changed = false;
+        for (var item : new ArrayList<>(from.getItems())) {
+            var moved = new OpenBillItem();
+            moved.setOpenBill(to);
+            moved.setTransactionService(item.getTransactionService());
+            moved.setQuantity(item.getQuantity());
+            moved.setNetPrice(item.getNetPrice());
+            moved.setSourceSessionBookingId(item.getSourceSessionBookingId() != null ? item.getSourceSessionBookingId() : sessionId);
+            moved.setSourceAdvanceBillId(item.getSourceAdvanceBillId());
+            to.getItems().add(moved);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private boolean ensureSessionServiceLines(OpenBill open, SessionBooking session) {
+        boolean changed = false;
+        for (TypeTransactionService link : session.getType().getLinkedServices()) {
+            var tx = link.getTransactionService();
+            if (tx == null) continue;
+            var price = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            boolean exists = open.getItems().stream().anyMatch(item -> Objects.equals(item.getSourceSessionBookingId(), session.getId())
+                    && item.getSourceAdvanceBillId() == null
+                    && item.getTransactionService() != null
+                    && Objects.equals(item.getTransactionService().getId(), tx.getId())
+                    && sameMoney(item.getNetPrice(), price)
+                    && Objects.equals(item.getQuantity(), 1));
+            if (!exists) {
+                var obi = new OpenBillItem();
+                obi.setOpenBill(open);
+                obi.setTransactionService(tx);
+                obi.setQuantity(1);
+                obi.setNetPrice(price);
+                obi.setSourceSessionBookingId(session.getId());
+                obi.setSourceAdvanceBillId(null);
+                open.getItems().add(obi);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean ensureAdvanceOffsetLines(OpenBill open, SessionBooking session, Long companyId) {
+        boolean changed = false;
+        var advances = billRepo.findAllByCompanyIdAndSourceSessionIdSnapshotAndBillTypeOrderByIdAsc(companyId, session.getId(), BillType.ADVANCE);
+        for (Bill advance : advances) {
+            if (!BillPaymentStatus.PAID.equals(advance.getPaymentStatus())) continue;
+            for (var billItem : advance.getItems()) {
+                if (billItem.getTransactionService() == null) continue;
+                var negativeNet = (billItem.getNetPrice() == null ? BigDecimal.ZERO : billItem.getNetPrice()).negate();
+                boolean exists = open.getItems().stream().anyMatch(item -> Objects.equals(item.getSourceAdvanceBillId(), advance.getId())
+                        && Objects.equals(item.getSourceSessionBookingId(), session.getId())
+                        && item.getTransactionService() != null
+                        && Objects.equals(item.getTransactionService().getId(), billItem.getTransactionService().getId())
+                        && sameMoney(item.getNetPrice(), negativeNet)
+                        && Objects.equals(item.getQuantity(), billItem.getQuantity()));
+                if (!exists) {
+                    var obi = new OpenBillItem();
+                    obi.setOpenBill(open);
+                    obi.setTransactionService(billItem.getTransactionService());
+                    obi.setQuantity(billItem.getQuantity());
+                    obi.setNetPrice(negativeNet);
+                    obi.setSourceSessionBookingId(session.getId());
+                    obi.setSourceAdvanceBillId(advance.getId());
+                    open.getItems().add(obi);
+                    changed = true;
+                }
+            }
+        }
+        return changed;
+    }
+
+    private boolean sameMoney(BigDecimal a, BigDecimal b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        return a.compareTo(b) == 0;
     }
 
     private List<OpenBillResponse> toOpenBillResponses(List<OpenBill> openBills, Long companyId) {
@@ -733,7 +831,7 @@ public class BillingController {
         var items = o.getItems().stream().map(obi -> {
             var tx = obi.getTransactionService();
             var ss = new ServiceSummary(tx.getId(), tx.getCode(), tx.getDescription(), tx.getTaxRate(), tx.getNetPrice());
-            return new OpenBillItemResponse(obi.getId(), ss, obi.getQuantity(), obi.getNetPrice(), obi.getSourceSessionBookingId());
+            return new OpenBillItemResponse(obi.getId(), ss, obi.getQuantity(), obi.getNetPrice(), obi.getSourceSessionBookingId(), obi.getSourceAdvanceBillId());
         }).toList();
 
         Map<Long, OpenBillSessionSummary> grouped = new LinkedHashMap<>();
@@ -1235,6 +1333,7 @@ public class BillingController {
         return new BillResponse(
                 bill.getId(),
                 bill.getBillNumber(),
+                bill.getBillType() == null ? BillType.INVOICE.name() : bill.getBillType().name(),
                 bill.getSourceSessionIdSnapshot(),
                 clientSummary,
                 recipientCompanySummary,
