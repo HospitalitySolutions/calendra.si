@@ -2,8 +2,10 @@ package com.example.app.guest.model;
 
 public enum GuestNotificationType {
     BOOKING_CONFIRMED,
-    BOOKING_REMINDER,
+    BOOKING_RESCHEDULED,
     BOOKING_CANCELLED,
+    BOOKING_REMINDER,
+    BOOKING_FOLLOW_UP,
     PAYMENT_PENDING,
     PAYMENT_CONFIRMED,
     ANNOUNCEMENT,

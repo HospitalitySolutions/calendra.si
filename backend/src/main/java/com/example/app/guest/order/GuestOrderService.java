@@ -136,7 +136,6 @@ public class GuestOrderService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entitlement checkout requires a valid service.");
             }
             entitlementService.consumeBestMatchingEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), booking);
-            notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),
@@ -160,7 +159,6 @@ public class GuestOrderService {
             if (booking == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pay at venue checkout requires a booking slot.");
             }
-            notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),
@@ -191,7 +189,6 @@ public class GuestOrderService {
                     order = orders.save(order);
                     responseAmount = bill.getTotalGross().doubleValue();
                 }
-                notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
             }
             notifications.paymentPending(order.getGuestUser(), order.getCompany(), order.getClient(), "Invoice sent", "Your booking is confirmed. We emailed you the bank transfer folio/invoice PDF and payment instructions.");
             return new GuestDtos.CheckoutResponse(
@@ -365,12 +362,9 @@ public class GuestOrderService {
             order.setPaypalCaptureId(paypalCaptureId);
         }
         order = orders.save(order);
-        SessionBooking booking = maybeCreateConfirmedBooking(order);
+        maybeCreateConfirmedBooking(order);
         maybeCreateEntitlement(order);
         notifications.paymentConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), "Payment confirmed", "Your payment was received successfully.");
-        if (booking != null) {
-            notifications.bookingConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), booking);
-        }
         return order;
     }
 

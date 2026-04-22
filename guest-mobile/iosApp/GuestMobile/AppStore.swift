@@ -215,6 +215,86 @@ final class AppStore: ObservableObject {
     }
 
 
+    func markNotificationRead(companyId: String, notificationId: String) async {
+        guard !usePreviewData else {
+            applyReadState(companyId: companyId, notificationId: notificationId, readAt: isoNow())
+            return
+        }
+        await run {
+            try await api.markNotificationRead(companyId: companyId, notificationId: notificationId)
+            applyReadState(companyId: companyId, notificationId: notificationId, readAt: isoNow())
+        }
+    }
+
+    func markAllNotificationsRead(companyId: String) async {
+        guard !usePreviewData else {
+            applyReadStateAll(companyId: companyId, readAt: isoNow())
+            return
+        }
+        await run {
+            try await api.markAllNotificationsRead(companyId: companyId)
+            applyReadStateAll(companyId: companyId, readAt: isoNow())
+        }
+    }
+
+    private func isoNow() -> String {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.string(from: Date())
+    }
+
+    private func applyReadState(companyId: String, notificationId: String, readAt: String) {
+        guard let dashboard = tenantDashboards[companyId] else { return }
+        let updated = dashboard.notifications.map { n -> NotificationModel in
+            guard n.id == notificationId, n.readAt == nil else { return n }
+            return NotificationModel(
+                id: n.id,
+                title: n.title,
+                body: n.body,
+                notificationType: n.notificationType,
+                readAt: readAt,
+                createdAt: n.createdAt,
+                payloadJson: n.payloadJson
+            )
+        }
+        tenantDashboards[companyId] = TenantDashboardModel(
+            tenant: dashboard.tenant,
+            upcomingBookings: dashboard.upcomingBookings,
+            entitlements: dashboard.entitlements,
+            orders: dashboard.orders,
+            notifications: updated,
+            products: dashboard.products,
+            inboxThread: dashboard.inboxThread,
+            inboxMessages: dashboard.inboxMessages
+        )
+    }
+
+    private func applyReadStateAll(companyId: String, readAt: String) {
+        guard let dashboard = tenantDashboards[companyId] else { return }
+        let updated = dashboard.notifications.map { n -> NotificationModel in
+            guard n.readAt == nil else { return n }
+            return NotificationModel(
+                id: n.id,
+                title: n.title,
+                body: n.body,
+                notificationType: n.notificationType,
+                readAt: readAt,
+                createdAt: n.createdAt,
+                payloadJson: n.payloadJson
+            )
+        }
+        tenantDashboards[companyId] = TenantDashboardModel(
+            tenant: dashboard.tenant,
+            upcomingBookings: dashboard.upcomingBookings,
+            entitlements: dashboard.entitlements,
+            orders: dashboard.orders,
+            notifications: updated,
+            products: dashboard.products,
+            inboxThread: dashboard.inboxThread,
+            inboxMessages: dashboard.inboxMessages
+        )
+    }
+
     func loadInboxMessages(companyId: String) async {
         guard !usePreviewData else { return }
         await run {

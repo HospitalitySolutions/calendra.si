@@ -168,4 +168,10 @@ public class GuestHomeController {
         GuestUser guestUser = authContextService.requireGuest(request);
         return notificationService.markRead(guestUser, notificationId);
     }
+
+    @PostMapping("/notifications/read-all")
+    public GuestDtos.MarkAllReadResponse readAll(@RequestParam String companyId, HttpServletRequest request) {
+        GuestUser guestUser = authContextService.requireGuest(request);
+        return notificationService.markAllRead(guestUser, Long.parseLong(companyId));
+    }
 }

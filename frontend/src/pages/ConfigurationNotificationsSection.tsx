@@ -26,9 +26,18 @@ export type SmsTemplate = {
   offsetUnit?: OffsetUnit
 }
 
+export type GuestAppTemplate = {
+  enabled: boolean
+  title: string
+  body: string
+  offsetValue?: number
+  offsetUnit?: OffsetUnit
+}
+
 export type NotificationSettingsPayload = {
   email: Record<NotificationKind, EmailTemplate>
   sms: Record<NotificationKind, SmsTemplate>
+  guestApp: Record<NotificationKind, GuestAppTemplate>
 }
 
 const IMMEDIATE_KINDS: NotificationKind[] = ['newSession', 'changeSession', 'cancelSession']
@@ -54,6 +63,14 @@ const defaultScheduledSms = (): SmsTemplate => ({
   offsetUnit: 'hours',
 })
 
+const defaultScheduledGuestApp = (): GuestAppTemplate => ({
+  enabled: false,
+  title: '',
+  body: '',
+  offsetValue: 1,
+  offsetUnit: 'hours',
+})
+
 const defaultPayload = (): NotificationSettingsPayload => ({
   email: {
     newSession: { enabled: false, subject: '', bodyHtml: '' },
@@ -68,6 +85,13 @@ const defaultPayload = (): NotificationSettingsPayload => ({
     cancelSession: { enabled: false, body: '' },
     beforeSession: defaultScheduledSms(),
     afterSession: defaultScheduledSms(),
+  },
+  guestApp: {
+    newSession: { enabled: false, title: '', body: '' },
+    changeSession: { enabled: false, title: '', body: '' },
+    cancelSession: { enabled: false, title: '', body: '' },
+    beforeSession: defaultScheduledGuestApp(),
+    afterSession: defaultScheduledGuestApp(),
   },
 })
 
@@ -113,6 +137,21 @@ export function parseNotificationSettings(raw: string | undefined): Notification
             ? {
                 offsetValue: parseOffsetValue(s.offsetValue),
                 offsetUnit: parseOffsetUnit(s.offsetUnit),
+              }
+            : {}),
+        }
+      }
+      const g = p?.guestApp?.[k]
+      if (g && typeof g === 'object') {
+        const sched = isScheduledKind(k)
+        base.guestApp[k] = {
+          enabled: Boolean(g.enabled),
+          title: typeof g.title === 'string' ? g.title : '',
+          body: typeof g.body === 'string' ? g.body : '',
+          ...(sched
+            ? {
+                offsetValue: parseOffsetValue(g.offsetValue),
+                offsetUnit: parseOffsetUnit(g.offsetUnit),
               }
             : {}),
         }
@@ -438,9 +477,11 @@ type Props = {
 }
 
 export function ConfigurationNotificationsSection({ settings, setSettings, savingSettings, onSave, t }: Props) {
-  const [channel, setChannel] = useState<'email' | 'sms'>('email')
+  const [channel, setChannel] = useState<'email' | 'sms' | 'guestApp'>('email')
   const payload = parseNotificationSettings(settings[NOTIFICATION_SETTINGS_KEY])
   const smsTextareaRefs = useRef<Partial<Record<NotificationKind, HTMLTextAreaElement | null>>>({})
+  const guestAppTitleRefs = useRef<Partial<Record<NotificationKind, HTMLTextAreaElement | null>>>({})
+  const guestAppBodyRefs = useRef<Partial<Record<NotificationKind, HTMLTextAreaElement | null>>>({})
 
   const patchEmail = (kind: NotificationKind, patch: Partial<EmailTemplate>) => {
     setSettings((prev) => {
@@ -486,6 +527,18 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
     })
   }
 
+  const patchGuestApp = (kind: NotificationKind, patch: Partial<GuestAppTemplate>) => {
+    setSettings((prev) => {
+      const cur = parseNotificationSettings(prev[NOTIFICATION_SETTINGS_KEY])
+      const nextRow = { ...cur.guestApp[kind], ...patch }
+      const next: NotificationSettingsPayload = {
+        ...cur,
+        guestApp: { ...cur.guestApp, [kind]: nextRow },
+      }
+      return { ...prev, [NOTIFICATION_SETTINGS_KEY]: serializeNotificationSettings(next) }
+    })
+  }
+
   return (
     <div className="stack gap-lg config-notifications-page">
       <Card className="settings-card">
@@ -506,10 +559,17 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
           >
             {t('configNotificationsSmsTab')}
           </button>
+          <button
+            type="button"
+            className={channel === 'guestApp' ? 'clients-session-tab active' : 'clients-session-tab'}
+            onClick={() => setChannel('guestApp')}
+          >
+            {t('configNotifyChannelGuestApp')}
+          </button>
         </div>
       </Card>
 
-      {channel === 'email' ? (
+      {channel === 'email' && (
         <Card className="settings-card">
           {NOTIFICATION_KINDS.map((kind) => {
             const row = payload.email[kind]
@@ -589,7 +649,9 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
             </button>
           </div>
         </Card>
-      ) : (
+      )}
+
+      {channel === 'sms' && (
         <Card className="settings-card">
           <p className="muted" style={{ marginBottom: 16 }}>{t('configNotifySmsHint')}</p>
           {NOTIFICATION_KINDS.map((kind) => {
@@ -654,6 +716,97 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
                         rows={6}
                         value={row.body}
                         onChange={(e) => patchSms(kind, { body: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          <div className="config-notifications-templates-footer" role="region" aria-label={t('configSaveConfiguration')}>
+            <button type="button" className="config-notifications-save-btn" onClick={onSave} disabled={savingSettings}>
+              {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {channel === 'guestApp' && (
+        <Card className="settings-card">
+          <p className="muted" style={{ marginBottom: 16 }}>{t('configNotifyGuestAppHint')}</p>
+          {NOTIFICATION_KINDS.map((kind) => {
+            const row = payload.guestApp[kind]
+            return (
+              <div key={kind} className="notification-event-block">
+                <div className="config-module-row notification-toggle-row">
+                  <div className="config-module-name">
+                    <strong>{notificationKindLabel(kind, t)}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    className={row.enabled ? 'small-btn' : 'secondary small-btn'}
+                    onClick={() => patchGuestApp(kind, { enabled: !row.enabled })}
+                  >
+                    {row.enabled ? t('configToggleOn') : t('configToggleOff')}
+                  </button>
+                </div>
+                {row.enabled && isScheduledKind(kind) && (
+                  <div className="notification-template-fields stack gap-md" style={{ marginTop: 12 }}>
+                    <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <Field label={t('configNotifyOffsetAmount')}>
+                        <input
+                          type="number"
+                          min={1}
+                          value={row.offsetValue ?? 1}
+                          onChange={(e) => {
+                            const v = Math.max(1, Number.parseInt(e.target.value, 10) || 1)
+                            patchGuestApp(kind, { offsetValue: v })
+                          }}
+                        />
+                      </Field>
+                      <Field label={t('configNotifyOffsetUnit')}>
+                        <select
+                          value={row.offsetUnit ?? 'hours'}
+                          onChange={(e) => patchGuestApp(kind, { offsetUnit: e.target.value as OffsetUnit })}
+                        >
+                          <option value="minutes">{t('configNotifyOffsetUnitMinutes')}</option>
+                          <option value="hours">{t('configNotifyOffsetUnitHours')}</option>
+                          <option value="days">{t('configNotifyOffsetUnitDays')}</option>
+                        </select>
+                      </Field>
+                    </div>
+                  </div>
+                )}
+                {row.enabled && (
+                  <div className="notification-template-fields stack gap-md">
+                    <TagPills
+                      t={t}
+                      onInsert={(token) => {
+                        const titleEl = guestAppTitleRefs.current[kind]
+                        const bodyEl = guestAppBodyRefs.current[kind]
+                        if (titleEl && document.activeElement === titleEl) {
+                          insertIntoTextarea(titleEl, token, (title) => patchGuestApp(kind, { title }))
+                        } else if (bodyEl) {
+                          insertIntoTextarea(bodyEl, token, (body) => patchGuestApp(kind, { body }))
+                        } else {
+                          patchGuestApp(kind, { body: row.body + token })
+                        }
+                      }}
+                    />
+                    <Field label={t('configNotifyGuestAppTitle')}>
+                      <textarea
+                        ref={(el) => { guestAppTitleRefs.current[kind] = el }}
+                        rows={2}
+                        value={row.title}
+                        onChange={(e) => patchGuestApp(kind, { title: e.target.value })}
+                      />
+                    </Field>
+                    <Field label={t('configNotifyGuestAppBody')}>
+                      <textarea
+                        ref={(el) => { guestAppBodyRefs.current[kind] = el }}
+                        rows={6}
+                        value={row.body}
+                        onChange={(e) => patchGuestApp(kind, { body: e.target.value })}
                       />
                     </Field>
                   </div>

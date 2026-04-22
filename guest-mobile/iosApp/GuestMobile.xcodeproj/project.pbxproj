@@ -21,6 +21,7 @@
 		A100000C0000000000000001 /* WalletView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001C0000000000000001 /* WalletView.swift */; };
 		A100000D0000000000000001 /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001D0000000000000001 /* InboxView.swift */; };
 		A100000E0000000000000001 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001E0000000000000001 /* ProfileView.swift */; };
+		A100000F0000000000000001 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000200000000000000001 /* NotificationsView.swift */; };
 		F3B994192F935416005A7895 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B994182F935416005A7895 /* AppStore.swift */; };
 		F3B9941F2F93546D005A7895 /* GuestDesignComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941D2F93546D005A7895 /* GuestDesignComponents.swift */; };
 		F3B994202F93546D005A7895 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941B2F93546D005A7895 /* DateFormatting.swift */; };
@@ -43,6 +44,7 @@
 		A100001C0000000000000001 /* WalletView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletView.swift; sourceTree = "<group>"; };
 		A100001D0000000000000001 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		A100001E0000000000000001 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		A10000200000000000000001 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		A100001F0000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10001000000000000000001 /* GuestMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GuestMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3B994182F935416005A7895 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
@@ -93,6 +95,7 @@
 				A100001C0000000000000001 /* WalletView.swift */,
 				A100001D0000000000000001 /* InboxView.swift */,
 				A100001E0000000000000001 /* ProfileView.swift */,
+				A10000200000000000000001 /* NotificationsView.swift */,
 				A100001F0000000000000001 /* Info.plist */,
 			);
 			path = GuestMobile;
@@ -194,6 +197,7 @@
 				A100000C0000000000000001 /* WalletView.swift in Sources */,
 				A100000D0000000000000001 /* InboxView.swift in Sources */,
 				A100000E0000000000000001 /* ProfileView.swift in Sources */,
+				A100000F0000000000000001 /* NotificationsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

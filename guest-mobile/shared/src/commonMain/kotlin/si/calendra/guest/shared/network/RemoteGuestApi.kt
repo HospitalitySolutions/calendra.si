@@ -168,6 +168,19 @@ class RemoteGuestApi(
             parameter("companyId", companyId)
         })
 
+    suspend fun markNotificationRead(companyId: String, notificationId: String) {
+        client.post("${config.baseUrl}/api/guest/notifications/$notificationId/read") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            parameter("companyId", companyId)
+        }
+    }
+
+    suspend fun markAllNotificationsRead(companyId: String): MarkAllReadResponse =
+        parse(client.post("${config.baseUrl}/api/guest/notifications/read-all") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            parameter("companyId", companyId)
+        })
+
     suspend fun inboxThreads(companyId: String): List<GuestInboxThread> =
         parse(client.get("${config.baseUrl}/api/guest/inbox/threads") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())

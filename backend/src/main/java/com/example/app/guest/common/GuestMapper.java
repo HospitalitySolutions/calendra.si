@@ -115,7 +115,8 @@ public final class GuestMapper {
                 notification.getTitle(),
                 notification.getBody(),
                 notification.getReadAt() == null ? null : notification.getReadAt().toString(),
-                notification.getCreatedAt().toString()
+                notification.getCreatedAt().toString(),
+                notification.getPayloadJson()
         );
     }
 

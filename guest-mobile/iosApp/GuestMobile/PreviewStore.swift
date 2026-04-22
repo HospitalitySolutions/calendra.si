@@ -78,7 +78,7 @@ final class PreviewStore: ObservableObject {
                     OrderModel(id: "order-2", status: "PAID", paymentMethod: "CARD", totalGross: 24.0, paidAt: "2026-04-10T08:00:00Z")
                 ],
                 notifications: [
-                    NotificationModel(id: "notif-2", title: "Reminder: Yoga Flow", body: "Your class starts tomorrow at 08:00.", notificationType: "BOOKING_REMINDER", readAt: nil, createdAt: "2026-04-16T08:00:00Z")
+                    NotificationModel(id: "notif-2", title: "Reminder: Yoga Flow", body: "Your class starts tomorrow at 08:00.", notificationType: "BOOKING_REMINDER", readAt: nil, createdAt: "2026-04-16T08:00:00Z", payloadJson: nil)
                 ],
                 products: [
                     ProductModel(id: "prod-yoga-ticket", name: "Yoga Flow", productType: "CLASS_TICKET", priceGross: 12.0, currency: "EUR", sessionTypeId: "session-yoga", sessionTypeName: "Yoga Flow", bookable: true, description: "Group class for mobility, breathwork, and full-body flow.", durationMinutes: 60),
@@ -105,7 +105,7 @@ final class PreviewStore: ObservableObject {
                 OrderModel(id: "order-1", status: "PENDING", paymentMethod: "BANK_TRANSFER", totalGross: 59.0, paidAt: nil)
             ],
             notifications: [
-                NotificationModel(id: "notif-1", title: "Reminder: Personal Training", body: "Your session starts tomorrow at 18:30.", notificationType: "BOOKING_REMINDER", readAt: nil, createdAt: "2026-04-16T08:00:00Z")
+                NotificationModel(id: "notif-1", title: "Reminder: Personal Training", body: "Your session starts tomorrow at 18:30.", notificationType: "BOOKING_REMINDER", readAt: nil, createdAt: "2026-04-16T08:00:00Z", payloadJson: nil)
             ],
             products: [
                 ProductModel(id: "prod-pt-single", name: "Personal Training", productType: "SESSION_SINGLE", priceGross: 45.0, currency: "EUR", sessionTypeId: "session-pt", sessionTypeName: "Personal Training", bookable: true, description: "Focused one-on-one coaching session in the studio.", durationMinutes: 45),

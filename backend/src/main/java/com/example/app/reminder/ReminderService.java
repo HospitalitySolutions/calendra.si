@@ -3,6 +3,8 @@ package com.example.app.reminder;
 import com.example.app.client.Client;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.guest.model.GuestNotificationType;
+import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -12,6 +14,7 @@ import com.example.app.sms.SmsGateway;
 import com.example.app.user.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -49,6 +52,7 @@ public class ReminderService {
     private final AppSettingRepository appSettings;
     private final CompanyRepository companies;
     private final SessionBookingRepository sessionBookings;
+    private final GuestNotificationService guestNotifications;
     private final String frontendBaseUrl;
 
     public ReminderService(
@@ -60,7 +64,8 @@ public class ReminderService {
             AppSettingRepository appSettings,
             CompanyRepository companies,
             SessionBookingRepository sessionBookings,
-            SmsGateway smsGateway
+            SmsGateway smsGateway,
+            GuestNotificationService guestNotifications
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom != null ? mailFrom : "";
@@ -73,6 +78,7 @@ public class ReminderService {
         this.appSettings = appSettings;
         this.companies = companies;
         this.sessionBookings = sessionBookings;
+        this.guestNotifications = guestNotifications;
     }
 
     /**
@@ -108,6 +114,7 @@ public class ReminderService {
                     }
                     sendBeforeAfterEmail(b, NotificationKind.BEFORE_SESSION, root, null, null);
                     sendBeforeAfterSms(b, NotificationKind.BEFORE_SESSION, root);
+                    sendBeforeAfterGuestApp(b, NotificationKind.BEFORE_SESSION, root);
                     b.setNotificationBeforeSentAt(now);
                     sessionBookings.save(b);
                 }
@@ -126,6 +133,7 @@ public class ReminderService {
                     }
                     sendBeforeAfterEmail(b, NotificationKind.AFTER_SESSION, root, null, null);
                     sendBeforeAfterSms(b, NotificationKind.AFTER_SESSION, root);
+                    sendBeforeAfterGuestApp(b, NotificationKind.AFTER_SESSION, root);
                     b.setNotificationAfterSentAt(now);
                     sessionBookings.save(b);
                 }
@@ -135,12 +143,14 @@ public class ReminderService {
 
     private boolean wantsBeforeSession(JsonNode root) {
         return root.path("email").path("beforeSession").path("enabled").asBoolean(false)
-                || root.path("sms").path("beforeSession").path("enabled").asBoolean(false);
+                || root.path("sms").path("beforeSession").path("enabled").asBoolean(false)
+                || root.path("guestApp").path("beforeSession").path("enabled").asBoolean(false);
     }
 
     private boolean wantsAfterSession(JsonNode root) {
         return root.path("email").path("afterSession").path("enabled").asBoolean(false)
-                || root.path("sms").path("afterSession").path("enabled").asBoolean(false);
+                || root.path("sms").path("afterSession").path("enabled").asBoolean(false)
+                || root.path("guestApp").path("afterSession").path("enabled").asBoolean(false);
     }
 
     private void sendBeforeAfterEmail(
@@ -205,7 +215,85 @@ public class ReminderService {
         if (fromSms > 0) {
             return fromSms;
         }
+        int fromGuestApp = parseOffsetMinutes(root.path("guestApp").path(jsonKind));
+        if (fromGuestApp > 0) {
+            return fromGuestApp;
+        }
         return 60;
+    }
+
+    private void sendBeforeAfterGuestApp(SessionBooking booking, NotificationKind kind, JsonNode root) {
+        Client client = booking.getClient();
+        if (client == null || client.isAnonymized()) return;
+        JsonNode node = root.path("guestApp").path(kind.getJsonKey());
+        if (!node.path("enabled").asBoolean(false)) {
+            return;
+        }
+        String title = node.path("title").asText("");
+        String body = node.path("body").asText("");
+        if (title.isBlank() && body.isBlank()) {
+            return;
+        }
+        Map<String, String> tokens = buildTemplateTokens(booking, null, null);
+        String renderedTitle = replaceTokens(title, tokens);
+        String renderedBody = replaceTokens(body, tokens);
+        try {
+            guestNotifications.createForClient(
+                    booking.getCompany(),
+                    client,
+                    mapKindToType(kind),
+                    renderedTitle,
+                    renderedBody,
+                    buildPayloadJson(booking)
+            );
+            log.info("Sent {} scheduled guest app notification for company {}", kind, booking.getCompany().getId());
+        } catch (Exception e) {
+            log.warn("Failed to send {} scheduled guest app notification: {}", kind, e.getMessage());
+        }
+    }
+
+    private void sendImmediateTemplateGuestApp(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
+        try {
+            JsonNode node = loadNotificationSettingsRoot(companyId).path("guestApp").path(kind.getJsonKey());
+            if (!node.path("enabled").asBoolean(false)) {
+                return;
+            }
+            String title = node.path("title").asText("");
+            String body = node.path("body").asText("");
+            if (title.isBlank() && body.isBlank()) {
+                return;
+            }
+            String renderedTitle = replaceTokens(title, tokens);
+            String renderedBody = replaceTokens(body, tokens);
+            guestNotifications.createForClient(
+                    booking.getCompany(),
+                    client,
+                    mapKindToType(kind),
+                    renderedTitle,
+                    renderedBody,
+                    buildPayloadJson(booking)
+            );
+            log.info("Sent {} guest app notification for company {}", kind, companyId);
+        } catch (Exception e) {
+            log.warn("Failed to send {} guest app notification for company {}: {}", kind, companyId, e.getMessage());
+        }
+    }
+
+    private GuestNotificationType mapKindToType(NotificationKind kind) {
+        return switch (kind) {
+            case NEW_SESSION -> GuestNotificationType.BOOKING_CONFIRMED;
+            case CHANGE_SESSION -> GuestNotificationType.BOOKING_RESCHEDULED;
+            case CANCEL_SESSION -> GuestNotificationType.BOOKING_CANCELLED;
+            case BEFORE_SESSION, REMINDER -> GuestNotificationType.BOOKING_REMINDER;
+            case AFTER_SESSION -> GuestNotificationType.BOOKING_FOLLOW_UP;
+        };
+    }
+
+    private String buildPayloadJson(SessionBooking booking) {
+        if (booking == null || booking.getId() == null) return null;
+        ObjectNode n = JSON.createObjectNode();
+        n.put("bookingId", String.valueOf(booking.getId()));
+        return n.toString();
     }
 
     private static int parseOffsetMinutes(JsonNode node) {
@@ -283,6 +371,7 @@ public class ReminderService {
         Map<String, String> tokens = buildTemplateTokens(booking, originalStart, originalEnd);
         sendImmediateTemplateEmail(client, companyId, kind, tokens);
         sendImmediateTemplateSms(booking, client, companyId, kind, tokens);
+        sendImmediateTemplateGuestApp(booking, client, companyId, kind, tokens);
     }
 
     private void sendImmediateTemplateEmail(Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {

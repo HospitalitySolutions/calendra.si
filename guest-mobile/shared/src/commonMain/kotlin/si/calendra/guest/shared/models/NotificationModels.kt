@@ -9,7 +9,13 @@ data class GuestNotification(
     val title: String,
     val body: String,
     val readAt: String? = null,
-    val createdAt: String
+    val createdAt: String,
+    val payloadJson: String? = null
+)
+
+@Serializable
+data class MarkAllReadResponse(
+    val updatedCount: Int = 0
 )
 
 @Serializable

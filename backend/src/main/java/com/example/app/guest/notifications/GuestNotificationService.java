@@ -14,9 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class GuestNotificationService {
     private final GuestNotificationRepository notifications;
+    private final GuestTenantLinkRepository tenantLinks;
 
-    public GuestNotificationService(GuestNotificationRepository notifications) {
+    public GuestNotificationService(
+            GuestNotificationRepository notifications,
+            GuestTenantLinkRepository tenantLinks
+    ) {
         this.notifications = notifications;
+        this.tenantLinks = tenantLinks;
     }
 
     @Transactional
@@ -30,6 +35,20 @@ public class GuestNotificationService {
         notification.setBody(body);
         notification.setPayloadJson(payloadJson);
         return notifications.save(notification);
+    }
+
+    /**
+     * Resolves the guest user for the company+client pairing (active tenant link) and records a notification.
+     * Returns null when the client is not linked to the guest mobile app.
+     */
+    @Transactional
+    public GuestNotification createForClient(Company company, Client client, GuestNotificationType type, String title, String body, String payloadJson) {
+        if (company == null || client == null) return null;
+        GuestTenantLink link = tenantLinks.findByCompanyIdAndClientIdAndStatus(
+                company.getId(), client.getId(), GuestTenantLinkStatus.ACTIVE
+        ).orElse(null);
+        if (link == null || link.getGuestUser() == null) return null;
+        return create(link.getGuestUser(), company, client, type, title, body, payloadJson);
     }
 
     public void bookingConfirmed(GuestUser guestUser, Company company, Client client, SessionBooking booking) {
@@ -66,6 +85,21 @@ public class GuestNotificationService {
         notification.setReadAt(Instant.now());
         notification = notifications.save(notification);
         return new GuestDtos.ReadNotificationResponse(String.valueOf(notification.getId()), notification.getReadAt().toString());
+    }
+
+    @Transactional
+    public GuestDtos.MarkAllReadResponse markAllRead(GuestUser guestUser, Long companyId) {
+        List<GuestNotification> all = notifications.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(guestUser.getId(), companyId);
+        Instant now = Instant.now();
+        int updated = 0;
+        for (GuestNotification n : all) {
+            if (n.getReadAt() == null) {
+                n.setReadAt(now);
+                notifications.save(n);
+                updated++;
+            }
+        }
+        return new GuestDtos.MarkAllReadResponse(updated);
     }
 
     @Transactional(readOnly = true)

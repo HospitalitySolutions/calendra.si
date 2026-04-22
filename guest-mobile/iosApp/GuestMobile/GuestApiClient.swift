@@ -99,6 +99,14 @@ final class GuestApiClient {
         try await get(path: "api/guest/notifications", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
 
+    func markNotificationRead(companyId: String, notificationId: String) async throws {
+        _ = try await postEmpty(path: "api/guest/notifications/\(notificationId)/read", query: [URLQueryItem(name: "companyId", value: companyId)])
+    }
+
+    func markAllNotificationsRead(companyId: String) async throws {
+        _ = try await postEmpty(path: "api/guest/notifications/read-all", query: [URLQueryItem(name: "companyId", value: companyId)])
+    }
+
     func inboxThreads(companyId: String) async throws -> [GuestInboxThreadModel] {
         try await get(path: "api/guest/inbox/threads", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
@@ -171,6 +179,18 @@ final class GuestApiClient {
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    @discardableResult
+    private func postEmpty(path: String, query: [URLQueryItem] = []) async throws -> Data {
+        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        components.queryItems = query.isEmpty ? nil : query
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "POST"
+        applyHeaders(to: &request)
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return data
     }
 
     private func put<T: Decodable, Body: Encodable>(path: String, body: Body) async throws -> T {

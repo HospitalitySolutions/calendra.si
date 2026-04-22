@@ -179,6 +179,7 @@ struct NotificationModel: Identifiable, Codable, Hashable {
     let notificationType: String?
     let readAt: String?
     let createdAt: String?
+    let payloadJson: String?
 
     enum CodingKeys: String, CodingKey {
         case id = "notificationId"
@@ -187,6 +188,7 @@ struct NotificationModel: Identifiable, Codable, Hashable {
         case notificationType
         case readAt
         case createdAt
+        case payloadJson
     }
 }
 

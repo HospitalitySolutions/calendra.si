@@ -75,7 +75,8 @@ public final class GuestDtos {
     public record ToggleAutoRenewRequest(Boolean autoRenews) {}
     public record ToggleAutoRenewResponse(String entitlementId, boolean autoRenews) {}
 
-    public record NotificationResponse(String notificationId, String notificationType, String title, String body, String readAt, String createdAt) {}
+    public record NotificationResponse(String notificationId, String notificationType, String title, String body, String readAt, String createdAt, String payloadJson) {}
+    public record MarkAllReadResponse(int updatedCount) {}
     public record NotificationsResponse(List<NotificationResponse> items) {}
 
     public record ReadNotificationResponse(String notificationId, String readAt) {}

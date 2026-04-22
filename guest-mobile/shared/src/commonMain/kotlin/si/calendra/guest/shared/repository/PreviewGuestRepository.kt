@@ -74,6 +74,11 @@ class PreviewGuestRepository : GuestRepository {
     override suspend fun notifications(companyId: String): NotificationsPayload =
         preview.notifications(companyId)
 
+    override suspend fun markNotificationRead(companyId: String, notificationId: String) {}
+
+    override suspend fun markAllNotificationsRead(companyId: String): MarkAllReadResponse =
+        MarkAllReadResponse(updatedCount = 0)
+
     override suspend fun inboxThreads(companyId: String): List<GuestInboxThread> = listOf(
         GuestInboxThread(
             clientId = 1L,

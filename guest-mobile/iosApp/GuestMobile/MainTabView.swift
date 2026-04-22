@@ -12,6 +12,7 @@ struct MainTabView: View {
     @State private var showAddOptions = false
     @State private var showManualCodeSheet = false
     @State private var showScannerSheet = false
+    @State private var isNotificationsPresented = false
     private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
     private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
 
@@ -38,7 +39,7 @@ struct MainTabView: View {
                     case .home:
                         HomeView()
                     case .book:
-                        BookView(onOpenNotifications: { selectedTab = .inbox })
+                        BookView(onOpenNotifications: { isNotificationsPresented = true })
                     case .wallet:
                         WalletView()
                     case .inbox:
@@ -85,6 +86,10 @@ struct MainTabView: View {
                 Task { await store.joinTenant(code: code) }
             }
         }
+        .sheet(isPresented: $isNotificationsPresented) {
+            NotificationsView()
+                .environmentObject(store)
+        }
     }
 
     private var topUtilityBar: some View {
@@ -107,7 +112,7 @@ struct MainTabView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    selectedTab = .inbox
+                    isNotificationsPresented = true
                 } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell")

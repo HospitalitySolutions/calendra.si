@@ -27,6 +27,8 @@ class RemoteGuestRepository(
     override suspend fun toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Boolean): ToggleAutoRenewResponse = api.toggleAutoRenew(companyId, entitlementId, autoRenews)
     override suspend fun bookingHistory(companyId: String): List<BookingHistoryItem> = api.bookingHistory(companyId)
     override suspend fun notifications(companyId: String): NotificationsPayload = api.notifications(companyId)
+    override suspend fun markNotificationRead(companyId: String, notificationId: String) = api.markNotificationRead(companyId, notificationId)
+    override suspend fun markAllNotificationsRead(companyId: String): MarkAllReadResponse = api.markAllNotificationsRead(companyId)
     override suspend fun inboxThreads(companyId: String): List<GuestInboxThread> = api.inboxThreads(companyId)
     override suspend fun inboxMessages(companyId: String): List<GuestInboxMessage> = api.inboxMessages(companyId)
     override suspend fun sendInboxMessage(companyId: String, body: String): GuestInboxMessage = api.sendInboxMessage(companyId, body)

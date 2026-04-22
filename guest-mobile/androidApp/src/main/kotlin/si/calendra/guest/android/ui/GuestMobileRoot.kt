@@ -64,6 +64,7 @@ private sealed class RootRoute(val route: String) {
     data object Book : RootRoute("book")
     data object Wallet : RootRoute("wallet")
     data object Inbox : RootRoute("inbox")
+    data object Notifications : RootRoute("notifications")
     data object Profile : RootRoute("profile")
 }
 
@@ -368,7 +369,7 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                     onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     HomeScreen(
@@ -395,7 +396,7 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                     onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     BookScreen(
@@ -421,7 +422,7 @@ fun GuestMobileRoot() {
                             savedCards = updated
                             preferencesStore.saveSavedCards(updated)
                         },
-                        onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                        onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                         onLoadAvailability = { service, date, consultantId -> repo.availability(service.companyId, service.sessionTypeId, date.toString(), consultantId).slots },
                         onLoadConsultants = { service ->
                             runCatching { repo.consultants(service.companyId, service.sessionTypeId) }.getOrElse { emptyList() }
@@ -475,7 +476,7 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                     onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     Box(innerModifier) {
@@ -543,7 +544,7 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                     onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     val activeTenantId = state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId
@@ -635,6 +636,61 @@ fun GuestMobileRoot() {
                     }
                 }
             }
+            composable(RootRoute.Notifications.route) {
+                val aggregated = aggregatedNotifications(state.uiState)
+                val tenantByNotification = aggregated.associate { it.first.notificationId to it.second }
+                val notifications = aggregated.map { it.first }
+                LaunchedEffect(Unit) {
+                    selectedTenantIds(state.uiState).forEach { tenantId ->
+                        runCatching { refreshTenant(tenantId) }
+                    }
+                }
+                NotificationsScreen(
+                    notifications = notifications,
+                    onNotificationClick = { notification ->
+                        val tenantId = tenantByNotification[notification.notificationId] ?: return@NotificationsScreen
+                        scope.launch {
+                            runCatching { repo.markNotificationRead(tenantId, notification.notificationId) }
+                                .onSuccess {
+                                    val dashboard = state.uiState.tenantDashboards[tenantId]
+                                    if (dashboard != null) {
+                                        val updated = dashboard.notifications.map {
+                                            if (it.notificationId == notification.notificationId && it.readAt == null) {
+                                                it.copy(readAt = OffsetDateTime.now().toString())
+                                            } else it
+                                        }
+                                        state.uiState = state.uiState.copy(
+                                            tenantDashboards = state.uiState.tenantDashboards + (tenantId to dashboard.copy(notifications = updated))
+                                        )
+                                    }
+                                }
+                                .onFailure { statusMessage = it.message ?: "Unable to mark notification as read" }
+                        }
+                    },
+                    onMarkAllRead = {
+                        scope.launch {
+                            val tenantIds = selectedTenantIds(state.uiState)
+                            tenantIds.forEach { tenantId ->
+                                runCatching { repo.markAllNotificationsRead(tenantId) }
+                                    .onSuccess {
+                                        val dashboard = state.uiState.tenantDashboards[tenantId]
+                                        if (dashboard != null) {
+                                            val nowIso = OffsetDateTime.now().toString()
+                                            val updated = dashboard.notifications.map {
+                                                if (it.readAt == null) it.copy(readAt = nowIso) else it
+                                            }
+                                            state.uiState = state.uiState.copy(
+                                                tenantDashboards = state.uiState.tenantDashboards + (tenantId to dashboard.copy(notifications = updated))
+                                            )
+                                        }
+                                    }
+                                    .onFailure { statusMessage = it.message ?: "Unable to mark notifications as read" }
+                            }
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable(RootRoute.Profile.route) {
                 GuestTabsScaffold(
                     current = RootRoute.Profile.route,
@@ -650,7 +706,7 @@ fun GuestMobileRoot() {
                         }
                         qrScannerLauncher.launch(options)
                     },
-                    onOpenNotifications = { navigateToTab(RootRoute.Inbox.route) },
+                    onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                     onTabSelected = ::navigateToTab
                 ) { innerModifier ->
                     Box(innerModifier) {
@@ -949,6 +1005,11 @@ private fun aggregatedWalletHistory(state: GuestUiState): List<BookingHistoryIte
     state.linkedTenants.flatMap { t -> state.tenantDashboards[t.companyId]?.history.orEmpty() }
 
 private fun selectedTenantIds(state: GuestUiState): List<String> = state.selectedTenantId?.let(::listOf) ?: state.linkedTenants.map { it.companyId }
+
+private fun aggregatedNotifications(state: GuestUiState): List<Pair<GuestNotification, String>> =
+    selectedTenantIds(state).flatMap { tenantId ->
+        state.tenantDashboards[tenantId]?.notifications.orEmpty().map { it to tenantId }
+    }.sortedByDescending { it.first.createdAt }
 
 private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
     selectedTenantIds(state).flatMap { tenantId ->
