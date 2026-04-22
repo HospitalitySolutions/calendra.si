@@ -67,6 +67,10 @@ public class GuestOrder extends BaseEntity {
     @Column(name = "paypal_capture_id", length = 255)
     private String paypalCaptureId;
 
+    /** Bill (invoice) issued for this order, if any. Populated for wallet product purchases. */
+    @Column(name = "bill_id")
+    private Long billId;
+
 
     private Instant paidAt;
     private Instant cancelledAt;

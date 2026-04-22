@@ -62,21 +62,11 @@ public class GuestPushService {
     }
 
     public DeliveryResult notifyGuestMessage(GuestUser guestUser, Company company, Client client, String title, String body) {
-        List<GuestDeviceToken> devices = deviceTokens.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
-                .filter(token -> token.getPushToken() != null && !token.getPushToken().isBlank())
-                .toList();
-        if (devices.isEmpty()) {
-            log.info("Guest inbox message has no registered devices guestUserId={}, companyId={}, clientId={}",
+        if (!guestUser.isNotifyMessagesEnabled()) {
+            log.info("Guest push delivery skipped because guest has disabled message notifications guestUserId={}, companyId={}, clientId={}",
                     guestUser.getId(), company.getId(), client.getId());
             return DeliveryResult.none();
         }
-
-        if (!properties.isEnabled()) {
-            log.info("Guest push delivery skipped because app.guest.push.enabled=false guestUserId={}, companyId={}, clientId={}, deviceCount={}",
-                    guestUser.getId(), company.getId(), client.getId(), devices.size());
-            return DeliveryResult.none();
-        }
-
         Map<String, String> data = Map.of(
                 "type", "guest_chat_message",
                 "companyId", String.valueOf(company.getId()),
@@ -86,6 +76,68 @@ public class GuestPushService {
                 "title", title,
                 "body", body
         );
+        return dispatch(guestUser, company, client, title, body, data, "guest_messages");
+    }
+
+    public DeliveryResult notifyGuestReminder(
+            GuestUser guestUser,
+            Company company,
+            Client client,
+            String title,
+            String body,
+            Map<String, String> extraData
+    ) {
+        if (!guestUser.isNotifyRemindersEnabled()) {
+            log.info("Guest push reminder skipped because guest has disabled reminder notifications guestUserId={}, companyId={}",
+                    guestUser.getId(), company == null ? null : company.getId());
+            return DeliveryResult.none();
+        }
+        Map<String, String> data = new LinkedHashMap<>();
+        data.put("type", "guest_reminder");
+        data.put("channel", "GUEST_APP");
+        data.put("screen", "home");
+        data.put("title", title);
+        data.put("body", body);
+        if (company != null) data.put("companyId", String.valueOf(company.getId()));
+        if (client != null) data.put("clientId", String.valueOf(client.getId()));
+        if (extraData != null) {
+            for (Map.Entry<String, String> entry : extraData.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    data.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+        return dispatch(guestUser, company, client, title, body, data, "guest_reminders");
+    }
+
+    private DeliveryResult dispatch(
+            GuestUser guestUser,
+            Company company,
+            Client client,
+            String title,
+            String body,
+            Map<String, String> data,
+            String androidChannelId
+    ) {
+        List<GuestDeviceToken> devices = deviceTokens.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
+                .filter(token -> token.getPushToken() != null && !token.getPushToken().isBlank())
+                .toList();
+        if (devices.isEmpty()) {
+            log.info("Guest push has no registered devices guestUserId={}, companyId={}, clientId={}",
+                    guestUser.getId(),
+                    company == null ? null : company.getId(),
+                    client == null ? null : client.getId());
+            return DeliveryResult.none();
+        }
+
+        if (!properties.isEnabled()) {
+            log.info("Guest push delivery skipped because app.guest.push.enabled=false guestUserId={}, companyId={}, clientId={}, deviceCount={}",
+                    guestUser.getId(),
+                    company == null ? null : company.getId(),
+                    client == null ? null : client.getId(),
+                    devices.size());
+            return DeliveryResult.none();
+        }
 
         int deliveredCount = 0;
         int failedCount = 0;
@@ -94,7 +146,7 @@ public class GuestPushService {
         for (GuestDeviceToken device : devices) {
             try {
                 DeliveryAttempt attempt = switch (device.getPlatform()) {
-                    case ANDROID -> sendFcm(device, title, body, data);
+                    case ANDROID -> sendFcm(device, title, body, data, androidChannelId);
                     case IOS -> sendApns(device, title, body, data);
                 };
                 if (attempt == DeliveryAttempt.DELIVERED) deliveredCount++;
@@ -104,8 +156,8 @@ public class GuestPushService {
                 log.warn("Guest push delivery failed platform={}, guestUserId={}, companyId={}, clientId={}, tokenSuffix={}, reason={}",
                         device.getPlatform(),
                         guestUser.getId(),
-                        company.getId(),
-                        client.getId(),
+                        company == null ? null : company.getId(),
+                        client == null ? null : client.getId(),
                         tokenSuffix(device.getPushToken()),
                         safeMessage(ex));
             }
@@ -113,7 +165,7 @@ public class GuestPushService {
         return new DeliveryResult(devices.size(), deliveredCount, invalidTokenCount, failedCount);
     }
 
-    private DeliveryAttempt sendFcm(GuestDeviceToken device, String title, String body, Map<String, String> data) throws Exception {
+    private DeliveryAttempt sendFcm(GuestDeviceToken device, String title, String body, Map<String, String> data, String channelId) throws Exception {
         ServiceAccount serviceAccount = resolveServiceAccount();
         if (serviceAccount == null) {
             log.debug("FCM delivery skipped because FCM credentials are not configured tokenSuffix={}", tokenSuffix(device.getPushToken()));
@@ -127,7 +179,7 @@ public class GuestPushService {
                         "data", data,
                         "android", Map.of(
                                 "priority", "high",
-                                "notification", Map.of("channel_id", "guest_messages")
+                                "notification", Map.of("channel_id", channelId == null || channelId.isBlank() ? "guest_messages" : channelId)
                         )
                 )
         );

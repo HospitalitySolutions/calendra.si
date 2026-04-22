@@ -11,7 +11,8 @@ public final class GuestPreviewDtos {
             String firstName,
             String lastName,
             String phone,
-            String language
+            String language,
+            String profilePicturePath
     ) {}
 
     public record TenantSummaryResponse(
@@ -57,8 +58,13 @@ public final class GuestPreviewDtos {
             String productName,
             String entitlementType,
             Integer remainingUses,
+            Integer totalUses,
             String validUntil,
-            String status
+            Integer validityDays,
+            String status,
+            String displayCode,
+            Double priceGross,
+            String currency
     ) {}
 
     public record PendingOrderResponse(
@@ -86,7 +92,10 @@ public final class GuestPreviewDtos {
             String sessionTypeName,
             boolean bookable,
             String description,
-            Integer durationMinutes
+            Integer durationMinutes,
+            String promoText,
+            Integer validityDays,
+            Integer usageLimit
     ) {}
 
     public record WalletOrderResponse(
@@ -94,7 +103,13 @@ public final class GuestPreviewDtos {
             String status,
             String paymentMethodType,
             double totalGross,
-            String paidAt
+            String currency,
+            String paidAt,
+            String createdAt,
+            String referenceCode,
+            String productName,
+            String productType,
+            String billPaymentStatus
     ) {}
 
     public record WalletResponse(

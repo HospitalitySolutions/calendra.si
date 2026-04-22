@@ -3,6 +3,7 @@ package com.example.app.guest.auth;
 import com.example.app.client.Client;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
+import com.example.app.files.TenantFileS3Service;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.common.GuestSettingsService;
@@ -13,8 +14,11 @@ import com.example.app.guest.model.GuestUserRepository;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -23,17 +27,20 @@ public class GuestProfileService {
     private final GuestTenantLinkRepository links;
     private final ClientCompanyRepository clientCompanies;
     private final GuestSettingsService guestSettings;
+    private final TenantFileS3Service fileStorage;
 
     public GuestProfileService(
             GuestUserRepository guestUsers,
             GuestTenantLinkRepository links,
             ClientCompanyRepository clientCompanies,
-            GuestSettingsService guestSettings
+            GuestSettingsService guestSettings,
+            TenantFileS3Service fileStorage
     ) {
         this.guestUsers = guestUsers;
         this.links = links;
         this.clientCompanies = clientCompanies;
         this.guestSettings = guestSettings;
+        this.fileStorage = fileStorage;
     }
 
     @Transactional(readOnly = true)
@@ -60,6 +67,12 @@ public class GuestProfileService {
         guestUser.setEmail(email);
         guestUser.setPhone(blankToNull(request.phone()));
         guestUser.setLanguage(blankToDefault(request.language(), "sl"));
+        if (request.notifyMessagesEnabled() != null) {
+            guestUser.setNotifyMessagesEnabled(request.notifyMessagesEnabled());
+        }
+        if (request.notifyRemindersEnabled() != null) {
+            guestUser.setNotifyRemindersEnabled(request.notifyRemindersEnabled());
+        }
         guestUsers.save(guestUser);
 
         List<GuestTenantLink> allLinks = links.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId());
@@ -78,6 +91,40 @@ public class GuestProfileService {
         }
 
         return toSettingsResponse(guestUser, activeLink);
+    }
+
+    @Transactional
+    public GuestDtos.GuestProfileSettingsResponse uploadProfilePicture(GuestUser guestUser, MultipartFile file) {
+        GuestProfilePictureUploadPolicy.validate(file);
+        if (!fileStorage.isReady()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "File storage is not available.");
+        }
+        String oldKey = guestUser.getProfilePictureS3Key();
+        var stored = fileStorage.uploadGuestProfilePicture(guestUser.getId(), file);
+        if (oldKey != null && !oldKey.isBlank() && !oldKey.equals(stored.objectKey())) {
+            fileStorage.deleteQuietly(oldKey);
+        }
+        guestUser.setProfilePictureS3Key(stored.objectKey());
+        guestUser.setProfilePictureContentType(stored.contentType());
+        guestUsers.save(guestUser);
+        return settings(guestUser, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseEntity<byte[]> downloadProfilePicture(GuestUser guestUser) {
+        String key = guestUser.getProfilePictureS3Key();
+        if (key == null || key.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No profile picture.");
+        }
+        if (!fileStorage.isReady()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "File storage is not available.");
+        }
+        byte[] bytes = fileStorage.download(key);
+        String ct = guestUser.getProfilePictureContentType();
+        MediaType mediaType = (ct == null || ct.isBlank())
+                ? MediaType.APPLICATION_OCTET_STREAM
+                : MediaType.parseMediaType(ct);
+        return ResponseEntity.ok().contentType(mediaType).body(bytes);
     }
 
     private GuestDtos.GuestProfileSettingsResponse toSettingsResponse(GuestUser guestUser, GuestTenantLink link) {
@@ -102,6 +149,8 @@ public class GuestProfileService {
                 client == null || client.getBillingCompany() == null ? null : String.valueOf(client.getBillingCompany().getId()),
                 client == null || client.getBillingCompany() == null ? null : client.getBillingCompany().getName(),
                 client != null && client.isBatchPaymentEnabled(),
+                guestUser.isNotifyMessagesEnabled(),
+                guestUser.isNotifyRemindersEnabled(),
                 companyOptions
         );
     }

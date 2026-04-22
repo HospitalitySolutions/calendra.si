@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 
 @ExtendWith(MockitoExtension.class)
@@ -20,6 +21,9 @@ class BankStatementReconciliationServiceTest {
 
     @Mock
     private BillRepository billRepo;
+
+    @Mock
+    private ApplicationEventPublisher events;
 
     /** OTP corporate export: credit must come from DOBRO column, not IBAN digit noise. */
     @Test
@@ -41,7 +45,7 @@ class BankStatementReconciliationServiceTest {
         when(billRepo.findAllByCompanyId(1L)).thenReturn(List.of(bill));
         when(billRepo.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var service = new BankStatementReconciliationService(billRepo);
+        var service = new BankStatementReconciliationService(billRepo, events);
         var file = new MockMultipartFile("file", "promet.csv", "text/csv", csv);
         BankStatementReconciliationService.ReconciliationResult result = service.importStatement(1L, file);
 

@@ -22,7 +22,9 @@ data class GuestUser(
     val firstName: String,
     val lastName: String,
     val phone: String? = null,
-    val language: String = "sl"
+    val language: String = "sl",
+    /** Relative path e.g. `/api/guest/profile/picture` when a picture exists; append to API base URL with auth. */
+    val profilePicturePath: String? = null
 )
 
 @Serializable

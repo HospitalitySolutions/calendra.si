@@ -42,6 +42,12 @@ public class GuestUser extends BaseEntity {
     @Column(nullable = false)
     private boolean emailVerified = false;
 
+    @Column(name = "notify_messages_enabled", nullable = false)
+    private boolean notifyMessagesEnabled = true;
+
+    @Column(name = "notify_reminders_enabled", nullable = false)
+    private boolean notifyRemindersEnabled = true;
+
     @Column(name = "google_subject", length = 255)
     private String googleSubject;
 
@@ -50,6 +56,13 @@ public class GuestUser extends BaseEntity {
 
     @Column(name = "stripe_customer_id", length = 255)
     private String stripeCustomerId;
+
+    /** S3 object key for the guest's profile picture, or null if none. */
+    @Column(name = "profile_picture_s3_key", length = 512)
+    private String profilePictureS3Key;
+
+    @Column(name = "profile_picture_content_type", length = 120)
+    private String profilePictureContentType;
 
     private Instant lastLoginAt;
 }

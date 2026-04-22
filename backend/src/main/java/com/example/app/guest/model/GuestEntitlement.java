@@ -44,6 +44,14 @@ public class GuestEntitlement extends BaseEntity {
 
     private Instant validUntil;
 
+    /** Human-friendly code shown in the mobile wallet (e.g. "CM8-425-001"). */
+    @Column(name = "display_code", length = 32)
+    private String displayCode;
+
+    /** Per-product running sequence used to derive {@link #displayCode}. */
+    @Column(name = "display_seq")
+    private Integer displaySeq;
+
     @Column(columnDefinition = "TEXT")
     private String metadataJson;
 }

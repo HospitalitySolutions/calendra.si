@@ -26,6 +26,7 @@ public class TenantFileS3Service {
     private static final Pattern SANITIZE_SEGMENT = Pattern.compile("[^a-zA-Z0-9._-]");
     /** Max upload size for client and company file attachments (must stay in sync with {@code spring.servlet.multipart.max-file-size}). */
     private static final long MAX_FILE_SIZE_BYTES = 50L * 1024L * 1024L;
+    private static final long GUEST_PROFILE_PICTURE_MAX_BYTES = 5L * 1024L * 1024L;
 
     private final InvoiceS3Properties properties;
     private final ObjectProvider<S3Client> s3ClientProvider;
@@ -41,12 +42,18 @@ public class TenantFileS3Service {
 
     public StoredS3File uploadClientFile(Company tenant, Client client, MultipartFile file) {
         String key = buildClientObjectKey(tenant, client.getId(), file == null ? null : file.getOriginalFilename());
-        return upload(key, file);
+        return uploadWithLimit(key, file, MAX_FILE_SIZE_BYTES);
     }
 
     public StoredS3File uploadCompanyFile(Company tenant, ClientCompany company, MultipartFile file) {
         String key = buildCompanyObjectKey(tenant, company.getId(), file == null ? null : file.getOriginalFilename());
-        return upload(key, file);
+        return uploadWithLimit(key, file, MAX_FILE_SIZE_BYTES);
+    }
+
+    /** Guest profile avatars (not tied to a tenant); max size enforced by caller policy. */
+    public StoredS3File uploadGuestProfilePicture(long guestUserId, MultipartFile file) {
+        String key = basePrefix() + "/guest-profiles/" + guestUserId + "/" + storedFileName(file.getOriginalFilename());
+        return uploadWithLimit(key, file, GUEST_PROFILE_PICTURE_MAX_BYTES);
     }
 
     public byte[] download(String objectKey) {
@@ -75,12 +82,12 @@ public class TenantFileS3Service {
         }
     }
 
-    private StoredS3File upload(String objectKey, MultipartFile file) {
+    private StoredS3File uploadWithLimit(String objectKey, MultipartFile file, long maxBytes) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is required.");
         }
-        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File must be 50 MB or smaller.");
+        if (file.getSize() > maxBytes) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is too large.");
         }
         S3Client client = requireClient();
         String contentType = normalizeContentType(file.getContentType());

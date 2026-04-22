@@ -223,10 +223,13 @@ public class ClientMessageService {
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)
-    public MessageView sendGuestMessage(GuestUser guestUser, Long companyId, String body) {
+    public MessageView sendGuestMessage(GuestUser guestUser, Long companyId, String body, List<Long> attachmentFileIds) {
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
         String normalizedBody = normalizeBody(body);
-        if (normalizedBody.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body is required.");
+        List<ClientFile> attachmentFiles = resolveGuestAttachmentFiles(link, attachmentFileIds);
+        if (normalizedBody.isBlank() && attachmentFiles.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body or at least one attachment is required.");
+        }
 
         ClientMessage row = new ClientMessage();
         row.setCompany(link.getCompany());
@@ -245,7 +248,58 @@ public class ClientMessageService {
                 .toList();
         markGuestMessagesRead(link, existingRows, sentAt);
         ClientMessage saved = messages.save(row);
+        linkAttachments(saved, attachmentFiles);
+        finalizePendingInboxAttachments(attachmentFiles);
         return toView(saved);
+    }
+
+    @Transactional
+    public StoredFileResponse preuploadGuestInboxAttachment(GuestUser guestUser, Long companyId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Attachment file is required.");
+        }
+        GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        ClientFileUploadPolicy.validateInboxAttachments(List.of(file));
+        Client client = link.getClient();
+        Company tenant = link.getCompany();
+        var stored = fileStorage.uploadClientFile(tenant, client, file);
+        ClientFile row = new ClientFile();
+        row.setClient(client);
+        row.setOwnerCompany(tenant);
+        row.setOriginalFileName(file.getOriginalFilename() == null || file.getOriginalFilename().isBlank() ? "file" : file.getOriginalFilename().trim());
+        row.setContentType(stored.contentType());
+        row.setSizeBytes(stored.sizeBytes());
+        row.setS3ObjectKey(stored.objectKey());
+        row.setUploadedByGuestUserId(guestUser.getId());
+        row.setPendingInboxAttachment(true);
+        return StoredFileResponse.from(clientFiles.save(row));
+    }
+
+    @Transactional
+    public void discardGuestPendingInboxAttachment(GuestUser guestUser, Long companyId, Long fileId) {
+        if (fileId == null) return;
+        GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        var file = clientFiles.findByIdAndClientIdAndOwnerCompanyId(fileId, link.getClient().getId(), link.getCompany().getId()).orElse(null);
+        if (file == null || !file.isPendingInboxAttachment()) return;
+        if (messageAttachments.existsByClientFileId(file.getId())) {
+            file.setPendingInboxAttachment(false);
+            clientFiles.save(file);
+            return;
+        }
+        fileStorage.deleteQuietly(file.getS3ObjectKey());
+        clientFiles.delete(file);
+    }
+
+    private List<ClientFile> resolveGuestAttachmentFiles(GuestTenantLink link, List<Long> attachmentFileIds) {
+        if (attachmentFileIds == null || attachmentFileIds.isEmpty()) return List.of();
+        List<Long> ids = attachmentFileIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return List.of();
+        List<ClientFile> files = clientFiles.findAllByIdInAndClientIdAndOwnerCompanyId(ids, link.getClient().getId(), link.getCompany().getId());
+        if (files.size() != ids.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more attachments could not be found.");
+        }
+        Map<Long, ClientFile> byId = files.stream().collect(Collectors.toMap(ClientFile::getId, file -> file));
+        return ids.stream().map(byId::get).filter(Objects::nonNull).toList();
     }
 
     @Transactional(readOnly = true)

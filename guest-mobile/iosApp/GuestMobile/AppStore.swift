@@ -4,7 +4,7 @@ import UIKit
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published var user = GuestUserModel(id: "guest-1", email: "ana@example.com", firstName: "Ana", lastName: "Novak", phone: nil, language: "sl")
+    @Published var user = GuestUserModel(id: "guest-1", email: "ana@example.com", firstName: "Ana", lastName: "Novak", phone: nil, language: "sl", profilePicturePath: nil)
     @Published var currentTenant = TenantModel(id: "tenant-northside", name: "Northside Fitness", description: "Premium training studio", city: "Ljubljana", phone: nil, status: "ACTIVE", companyAddress: nil, requireOnlinePayment: true)
     @Published var linkedTenants: [TenantModel] = []
     @Published var selectedTenantId: String?
@@ -59,13 +59,19 @@ final class AppStore: ObservableObject {
                 AccessCardModel(
                     id: "\(tenantId)-\($0.id)",
                     companyId: tenantId,
+                    entitlementId: $0.id,
                     name: $0.name,
                     type: $0.type,
                     tenantName: dashboard.tenant.name,
                     remainingUses: $0.remainingUses,
+                    totalUses: $0.totalUses,
                     validUntil: $0.validUntil,
+                    validityDays: $0.validityDays,
                     sessionTypeId: $0.sessionTypeId,
-                    autoRenews: $0.autoRenews ?? false
+                    autoRenews: $0.autoRenews ?? false,
+                    displayCode: $0.displayCode,
+                    priceGross: $0.priceGross,
+                    currency: $0.currency
                 )
             }
         }
@@ -86,7 +92,10 @@ final class AppStore: ObservableObject {
                         priceGross: $0.priceGross,
                         currency: $0.currency,
                         description: $0.description,
-                        sessionTypeName: $0.sessionTypeName
+                        sessionTypeName: $0.sessionTypeName,
+                        promoText: $0.promoText,
+                        validityDays: $0.validityDays,
+                        usageLimit: $0.usageLimit
                     )
                 }
         }
@@ -124,6 +133,33 @@ final class AppStore: ObservableObject {
 
     var orders: [OrderModel] {
         activeTenantIds.flatMap { tenantDashboards[$0]?.orders ?? [] }
+    }
+
+    var walletOrderCards: [WalletOrderCardModel] {
+        activeTenantIds.flatMap { tenantId -> [WalletOrderCardModel] in
+            guard let dashboard = tenantDashboards[tenantId] else { return [] }
+            return dashboard.orders.map { order in
+                WalletOrderCardModel(
+                    id: "\(tenantId)-\(order.id)",
+                    companyId: tenantId,
+                    orderId: order.id,
+                    tenantName: dashboard.tenant.name,
+                    referenceCode: order.referenceCode,
+                    productName: order.productName,
+                    productType: order.productType,
+                    paymentMethod: order.paymentMethod,
+                    totalGross: order.totalGross,
+                    currency: order.currency ?? "EUR",
+                    status: order.status,
+                    billPaymentStatus: order.billPaymentStatus,
+                    createdAt: order.createdAt,
+                    paidAt: order.paidAt
+                )
+            }
+        }
+        .sorted {
+            ($0.createdAt ?? "") > ($1.createdAt ?? "")
+        }
     }
 
     var notifications: [NotificationModel] {
@@ -315,10 +351,10 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func sendInboxMessage(companyId: String, body: String) async {
+    func sendInboxMessage(companyId: String, body: String, attachmentFileIds: [Int64] = []) async {
         guard !usePreviewData else { return }
         await run {
-            _ = try await api.sendInboxMessage(companyId: companyId, body: body)
+            _ = try await api.sendInboxMessage(companyId: companyId, body: body, attachmentFileIds: attachmentFileIds)
             try await refreshTenant(companyId: companyId)
             let items = try await api.inboxMessages(companyId: companyId)
             let refreshedThread = (try await api.inboxThreads(companyId: companyId)).first
@@ -335,6 +371,34 @@ final class AppStore: ObservableObject {
                 )
             }
         }
+    }
+
+    func uploadInboxAttachment(
+        companyId: String,
+        fileName: String,
+        contentType: String?,
+        data: Data
+    ) async throws -> GuestInboxUploadedAttachmentModel {
+        if usePreviewData {
+            return GuestInboxUploadedAttachmentModel(
+                id: Int64.random(in: 1_000_000...9_999_999),
+                fileName: fileName,
+                contentType: contentType,
+                sizeBytes: Int64(data.count),
+                uploadedAt: nil
+            )
+        }
+        return try await api.uploadInboxAttachment(
+            companyId: companyId,
+            fileName: fileName,
+            contentType: contentType,
+            data: data
+        )
+    }
+
+    func discardInboxAttachment(companyId: String, fileId: Int64) async {
+        guard !usePreviewData else { return }
+        try? await api.discardInboxAttachment(companyId: companyId, fileId: fileId)
     }
 
     func downloadInboxAttachment(companyId: String, attachment: GuestInboxAttachmentModel) async throws -> URL {
@@ -476,6 +540,24 @@ final class AppStore: ObservableObject {
         }
         user = settings.guestUser
         return settings
+    }
+
+    func uploadProfilePicture(fileName: String, contentType: String?, data: Data) async throws -> GuestProfileSettingsModel {
+        let settings: GuestProfileSettingsModel
+        if usePreviewData {
+            settings = preview.uploadProfilePicture()
+        } else {
+            settings = try await api.uploadProfilePicture(fileName: fileName, contentType: contentType, data: data)
+        }
+        user = settings.guestUser
+        return settings
+    }
+
+    func downloadProfilePicture() async throws -> Data {
+        if usePreviewData {
+            return preview.downloadProfilePicturePreview()
+        }
+        return try await api.downloadProfilePicture()
     }
 
     func toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Bool) async throws {

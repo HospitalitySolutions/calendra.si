@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,12 +14,14 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.MailOutline
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Wallet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +34,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -72,6 +76,15 @@ private const val GOOGLE_WEB_CLIENT_ID = "YOUR_GOOGLE_WEB_CLIENT_ID"
 private const val STRIPE_PUBLISHABLE_KEY = "YOUR_STRIPE_PUBLISHABLE_KEY"
 
 private const val GUEST_API_DEBUG_TAG = "GuestApi"
+
+private fun openTenantDialer(context: android.content.Context, rawPhone: String?) {
+    val compact = rawPhone.orEmpty()
+        .filter { it.isDigit() || it == '+' }
+        .trimStart()
+    if (compact.isEmpty()) return
+    val uri = Uri.parse("tel:$compact")
+    runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, uri)) }
+}
 
 private fun logLinkedTenantsDebug(source: String, tenants: List<TenantSummary>) {
     if (!BuildConfig.DEBUG) return
@@ -482,30 +495,50 @@ fun GuestMobileRoot() {
                     Box(innerModifier) {
                         WalletScreen(
                             wallet = aggregatedWallet(state.uiState),
-                            history = aggregatedWalletHistory(state.uiState),
                             offers = aggregatedWalletOffers(state.uiState),
-                            onBuyOffer = { offer ->
+                            tenantPaymentMethods = listOf("CARD", "BANK_TRANSFER", "PAYPAL"),
+                            languageCode = state.uiState.session?.guestUser?.language?.takeIf { it.isNotBlank() }
+                                ?: "en",
+                            onBuyOffer = { offer, paymentMethod ->
                                 scope.launch {
                                     val checkout = runCatching {
                                         val order = repo.createOrder(
                                             CreateOrderRequest(
                                                 companyId = offer.companyId,
                                                 productId = offer.productId,
-                                                paymentMethodType = "CARD"
+                                                paymentMethodType = paymentMethod
                                             )
                                         )
-                                        repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = "CARD", saveCard = true))
+                                        repo.checkout(
+                                            order.order.orderId,
+                                            CheckoutRequest(
+                                                paymentMethodType = paymentMethod,
+                                                saveCard = paymentMethod == "CARD"
+                                            )
+                                        )
                                     }.getOrElse {
                                         statusMessage = it.message ?: "Purchase failed"
                                         return@launch
                                     }
 
-                                    buildCheckoutManager()?.handle(
-                                        checkout = checkout,
-                                        onComplete = { statusMessage = checkout.bankTransfer?.instructions ?: "Purchase complete" },
-                                        onError = { error -> statusMessage = error }
-                                    ) ?: run {
-                                        statusMessage = checkout.bankTransfer?.instructions ?: checkout.status
+                                    when (paymentMethod) {
+                                        "BANK_TRANSFER" -> {
+                                            statusMessage = checkout.bankTransfer?.let {
+                                                "Reference ${it.referenceCode} • ${it.amount} ${it.currency}"
+                                            } ?: "Bank transfer instructions issued"
+                                        }
+                                        else -> {
+                                            buildCheckoutManager()?.handle(
+                                                checkout = checkout,
+                                                onComplete = {
+                                                    statusMessage = checkout.bankTransfer?.instructions
+                                                        ?: "Purchase complete"
+                                                },
+                                                onError = { error -> statusMessage = error }
+                                            ) ?: run {
+                                                statusMessage = checkout.bankTransfer?.instructions ?: checkout.status
+                                            }
+                                        }
                                     }
                                     refreshTenant(offer.companyId)
                                 }
@@ -530,6 +563,11 @@ fun GuestMobileRoot() {
                 }
             }
             composable(RootRoute.Inbox.route) {
+                val inboxSelectedId = state.uiState.selectedTenantId
+                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                val inboxTenantPhone = state.uiState.linkedTenants
+                    .firstOrNull { it.companyId == inboxSelectedId }
+                    ?.publicPhone
                 GuestTabsScaffold(
                     current = RootRoute.Inbox.route,
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
@@ -545,7 +583,17 @@ fun GuestMobileRoot() {
                         qrScannerLauncher.launch(options)
                     },
                     onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
-                    onTabSelected = ::navigateToTab
+                    onTabSelected = ::navigateToTab,
+                    tenantPublicPhone = inboxTenantPhone,
+                    leading = {
+                        InboxTenantPickerButton(
+                            tenants = state.uiState.linkedTenants,
+                            selectedTenantId = state.uiState.selectedTenantId,
+                            onSelect = { tenantId ->
+                                state.uiState = state.uiState.copy(selectedTenantId = tenantId)
+                            }
+                        )
+                    }
                 ) { innerModifier ->
                     val activeTenantId = state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId
                     val activeDashboard = activeTenantId?.let { state.uiState.tenantDashboards[it] }
@@ -573,13 +621,13 @@ fun GuestMobileRoot() {
                         InboxScreen(
                             tenantName = activeDashboard?.tenant?.companyName,
                             messages = activeDashboard?.inboxMessages.orEmpty(),
-                            onSend = { body ->
+                            onSend = { body, attachmentFileIds ->
                                 val tenantId = activeTenantId
                                 if (tenantId == null) {
                                     statusMessage = "Select a tenancy first"
                                 } else {
                                     scope.launch {
-                                        runCatching { repo.sendInboxMessage(tenantId, body) }
+                                        runCatching { repo.sendInboxMessage(tenantId, body, attachmentFileIds) }
                                             .onSuccess {
                                                 refreshTenant(tenantId)
                                                 val items = repo.inboxMessages(tenantId)
@@ -596,6 +644,23 @@ fun GuestMobileRoot() {
                                             }
                                             .onFailure { statusMessage = it.message ?: "Unable to send message" }
                                     }
+                                }
+                            },
+                            uploadAttachment = { source ->
+                                val tenantId = activeTenantId
+                                    ?: throw IllegalStateException("Select a tenancy first")
+                                val bytes = context.contentResolver.openInputStream(source.uri)?.use { it.readBytes() }
+                                    ?: throw IllegalStateException("Unable to read the selected file")
+                                repo.uploadInboxAttachment(
+                                    companyId = tenantId,
+                                    fileName = source.fileName,
+                                    contentType = source.contentType,
+                                    bytes = bytes
+                                )
+                            },
+                            discardAttachment = { fileId ->
+                                activeTenantId?.let { tenantId ->
+                                    repo.discardInboxAttachment(tenantId, fileId)
                                 }
                             },
                             onOpenAttachment = { attachment ->
@@ -713,7 +778,6 @@ fun GuestMobileRoot() {
                         ProfileScreen(
                             session = state.uiState.session,
                             activeTenantId = state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId,
-                            activeTenantName = state.uiState.linkedTenants.firstOrNull { it.companyId == (state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId) }?.companyName,
                             onLoadProfileSettings = { companyId ->
                                 val settings = repo.profileSettings(companyId)
                                 state.uiState = state.uiState.copy(
@@ -728,6 +792,14 @@ fun GuestMobileRoot() {
                                 )
                                 settings
                             },
+                            onUploadProfilePicture = { fileName, contentType, bytes ->
+                                val settings = repo.uploadProfilePicture(fileName, contentType, bytes)
+                                state.uiState = state.uiState.copy(
+                                    session = state.uiState.session?.copy(guestUser = settings.guestUser)
+                                )
+                                settings
+                            },
+                            onDownloadProfilePicture = { repo.downloadProfilePicture() },
                             onLogout = ::logout
                         )
                     }
@@ -750,6 +822,8 @@ private fun GuestTabsScaffold(
     onScanTenant: () -> Unit,
     onOpenNotifications: () -> Unit,
     onTabSelected: (String) -> Unit,
+    leading: (@Composable () -> Unit)? = null,
+    tenantPublicPhone: String? = null,
     content: @Composable (Modifier) -> Unit
 ) {
     Scaffold(
@@ -766,7 +840,9 @@ private fun GuestTabsScaffold(
                     unreadNotificationCount = unreadNotificationCount,
                     onAddTenant = onAddTenant,
                     onScanTenant = onScanTenant,
-                    onOpenNotifications = onOpenNotifications
+                    onOpenNotifications = onOpenNotifications,
+                    leading = leading,
+                    tenantPublicPhone = tenantPublicPhone
                 )
             }
             content(Modifier.weight(1f))
@@ -779,57 +855,148 @@ private fun GuestUtilityTopBar(
     unreadNotificationCount: Int,
     onAddTenant: () -> Unit,
     onScanTenant: () -> Unit,
-    onOpenNotifications: () -> Unit
+    onOpenNotifications: () -> Unit,
+    leading: (@Composable () -> Unit)? = null,
+    tenantPublicPhone: String? = null
 ) {
+    val hasPhoneAction = leading != null
+    val context = LocalContext.current
     var addMenuExpanded by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
+    val dialable = !tenantPublicPhone.isNullOrBlank() &&
+        tenantPublicPhone.any { it.isDigit() }
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Box {
-            FilledTonalIconButton(
-                onClick = { addMenuExpanded = true },
-                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.size(44.dp)
-            ) {
-                Icon(Icons.Rounded.Add, contentDescription = "Add tenancy", modifier = Modifier.size(22.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(start = 12.dp, end = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leading != null) {
+                Box(modifier = Modifier.weight(1f, fill = false)) { leading() }
+            } else {
+                Spacer(Modifier.weight(1f))
             }
-            DropdownMenu(expanded = addMenuExpanded, onDismissRequest = { addMenuExpanded = false }) {
-                DropdownMenuItem(
-                    text = { Text("Add code manually") },
-                    onClick = {
-                        addMenuExpanded = false
-                        onAddTenant()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (hasPhoneAction) {
+                    IconButton(
+                        onClick = { openTenantDialer(context, tenantPublicPhone) },
+                        enabled = dialable,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Phone,
+                            contentDescription = "Call tenancy",
+                            modifier = Modifier.size(24.dp),
+                            tint = if (dialable) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        )
                     }
-                )
-                DropdownMenuItem(
-                    text = { Text("QR scan") },
-                    leadingIcon = { Icon(Icons.Rounded.QrCodeScanner, contentDescription = null) },
-                    onClick = {
-                        addMenuExpanded = false
-                        onScanTenant()
+                } else {
+                    Box {
+                        IconButton(
+                            onClick = { addMenuExpanded = true },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Add,
+                                contentDescription = "Add tenancy",
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        DropdownMenu(expanded = addMenuExpanded, onDismissRequest = { addMenuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Add code manually") },
+                                onClick = {
+                                    addMenuExpanded = false
+                                    onAddTenant()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("QR scan") },
+                                leadingIcon = { Icon(Icons.Rounded.QrCodeScanner, contentDescription = null) },
+                                onClick = {
+                                    addMenuExpanded = false
+                                    onScanTenant()
+                                }
+                            )
+                        }
                     }
-                )
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        BadgedBox(
-            badge = {
-                if (unreadNotificationCount > 0) {
-                    Badge { Text(unreadNotificationCount.coerceAtMost(99).toString()) }
+                }
+                BadgedBox(
+                    badge = {
+                        if (unreadNotificationCount > 0) {
+                            Badge { Text(unreadNotificationCount.coerceAtMost(99).toString()) }
+                        }
+                    }
+                ) {
+                    IconButton(
+                        onClick = onOpenNotifications,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.NotificationsNone,
+                            contentDescription = "Notifications",
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun InboxTenantPickerButton(
+    tenants: List<si.calendra.guest.shared.models.TenantSummary>,
+    selectedTenantId: String?,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = tenants.firstOrNull { it.companyId == selectedTenantId } ?: tenants.firstOrNull()
+    val label = selected?.companyName ?: "Select tenancy"
+    Box {
+        Row(
+            modifier = Modifier
+                .clickable(enabled = tenants.isNotEmpty()) { expanded = true }
+                .heightIn(min = 44.dp)
+                .padding(start = 4.dp, end = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            FilledTonalIconButton(
-                onClick = onOpenNotifications,
-                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.size(44.dp)
-            ) {
-                Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", modifier = Modifier.size(22.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 220.dp)
+            )
+            Icon(
+                imageVector = Icons.Rounded.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            tenants.forEach { tenant ->
+                DropdownMenuItem(
+                    text = { Text(tenant.companyName) },
+                    onClick = {
+                        expanded = false
+                        onSelect(tenant.companyId)
+                    }
+                )
             }
         }
     }
@@ -875,7 +1042,7 @@ private fun BottomNavBar(current: String, onTabSelected: (String) -> Unit) {
                     onClick = { onTabSelected(RootRoute.Book.route) },
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .offset(y = (-14).dp)
+                        .offset(y = (-26).dp)
                         .graphicsLayer { shadowElevation = 24.dp.toPx() },
                     shape = CircleShape,
                     containerColor = if (current == RootRoute.Book.route) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
@@ -1001,9 +1168,6 @@ private fun aggregatedWallet(state: GuestUiState): WalletPayload? {
     )
 }
 
-private fun aggregatedWalletHistory(state: GuestUiState): List<BookingHistoryItem> =
-    state.linkedTenants.flatMap { t -> state.tenantDashboards[t.companyId]?.history.orEmpty() }
-
 private fun selectedTenantIds(state: GuestUiState): List<String> = state.selectedTenantId?.let(::listOf) ?: state.linkedTenants.map { it.companyId }
 
 private fun aggregatedNotifications(state: GuestUiState): List<Pair<GuestNotification, String>> =
@@ -1090,7 +1254,7 @@ private fun aggregatedRedeemableEntitlements(state: GuestUiState): List<Redeemab
 private fun aggregatedWalletOffers(state: GuestUiState): List<WalletOfferCard> =
     selectedTenantIds(state).flatMap { tenantId ->
         state.tenantDashboards[tenantId]?.products.orEmpty()
-            .filter { !it.bookable || it.productType == "PACK" || it.productType == "MEMBERSHIP" || it.productType == "CLASS_TICKET" }
+            .filter { it.productType == "PACK" || it.productType == "MEMBERSHIP" || it.productType == "CLASS_TICKET" }
             .map { product ->
                 WalletOfferCard(
                     companyId = tenantId,
@@ -1100,7 +1264,10 @@ private fun aggregatedWalletOffers(state: GuestUiState): List<WalletOfferCard> =
                     priceGross = product.priceGross,
                     currency = product.currency,
                     description = product.description,
-                    sessionTypeName = product.sessionTypeName
+                    sessionTypeName = product.sessionTypeName,
+                    promoText = product.promoText,
+                    validityDays = product.validityDays,
+                    usageLimit = product.usageLimit
                 )
             }
     }.sortedBy { it.name }

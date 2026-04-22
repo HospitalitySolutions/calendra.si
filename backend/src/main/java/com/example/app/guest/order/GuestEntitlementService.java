@@ -113,11 +113,55 @@ public class GuestEntitlementService {
             entitlement.setValidUntil(entitlement.getValidFrom().plusSeconds(product.getValidityDays() * 86400L));
         }
         entitlement.setRemainingUses(product.getUsageLimit());
+        int seq = (int) (entitlements.countByProductId(product.getId()) + 1);
+        entitlement.setDisplaySeq(seq);
+        entitlement.setDisplayCode(buildDisplayCode(product, seq));
         entitlement.setMetadataJson(writeMetadata(new LinkedHashMap<>(Map.of(
                 "autoRenews", product.isAutoRenews(),
                 "listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue()
         ))));
         return entitlements.save(entitlement);
+    }
+
+    /**
+     * Derives a human-friendly code like "CM8-425-001":
+     *  - Prefix: uppercase initials of product name (first letter of each alnum word),
+     *    truncated to 3 chars; falls back to a 2-letter code for the product type.
+     *  - Middle: integer part of the product's gross price (rounded), or "0".
+     *  - Suffix: zero-padded 3-digit per-product running sequence.
+     */
+    private static String buildDisplayCode(GuestProduct product, int sequence) {
+        String prefix = initials(product.getName());
+        if (prefix.isBlank()) {
+            prefix = switch (product.getProductType()) {
+                case CLASS_TICKET -> "TK";
+                case PACK -> "PK";
+                case MEMBERSHIP -> "MB";
+                default -> "GP";
+            };
+        }
+        int priceInt = product.getPriceGross() == null
+                ? 0
+                : product.getPriceGross().setScale(0, java.math.RoundingMode.HALF_UP).intValue();
+        return String.format("%s-%d-%03d", prefix, priceInt, Math.max(1, sequence));
+    }
+
+    private static String initials(String name) {
+        if (name == null || name.isBlank()) return "";
+        StringBuilder sb = new StringBuilder();
+        boolean newWord = true;
+        for (int i = 0; i < name.length() && sb.length() < 3; i++) {
+            char c = name.charAt(i);
+            if (Character.isLetterOrDigit(c)) {
+                if (newWord) {
+                    sb.append(Character.toUpperCase(c));
+                    newWord = false;
+                }
+            } else {
+                newWord = true;
+            }
+        }
+        return sb.toString();
     }
 
     private java.util.Optional<GuestEntitlement> findBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId) {

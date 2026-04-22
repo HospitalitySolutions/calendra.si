@@ -1,31 +1,42 @@
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct ProfileView: View {
     @EnvironmentObject private var store: AppStore
     @State private var profile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", cards: [])
     @State private var showingEditSheet = false
-    @State private var showingAddCardSheet = false
     @State private var showLanguagePicker = false
-    @State private var showStoredSheet = false
+    @State private var showNotificationsSheet = false
     @State private var remoteError: String?
     @State private var loadingRemoteSettings = false
     @State private var savingPreference = false
     @State private var savingProfile = false
+    @State private var notifyMessagesEnabled = true
+    @State private var notifyRemindersEnabled = true
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var avatarImage: UIImage?
+    @State private var uploadingAvatar = false
 
     private var languageDisplay: String {
         profile.language.lowercased() == "sl" ? "Slovenščina" : "English"
     }
 
-    private var storedCardsSummary: String {
-        profile.cards.isEmpty ? "No saved cards" : "\(profile.cards.count) saved"
+    private var notificationsSummary: String {
+        switch (notifyMessagesEnabled, notifyRemindersEnabled) {
+        case (true, true): return "On"
+        case (false, false): return "Off"
+        case (true, false): return "Messages only"
+        case (false, true): return "Reminders only"
+        }
     }
 
     private var activeTenantId: String? {
         store.currentTenant.id
     }
 
-    private var activeTenantName: String? {
-        store.currentTenant.name
+    private var avatarPickerTrigger: String {
+        "\(store.user.id)-\(store.user.profilePicturePath ?? "")"
     }
 
     var body: some View {
@@ -36,23 +47,32 @@ struct ProfileView: View {
                 GuestSurfaceCard {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 14) {
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.12))
-                                .frame(width: 56, height: 56)
-                                .overlay {
-                                    Image(systemName: "person.fill")
-                                        .foregroundStyle(Color.accentColor)
+                            PhotosPicker(selection: $photoPickerItem, matching: .images, photoLibrary: .shared()) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .fill(Color.accentColor.opacity(0.12))
+                                        .frame(width: 56, height: 56)
+                                    if uploadingAvatar {
+                                        ProgressView()
+                                    } else if let avatarImage {
+                                        Image(uiImage: avatarImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 56, height: 56)
+                                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                    } else {
+                                        Image(systemName: "person.fill")
+                                            .foregroundStyle(Color.accentColor)
+                                    }
                                 }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(loadingRemoteSettings || uploadingAvatar)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("\(profile.firstName) \(profile.lastName)".trimmingCharacters(in: .whitespaces))
                                     .font(.title3.weight(.semibold))
                                 Text(profile.email)
                                     .foregroundStyle(.secondary)
-                                if let activeTenantName, !activeTenantName.isEmpty {
-                                    Text("Tenant: \(activeTenantName)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
                             }
                         }
 
@@ -85,8 +105,8 @@ struct ProfileView: View {
                             showLanguagePicker = true
                         }
                         Divider().opacity(0.45)
-                        preferenceNavigationRow(title: "Stored cards", value: storedCardsSummary, systemImage: "creditcard.fill") {
-                            showStoredSheet = true
+                        preferenceNavigationRow(title: "Notifications", value: notificationsSummary, systemImage: "bell.fill") {
+                            showNotificationsSheet = true
                         }
                         Divider().opacity(0.45)
                         Button {
@@ -125,6 +145,12 @@ struct ProfileView: View {
             profile = LocalProfileStore.shared.load(from: store.user)
             await loadRemoteSettings()
         }
+        .task(id: avatarPickerTrigger) {
+            await refreshAvatar()
+        }
+        .onChange(of: photoPickerItem) { _, newItem in
+            Task { await handlePickedPhoto(newItem) }
+        }
         .confirmationDialog("Language", isPresented: $showLanguagePicker, titleVisibility: .visible) {
             Button("English") {
                 Task { await updateLanguage("en") }
@@ -133,35 +159,6 @@ struct ProfileView: View {
                 Task { await updateLanguage("sl") }
             }
             Button("Cancel", role: .cancel) {}
-        }
-        .sheet(isPresented: $showStoredSheet) {
-            NavigationStack {
-                Form {
-                    if profile.cards.isEmpty {
-                        Text("No saved cards yet.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(profile.cards, id: \.self) { card in
-                            StoredCardListRow(line: card)
-                        }
-                    }
-                    Section {
-                        Button {
-                            showStoredSheet = false
-                            showingAddCardSheet = true
-                        } label: {
-                            Label("Add card", systemImage: "plus")
-                        }
-                    }
-                }
-                .navigationTitle("Stored cards")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") { showStoredSheet = false }
-                    }
-                }
-            }
         }
         .sheet(isPresented: $showingEditSheet) {
             ProfileEditSheet(
@@ -173,10 +170,51 @@ struct ProfileView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingAddCardSheet) {
-            AddCardSheet { card in
-                profile.cards.append(card)
-                LocalProfileStore.shared.save(profile)
+        .sheet(isPresented: $showNotificationsSheet) {
+            NotificationPreferencesSheet(
+                messagesEnabled: $notifyMessagesEnabled,
+                remindersEnabled: $notifyRemindersEnabled,
+                saving: savingPreference,
+                onChangeMessages: { newValue in
+                    Task { await updateNotificationPreferences(messages: newValue, reminders: nil) }
+                },
+                onChangeReminders: { newValue in
+                    Task { await updateNotificationPreferences(messages: nil, reminders: newValue) }
+                }
+            )
+        }
+    }
+
+    private func refreshAvatar() async {
+        guard store.user.profilePicturePath?.isEmpty == false else {
+            await MainActor.run { avatarImage = nil }
+            return
+        }
+        do {
+            let data = try await store.downloadProfilePicture()
+            let image = UIImage(data: data)
+            await MainActor.run { avatarImage = image }
+        } catch {
+            await MainActor.run { avatarImage = nil }
+        }
+    }
+
+    private func handlePickedPhoto(_ item: PhotosPickerItem?) async {
+        guard let item else { return }
+        await MainActor.run { uploadingAvatar = true }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                await MainActor.run { uploadingAvatar = false; photoPickerItem = nil }
+                return
+            }
+            _ = try await store.uploadProfilePicture(fileName: "profile.jpg", contentType: "image/jpeg", data: data)
+            await refreshAvatar()
+            await MainActor.run { uploadingAvatar = false; photoPickerItem = nil }
+        } catch {
+            await MainActor.run {
+                uploadingAvatar = false
+                remoteError = error.localizedDescription
+                photoPickerItem = nil
             }
         }
     }
@@ -187,7 +225,40 @@ struct ProfileView: View {
         profile.email = settings.guestUser.email
         profile.phone = settings.guestUser.phone ?? ""
         profile.language = settings.guestUser.language ?? profile.language
+        notifyMessagesEnabled = settings.notifyMessagesEnabled
+        notifyRemindersEnabled = settings.notifyRemindersEnabled
         LocalProfileStore.shared.save(profile)
+    }
+
+    private func updateNotificationPreferences(messages: Bool?, reminders: Bool?) async {
+        let previousMessages = notifyMessagesEnabled
+        let previousReminders = notifyRemindersEnabled
+        if let messages { notifyMessagesEnabled = messages }
+        if let reminders { notifyRemindersEnabled = reminders }
+        savingPreference = true
+        defer { savingPreference = false }
+        do {
+            let settings = try await store.updateProfileSettings(
+                UpdateGuestProfileSettingsPayload(
+                    firstName: profile.firstName,
+                    lastName: profile.lastName,
+                    email: profile.email,
+                    phone: profile.phone.nilIfBlank,
+                    language: profile.language,
+                    companyId: activeTenantId,
+                    linkedCompanyId: nil,
+                    batchPaymentEnabled: nil,
+                    notifyMessagesEnabled: messages,
+                    notifyRemindersEnabled: reminders
+                )
+            )
+            remoteError = nil
+            applyRemoteSettings(settings)
+        } catch {
+            remoteError = error.localizedDescription
+            notifyMessagesEnabled = previousMessages
+            notifyRemindersEnabled = previousReminders
+        }
     }
 
     private func loadRemoteSettings() async {
@@ -276,111 +347,66 @@ struct ProfileView: View {
 
 }
 
-// MARK: - Stored card display (brand mark to the right of last4)
+// MARK: - Notification preferences sheet
 
-private struct StoredCardDisplay {
-    let brand: GuestPaymentCardBrand
-    let last4: String
-    let expiry: String
-
-    static func parse(_ line: String) -> StoredCardDisplay? {
-        let parts = line.components(separatedBy: " •••• ")
-        guard parts.count == 2 else { return nil }
-        let brand = GuestPaymentCardBrand.fromDisplayName(parts[0])
-        let tail = parts[1].components(separatedBy: " · ")
-        guard tail.count == 2 else { return nil }
-        let last4 = tail[0].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard last4.count == 4, last4.allSatisfy({ $0.isNumber }) else { return nil }
-        return StoredCardDisplay(brand: brand, last4: last4, expiry: tail[1].trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-}
-
-private struct StoredCardListRow: View {
-    let line: String
+private struct NotificationPreferencesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var messagesEnabled: Bool
+    @Binding var remindersEnabled: Bool
+    let saving: Bool
+    let onChangeMessages: (Bool) -> Void
+    let onChangeReminders: (Bool) -> Void
 
     var body: some View {
-        if let p = StoredCardDisplay.parse(line) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    Text(p.brand.displayName)
-                        .font(.body.weight(.medium))
-                    Text(" · ")
-                        .foregroundStyle(.secondary)
-                    Text("•••• ")
-                        .foregroundStyle(.secondary)
-                    Text(p.last4)
-                        .font(.body.weight(.semibold))
-                    Spacer().frame(width: 6)
-                    CardBrandMark(brand: p.brand)
-                    Text(" · ")
-                        .foregroundStyle(.secondary)
-                    Text(p.expiry)
-                        .foregroundStyle(.secondary)
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { messagesEnabled },
+                        set: { newValue in
+                            messagesEnabled = newValue
+                            onChangeMessages(newValue)
+                        }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Messages")
+                                .font(.headline)
+                            Text("New inbox messages from your provider")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(saving)
+
+                    Toggle(isOn: Binding(
+                        get: { remindersEnabled },
+                        set: { newValue in
+                            remindersEnabled = newValue
+                            onChangeReminders(newValue)
+                        }
+                    )) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Reminders")
+                                .font(.headline)
+                            Text("Appointment reminders and updates")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(saving)
+                } footer: {
+                    Text("Choose which push notifications you want to receive on this device when the app is in the background.")
                 }
             }
-        } else {
-            Text(line)
-        }
-    }
-}
-
-private struct CardBrandMark: View {
-    let brand: GuestPaymentCardBrand
-
-    var body: some View {
-        Group {
-            if brand == .mastercard {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 235 / 255, green: 0, blue: 27 / 255))
-                        .frame(width: 14, height: 14)
-                        .offset(x: -5)
-                    Circle()
-                        .fill(Color(red: 247 / 255, green: 158 / 255, blue: 27 / 255))
-                        .frame(width: 14, height: 14)
-                        .offset(x: 5)
+            .navigationTitle("Notifications")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Saving…" : "Done") { dismiss() }
+                        .disabled(saving)
                 }
-                .frame(width: 30, height: 20)
-            } else {
-                Text(chipLabel)
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(chipForeground)
-                    .padding(.horizontal, 4)
-                    .frame(minWidth: 34, maxWidth: 52, minHeight: 20, maxHeight: 20)
-                    .background(chipBackground, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
         }
-        .accessibilityHidden(true)
-    }
-
-    private var chipLabel: String {
-        switch brand {
-        case .visa: return "VISA"
-        case .mastercard: return "MC"
-        case .amex: return "AMEX"
-        case .discover: return "DISC"
-        case .diners: return "DC"
-        case .jcb: return "JCB"
-        case .unionPay: return "UP"
-        case .unknown: return "CARD"
-        }
-    }
-
-    private var chipBackground: Color {
-        switch brand {
-        case .visa: return Color(red: 26 / 255, green: 31 / 255, blue: 113 / 255)
-        case .mastercard: return .clear
-        case .amex: return Color(red: 0, green: 111 / 255, blue: 207 / 255)
-        case .discover: return Color(red: 1, green: 96 / 255, blue: 0)
-        case .diners: return Color(red: 0, green: 121 / 255, blue: 190 / 255)
-        case .jcb: return Color(red: 12 / 255, green: 77 / 255, blue: 162 / 255)
-        case .unionPay: return Color(red: 226 / 255, green: 24 / 255, blue: 54 / 255)
-        case .unknown: return Color(.tertiarySystemFill)
-        }
-    }
-
-    private var chipForeground: Color {
-        brand == .unknown ? Color.secondary : .white
     }
 }
 

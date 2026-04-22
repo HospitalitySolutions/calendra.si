@@ -116,17 +116,14 @@ struct BookView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            header
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        header
-                        stepper
-                            .padding(.top, -10)
-                    }
+                    stepper
                     stepContent
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, -8)
+                .padding(.top, 12)
                 .padding(.bottom, 16)
             }
 
@@ -221,18 +218,19 @@ struct BookView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        let canGoBack = currentStep != .provider
+        return HStack(spacing: 0) {
             Button {
                 moveBack()
             } label: {
                 Image(systemName: "arrow.left")
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .frame(width: 30, height: 30, alignment: .leading)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(canGoBack ? Color.primary : Color.primary.opacity(0.35))
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.leading, -6)
+            .disabled(!canGoBack)
 
             Text("Book a session")
                 .font(.system(size: 18, weight: .bold))
@@ -245,23 +243,27 @@ struct BookView: View {
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .frame(width: 32, height: 32)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(Color.primary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                     if unreadNotifications > 0 {
                         Text("\(min(unreadNotifications, 99))")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(brandOrange))
-                            .offset(x: 9, y: -5)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Capsule(style: .continuous).fill(brandOrange))
+                            .offset(x: 4, y: -2)
                     }
                 }
             }
             .buttonStyle(.plain)
         }
-        .offset(y: -30)
+        .padding(.leading, 4)
+        .padding(.trailing, 4)
+        .frame(height: 56)
+        .background(Color(.systemBackground))
     }
 
     private var stepper: some View {

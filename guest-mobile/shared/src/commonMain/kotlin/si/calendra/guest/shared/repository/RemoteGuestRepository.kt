@@ -14,6 +14,10 @@ class RemoteGuestRepository(
     override suspend fun me(): GuestProfile = api.me()
     override suspend fun profileSettings(companyId: String?): GuestProfileSettings = api.profileSettings(companyId)
     override suspend fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings = api.updateProfileSettings(request)
+    override suspend fun uploadProfilePicture(fileName: String, contentType: String?, bytes: ByteArray): GuestProfileSettings =
+        api.uploadProfilePicture(fileName, contentType, bytes)
+
+    override suspend fun downloadProfilePicture(): ByteArray = api.downloadProfilePicture()
     override suspend fun resolveTenant(code: String): TenantLookupResponse = api.resolveTenant(code)
     override suspend fun searchTenants(query: String): List<TenantSummary> = api.searchTenants(query)
     override suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse = api.joinTenant(request)
@@ -31,6 +35,18 @@ class RemoteGuestRepository(
     override suspend fun markAllNotificationsRead(companyId: String): MarkAllReadResponse = api.markAllNotificationsRead(companyId)
     override suspend fun inboxThreads(companyId: String): List<GuestInboxThread> = api.inboxThreads(companyId)
     override suspend fun inboxMessages(companyId: String): List<GuestInboxMessage> = api.inboxMessages(companyId)
-    override suspend fun sendInboxMessage(companyId: String, body: String): GuestInboxMessage = api.sendInboxMessage(companyId, body)
+    override suspend fun sendInboxMessage(
+        companyId: String,
+        body: String,
+        attachmentFileIds: List<Long>
+    ): GuestInboxMessage = api.sendInboxMessage(companyId, body, attachmentFileIds)
+    override suspend fun uploadInboxAttachment(
+        companyId: String,
+        fileName: String,
+        contentType: String?,
+        bytes: ByteArray
+    ): GuestInboxUploadedAttachment = api.uploadInboxAttachment(companyId, fileName, contentType, bytes)
+    override suspend fun discardInboxAttachment(companyId: String, fileId: Long) =
+        api.discardInboxAttachment(companyId, fileId)
     override suspend fun registerDeviceToken(platform: String, pushToken: String, locale: String?): Boolean = api.registerDeviceToken(platform, pushToken, locale).registered
 }

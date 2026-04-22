@@ -5,6 +5,12 @@ import si.calendra.guest.shared.sample.PreviewDataFactory
 
 class PreviewGuestRepository : GuestRepository {
     private val preview = PreviewDataFactory()
+    private var previewAttachmentSeq = 1000L
+
+    private fun nextPreviewAttachmentId(): Long {
+        previewAttachmentSeq += 1
+        return previewAttachmentSeq
+    }
 
     override suspend fun login(request: LoginRequest): GuestSession = preview.session()
 
@@ -22,6 +28,11 @@ class PreviewGuestRepository : GuestRepository {
     override suspend fun updateProfileSettings(
         request: UpdateGuestProfileSettingsRequest
     ): GuestProfileSettings = preview.updateProfileSettings(request)
+
+    override suspend fun uploadProfilePicture(fileName: String, contentType: String?, bytes: ByteArray): GuestProfileSettings =
+        preview.uploadProfilePicture(fileName, contentType, bytes)
+
+    override suspend fun downloadProfilePicture(): ByteArray = preview.downloadProfilePicture()
 
     override suspend fun resolveTenant(code: String): TenantLookupResponse =
         preview.tenantLookup(code)
@@ -112,7 +123,8 @@ class PreviewGuestRepository : GuestRepository {
 
     override suspend fun sendInboxMessage(
         companyId: String,
-        body: String
+        body: String,
+        attachmentFileIds: List<Long>
     ): GuestInboxMessage = GuestInboxMessage(
         id = 2L,
         clientId = 1L,
@@ -128,6 +140,21 @@ class PreviewGuestRepository : GuestRepository {
         sentAt = "2025-01-01T12:01:00Z",
         attachments = emptyList()
     )
+
+    override suspend fun uploadInboxAttachment(
+        companyId: String,
+        fileName: String,
+        contentType: String?,
+        bytes: ByteArray
+    ): GuestInboxUploadedAttachment = GuestInboxUploadedAttachment(
+        id = nextPreviewAttachmentId(),
+        fileName = fileName,
+        contentType = contentType,
+        sizeBytes = bytes.size.toLong(),
+        uploadedAt = "2025-01-01T12:02:00Z"
+    )
+
+    override suspend fun discardInboxAttachment(companyId: String, fileId: Long) {}
 
     override suspend fun registerDeviceToken(
         platform: String,

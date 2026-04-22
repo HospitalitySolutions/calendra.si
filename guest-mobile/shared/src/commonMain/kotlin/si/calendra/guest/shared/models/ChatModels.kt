@@ -48,7 +48,17 @@ data class GuestInboxMessage(
 @Serializable
 data class SendGuestInboxMessageRequest(
     val companyId: String,
-    val body: String
+    val body: String,
+    val attachmentFileIds: List<Long> = emptyList()
+)
+
+@Serializable
+data class GuestInboxUploadedAttachment(
+    val id: Long,
+    val fileName: String,
+    val contentType: String? = null,
+    val sizeBytes: Long = 0,
+    val uploadedAt: String? = null
 )
 
 @Serializable

@@ -5,7 +5,9 @@ import si.calendra.guest.shared.models.*
 class PreviewDataFactory {
     private data class TenantPreference(
         var linkedCompanyId: String? = null,
-        var batchPaymentEnabled: Boolean = false
+        var batchPaymentEnabled: Boolean = false,
+        var notifyMessagesEnabled: Boolean = true,
+        var notifyRemindersEnabled: Boolean = true
     )
 
     private val tenant = TenantSummary(
@@ -73,9 +75,19 @@ class PreviewDataFactory {
             linkedCompanyId = selectedCompany?.id,
             linkedCompanyName = selectedCompany?.name,
             batchPaymentEnabled = preference.batchPaymentEnabled,
+            notifyMessagesEnabled = preference.notifyMessagesEnabled,
+            notifyRemindersEnabled = preference.notifyRemindersEnabled,
             linkedCompanyOptions = options
         )
     }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun uploadProfilePicture(fileName: String, contentType: String?, bytes: ByteArray): GuestProfileSettings {
+        currentGuestUser = currentGuestUser.copy(profilePicturePath = "/api/guest/profile/picture")
+        return profileSettings(null)
+    }
+
+    fun downloadProfilePicture(): ByteArray = ByteArray(0)
 
     fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings {
         currentGuestUser = currentGuestUser.copy(
@@ -89,6 +101,8 @@ class PreviewDataFactory {
         val preference = tenantPreferences.getOrPut(resolvedCompanyId) { TenantPreference() }
         preference.linkedCompanyId = request.linkedCompanyId
         request.batchPaymentEnabled?.let { preference.batchPaymentEnabled = it }
+        request.notifyMessagesEnabled?.let { preference.notifyMessagesEnabled = it }
+        request.notifyRemindersEnabled?.let { preference.notifyRemindersEnabled = it }
         return profileSettings(resolvedCompanyId)
     }
 
@@ -161,28 +175,56 @@ class PreviewDataFactory {
                         productName = "Yoga 10 Pack",
                         entitlementType = "PACK",
                         remainingUses = 7,
+                        totalUses = 10,
                         validUntil = "2026-06-11T00:00:00Z",
+                        validityDays = 180,
                         sessionTypeId = "session-yoga",
-                        sessionTypeName = "Yoga Flow"
+                        sessionTypeName = "Yoga Flow",
+                        displayCode = "YF99-007",
+                        priceGross = 99.0,
+                        currency = "EUR"
                     )
                 )
             } else {
                 listOf(
                     EntitlementSummary(
                         entitlementId = "ent-1",
-                        productName = "5 PT Pack",
+                        productName = "5 Session Pack",
                         entitlementType = "PACK",
                         remainingUses = 4,
+                        totalUses = 5,
                         validUntil = "2026-06-01T00:00:00Z",
+                        validityDays = 120,
                         sessionTypeId = "session-pt",
-                        sessionTypeName = "Personal Training"
+                        sessionTypeName = "Personal Training",
+                        displayCode = "SP180-001",
+                        priceGross = 180.0,
+                        currency = "EUR"
                     ),
                     EntitlementSummary(
                         entitlementId = "ent-3",
-                        productName = "Monthly Gym",
+                        productName = "Monthly Membership",
                         entitlementType = "MEMBERSHIP",
                         validUntil = "2026-05-01T00:00:00Z",
-                        autoRenews = true
+                        validityDays = 30,
+                        autoRenews = true,
+                        displayCode = "MM59-003",
+                        priceGross = 59.0,
+                        currency = "EUR"
+                    ),
+                    EntitlementSummary(
+                        entitlementId = "ent-4",
+                        productName = "Personal Training",
+                        entitlementType = "CLASS_TICKET",
+                        remainingUses = 1,
+                        totalUses = 1,
+                        validUntil = "2026-05-20T00:00:00Z",
+                        validityDays = 60,
+                        sessionTypeId = "session-pt",
+                        sessionTypeName = "Personal Training",
+                        displayCode = "PT45-012",
+                        priceGross = 45.0,
+                        currency = "EUR"
                     )
                 )
             },
@@ -209,18 +251,24 @@ class PreviewDataFactory {
                 sessionTypeId = "session-yoga",
                 sessionTypeName = "Yoga Flow",
                 description = "Group class for mobility, breathwork, and full-body flow.",
-                durationMinutes = 60
+                durationMinutes = 60,
+                promoText = "Available now",
+                validityDays = 30
             ),
             ProductSummary(
-                productId = "prod-yoga-private",
-                name = "Private Yoga",
-                productType = "SESSION_SINGLE",
-                priceGross = 38.0,
+                productId = "prod-yoga-pack",
+                name = "Yoga 10 Pack",
+                productType = "PACK",
+                priceGross = 99.0,
                 currency = "EUR",
-                sessionTypeId = "session-yoga-private",
-                sessionTypeName = "Private Yoga",
-                description = "One-on-one guided session tailored to your goals.",
-                durationMinutes = 45
+                sessionTypeId = "session-yoga",
+                sessionTypeName = "Yoga Flow",
+                bookable = false,
+                description = "Save with a ten-class bundle, valid for six months.",
+                durationMinutes = 60,
+                promoText = "Best value",
+                validityDays = 180,
+                usageLimit = 10
             )
         )
     } else {
@@ -228,24 +276,15 @@ class PreviewDataFactory {
             ProductSummary(
                 productId = "prod-pt-single",
                 name = "Personal Training",
-                productType = "SESSION_SINGLE",
+                productType = "CLASS_TICKET",
                 priceGross = 45.0,
                 currency = "EUR",
                 sessionTypeId = "session-pt",
                 sessionTypeName = "Personal Training",
                 description = "Focused one-on-one coaching session in the studio.",
-                durationMinutes = 45
-            ),
-            ProductSummary(
-                productId = "prod-recovery",
-                name = "Recovery Session",
-                productType = "SESSION_SINGLE",
-                priceGross = 35.0,
-                currency = "EUR",
-                sessionTypeId = "session-recovery",
-                sessionTypeName = "Recovery Session",
-                description = "Mobility and recovery work to reset after intense training.",
-                durationMinutes = 30
+                durationMinutes = 45,
+                promoText = "Available now",
+                validityDays = 60
             ),
             ProductSummary(
                 productId = "prod-pack-5",
@@ -257,7 +296,10 @@ class PreviewDataFactory {
                 sessionTypeName = "Personal Training",
                 bookable = false,
                 description = "Best value bundle for regular personal training.",
-                durationMinutes = 45
+                durationMinutes = 45,
+                promoText = "Best value",
+                validityDays = 120,
+                usageLimit = 5
             ),
             ProductSummary(
                 productId = "prod-membership",
@@ -266,7 +308,9 @@ class PreviewDataFactory {
                 priceGross = 59.0,
                 currency = "EUR",
                 bookable = false,
-                description = "Unlimited gym access during staffed hours."
+                description = "Unlimited gym access during staffed hours.",
+                promoText = "Popular",
+                validityDays = 30
             )
         )
     }
@@ -336,8 +380,45 @@ class PreviewDataFactory {
     fun wallet(companyId: String): WalletPayload = WalletPayload(
         entitlements = home(companyId).activeEntitlements,
         orders = listOf(
-            WalletOrder("order-paid-1", "PAID", "CARD", 59.0, "2026-04-15T10:00:00Z"),
-            WalletOrder("order-pending-1", "PENDING", "BANK_TRANSFER", 180.0, null)
+            WalletOrder(
+                orderId = "order-paid-1",
+                status = "PAID",
+                paymentMethodType = "CARD",
+                totalGross = 59.0,
+                currency = "EUR",
+                paidAt = "2026-04-15T10:00:00Z",
+                createdAt = "2026-04-15T09:58:00Z",
+                referenceCode = "ORD-2026-00021",
+                productName = "Monthly Membership",
+                productType = "MEMBERSHIP",
+                billPaymentStatus = "PAID"
+            ),
+            WalletOrder(
+                orderId = "order-paid-2",
+                status = "PAID",
+                paymentMethodType = "PAYPAL",
+                totalGross = 99.0,
+                currency = "EUR",
+                paidAt = "2026-04-10T14:22:00Z",
+                createdAt = "2026-04-10T14:21:00Z",
+                referenceCode = "ORD-2026-00018",
+                productName = "Yoga 10 Pack",
+                productType = "PACK",
+                billPaymentStatus = "PAID"
+            ),
+            WalletOrder(
+                orderId = "order-pending-1",
+                status = "PENDING",
+                paymentMethodType = "BANK_TRANSFER",
+                totalGross = 180.0,
+                currency = "EUR",
+                paidAt = null,
+                createdAt = "2026-04-16T08:05:00Z",
+                referenceCode = "ORD-2026-00023",
+                productName = "5 Session Pack",
+                productType = "PACK",
+                billPaymentStatus = "PAYMENT_PENDING"
+            )
         )
     )
 

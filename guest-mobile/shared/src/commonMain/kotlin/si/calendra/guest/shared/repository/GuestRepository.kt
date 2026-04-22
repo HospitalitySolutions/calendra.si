@@ -10,6 +10,8 @@ interface GuestRepository {
     suspend fun me(): GuestProfile
     suspend fun profileSettings(companyId: String? = null): GuestProfileSettings
     suspend fun updateProfileSettings(request: UpdateGuestProfileSettingsRequest): GuestProfileSettings
+    suspend fun uploadProfilePicture(fileName: String, contentType: String?, bytes: ByteArray): GuestProfileSettings
+    suspend fun downloadProfilePicture(): ByteArray
     suspend fun resolveTenant(code: String): TenantLookupResponse
     suspend fun searchTenants(query: String): List<TenantSummary>
     suspend fun joinTenant(request: JoinTenantRequest): JoinTenantResponse
@@ -27,6 +29,17 @@ interface GuestRepository {
     suspend fun markAllNotificationsRead(companyId: String): MarkAllReadResponse
     suspend fun inboxThreads(companyId: String): List<GuestInboxThread>
     suspend fun inboxMessages(companyId: String): List<GuestInboxMessage>
-    suspend fun sendInboxMessage(companyId: String, body: String): GuestInboxMessage
+    suspend fun sendInboxMessage(
+        companyId: String,
+        body: String,
+        attachmentFileIds: List<Long> = emptyList()
+    ): GuestInboxMessage
+    suspend fun uploadInboxAttachment(
+        companyId: String,
+        fileName: String,
+        contentType: String?,
+        bytes: ByteArray
+    ): GuestInboxUploadedAttachment
+    suspend fun discardInboxAttachment(companyId: String, fileId: Long)
     suspend fun registerDeviceToken(platform: String, pushToken: String, locale: String? = null): Boolean
 }

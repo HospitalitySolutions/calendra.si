@@ -8,7 +8,14 @@ data class WalletOrder(
     val status: String,
     val paymentMethodType: String,
     val totalGross: Double,
-    val paidAt: String? = null
+    val currency: String = "EUR",
+    val paidAt: String? = null,
+    val createdAt: String? = null,
+    val referenceCode: String? = null,
+    val productName: String? = null,
+    val productType: String? = null,
+    /** Bill payment status: "PAID" / "PAYMENT_PENDING" / null (no bill yet). */
+    val billPaymentStatus: String? = null
 )
 
 @Serializable

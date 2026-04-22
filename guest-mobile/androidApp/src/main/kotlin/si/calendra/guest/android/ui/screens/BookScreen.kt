@@ -16,10 +16,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,11 +39,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
@@ -341,30 +337,24 @@ fun BookScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
+        BookingHeader(
+            currentStep = currentStep,
+            onOpenNotifications = onOpenNotifications,
+            onBack = ::moveBackStep
+        )
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 4.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    BookingHeader(
-                        currentStep = currentStep,
-                        onOpenNotifications = onOpenNotifications,
-                        onBack = ::moveBackStep
-                    )
-                    BookingStepper(
-                        currentStep = currentStep,
-                        visibleSteps = visibleSteps,
-                        skipsOnlinePayment = skipsOnlinePayment,
-                        modifier = Modifier.offset(y = (-8).dp)
-                    )
-                }
+                BookingStepper(
+                    currentStep = currentStep,
+                    visibleSteps = visibleSteps,
+                    skipsOnlinePayment = skipsOnlinePayment
+                )
             }
 
             when (currentStep) {
@@ -758,33 +748,48 @@ private fun BookingHeader(
     onOpenNotifications: () -> Unit,
     onBack: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .offset(y = (-30).dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(start = 4.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             IconButton(
                 onClick = onBack,
                 enabled = currentStep != BookingFlowStep.PROVIDER,
-                modifier = Modifier.offset(x = (-8).dp)
+                modifier = Modifier.size(44.dp)
             ) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
             }
             Text(
                 "Book a session",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
             )
-        }
-        FilledTonalIconButton(
-            onClick = onOpenNotifications,
-            colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.size(40.dp)
-        ) {
-            Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", modifier = Modifier.size(18.dp))
+            IconButton(
+                onClick = onOpenNotifications,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Icon(
+                    Icons.Rounded.NotificationsNone,
+                    contentDescription = "Notifications",
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     }
 }

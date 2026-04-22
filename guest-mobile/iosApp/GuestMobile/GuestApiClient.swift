@@ -38,6 +38,42 @@ final class GuestApiClient {
         try await put(path: "api/guest/profile/settings", body: payload)
     }
 
+    func uploadProfilePicture(fileName: String, contentType: String?, data: Data) async throws -> GuestProfileSettingsModel {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/guest/profile/picture"))
+        request.httpMethod = "POST"
+        let boundary = "GuestMobileBoundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("native", forHTTPHeaderField: "X-App-Platform")
+        if let authToken {
+            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        }
+        let safeFileName = fileName.replacingOccurrences(of: "\"", with: "")
+        let mime = (contentType?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? contentType! : "application/octet-stream")
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(safeFileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mime)\r\n\r\n".data(using: .utf8)!)
+        body.append(data)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+        let (responseData, response) = try await session.data(for: request)
+        try validate(response: response, data: responseData)
+        return try JSONDecoder().decode(GuestProfileSettingsModel.self, from: responseData)
+    }
+
+    func downloadProfilePicture() async throws -> Data {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/guest/profile/picture"))
+        request.httpMethod = "GET"
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue("native", forHTTPHeaderField: "X-App-Platform")
+        if let authToken {
+            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return data
+    }
+
     func resolveTenant(code: String) async throws -> TenantLookupModel {
         try await post(path: "api/guest/tenants/resolve-code", body: TenantCodePayload(tenantCode: code))
     }
@@ -115,8 +151,55 @@ final class GuestApiClient {
         try await get(path: "api/guest/inbox/messages", query: [URLQueryItem(name: "companyId", value: companyId)])
     }
 
-    func sendInboxMessage(companyId: String, body: String) async throws -> GuestInboxMessageModel {
-        try await post(path: "api/guest/inbox/messages", body: GuestInboxSendPayload(companyId: companyId, body: body))
+    func sendInboxMessage(
+        companyId: String,
+        body: String,
+        attachmentFileIds: [Int64] = []
+    ) async throws -> GuestInboxMessageModel {
+        try await post(
+            path: "api/guest/inbox/messages",
+            body: GuestInboxSendPayload(companyId: companyId, body: body, attachmentFileIds: attachmentFileIds)
+        )
+    }
+
+    func uploadInboxAttachment(
+        companyId: String,
+        fileName: String,
+        contentType: String?,
+        data: Data
+    ) async throws -> GuestInboxUploadedAttachmentModel {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("api/guest/inbox/attachments"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "companyId", value: companyId)]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "POST"
+        let boundary = "GuestMobileBoundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("native", forHTTPHeaderField: "X-App-Platform")
+        if let authToken {
+            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        }
+        let safeFileName = fileName.replacingOccurrences(of: "\"", with: "")
+        let mime = (contentType?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? contentType! : "application/octet-stream")
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(safeFileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mime)\r\n\r\n".data(using: .utf8)!)
+        body.append(data)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+        let (responseData, response) = try await session.data(for: request)
+        try validate(response: response, data: responseData)
+        return try JSONDecoder().decode(GuestInboxUploadedAttachmentModel.self, from: responseData)
+    }
+
+    func discardInboxAttachment(companyId: String, fileId: Int64) async throws {
+        _ = try await postEmpty(
+            path: "api/guest/inbox/attachments/\(fileId)/discard",
+            query: [URLQueryItem(name: "companyId", value: companyId)]
+        )
     }
 
     func downloadInboxAttachment(companyId: String, attachmentId: Int64, suggestedFileName: String) async throws -> URL {

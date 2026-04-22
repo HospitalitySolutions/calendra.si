@@ -1,9 +1,11 @@
 package com.example.app.guest.inbox;
 
+import com.example.app.files.StoredFileResponse;
 import com.example.app.guest.auth.GuestAuthContextService;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.inbox.ClientMessageService;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Collections;
 import java.util.List;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/guest/inbox")
@@ -28,7 +31,7 @@ public class GuestInboxController {
         this.messageService = messageService;
     }
 
-    public record GuestSendMessageRequest(String companyId, String body) {}
+    public record GuestSendMessageRequest(String companyId, String body, List<Long> attachmentFileIds) {}
 
     @GetMapping("/threads")
     public List<ClientMessageService.GuestThreadSummary> threads(
@@ -55,7 +58,35 @@ public class GuestInboxController {
             HttpServletRequest request
     ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return messageService.sendGuestMessage(guestUser, Long.parseLong(payload.companyId()), payload.body());
+        List<Long> attachmentFileIds = payload.attachmentFileIds() == null
+                ? Collections.emptyList()
+                : payload.attachmentFileIds();
+        return messageService.sendGuestMessage(
+                guestUser,
+                Long.parseLong(payload.companyId()),
+                payload.body(),
+                attachmentFileIds
+        );
+    }
+
+    @PostMapping(value = "/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public StoredFileResponse preuploadAttachment(
+            @RequestParam String companyId,
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request
+    ) {
+        GuestUser guestUser = authContextService.requireGuest(request);
+        return messageService.preuploadGuestInboxAttachment(guestUser, Long.parseLong(companyId), file);
+    }
+
+    @PostMapping("/attachments/{fileId}/discard")
+    public void discardPendingAttachment(
+            @PathVariable Long fileId,
+            @RequestParam String companyId,
+            HttpServletRequest request
+    ) {
+        GuestUser guestUser = authContextService.requireGuest(request);
+        messageService.discardGuestPendingInboxAttachment(guestUser, Long.parseLong(companyId), fileId);
     }
 
     @GetMapping("/attachments/{attachmentId}")

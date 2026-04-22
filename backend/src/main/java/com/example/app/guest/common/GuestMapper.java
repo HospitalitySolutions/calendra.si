@@ -11,13 +11,17 @@ public final class GuestMapper {
     private GuestMapper() {}
 
     public static GuestDtos.GuestUserResponse toGuestUser(GuestUser guestUser) {
+        String picturePath = guestUser.getProfilePictureS3Key() == null || guestUser.getProfilePictureS3Key().isBlank()
+                ? null
+                : "/api/guest/profile/picture";
         return new GuestDtos.GuestUserResponse(
                 String.valueOf(guestUser.getId()),
                 guestUser.getEmail(),
                 guestUser.getFirstName(),
                 guestUser.getLastName(),
                 guestUser.getPhone(),
-                guestUser.getLanguage()
+                guestUser.getLanguage(),
+                picturePath
         );
     }
 
@@ -81,16 +85,28 @@ public final class GuestMapper {
 
     public static GuestDtos.EntitlementResponse toEntitlement(GuestEntitlement entitlement) {
         boolean autoRenews = autoRenewSetting(entitlement);
+        GuestProduct product = entitlement.getProduct();
+        Integer totalUses = product == null ? null : product.getUsageLimit();
+        Integer validityDays = product == null ? null : product.getValidityDays();
+        Double priceGross = product == null || product.getPriceGross() == null
+                ? null
+                : product.getPriceGross().doubleValue();
+        String currency = product == null ? null : product.getCurrency();
         return new GuestDtos.EntitlementResponse(
                 String.valueOf(entitlement.getId()),
-                entitlement.getProduct().getName(),
+                product == null ? "" : product.getName(),
                 entitlement.getEntitlementType().name(),
                 entitlement.getRemainingUses(),
+                totalUses,
                 entitlement.getValidUntil() == null ? null : entitlement.getValidUntil().toString(),
+                validityDays,
                 entitlement.getStatus().name(),
-                entitlement.getProduct().getSessionType() == null ? null : String.valueOf(entitlement.getProduct().getSessionType().getId()),
-                entitlement.getProduct().getSessionType() == null ? null : entitlement.getProduct().getSessionType().getName(),
-                autoRenews
+                product == null || product.getSessionType() == null ? null : String.valueOf(product.getSessionType().getId()),
+                product == null || product.getSessionType() == null ? null : product.getSessionType().getName(),
+                autoRenews,
+                entitlement.getDisplayCode(),
+                priceGross,
+                currency
         );
     }
 

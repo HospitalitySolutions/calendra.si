@@ -3,8 +3,10 @@ package com.example.app.reminder;
 import com.example.app.client.Client;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.guest.model.GuestNotification;
 import com.example.app.guest.model.GuestNotificationType;
 import com.example.app.guest.notifications.GuestNotificationService;
+import com.example.app.guest.notifications.GuestPushService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -53,6 +55,7 @@ public class ReminderService {
     private final CompanyRepository companies;
     private final SessionBookingRepository sessionBookings;
     private final GuestNotificationService guestNotifications;
+    private final GuestPushService guestPushService;
     private final String frontendBaseUrl;
 
     public ReminderService(
@@ -65,7 +68,8 @@ public class ReminderService {
             CompanyRepository companies,
             SessionBookingRepository sessionBookings,
             SmsGateway smsGateway,
-            GuestNotificationService guestNotifications
+            GuestNotificationService guestNotifications,
+            GuestPushService guestPushService
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom != null ? mailFrom : "";
@@ -79,6 +83,7 @@ public class ReminderService {
         this.companies = companies;
         this.sessionBookings = sessionBookings;
         this.guestNotifications = guestNotifications;
+        this.guestPushService = guestPushService;
     }
 
     /**
@@ -238,7 +243,7 @@ public class ReminderService {
         String renderedTitle = replaceTokens(title, tokens);
         String renderedBody = replaceTokens(body, tokens);
         try {
-            guestNotifications.createForClient(
+            GuestNotification created = guestNotifications.createForClient(
                     booking.getCompany(),
                     client,
                     mapKindToType(kind),
@@ -247,6 +252,7 @@ public class ReminderService {
                     buildPayloadJson(booking)
             );
             log.info("Sent {} scheduled guest app notification for company {}", kind, booking.getCompany().getId());
+            sendReminderPush(created, booking, renderedTitle, renderedBody, kind);
         } catch (Exception e) {
             log.warn("Failed to send {} scheduled guest app notification: {}", kind, e.getMessage());
         }
@@ -265,7 +271,7 @@ public class ReminderService {
             }
             String renderedTitle = replaceTokens(title, tokens);
             String renderedBody = replaceTokens(body, tokens);
-            guestNotifications.createForClient(
+            GuestNotification created = guestNotifications.createForClient(
                     booking.getCompany(),
                     client,
                     mapKindToType(kind),
@@ -274,9 +280,53 @@ public class ReminderService {
                     buildPayloadJson(booking)
             );
             log.info("Sent {} guest app notification for company {}", kind, companyId);
+            sendReminderPush(created, booking, renderedTitle, renderedBody, kind);
         } catch (Exception e) {
             log.warn("Failed to send {} guest app notification for company {}: {}", kind, companyId, e.getMessage());
         }
+    }
+
+    private void sendReminderPush(GuestNotification notification, SessionBooking booking, String title, String body, NotificationKind kind) {
+        if (notification == null || notification.getGuestUser() == null) return;
+        if (title == null || title.isBlank()) title = defaultPushTitle(kind);
+        if (body == null || body.isBlank()) body = defaultPushBody(kind);
+        try {
+            Map<String, String> extra = new LinkedHashMap<>();
+            extra.put("reminderKind", kind.name());
+            if (booking != null && booking.getId() != null) {
+                extra.put("bookingId", String.valueOf(booking.getId()));
+            }
+            guestPushService.notifyGuestReminder(
+                    notification.getGuestUser(),
+                    notification.getCompany(),
+                    notification.getClient(),
+                    title,
+                    body,
+                    extra
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send {} reminder push: {}", kind, e.getMessage());
+        }
+    }
+
+    private static String defaultPushTitle(NotificationKind kind) {
+        return switch (kind) {
+            case NEW_SESSION -> "Booking confirmed";
+            case CHANGE_SESSION -> "Booking rescheduled";
+            case CANCEL_SESSION -> "Booking cancelled";
+            case BEFORE_SESSION, REMINDER -> "Upcoming session";
+            case AFTER_SESSION -> "Session follow-up";
+        };
+    }
+
+    private static String defaultPushBody(NotificationKind kind) {
+        return switch (kind) {
+            case NEW_SESSION -> "Your booking has been confirmed.";
+            case CHANGE_SESSION -> "Your booking has been rescheduled.";
+            case CANCEL_SESSION -> "Your booking has been cancelled.";
+            case BEFORE_SESSION, REMINDER -> "You have an upcoming session.";
+            case AFTER_SESSION -> "Thanks for attending your session.";
+        };
     }
 
     private GuestNotificationType mapKindToType(NotificationKind kind) {
@@ -342,6 +392,22 @@ public class ReminderService {
             }
         } else if (client.getPhone() != null && !client.getPhone().isBlank() && !smsConfigured) {
             log.warn("SMS reminder skipped: A1 Crosschat SMS not configured (set A1_CROSSCHAT_SMS_AUTH_TOKEN)");
+        }
+
+        try {
+            GuestNotification created = guestNotifications.createForClient(
+                    booking.getCompany(),
+                    client,
+                    GuestNotificationType.BOOKING_REMINDER,
+                    "Reminder: your session is in 1 hour",
+                    "Your " + typeName + " session with " + consultantName + " starts at " + startFormatted + ".",
+                    buildPayloadJson(booking)
+            );
+            sendReminderPush(created, booking, "Reminder: your session is in 1 hour",
+                    "Your " + typeName + " session with " + consultantName + " starts at " + startFormatted + ".",
+                    NotificationKind.REMINDER);
+        } catch (Exception e) {
+            log.warn("Failed to send 1h reminder guest app/push notification: {}", e.getMessage());
         }
     }
 

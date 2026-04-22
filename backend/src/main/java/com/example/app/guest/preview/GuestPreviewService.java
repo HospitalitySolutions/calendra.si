@@ -14,7 +14,8 @@ final class GuestPreviewService {
                         "Ana",
                         "Novak",
                         "+38640123456",
-                        "sl"
+                        "sl",
+                        null
                 ),
                 List.of(
                         northside(),
@@ -54,11 +55,11 @@ final class GuestPreviewService {
                         ),
                 "tenant-yoga".equals(companyId)
                         ? List.of(
-                                new GuestPreviewDtos.EntitlementResponse("ent-2", "Yoga 10 Pack", "PACK", 7, "2026-06-11T00:00:00Z", "ACTIVE")
+                                new GuestPreviewDtos.EntitlementResponse("ent-2", "Yoga 10 Pack", "PACK", 7, 10, "2026-06-11T00:00:00Z", 60, "ACTIVE", "YP-120-001", 120.0, "EUR")
                         )
                         : List.of(
-                                new GuestPreviewDtos.EntitlementResponse("ent-1", "5 PT Pack", "PACK", 4, "2026-06-01T00:00:00Z", "ACTIVE"),
-                                new GuestPreviewDtos.EntitlementResponse("ent-3", "Monthly Gym", "MEMBERSHIP", null, "2026-05-01T00:00:00Z", "ACTIVE")
+                                new GuestPreviewDtos.EntitlementResponse("ent-1", "Core Mix 8-vstopov", "PACK", 6, 8, "2026-06-01T00:00:00Z", 90, "ACTIVE", "CM8-425-001", 425.0, "EUR"),
+                                new GuestPreviewDtos.EntitlementResponse("ent-3", "Monthly Gym", "MEMBERSHIP", null, null, "2026-05-01T00:00:00Z", 30, "ACTIVE", "MG-59-001", 59.0, "EUR")
                         ),
                 List.of(
                         new GuestPreviewDtos.PendingOrderResponse("order-1", "PENDING", "BANK_TRANSFER", 59.0, "ORD-2026-00014")
@@ -69,15 +70,15 @@ final class GuestPreviewService {
     static List<GuestPreviewDtos.ProductResponse> products(String companyId) {
         if ("tenant-yoga".equals(companyId)) {
             return List.of(
-                    new GuestPreviewDtos.ProductResponse("prod-yoga-ticket", "Yoga Flow", "CLASS_TICKET", 12.0, "EUR", "session-yoga", "Yoga Flow", true, "Group class for mobility, breathwork, and full-body flow.", 60),
-                    new GuestPreviewDtos.ProductResponse("prod-yoga-private", "Private Yoga", "SESSION_SINGLE", 38.0, "EUR", "session-yoga-private", "Private Yoga", true, "One-on-one guided session tailored to your goals.", 45)
+                    new GuestPreviewDtos.ProductResponse("prod-yoga-ticket", "Yoga Flow", "CLASS_TICKET", 12.0, "EUR", "session-yoga", "Yoga Flow", true, "Group class for mobility, breathwork, and full-body flow.", 60, null, 30, 1),
+                    new GuestPreviewDtos.ProductResponse("prod-yoga-private", "Private Yoga", "SESSION_SINGLE", 38.0, "EUR", "session-yoga-private", "Private Yoga", true, "One-on-one guided session tailored to your goals.", 45, null, null, null)
             );
         }
         return List.of(
-                new GuestPreviewDtos.ProductResponse("prod-pt-single", "Personal Training", "SESSION_SINGLE", 45.0, "EUR", "session-pt", "Personal Training", true, "Focused one-on-one coaching session in the studio.", 45),
-                new GuestPreviewDtos.ProductResponse("prod-recovery", "Recovery Session", "SESSION_SINGLE", 35.0, "EUR", "session-recovery", "Recovery Session", true, "Mobility and recovery work to reset after intense training.", 30),
-                new GuestPreviewDtos.ProductResponse("prod-pack-5", "5 Session Pack", "PACK", 180.0, "EUR", "session-pt", "Personal Training", false, "Best value bundle for regular personal training.", 45),
-                new GuestPreviewDtos.ProductResponse("prod-membership", "Monthly Membership", "MEMBERSHIP", 59.0, "EUR", null, null, false, "Unlimited gym access during staffed hours.", null)
+                new GuestPreviewDtos.ProductResponse("prod-pt-single", "Personal Training", "SESSION_SINGLE", 45.0, "EUR", "session-pt", "Personal Training", true, "Focused one-on-one coaching session in the studio.", 45, null, null, null),
+                new GuestPreviewDtos.ProductResponse("prod-recovery", "Recovery Session", "SESSION_SINGLE", 35.0, "EUR", "session-recovery", "Recovery Session", true, "Mobility and recovery work to reset after intense training.", 30, null, null, null),
+                new GuestPreviewDtos.ProductResponse("prod-pack-5", "5 Session Pack", "PACK", 180.0, "EUR", "session-pt", "Personal Training", false, "Best value bundle for regular personal training.", 45, "Best value", 90, 5),
+                new GuestPreviewDtos.ProductResponse("prod-membership", "Monthly Membership", "MEMBERSHIP", 59.0, "EUR", null, null, false, "Unlimited gym access during staffed hours.", null, "Available now", 30, null)
         );
     }
 
@@ -85,8 +86,8 @@ final class GuestPreviewService {
         return new GuestPreviewDtos.WalletResponse(
                 home(companyId).activeEntitlements(),
                 List.of(
-                        new GuestPreviewDtos.WalletOrderResponse("order-paid-1", "PAID", "CARD", 59.0, "2026-04-15T10:00:00Z"),
-                        new GuestPreviewDtos.WalletOrderResponse("order-pending-1", "PENDING", "BANK_TRANSFER", 180.0, null)
+                        new GuestPreviewDtos.WalletOrderResponse("order-paid-1", "PAID", "CARD", 59.0, "EUR", "2026-04-15T10:00:00Z", "2026-04-15T09:58:00Z", "ORD-2026-00015", "Monthly Membership", "MEMBERSHIP", "paid"),
+                        new GuestPreviewDtos.WalletOrderResponse("order-pending-1", "PENDING", "BANK_TRANSFER", 180.0, "EUR", null, "2026-04-14T18:22:00Z", "ORD-2026-00014", "5 Session Pack", "PACK", "payment_pending")
                 )
         );
     }

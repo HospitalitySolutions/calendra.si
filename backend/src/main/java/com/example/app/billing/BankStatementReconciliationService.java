@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,9 +26,11 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class BankStatementReconciliationService {
     private final BillRepository billRepo;
+    private final ApplicationEventPublisher events;
 
-    public BankStatementReconciliationService(BillRepository billRepo) {
+    public BankStatementReconciliationService(BillRepository billRepo, ApplicationEventPublisher events) {
         this.billRepo = billRepo;
+        this.events = events;
     }
 
     @Transactional
@@ -83,6 +86,9 @@ public class BankStatementReconciliationService {
 
         if (!matchedBills.isEmpty()) {
             billRepo.saveAll(matchedBills.values());
+            for (Bill paid : matchedBills.values()) {
+                events.publishEvent(new BillPaidEvent(paid.getId(), paid.getCompany().getId()));
+            }
         }
         return new ReconciliationResult(processedRows, matched.size(), Math.max(0, processedRows - matchedRows.size()), matched);
     }

@@ -32,7 +32,8 @@ class GuestPreferencesStore(context: Context) {
                 firstName = json.optString("firstName"),
                 lastName = json.optString("lastName"),
                 phone = json.optString("phone").takeIf { it.isNotBlank() },
-                language = json.optString("language").ifBlank { "sl" }
+                language = json.optString("language").ifBlank { "sl" },
+                profilePicturePath = json.optString("profilePicturePath").takeIf { it.isNotBlank() }
             )
         }.getOrNull()
     }
@@ -45,6 +46,7 @@ class GuestPreferencesStore(context: Context) {
             .put("lastName", user.lastName)
             .put("phone", user.phone.orEmpty())
             .put("language", user.language)
+            .put("profilePicturePath", user.profilePicturePath.orEmpty())
         prefs.edit().putString(KEY_PROFILE, encode(json.toString())).apply()
     }
 

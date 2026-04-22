@@ -87,7 +87,10 @@ public class GuestCatalogService {
                     type.getName(),
                     true,
                     type.getGuestBookingDescription(),
-                    type.getDurationMinutes() == null ? 60 : type.getDurationMinutes()
+                    type.getDurationMinutes() == null ? 60 : type.getDurationMinutes(),
+                    null,
+                    null,
+                    null
             ));
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
@@ -102,7 +105,10 @@ public class GuestCatalogService {
                     product.getSessionType() == null ? null : product.getSessionType().getName(),
                     product.isBookable(),
                     product.getDescription() != null ? product.getDescription() : product.getSessionType() == null ? null : product.getSessionType().getGuestBookingDescription(),
-                    product.getSessionType() != null && product.getSessionType().getDurationMinutes() != null ? product.getSessionType().getDurationMinutes() : 60
+                    product.getSessionType() != null && product.getSessionType().getDurationMinutes() != null ? product.getSessionType().getDurationMinutes() : 60,
+                    product.getPromoText(),
+                    product.getValidityDays(),
+                    product.getUsageLimit()
             ));
         }
         out.sort(Comparator.comparing(GuestDtos.ProductResponse::name, String.CASE_INSENSITIVE_ORDER));

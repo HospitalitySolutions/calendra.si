@@ -113,6 +113,7 @@ public class GuestProductAdminController {
 
         product.setName(name);
         product.setDescription(trimToNull(request.description()));
+        product.setPromoText(trimToNull(request.promoText()));
         product.setProductType(productType);
         product.setPriceGross(priceGross);
         product.setCurrency(normalizeCurrency(request.currency()));
@@ -172,6 +173,7 @@ public class GuestProductAdminController {
                 product.getId(),
                 product.getName(),
                 product.getDescription(),
+                product.getPromoText(),
                 product.getProductType().name(),
                 product.getPriceGross(),
                 product.getCurrency(),
@@ -192,6 +194,8 @@ public class GuestProductAdminController {
     public record ProductAdminRequest(
             String name,
             String description,
+            /** Short badge label shown on the guest Buy card (e.g. "Best value"). */
+            String promoText,
             String productType,
             BigDecimal priceGross,
             String currency,
@@ -209,6 +213,7 @@ public class GuestProductAdminController {
             Long id,
             String name,
             String description,
+            String promoText,
             String productType,
             BigDecimal priceGross,
             String currency,

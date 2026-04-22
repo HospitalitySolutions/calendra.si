@@ -221,6 +221,7 @@ type GuestAdminProduct = {
   id: number
   name: string
   description?: string | null
+  promoText?: string | null
   productType: GuestAdminProductType
   priceGross: number
   currency: string
@@ -240,6 +241,7 @@ type GuestAdminProduct = {
 type GuestProductFormState = {
   name: string
   description: string
+  promoText: string
   productType: GuestAdminProductType
   priceGross: string
   currency: string
@@ -258,6 +260,7 @@ const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = ['PACK', 'MEMBERSHIP'
 const defaultGuestProductForm = (): GuestProductFormState => ({
   name: '',
   description: '',
+  promoText: '',
   productType: 'PACK',
   priceGross: '0.00',
   currency: 'EUR',
@@ -808,6 +811,7 @@ export function ConfigurationPage() {
     setGuestProductForm(normalizeGuestProductFormForType({
       name: product.name,
       description: product.description || '',
+      promoText: product.promoText || '',
       productType: product.productType,
       priceGross: Number(product.priceGross ?? 0).toFixed(2),
       currency: product.currency || 'EUR',
@@ -830,6 +834,7 @@ export function ConfigurationPage() {
     const payload = {
       name: guestProductForm.name.trim(),
       description: guestProductForm.description.trim(),
+      promoText: guestProductForm.promoText.trim() || null,
       productType: guestProductForm.productType,
       priceGross: Number.parseFloat(guestProductForm.priceGross || '0') || 0,
       currency: guestProductForm.currency.trim().toUpperCase() || 'EUR',
@@ -1838,6 +1843,14 @@ export function ConfigurationPage() {
                   )}
                   <Field label="Description" hint="Shown in the guest mobile wallet buy screen.">
                     <textarea rows={4} value={guestProductForm.description} onChange={(e) => setGuestProductForm({ ...guestProductForm, description: e.target.value })} />
+                  </Field>
+                  <Field label="Promo text" hint="Shown as a badge above the Buy button (e.g. 'Best value', 'Available now'). Leave empty to hide.">
+                    <input
+                      type="text"
+                      maxLength={120}
+                      value={guestProductForm.promoText}
+                      onChange={(e) => setGuestProductForm({ ...guestProductForm, promoText: e.target.value })}
+                    />
                   </Field>
                   <Field label="Visible in guest app">
                     <div className="online-live-toggle" style={{ maxWidth: 200 }}>

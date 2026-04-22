@@ -22,6 +22,8 @@ data class GuestProfileSettings(
     val linkedCompanyId: String? = null,
     val linkedCompanyName: String? = null,
     val batchPaymentEnabled: Boolean = false,
+    val notifyMessagesEnabled: Boolean = true,
+    val notifyRemindersEnabled: Boolean = true,
     val linkedCompanyOptions: List<LinkedCompanyOption> = emptyList()
 )
 
@@ -34,5 +36,7 @@ data class UpdateGuestProfileSettingsRequest(
     val language: String = "sl",
     val companyId: String? = null,
     val linkedCompanyId: String? = null,
-    val batchPaymentEnabled: Boolean? = null
+    val batchPaymentEnabled: Boolean? = null,
+    val notifyMessagesEnabled: Boolean? = null,
+    val notifyRemindersEnabled: Boolean? = null
 )

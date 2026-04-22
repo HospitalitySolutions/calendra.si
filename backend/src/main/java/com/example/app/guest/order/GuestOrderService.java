@@ -49,6 +49,7 @@ public class GuestOrderService {
     private final ReminderService reminders;
     private final GuestEntitlementService entitlementService;
     private final GuestBankTransferBillingService bankTransferBillingService;
+    private final GuestProductBillingService productBillingService;
     private final PayPalClient payPalClient;
 
     public GuestOrderService(
@@ -66,6 +67,7 @@ public class GuestOrderService {
             ReminderService reminders,
             GuestEntitlementService entitlementService,
             GuestBankTransferBillingService bankTransferBillingService,
+            GuestProductBillingService productBillingService,
             PayPalClient payPalClient
     ) {
         this.guestTenantService = guestTenantService;
@@ -82,6 +84,7 @@ public class GuestOrderService {
         this.reminders = reminders;
         this.entitlementService = entitlementService;
         this.bankTransferBillingService = bankTransferBillingService;
+        this.productBillingService = productBillingService;
         this.payPalClient = payPalClient;
     }
 
@@ -186,11 +189,23 @@ public class GuestOrderService {
                     order.setSubtotalGross(bill.getTotalGross());
                     order.setTaxAmount((bill.getTotalGross().subtract(bill.getTotalNet())).max(BigDecimal.ZERO));
                     order.setTotalGross(bill.getTotalGross());
+                    order.setBillId(bill.getId());
                     order = orders.save(order);
                     responseAmount = bill.getTotalGross().doubleValue();
                 }
+            } else {
+                // Wallet product purchase (pack/membership/class ticket with no booking slot).
+                GuestProduct walletProduct = loadWalletProduct(order);
+                if (walletProduct != null) {
+                    var bill = productBillingService.issuePendingBill(order, walletProduct, "BANK_TRANSFER");
+                    if (bill.getBankTransferReference() != null && !bill.getBankTransferReference().isBlank()) {
+                        referenceCode = bill.getBankTransferReference();
+                    }
+                    order.setBillId(bill.getId());
+                    order = orders.save(order);
+                }
             }
-            notifications.paymentPending(order.getGuestUser(), order.getCompany(), order.getClient(), "Invoice sent", "Your booking is confirmed. We emailed you the bank transfer folio/invoice PDF and payment instructions.");
+            notifications.paymentPending(order.getGuestUser(), order.getCompany(), order.getClient(), "Invoice sent", "Your order is ready. We emailed you the invoice PDF and bank transfer instructions.");
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),
@@ -198,7 +213,7 @@ public class GuestOrderService {
                     null,
                     new GuestDtos.BankTransferInstructionsResponse(responseAmount, order.getCurrency(), referenceCode, booking != null
                             ? "Booking confirmed. We emailed your folio/invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."
-                            : "We emailed your folio/invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."),
+                            : "We emailed your invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."),
                     "SHOW_INSTRUCTIONS",
                     null,
                     null,
@@ -281,6 +296,7 @@ public class GuestOrderService {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("slotId", slotId);
             map.put("productType", product.productType());
+            map.put("productName", product.name());
             map.put("guestProductId", product.persistedProduct() == null ? null : product.persistedProduct().getId());
             map.put("sessionTypeId", product.sessionType() == null ? null : product.sessionType().getId());
             map.put("currency", product.currency());
@@ -362,10 +378,61 @@ public class GuestOrderService {
             order.setPaypalCaptureId(paypalCaptureId);
         }
         order = orders.save(order);
-        maybeCreateConfirmedBooking(order);
+        SessionBooking booking = maybeCreateConfirmedBooking(order);
         maybeCreateEntitlement(order);
+        // Wallet product purchases (no booking) should also land in the web-app Billing
+        // UI as a PAID invoice. Session-linked orders already receive their folio via
+        // GuestBankTransferBillingService.issueConfirmedBookingBill and similar flows.
+        if (booking == null
+                && (paymentMethodType == GuestPaymentMethodType.CARD
+                        || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
+            GuestProduct walletProduct = loadWalletProduct(order);
+            if (walletProduct != null) {
+                try {
+                    var bill = productBillingService.issuePendingBill(order, walletProduct, paymentMethodType.name());
+                    bill = productBillingService.markBillPaid(bill, java.time.OffsetDateTime.now());
+                    order.setBillId(bill.getId());
+                    order = orders.save(order);
+                } catch (Exception ignore) {
+                    // Swallowing so a bookkeeping failure can't unwind a successful payment.
+                }
+            }
+        }
         notifications.paymentConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), "Payment confirmed", "Your payment was received successfully.");
         return order;
+    }
+
+    /** Resolves the persisted {@link GuestProduct} behind a wallet (non-session) order. */
+    private GuestProduct loadWalletProduct(GuestOrder order) {
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object guestProductId = map.get("guestProductId");
+            Object productType = map.get("productType");
+            if (guestProductId == null || productType == null) return null;
+            String typeName = String.valueOf(productType);
+            if (!("PACK".equals(typeName) || "MEMBERSHIP".equals(typeName) || "CLASS_TICKET".equals(typeName))) {
+                return null;
+            }
+            return catalogService
+                    .resolveProduct(order.getCompany().getId(), String.valueOf(guestProductId))
+                    .persistedProduct();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Called when a wallet-product {@link com.example.app.billing.Bill} tied to this
+     * service's orders is reconciled as paid on the web app. Flips the matching
+     * {@link GuestOrder} to {@link OrderStatus#PAID} and runs the same post-payment
+     * side effects as a live checkout.
+     */
+    @Transactional
+    public void onWalletBillPaid(Long billId) {
+        if (billId == null) return;
+        orders.findByBillId(billId)
+                .filter(order -> order.getStatus() != OrderStatus.PAID)
+                .ifPresent(order -> markOrderPaid(order, order.getPaymentMethodType(), null));
     }
 
     private void maybeCreatePendingBooking(GuestOrder order) {

@@ -27,6 +27,10 @@ public class GuestProduct extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    /** Short badge label shown on the guest app Buy card (e.g. "Best value", "Available now"). */
+    @Column(name = "promo_text", length = 120)
+    private String promoText;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ProductType productType;

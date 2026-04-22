@@ -1,6 +1,8 @@
 package si.calendra.guest.shared.network
 
 import io.ktor.client.HttpClient
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -8,8 +10,10 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.serialization.decodeFromString
@@ -72,6 +76,43 @@ class RemoteGuestApi(
             jsonRequest()
             setBody(request)
         })
+
+    suspend fun uploadProfilePicture(fileName: String, contentType: String?, bytes: ByteArray): GuestProfileSettings =
+        parse(client.post("${config.baseUrl}/api/guest/profile/picture") {
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            key = "file",
+                            value = bytes,
+                            headers = Headers.build {
+                                append(
+                                    HttpHeaders.ContentType,
+                                    contentType?.takeIf { it.isNotBlank() } ?: "application/octet-stream"
+                                )
+                                append(
+                                    HttpHeaders.ContentDisposition,
+                                    "filename=\"${fileName.replace("\"", "")}\""
+                                )
+                            }
+                        )
+                    }
+                )
+            )
+        })
+
+    suspend fun downloadProfilePicture(): ByteArray {
+        val response = client.get("${config.baseUrl}/api/guest/profile/picture") {
+            header(HttpHeaders.Accept, "*/*")
+        }
+        if (!response.status.isSuccess()) {
+            val payload = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
+            val message = payload.takeIf { it.isNotBlank() }
+                ?: "Request failed with status ${response.status.value}"
+            throw IllegalStateException(message)
+        }
+        return response.bodyAsBytes()
+    }
 
     suspend fun loginWithGoogle(idToken: String): GuestSession =
         parse(client.post("${config.baseUrl}/api/guest/auth/google/token") {
@@ -193,11 +234,57 @@ class RemoteGuestApi(
             parameter("companyId", companyId)
         })
 
-    suspend fun sendInboxMessage(companyId: String, body: String): GuestInboxMessage =
+    suspend fun sendInboxMessage(
+        companyId: String,
+        body: String,
+        attachmentFileIds: List<Long> = emptyList()
+    ): GuestInboxMessage =
         parse(client.post("${config.baseUrl}/api/guest/inbox/messages") {
             jsonRequest()
-            setBody(SendGuestInboxMessageRequest(companyId = companyId, body = body))
+            setBody(
+                SendGuestInboxMessageRequest(
+                    companyId = companyId,
+                    body = body,
+                    attachmentFileIds = attachmentFileIds
+                )
+            )
         })
+
+    suspend fun uploadInboxAttachment(
+        companyId: String,
+        fileName: String,
+        contentType: String?,
+        bytes: ByteArray
+    ): GuestInboxUploadedAttachment =
+        parse(client.post("${config.baseUrl}/api/guest/inbox/attachments") {
+            parameter("companyId", companyId)
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            key = "file",
+                            value = bytes,
+                            headers = Headers.build {
+                                append(
+                                    HttpHeaders.ContentType,
+                                    contentType?.takeIf { it.isNotBlank() } ?: "application/octet-stream"
+                                )
+                                append(
+                                    HttpHeaders.ContentDisposition,
+                                    "filename=\"${fileName.replace("\"", "")}\""
+                                )
+                            }
+                        )
+                    }
+                )
+            )
+        })
+
+    suspend fun discardInboxAttachment(companyId: String, fileId: Long) {
+        client.post("${config.baseUrl}/api/guest/inbox/attachments/$fileId/discard") {
+            parameter("companyId", companyId)
+        }
+    }
 
 
     suspend fun registerDeviceToken(platform: String, pushToken: String, locale: String? = null): RegisterDeviceTokenResponse =

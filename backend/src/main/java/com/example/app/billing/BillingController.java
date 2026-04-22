@@ -65,13 +65,15 @@ public class BillingController {
     private final FolioPdfService folioPdfService;
     private final UpnQrPayloadBuilder upnQrPayloadBuilder;
     private final BankStatementReconciliationService bankStatementReconciliationService;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
                              AppSettingRepository settings, FiscalizationService fiscalizationService,
                              StripeBillingService stripeBillingService, BillingEmailService billingEmailService, BillPdfService billPdfService,
                              InvoicePdfS3Service invoicePdfS3Service, FolioPdfService folioPdfService, UpnQrPayloadBuilder upnQrPayloadBuilder,
-                             BankStatementReconciliationService bankStatementReconciliationService) {
+                             BankStatementReconciliationService bankStatementReconciliationService,
+                             org.springframework.context.ApplicationEventPublisher events) {
         this.txRepo = txRepo;
         this.paymentMethodRepo = paymentMethodRepo;
         this.billRepo = billRepo;
@@ -89,6 +91,7 @@ public class BillingController {
         this.folioPdfService = folioPdfService;
         this.upnQrPayloadBuilder = upnQrPayloadBuilder;
         this.bankStatementReconciliationService = bankStatementReconciliationService;
+        this.events = events;
     }
 
     public record BillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice) {}
@@ -967,11 +970,15 @@ public class BillingController {
         if (BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cancelled bill cannot be marked as paid.");
         }
+        boolean alreadyPaid = BillPaymentStatus.PAID.equals(bill.getPaymentStatus());
         bill.setPaymentStatus(BillPaymentStatus.PAID);
         if (bill.getPaidAt() == null) {
             bill.setPaidAt(OffsetDateTime.now());
         }
         bill = billRepo.save(bill);
+        if (!alreadyPaid) {
+            events.publishEvent(new BillPaidEvent(bill.getId(), companyId));
+        }
         return toResponse(bill);
     }
 
