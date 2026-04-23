@@ -160,10 +160,6 @@ export function ResetPasswordPage() {
             <button type="button" className="login-primary-btn" onClick={goToLogin}>
               {t('resetPasswordContinueLogin')}
             </button>
-            <div className="login-social-separator"><span>{t('loginOr')}</span></div>
-            <button type="button" className="secondary auth-flow-back-btn" onClick={() => navigate('/login')}>
-              {t('resetPasswordBackToLogin')}
-            </button>
           </div>
         ) : !valid ? (
           <div className="auth-flow-invalid-state">
