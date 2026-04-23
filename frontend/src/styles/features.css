@@ -5802,6 +5802,22 @@ a.config-nav-item {
     max-width: 420px;
 }
 
+/* Forgot password: match login card height, width, and chrome (see LoginPage .login max-width). */
+.forgot-password-card {
+    min-height: min(600px, 88dvh);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 348px;
+}
+
+/* Request step: nudge copy + actions down so they line up with the check-email step (icon + heading rhythm). */
+.forgot-password-request-body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: clamp(36px, 10vw, 96px);
+}
+
 .auth-flow-card .secondary {
     width: 100%;
 }
@@ -5918,6 +5934,11 @@ a.config-nav-item {
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
+}
+
+/* When the inline logo is hidden (desktop), keep the language control on the right. */
+.auth-card-topbar .login-lang-switch {
+    margin-left: auto;
 }
 
 .polished-login--modern {

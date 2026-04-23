@@ -36,21 +36,23 @@ export function ForgotPasswordPage() {
     await sendResetEmail()
   }
 
-  const openEmailApp = () => {
-    const normalized = email.trim()
-    if (!normalized) return
-    window.location.href = `mailto:${encodeURIComponent(normalized)}`
-  }
-
   return (
     <div className="login-wrap login-bg">
-      <div className="login-brand-above">
+      <div className="login-brand-above login-brand-above--desktop">
         <div className="login-modern-logo-mark" aria-hidden>
           <img src={loginLogo} alt="" />
         </div>
       </div>
-      <div className="card login polished-login auth-flow-card" style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}>
-        <div className="login-modern-header">
+      <div
+        className="card login polished-login polished-login--modern auth-flow-card forgot-password-card"
+        style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}
+      >
+        <div className="auth-card-topbar">
+          <div className="login-brand-inline" aria-hidden>
+            <div className="login-modern-logo-mark">
+              <img src={loginLogo} alt="" />
+            </div>
+          </div>
           <div className="login-lang-switch" role="group" aria-label={t('language')}>
             <button
               type="button"
@@ -70,7 +72,7 @@ export function ForgotPasswordPage() {
         </div>
 
         {step === 'request' ? (
-          <>
+          <div className="forgot-password-request-body">
             <div className="auth-flow-heading">
               <h1 className="login-modern-title">{t('forgotPasswordTitle')}</h1>
               <p className="login-note auth-flow-note">{t('forgotPasswordModalHint')}</p>
@@ -95,31 +97,45 @@ export function ForgotPasswordPage() {
                 {t('forgotPasswordBackToLogin')}
               </button>
             </form>
-          </>
+          </div>
         ) : (
           <div className="auth-flow-success-state">
             <div className="auth-flow-mail-icon" aria-hidden>
-              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" />
-                <path d="m5 8 7 5 7-5" />
-                <circle cx="18.2" cy="17.6" r="2.8" />
-                <path d="m17.1 17.6 0.8 0.8 1.5-1.6" />
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 8.5A2 2 0 0 1 6 6.5h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9Z"
+                  fill="#ffffff"
+                  stroke="rgba(37, 99, 235, 0.22)"
+                  strokeWidth="1.15"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="m5 9 7 4.5 7-4.5"
+                  fill="none"
+                  stroke="rgba(37, 99, 235, 0.18)"
+                  strokeWidth="1.15"
+                  strokeLinecap="round"
+                />
+                <circle cx="17.25" cy="16.75" r="4.25" fill="var(--color-primary)" />
+                <path
+                  d="M14.55 16.75 16.35 18.55 19.95 13.95"
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth="2.35"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </div>
             <div className="auth-flow-heading">
               <h1 className="login-modern-title">{t('forgotPasswordCheckEmailTitle')}</h1>
-              <p className="login-note auth-flow-note">{t('forgotPasswordCheckEmailBody')}</p>
             </div>
             {status && <div className="success auth-flow-feedback">{status}</div>}
-            <div className="auth-flow-email-pill">{email.trim()}</div>
             <div className="auth-flow-actions">
-              <button type="button" className="login-primary-btn" onClick={openEmailApp}>
-                {t('forgotPasswordOpenEmail')}
+              <button type="button" className="login-primary-btn" disabled={submitting} onClick={() => void sendResetEmail()}>
+                {submitting ? t('forgotPasswordSending') : t('forgotPasswordResend')}
               </button>
               <div className="login-social-separator"><span>{t('loginOr')}</span></div>
-              <button type="button" className="secondary" disabled={submitting} onClick={() => void sendResetEmail()}>
-                {t('forgotPasswordResend')}
-              </button>
               <button type="button" className="secondary auth-flow-back-btn" onClick={() => navigate('/login')}>
                 {t('forgotPasswordBackToLogin')}
               </button>

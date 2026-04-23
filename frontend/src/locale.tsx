@@ -268,12 +268,10 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     signupPackagePremiumDesc: 'For advanced teams that need analytics and integrations.',
     signupPackageEnterprise: 'Enterprise',
     signupPackageEnterpriseDesc: 'For larger organizations with custom requirements.',
-    forgotPasswordTitle: 'Set your password',
+    forgotPasswordTitle: 'Forgotten password',
     forgotPasswordModalHint:
       'Enter your email address and we will send you a password reset link.',
     forgotPasswordCheckEmailTitle: 'Check your email',
-    forgotPasswordCheckEmailBody:
-      'We sent a password reset link to the address you entered. Open it to continue.',
     forgotPasswordSendResetLink: 'Send reset link',
     forgotPasswordSending: 'Sending…',
     forgotPasswordSentSuccess: 'If this email exists, we sent a reset link.',
@@ -804,12 +802,10 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     signupPackagePremiumDesc: 'Za napredne ekipe, ki potrebujejo analitiko in integracije.',
     signupPackageEnterprise: 'Enterprise',
     signupPackageEnterpriseDesc: 'Za večje organizacije s posebnimi zahtevami.',
-    forgotPasswordTitle: 'Nastavite svoje geslo',
+    forgotPasswordTitle: 'Pozabljeno geslo',
     forgotPasswordModalHint:
       'Vnesite svoj e-poštni naslov in poslali vam bomo povezavo za ponastavitev gesla.',
-    forgotPasswordCheckEmailTitle: 'Preverite svojo e-pošto',
-    forgotPasswordCheckEmailBody:
-      'Na vneseni naslov smo poslali povezavo za ponastavitev gesla. Odprite jo za nadaljevanje.',
+    forgotPasswordCheckEmailTitle: 'Preverite e-pošto',
     forgotPasswordSendResetLink: 'Pošlji povezavo',
     forgotPasswordSending: 'Pošiljanje…',
     forgotPasswordSentSuccess:
