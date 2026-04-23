@@ -130,15 +130,32 @@ export function ResetPasswordPage() {
           <p className="login-note auth-flow-note">{t('resetPasswordValidating')}</p>
         ) : success ? (
           <div className="auth-flow-success-state">
-            <div className="auth-flow-success-icon" aria-hidden>
-              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="m8 12.5 2.6 2.6L16.5 9" />
+            <div className="auth-flow-success-icon auth-flow-success-icon--ring" aria-hidden>
+              <svg width="150" height="150" viewBox="0 0 160 160" fill="none">
+                <circle cx="28" cy="44" r="3" fill="#22c55e" opacity="0.75" />
+                <circle cx="132" cy="52" r="2" fill="#60a5fa" opacity="0.65" />
+                <circle cx="42" cy="122" r="2" fill="#22c55e" opacity="0.55" />
+                <circle cx="126" cy="118" r="2.4" fill="#22c55e" opacity="0.5" />
+                <circle cx="110" cy="28" r="1.8" fill="#22c55e" opacity="0.55" />
+                <circle cx="16" cy="86" r="1.8" fill="#60a5fa" opacity="0.5" />
+                <circle cx="140" cy="90" r="1.6" fill="#22c55e" opacity="0.45" />
+                <path d="M35 24 L41 24 M38 21 L38 27" stroke="#60a5fa" strokeWidth="1.6" strokeLinecap="round" opacity="0.6" />
+                <path d="M122 132 L128 132 M125 129 L125 135" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" opacity="0.55" />
+                <circle cx="80" cy="80" r="44" fill="#ffffff" stroke="#22c55e" strokeWidth="3.2" opacity="0.95" />
+                <circle cx="80" cy="80" r="44" fill="rgba(34,197,94,0.12)" />
+                <path
+                  d="M62 82 L75 95 L99 69"
+                  fill="none"
+                  stroke="#16a34a"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </div>
-            <div className="auth-flow-heading">
+            <div className="auth-flow-heading auth-flow-heading--center">
               <h1 className="login-modern-title">{t('resetPasswordSuccessTitle')}</h1>
-              <p className="login-note auth-flow-note">{t('resetPasswordSuccessBody')}</p>
+              <p className="login-note auth-flow-note auth-flow-note--center">{t('resetPasswordSuccessBody')}</p>
             </div>
             <button type="button" className="login-primary-btn" onClick={goToLogin}>
               {t('resetPasswordContinueLogin')}

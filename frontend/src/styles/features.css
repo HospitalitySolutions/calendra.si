@@ -5872,6 +5872,33 @@ a.config-nav-item {
     background: rgba(20, 184, 166, 0.10);
 }
 
+/* Reset success step: bigger, transparent ring-style illustration (sparkles + check). */
+.auth-flow-success-icon--ring {
+    width: 150px;
+    height: 150px;
+    background: transparent;
+    border-radius: 0;
+    margin: 6px auto 10px;
+}
+
+.auth-flow-success-icon--ring svg {
+    width: 100%;
+    height: 100%;
+}
+
+.auth-flow-heading--center {
+    align-items: center;
+    text-align: center;
+}
+
+.auth-flow-heading--center .login-modern-title {
+    text-align: center;
+}
+
+.auth-flow-note--center {
+    text-align: center;
+}
+
 .auth-flow-min-hint {
     margin-top: -2px;
     color: var(--color-text-muted);
