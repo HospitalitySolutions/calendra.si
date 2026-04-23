@@ -3498,6 +3498,23 @@ a.clients-contact-link:hover {
     justify-content: flex-start;
 }
 
+/* Brand marks as vector on solid white (sidebar is tinted; logos read clearly). */
+.config-nav-tab-brand-wrap {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #ffffff;
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+.config-nav-tab-brand-wrap svg {
+    display: block;
+}
+
 a.config-nav-item {
     text-decoration: none;
     font: inherit;

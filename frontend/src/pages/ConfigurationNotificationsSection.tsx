@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type SVGProps } from 'react'
 import { Card, Field, SectionTitle } from '../components/ui'
-import { getStoredUser } from '../auth'
 
 export const NOTIFICATION_SETTINGS_KEY = 'NOTIFICATION_SETTINGS_JSON'
 
@@ -822,95 +821,6 @@ export function ConfigurationNotificationsSection({ settings, setSettings, savin
         </Card>
       )}
 
-      <Card className="settings-card">
-        <SectionTitle>Inbox channels</SectionTitle>
-        <p className="muted" style={{ marginBottom: 16 }}>
-          Configure the company WhatsApp Cloud API sender and the Viber Bot API integration for Analytics → Inbox.
-        </p>
-
-        <div className="stack gap-lg">
-          <div>
-            <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>WhatsApp Cloud API</h3>
-            <div className="form-grid">
-              <Field label="Access token" hint="Permanent or long-lived system user token. Stored encrypted.">
-                <input
-                  value={settings.INBOX_WHATSAPP_ACCESS_TOKEN || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_WHATSAPP_ACCESS_TOKEN: e.target.value }))}
-                  placeholder="EAAG..."
-                />
-              </Field>
-              <Field label="Phone number ID" hint="The Meta WhatsApp Cloud API phone number ID used for all WhatsApp delivery.">
-                <input
-                  value={settings.INBOX_WHATSAPP_PHONE_NUMBER_ID || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_WHATSAPP_PHONE_NUMBER_ID: e.target.value }))}
-                  placeholder="123456789012345"
-                />
-              </Field>
-              <Field label="Business account ID" hint="Helpful for Meta setup and support; not required for the send call itself.">
-                <input
-                  value={settings.INBOX_WHATSAPP_BUSINESS_ACCOUNT_ID || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_WHATSAPP_BUSINESS_ACCOUNT_ID: e.target.value }))}
-                  placeholder="123456789012345"
-                />
-              </Field>
-              <Field label="Webhook verify token" hint="Must match your Meta webhook configuration.">
-                <input
-                  value={settings.INBOX_WHATSAPP_WEBHOOK_VERIFY_TOKEN || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_WHATSAPP_WEBHOOK_VERIFY_TOKEN: e.target.value }))}
-                  placeholder="Choose a secret verify token"
-                />
-              </Field>
-              <Field label="App secret" hint="Used to validate Meta webhook signatures. Stored encrypted.">
-                <input
-                  value={settings.INBOX_WHATSAPP_APP_SECRET || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_WHATSAPP_APP_SECRET: e.target.value }))}
-                  placeholder="Meta app secret"
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>Viber Bot API</h3>
-            <div className="form-grid">
-              <Field label="Bot token" hint="Stored encrypted. Used for send_message and webhook setup.">
-                <input
-                  value={settings.INBOX_VIBER_BOT_TOKEN || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_VIBER_BOT_TOKEN: e.target.value }))}
-                  placeholder="Viber bot token"
-                />
-              </Field>
-              <Field label="Bot name">
-                <input
-                  value={settings.INBOX_VIBER_BOT_NAME || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_VIBER_BOT_NAME: e.target.value }))}
-                  placeholder="Calendra"
-                />
-              </Field>
-              <Field label="Bot avatar URL">
-                <input
-                  value={settings.INBOX_VIBER_BOT_AVATAR_URL || ''}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, INBOX_VIBER_BOT_AVATAR_URL: e.target.value }))}
-                  placeholder="https://.../avatar.png"
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div className="stack gap-sm">
-            <div className="muted">Webhook endpoints for this company:</div>
-            <code style={{ display: 'block', padding: 12, borderRadius: 12, background: 'var(--card-muted)', overflowX: 'auto' }}>
-              WhatsApp: https://YOUR-BACKEND/api/inbox/webhooks/whatsapp/{getStoredUser()?.companyId || 'COMPANY_ID'}
-            </code>
-            <code style={{ display: 'block', padding: 12, borderRadius: 12, background: 'var(--card-muted)', overflowX: 'auto' }}>
-              Viber: https://YOUR-BACKEND/api/inbox/webhooks/viber/{getStoredUser()?.companyId || 'COMPANY_ID'}
-            </code>
-            <div className="muted">
-              WhatsApp always uses the client phone number. Consultant phone is used as the sender reference shown in the app, while the configured WhatsApp API sender handles delivery. Viber stays system-linked and becomes available only after the client is linked to your Viber bot.
-            </div>
-          </div>
-        </div>
-      </Card>
     </div>
   )
 }
