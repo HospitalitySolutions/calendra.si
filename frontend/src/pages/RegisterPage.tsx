@@ -49,7 +49,7 @@ type PlanConfig = {
 export const plans: Record<RegisterPlanKey, PlanConfig> = {
   basic: {
     name: 'Basic',
-    monthly: 9,
+    monthly: 18.9,
     description: 'Ideal for solo providers starting with simple one-on-one bookings and a low-friction onboarding path.',
     recommendation: 'Recommended: Basic for solo one-on-one businesses that want the lightest start',
     upsell: 'Basic is the cleanest entry offer here because the 14-day free trial removes friction before account creation and billing.',
@@ -57,7 +57,7 @@ export const plans: Record<RegisterPlanKey, PlanConfig> = {
   },
   pro: {
     name: 'Pro',
-    monthly: 19,
+    monthly: 34.9,
     description: 'Best for growing businesses with reminders, payments, and more advanced booking flows.',
     recommendation: 'Recommended: Pro for small teams with mixed booking needs',
     upsell: 'Pro is the best fit when you need reminders, payments, team coordination, or richer scheduling from the start.',
@@ -65,7 +65,7 @@ export const plans: Record<RegisterPlanKey, PlanConfig> = {
   },
   business: {
     name: 'Business',
-    monthly: 39,
+    monthly: 59.9,
     description: 'For larger teams, multiple locations, and advanced reporting.',
     recommendation: 'Recommended: Business for larger teams, resources, and multi-location workflows',
     upsell: 'Business is the strongest fit when you manage multiple branches, broader operations, or advanced reporting needs.',
@@ -234,8 +234,8 @@ function getPlanDisplay(planKey: RegisterPlanKey, billing: RegisterBillingCycle)
 
   if (planKey === 'basic' && billing === 'monthly') {
     return {
-      primary: '€0/mo',
-      secondary: '14-day free trial, then €9/mo',
+      primary: `${formatEuro(plans.basic.monthly)}/mo`,
+      secondary: `14-day free trial, then ${formatEuro(plans.basic.monthly)}/mo`,
     }
   }
 
@@ -258,11 +258,11 @@ function getPlanCardPriceNote(planKey: RegisterPlanKey, billing: RegisterBilling
     if (billing === 'monthly') {
       return {
         badgeVisible: true,
-        price: '€0',
+        price: formatEuro(plans.basic.monthly),
         per: '/mo',
-        oldPriceVisible: true,
-        oldPrice: '€9/mo',
-        note: 'Free for 14 days, then €9/mo unless cancelled.',
+        oldPriceVisible: false,
+        oldPrice: '',
+        note: '',
         noteIsTrial: true,
       }
     }
@@ -337,7 +337,7 @@ export function buildSummary(selection: RegisterSelection): RegisterSummary {
 
   if (selection.plan === 'basic' && selection.billing === 'monthly') {
     rows.push({ label: 'Basic plan', value: '€0 now' })
-    rows.push({ label: 'After 14-day trial', value: '€9/mo' })
+    rows.push({ label: 'After 14-day trial', value: `${formatEuro(plans.basic.monthly)}/mo` })
   } else if (selection.billing === 'annual') {
     rows.push({ label: `${plans[selection.plan].name} plan`, value: `${formatEuro(monthly.planMonthly * 0.85)}/mo` })
   } else {
@@ -671,7 +671,7 @@ export function RegisterPage() {
                     >
                       <div className="badge-row">
                         {planKey === 'pro' && <span className="badge gold">Recommended</span>}
-                        {planKey === 'business' && <span className="badge soft">Most popular</span>}
+                        {planKey === 'business' && <span className="badge soft">Premium</span>}
                         {planKey === 'basic' && priceBlock.badgeVisible && <span className="badge green">14-day free trial</span>}
                       </div>
                       <h3 className="plan-name">{plan.name}</h3>
@@ -687,7 +687,7 @@ export function RegisterPage() {
                         )}
                         <div className="price-note">
                           {priceBlock.noteIsTrial ? <span className="trial-note">Free for 14 days</span> : null}
-                          {priceBlock.noteIsTrial ? ', then €9/mo unless cancelled.' : priceBlock.note}
+                          {priceBlock.noteIsTrial ? `, then ${formatEuro(plans.basic.monthly)}/mo unless cancelled.` : priceBlock.note}
                         </div>
                       </div>
                       <div className="plan-desc">

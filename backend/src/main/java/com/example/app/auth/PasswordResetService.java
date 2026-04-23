@@ -5,11 +5,13 @@ import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.mail.internet.MimeMessage;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,6 +87,22 @@ public class PasswordResetService {
         return resolveValidToken(token) != null;
     }
 
+    /**
+     * Resolves the account email for a usable reset token (for pre-filling the confirm-email UI).
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> findEmailForUsableResetToken(String token) {
+        PasswordResetToken row = resolveValidToken(token);
+        if (row == null) {
+            return Optional.empty();
+        }
+        String email = row.getUser().getEmail();
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(email.trim().toLowerCase());
+    }
+
     @Transactional
     public boolean resetPassword(String token, String newPassword) {
         PasswordResetToken row = resolveValidToken(token);
@@ -131,7 +149,9 @@ public class PasswordResetService {
             log.warn("Password reset requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", user.getEmail());
             return;
         }
-        String resetUrl = frontendBaseUrl + "/reset-password?token=" + token;
+        String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
+        String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
+        String resetUrl = frontendBaseUrl + "/confirm-email?token=" + encodedToken + "&email=" + encodedEmail;
         String subject = "Reset your password";
         String body = """
                 Hello %s,

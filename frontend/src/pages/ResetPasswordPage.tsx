@@ -1,103 +1,50 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api } from '../api'
-import { useLocale } from '../locale'
 import loginLogo from '../assets/login-logo.png'
-import { getPasswordRuleChecks, passwordMeetsRequirements } from '../lib/passwordRules'
+import { useLocale } from '../locale'
 
-function PasswordVisibilityButton({
-  visible,
-  onToggle,
-  label,
-}: {
-  visible: boolean
-  onToggle: () => void
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      className="login-password-toggle"
-      aria-label={label}
-      aria-pressed={visible}
-      onClick={onToggle}
-    >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        {visible ? (
-          <>
-            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-            <line x1="1" y1="1" x2="23" y2="23" />
-          </>
-        ) : (
-          <>
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-            <circle cx="12" cy="12" r="3" />
-          </>
-        )}
-      </svg>
-    </button>
-  )
-}
-
+/** Legacy route: reset links open RegisterConfirmEmailPage at `/confirm-email`. */
 export function ResetPasswordPage() {
   const { locale, setLocale, t } = useLocale()
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const token = params.get('token') ?? ''
-  const [validating, setValidating] = useState(true)
-  const [valid, setValid] = useState(false)
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [passwordVisible, setPasswordVisible] = useState(false)
-  const [confirmVisible, setConfirmVisible] = useState(false)
-
-  const passwordRules = useMemo(() => getPasswordRuleChecks(password), [password])
 
   useEffect(() => {
-    if (!token) {
-      setValidating(false)
-      setValid(false)
-      setError(t('resetPasswordMissingToken'))
-      return
-    }
-    api.get('/auth/reset-password/validate', { params: { token } })
-      .then(() => {
-        setValid(true)
-        setError('')
-      })
-      .catch(() => {
-        setValid(false)
-        setError(t('resetPasswordInvalidLink'))
-      })
-      .finally(() => setValidating(false))
-  }, [token, t])
+    if (!token) return
+    const emailParam = params.get('email')?.trim()
+    const q = new URLSearchParams()
+    q.set('token', token)
+    if (emailParam) q.set('email', emailParam)
+    navigate(`/confirm-email?${q.toString()}`, { replace: true })
+  }, [navigate, params, token])
 
-  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setError('')
-    setMessage('')
-
-    if (!passwordMeetsRequirements(password)) {
-      setError(t('resetPasswordWeakPassword'))
-      return
-    }
-    if (password !== confirm) {
-      setError(t('resetPasswordMismatch'))
-      return
-    }
-    setSubmitting(true)
-    try {
-      await api.post('/auth/reset-password', { token, password })
-      setMessage(t('resetPasswordSuccess'))
-      setTimeout(() => navigate('/login?reset=success', { replace: true }), 1200)
-    } catch (err: any) {
-      setError(err?.response?.data?.message || t('resetPasswordFailedGeneric'))
-    } finally {
-      setSubmitting(false)
-    }
+  if (!token) {
+    return (
+      <div className="login-wrap login-bg">
+        <div className="login-brand-above">
+          <div className="login-modern-logo-mark" aria-hidden>
+            <img src={loginLogo} alt="" />
+          </div>
+        </div>
+        <div className="card login polished-login auth-flow-card" style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}>
+          <div className="login-modern-header">
+            <div className="login-lang-switch" role="group" aria-label={t('language')}>
+              <button type="button" className={locale === 'sl' ? 'login-lang-btn active' : 'login-lang-btn'} onClick={() => setLocale('sl')}>
+                SL
+              </button>
+              <button type="button" className={locale === 'en' ? 'login-lang-btn active' : 'login-lang-btn'} onClick={() => setLocale('en')}>
+                EN
+              </button>
+            </div>
+          </div>
+          <p className="error">{t('resetPasswordMissingToken')}</p>
+          <button type="button" className="secondary auth-flow-back-btn" onClick={() => navigate('/login')}>
+            {t('resetPasswordBackToLogin')}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -108,89 +55,7 @@ export function ResetPasswordPage() {
         </div>
       </div>
       <div className="card login polished-login auth-flow-card" style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}>
-        <div className="login-modern-header">
-          <div className="login-lang-switch" role="group" aria-label={t('language')}>
-            <button
-              type="button"
-              className={locale === 'sl' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('sl')}
-            >
-              SL
-            </button>
-            <button
-              type="button"
-              className={locale === 'en' ? 'login-lang-btn active' : 'login-lang-btn'}
-              onClick={() => setLocale('en')}
-            >
-              EN
-            </button>
-          </div>
-        </div>
-        <div className="auth-flow-heading">
-          <h1 className="login-modern-title">{t('resetPasswordTitle')}</h1>
-          <p className="login-note auth-flow-note">{t('resetPasswordIntro')}</p>
-        </div>
-        {validating ? (
-          <p>{t('resetPasswordValidating')}</p>
-        ) : !valid ? (
-          <div className="auth-flow-invalid-state">
-            <p className="error">{error}</p>
-            <button type="button" className="secondary auth-flow-back-btn" onClick={() => navigate('/login')}>
-              {t('resetPasswordBackToLogin')}
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={submit} className="login-forgot-form">
-            <label className="login-modern-label" htmlFor="reset-password-new">{t('resetPasswordNewPlaceholder')}</label>
-            <div className="login-password-wrap">
-              <input
-                id="reset-password-new"
-                type={passwordVisible ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t('resetPasswordNewPlaceholder')}
-                autoComplete="new-password"
-                required
-              />
-              <PasswordVisibilityButton
-                visible={passwordVisible}
-                onToggle={() => setPasswordVisible((current) => !current)}
-                label={passwordVisible ? t('loginHidePassword') : t('loginShowPassword')}
-              />
-            </div>
-
-            <label className="login-modern-label" htmlFor="reset-password-confirm">{t('resetPasswordConfirmPlaceholder')}</label>
-            <div className="login-password-wrap">
-              <input
-                id="reset-password-confirm"
-                type={confirmVisible ? 'text' : 'password'}
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder={t('resetPasswordConfirmPlaceholder')}
-                autoComplete="new-password"
-                required
-              />
-              <PasswordVisibilityButton
-                visible={confirmVisible}
-                onToggle={() => setConfirmVisible((current) => !current)}
-                label={confirmVisible ? t('loginHidePassword') : t('loginShowPassword')}
-              />
-            </div>
-
-            <ul className="password-rule-list" aria-label={t('resetPasswordRequirementsTitle')}>
-              <li className={passwordRules.minLength ? 'met' : ''}>{t('resetPasswordRuleMinLength')}</li>
-              <li className={passwordRules.hasNumber ? 'met' : ''}>{t('resetPasswordRuleNumber')}</li>
-              <li className={passwordRules.hasUppercase ? 'met' : ''}>{t('resetPasswordRuleUppercase')}</li>
-              <li className={passwordRules.hasLowercase ? 'met' : ''}>{t('resetPasswordRuleLowercase')}</li>
-            </ul>
-
-            {error && <div className="error">{error}</div>}
-            {message && <div className="success">{message}</div>}
-            <button type="submit" disabled={submitting} className="login-primary-btn">
-              {submitting ? t('resetPasswordSaving') : t('resetPasswordSubmit')}
-            </button>
-          </form>
-        )}
+        <p className="login-note auth-flow-note">{t('resetPasswordValidating')}</p>
       </div>
     </div>
   )

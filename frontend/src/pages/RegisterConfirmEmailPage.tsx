@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import loginLogo from '../assets/login-logo.png'
@@ -58,12 +58,15 @@ const confirmEmailStyles = `
   }
 `
 
+type ConfirmTokenKind = 'intent' | 'reset'
+
 export function RegisterConfirmEmailPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const token = useMemo(() => params.get('token')?.trim() ?? '', [params])
   const fallbackEmail = useMemo(() => params.get('email')?.trim().toLowerCase() ?? '', [params])
   const [email, setEmail] = useState(fallbackEmail)
+  const tokenKindRef = useRef<ConfirmTokenKind | null>(null)
   const [validating, setValidating] = useState(true)
   const [invalid, setInvalid] = useState(false)
   const [password, setPassword] = useState('')
@@ -74,6 +77,7 @@ export function RegisterConfirmEmailPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    tokenKindRef.current = null
     if (!token) {
       const q = new URLSearchParams()
       q.set('invalidVerify', '1')
@@ -83,24 +87,60 @@ export function RegisterConfirmEmailPage() {
     }
     let cancelled = false
     void (async () => {
-      try {
-        const { data } = await api.get<{ valid?: boolean; email?: string }>('/auth/signup/validate-email-intent', { params: { token } })
-        if (cancelled) return
-        setEmail(String(data?.email || fallbackEmail))
-        setInvalid(!data?.valid)
-      } catch (err) {
-        if (cancelled) return
-        const body = axios.isAxiosError(err) ? (err.response?.data as { email?: string } | undefined) : undefined
-        const em = String(body?.email || fallbackEmail)
+      const goInvalid = (em: string) => {
         const q = new URLSearchParams()
         q.set('invalidVerify', '1')
         if (em) q.set('email', em)
         navigate(`/register/account?${q.toString()}`, { replace: true })
-        return
-      } finally {
-        if (!cancelled) setValidating(false)
       }
+
+      try {
+        const { data } = await api.get<{ valid?: boolean; email?: string }>('/auth/signup/validate-email-intent', { params: { token } })
+        if (cancelled) return
+        if (data?.valid) {
+          tokenKindRef.current = 'intent'
+          setEmail(String(data?.email || fallbackEmail))
+          setInvalid(false)
+          return
+        }
+      } catch (err) {
+        if (cancelled) return
+        const body = axios.isAxiosError(err) ? (err.response?.data as { email?: string } | undefined) : undefined
+        const hint = String(body?.email || fallbackEmail)
+        try {
+          const { data: resetData } = await api.get<{ valid?: boolean; email?: string }>('/auth/reset-password/validate', { params: { token } })
+          if (cancelled) return
+          if (resetData?.valid) {
+            tokenKindRef.current = 'reset'
+            setEmail(String(resetData?.email || hint || fallbackEmail).toLowerCase())
+            setInvalid(false)
+            return
+          }
+        } catch {
+          // fall through
+        }
+        goInvalid(hint)
+        return
+      }
+
+      try {
+        const { data: resetData } = await api.get<{ valid?: boolean; email?: string }>('/auth/reset-password/validate', { params: { token } })
+        if (cancelled) return
+        if (resetData?.valid) {
+          tokenKindRef.current = 'reset'
+          setEmail(String(resetData?.email || fallbackEmail).toLowerCase())
+          setInvalid(false)
+          return
+        }
+      } catch {
+        // fall through
+      }
+
+      if (!cancelled) goInvalid(fallbackEmail)
     })()
+      .finally(() => {
+        if (!cancelled) setValidating(false)
+      })
     return () => {
       cancelled = true
     }
@@ -109,6 +149,8 @@ export function RegisterConfirmEmailPage() {
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!token || invalid) return
+    const kind = tokenKindRef.current
+    if (!kind) return
     setError('')
     if (password.length < 8) {
       setError('Password must be at least 8 characters.')
@@ -124,6 +166,15 @@ export function RegisterConfirmEmailPage() {
     }
     setSubmitting(true)
     try {
+      if (kind === 'reset') {
+        await api.post('/auth/reset-password', { token, password })
+        const loginQ = new URLSearchParams()
+        loginQ.set('reset', 'success')
+        if (email.trim()) loginQ.set('email', email.trim())
+        navigate(`/login?${loginQ.toString()}`, { replace: true })
+        return
+      }
+
       const { data } = await api.post('/auth/signup/complete-email', { token, password })
       if (data?.user) {
         storeAuthenticatedSession(data)

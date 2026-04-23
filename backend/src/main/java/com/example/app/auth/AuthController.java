@@ -365,11 +365,10 @@ public class AuthController {
 
     @GetMapping("/reset-password/validate")
     public ResponseEntity<?> validateResetToken(@RequestParam("token") String token) {
-        boolean valid = passwordResetService.isTokenUsable(token);
-        if (!valid) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Invalid or expired token."));
-        }
-        return ResponseEntity.ok(Map.of("valid", true));
+        return passwordResetService
+                .findEmailForUsableResetToken(token.trim())
+                .map(email -> ResponseEntity.<Object>ok(Map.of("valid", true, "email", email)))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Invalid or expired token.")));
     }
 
     @PostMapping("/reset-password")
