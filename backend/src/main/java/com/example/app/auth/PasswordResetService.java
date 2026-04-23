@@ -88,7 +88,7 @@ public class PasswordResetService {
     }
 
     /**
-     * Resolves the account email for a usable reset token (for pre-filling the confirm-email UI).
+     * Resolves the account email for a usable reset token (for pre-filling reset/login UI).
      */
     @Transactional(readOnly = true)
     public Optional<String> findEmailForUsableResetToken(String token) {
@@ -151,7 +151,7 @@ public class PasswordResetService {
         }
         String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
         String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
-        String resetUrl = frontendBaseUrl + "/confirm-email?token=" + encodedToken + "&email=" + encodedEmail;
+        String resetUrl = frontendBaseUrl + "/reset-password?token=" + encodedToken + "&email=" + encodedEmail;
         String subject = "Reset your password";
         String body = """
                 Hello %s,

@@ -5802,6 +5802,10 @@ a.config-nav-item {
     max-width: 420px;
 }
 
+.auth-flow-card .secondary {
+    width: 100%;
+}
+
 .auth-flow-heading {
     display: flex;
     flex-direction: column;
@@ -5833,6 +5837,30 @@ a.config-nav-item {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.auth-flow-mail-icon,
+.auth-flow-success-icon {
+    width: 112px;
+    height: 112px;
+    border-radius: 999px;
+    margin: 0 auto 4px;
+    display: grid;
+    place-items: center;
+    color: var(--color-primary);
+    background: rgba(22, 114, 243, 0.08);
+}
+
+.auth-flow-success-icon {
+    color: #14b8a6;
+    background: rgba(20, 184, 166, 0.10);
+}
+
+.auth-flow-min-hint {
+    margin-top: -2px;
+    color: var(--color-text-muted);
+    font-size: 0.94rem;
+    line-height: 1.35;
 }
 
 .auth-flow-email-pill {

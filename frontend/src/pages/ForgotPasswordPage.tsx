@@ -11,23 +11,35 @@ export function ForgotPasswordPage() {
   const initialEmail = useMemo(() => params.get('email')?.trim() ?? '', [params])
   const [email, setEmail] = useState(initialEmail)
   const [submitting, setSubmitting] = useState(false)
-  const [message, setMessage] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [step, setStep] = useState<'request' | 'sent'>('request')
+  const [error, setError] = useState('')
+  const [status, setStatus] = useState('')
 
-  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setMessage('')
+  const sendResetEmail = async () => {
+    const normalized = email.trim()
+    if (!normalized) return
     setSubmitting(true)
     try {
-      await api.post('/auth/forgot-password', { email: email.trim() })
-      setSuccess(true)
-      setMessage(t('forgotPasswordSentSuccess'))
+      await api.post('/auth/forgot-password', { email: normalized })
+      setStatus(t('forgotPasswordSentSuccess'))
+      setError('')
+      setStep('sent')
     } catch {
-      setSuccess(false)
-      setMessage(t('forgotPasswordSendError'))
+      setError(t('forgotPasswordSendError'))
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    await sendResetEmail()
+  }
+
+  const openEmailApp = () => {
+    const normalized = email.trim()
+    if (!normalized) return
+    window.location.href = `mailto:${encodeURIComponent(normalized)}`
   }
 
   return (
@@ -57,7 +69,7 @@ export function ForgotPasswordPage() {
           </div>
         </div>
 
-        {!success ? (
+        {step === 'request' ? (
           <>
             <div className="auth-flow-heading">
               <h1 className="login-modern-title">{t('forgotPasswordTitle')}</h1>
@@ -74,10 +86,11 @@ export function ForgotPasswordPage() {
                 autoComplete="email"
                 required
               />
-              {message && <div className="error">{message}</div>}
+              {error && <div className="error">{error}</div>}
               <button type="submit" className="login-primary-btn" disabled={submitting}>
                 {submitting ? t('forgotPasswordSending') : t('forgotPasswordSendResetLink')}
               </button>
+              <div className="login-social-separator"><span>{t('loginOr')}</span></div>
               <button type="button" className="secondary auth-flow-back-btn" onClick={() => navigate('/login')}>
                 {t('forgotPasswordBackToLogin')}
               </button>
@@ -85,18 +98,30 @@ export function ForgotPasswordPage() {
           </>
         ) : (
           <div className="auth-flow-success-state">
+            <div className="auth-flow-mail-icon" aria-hidden>
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" />
+                <path d="m5 8 7 5 7-5" />
+                <circle cx="18.2" cy="17.6" r="2.8" />
+                <path d="m17.1 17.6 0.8 0.8 1.5-1.6" />
+              </svg>
+            </div>
             <div className="auth-flow-heading">
               <h1 className="login-modern-title">{t('forgotPasswordCheckEmailTitle')}</h1>
               <p className="login-note auth-flow-note">{t('forgotPasswordCheckEmailBody')}</p>
             </div>
-            {message && <div className="success auth-flow-feedback">{message}</div>}
+            {status && <div className="success auth-flow-feedback">{status}</div>}
             <div className="auth-flow-email-pill">{email.trim()}</div>
             <div className="auth-flow-actions">
-              <button type="button" className="login-primary-btn" onClick={() => navigate('/login')}>
-                {t('forgotPasswordBackToLogin')}
+              <button type="button" className="login-primary-btn" onClick={openEmailApp}>
+                {t('forgotPasswordOpenEmail')}
               </button>
-              <button type="button" className="secondary" onClick={() => { setSuccess(false); setMessage('') }}>
+              <div className="login-social-separator"><span>{t('loginOr')}</span></div>
+              <button type="button" className="secondary" disabled={submitting} onClick={() => void sendResetEmail()}>
                 {t('forgotPasswordResend')}
+              </button>
+              <button type="button" className="secondary auth-flow-back-btn" onClick={() => navigate('/login')}>
+                {t('forgotPasswordBackToLogin')}
               </button>
             </div>
           </div>
