@@ -109,7 +109,6 @@ export function LoginPage() {
   }
 
   const forgotPasswordUrl = `/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`
-  const pricingUrl = (import.meta.env.VITE_WEBSITE_PRICING_URL as string | undefined)?.trim() || 'https://calendra.si/cenik'
 
   if (pendingToken) {
     return (
@@ -248,7 +247,7 @@ export function LoginPage() {
         </button>
         <div className="login-signup-row">
           <span className="muted">{t('loginNoAccount')}</span>
-          <button type="button" className="linkish-btn login-register-link" onClick={() => window.location.assign(pricingUrl)}>
+          <button type="button" className="linkish-btn login-register-link" onClick={() => navigate('/register')}>
             {t('loginRegister')}
           </button>
         </div>
