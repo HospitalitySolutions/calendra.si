@@ -616,6 +616,7 @@ export function RegisterAccountPage() {
   const [verifyResendMode, setVerifyResendMode] = useState<'signupIntent' | 'passwordReset'>('passwordReset')
   const [verifyEmailAddr, setVerifyEmailAddr] = useState('')
   const [resending, setResending] = useState(false)
+  const [registeredResetSending, setRegisteredResetSending] = useState(false)
   const [footerExpanded, setFooterExpanded] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
   const [contactName, setContactName] = useState('')
@@ -906,6 +907,19 @@ export function RegisterAccountPage() {
     }
   }
 
+  const sendRegisteredPasswordReset = async () => {
+    if (!verifyEmailAddr.trim()) return
+    setRegisteredResetSending(true)
+    try {
+      await api.post('/auth/forgot-password', { email: verifyEmailAddr.trim() })
+      showToast('success', copy.resetLinkSentHint)
+    } catch {
+      showToast('success', copy.resetLinkSentHint)
+    } finally {
+      setRegisteredResetSending(false)
+    }
+  }
+
   const resendVerificationEmail = async () => {
     if (!verifyEmailAddr) return
     setResending(true)
@@ -1110,18 +1124,20 @@ export function RegisterAccountPage() {
                       <span aria-hidden>✉</span>
                       <span>{verifyEmailAddr}</span>
                     </div>
-                    <button type="button" className="register-account-submit" onClick={() => navigate('/login')}>
+                    <button
+                      type="button"
+                      className="register-account-submit"
+                      onClick={() => navigate(`/login?email=${encodeURIComponent(verifyEmailAddr)}`)}
+                    >
                       {copy.registeredSignIn}
                     </button>
                     <button
                       type="button"
                       className="register-account-back-plan"
-                      onClick={() => navigate(`/forgot-password?email=${encodeURIComponent(verifyEmailAddr)}`)}
+                      disabled={registeredResetSending}
+                      onClick={() => void sendRegisteredPasswordReset()}
                     >
-                      {copy.registeredResetPassword}
-                    </button>
-                    <button type="button" className="register-account-back-plan" onClick={useAnotherEmail}>
-                      {copy.verifyUseOther}
+                      {registeredResetSending ? copy.verifyResending : copy.registeredResetPassword}
                     </button>
                   </div>
                 </>

@@ -42,6 +42,11 @@ export function LoginPage() {
     setError('')
     setSuccess('')
 
+    const qpEmail = params.get('email')?.trim()
+    if (qpEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(qpEmail)) {
+      setEmail(qpEmail)
+    }
+
     if (resetSuccess === 'success') {
       setSuccess(t('loginPasswordResetSuccess'))
     }

@@ -670,12 +670,9 @@ export function RegisterPage() {
                       }}
                     >
                       <div className="badge-row">
-                        {planKey === 'basic' && <span className="badge soft">Starter</span>}
                         {planKey === 'pro' && <span className="badge gold">Recommended</span>}
-                        {planKey === 'business' && <span className="badge soft">Business</span>}
+                        {planKey === 'business' && <span className="badge soft">Most popular</span>}
                         {planKey === 'basic' && priceBlock.badgeVisible && <span className="badge green">14-day free trial</span>}
-                        {planKey === 'pro' && <span className="badge soft">Most popular</span>}
-                        {planKey === 'business' && <span />}
                       </div>
                       <h3 className="plan-name">{plan.name}</h3>
                       <div className="price-stack">
