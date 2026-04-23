@@ -1,8 +1,5 @@
 package com.example.app.auth;
 
-import com.example.app.billing.TaxRate;
-import com.example.app.billing.TransactionService;
-import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.mfa.WebAuthnService;
@@ -18,6 +15,7 @@ import com.example.app.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.core.env.Environment;
@@ -42,17 +40,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Arrays;
-import java.util.UUID;
 import java.util.Locale;
 import java.util.stream.Collectors;
-import com.example.app.company.CompanyProvisioningService;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -68,9 +61,8 @@ public class AuthController {
 
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
-    private final TransactionServiceRepository txServices;
     private final PasswordResetService passwordResetService;
-    private final CompanyProvisioningService companyProvisioningService;
+    private final SignupService signupService;
     private final WebAuthnService webAuthnService;
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
@@ -84,9 +76,8 @@ public class AuthController {
                         ClientRegistrationRepository clientRegistrationRepository,
             CompanyRepository companies,
             AppSettingRepository settings,
-            TransactionServiceRepository txServices,
             PasswordResetService passwordResetService,
-            CompanyProvisioningService companyProvisioningService,
+            SignupService signupService,
             WebAuthnService webAuthnService,
             SecurityCenterService securityCenterService,
             AuthCookieService authCookieService
@@ -99,9 +90,8 @@ public class AuthController {
                 this.authorizationRequestRepository = new HttpSessionOAuth2AuthorizationRequestRepository();
         this.companies = companies;
         this.settings = settings;
-        this.txServices = txServices;
         this.passwordResetService = passwordResetService;
-        this.companyProvisioningService = companyProvisioningService;
+        this.signupService = signupService;
         this.webAuthnService = webAuthnService;
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
@@ -127,6 +117,15 @@ public class AuthController {
                         log.warn("Google OAuth start blocked: ClientRegistrationRepository missing.");
                         redirectOauthError(response, "Google login is not configured. Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET.");
                         return;
+                }
+
+                if ("1".equals(request.getParameter("register"))) {
+                        HttpSession session = request.getSession(false);
+                        if (session == null || session.getAttribute("SIGNUP_PENDING") == null) {
+                                redirectOauthError(response, "Your signup session expired. Return to account setup and try again.");
+                                return;
+                        }
+                        session.setAttribute("OAUTH_GOOGLE_SIGNUP_ACTIVE", Boolean.TRUE);
                 }
 
                 OAuth2AuthorizationRequestResolver resolver =
@@ -225,118 +224,78 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody SignupRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        String normalizedEmail = request.email().trim().toLowerCase();
-        if (!users.findAllByEmailIgnoreCase(normalizedEmail).isEmpty()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "An account with this email already exists."));
+        return signupService.signup(request, httpRequest, httpResponse);
+    }
+
+    @GetMapping("/signup/email-available")
+    public ResponseEntity<?> signupEmailAvailable(@RequestParam("email") String email) {
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email is required.", "available", false));
         }
-
-        String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
-        String companyName = resolveCompanyName(request);
-        Company company = companyProvisioningService.createWithTenantCode(companyName);
-
-        boolean passwordProvided = request.password() != null && !request.password().isBlank();
-        String rawPassword = passwordProvided ? request.password() : "Temp#" + UUID.randomUUID().toString().replace("-", "");
-
-        User owner = new User();
-        owner.setCompany(company);
-        owner.setFirstName(request.firstName().trim());
-        owner.setLastName(request.lastName().trim());
-        owner.setEmail(normalizedEmail);
-        owner.setPasswordHash(passwordEncoder.encode(rawPassword));
-        String phone = trimToNull(request.phone());
-        owner.setPhone(phone);
-        owner.setWhatsappSenderNumber(phone);
-        owner.setWhatsappPhoneNumberId(phone);
-        owner.setRole(Role.ADMIN);
-        owner.setActive(true);
-        owner.setConsultant(true);
-        owner = users.save(owner);
-
-        seedTenantDefaults(company, companyName);
-        seedSetting(company, SettingKey.COMPANY_EMAIL, normalizedEmail);
-        if (phone != null) {
-            seedSetting(company, SettingKey.COMPANY_TELEPHONE, phone);
+        String normalized = email.trim().toLowerCase();
+        if (normalized.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email is required.", "available", false));
         }
-        seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
-        seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
-        seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
-        seedSetting(company, SettingKey.SIGNUP_FISCALIZATION_REQUIRED, String.valueOf(Boolean.TRUE.equals(request.fiscalizationNeeded())));
-        int spaceQuota = Math.max(1, request.spaceCount() == null ? 5 : request.spaceCount());
-        seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, String.valueOf(spaceQuota));
-        seedSetting(company, SettingKey.TENANCY_SMS_SENT_COUNT, "0");
-        String interval = request.billingInterval() == null ? "MONTHLY" : request.billingInterval().trim().toUpperCase();
-        if (!"MONTHLY".equals(interval) && !"YEARLY".equals(interval)) {
-            interval = "MONTHLY";
+        SignupService.SignupEmailCheck check = signupService.evaluateSignupEmail(normalized);
+        if (check.available()) {
+            return ResponseEntity.ok(Map.of("available", true));
         }
-        LocalDate subStart = LocalDate.now(ZoneId.systemDefault());
-        LocalDate subEnd = "TRIAL".equals(normalizedPackageType)
-                ? subStart.plusDays(7)
-                : ("YEARLY".equals(interval) ? subStart.plusYears(1) : subStart.plusMonths(1));
-        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_START, subStart.toString());
-        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_END, subEnd.toString());
-        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
-        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, "0.00");
-
-        if (!passwordProvided) {
-            passwordResetService.requestReset(normalizedEmail);
+        if (check.pendingVerification()) {
             return ResponseEntity.ok(Map.of(
-                    "message", "Signup created. A password setup email has been sent.",
-                    "requiresPasswordSetup", true,
-                    "email", normalizedEmail
+                    "available", false,
+                    "pendingVerification", true,
+                    "registeredAccountExists", false,
+                    "email", normalized
             ));
         }
-
-        String token = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
-        authCookieService.writeAuthCookie(httpRequest, httpResponse, token);
-        return ResponseEntity.ok(authSuccessResponse(owner, token, httpRequest));
+        if (check.registeredAccountExists()) {
+            return ResponseEntity.ok(Map.of(
+                    "available", false,
+                    "pendingVerification", false,
+                    "registeredAccountExists", true,
+                    "email", normalized
+            ));
+        }
+        return ResponseEntity.badRequest().body(Map.of("available", false, "message", check.takenMessage()));
     }
 
-    private void seedTenantDefaults(Company company, String companyName) {
-        // App/module settings for a tenant.
-        seedSetting(company, SettingKey.SPACES_ENABLED, "true");
-        seedSetting(company, SettingKey.TYPES_ENABLED, "true");
-        seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
-        seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
-        seedSetting(company, SettingKey.TODOS_ENABLED, "true");
-        seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, "false");
-        seedSetting(company, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED, "false");
-        seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED, "false");
-        seedSetting(company, SettingKey.SESSION_LENGTH_MINUTES, "60");
-        seedSetting(company, SettingKey.PERSONAL_TASK_PRESETS_JSON, "[]");
-        seedSetting(company, SettingKey.INVOICE_COUNTER, "1");
-        seedSetting(company, SettingKey.COMPANY_NAME, companyName);
-        seedSetting(company, SettingKey.COMPANY_ADDRESS, "");
-        seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, "");
-        seedSetting(company, SettingKey.COMPANY_CITY, "");
-        seedSetting(company, SettingKey.COMPANY_VAT_ID, "");
-        seedSetting(company, SettingKey.COMPANY_IBAN, "");
-        seedSetting(company, SettingKey.COMPANY_EMAIL, "");
-        seedSetting(company, SettingKey.COMPANY_TELEPHONE, "");
-        seedSetting(company, SettingKey.PAYMENT_DEADLINE_DAYS, "15");
-
-        // Default transaction service.
-        TransactionService tx = new TransactionService();
-        tx.setCompany(company);
-        tx.setCode("CONSULT-001");
-        tx.setDescription("Consultation");
-        tx.setTaxRate(TaxRate.VAT_22);
-        tx.setNetPrice(new BigDecimal("50.00"));
-        tx = txServices.save(tx);
-        // Session types are created explicitly by the tenant (Settings → session types).
+    public record SignupValidateEmailRequest(@NotBlank String token) {
     }
 
-    private void seedSetting(Company company, SettingKey key, String value) {
-        settings.findByCompanyIdAndKey(company.getId(), key).ifPresentOrElse(existing -> {
-            existing.setValue(value);
-            settings.save(existing);
-        }, () -> {
-            var s = new AppSetting();
-            s.setCompany(company);
-            s.setKey(key.name());
-            s.setValue(value);
-            settings.save(s);
-        });
+    public record SignupCompleteEmailRequest(@NotBlank String token, @NotBlank String password) {
+    }
+
+    public record SignupResendIntentRequest(@NotBlank @Email String email) {
+    }
+
+    @GetMapping("/signup/validate-email-intent")
+    public ResponseEntity<?> validateSignupEmailIntent(@RequestParam("token") String token) {
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Token is required."));
+        }
+        return signupService.validateEmailSignupIntent(token.trim());
+    }
+
+    @PostMapping("/signup/complete-email")
+    public ResponseEntity<?> completeSignupEmail(@Valid @RequestBody SignupCompleteEmailRequest body, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        String passwordValidationMessage = validatePasswordStrength(body.password());
+        if (passwordValidationMessage != null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", passwordValidationMessage));
+        }
+        return signupService.completeEmailSignupIntent(body.token().trim(), body.password(), httpRequest, httpResponse);
+    }
+
+    @PostMapping("/signup/resend-email-intent")
+    public ResponseEntity<?> resendSignupEmailIntent(@Valid @RequestBody SignupResendIntentRequest body) {
+        return signupService.resendEmailSignupIntent(body.email().trim().toLowerCase());
+    }
+
+    @PostMapping("/signup/pending-session")
+    public ResponseEntity<?> saveSignupPendingSession(@RequestBody SignupPendingSession body, HttpSession session) {
+        // Email may be blank when the user will complete Google OAuth; the provider supplies the address.
+        session.setAttribute("SIGNUP_PENDING", body);
+        return ResponseEntity.ok(Map.of("ok", true));
     }
 
     private String normalizePackageType(String rawValue, String fallback) {
@@ -355,26 +314,6 @@ public class AuthController {
                 .map(AppSetting::getValue)
                 .map(value -> normalizePackageType(value, "CUSTOM"))
                 .orElse("CUSTOM");
-    }
-
-    private String resolveCompanyName(SignupRequest request) {
-        String companyName = trimToNull(request.companyName());
-        if (companyName != null) return companyName;
-
-        String fullName = ((request.firstName() == null ? "" : request.firstName().trim()) + " " + (request.lastName() == null ? "" : request.lastName().trim())).trim();
-        if (!fullName.isBlank()) return fullName;
-
-        String email = trimToNull(request.email());
-        if (email != null && email.contains("@")) {
-            return email.substring(0, email.indexOf('@'));
-        }
-        return "New tenancy";
-    }
-
-    private String trimToNull(String value) {
-        if (value == null) return null;
-        String trimmed = value.trim();
-        return trimmed.isBlank() ? null : trimmed;
     }
 
     private String validatePasswordStrength(String password) {
@@ -449,9 +388,9 @@ public class AuthController {
     }
 
     public record SignupRequest(
-            @NotBlank String companyName,
-            @NotBlank String firstName,
-            @NotBlank String lastName,
+            String companyName,
+            String firstName,
+            String lastName,
             @NotBlank @Email String email,
             String phone,
             String password,
@@ -461,7 +400,9 @@ public class AuthController {
             Integer spaceCount,
             /** MONTHLY or YEARLY */
             String billingInterval,
-            Boolean fiscalizationNeeded
+            Boolean fiscalizationNeeded,
+            /** Optional: {@code location.search} from the register flow for redirects after email confirmation. */
+            String returnSearch
     ) {
     }
 

@@ -53,6 +53,11 @@ public enum SettingKey {
     SIGNUP_USER_COUNT,
     SIGNUP_SMS_COUNT,
     SIGNUP_FISCALIZATION_REQUIRED,
+    /**
+     * When {@code true}, the tenancy owner signed up without a password and must still complete the emailed setup link.
+     * Cleared after they set a password via that flow.
+     */
+    SIGNUP_OWNER_PASSWORD_PENDING,
 
     /** Paid space quota for the tenancy (signup / billing). */
     TENANCY_SPACE_QUOTA,

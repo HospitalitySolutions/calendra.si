@@ -59,11 +59,21 @@ export function SignupPage() {
         email: email.trim(),
         phone: phone.trim() || null,
         packageName: signupContext.packageType,
+        returnSearch: null,
       })
 
       if (data?.token && data?.user) {
         storeAuthenticatedSession(data)
         window.location.reload()
+        return
+      }
+
+      if ((data as { pendingAccountCreation?: boolean })?.pendingAccountCreation) {
+        setSuccessMessage(
+          locale === 'sl'
+            ? 'Preverite e-pošto za povezavo za potrditev in ustvaritev računa.'
+            : 'Check your email for a link to confirm and create your account.',
+        )
         return
       }
 

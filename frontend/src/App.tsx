@@ -11,6 +11,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { RegisterPlanAddonsPage } from './pages/RegisterPlanAddonsPage'
 import { RegisterAccountPage } from './pages/RegisterAccountPage'
+import { RegisterConfirmEmailPage } from './pages/RegisterConfirmEmailPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
@@ -193,6 +194,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/register/add-ons" element={<RegisterPlanAddonsPage />} />
         <Route path="/register/account" element={<RegisterAccountPage />} />
+        <Route path="/register/confirm-email" element={<RegisterConfirmEmailPage />} />
         <Route path="/signup" element={<Navigate to="/register" replace />} />
         <Route path="/zoom/install" element={<ZoomInstallPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />

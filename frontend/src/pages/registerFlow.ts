@@ -96,3 +96,15 @@ export function getEstimatedUserCount(selection: RegisterSelection) {
 export function getBillingInterval(selection: RegisterSelection) {
   return selection.billing === 'annual' ? 'YEARLY' : 'MONTHLY'
 }
+
+/** After email confirmation creates the tenant, land on account setup with plan params preserved. */
+export function buildPostProvisionVerifyPath(email: string, returnSearch: string | null | undefined) {
+  const rs = (returnSearch ?? '').trim()
+  const q = new URLSearchParams(rs.replace(/^\?/, ''))
+  q.set('verifyEmail', '1')
+  q.set('email', email)
+  q.delete('pendingAccountCreation')
+  q.delete('finishVerify')
+  q.delete('existingAccount')
+  return `/register/account?${q.toString()}`
+}

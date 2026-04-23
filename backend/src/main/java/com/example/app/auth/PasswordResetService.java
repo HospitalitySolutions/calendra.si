@@ -1,5 +1,7 @@
 package com.example.app.auth;
 
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.mail.internet.MimeMessage;
@@ -26,6 +28,7 @@ public class PasswordResetService {
 
     private final UserRepository users;
     private final PasswordResetTokenRepository resetTokens;
+    private final AppSettingRepository appSettings;
     private final PasswordEncoder passwordEncoder;
     private final JavaMailSender mailSender;
     private final String mailFrom;
@@ -36,6 +39,7 @@ public class PasswordResetService {
     public PasswordResetService(
             UserRepository users,
             PasswordResetTokenRepository resetTokens,
+            AppSettingRepository appSettings,
             PasswordEncoder passwordEncoder,
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
@@ -45,6 +49,7 @@ public class PasswordResetService {
     ) {
         this.users = users;
         this.resetTokens = resetTokens;
+        this.appSettings = appSettings;
         this.passwordEncoder = passwordEncoder;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom;
@@ -87,10 +92,19 @@ public class PasswordResetService {
         User user = row.getUser();
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         users.save(user);
+        clearSignupOwnerPasswordPending(user);
         row.setActive(false);
         row.setUsedAt(Instant.now());
         resetTokens.save(row);
         return true;
+    }
+
+    private void clearSignupOwnerPasswordPending(User user) {
+        Long companyId = user.getCompany().getId();
+        appSettings.findByCompanyIdAndKey(companyId, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING).ifPresent(s -> {
+            s.setValue("false");
+            appSettings.save(s);
+        });
     }
 
     private void invalidatePreviousTokens(User user) {
