@@ -194,7 +194,8 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/register/add-ons" element={<RegisterPlanAddonsPage />} />
         <Route path="/register/account" element={<RegisterAccountPage />} />
-        <Route path="/register/confirm-email" element={<RegisterConfirmEmailPage />} />
+        <Route path="/confirm-email" element={<RegisterConfirmEmailPage />} />
+        <Route path="/register/confirm-email" element={<Navigate to="/confirm-email" replace />} />
         <Route path="/signup" element={<Navigate to="/register" replace />} />
         <Route path="/zoom/install" element={<ZoomInstallPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />

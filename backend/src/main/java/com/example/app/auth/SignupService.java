@@ -492,7 +492,7 @@ public class SignupService {
             return;
         }
         String confirmUrl = frontendBaseUrl
-                + "/register/confirm-email?token="
+                + "/confirm-email?token="
                 + URLEncoder.encode(token, StandardCharsets.UTF_8)
                 + "&email="
                 + URLEncoder.encode(email, StandardCharsets.UTF_8);
