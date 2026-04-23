@@ -9,6 +9,7 @@ import { OAuthCallbackPage } from './pages/OAuthCallbackPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { RegisterPlanAddonsPage } from './pages/RegisterPlanAddonsPage'
 import { RegisterAccountPage } from './pages/RegisterAccountPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { Shell } from './components/Shell'
@@ -190,6 +191,7 @@ export default function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register/add-ons" element={<RegisterPlanAddonsPage />} />
         <Route path="/register/account" element={<RegisterAccountPage />} />
         <Route path="/signup" element={<Navigate to="/register" replace />} />
         <Route path="/zoom/install" element={<ZoomInstallPage />} />

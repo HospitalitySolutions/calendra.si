@@ -37,9 +37,16 @@ export const registerPageStyles = `
         radial-gradient(circle at 85% 55%, rgba(74, 131, 255, 0.10), transparent 20%),
         linear-gradient(180deg, var(--bg1), var(--bg2));
       min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: clip;
     }
 
-    .register-flow { padding: 28px; }
+    .register-flow {
+      padding-top: max(28px, env(safe-area-inset-top, 0px));
+      padding-right: max(28px, env(safe-area-inset-right, 0px));
+      padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
+      padding-left: max(28px, env(safe-area-inset-left, 0px));
+    }
 
     .register-flow .app {
       max-width: var(--max-width);
@@ -50,16 +57,23 @@ export const registerPageStyles = `
       border-radius: 32px;
       box-shadow: var(--shadow);
       overflow: hidden;
+      min-width: 0;
     }
 
     .register-flow .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      flex-wrap: wrap;
+      gap: 12px 16px;
       padding: 22px 28px;
       border-bottom: 1px solid rgba(223, 232, 247, 0.75);
       background: rgba(255,255,255,0.38);
+    }
+
+    .register-flow .topbar .brand {
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     .register-flow .brand-logo {
@@ -116,7 +130,8 @@ export const registerPageStyles = `
     }
 
     .register-flow .content {
-      padding: 30px 28px clamp(220px, 36vh, 340px);
+      padding: 30px 28px clamp(200px, 32vh, 320px);
+      min-width: 0;
     }
 
     .register-flow:has(.register-fixed-footer.is-expanded) .content {
@@ -194,9 +209,27 @@ export const registerPageStyles = `
 
     .register-flow .layout {
       display: grid;
-      grid-template-columns: minmax(350px, 0.96fr) minmax(500px, 1.28fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr);
+      grid-template-rows: auto auto;
       gap: 22px;
       align-items: start;
+      min-width: 0;
+    }
+
+    .register-flow .layout > .register-stepper-row {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      margin-bottom: 0;
+    }
+
+    .register-flow .layout > .left-panel {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .register-flow .layout > .right-panel {
+      grid-column: 2;
+      grid-row: 2;
     }
 
     .register-flow .panel {
@@ -211,6 +244,7 @@ export const registerPageStyles = `
       padding: 24px;
       position: sticky;
       top: 24px;
+      min-width: 0;
     }
 
     .register-flow .right-panel {
@@ -218,6 +252,7 @@ export const registerPageStyles = `
       display: flex;
       flex-direction: column;
       gap: 18px;
+      min-width: 0;
     }
 
     .register-flow .eyebrow {
@@ -231,6 +266,39 @@ export const registerPageStyles = `
       font-weight: 900;
       font-size: 0.86rem;
       margin-bottom: 14px;
+    }
+
+    .register-flow .plan-preview-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      min-width: 0;
+    }
+
+    .register-flow .plan-preview-head-row .eyebrow {
+      margin-bottom: 0;
+    }
+
+    .register-flow .plan-preview-name {
+      font-size: 1.38rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      color: var(--text);
+      line-height: 1.15;
+      text-align: right;
+      min-width: 0;
+    }
+
+    @media (min-width: 861px) {
+      .register-flow .plan-preview-head-row {
+        display: block;
+      }
+
+      .register-flow .plan-preview-name {
+        display: none;
+      }
     }
 
     .register-flow h2 {
@@ -396,7 +464,12 @@ export const registerPageStyles = `
       background: rgba(233, 241, 255, 0.88);
       border-color: #cfe0ff;
       box-shadow: 0 8px 20px rgba(47, 109, 246, 0.10);
-      transform: translateX(3px);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .register-flow .feature-item.enabled {
+        transform: translateX(3px);
+      }
     }
 
     .register-flow .feature-item.enabled .icon {
@@ -701,8 +774,8 @@ export const registerPageStyles = `
 
     .register-flow .register-fixed-footer {
       position: fixed;
-      left: 28px;
-      right: 28px;
+      left: max(28px, env(safe-area-inset-left, 0px));
+      right: max(28px, env(safe-area-inset-right, 0px));
       bottom: 0;
       width: auto;
       max-width: var(--max-width);
@@ -845,6 +918,37 @@ export const registerPageStyles = `
       color: var(--blue);
     }
 
+    .register-flow .register-footer-pill-total-inline {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 0;
+      flex: 0 0 auto;
+      margin-left: 8px;
+      padding-left: 12px;
+      border-left: 1px solid #e2e9f4;
+      text-align: right;
+      min-width: 0;
+    }
+
+    .register-flow .register-footer-pill-total-inline .register-footer-total-label {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+
+    .register-flow .register-footer-pill-total-inline .register-footer-total-value {
+      font-size: 1.1rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: var(--text);
+    }
+
     .register-flow .register-footer-pill-title {
       font-size: 0.95rem;
       font-weight: 900;
@@ -863,31 +967,6 @@ export const registerPageStyles = `
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-
-    .register-flow .register-footer-total-block {
-      flex: 0 1 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      min-width: 0;
-      text-align: center;
-    }
-
-    .register-flow .register-footer-total-label {
-      font-size: 0.72rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-    }
-
-    .register-flow .register-footer-total-value {
-      font-size: 1.25rem;
-      font-weight: 900;
-      letter-spacing: -0.04em;
-      line-height: 1.1;
     }
 
     .register-flow .register-footer-chevron-svg {
@@ -1122,85 +1201,422 @@ export const registerPageStyles = `
       letter-spacing: -0.02em;
     }
 
-    @media (max-width: 1120px) {
-      .register-flow .layout { grid-template-columns: 1fr; }
-      .register-flow .left-panel { position: static; }
+    .register-flow .continue-button,
+    .register-flow .plan-button,
+    .register-flow .register-footer-pill,
+    .register-flow .back-link,
+    .register-flow .billing-option,
+    .register-flow .lang-switch-btn {
+      touch-action: manipulation;
+    }
+
+    @media (max-width: 1024px) {
+      .register-flow {
+        padding-top: max(16px, env(safe-area-inset-top, 0px));
+        padding-right: max(0px, env(safe-area-inset-right, 0px));
+        padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+        padding-left: max(0px, env(safe-area-inset-left, 0px));
+      }
+
+      .register-flow .topbar {
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .content {
+        padding-left: max(0px, env(safe-area-inset-left, 0px));
+        padding-right: max(0px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .register-plan-page-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .register-flow .layout {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .register-flow .register-stepper-row {
+        display: none;
+      }
+
+      .register-flow .left-panel {
+        position: static;
+        scroll-margin-top: 20px;
+        width: 100%;
+        max-width: none;
+        box-sizing: border-box;
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .plan-preview-head-row {
+        width: 100%;
+        max-width: none;
+        box-sizing: border-box;
+      }
+
+      .register-flow .feature-list {
+        width: 100%;
+        max-width: none;
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .register-flow .feature-item {
+        width: 100%;
+        max-width: none;
+        box-sizing: border-box;
+      }
+
+      .register-flow .feature-item .meta {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .register-flow .plan-preview-heading {
+        display: none;
+      }
+    }
+
+    @media (max-width: 960px) {
+      .register-flow .plans-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 860px) {
-      .register-flow { padding: 16px; }
-      .register-flow .topbar, .register-flow .content { padding-left: 16px; padding-right: 16px; }
-      .register-flow .register-fixed-footer {
-        left: 16px;
-        right: 16px;
-        padding-left: 16px;
-        padding-right: 16px;
+      .register-flow {
+        padding-top: max(8px, env(safe-area-inset-top, 0px));
+        padding-right: env(safe-area-inset-right, 0px);
+        padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+        padding-left: env(safe-area-inset-left, 0px);
       }
-      .register-flow .register-stepper-row {
+
+      .register-flow .app {
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        border-radius: 0;
+        border: 0;
+        box-shadow: none;
+        background: transparent;
+        backdrop-filter: none;
+      }
+
+      .register-flow .topbar {
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .content {
+        padding-left: max(0px, env(safe-area-inset-left, 0px));
+        padding-right: max(0px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .layout {
+        gap: 0;
+      }
+
+      .register-flow .panel {
+        border-radius: 0;
+        border: 0;
+        border-top: 1px solid rgba(223, 232, 247, 0.75);
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .register-flow .right-panel {
+        padding: 18px 0 20px;
+        border-top: 0;
+      }
+
+      .register-flow .left-panel {
+        padding-top: 16px;
+        padding-bottom: 22px;
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .plan-preview-head-row {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .register-flow .slider-section {
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        background: rgba(255, 255, 255, 0.38);
+        border-color: rgba(223, 232, 247, 0.85);
+      }
+
+      .register-flow .plans-grid {
+        padding-left: max(0px, env(safe-area-inset-left, 0px));
+        padding-right: max(0px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .billing-toggle-wrap {
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
         flex-direction: column;
         align-items: stretch;
       }
-      .register-flow .register-stepper-row .recommendation {
+
+      .register-flow .billing-toggle {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .register-flow .billing-option {
+        flex: 1 1 0;
+        min-width: 0;
+        width: auto;
+      }
+
+      .register-flow .right-panel .custom-cta--inline {
+        display: none;
+      }
+
+      .register-flow .custom-cta--footer-toolbar {
+        display: block;
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+        margin-top: 0;
+        margin-bottom: 0;
+        flex-shrink: 0;
+      }
+
+      .register-flow .selected-box {
+        display: none;
+      }
+
+      .register-flow .feature-addons-section {
+        padding-left: max(0px, env(safe-area-inset-left, 0px));
+        padding-right: max(0px, env(safe-area-inset-right, 0px));
+      }
+
+      .register-flow .register-fixed-footer {
+        left: 0;
+        right: 0;
         max-width: none;
         margin-left: 0;
-        white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
+        margin-right: 0;
+        border-radius: 0;
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       }
-      .register-flow .plans-grid { grid-template-columns: 1fr; }
       .register-flow .plan-desc { min-height: auto; }
-    }
 
-    @media (max-width: 720px) {
+      .register-flow .register-footer-back {
+        display: none;
+      }
+
       .register-flow .register-footer-toolbar {
+        display: flex;
         flex-direction: column;
         align-items: stretch;
+        gap: 6px;
       }
+
       .register-flow .register-footer-center-cluster {
-        order: 2;
-        flex: 0 0 auto;
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: stretch;
         width: 100%;
+        gap: 0;
       }
+
       .register-flow .register-footer-toolbar-mid {
+        flex: 1 1 auto;
+        min-width: 0;
         justify-content: stretch;
       }
+
       .register-flow .register-footer-pill {
+        width: 100%;
         max-width: none;
-        width: 100%;
+        flex-wrap: nowrap;
+        box-sizing: border-box;
+        padding-left: 10px;
+        padding-right: 10px;
       }
+
+      .register-flow .register-footer-pill-icon {
+        margin-right: 0;
+      }
+
+      .register-flow .register-footer-pill-chevron {
+        margin-left: 2px;
+        padding-left: 2px;
+        padding-right: 0;
+        margin-right: 0;
+      }
+
+      .register-flow .register-footer-pill-total-inline {
+        margin-left: 6px;
+        padding-left: 10px;
+      }
+
       .register-flow .register-footer-continue {
-        order: 3;
         width: 100%;
-      }
-      .register-flow .register-footer-back {
-        order: 1;
       }
     }
 
     @media (max-width: 560px) {
-      .register-flow .register-footer-center-cluster {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      .register-flow .register-footer-total-block {
-        align-items: center;
-        text-align: center;
-      }
       .register-flow .content {
         padding-bottom: clamp(260px, 52vh, 420px);
       }
-      .register-flow .app, .register-flow .panel { border-radius: 24px; }
+      .register-flow .panel {
+        border-radius: 0;
+      }
       .register-flow .brand-logo { width: min(100%, 240px); max-height: 52px; }
       .register-flow .selected-box { flex-direction: column; align-items: flex-start; }
       .register-flow .selected-price-block { text-align: left; }
-      .register-flow .continue-button, .register-flow .plan-button, .register-flow .billing-option { width: 100%; }
+      .register-flow .continue-button,
+      .register-flow .plan-button {
+        width: 100%;
+      }
+
       .register-flow .billing-toggle {
         width: 100%;
+        max-width: 100%;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .register-flow .billing-option {
+        width: auto;
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .register-flow .topbar {
+        padding: 16px max(12px, env(safe-area-inset-right, 0px)) 16px max(12px, env(safe-area-inset-left, 0px));
+      }
+      .register-flow .content {
+        padding-top: 22px;
+        padding-bottom: clamp(200px, 42vh, 320px);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .register-flow h2 {
+        font-size: 1.28rem;
+        letter-spacing: -0.03em;
+      }
+      .register-flow .plan-name {
+        font-size: 1.32rem;
+      }
+      .register-flow .price {
+        font-size: 1.9rem;
+      }
+      .register-flow .right-panel {
+        padding: 16px 0 18px;
+      }
+
+      .register-flow .left-panel {
+        padding-top: 14px;
+        padding-bottom: 18px;
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+      }
+      .register-flow .step {
+        font-size: 0.8rem;
+        padding: 8px 10px;
+      }
+      .register-flow .stepper {
+        gap: 4px;
+        padding: 4px;
+      }
+      .register-flow .register-footer-pill-title {
+        font-size: 0.84rem;
+      }
+      .register-flow .register-footer-pill-sub {
+        font-size: 0.72rem;
+      }
+      .register-flow .register-footer-pill-total-inline {
+        margin-left: 6px;
+        padding-left: 8px;
+      }
+      .register-flow .register-footer-pill-total-inline .register-footer-total-value {
+        font-size: 0.98rem;
+      }
+      .register-flow .register-footer-pill-icon {
+        width: 34px;
+        height: 34px;
+      }
+      .register-flow .plan-card {
+        padding: 16px 14px 14px;
+        border-radius: 18px;
+      }
+      .register-flow .continue-button-scroll-hint-text {
+        font-size: 0.84rem;
+      }
+      .register-flow .continue-button {
+        font-size: 0.92rem;
+        padding: 14px 16px;
+      }
+      .register-flow .annual-save {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+      }
+      .register-flow .billing-toggle-wrap {
         flex-direction: column;
         align-items: stretch;
+        gap: 8px;
+      }
+      .register-flow .feature-item .desc {
+        font-size: 0.82rem;
+      }
+      .register-flow .slider-section {
+        padding: 14px;
         border-radius: 18px;
+      }
+      .register-flow .eyebrow {
+        font-size: 0.8rem;
+        padding: 6px 10px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .register-flow .step {
+        font-size: 0.72rem;
+        padding: 7px 8px;
+      }
+      .register-flow .continue-button-scroll-hint {
+        flex-direction: column;
+        gap: 4px;
+        min-height: auto;
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      .register-flow .plan-card:hover {
+        transform: none;
+        box-shadow: 0 10px 24px rgba(47, 109, 246, 0.06);
+      }
+      .register-flow .plan-card.active {
+        box-shadow: 0 14px 30px rgba(47, 109, 246, 0.14);
       }
     }
   
@@ -1228,6 +1644,18 @@ export const registerPageStyles = `
   transform: translateY(-1px);
 }
 
+@media (max-width: 860px) {
+  .register-flow .custom-cta.custom-cta--footer-toolbar {
+    margin-bottom: 0;
+  }
+}
+
+@media (min-width: 861px) {
+  .register-flow .custom-cta--footer-toolbar {
+    display: none;
+  }
+}
+
 .register-flow .register-contact-modal-root {
   position: fixed;
   inset: 0;
@@ -1235,7 +1663,7 @@ export const registerPageStyles = `
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   box-sizing: border-box;
 }
 
@@ -1260,6 +1688,150 @@ export const registerPageStyles = `
   border: 1px solid var(--border);
   background: #ffffff;
   box-shadow: 0 24px 64px rgba(42, 85, 165, 0.22);
+}
+
+.register-flow .register-addons-modal-root {
+  z-index: 230;
+}
+
+.register-flow .register-addons-modal-dialog {
+  width: min(100%, 520px);
+  max-height: min(92dvh, 720px);
+}
+
+.register-flow .register-addons-modal-dialog .slider-section,
+.register-flow .register-addons-page .slider-section {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 12px;
+}
+
+.register-flow .register-addons-modal-dialog .slider-stack,
+.register-flow .register-addons-page .slider-stack {
+  gap: 20px;
+}
+
+.register-flow .register-addons-modal-dialog .slider-card,
+.register-flow .register-addons-page .slider-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 12px;
+}
+
+.register-flow .register-addons-modal-dialog .slider-card .slider-price-note,
+.register-flow .register-addons-page .slider-card .slider-price-note {
+  padding-top: 6px;
+  border-top: 0;
+}
+
+.register-flow .register-addons-modal-dialog .slider-stack > .slider-card:first-child .slider-price-note,
+.register-flow .register-addons-page .slider-stack > .slider-card:first-child .slider-price-note {
+  justify-content: flex-end;
+}
+
+.register-flow .register-addons-page {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding-bottom: clamp(200px, 42vh, 360px);
+}
+
+.register-flow .register-feature-addons-end-sentinel {
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.register-flow .register-addons-page #register-feature-add-ons {
+  scroll-margin-top: 12px;
+}
+
+.register-flow .register-addons-page .feature-addons-list {
+  grid-template-columns: 1fr;
+}
+
+.register-flow .register-addons-page .feature-addon-card {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.register-flow .register-addons-page .feature-addon-card label {
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  width: 100%;
+}
+
+.register-flow .register-addons-page .feature-addon-card .addon-meta {
+  align-items: center;
+  text-align: center;
+}
+
+.register-flow .register-addons-page .feature-addon-card .addon-price {
+  margin: 0;
+}
+
+.register-flow .register-addons-page .feature-addon-card input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 2px solid #b8cce8;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:hover {
+  border-color: var(--blue);
+}
+
+.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+
+.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:checked {
+  background-color: var(--blue);
+  border-color: var(--blue);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.2 6.5 11.2 12.5 4.5'/%3E%3C/svg%3E");
+  background-size: 16px 16px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.register-flow .register-addons-back {
+  display: inline-flex;
+  margin: 0 0 18px;
+  font-weight: 800;
+}
+
+@media (max-width: 1024px) {
+  .register-flow .register-addons-back {
+    display: none;
+  }
 }
 
 .register-flow .register-contact-modal-title {
@@ -1520,6 +2092,70 @@ export const registerPageStyles = `
 @media (max-width: 860px) {
   .register-flow .feature-addons-list {
     grid-template-columns: 1fr;
+  }
+
+  .register-flow .feature-addon-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+  }
+
+  .register-flow .feature-addon-card label {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    flex: none;
+    width: 100%;
+  }
+
+  .register-flow .feature-addon-card .addon-meta {
+    align-items: center;
+    text-align: center;
+  }
+
+  .register-flow .feature-addon-card .addon-price {
+    margin: 0;
+  }
+
+  .register-flow .feature-addon-card input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border: 2px solid #b8cce8;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .register-flow .feature-addon-card input[type="checkbox"]:hover {
+    border-color: var(--blue);
+  }
+
+  .register-flow .feature-addon-card input[type="checkbox"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+  }
+
+  .register-flow .feature-addon-card input[type="checkbox"]:checked {
+    background-color: var(--blue);
+    border-color: var(--blue);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.2 6.5 11.2 12.5 4.5'/%3E%3C/svg%3E");
+    background-size: 16px 16px;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .register-flow .feature-addon-card input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 

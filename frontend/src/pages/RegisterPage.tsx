@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react'
 import { useNavigate } from 'react-router-dom'
 import loginLogo from '../assets/login-logo.png'
 import { useToast } from '../components/Toast'
@@ -37,7 +46,7 @@ type PlanConfig = {
   features: FeatureKey[]
 }
 
-const plans: Record<RegisterPlanKey, PlanConfig> = {
+export const plans: Record<RegisterPlanKey, PlanConfig> = {
   basic: {
     name: 'Basic',
     monthly: 9,
@@ -83,11 +92,139 @@ const addonCatalog: Record<AddonKey, { name: string; monthly: number; descriptio
   whitelabel: { name: 'Branded booking experience', monthly: 10, description: 'Custom colors, domain, and branded notifications.' },
 }
 
+type RegisterPlanAddonSectionsProps = {
+  selection: RegisterSelection
+  setSelection: Dispatch<SetStateAction<RegisterSelection>>
+  featureAddonsSectionRef?: RefObject<HTMLElement | null> | null
+  /** Bottom sentinel for scroll / “fully viewed” detection (e.g. add-ons page footer CTA). */
+  featureAddonsEndRef?: RefObject<HTMLDivElement | null> | null
+  /** Compact add-ons dialog: flatter layout and shorter user-tier copy. */
+  addonsModalPresentation?: boolean
+}
+
+export function RegisterPlanAddonSections({
+  selection,
+  setSelection,
+  featureAddonsSectionRef,
+  featureAddonsEndRef,
+  addonsModalPresentation = false,
+}: RegisterPlanAddonSectionsProps) {
+  return (
+    <>
+      <section className="slider-section" aria-label="Usage-based add-ons">
+        <div className="section-divider"><span>Usage-based add-ons</span></div>
+
+        <div className="slider-stack">
+          <div className="slider-card">
+            <div className="slider-head">
+              <div className="slider-meta">
+                <strong>Users</strong>
+                <span>Add extra team members on top of your selected plan allowance.</span>
+              </div>
+              <div className="slider-value">{selection.additionalUsers} {selection.additionalUsers === 1 ? 'user' : 'users'}</div>
+            </div>
+
+            <div className="slider-input-wrap">
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="1"
+                value={selection.additionalUsers}
+                onChange={(event) => setSelection((current) => ({ ...current, additionalUsers: Number(event.target.value) }))}
+              />
+              <div className="slider-scale">
+                <span>1</span>
+                <span>10 users</span>
+              </div>
+            </div>
+
+            <div className="slider-price-note">
+              {!addonsModalPresentation ? (
+                <span>First additional user free; then €9.90 / user / month</span>
+              ) : null}
+              <strong>{`${formatEuro(getBillableAdditionalUserSlots(selection) * 9.9)}/mo`}</strong>
+            </div>
+          </div>
+
+          <div className="slider-card">
+            <div className="slider-head">
+              <div className="slider-meta">
+                <strong>SMS messages</strong>
+                <span>Increase reminder volume in blocks of 100 SMS messages.</span>
+              </div>
+              <div className="slider-value">{selection.additionalSms} SMS</div>
+            </div>
+
+            <div className="slider-input-wrap">
+              <input
+                type="range"
+                min="0"
+                max="1000"
+                step="100"
+                value={selection.additionalSms}
+                onChange={(event) => setSelection((current) => ({ ...current, additionalSms: Number(event.target.value) }))}
+              />
+              <div className="slider-scale">
+                <span>0</span>
+                <span>1000 SMS</span>
+              </div>
+            </div>
+
+            <div className="slider-price-note">
+              <span>€0.05 per SMS (€5.00 per 100)</span>
+              <strong>{selection.additionalSms > 0 ? `${formatEuro(selection.additionalSms * 0.05)}/mo` : '€0/mo'}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        ref={featureAddonsSectionRef ?? undefined}
+        id="register-feature-add-ons"
+        className="feature-addons-section"
+        aria-label="Feature add-ons"
+      >
+        <div className="addons-divider"><span>Feature add-ons</span></div>
+
+        <div className="feature-addons-list">
+          {(['voice', 'billing', 'whitelabel'] as const).map((addonKey) => {
+            const addon = addonCatalog[addonKey]
+            return (
+              <div key={addonKey} className="feature-addon-card">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={selection.addons[addonKey]}
+                    onChange={(event) => setSelection((current) => ({
+                      ...current,
+                      addons: {
+                        ...current.addons,
+                        [addonKey]: event.target.checked,
+                      },
+                    }))}
+                  />
+                  <span className="addon-meta">
+                    <span className="addon-name">{addon.name}</span>
+                    <span className="addon-desc">{addon.description}</span>
+                  </span>
+                </label>
+                <span className="addon-price">+{formatEuro(addon.monthly)}/mo</span>
+              </div>
+            )
+          })}
+        </div>
+        <div ref={featureAddonsEndRef ?? undefined} className="register-feature-addons-end-sentinel" aria-hidden />
+      </section>
+    </>
+  )
+}
+
 function annualPrice(monthly: number) {
   return Number((monthly * 12 * 0.85).toFixed(2))
 }
 
-function formatEuro(value: number) {
+export function formatEuro(value: number) {
   const rounded = Math.round(value * 100) / 100
   return rounded % 1 === 0 ? `€${rounded.toFixed(0)}` : `€${rounded.toFixed(2)}`
 }
@@ -168,7 +305,7 @@ function getPlanCardPriceNote(planKey: RegisterPlanKey, billing: RegisterBilling
   }
 }
 
-function getSelectionMonthlyAmounts(selection: RegisterSelection) {
+export function getSelectionMonthlyAmounts(selection: RegisterSelection) {
   const selectedPlan = selection.plan
   const planMonthly = selectedPlan === 'basic' && selection.billing === 'monthly' ? 0 : plans[selectedPlan].monthly
   const usersMonthly = getBillableAdditionalUserSlots(selection) * 9.9
@@ -186,7 +323,7 @@ function getSelectionMonthlyAmounts(selection: RegisterSelection) {
   }
 }
 
-type RegisterSummary = {
+export type RegisterSummary = {
   rows: Array<{ label: string; value: string }>
   totalPrimary: string
   totalSecondary: string
@@ -194,7 +331,7 @@ type RegisterSummary = {
   annualSavingsYr?: number
 }
 
-function buildSummary(selection: RegisterSelection): RegisterSummary {
+export function buildSummary(selection: RegisterSelection): RegisterSummary {
   const monthly = getSelectionMonthlyAmounts(selection)
   const rows: Array<{ label: string; value: string }> = []
 
@@ -255,7 +392,7 @@ function buildSummary(selection: RegisterSelection): RegisterSummary {
   }
 }
 
-function RegisterFooterListIcon() {
+export function RegisterFooterListIcon() {
   return (
     <svg className="register-footer-pill-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
       <path d="M4 6h16M4 12h16M4 18h16" />
@@ -263,7 +400,7 @@ function RegisterFooterListIcon() {
   )
 }
 
-function RegisterFooterChevron({ up, className, size = 18 }: { up: boolean; className?: string; size?: number }) {
+export function RegisterFooterChevron({ up, className, size = 18 }: { up: boolean; className?: string; size?: number }) {
   return (
     <svg
       className={['register-footer-chevron-svg', className].filter(Boolean).join(' ')}
@@ -295,11 +432,28 @@ export function RegisterPage() {
   const [contactPhone, setContactPhone] = useState('')
   const [contactMessage, setContactMessage] = useState('')
   const [contactError, setContactError] = useState('')
+  const planPreviewPanelRef = useRef<HTMLElement | null>(null)
   const featureAddonsSectionRef = useRef<HTMLElement | null>(null)
   const continueUnlockTimerRef = useRef(0)
   const [planExtrasInView, setPlanExtrasInView] = useState(false)
+  const [isCompactLayout, setIsCompactLayout] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches,
+  )
 
   useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1024px)')
+    const sync = () => setIsCompactLayout(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  useEffect(() => {
+    if (isCompactLayout) {
+      setPlanExtrasInView(true)
+      return
+    }
+    setPlanExtrasInView(false)
     const el = featureAddonsSectionRef.current
     if (!el) return
     const observer = new IntersectionObserver(
@@ -312,7 +466,7 @@ export function RegisterPage() {
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [isCompactLayout])
 
   useEffect(
     () => () => {
@@ -322,13 +476,21 @@ export function RegisterPage() {
   )
 
   const revealPlanExtrasAndAllowContinue = useCallback(() => {
+    if (isCompactLayout) {
+      navigate(`/register/add-ons?${selectionToSearch(selection)}`)
+      return
+    }
     featureAddonsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     window.clearTimeout(continueUnlockTimerRef.current)
     continueUnlockTimerRef.current = window.setTimeout(() => {
       setPlanExtrasInView(true)
       continueUnlockTimerRef.current = 0
     }, 1100)
-  }, [])
+  }, [isCompactLayout, navigate, selection])
+
+  const continueToAccount = useCallback(() => {
+    navigate(`/register/account?${selectionToSearch(selection)}`)
+  }, [navigate, selection])
 
   const planDisplay = useMemo(() => getPlanDisplay(previewPlan, selection.billing), [previewPlan, selection.billing])
   const summary = useMemo(() => buildSummary(selection), [selection])
@@ -405,6 +567,11 @@ export function RegisterPage() {
   const setPlan = (plan: RegisterPlanKey) => {
     setSelection((current) => ({ ...current, plan }))
     setPreviewPlan(plan)
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches) {
+      window.requestAnimationFrame(() => {
+        planPreviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
   }
 
   const planForPreview = plans[previewPlan]
@@ -442,47 +609,16 @@ export function RegisterPage() {
 
         <main className="content">
           <h1 className="register-sr-only">Calendra — plan selection</h1>
-          <div className="register-stepper-row">
-            <div className="stepper" aria-label="Registration progress">
-              <div className="step active">1 Plan Selection</div>
-              <div className="step">2 Account Setup</div>
-              <div className="step">3 Billing Details</div>
-            </div>
-            <div className="recommendation">{planForPreview.recommendation}</div>
-          </div>
-
-          <section className="layout">
-            <aside className="panel left-panel">
-              <div className="eyebrow">Plan preview</div>
-              <h2>What’s included in this plan</h2>
-
-              <div className="selected-box">
-                <div>
-                  <strong>{planForPreview.name}</strong>
-                  <div className="selected-meta">{planForPreview.description}</div>
-                </div>
-                <div className="selected-price-block">
-                  <span className="selected-price">{planDisplay.primary}</span>
-                  <span className="selected-subprice">{planDisplay.secondary}</span>
-                </div>
+          <div className="register-plan-page-stack">
+            <section className="layout">
+            <div className="register-stepper-row">
+              <div className="stepper" aria-label="Registration progress">
+                <div className="step active">1 Plan Selection</div>
+                <div className="step">2 Account Setup</div>
+                <div className="step">3 Billing Details</div>
               </div>
-
-              <ul className="feature-list">
-                {featureItems.map((feature) => {
-                  const enabled = planForPreview.features.includes(feature.key)
-                  return (
-                    <li key={feature.key} className={enabled ? 'feature-item enabled' : 'feature-item'}>
-                      <span className="icon">{feature.index}</span>
-                      <span className="meta">
-                        <span className="name">{feature.name}</span>
-                        <span className="desc">{feature.description}</span>
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-
-            </aside>
+              <div className="recommendation">{planForPreview.recommendation}</div>
+            </div>
 
             <section className="panel right-panel">
               <div className="billing-toggle-wrap">
@@ -597,109 +733,55 @@ export function RegisterPage() {
                 })}
               </div>
 
-              <button type="button" className="custom-cta" onClick={openContactModal}>
+              <button type="button" className="custom-cta custom-cta--inline" onClick={openContactModal}>
                 Need a custom solution? Contact us
               </button>
 
-              <section className="slider-section" aria-label="Usage-based add-ons">
-                <div className="section-divider"><span>Usage-based add-ons</span></div>
-
-                <div className="slider-stack">
-                  <div className="slider-card">
-                    <div className="slider-head">
-                      <div className="slider-meta">
-                        <strong>Users</strong>
-                        <span>Add extra team members on top of your selected plan allowance.</span>
-                      </div>
-                      <div className="slider-value">{selection.additionalUsers} {selection.additionalUsers === 1 ? 'user' : 'users'}</div>
-                    </div>
-
-                    <div className="slider-input-wrap">
-                      <input
-                        type="range"
-                        min="1"
-                        max="10"
-                        step="1"
-                        value={selection.additionalUsers}
-                        onChange={(event) => setSelection((current) => ({ ...current, additionalUsers: Number(event.target.value) }))}
-                      />
-                      <div className="slider-scale">
-                        <span>1</span>
-                        <span>10 users</span>
-                      </div>
-                    </div>
-
-                    <div className="slider-price-note">
-                      <span>First additional user free; then €9.90 / user / month</span>
-                      <strong>{`${formatEuro(getBillableAdditionalUserSlots(selection) * 9.9)}/mo`}</strong>
-                    </div>
-                  </div>
-
-                  <div className="slider-card">
-                    <div className="slider-head">
-                      <div className="slider-meta">
-                        <strong>SMS messages</strong>
-                        <span>Increase reminder volume in blocks of 100 SMS messages.</span>
-                      </div>
-                      <div className="slider-value">{selection.additionalSms} SMS</div>
-                    </div>
-
-                    <div className="slider-input-wrap">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1000"
-                        step="100"
-                        value={selection.additionalSms}
-                        onChange={(event) => setSelection((current) => ({ ...current, additionalSms: Number(event.target.value) }))}
-                      />
-                      <div className="slider-scale">
-                        <span>0</span>
-                        <span>1000 SMS</span>
-                      </div>
-                    </div>
-
-                    <div className="slider-price-note">
-                      <span>€0.05 per SMS (€5.00 per 100)</span>
-                      <strong>{selection.additionalSms > 0 ? `${formatEuro(selection.additionalSms * 0.05)}/mo` : '€0/mo'}</strong>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section ref={featureAddonsSectionRef} className="feature-addons-section" aria-label="Feature add-ons">
-                <div className="addons-divider"><span>Feature add-ons</span></div>
-
-                <div className="feature-addons-list">
-                  {(['voice', 'billing', 'whitelabel'] as const).map((addonKey) => {
-                    const addon = addonCatalog[addonKey]
-                    return (
-                      <div key={addonKey} className="feature-addon-card">
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={selection.addons[addonKey]}
-                            onChange={(event) => setSelection((current) => ({
-                              ...current,
-                              addons: {
-                                ...current.addons,
-                                [addonKey]: event.target.checked,
-                              },
-                            }))}
-                          />
-                          <span className="addon-meta">
-                            <span className="addon-name">{addon.name}</span>
-                            <span className="addon-desc">{addon.description}</span>
-                          </span>
-                        </label>
-                        <span className="addon-price">+{formatEuro(addon.monthly)}/mo</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
+              {!isCompactLayout ? (
+                <RegisterPlanAddonSections
+                  selection={selection}
+                  setSelection={setSelection}
+                  featureAddonsSectionRef={featureAddonsSectionRef}
+                />
+              ) : null}
             </section>
-          </section>
+
+            <aside ref={planPreviewPanelRef} className="panel left-panel">
+              <div className="plan-preview-head-row">
+                <div className="eyebrow">Plan preview</div>
+                <span className="plan-preview-name">{planForPreview.name}</span>
+              </div>
+              <h2 className="plan-preview-heading">What’s included in this plan</h2>
+
+              <div className="selected-box">
+                <div>
+                  <strong>{planForPreview.name}</strong>
+                  <div className="selected-meta">{planForPreview.description}</div>
+                </div>
+                <div className="selected-price-block">
+                  <span className="selected-price">{planDisplay.primary}</span>
+                  <span className="selected-subprice">{planDisplay.secondary}</span>
+                </div>
+              </div>
+
+              <ul className="feature-list">
+                {featureItems.map((feature) => {
+                  const enabled = planForPreview.features.includes(feature.key)
+                  return (
+                    <li key={feature.key} className={enabled ? 'feature-item enabled' : 'feature-item'}>
+                      <span className="icon">{feature.index}</span>
+                      <span className="meta">
+                        <span className="name">{feature.name}</span>
+                        <span className="desc">{feature.description}</span>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </aside>
+
+            </section>
+          </div>
         </main>
       </div>
 
@@ -709,6 +791,10 @@ export function RegisterPage() {
             <div className="register-footer-back">
               <button className="back-link" type="button" onClick={() => window.location.assign(websiteUrl)}>← Back to website</button>
             </div>
+
+            <button type="button" className="custom-cta custom-cta--footer-toolbar" onClick={openContactModal}>
+              Need a custom solution? Contact us
+            </button>
 
             <div className="register-footer-center-cluster">
               <div className="register-footer-toolbar-mid">
@@ -727,15 +813,14 @@ export function RegisterPage() {
                     <strong className="register-footer-pill-title">{footerPill.title}</strong>
                     <span className="register-footer-pill-sub">{footerPill.sub}</span>
                   </span>
+                  <span className="register-footer-pill-total-inline">
+                    <span className="register-footer-total-label">Est. total</span>
+                    <strong className="register-footer-total-value">{summary.totalPrimary}</strong>
+                  </span>
                   <span className="register-footer-pill-chevron" aria-hidden>
                     <RegisterFooterChevron up={footerExpanded} />
                   </span>
                 </button>
-              </div>
-
-              <div className="register-footer-total-block">
-                <span className="register-footer-total-label">Est. total</span>
-                <strong className="register-footer-total-value">{summary.totalPrimary}</strong>
               </div>
             </div>
 
@@ -744,11 +829,19 @@ export function RegisterPage() {
                 <button
                   className="continue-button"
                   type="button"
-                  onClick={() => navigate(`/register/account?${selectionToSearch(selection)}`)}
+                  onClick={() => {
+                    if (isCompactLayout) {
+                      navigate(`/register/add-ons?${selectionToSearch(selection)}`)
+                      return
+                    }
+                    continueToAccount()
+                  }}
                 >
-                  {selection.plan === 'basic' && selection.billing === 'monthly'
-                    ? 'Continue to account creation'
-                    : 'Continue with selected plan'}
+                  {isCompactLayout
+                    ? 'Continue to add-ons selection'
+                    : selection.plan === 'basic' && selection.billing === 'monthly'
+                      ? 'Continue to account creation'
+                      : 'Continue with selected plan'}
                 </button>
               ) : (
                 <button
