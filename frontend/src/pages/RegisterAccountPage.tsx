@@ -20,9 +20,7 @@ import {
 
 const registerAccountPageStyles = `
   .register-flow.register-account-page .content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     min-height: calc(100vh - 220px);
     padding-top: 36px;
     padding-bottom: 164px;
@@ -30,14 +28,13 @@ const registerAccountPageStyles = `
 
   .register-flow.register-account-page .register-account-main {
     width: 100%;
-    display: flex;
-    justify-content: center;
+    display: block;
   }
 
   .register-flow.register-account-page .register-account-page-stack {
     width: 100%;
     max-width: 760px;
-    margin: 0 auto;
+    margin: 0;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -464,7 +461,6 @@ const registerAccountPageStyles = `
 
   @media (max-width: 560px) {
     .register-flow.register-account-page .content {
-      align-items: flex-start;
       padding-bottom: 150px;
     }
 
