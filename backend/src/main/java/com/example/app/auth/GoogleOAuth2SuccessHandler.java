@@ -208,7 +208,7 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             rs = "?" + rs;
         }
         String sep = rs.contains("?") ? "&" : "?";
-        return base + rs + sep + "verifyEmail=1&email=" + URLEncoder.encode(verifyEmail, StandardCharsets.UTF_8);
+        return base + rs + sep + "verifyEmail=1&pendingAccountCreation=1&email=" + URLEncoder.encode(verifyEmail, StandardCharsets.UTF_8);
     }
 
     private String buildRegisterAccountFinishVerifyUrl(String returnSearch, String verifyEmail) {

@@ -46,6 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SignupService {
     private static final Logger log = LoggerFactory.getLogger(SignupService.class);
+    /** When present in {@link SignupEmailIntent} JSON, completing the intent only sets the owner's password (tenant already provisioned). */
+    private static final String POST_PROVISION_OWNER_USER_ID = "postProvisionOwnerUserId";
     private static final long INTENT_TTL_SECONDS = 60L * 15L;
     private static final int INTENT_TOKEN_BYTES = 32;
 
@@ -54,7 +56,6 @@ public class SignupService {
     private final CompanyProvisioningService companyProvisioningService;
     private final AppSettingRepository settings;
     private final TransactionServiceRepository txServices;
-    private final PasswordResetService passwordResetService;
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
     private final SignupEmailIntentRepository signupEmailIntents;
@@ -71,7 +72,6 @@ public class SignupService {
             CompanyProvisioningService companyProvisioningService,
             AppSettingRepository settings,
             TransactionServiceRepository txServices,
-            PasswordResetService passwordResetService,
             SecurityCenterService securityCenterService,
             AuthCookieService authCookieService,
             SignupEmailIntentRepository signupEmailIntents,
@@ -87,7 +87,6 @@ public class SignupService {
         this.companyProvisioningService = companyProvisioningService;
         this.settings = settings;
         this.txServices = txServices;
-        this.passwordResetService = passwordResetService;
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
         this.signupEmailIntents = signupEmailIntents;
@@ -237,7 +236,12 @@ public class SignupService {
         if (normalizedEmail == null || normalizedEmail.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Email is required."));
         }
-        if (!users.findAllByEmailIgnoreCase(normalizedEmail).isEmpty()) {
+        List<User> existingUsers = users.findAllByEmailIgnoreCase(normalizedEmail);
+        if (!existingUsers.isEmpty()) {
+            User u = existingUsers.get(0);
+            if (isOwnerAwaitingPasswordSetup(u)) {
+                return resendPostProvisionSignupIntent(normalizedEmail, u);
+            }
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "An account already exists for this email."));
         }
         List<SignupEmailIntent> all = signupEmailIntents.findAllByEmailIgnoreCaseOrderByCreatedAtDesc(normalizedEmail);
@@ -295,6 +299,21 @@ public class SignupService {
                     "email", email
             ));
         }
+        Map<String, Object> payloadMap;
+        try {
+            payloadMap = objectMapper.readValue(row.getPayloadJson(), new TypeReference<>() {
+            });
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "message", "This verification link is no longer valid.",
+                    "invalidVerificationLink", true
+            ));
+        }
+        Long postProvisionOwnerId = longVal(payloadMap.get(POST_PROVISION_OWNER_USER_ID));
+        if (postProvisionOwnerId != null) {
+            return completePostProvisionEmailIntent(row, postProvisionOwnerId, password, httpRequest, httpResponse);
+        }
+
         AuthController.SignupRequest request;
         try {
             request = parseSignupRequestFromIntentJson(row.getPayloadJson());
@@ -397,11 +416,17 @@ public class SignupService {
 
         if (!passwordProvided) {
             seedSetting(company, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING, "true");
-            passwordResetService.requestReset(normalizedEmail);
+            try {
+                createPostProvisionEmailIntent(request, normalizedEmail, owner.getId());
+            } catch (java.io.IOException e) {
+                log.warn("Failed to create post-provision signup intent for {}: {}", normalizedEmail, e.getMessage());
+                throw new IllegalStateException("Could not create email verification intent", e);
+            }
             return ResponseEntity.ok(Map.of(
-                    "message", "Signup created. A password setup email has been sent.",
+                    "message", "We sent a link to confirm your email and finish setting up your account.",
                     "requiresPasswordSetup", true,
                     "requiresEmailVerification", true,
+                    "pendingAccountCreation", true,
                     "email", normalizedEmail
             ));
         }
@@ -415,6 +440,156 @@ public class SignupService {
         for (SignupEmailIntent i : signupEmailIntents.findAllByEmailIgnoreCaseAndActiveTrue(normalizedEmail)) {
             i.setActive(false);
             signupEmailIntents.save(i);
+        }
+    }
+
+    private ResponseEntity<?> completePostProvisionEmailIntent(
+            SignupEmailIntent row,
+            long ownerUserId,
+            String password,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
+    ) {
+        String rowEmail = row.getEmail() == null ? "" : row.getEmail().trim().toLowerCase();
+        User owner = users.findById(ownerUserId).orElse(null);
+        if (owner == null || owner.getEmail() == null || !owner.getEmail().trim().equalsIgnoreCase(rowEmail)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "message", "This verification link is no longer valid.",
+                    "invalidVerificationLink", true,
+                    "email", rowEmail
+            ));
+        }
+        if (!isOwnerAwaitingPasswordSetup(owner)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "message", "This verification link is no longer valid.",
+                    "invalidVerificationLink", true,
+                    "email", rowEmail
+            ));
+        }
+        row.setActive(false);
+        signupEmailIntents.save(row);
+        deactivateSignupIntentsForEmail(rowEmail);
+        owner.setPasswordHash(passwordEncoder.encode(password));
+        users.save(owner);
+        clearSignupOwnerPasswordPending(owner);
+        String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Email verified sign-in").token();
+        authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
+        return ResponseEntity.ok(authSuccessResponse(owner, sessionToken, httpRequest));
+    }
+
+    private void createPostProvisionEmailIntent(AuthController.SignupRequest request, String normalizedEmail, long ownerUserId) throws java.io.IOException {
+        String token = generateIntentToken();
+        Map<String, Object> payload = intentPayloadMap(request, normalizedEmail);
+        payload.put(POST_PROVISION_OWNER_USER_ID, ownerUserId);
+        String json = objectMapper.writeValueAsString(payload);
+        SignupEmailIntent intentRow = new SignupEmailIntent();
+        intentRow.setToken(token);
+        intentRow.setEmail(normalizedEmail);
+        intentRow.setPayloadJson(json);
+        intentRow.setExpiresAt(Instant.now().plusSeconds(INTENT_TTL_SECONDS));
+        intentRow.setActive(true);
+        signupEmailIntents.save(intentRow);
+        sendSignupConfirmationEmail(normalizedEmail, token);
+    }
+
+    private void clearSignupOwnerPasswordPending(User user) {
+        Long companyId = user.getCompany().getId();
+        settings.findByCompanyIdAndKey(companyId, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING).ifPresent(s -> {
+            s.setValue("false");
+            settings.save(s);
+        });
+    }
+
+    private ResponseEntity<?> resendPostProvisionSignupIntent(String normalizedEmail, User owner) {
+        AuthController.SignupRequest request;
+        try {
+            List<SignupEmailIntent> all = signupEmailIntents.findAllByEmailIgnoreCaseOrderByCreatedAtDesc(normalizedEmail);
+            if (!all.isEmpty()) {
+                Map<String, Object> map = objectMapper.readValue(all.get(0).getPayloadJson(), new TypeReference<>() {
+                });
+                Long oid = longVal(map.get(POST_PROVISION_OWNER_USER_ID));
+                if (oid != null && oid.equals(owner.getId())) {
+                    request = parseSignupRequestFromIntentJson(all.get(0).getPayloadJson());
+                } else {
+                    request = rebuildSignupRequestFromProvisionedOwner(owner, normalizedEmail);
+                }
+            } else {
+                request = rebuildSignupRequestFromProvisionedOwner(owner, normalizedEmail);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse stored intent for resend: {}", e.getMessage());
+            request = rebuildSignupRequestFromProvisionedOwner(owner, normalizedEmail);
+        }
+        deactivateSignupIntentsForEmail(normalizedEmail);
+        try {
+            createPostProvisionEmailIntent(request, normalizedEmail, owner.getId());
+        } catch (Exception e) {
+            log.warn("Failed to resend post-provision signup email: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Could not resend signup email."));
+        }
+        return ResponseEntity.ok(Map.of(
+                "message", "We sent a link to confirm your email and create your account."
+        ));
+    }
+
+    private AuthController.SignupRequest rebuildSignupRequestFromProvisionedOwner(User owner, String normalizedEmail) {
+        Company c = owner.getCompany();
+        Long cid = c.getId();
+        String companyName = settings.findByCompanyIdAndKey(cid, SettingKey.COMPANY_NAME).map(AppSetting::getValue).orElse("");
+        if (companyName.isBlank()) {
+            String tc = c.getTenantCode();
+            companyName = tc != null && !tc.isBlank() ? tc : "Workspace";
+        }
+        String pkg = settings.findByCompanyIdAndKey(cid, SettingKey.SIGNUP_PACKAGE_NAME).map(AppSetting::getValue).orElse("PROFESSIONAL");
+        Integer userCount = Math.max(1, parsePositiveIntSetting(cid, SettingKey.SIGNUP_USER_COUNT, 1));
+        Integer smsCount = parsePositiveIntSetting(cid, SettingKey.SIGNUP_SMS_COUNT, 0);
+        Integer spaceCount = Math.max(1, parsePositiveIntSetting(cid, SettingKey.TENANCY_SPACE_QUOTA, 5));
+        String interval = settings.findByCompanyIdAndKey(cid, SettingKey.BILLING_SUBSCRIPTION_INTERVAL).map(AppSetting::getValue).orElse("MONTHLY");
+        Boolean fiscal = settings.findByCompanyIdAndKey(cid, SettingKey.SIGNUP_FISCALIZATION_REQUIRED)
+                .map(s -> "true".equalsIgnoreCase(s.getValue()))
+                .orElse(false);
+        return new AuthController.SignupRequest(
+                companyName,
+                owner.getFirstName(),
+                owner.getLastName(),
+                normalizedEmail,
+                owner.getPhone(),
+                null,
+                pkg,
+                userCount,
+                smsCount,
+                spaceCount,
+                interval,
+                fiscal,
+                null
+        );
+    }
+
+    private Integer parsePositiveIntSetting(Long companyId, SettingKey key, int defaultVal) {
+        return settings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(v -> {
+                    try {
+                        int n = Integer.parseInt(v.trim());
+                        return Math.max(0, n);
+                    } catch (NumberFormatException e) {
+                        return defaultVal;
+                    }
+                })
+                .orElse(defaultVal);
+    }
+
+    private static Long longVal(Object o) {
+        if (o == null) {
+            return null;
+        }
+        if (o instanceof Number n) {
+            return n.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(o));
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 
