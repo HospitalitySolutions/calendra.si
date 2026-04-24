@@ -13,27 +13,37 @@ type BillForm = {
   paymentMethodId?: number
   billingTarget: 'PERSON' | 'COMPANY'
   recipientCompanyId?: number
+  billType: BillDocumentType
   items: { transactionServiceId: number; quantity: number; netPrice: string }[]
 }
 
 type OpenBillEditItem = {
+  /** Server row id; keeps distinct persisted lines from being merged in the editor. */
+  openBillItemId?: number
   transactionServiceId: number
   quantity: number
   netPrice: string
   sourceSessionBookingId?: number | null
+  sourceAdvanceBillId?: number | null
 }
 
 
 /** Lines that share service + net unit price + session are combined; quantities add (same gross per unit). */
 function openBillLineMergeKey(item: {
+  openBillItemId?: number
   transactionServiceId: number
   netPrice: string
   sourceSessionBookingId?: number | null
+  sourceAdvanceBillId?: number | null
 }) {
+  if (item.openBillItemId != null && item.openBillItemId > 0) {
+    return `id:${item.openBillItemId}`
+  }
   const sid = item.sourceSessionBookingId == null ? '' : String(item.sourceSessionBookingId)
+  const aid = item.sourceAdvanceBillId == null ? '' : String(item.sourceAdvanceBillId)
   const net = Number(item.netPrice || 0)
   const netKey = Number.isFinite(net) ? net.toFixed(4) : '0'
-  return `${item.transactionServiceId}|${netKey}|${sid}`
+  return `${item.transactionServiceId}|${netKey}|${sid}|${aid}`
 }
 
 function mergeDuplicateOpenBillLines(items: OpenBillEditItem[]): OpenBillEditItem[] {
@@ -45,10 +55,12 @@ function mergeDuplicateOpenBillLines(items: OpenBillEditItem[]): OpenBillEditIte
     const cur = byKey.get(key)
     if (!cur) {
       byKey.set(key, {
+        openBillItemId: item.openBillItemId,
         transactionServiceId: item.transactionServiceId,
         quantity: item.quantity,
         netPrice: String(item.netPrice),
         sourceSessionBookingId: item.sourceSessionBookingId ?? null,
+        sourceAdvanceBillId: item.sourceAdvanceBillId ?? null,
       })
       order.push(key)
     } else {
@@ -103,6 +115,16 @@ function slovenianRacunCountForm(count: number): string {
   return 'računov'
 }
 type BillDocumentType = 'INVOICE' | 'ADVANCE'
+type UnusedAdvance = {
+  advanceBillId: number
+  billNumber: string
+  sessionId?: number | null
+  client?: { firstName?: string; lastName?: string } | null
+  issueDate: string
+  totalNet: number
+  usedNet: number
+  remainingNet: number
+}
 
 /** API `billType`; missing values default to invoice. */
 function normalizeBillType(bill: Bill): BillDocumentType {
@@ -209,6 +231,25 @@ export function BillingPage() {
     createBillAria: 'Ustvari račun',
     creatingBill: 'Ustvarjanje računa',
     paymentPickerAria: 'Izberi način plačila',
+    billTypeLabel: 'Tip',
+    billTypeInvoice: 'Račun',
+    billTypeAdvance: 'Predplačilo',
+    tabUnusedAdvances: 'Neizkoriščena predplačila',
+    unusedAdvancesEmpty: 'Ni neizkoriščenih predplačil.',
+    applyToOpenBill: 'Dodaj na odprti račun',
+    selectOpenBillSession: 'Seja odprtega računa',
+    selectAdvance: 'Predplačilo',
+    amountToApply: 'Znesek za porabo',
+    applyAdvance: 'Uporabi predplačilo',
+    applyingAdvance: 'Uporabljam…',
+    remaining: 'Preostanek',
+    used: 'Porabljeno',
+    requiredAdvanceSelection: 'Najprej izberite predplačilo.',
+    requiredOpenBillSessionSelection: 'Najprej izberite sejo odprtega računa.',
+    requiredApplyAmount: 'Vnesite znesek za porabo.',
+    advanceAppliedSuccess: 'Predplačilo je uspešno dodano na odprti račun.',
+    openBillNeedsLinesForCreate: 'Dodajte vsaj eno postavko za odprti račun.',
+    openBillNeedsConsultantPayment: 'Izberite zaposlenega in način plačila.',
   } : {
     newCompanyTitle: 'New company',
     newCompanySubtitle: 'Required: company name.',
@@ -271,17 +312,37 @@ export function BillingPage() {
     createBillAria: 'Create bill',
     creatingBill: 'Creating bill',
     paymentPickerAria: 'Select payment method',
+    billTypeLabel: 'Type',
+    billTypeInvoice: 'Invoice',
+    billTypeAdvance: 'Advance',
+    tabUnusedAdvances: 'Unused advances',
+    unusedAdvancesEmpty: 'No unused advances.',
+    applyToOpenBill: 'Add to open bill',
+    selectOpenBillSession: 'Open bill session',
+    selectAdvance: 'Advance',
+    amountToApply: 'Amount to apply',
+    applyAdvance: 'Apply advance',
+    applyingAdvance: 'Applying…',
+    remaining: 'Remaining',
+    used: 'Used',
+    requiredAdvanceSelection: 'Select an advance first.',
+    requiredOpenBillSessionSelection: 'Select an open-bill session first.',
+    requiredApplyAmount: 'Enter amount to apply.',
+    advanceAppliedSuccess: 'Advance has been applied to the open bill.',
+    openBillNeedsLinesForCreate: 'Add at least one line item for the open bill.',
+    openBillNeedsConsultantPayment: 'Select an employee and payment method.',
   }
   const openBillsSortOptions = useMemo(() => getOpenBillsSortOptions(locale), [locale])
   const historySortOptions = useMemo(() => getHistorySortOptions(locale), [locale])
   const [services, setServices] = useState<BillingService[]>([])
   const [bills, setBills] = useState<Bill[]>([])
   const [openBills, setOpenBills] = useState<OpenBill[]>([])
+  const [unusedAdvances, setUnusedAdvances] = useState<UnusedAdvance[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [users, setUsers] = useState<User[]>([])
-  const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON' })
+  const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON', billType: 'INVOICE' })
   const [showCreateBillModal, setShowCreateBillModal] = useState(false)
   const [creatingBill, setCreatingBill] = useState(false)
   const [creatingFromOpenId, setCreatingFromOpenId] = useState<number | null>(null)
@@ -293,7 +354,11 @@ export function BillingPage() {
   const [historyIssuedDate, setHistoryIssuedDate] = useState('')
   const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'paid' | 'payment_pending' | 'open' | 'cancelled'>('all')
   const [historyBillTypeFilter, setHistoryBillTypeFilter] = useState<'all' | BillDocumentType>('all')
-  const [billingTab, setBillingTab] = useState<'open' | 'history'>('open')
+  const [billingTab, setBillingTab] = useState<'open' | 'unusedAdvances' | 'history'>('open')
+  const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
+  const [selectedApplyTarget, setSelectedApplyTarget] = useState<{ openBillId: number; sessionId: number } | null>(null)
+  const [applyAmountNet, setApplyAmountNet] = useState('')
+  const [applyingAdvance, setApplyingAdvance] = useState(false)
   const [newCompanyName, setNewCompanyName] = useState('')
   const [newCompanyEmail, setNewCompanyEmail] = useState('')
   const [newCompanyTelephone, setNewCompanyTelephone] = useState('')
@@ -330,10 +395,11 @@ export function BillingPage() {
   )
 
   const load = async () => {
-    const [servicesRes, billsRes, openBillsRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
+    const [servicesRes, billsRes, openBillsRes, unusedAdvancesRes, clientsRes, companiesRes, usersRes, paymentMethodsRes] = await Promise.all([
       api.get('/billing/services'),
       api.get('/billing/bills'),
       api.get('/billing/open-bills'),
+      api.get('/billing/unused-advances').catch(() => ({ data: [] })),
       api.get('/clients'),
       api.get('/companies'),
       me.role === 'ADMIN' ? api.get('/users') : Promise.resolve({ data: [] }),
@@ -342,6 +408,7 @@ export function BillingPage() {
     setServices(servicesRes.data)
     setBills((billsRes.data || []).map((b: Bill) => ({ ...b, paymentMethod: normalizePaymentMethod(b.paymentMethod) })))
     setOpenBills((openBillsRes.data || []).map((ob: OpenBill) => ({ ...ob, paymentMethod: normalizePaymentMethod(ob.paymentMethod) })))
+    setUnusedAdvances(unusedAdvancesRes.data || [])
     setClients(clientsRes.data)
     setCompanies(companiesRes.data || [])
     setUsers(usersRes.data)
@@ -355,9 +422,27 @@ export function BillingPage() {
     const interval = window.setInterval(() => { void load() }, 30000)
     return () => window.clearInterval(interval)
   }, [])
+  /** Keep the side panel in sync when open bills reload (e.g. apply advance, polling) unless there are unsaved line edits. */
+  useEffect(() => {
+    setDetailOpenBill((prev) => {
+      if (!prev) return prev
+      if (Object.prototype.hasOwnProperty.call(openBillEdits, prev.id)) return prev
+      const fresh = openBills.find((o) => o.id === prev.id)
+      if (!fresh) return prev
+      const prevSig = prev.items.map((i) => i.id).join()
+      const freshSig = fresh.items.map((i) => i.id).join()
+      if (prevSig === freshSig) return prev
+      return normalizeOpenBill(fresh)
+    })
+  }, [openBills, openBillEdits])
   useEffect(() => {
     setExpandedBatchSessionId(null)
   }, [detailOpenBill?.id])
+  useEffect(() => {
+    const selected = unusedAdvances.find((entry) => entry.advanceBillId === selectedUnusedAdvanceId)
+    if (!selected) return
+    setApplyAmountNet(String(selected.remainingNet ?? ''))
+  }, [selectedUnusedAdvanceId, unusedAdvances])
 
   const normalizeOpenBill = (ob: OpenBill): OpenBill => ({ ...ob, paymentMethod: normalizePaymentMethod(ob.paymentMethod) })
 
@@ -460,10 +545,12 @@ export function BillingPage() {
     const raw =
       openBillEdits[ob.id]
       ?? ob.items.map((i) => ({
+        openBillItemId: i.id,
         transactionServiceId: i.transactionService.id,
         quantity: i.quantity,
         netPrice: String(i.netPrice),
         sourceSessionBookingId: i.sourceSessionBookingId ?? null,
+        sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
       }))
     return mergeDuplicateOpenBillLines(raw)
   }
@@ -571,7 +658,7 @@ export function BillingPage() {
         a.remove()
         window.URL.revokeObjectURL(url)
       }
-      setBillForm({ items: [], billingTarget: 'PERSON' })
+      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE' })
       setShowCreateBillModal(false)
       if (data?.id && (data?.paymentMethod?.paymentType === 'BANK_TRANSFER' || data?.paymentMethod?.stripeEnabled)) {
         await api.post(`/billing/bills/${data.id}/checkout-session`)
@@ -584,13 +671,13 @@ export function BillingPage() {
   }
 
   const openCreateBillModal = () => {
-    setBillForm({ items: [], paymentMethodId: paymentMethods[0]?.id, billingTarget: 'PERSON' })
+    setBillForm({ items: [], paymentMethodId: paymentMethods[0]?.id, billingTarget: 'PERSON', billType: 'INVOICE' })
     setShowCreateBillModal(true)
   }
 
   const closeCreateBillModal = () => {
     setShowCreateBillModal(false)
-    setBillForm({ items: [], billingTarget: 'PERSON' })
+    setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE' })
     setRecipientCompanySearch('')
     setRecipientCompanyPickerOpen(false)
     setEditingRecipientCompanySearch(false)
@@ -602,6 +689,21 @@ export function BillingPage() {
     () => companies.find((company) => company.id === billForm.recipientCompanyId),
     [companies, billForm.recipientCompanyId],
   )
+  /** Company invoices: only clients with billingCompany matching the selected recipient (ClientCompany). */
+  const clientsLinkedToInvoiceCompany = useMemo(() => {
+    if (billForm.billingTarget !== 'COMPANY' || billForm.recipientCompanyId == null) return []
+    return clients.filter((c) => c.billingCompany?.id === billForm.recipientCompanyId)
+  }, [billForm.billingTarget, billForm.recipientCompanyId, clients])
+
+  useEffect(() => {
+    if (billForm.billingTarget !== 'COMPANY' || billForm.recipientCompanyId == null) return
+    if (billForm.clientId == null) return
+    const stillLinked = clients.some(
+      (c) => c.id === billForm.clientId && c.billingCompany?.id === billForm.recipientCompanyId,
+    )
+    if (!stillLinked) setBillForm((prev) => ({ ...prev, clientId: undefined }))
+  }, [billForm.billingTarget, billForm.recipientCompanyId, billForm.clientId, clients])
+
   const visibleRecipientCompanies = useMemo(() => {
     const q = recipientCompanySearch.trim().toLowerCase()
     if (!q) return companies
@@ -611,6 +713,28 @@ export function BillingPage() {
       || (company.telephone || '').toLowerCase().includes(q),
     )
   }, [companies, recipientCompanySearch])
+  const selectedUnusedAdvance = useMemo(
+    () => unusedAdvances.find((entry) => entry.advanceBillId === selectedUnusedAdvanceId) || null,
+    [unusedAdvances, selectedUnusedAdvanceId],
+  )
+  const openBillSessionTargets = useMemo(
+    () =>
+      openBills.flatMap((ob) => {
+        const source = (ob.sessions && ob.sessions.length > 0)
+          ? ob.sessions.map((s) => ({ sessionId: s.sessionId, sessionDisplayId: s.sessionDisplayId || `#${s.sessionId}` }))
+          : (ob.sessionId ? [{ sessionId: ob.sessionId, sessionDisplayId: ob.sessionDisplayId || `#${ob.sessionId}` }] : [])
+        // Backend uses negative synthetic ids for manual open-bill slots (#M1 → -1).
+        return source
+          .filter((entry) => Number.isFinite(entry.sessionId) && entry.sessionId !== 0)
+          .map((entry) => ({
+            key: `${ob.id}:${entry.sessionId}`,
+            openBillId: ob.id,
+            sessionId: entry.sessionId,
+            label: `${entry.sessionDisplayId} · ${openBillClientLabel(ob)}`,
+          }))
+      }),
+    [openBills],
+  )
   const billCanSubmit = billForm.consultantId && billForm.paymentMethodId && billForm.items.length > 0
     && (billForm.billingTarget === 'PERSON' ? Boolean(billForm.clientId) : Boolean(billForm.recipientCompanyId))
 
@@ -634,6 +758,50 @@ export function BillingPage() {
       setShowAddCompanyModal(false)
     } finally {
       setCreatingCompany(false)
+    }
+  }
+
+  const applyUnusedAdvance = async () => {
+    if (applyingAdvance) return
+    if (!selectedUnusedAdvanceId) {
+      showToast('error', billingCopy.requiredAdvanceSelection)
+      return
+    }
+    if (!selectedApplyTarget) {
+      showToast('error', billingCopy.requiredOpenBillSessionSelection)
+      return
+    }
+    const numericAmount = Number(applyAmountNet)
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      showToast('error', billingCopy.requiredApplyAmount)
+      return
+    }
+    setApplyingAdvance(true)
+    try {
+      const appliedOpenBillId = selectedApplyTarget.openBillId
+      await api.post('/billing/unused-advances/apply', {
+        advanceBillId: selectedUnusedAdvanceId,
+        openBillId: appliedOpenBillId,
+        sessionId: selectedApplyTarget.sessionId,
+        applyAmountNet: numericAmount,
+      })
+      showToast('success', billingCopy.advanceAppliedSuccess)
+      setApplyAmountNet('')
+      // Drop stale line drafts so Save / Create bill cannot PUT a subset and wipe server lines.
+      setOpenBillEdits((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, appliedOpenBillId)) return prev
+        const next = { ...prev }
+        delete next[appliedOpenBillId]
+        return next
+      })
+      const snapshot = await load()
+      setDetailOpenBill((prev) => {
+        if (!prev || prev.id !== appliedOpenBillId) return prev
+        const raw = snapshot.openBills.find((o: OpenBill) => o.id === appliedOpenBillId)
+        return raw ? normalizeOpenBill(raw) : prev
+      })
+    } finally {
+      setApplyingAdvance(false)
     }
   }
 
@@ -663,6 +831,7 @@ export function BillingPage() {
         quantity: i.quantity,
         netPrice: Number(i.netPrice),
         sourceSessionBookingId: i.sourceSessionBookingId ?? null,
+        sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
       })),
     })
 
@@ -685,6 +854,7 @@ export function BillingPage() {
         quantity: row.quantity,
         netPrice: Number(row.netPrice || 0),
         sourceSessionBookingId: row.sourceSessionBookingId ?? null,
+        sourceAdvanceBillId: row.sourceAdvanceBillId ?? null,
       }
     })
     setOpenBills((prev) => prev.map((entry) => (entry.id === ob.id ? { ...entry, items: mergedItems } : entry)))
@@ -722,6 +892,7 @@ export function BillingPage() {
           quantity: i.quantity,
           netPrice: Number(i.netPrice),
           sourceSessionBookingId: i.sourceSessionBookingId ?? null,
+          sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
         })),
       })
       const { data } = await api.post(`/billing/open-bills/${ob.id}/create-bill`)
@@ -768,9 +939,10 @@ export function BillingPage() {
 
   const createManualOpenBillFromCreateBillForm = async () => {
     if (creatingManualOpenBill) return
-    const payload = billForm.billingTarget === 'COMPANY'
-      ? { recipientCompanyId: billForm.recipientCompanyId }
-      : { clientId: billForm.clientId }
+    const payload: Record<string, unknown> =
+      billForm.billingTarget === 'COMPANY'
+        ? { recipientCompanyId: billForm.recipientCompanyId }
+        : { clientId: billForm.clientId }
     if (billForm.billingTarget === 'COMPANY' && !payload.recipientCompanyId) {
       showToast('error', 'Select recipient company first.')
       return
@@ -779,6 +951,21 @@ export function BillingPage() {
       showToast('error', 'Select client first.')
       return
     }
+    if (!billForm.consultantId || !billForm.paymentMethodId) {
+      showToast('error', billingCopy.openBillNeedsConsultantPayment)
+      return
+    }
+    if (billForm.items.length === 0) {
+      showToast('error', billingCopy.openBillNeedsLinesForCreate)
+      return
+    }
+    payload.consultantId = billForm.consultantId
+    payload.paymentMethodId = billForm.paymentMethodId
+    payload.items = billForm.items.map((row) => ({
+      transactionServiceId: row.transactionServiceId,
+      quantity: row.quantity,
+      netPrice: Number(row.netPrice),
+    }))
     setCreatingManualOpenBill(true)
     try {
       await api.post('/billing/open-bills/manual', payload)
@@ -1152,10 +1339,11 @@ export function BillingPage() {
   return (
     <div className="stack gap-lg">
       <div className="stack gap-lg">
-          <Card className={(billingTab === 'open' || billingTab === 'history') && isOpenBillsMobile ? 'billing-open-mobile-shell' : ''}>
+          <Card className={(billingTab === 'open' || billingTab === 'history' || billingTab === 'unusedAdvances') && isOpenBillsMobile ? 'billing-open-mobile-shell' : ''}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <div className="clients-session-tabs" style={{ marginBottom: 0 }}>
                 <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>{t('billingTabOpenBills')}</button>
+                <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('unusedAdvances')}>{t('billingTabUnusedAdvances')}</button>
                 <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>{t('billingTabFolioHistory')}</button>
               </div>
               {billingTab === 'open' && (
@@ -1579,6 +1767,94 @@ export function BillingPage() {
             )}
               </>
             )}
+
+            {billingTab === 'unusedAdvances' && (
+              <>
+                {!isOpenBillsMobile && <SectionTitle>{t('billingTabUnusedAdvances')}</SectionTitle>}
+                <div className="billing-search-row">
+                  <select
+                    value={selectedUnusedAdvanceId ?? ''}
+                    onChange={(e) => setSelectedUnusedAdvanceId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">{billingCopy.selectAdvance}</option>
+                    {unusedAdvances.map((advance) => (
+                      <option key={advance.advanceBillId} value={advance.advanceBillId}>
+                        #{advance.billNumber} · {billingCopy.remaining}: {currency(advance.remainingNet)}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedApplyTarget ? `${selectedApplyTarget.openBillId}:${selectedApplyTarget.sessionId}` : ''}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      if (!raw) {
+                        setSelectedApplyTarget(null)
+                        return
+                      }
+                      const [openBillIdRaw, sessionIdRaw] = raw.split(':')
+                      setSelectedApplyTarget({ openBillId: Number(openBillIdRaw), sessionId: Number(sessionIdRaw) })
+                    }}
+                  >
+                    <option value="">{billingCopy.selectOpenBillSession}</option>
+                    {openBillSessionTargets.map((target) => (
+                      <option key={target.key} value={`${target.openBillId}:${target.sessionId}`}>
+                        {target.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={applyAmountNet}
+                    onChange={(e) => setApplyAmountNet(e.target.value)}
+                    placeholder={billingCopy.amountToApply}
+                  />
+                  <button type="button" onClick={() => void applyUnusedAdvance()} disabled={applyingAdvance}>
+                    {applyingAdvance ? billingCopy.applyingAdvance : billingCopy.applyAdvance}
+                  </button>
+                </div>
+                {unusedAdvances.length === 0 ? (
+                  <EmptyState title={t('billingTabUnusedAdvances')} text={billingCopy.unusedAdvancesEmpty} />
+                ) : (
+                  <div className="simple-table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Bill no.</th>
+                          <th>Client</th>
+                          <th>Session ID</th>
+                          <th>Issued</th>
+                          <th>Total net</th>
+                          <th>{billingCopy.used}</th>
+                          <th>{billingCopy.remaining}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unusedAdvances.map((advance) => {
+                          const clientLabel = `${advance.client?.firstName || ''} ${advance.client?.lastName || ''}`.trim() || '—'
+                          return (
+                            <tr
+                              key={advance.advanceBillId}
+                              className={selectedUnusedAdvanceId === advance.advanceBillId ? 'clients-row selected' : 'clients-row'}
+                              onClick={() => setSelectedUnusedAdvanceId(advance.advanceBillId)}
+                            >
+                              <td>{advance.billNumber}</td>
+                              <td>{clientLabel}</td>
+                              <td>{advance.sessionId ? `#${advance.sessionId}` : '—'}</td>
+                              <td>{formatDate(advance.issueDate)}</td>
+                              <td>{currency(advance.totalNet)}</td>
+                              <td>{currency(advance.usedNet)}</td>
+                              <td>{currency(advance.remainingNet)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
           </Card>
       </div>
 
@@ -1852,29 +2128,43 @@ export function BillingPage() {
                   </Field>
                 </>
               )}
-              <Field label={billForm.billingTarget === 'COMPANY' ? billingCopy.clientOptional : billingCopy.client}>
-                <select
-                  value={billForm.clientId ?? ''}
-                  onChange={(e) => {
-                    const nextClientId = e.target.value === '' ? undefined : Number(e.target.value)
-                    const nextClient = clients.find((entry) => entry.id === nextClientId)
-                    setBillForm({
-                      ...billForm,
-                      clientId: nextClientId,
-                      recipientCompanyId: billForm.billingTarget === 'COMPANY'
-                        ? (billForm.recipientCompanyId ?? nextClient?.billingCompany?.id ?? undefined)
-                        : undefined,
-                    })
-                  }}
-                >
-                  <option value="">{billingCopy.selectClient}</option>
-                  {clients.map((client) => <option key={client.id} value={client.id}>{fullName(client)}</option>)}
-                </select>
-              </Field>
+              {(billForm.billingTarget === 'PERSON' || clientsLinkedToInvoiceCompany.length > 0) && (
+                <Field label={billForm.billingTarget === 'COMPANY' ? billingCopy.clientOptional : billingCopy.client}>
+                  <select
+                    value={billForm.clientId ?? ''}
+                    onChange={(e) => {
+                      const nextClientId = e.target.value === '' ? undefined : Number(e.target.value)
+                      const pool = billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients
+                      const nextClient = pool.find((entry) => entry.id === nextClientId)
+                      setBillForm({
+                        ...billForm,
+                        clientId: nextClientId,
+                        recipientCompanyId: billForm.billingTarget === 'COMPANY'
+                          ? (billForm.recipientCompanyId ?? nextClient?.billingCompany?.id ?? undefined)
+                          : undefined,
+                      })
+                    }}
+                  >
+                    <option value="">{billingCopy.selectClient}</option>
+                    {(billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients).map((client) => (
+                      <option key={client.id} value={client.id}>{fullName(client)}</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label={t('formConsultant')}>
                 <select value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: Number(e.target.value) })}>
                   <option value="">{t('formSelectConsultant')}</option>
                   {(me.role === 'ADMIN' ? users : [me]).map((user) => <option key={user.id} value={user.id}>{fullName(user)}</option>)}
+                </select>
+              </Field>
+              <Field label={billingCopy.billTypeLabel}>
+                <select
+                  value={billForm.billType}
+                  onChange={(e) => setBillForm({ ...billForm, billType: e.target.value as BillDocumentType })}
+                >
+                  <option value="INVOICE">{billingCopy.billTypeInvoice}</option>
+                  <option value="ADVANCE">{billingCopy.billTypeAdvance}</option>
                 </select>
               </Field>
               <div className="full-span stack gap-sm">
@@ -1950,15 +2240,25 @@ export function BillingPage() {
                 </div>
               </div>
             </div>
-            <div className="form-actions booking-side-panel-footer" style={{ justifyContent: 'space-between' }}>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => void createManualOpenBillFromCreateBillForm()}
-                  disabled={creatingManualOpenBill}
-                >
-                  {creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}
-                </button>
+            <div
+              className="form-actions booking-side-panel-footer"
+              style={{ justifyContent: billForm.billType === 'ADVANCE' ? 'flex-end' : 'space-between' }}
+            >
+                {billForm.billType !== 'ADVANCE' && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => void createManualOpenBillFromCreateBillForm()}
+                    disabled={
+                      creatingManualOpenBill
+                      || !billForm.consultantId
+                      || !billForm.paymentMethodId
+                      || billForm.items.length === 0
+                    }
+                  >
+                    {creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={createBill}

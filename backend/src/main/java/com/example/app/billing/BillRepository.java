@@ -2,6 +2,7 @@ package com.example.app.billing;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +13,9 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyId(Long companyId);
+
+    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    List<Bill> findAllByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(Long companyId, BillType billType);
 
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndRecipientCompanyIdSnapshotOrderByIssueDateDescIdDesc(Long companyId, Long recipientCompanyIdSnapshot);
@@ -36,5 +40,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndSourceSessionIdSnapshotAndBillTypeOrderByIdAsc(Long companyId, Long sourceSessionIdSnapshot, BillType billType);
+
+    List<Bill> findAllByCompanyIdAndIdIn(Long companyId, Collection<Long> ids);
 
 }

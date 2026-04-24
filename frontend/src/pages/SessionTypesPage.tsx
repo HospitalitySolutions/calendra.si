@@ -117,6 +117,8 @@ type ServiceFormState = {
   taxRate: TaxRate
   /** Editable gross price; API still stores net. */
   grossPrice: string
+  /** Company-wide: only one service may be the advance deduction line (see ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID). */
+  advanceDeduction: boolean
 }
 
 function taxRateMultiplier(taxRate: TaxRate): number {
@@ -141,6 +143,7 @@ function serviceFormsEqual(a: ServiceFormState, b: ServiceFormState): boolean {
   if (a.code !== b.code) return false
   if (a.description !== b.description) return false
   if (a.taxRate !== b.taxRate) return false
+  if (a.advanceDeduction !== b.advanceDeduction) return false
   return a.grossPrice.trim() === b.grossPrice.trim()
 }
 
@@ -209,6 +212,7 @@ export function SessionTypesPage() {
     description: '',
     taxRate: 'VAT_22',
     grossPrice: '0.00',
+    advanceDeduction: false,
   })
   /** Snapshot when the transaction service modal opens; footer only when dirty. */
   const [serviceFormSnapshot, setServiceFormSnapshot] = useState<ServiceFormState | null>(null)
@@ -468,10 +472,34 @@ export function SessionTypesPage() {
       taxRate: serviceForm.taxRate,
       netPrice,
     }
-    if (editingServiceId) await api.put(`/billing/services/${editingServiceId}`, payload)
-    else await api.post('/billing/services', payload)
+    const wasAdvance = serviceFormSnapshot?.advanceDeduction === true
+    const wantAdvance = serviceForm.advanceDeduction === true
+
+    let savedId: number
+    if (editingServiceId) {
+      await api.put(`/billing/services/${editingServiceId}`, payload)
+      savedId = editingServiceId
+    } else {
+      const { data } = await api.post<{ id: number }>('/billing/services', payload)
+      savedId = data.id
+    }
+
+    const prevSettingId = (settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID || '').trim()
+
+    if (wantAdvance) {
+      const { data: nextSettings } = await api.put<Record<string, string>>('/settings', {
+        ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID: String(savedId),
+      })
+      setSettings(nextSettings)
+    } else if (wasAdvance && prevSettingId === String(savedId)) {
+      const { data: nextSettings } = await api.put<Record<string, string>>('/settings', {
+        ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID: '',
+      })
+      setSettings(nextSettings)
+    }
+
     setEditingServiceId(null)
-    setServiceForm({ code: '', description: '', taxRate: 'VAT_22', grossPrice: '0.00' })
+    setServiceForm({ code: '', description: '', taxRate: 'VAT_22', grossPrice: '0.00', advanceDeduction: false })
     setServiceFormSnapshot(null)
     setShowServiceModal(false)
     void load()
@@ -481,6 +509,13 @@ export function SessionTypesPage() {
     if (!isAdmin) return
     if (!window.confirm('Delete this transaction service?')) return
     await api.delete(`/billing/services/${id}`)
+    const prevSettingId = (settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID || '').trim()
+    if (prevSettingId === String(id)) {
+      const { data: nextSettings } = await api.put<Record<string, string>>('/settings', {
+        ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID: '',
+      })
+      setSettings(nextSettings)
+    }
     void load()
   }
 
@@ -523,11 +558,13 @@ export function SessionTypesPage() {
 
   const openServiceEdit = (s: BillingService) => {
     setEditingServiceId(s.id)
+    const advanceId = (settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID || '').trim()
     const next: ServiceFormState = {
       code: s.code,
       description: s.description,
       taxRate: s.taxRate,
       grossPrice: grossPriceStringFromNet(Number(s.netPrice), s.taxRate),
+      advanceDeduction: advanceId !== '' && advanceId === String(s.id),
     }
     setServiceForm(next)
     setServiceFormSnapshot({ ...next })
@@ -731,6 +768,7 @@ export function SessionTypesPage() {
           {filteredServices.map((s) => {
             const mult = s.taxRate === 'VAT_22' ? 0.22 : s.taxRate === 'VAT_9_5' ? 0.095 : 0
             const gross = s.netPrice * (1 + mult)
+            const advanceBadge = (settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID || '').trim() === String(s.id)
             return (
               <article
                 key={s.id}
@@ -749,6 +787,11 @@ export function SessionTypesPage() {
                   <div className="clients-name-cell">
                     <div className="clients-name-stack">
                       <span className="clients-name">{s.code}</span>
+                      {advanceBadge ? (
+                        <span className="billing-open-batch-chip" style={{ marginLeft: 6 }}>
+                          {t('sessionTypesTxAdvanceBadge')}
+                        </span>
+                      ) : null}
                       <span className="clients-id">ID #{s.id}</span>
                     </div>
                   </div>
@@ -821,6 +864,7 @@ export function SessionTypesPage() {
               {filteredServices.map((s) => {
                 const mult = s.taxRate === 'VAT_22' ? 0.22 : s.taxRate === 'VAT_9_5' ? 0.095 : 0
                 const gross = s.netPrice * (1 + mult)
+                const advanceBadge = (settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID || '').trim() === String(s.id)
                 return (
                   <tr
                     key={s.id}
@@ -839,6 +883,11 @@ export function SessionTypesPage() {
                       <div className="clients-name-cell">
                         <div className="clients-name-stack">
                           <span className="clients-name">{s.code}</span>
+                          {advanceBadge ? (
+                            <span className="billing-open-batch-chip" style={{ marginLeft: 6 }}>
+                              {t('sessionTypesTxAdvanceBadge')}
+                            </span>
+                          ) : null}
                           <span className="clients-id">ID #{s.id}</span>
                         </div>
                       </div>
@@ -889,7 +938,7 @@ export function SessionTypesPage() {
 
   const openNewServiceModal = () => {
     setEditingServiceId(null)
-    const empty: ServiceFormState = { code: '', description: '', taxRate: 'VAT_22', grossPrice: '0.00' }
+    const empty: ServiceFormState = { code: '', description: '', taxRate: 'VAT_22', grossPrice: '0.00', advanceDeduction: false }
     setServiceForm(empty)
     setServiceFormSnapshot({ ...empty })
     setShowServiceModal(true)
@@ -1428,6 +1477,22 @@ export function SessionTypesPage() {
                     onChange={(e) => setServiceForm({ ...serviceForm, grossPrice: e.target.value })}
                   />
                 </Field>
+                <div className="full-span">
+                  <label className="toggle-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <strong>{t('sessionTypesTxAdvanceSwitch')}</strong>
+                      <p className="muted" style={{ margin: '4px 0 0' }}>
+                        {t('sessionTypesTxAdvanceHint')}
+                      </p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={serviceForm.advanceDeduction}
+                      onChange={(e) => setServiceForm({ ...serviceForm, advanceDeduction: e.target.checked })}
+                      aria-label={t('sessionTypesTxAdvanceSwitch')}
+                    />
+                  </label>
+                </div>
                 <div className="full-span">
                   <Field label={t('sessionTypesTxLabelNet')}>
                     <input readOnly tabIndex={-1} value={currency(transactionServiceNetComputed)} />

@@ -23,4 +23,8 @@ public class BillItem extends BaseEntity {
     private BigDecimal netPrice;
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal grossPrice;
+
+    /** When set, this folio line consumes part of an advance bill (same id as {@link Bill#getId()} of the ADVANCE bill). */
+    @Column(name = "source_advance_bill_id")
+    private Long sourceAdvanceBillId;
 }

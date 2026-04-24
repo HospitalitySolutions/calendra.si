@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -51,6 +52,7 @@ public class BillingController {
     private final TransactionServiceRepository txRepo;
     private final PaymentMethodRepository paymentMethodRepo;
     private final BillRepository billRepo;
+    private final AdvanceAllocationRepository advanceAllocationRepo;
     private final OpenBillRepository openBillRepo;
     private final SessionBookingRepository sessionBookings;
     private final ClientRepository clients;
@@ -67,7 +69,7 @@ public class BillingController {
     private final BankStatementReconciliationService bankStatementReconciliationService;
     private final org.springframework.context.ApplicationEventPublisher events;
 
-    public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, OpenBillRepository openBillRepo,
+    public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
                              AppSettingRepository settings, FiscalizationService fiscalizationService,
                              StripeBillingService stripeBillingService, BillingEmailService billingEmailService, BillPdfService billPdfService,
@@ -77,6 +79,7 @@ public class BillingController {
         this.txRepo = txRepo;
         this.paymentMethodRepo = paymentMethodRepo;
         this.billRepo = billRepo;
+        this.advanceAllocationRepo = advanceAllocationRepo;
         this.openBillRepo = openBillRepo;
         this.sessionBookings = sessionBookings;
         this.clients = clients;
@@ -101,6 +104,7 @@ public class BillingController {
             Long paymentMethodId,
             String billingTarget,
             Long recipientCompanyId,
+            String billType,
             List<BillItemRequest> items
     ) {}
     public record PaymentMethodRequest(String name, PaymentType paymentType, Boolean fiscalized, Boolean stripeEnabled, Boolean guestEnabled, Integer guestDisplayOrder) {}
@@ -145,7 +149,7 @@ public class BillingController {
             List<BillItemResponse> items
     ) {}
 
-    public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId) {}
+    public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record OpenBillSessionSummary(
             Long sessionId,
@@ -182,9 +186,29 @@ public class BillingController {
             int unmatchedCount,
             List<BankStatementReconciliationService.MatchedBill> matchedBills
     ) {}
+    public record UnusedAdvanceResponse(
+            Long advanceBillId,
+            String billNumber,
+            Long sessionId,
+            ClientSummary client,
+            LocalDate issueDate,
+            BigDecimal totalNet,
+            BigDecimal usedNet,
+            BigDecimal remainingNet
+    ) {}
+    public record ApplyUnusedAdvanceRequest(Long advanceBillId, Long openBillId, Long sessionId, BigDecimal applyAmountNet) {}
+    public record ApplyUnusedAdvanceResponse(Long openBillId, Long advanceBillId, BigDecimal remainingNet) {}
     public record OpenBillUpdateRequest(Long paymentMethodId, List<OpenBillItemRequest> items) {}
     public record SplitOpenBillSessionRequest(Long sessionId) {}
-    public record ManualOpenBillRequest(Long clientId, Long recipientCompanyId) {}
+    public record ManualOpenBillLineRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice) {}
+
+    public record ManualOpenBillRequest(
+            Long clientId,
+            Long recipientCompanyId,
+            Long consultantId,
+            Long paymentMethodId,
+            List<ManualOpenBillLineRequest> items
+    ) {}
     public record RecipientCompanySummary(
             Long id,
             String name,
@@ -303,6 +327,8 @@ public class BillingController {
     @Transactional
     public List<OpenBillResponse> createManualOpenBill(@RequestBody ManualOpenBillRequest req, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
+        var actor = users.findByIdAndCompanyId(me.getId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
         if (req == null || (req.clientId() == null && req.recipientCompanyId() == null)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId or recipientCompanyId is required.");
         }
@@ -333,9 +359,9 @@ public class BillingController {
         if (companyBatchEnabled) {
             open = openBillRepo.findBatchByCompanyTarget(companyId, OpenBill.BATCH_SCOPE_COMPANY, resolvedLinkedCompany.getId()).orElseGet(() -> {
                 var created = new OpenBill();
-                created.setCompany(me.getCompany());
+                created.setCompany(actor.getCompany());
                 created.setClient(resolvedClient);
-                created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : me);
+                created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
                 created.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
                 created.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
                 created.setBatchTargetCompanyId(resolvedLinkedCompany.getId());
@@ -347,9 +373,9 @@ public class BillingController {
         } else if (clientBatchEnabled) {
             open = openBillRepo.findBatchByClientTarget(companyId, OpenBill.BATCH_SCOPE_CLIENT, resolvedClient.getId()).orElseGet(() -> {
                 var created = new OpenBill();
-                created.setCompany(me.getCompany());
+                created.setCompany(actor.getCompany());
                 created.setClient(resolvedClient);
-                created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : me);
+                created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
                 created.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
                 created.setBatchScope(OpenBill.BATCH_SCOPE_CLIENT);
                 created.setBatchTargetClientId(resolvedClient.getId());
@@ -360,9 +386,9 @@ public class BillingController {
             });
         } else {
             open = new OpenBill();
-            open.setCompany(me.getCompany());
+            open.setCompany(actor.getCompany());
             open.setClient(resolvedClient);
-            open.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : me);
+            open.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
             open.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
             open.setBatchScope(OpenBill.BATCH_SCOPE_NONE);
             open.setBatchTargetClientId(null);
@@ -373,10 +399,45 @@ public class BillingController {
 
         long nextManualSessionNo = nextManualSessionNumber(companyId);
         appendManualSessionNumber(open, nextManualSessionNo);
+
+        if (req.paymentMethodId() != null) {
+            var paymentMethod = paymentMethodRepo.findByIdAndCompanyId(req.paymentMethodId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
+            open.setPaymentMethod(paymentMethod);
+        }
+        if (req.consultantId() != null) {
+            var consultant = users.findByIdAndCompanyId(req.consultantId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultantId."));
+            open.setConsultant(consultant);
+        }
+        addInitialLinesToManualOpenBill(open, companyId, nextManualSessionNo, req.items());
+
         openBillRepo.save(open);
 
         syncOpenBillsFromPastSessions(companyId);
         return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId);
+    }
+
+    private void addInitialLinesToManualOpenBill(OpenBill open, Long companyId, long manualSessionNo, List<ManualOpenBillLineRequest> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        Long syntheticSessionId = -manualSessionNo;
+        for (ManualOpenBillLineRequest line : lines) {
+            if (line == null || line.transactionServiceId() == null) {
+                continue;
+            }
+            var tx = txRepo.findByIdAndCompanyId(line.transactionServiceId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid transactionServiceId."));
+            var obi = new OpenBillItem();
+            obi.setOpenBill(open);
+            obi.setTransactionService(tx);
+            obi.setQuantity(line.quantity() != null && line.quantity() > 0 ? line.quantity() : 1);
+            obi.setNetPrice(line.netPrice() != null ? line.netPrice() : tx.getNetPrice());
+            obi.setSourceSessionBookingId(syntheticSessionId);
+            obi.setSourceAdvanceBillId(null);
+            open.getItems().add(obi);
+        }
     }
 
     @PutMapping("/open-bills/{id}")
@@ -392,9 +453,7 @@ public class BillingController {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method"));
             open.setPaymentMethod(paymentMethod);
         }
-        var existingSourceSessionIds = open.getItems().stream()
-                .map(OpenBillItem::getSourceSessionBookingId)
-                .toList();
+        var existingItems = new ArrayList<>(open.getItems());
         open.getItems().clear();
         if (req.items() != null) {
             int idx = 0;
@@ -406,8 +465,11 @@ public class BillingController {
                 obi.setTransactionService(tx);
                 obi.setQuantity(item.quantity() != null ? item.quantity() : 1);
                 obi.setNetPrice(item.netPrice() != null ? item.netPrice() : tx.getNetPrice());
-                Long fallbackSourceSessionId = idx < existingSourceSessionIds.size() ? existingSourceSessionIds.get(idx) : null;
+                var fallbackItem = idx < existingItems.size() ? existingItems.get(idx) : null;
+                Long fallbackSourceSessionId = fallbackItem != null ? fallbackItem.getSourceSessionBookingId() : null;
+                Long fallbackSourceAdvanceBillId = fallbackItem != null ? fallbackItem.getSourceAdvanceBillId() : null;
                 obi.setSourceSessionBookingId(item.sourceSessionBookingId() != null ? item.sourceSessionBookingId() : fallbackSourceSessionId);
+                obi.setSourceAdvanceBillId(item.sourceAdvanceBillId() != null ? item.sourceAdvanceBillId() : fallbackSourceAdvanceBillId);
                 open.getItems().add(obi);
                 idx++;
             }
@@ -429,6 +491,8 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         var session = open.getSessionBooking();
+        deleteAdvanceAllocationsForOpenBill(companyId, open.getId());
+        advanceAllocationRepo.flush();
         openBillRepo.delete(open);
         if (session != null) {
             session.setBilledAt(LocalDate.now());
@@ -491,11 +555,18 @@ public class BillingController {
             moved.setQuantity(item.getQuantity());
             moved.setNetPrice(item.getNetPrice());
             moved.setSourceSessionBookingId(sessionId);
+            moved.setSourceAdvanceBillId(item.getSourceAdvanceBillId());
             split.getItems().add(moved);
         }
 
         openBillRepo.save(split);
+        if (split.getId() != null && source.getId() != null) {
+            advanceAllocationRepo.reassignOpenBillForSession(companyId, source.getId(), split.getId(), sessionId);
+            advanceAllocationRepo.flush();
+        }
         if (source.getItems().isEmpty()) {
+            deleteAdvanceAllocationsForOpenBill(companyId, source.getId());
+            advanceAllocationRepo.flush();
             openBillRepo.delete(source);
         } else {
             openBillRepo.save(source);
@@ -550,6 +621,7 @@ public class BillingController {
             item.setTransactionService(tx);
             item.setQuantity(obi.getQuantity());
             item.setNetPrice(obi.getNetPrice());
+            item.setSourceAdvanceBillId(obi.getSourceAdvanceBillId());
             var grossSingle = obi.getNetPrice().add(obi.getNetPrice().multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
             item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(obi.getQuantity())));
             totalNet = totalNet.add(obi.getNetPrice().multiply(BigDecimal.valueOf(obi.getQuantity())));
@@ -575,6 +647,8 @@ public class BillingController {
             sessionBookings.saveAll(linkedSessions);
             sessionBookings.flush();
         }
+        deleteAdvanceAllocationsForOpenBill(companyId, open.getId());
+        advanceAllocationRepo.flush();
         openBillRepo.delete(open);
         openBillRepo.flush();
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
@@ -629,6 +703,10 @@ public class BillingController {
 
             if (legacyOpen != null && !sameOpenBill(legacyOpen, open)) {
                 changed |= moveItemsToResolvedOpenBill(legacyOpen, open, sb.getId());
+                if (legacyOpen.getId() != null) {
+                    deleteAdvanceAllocationsForOpenBill(companyId, legacyOpen.getId());
+                    advanceAllocationRepo.flush();
+                }
                 openBillRepo.delete(legacyOpen);
             }
 
@@ -813,12 +891,24 @@ public class BillingController {
         }
 
         final Map<Long, SessionBooking> sessionLookup = sessionsById;
+        Set<Long> advanceBillIds = openBills.stream()
+                .flatMap(open -> open.getItems().stream())
+                .map(OpenBillItem::getSourceAdvanceBillId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> advanceBillNumbersById = new HashMap<>();
+        if (!advanceBillIds.isEmpty()) {
+            billRepo.findAllByCompanyIdAndIdIn(companyId, advanceBillIds).forEach(b ->
+                    advanceBillNumbersById.put(b.getId(), b.getBillNumber() == null ? String.valueOf(b.getId()) : b.getBillNumber())
+            );
+        }
+        final Map<Long, String> advanceBillNoLookup = advanceBillNumbersById;
         return openBills.stream()
-                .map(open -> toOpenBillResponse(open, sessionLookup))
+                .map(open -> toOpenBillResponse(open, sessionLookup, advanceBillNoLookup))
                 .toList();
     }
 
-    private OpenBillResponse toOpenBillResponse(OpenBill o, Map<Long, SessionBooking> sessionsById) {
+    private OpenBillResponse toOpenBillResponse(OpenBill o, Map<Long, SessionBooking> sessionsById, Map<Long, String> advanceBillNumbersById) {
         var c = o.getClient();
         var clientSummary = c == null
                 ? null
@@ -830,7 +920,15 @@ public class BillingController {
         var paymentMethodSummary = toPaymentMethodSummary(o.getPaymentMethod());
         var items = o.getItems().stream().map(obi -> {
             var tx = obi.getTransactionService();
-            var ss = new ServiceSummary(tx.getId(), tx.getCode(), tx.getDescription(), tx.getTaxRate(), tx.getNetPrice());
+            String description = tx.getDescription() == null ? "" : tx.getDescription();
+            Long advId = obi.getSourceAdvanceBillId();
+            if (advId != null) {
+                String billNo = advanceBillNumbersById.get(advId);
+                if (billNo != null && !billNo.isBlank()) {
+                    description = description + " (Bill No " + billNo + ")";
+                }
+            }
+            var ss = new ServiceSummary(tx.getId(), tx.getCode(), description, tx.getTaxRate(), tx.getNetPrice());
             return new OpenBillItemResponse(obi.getId(), ss, obi.getQuantity(), obi.getNetPrice(), obi.getSourceSessionBookingId(), obi.getSourceAdvanceBillId());
         }).toList();
 
@@ -897,6 +995,27 @@ public class BillingController {
         return session.getStartTime().toLocalDate() + " " + session.getStartTime().toLocalTime().toString().substring(0, 5);
     }
 
+    /**
+     * Accepts real {@link SessionBooking} ids, line-item {@link OpenBillItem#getSourceSessionBookingId()},
+     * and manual open-bill synthetic ids ({@code -manualNo}, see {@link #toOpenBillResponse}).
+     */
+    private static boolean openBillContainsSessionTarget(OpenBill openBill, Long sessionId) {
+        if (sessionId == null) {
+            return false;
+        }
+        if (openBill.getSessionBooking() != null && Objects.equals(openBill.getSessionBooking().getId(), sessionId)) {
+            return true;
+        }
+        if (openBill.getItems().stream().anyMatch(item -> Objects.equals(item.getSourceSessionBookingId(), sessionId))) {
+            return true;
+        }
+        if (sessionId < 0) {
+            long manualNo = -sessionId;
+            return parseManualSessionNumbers(openBill.getManualSessionNumbersCsv()).contains(manualNo);
+        }
+        return false;
+    }
+
     private long nextManualSessionNumber(Long companyId) {
         Long maxSessionIdRaw = sessionBookings.findMaxIdByCompanyId(companyId);
         Long maxManualRaw = openBillRepo.findMaxManualSessionNumberByCompanyId(companyId);
@@ -940,6 +1059,7 @@ public class BillingController {
         bill.setCompany(me.getCompany());
         String billNumber = nextInvoiceNumber(companyId);
         bill.setBillNumber(billNumber);
+        bill.setBillType(resolveRequestedBillType(request.billType()));
         com.example.app.client.Client client = null;
         if (request.clientId() != null && request.clientId() > 0) {
             client = clients.findByIdAndCompanyId(request.clientId(), companyId).orElseThrow();
@@ -1011,6 +1131,81 @@ public class BillingController {
 
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
         return toResponse(saved);
+    }
+
+    @GetMapping("/unused-advances")
+    @Transactional(readOnly = true)
+    public List<UnusedAdvanceResponse> unusedAdvances(@AuthenticationPrincipal User me) {
+        Long companyId = me.getCompany().getId();
+        return billRepo.findAllByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(companyId, BillType.ADVANCE).stream()
+                .map(advance -> toUnusedAdvanceResponse(companyId, advance))
+                .filter(advance -> advance.remainingNet().compareTo(BigDecimal.ZERO) > 0)
+                .toList();
+    }
+
+    @PostMapping("/unused-advances/apply")
+    @Transactional
+    public ApplyUnusedAdvanceResponse applyUnusedAdvance(@RequestBody ApplyUnusedAdvanceRequest request, @AuthenticationPrincipal User me) {
+        if (request == null || request.advanceBillId() == null || request.openBillId() == null || request.sessionId() == null || request.applyAmountNet() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "advanceBillId, openBillId, sessionId and applyAmountNet are required.");
+        }
+        Long companyId = me.getCompany().getId();
+        BigDecimal applyAmountNet = request.applyAmountNet().setScale(2, RoundingMode.HALF_UP);
+        if (applyAmountNet.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "applyAmountNet must be > 0.");
+        }
+
+        Bill advance = billRepo.findByIdAndCompanyId(request.advanceBillId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Advance bill not found."));
+        if (advance.getBillType() != BillType.ADVANCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected bill is not an advance.");
+        }
+        if (!BillPaymentStatus.PAID.equals(advance.getPaymentStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only paid advances can be applied.");
+        }
+
+        OpenBill openBill = openBillRepo.findById(request.openBillId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Open bill not found."));
+        if (!companyId.equals(openBill.getCompany().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Open bill not found.");
+        }
+        // Avoid mutating a partially hydrated items bag (JOIN FETCH + DISTINCT pitfalls); orphanRemoval would delete missing rows on save.
+        Hibernate.initialize(openBill.getItems());
+        if (!openBillContainsSessionTarget(openBill, request.sessionId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected sessionId is not part of the target open bill.");
+        }
+
+        BigDecimal remaining = computeRemainingAdvanceNet(companyId, advance);
+        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Advance is already fully used.");
+        }
+        if (applyAmountNet.compareTo(remaining) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "applyAmountNet exceeds remaining advance amount.");
+        }
+
+        var deductionService = resolveAdvanceDeductionService(companyId);
+
+        var openItem = new OpenBillItem();
+        openItem.setOpenBill(openBill);
+        openItem.setTransactionService(deductionService);
+        openItem.setQuantity(1);
+        openItem.setNetPrice(applyAmountNet.negate());
+        openItem.setSourceSessionBookingId(request.sessionId());
+        openItem.setSourceAdvanceBillId(advance.getId());
+        openBill.getItems().add(openItem);
+        openBillRepo.save(openBill);
+
+        var allocation = new AdvanceAllocation();
+        allocation.setCompany(openBill.getCompany());
+        allocation.setAdvanceBill(advance);
+        allocation.setOpenBill(openBill);
+        allocation.setSessionBookingId(request.sessionId());
+        allocation.setTransactionService(deductionService);
+        allocation.setAmountNet(applyAmountNet);
+        advanceAllocationRepo.save(allocation);
+
+        BigDecimal remainingAfter = computeRemainingAdvanceNet(companyId, advance).setScale(2, RoundingMode.HALF_UP);
+        return new ApplyUnusedAdvanceResponse(openBill.getId(), advance.getId(), remainingAfter);
     }
 
     @PostMapping("/bills/{id}/checkout-session")
@@ -1313,6 +1508,63 @@ public class BillingController {
                 .orElse("");
     }
 
+    private UnusedAdvanceResponse toUnusedAdvanceResponse(Long companyId, Bill advance) {
+        BigDecimal total = (advance.getTotalNet() == null ? BigDecimal.ZERO : advance.getTotalNet()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal used = totalAdvanceConsumedNet(companyId, advance.getId()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal remaining = total.subtract(used).setScale(2, RoundingMode.HALF_UP);
+        var c = advance.getClient();
+        var clientSummary = c == null
+                ? null
+                : new ClientSummary(c.getId(), snapshotFirstName(advance), snapshotLastName(advance), c.getEmail(), c.getPhone());
+        return new UnusedAdvanceResponse(
+                advance.getId(),
+                advance.getBillNumber(),
+                advance.getSourceSessionIdSnapshot(),
+                clientSummary,
+                advance.getIssueDate(),
+                total,
+                used,
+                remaining
+        );
+    }
+
+    private BigDecimal computeRemainingAdvanceNet(Long companyId, Bill advance) {
+        BigDecimal total = advance.getTotalNet() == null ? BigDecimal.ZERO : advance.getTotalNet();
+        BigDecimal used = totalAdvanceConsumedNet(companyId, advance.getId());
+        return total.subtract(used);
+    }
+
+    /** Open-bill allocations plus folio lines that carried {@link BillItem#getSourceAdvanceBillId()} when the open bill was closed. */
+    private BigDecimal totalAdvanceConsumedNet(Long companyId, Long advanceBillId) {
+        BigDecimal fromAllocations = advanceAllocationRepo.sumAmountNetByCompanyIdAndAdvanceBillId(companyId, advanceBillId);
+        BigDecimal fromFolio = advanceAllocationRepo.sumConsumedFromFolioByAdvanceBillId(companyId, advanceBillId);
+        BigDecimal a = fromAllocations == null ? BigDecimal.ZERO : fromAllocations;
+        BigDecimal b = fromFolio == null ? BigDecimal.ZERO : fromFolio;
+        return a.add(b);
+    }
+
+    private void deleteAdvanceAllocationsForOpenBill(Long companyId, Long openBillId) {
+        if (openBillId == null) {
+            return;
+        }
+        advanceAllocationRepo.deleteByCompanyIdAndOpenBillId(companyId, openBillId);
+    }
+
+    private TransactionService resolveAdvanceDeductionService(Long companyId) {
+        String raw = settingValue(companyId, SettingKey.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID);
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing setting ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID.");
+        }
+        Long serviceId;
+        try {
+            serviceId = Long.parseLong(raw.trim());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID setting.");
+        }
+        return txRepo.findByIdAndCompanyId(serviceId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Configured advance deduction service was not found."));
+    }
+
     private static BillResponse toResponse(Bill bill) {
         var c = bill.getClient();
         var clientSummary = c == null
@@ -1383,6 +1635,15 @@ public class BillingController {
     private static String normalizePaymentStatus(String status) {
         if (!BillPaymentStatus.isKnown(status)) return BillPaymentStatus.OPEN;
         return status;
+    }
+
+    private BillType resolveRequestedBillType(String raw) {
+        if (raw == null || raw.isBlank()) return BillType.INVOICE;
+        try {
+            return BillType.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid bill type. Allowed values: INVOICE, ADVANCE.");
+        }
     }
 
     private String nextInvoiceNumber(Long companyId) {

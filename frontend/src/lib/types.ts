@@ -242,6 +242,7 @@ export type OpenBillItem = {
   quantity: number
   netPrice: number
   sourceSessionBookingId?: number | null
+  sourceAdvanceBillId?: number | null
 }
 
 export type OpenBillSessionSummary = {
