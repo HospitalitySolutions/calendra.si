@@ -4,6 +4,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 import java.util.List;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
@@ -20,4 +22,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailIgnoreCaseAndCompanyId(String email, Long companyId);
     Optional<User> findByWebauthnUserHandle(String webauthnUserHandle);
     java.util.List<User> findAllByRoleOrderByIdAsc(Role role);
+
+    @Query("select distinct u.company.id from User u where lower(u.email) like lower(concat('%', :needle, '%'))")
+    List<Long> findDistinctCompanyIdsByEmailContainingIgnoreCase(@Param("needle") String needle);
 }

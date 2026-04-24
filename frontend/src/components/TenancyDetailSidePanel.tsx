@@ -20,6 +20,11 @@ export type TenancyDetails = {
   packageType: string
   subscriptionInterval: string
   dueAmount: string
+  tenantCode?: string
+  ownerPasswordSetupPending?: boolean
+  signupCompletionSummary?: string
+  vatId?: string
+  stripeCustomerIdPreview?: string
 }
 
 type Props = {

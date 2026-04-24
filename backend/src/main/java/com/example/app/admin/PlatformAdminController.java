@@ -1,5 +1,7 @@
 package com.example.app.admin;
 
+import com.example.app.billing.Bill;
+import com.example.app.billing.BillRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.session.SpaceRepository;
@@ -9,9 +11,11 @@ import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -35,19 +40,31 @@ public class PlatformAdminController {
     private final AppSettingRepository settings;
     private final UserRepository users;
     private final SpaceRepository spaces;
+    private final BillRepository bills;
 
     public PlatformAdminController(
             CompanyRepository companies,
             AppSettingRepository settings,
             UserRepository users,
-            SpaceRepository spaces) {
+            SpaceRepository spaces,
+            BillRepository bills) {
         this.companies = companies;
         this.settings = settings;
         this.users = users;
         this.spaces = spaces;
+        this.bills = bills;
     }
 
     public record TenancyRow(Long id, String tenantCode, String name) {}
+
+    public record TenancySearchHit(
+            long id,
+            String tenantCode,
+            String companyName,
+            String contactEmail,
+            String packageType,
+            String subscriptionInterval,
+            String signupCompletionSummary) {}
 
     public record TenancyDetailsDto(
             long id,
@@ -66,7 +83,12 @@ public class PlatformAdminController {
             Integer smsQuota,
             String packageType,
             String subscriptionInterval,
-            String dueAmount) {}
+            String dueAmount,
+            String tenantCode,
+            boolean ownerPasswordSetupPending,
+            String signupCompletionSummary,
+            String vatId,
+            String stripeCustomerIdPreview) {}
 
     @GetMapping("/tenancies")
     public List<TenancyRow> tenancies() {
@@ -76,9 +98,58 @@ public class PlatformAdminController {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Search tenancies by company name, tenant code, owner/user email, VAT ID (company setting), or Stripe-related
+     * identifiers on bills (customer id, invoice id, checkout session id, payment intent id).
+     */
+    @GetMapping("/tenancies/search")
+    public List<TenancySearchHit> searchTenancies(@RequestParam(value = "q", required = false) String q) {
+        String needle = sanitizeSearchNeedle(q);
+        if (needle.isBlank()) {
+            return List.of();
+        }
+        Set<Long> ids = new LinkedHashSet<>();
+        companies.findIdsByNameOrTenantCodeContainingIgnoreCase(needle).forEach(ids::add);
+        users.findDistinctCompanyIdsByEmailContainingIgnoreCase(needle).forEach(ids::add);
+        settings.findCompanyIdsByKeyAndValueContainingIgnoreCase(SettingKey.COMPANY_VAT_ID.name(), needle)
+                .forEach(ids::add);
+        bills.findDistinctCompanyIdsByStripeFieldsContainingIgnoreCase(needle).forEach(ids::add);
+        if (needle.chars().allMatch(Character::isDigit)) {
+            try {
+                long numericId = Long.parseLong(needle);
+                companies.findById(numericId).ifPresent(c -> ids.add(c.getId()));
+            } catch (NumberFormatException ignored) {
+                // ignore overflow
+            }
+        }
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        List<Company> matches = companies.findAllById(ids).stream()
+                .sorted(Comparator.comparing(Company::getName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        return matches.stream().map(this::toSearchHit).toList();
+    }
+
     @GetMapping("/tenancies/{id}")
     public TenancyDetailsDto tenancyDetails(@PathVariable Long id) {
         Company company = companies.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return buildTenancyDetails(company);
+    }
+
+    private TenancySearchHit toSearchHit(Company company) {
+        TenancyDetailsDto full = buildTenancyDetails(company);
+        return new TenancySearchHit(
+                full.id(),
+                full.tenantCode(),
+                full.companyName(),
+                full.contactEmail(),
+                full.packageType(),
+                full.subscriptionInterval(),
+                full.signupCompletionSummary());
+    }
+
+    private TenancyDetailsDto buildTenancyDetails(Company company) {
         Long cid = company.getId();
 
         User primary = users.findAllByCompanyId(cid).stream()
@@ -103,6 +174,13 @@ public class PlatformAdminController {
         int smsSent = parseIntegerOrZero(settingTrim(cid, SettingKey.TENANCY_SMS_SENT_COUNT));
 
         String phone = settingTrim(cid, SettingKey.COMPANY_TELEPHONE);
+        String tenantCode = company.getTenantCode() == null ? "" : company.getTenantCode().trim();
+        String vatId = settingTrim(cid, SettingKey.COMPANY_VAT_ID);
+        boolean ownerPasswordPending = settings.findByCompanyIdAndKey(cid, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING)
+                .map(s -> "true".equalsIgnoreCase(s.getValue()))
+                .orElse(false);
+        String signupSummary = buildSignupCompletionSummary(ownerPasswordPending, vatId);
+        String stripePreview = resolveRecentStripeCustomerId(cid);
 
         return new TenancyDetailsDto(
                 cid,
@@ -123,44 +201,43 @@ public class PlatformAdminController {
                 subscriptionInterval,
                 settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT).isBlank()
                         ? "0.00"
-                        : settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT));
+                        : settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT),
+                tenantCode,
+                ownerPasswordPending,
+                signupSummary,
+                vatId,
+                stripePreview);
     }
 
-    private String settingTrim(Long companyId, SettingKey key) {
-        return settings.findByCompanyIdAndKey(companyId, key)
-                .map(AppSetting::getValue)
-                .map(v -> v == null ? "" : v.trim())
-                .orElse("");
+    private static String buildSignupCompletionSummary(boolean ownerPasswordPending, String vatId) {
+        if (ownerPasswordPending) {
+            return "Incomplete: owner password setup pending";
+        }
+        if (vatId == null || vatId.isBlank()) {
+            return "Active — no VAT on file (billing profile may be incomplete)";
+        }
+        return "Active — signup complete";
     }
 
-    private static Integer parseInteger(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
+    private String resolveRecentStripeCustomerId(Long companyId) {
+        List<Bill> recent = bills.findTop8ByCompany_IdOrderByIdDesc(companyId);
+        for (Bill b : recent) {
+            if (b.getStripeCustomerId() != null && !b.getStripeCustomerId().isBlank()) {
+                return b.getStripeCustomerId().trim();
+            }
         }
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return "";
     }
 
-    private static int parseIntegerOrZero(String raw) {
-        Integer n = parseInteger(raw);
-        return n == null ? 0 : n;
-    }
-
-    private static String normalizePackageType(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "CUSTOM";
+    private static String sanitizeSearchNeedle(String raw) {
+        if (raw == null) {
+            return "";
         }
-        String u = raw.toUpperCase(Locale.ROOT).replace(' ', '_').replace('-', '_');
-        if ("PRO".equals(u)) {
-            return "PROFESSIONAL";
+        String t = raw.trim();
+        if (t.isBlank()) {
+            return "";
         }
-        if ("TRIAL".equals(u) || "BASIC".equals(u) || "PROFESSIONAL".equals(u) || "PREMIUM".equals(u) || "CUSTOM".equals(u)) {
-            return u;
-        }
-        return u.length() > 24 ? "CUSTOM" : u;
+        return t.replace("%", "").replace("_", "").replace("\\", "");
     }
 
     @GetMapping("/settings")
@@ -199,5 +276,42 @@ public class PlatformAdminController {
         });
         s.setValue(value.trim());
         settings.save(s);
+    }
+
+    private String settingTrim(Long companyId, SettingKey key) {
+        return settings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(v -> v == null ? "" : v.trim())
+                .orElse("");
+    }
+
+    private static Integer parseInteger(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static int parseIntegerOrZero(String raw) {
+        Integer n = parseInteger(raw);
+        return n == null ? 0 : n;
+    }
+
+    private static String normalizePackageType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "CUSTOM";
+        }
+        String u = raw.toUpperCase(Locale.ROOT).replace(' ', '_').replace('-', '_');
+        if ("PRO".equals(u)) {
+            return "PROFESSIONAL";
+        }
+        if ("TRIAL".equals(u) || "BASIC".equals(u) || "PROFESSIONAL".equals(u) || "PREMIUM".equals(u) || "CUSTOM".equals(u)) {
+            return u;
+        }
+        return u.length() > 24 ? "CUSTOM" : u;
     }
 }
