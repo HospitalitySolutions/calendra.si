@@ -57,12 +57,10 @@ const registerAccountPageStyles = `
 
   .register-flow.register-account-page .register-account-page-stack {
     width: 100%;
-    max-width: 760px;
-    margin: 0 auto;
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
+    align-items: center;
     min-height: 0;
   }
 
@@ -72,8 +70,11 @@ const registerAccountPageStyles = `
     align-items: center;
     justify-content: flex-start;
     gap: 10px 14px;
-    margin-bottom: 0;
+    margin-bottom: 18px;
     flex-shrink: 0;
+    align-self: flex-start;
+    width: auto;
+    max-width: 100%;
   }
 
   .register-flow.register-account-page .register-account-stepper-row .stepper {
@@ -99,6 +100,7 @@ const registerAccountPageStyles = `
 
   .register-flow.register-account-page .register-account-card {
     width: min(100%, 760px);
+    max-width: 100%;
     padding: 30px;
     display: grid;
     gap: 22px;
@@ -1129,14 +1131,14 @@ export function RegisterAccountPage() {
         <main className="content">
           <h1 className="register-sr-only">Calendra — account setup</h1>
           <div className="register-account-main">
-            <div className="register-account-page-stack">
-              <div className="register-stepper-row register-account-stepper-row">
-                <div className="stepper" aria-label="Registration progress">
-                  <div className="step step-done">1 Plan Selection ✓</div>
-                  <div className="step step-current">2 Account Setup</div>
-                  <div className="step">3 Billing Details</div>
-                </div>
+            <div className="register-stepper-row register-account-stepper-row">
+              <div className="stepper" aria-label="Registration progress">
+                <div className="step step-done">1 Plan Selection ✓</div>
+                <div className="step step-current">2 Account Setup</div>
+                <div className="step">3 Billing Details</div>
               </div>
+            </div>
+            <div className="register-account-page-stack">
               <section className="panel register-account-card">
               {view === 'invalid' ? (
                 <>
