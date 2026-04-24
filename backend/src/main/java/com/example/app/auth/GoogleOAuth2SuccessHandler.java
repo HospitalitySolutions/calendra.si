@@ -131,8 +131,15 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             }
             Object emailOut = body.get("email");
             String verifyEmail = emailOut != null ? emailOut.toString() : normalizedEmail;
-            String target = buildRegisterAccountVerifyUrl(pending.returnSearch(), verifyEmail);
-            log.info("Google signup provisioned; redirecting to {}", target);
+            Object setupToken = body.get("emailSetupToken");
+            String target;
+            if (setupToken != null && !setupToken.toString().isBlank()) {
+                target = buildConfirmEmailPasswordSetupUrl(verifyEmail, setupToken.toString());
+                log.info("Google signup provisioned; redirecting to confirm-email for password setup (email={})", verifyEmail);
+            } else {
+                target = buildRegisterAccountVerifyUrl(pending.returnSearch(), verifyEmail);
+                log.info("Google signup provisioned; redirecting to {}", target);
+            }
             getRedirectStrategy().sendRedirect(request, response, target);
             return;
         }
@@ -209,6 +216,15 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         }
         String sep = rs.contains("?") ? "&" : "?";
         return base + rs + sep + "verifyEmail=1&pendingAccountCreation=1&email=" + URLEncoder.encode(verifyEmail, StandardCharsets.UTF_8);
+    }
+
+    /** Opens the same password-setup UI as the link in the signup confirmation email (intent token). */
+    private String buildConfirmEmailPasswordSetupUrl(String email, String token) {
+        return frontendBaseUrl()
+                + "/confirm-email?token="
+                + URLEncoder.encode(token, StandardCharsets.UTF_8)
+                + "&email="
+                + URLEncoder.encode(email, StandardCharsets.UTF_8);
     }
 
     private String buildRegisterAccountFinishVerifyUrl(String returnSearch, String verifyEmail) {

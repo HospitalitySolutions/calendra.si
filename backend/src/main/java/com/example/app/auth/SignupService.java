@@ -202,7 +202,7 @@ public class SignupService {
         if (!passwordProvided) {
             return beginEmailSignupIntent(request, normalizedEmail);
         }
-        return provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse);
+        return provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse, false);
     }
 
     public ResponseEntity<?> beginEmailSignupIntent(AuthController.SignupRequest request, String normalizedEmail) {
@@ -347,7 +347,7 @@ public class SignupService {
                 request.fiscalizationNeeded(),
                 request.returnSearch()
         );
-        ResponseEntity<?> provisioned = provisionNewTenant(finalized, normalizedEmail, httpRequest, httpResponse);
+        ResponseEntity<?> provisioned = provisionNewTenant(finalized, normalizedEmail, httpRequest, httpResponse, false);
         if (!provisioned.getStatusCode().is2xxSuccessful() || !(provisioned.getBody() instanceof Map<?, ?> body)) {
             return provisioned;
         }
@@ -360,11 +360,17 @@ public class SignupService {
         return ResponseEntity.status(provisioned.getStatusCode()).body(out);
     }
 
+    /**
+     * @param skipPostProvisionConfirmationEmail when {@code true}, creates the post-provision signup intent but does not
+     *                                           send the confirmation email (used after Google OAuth so the browser can open
+     *                                           {@code /confirm-email} directly).
+     */
     public ResponseEntity<?> provisionNewTenant(
             AuthController.SignupRequest request,
             String normalizedEmail,
             HttpServletRequest httpRequest,
-            HttpServletResponse httpResponse
+            HttpServletResponse httpResponse,
+            boolean skipPostProvisionConfirmationEmail
     ) {
         deactivateSignupIntentsForEmail(normalizedEmail);
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
@@ -416,19 +422,31 @@ public class SignupService {
 
         if (!passwordProvided) {
             seedSetting(company, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING, "true");
+            final String setupToken;
             try {
-                createPostProvisionEmailIntent(request, normalizedEmail, owner.getId());
+                setupToken = createPostProvisionEmailIntent(
+                        request,
+                        normalizedEmail,
+                        owner.getId(),
+                        !skipPostProvisionConfirmationEmail
+                );
             } catch (java.io.IOException e) {
                 log.warn("Failed to create post-provision signup intent for {}: {}", normalizedEmail, e.getMessage());
                 throw new IllegalStateException("Could not create email verification intent", e);
             }
-            return ResponseEntity.ok(Map.of(
-                    "message", "We sent a link to confirm your email and finish setting up your account.",
-                    "requiresPasswordSetup", true,
-                    "requiresEmailVerification", true,
-                    "pendingAccountCreation", true,
-                    "email", normalizedEmail
-            ));
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put(
+                    "message",
+                    skipPostProvisionConfirmationEmail
+                            ? "Continue to set your password to finish creating your account."
+                            : "We sent a link to confirm your email and finish setting up your account."
+            );
+            body.put("requiresPasswordSetup", true);
+            body.put("requiresEmailVerification", true);
+            body.put("pendingAccountCreation", true);
+            body.put("email", normalizedEmail);
+            body.put("emailSetupToken", setupToken);
+            return ResponseEntity.ok(body);
         }
 
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
@@ -477,7 +495,15 @@ public class SignupService {
         return ResponseEntity.ok(authSuccessResponse(owner, sessionToken, httpRequest));
     }
 
-    private void createPostProvisionEmailIntent(AuthController.SignupRequest request, String normalizedEmail, long ownerUserId) throws java.io.IOException {
+    /**
+     * @return the intent token (same as in {@code /confirm-email?token=})
+     */
+    private String createPostProvisionEmailIntent(
+            AuthController.SignupRequest request,
+            String normalizedEmail,
+            long ownerUserId,
+            boolean sendConfirmationEmail
+    ) throws java.io.IOException {
         String token = generateIntentToken();
         Map<String, Object> payload = intentPayloadMap(request, normalizedEmail);
         payload.put(POST_PROVISION_OWNER_USER_ID, ownerUserId);
@@ -489,7 +515,10 @@ public class SignupService {
         intentRow.setExpiresAt(Instant.now().plusSeconds(INTENT_TTL_SECONDS));
         intentRow.setActive(true);
         signupEmailIntents.save(intentRow);
-        sendSignupConfirmationEmail(normalizedEmail, token);
+        if (sendConfirmationEmail) {
+            sendSignupConfirmationEmail(normalizedEmail, token);
+        }
+        return token;
     }
 
     private void clearSignupOwnerPasswordPending(User user) {
@@ -522,7 +551,7 @@ public class SignupService {
         }
         deactivateSignupIntentsForEmail(normalizedEmail);
         try {
-            createPostProvisionEmailIntent(request, normalizedEmail, owner.getId());
+            createPostProvisionEmailIntent(request, normalizedEmail, owner.getId(), true);
         } catch (Exception e) {
             log.warn("Failed to resend post-provision signup email: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Could not resend signup email."));
@@ -743,7 +772,7 @@ public class SignupService {
                 pending.fiscalizationNeeded(),
                 returnSearch
         );
-        return provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse);
+        return provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse, true);
     }
 
     private Map<String, Object> authSuccessResponse(User user, String token, HttpServletRequest request) {

@@ -19,25 +19,51 @@ import {
 } from './RegisterPage'
 
 const registerAccountPageStyles = `
+  .register-flow.register-account-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .register-flow.register-account-page .app {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+  }
+
   .register-flow.register-account-page .content {
-    display: block;
-    min-height: calc(100vh - 220px);
-    padding-top: 36px;
-    padding-bottom: 164px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 36px 28px 164px;
+    min-width: 0;
+  }
+
+  .register-flow.register-account-page:has(.register-fixed-footer.is-expanded) .content {
+    padding-bottom: clamp(280px, 52vh, 520px);
   }
 
   .register-flow.register-account-page .register-account-main {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     width: 100%;
-    display: block;
   }
 
   .register-flow.register-account-page .register-account-page-stack {
     width: 100%;
     max-width: 760px;
-    margin: 0;
+    margin: 0 auto;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    min-height: 0;
   }
 
   .register-flow.register-account-page .register-account-stepper-row {
@@ -46,7 +72,8 @@ const registerAccountPageStyles = `
     align-items: center;
     justify-content: flex-start;
     gap: 10px 14px;
-    margin-bottom: 22px;
+    margin-bottom: 0;
+    flex-shrink: 0;
   }
 
   .register-flow.register-account-page .register-account-stepper-row .stepper {
@@ -78,6 +105,9 @@ const registerAccountPageStyles = `
     background: rgba(255, 255, 255, 0.82);
     border: 1px solid rgba(223, 231, 245, 0.95);
     box-shadow: 0 20px 48px rgba(34, 78, 160, 0.12);
+    flex-shrink: 0;
+    margin-top: auto;
+    margin-bottom: auto;
   }
 
   .register-flow.register-account-page .register-account-trust,
