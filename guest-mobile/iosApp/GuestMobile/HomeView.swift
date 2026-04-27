@@ -17,7 +17,7 @@ struct HomeView: View {
                             Text("Nothing booked yet")
                                 .font(.headline)
                             Text("Open Book to choose a service, date and payment method.")
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                         }
                     }
                 } else {
@@ -47,9 +47,9 @@ struct HomeView: View {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(booking.title)
                                                     .font(.title3.weight(.semibold))
-                                                    .foregroundStyle(.white)
+                                                    .foregroundColor(.white)
                                                 Text(booking.status.replacingOccurrences(of: "_", with: " "))
-                                                    .foregroundStyle(.white.opacity(0.78))
+                                                    .foregroundColor(.white.opacity(0.78))
                                             }
                                         }
                                         .padding(18)
@@ -61,11 +61,11 @@ struct HomeView: View {
                                             .font(.headline)
                                         if let city = booking.tenantCity, !city.isEmpty {
                                             Text(city)
-                                                .foregroundStyle(.secondary)
+                                                .foregroundColor(.secondary)
                                         }
                                         Text(booking.tenantPhone ?? "No company phone available")
                                             .font(.subheadline)
-                                            .foregroundStyle(.secondary)
+                                            .foregroundColor(.secondary)
                                     }
 
                                     HStack(spacing: 12) {
@@ -84,7 +84,7 @@ struct HomeView: View {
                         Text("Active access")
                             .font(.title2.weight(.bold))
                         Text("Credits and memberships for the current tenancy scope.")
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                     }
 
                     ForEach(store.accessCards) { access in
@@ -98,11 +98,11 @@ struct HomeView: View {
                                 }
                                 if let remainingUses = access.remainingUses {
                                     Text("Remaining uses: \(remainingUses)")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundColor(.secondary)
                                 }
                                 if let validUntil = access.validUntil {
                                     Text("Valid until \(formatDateTime(validUntil))")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundColor(.secondary)
                                 }
                             }
                         }
@@ -121,15 +121,15 @@ struct HomeView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(lines.line1)
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                 Text(lines.line2)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundColor(.white.opacity(0.88))
             }
         } else {
             Text(formatDateTime(raw))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundColor(.white.opacity(0.82))
         }
     }
 
@@ -137,7 +137,7 @@ struct HomeView: View {
         Link(destination: url ?? URL(string: "https://example.invalid")!) {
             Image(systemName: systemName)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
                 .frame(width: 44, height: 44)
                 .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(.secondarySystemBackground)))
         }

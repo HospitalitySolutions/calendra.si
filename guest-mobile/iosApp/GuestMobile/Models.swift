@@ -434,7 +434,7 @@ struct GuestInboxMessageModel: Identifiable, Codable, Hashable {
     let senderPhone: String?
     let sentAt: String?
     let createdAt: String
-    let attachments: [GuestInboxAttachmentModel]? = nil
+    let attachments: [GuestInboxAttachmentModel]?
 }
 
 struct GuestInboxSendPayload: Codable {

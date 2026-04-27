@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct NotificationsView: View {
     @EnvironmentObject private var store: AppStore
@@ -69,12 +70,12 @@ struct NotificationsView: View {
         VStack(spacing: 12) {
             Image(systemName: "bell.slash")
                 .font(.system(size: 42, weight: .regular))
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
             Text("No notifications yet")
                 .font(.headline)
             Text("We'll show booking updates, reminders and announcements here.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
@@ -87,17 +88,17 @@ struct NotificationsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(notification.title)
                     .font(.headline)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
                 if !notification.body.isEmpty {
                     Text(notification.body)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if let createdAt = notification.createdAt, !createdAt.isEmpty {
                     Text(formatted(createdAt: createdAt))
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
             }
             Spacer(minLength: 0)

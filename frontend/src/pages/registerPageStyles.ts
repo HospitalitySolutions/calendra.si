@@ -22,7 +22,10 @@ export const registerPageStyles = `
       --radius-md: 16px;
       --radius-sm: 12px;
       --transition: 180ms ease;
-      --max-width: 1360px;
+      /* Full-width shell on desktop (was 1360px); footer uses the same token. */
+      --max-width: none;
+      --register-gutter: max(12px, env(safe-area-inset-left, 0px));
+      --register-gutter-right: max(12px, env(safe-area-inset-right, 0px));
     }
 
     .register-flow * { box-sizing: border-box; }
@@ -42,21 +45,23 @@ export const registerPageStyles = `
     }
 
     .register-flow {
-      padding-top: max(28px, env(safe-area-inset-top, 0px));
-      padding-right: max(28px, env(safe-area-inset-right, 0px));
+      padding-top: 0;
+      padding-right: var(--register-gutter-right);
       padding-bottom: max(28px, env(safe-area-inset-bottom, 0px));
-      padding-left: max(28px, env(safe-area-inset-left, 0px));
+      padding-left: var(--register-gutter);
     }
 
+    /* Main column is not a separate card; panels carry their own surfaces. */
     .register-flow .app {
-      max-width: var(--max-width);
-      margin: 0 auto;
-      background: rgba(255,255,255,0.55);
-      border: 1px solid rgba(223, 232, 247, 0.9);
-      backdrop-filter: blur(14px);
-      border-radius: 32px;
-      box-shadow: var(--shadow);
-      overflow: hidden;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      background: transparent;
+      border: 0;
+      backdrop-filter: none;
+      border-radius: 0;
+      box-shadow: none;
+      overflow: visible;
       min-width: 0;
     }
 
@@ -66,13 +71,27 @@ export const registerPageStyles = `
       justify-content: space-between;
       flex-wrap: wrap;
       gap: 12px 16px;
-      padding: 22px 28px;
+      padding: max(18px, calc(10px + env(safe-area-inset-top, 0px))) 0 18px;
       border-bottom: 1px solid rgba(223, 232, 247, 0.75);
-      background: rgba(255,255,255,0.38);
+      background: rgba(255, 255, 255, 0.42);
+    }
+
+    /* Flush upper panel (not the top cap of the main card); safe-area lives in topbar padding. */
+    .register-flow > .topbar {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      flex-shrink: 0;
+      border-radius: 0;
+    }
+
+    .register-flow > .topbar + .app {
+      border-radius: 0;
+      margin-top: 12px;
     }
 
     .register-flow .topbar .brand {
-      flex: 1 1 auto;
+      flex: 0 1 auto;
       min-width: 0;
     }
 
@@ -130,7 +149,7 @@ export const registerPageStyles = `
     }
 
     .register-flow .content {
-      padding: 30px 28px clamp(200px, 32vh, 320px);
+      padding: 30px 0 clamp(200px, 32vh, 320px);
       min-width: 0;
     }
 
@@ -189,27 +208,10 @@ export const registerPageStyles = `
       color: var(--blue);
     }
 
-    .register-flow .recommendation {
-      flex: 0 1 auto;
-      min-width: 0;
-      max-width: 100%;
-      margin-left: auto;
-      padding: 10px 18px;
-      border: 1px solid #d4e1ff;
-      background: linear-gradient(135deg, #eff5ff, #ffffff);
-      border-radius: 999px;
-      color: var(--blue-dark);
-      font-weight: 900;
-      font-size: 0.96rem;
-      line-height: 1.35;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
     .register-flow .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr);
+      /* Packages/add-ons left (wider), “What’s included” right */
+      grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr);
       grid-template-rows: auto auto;
       gap: 22px;
       align-items: start;
@@ -223,12 +225,12 @@ export const registerPageStyles = `
     }
 
     .register-flow .layout > .left-panel {
-      grid-column: 1;
+      grid-column: 2;
       grid-row: 2;
     }
 
     .register-flow .layout > .right-panel {
-      grid-column: 2;
+      grid-column: 1;
       grid-row: 2;
     }
 
@@ -253,52 +255,6 @@ export const registerPageStyles = `
       flex-direction: column;
       gap: 18px;
       min-width: 0;
-    }
-
-    .register-flow .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: var(--blue-soft);
-      color: var(--blue);
-      font-weight: 900;
-      font-size: 0.86rem;
-      margin-bottom: 14px;
-    }
-
-    .register-flow .plan-preview-head-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 14px;
-      min-width: 0;
-    }
-
-    .register-flow .plan-preview-head-row .eyebrow {
-      margin-bottom: 0;
-    }
-
-    .register-flow .plan-preview-name {
-      font-size: 1.38rem;
-      font-weight: 900;
-      letter-spacing: -0.04em;
-      color: var(--text);
-      line-height: 1.15;
-      text-align: right;
-      min-width: 0;
-    }
-
-    @media (min-width: 861px) {
-      .register-flow .plan-preview-head-row {
-        display: block;
-      }
-
-      .register-flow .plan-preview-name {
-        display: none;
-      }
     }
 
     .register-flow h2 {
@@ -594,13 +550,6 @@ export const registerPageStyles = `
       font-weight: 800;
     }
 
-    .register-flow .plan-desc {
-      min-height: 66px;
-      margin-bottom: 16px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
     .register-flow .mini-points {
       display: grid;
       gap: 10px;
@@ -774,20 +723,20 @@ export const registerPageStyles = `
 
     .register-flow .register-fixed-footer {
       position: fixed;
-      left: max(28px, env(safe-area-inset-left, 0px));
-      right: max(28px, env(safe-area-inset-right, 0px));
+      left: var(--register-gutter);
+      right: var(--register-gutter-right);
       bottom: 0;
       width: auto;
-      max-width: var(--max-width);
-      margin-left: auto;
-      margin-right: auto;
+      max-width: none;
+      margin-left: 0;
+      margin-right: 0;
       z-index: 100;
-      padding: 14px 22px calc(14px + env(safe-area-inset-bottom, 0px));
+      padding: 14px 0 calc(14px + env(safe-area-inset-bottom, 0px));
       background: rgba(255, 255, 255, 0.96);
       border-top: 1px solid rgba(223, 232, 247, 0.95);
       backdrop-filter: blur(16px);
       box-shadow: 0 -12px 40px rgba(42, 85, 165, 0.12);
-      border-radius: 22px 22px 0 0;
+      border-radius: 0;
     }
 
     .register-flow .register-fixed-footer.is-expanded {
@@ -795,8 +744,9 @@ export const registerPageStyles = `
     }
 
     .register-flow .register-fixed-footer-inner.register-footer-panel {
-      max-width: var(--max-width);
-      margin: 0 auto;
+      max-width: none;
+      margin: 0;
+      width: 100%;
       display: flex;
       flex-direction: column;
       gap: 14px;
@@ -812,6 +762,16 @@ export const registerPageStyles = `
 
     .register-flow .register-footer-back {
       flex: 0 0 auto;
+      min-width: 0;
+    }
+
+    .register-flow .register-footer-toolbar-lead {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      flex: 0 1 auto;
       min-width: 0;
     }
 
@@ -837,23 +797,36 @@ export const registerPageStyles = `
       .register-flow .register-footer-toolbar {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        grid-template-rows: auto;
         align-items: center;
         gap: 12px 16px;
         flex-wrap: unset;
       }
 
-      .register-flow .register-footer-back {
+      .register-flow .register-footer-toolbar-lead {
+        grid-column: 1;
+        grid-row: 1;
+        flex-direction: column;
+        align-items: flex-start;
+        align-self: center;
         justify-self: start;
+        gap: 8px;
       }
 
       .register-flow .register-footer-center-cluster {
+        grid-column: 2;
+        grid-row: 1;
         flex: unset;
         justify-self: center;
+        align-self: center;
         max-width: min(100%, 960px);
       }
 
       .register-flow .register-footer-continue {
+        grid-column: 3;
+        grid-row: 1;
         justify-self: end;
+        align-self: center;
       }
     }
 
@@ -961,7 +934,7 @@ export const registerPageStyles = `
 
     .register-flow .register-footer-pill-sub {
       font-size: 0.8rem;
-      font-weight: 700;
+      font-weight: 500;
       color: var(--muted);
       line-height: 1.35;
       white-space: nowrap;
@@ -1212,20 +1185,22 @@ export const registerPageStyles = `
 
     @media (max-width: 1024px) {
       .register-flow {
-        padding-top: max(16px, env(safe-area-inset-top, 0px));
-        padding-right: max(0px, env(safe-area-inset-right, 0px));
+        padding-top: 0;
+        padding-right: var(--register-gutter-right);
         padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
-        padding-left: max(0px, env(safe-area-inset-left, 0px));
+        padding-left: var(--register-gutter);
       }
 
       .register-flow .topbar {
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
+        padding-top: max(14px, calc(8px + env(safe-area-inset-top, 0px)));
+        padding-bottom: 14px;
       }
 
       .register-flow .content {
-        padding-left: max(0px, env(safe-area-inset-left, 0px));
-        padding-right: max(0px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
       }
 
       .register-flow .register-plan-page-stack {
@@ -1250,14 +1225,8 @@ export const registerPageStyles = `
         width: 100%;
         max-width: none;
         box-sizing: border-box;
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
-      }
-
-      .register-flow .plan-preview-head-row {
-        width: 100%;
-        max-width: none;
-        box-sizing: border-box;
+        padding-left: 0;
+        padding-right: 0;
       }
 
       .register-flow .feature-list {
@@ -1276,10 +1245,6 @@ export const registerPageStyles = `
         flex: 1 1 auto;
         min-width: 0;
       }
-
-      .register-flow .plan-preview-heading {
-        display: none;
-      }
     }
 
     @media (max-width: 960px) {
@@ -1288,10 +1253,10 @@ export const registerPageStyles = `
 
     @media (max-width: 860px) {
       .register-flow {
-        padding-top: max(8px, env(safe-area-inset-top, 0px));
-        padding-right: env(safe-area-inset-right, 0px);
+        padding-top: 0;
+        padding-right: var(--register-gutter-right);
         padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
-        padding-left: env(safe-area-inset-left, 0px);
+        padding-left: var(--register-gutter);
       }
 
       .register-flow .app {
@@ -1305,14 +1270,25 @@ export const registerPageStyles = `
         backdrop-filter: none;
       }
 
+      .register-flow > .topbar {
+        border-radius: 0;
+      }
+
+      .register-flow > .topbar + .app {
+        border-radius: 0;
+        margin-top: 0;
+      }
+
       .register-flow .topbar {
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
+        padding-top: max(12px, calc(6px + env(safe-area-inset-top, 0px)));
+        padding-bottom: 12px;
       }
 
       .register-flow .content {
-        padding-left: max(0px, env(safe-area-inset-left, 0px));
-        padding-right: max(0px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
       }
 
       .register-flow .layout {
@@ -1336,20 +1312,15 @@ export const registerPageStyles = `
       .register-flow .left-panel {
         padding-top: 16px;
         padding-bottom: 22px;
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
-      }
-
-      .register-flow .plan-preview-head-row {
-        width: 100%;
-        box-sizing: border-box;
+        padding-left: 0;
+        padding-right: 0;
       }
 
       .register-flow .slider-section {
         margin-left: 0;
         margin-right: 0;
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
         border-radius: 0;
         border-left: 0;
         border-right: 0;
@@ -1358,13 +1329,13 @@ export const registerPageStyles = `
       }
 
       .register-flow .plans-grid {
-        padding-left: max(0px, env(safe-area-inset-left, 0px));
-        padding-right: max(0px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
       }
 
       .register-flow .billing-toggle-wrap {
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
         flex-direction: column;
         align-items: stretch;
       }
@@ -1401,23 +1372,21 @@ export const registerPageStyles = `
       }
 
       .register-flow .feature-addons-section {
-        padding-left: max(0px, env(safe-area-inset-left, 0px));
-        padding-right: max(0px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
       }
 
       .register-flow .register-fixed-footer {
-        left: 0;
-        right: 0;
+        left: var(--register-gutter);
+        right: var(--register-gutter-right);
         max-width: none;
         margin-left: 0;
         margin-right: 0;
         border-radius: 0;
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
         padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       }
-      .register-flow .plan-desc { min-height: auto; }
-
       .register-flow .register-footer-back {
         display: none;
       }
@@ -1427,6 +1396,12 @@ export const registerPageStyles = `
         flex-direction: column;
         align-items: stretch;
         gap: 6px;
+      }
+
+      .register-flow .register-footer-toolbar-lead {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
       }
 
       .register-flow .register-footer-center-cluster {
@@ -1534,8 +1509,8 @@ export const registerPageStyles = `
       .register-flow .left-panel {
         padding-top: 14px;
         padding-bottom: 18px;
-        padding-left: max(12px, env(safe-area-inset-left, 0px));
-        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-left: 0;
+        padding-right: 0;
       }
       .register-flow .step {
         font-size: 0.8rem;
@@ -1589,10 +1564,6 @@ export const registerPageStyles = `
       .register-flow .slider-section {
         padding: 14px;
         border-radius: 18px;
-      }
-      .register-flow .eyebrow {
-        font-size: 0.8rem;
-        padding: 6px 10px;
       }
     }
 
@@ -1652,6 +1623,14 @@ export const registerPageStyles = `
 
 @media (min-width: 861px) {
   .register-flow .custom-cta--footer-toolbar {
+    display: none;
+  }
+
+  .register-flow .register-footer-back {
+    display: none;
+  }
+
+  .register-flow .register-footer-pill-icon {
     display: none;
   }
 }
@@ -1759,18 +1738,35 @@ export const registerPageStyles = `
 }
 
 .register-flow .register-addons-page .feature-addon-card {
+  display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   text-align: center;
-  gap: 14px;
+  gap: 0;
 }
 
-.register-flow .register-addons-page .feature-addon-card label {
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  flex: none;
+.register-flow .register-addons-page .feature-addon-card-label {
   width: 100%;
+  text-align: center;
+  grid-template-columns: 1fr auto auto 1fr;
+}
+
+.register-flow .register-addons-page .feature-addon-card-label > input[type="checkbox"] {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.register-flow .register-addons-page .feature-addon-card-label > .addon-price {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.register-flow .register-addons-page .feature-addon-card-label > .addon-meta {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: center;
 }
 
 .register-flow .register-addons-page .feature-addon-card .addon-meta {
@@ -1780,46 +1776,6 @@ export const registerPageStyles = `
 
 .register-flow .register-addons-page .feature-addon-card .addon-price {
   margin: 0;
-}
-
-.register-flow .register-addons-page .feature-addon-card input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  margin: 0;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border: 2px solid #b8cce8;
-  border-radius: 8px;
-  background: #fff;
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:hover {
-  border-color: var(--blue);
-}
-
-.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
-}
-
-.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:checked {
-  background-color: var(--blue);
-  border-color: var(--blue);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.2 6.5 11.2 12.5 4.5'/%3E%3C/svg%3E");
-  background-size: 16px 16px;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.register-flow .register-addons-page .feature-addon-card input[type="checkbox"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .register-flow .register-addons-back {
@@ -1961,34 +1917,116 @@ export const registerPageStyles = `
   line-height: 1.45;
 }
 
-.register-flow .slider-value {
-  white-space: nowrap;
-  padding: 8px 11px;
-  border-radius: 999px;
-  background: var(--blue-soft);
-  color: var(--blue);
-  font-size: 0.82rem;
-  font-weight: 900;
-}
-
 .register-flow .slider-input-wrap {
   display: grid;
   gap: 8px;
 }
 
 .register-flow .slider-input-wrap input[type="range"] {
+  --fill-pct: 0;
+  --slider-track-h: 8px;
+  --slider-thumb: 20px;
+  --slider-thumb-r: calc(var(--slider-thumb) / 2);
   width: 100%;
-  accent-color: var(--blue);
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.register-flow .slider-input-wrap input[type="range"]::-webkit-slider-runnable-track {
+  height: var(--slider-track-h);
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(
+    to right,
+    var(--blue) 0,
+    var(--blue) max(0px, calc(var(--fill-pct) * 1% - var(--slider-thumb-r))),
+    #e8eef9 max(0px, calc(var(--fill-pct) * 1% - var(--slider-thumb-r))),
+    #e8eef9 100%
+  );
+}
+
+.register-flow .slider-input-wrap input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--slider-thumb);
+  height: var(--slider-thumb);
+  margin-top: calc((var(--slider-track-h) - var(--slider-thumb)) / 2);
+  border-radius: 50%;
+  border: 2px solid #dbe4f5;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(23, 37, 61, 0.12);
+  box-sizing: border-box;
+}
+
+.register-flow .slider-input-wrap input[type="range"]:focus-visible {
+  outline: none;
+}
+
+.register-flow .slider-input-wrap input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(47, 109, 246, 0.35), 0 1px 3px rgba(23, 37, 61, 0.12);
+}
+
+.register-flow .slider-input-wrap input[type="range"]::-moz-range-track {
+  height: var(--slider-track-h);
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(
+    to right,
+    var(--blue) 0,
+    var(--blue) max(0px, calc(var(--fill-pct) * 1% - var(--slider-thumb-r))),
+    #e8eef9 max(0px, calc(var(--fill-pct) * 1% - var(--slider-thumb-r))),
+    #e8eef9 100%
+  );
+}
+
+.register-flow .slider-input-wrap input[type="range"]::-moz-range-progress {
+  height: var(--slider-track-h);
+  border-radius: 999px;
+  background: transparent;
+}
+
+.register-flow .slider-input-wrap input[type="range"]::-moz-range-thumb {
+  width: var(--slider-thumb);
+  height: var(--slider-thumb);
+  border-radius: 50%;
+  border: 2px solid #dbe4f5;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(23, 37, 61, 0.12);
+  box-sizing: border-box;
   cursor: pointer;
 }
 
+.register-flow .slider-input-wrap input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(47, 109, 246, 0.35), 0 1px 3px rgba(23, 37, 61, 0.12);
+}
+
 .register-flow .slider-scale {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  position: relative;
+  min-height: 26px;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.register-flow .slider-scale-thumb {
+  position: absolute;
+  bottom: 0;
+  z-index: 1;
+  padding: 4px 9px;
+  border-radius: 10px;
+  background: rgba(47, 109, 246, 0.12);
+  color: var(--blue);
+  font-size: 0.74rem;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1.2;
 }
 
 .register-flow .slider-price-note {
@@ -2036,10 +2074,6 @@ export const registerPageStyles = `
     grid-template-columns: 1fr;
     display: grid;
   }
-
-  .register-flow .slider-value {
-    justify-self: start;
-  }
 }
 
 
@@ -2060,33 +2094,95 @@ export const registerPageStyles = `
 
 .register-flow .feature-addons-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 12px;
 }
 
 .register-flow .feature-addon-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
   padding: 14px;
   background: white;
   border: 1px solid #e8eef9;
   border-radius: 16px;
-}
-
-.register-flow .feature-addon-card label {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
-  flex: 1;
   min-width: 0;
 }
 
-.register-flow .feature-addon-card input {
-  accent-color: var(--blue);
-  margin-top: 2px;
+/* Checkbox + price on row 1 (grid columns keep price tight to checkbox); meta full width row 2. */
+.register-flow .feature-addon-card-label {
+  display: grid;
+  grid-template-columns: auto minmax(0, max-content);
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 12px;
+  align-items: start;
+  cursor: pointer;
+  margin: 0;
+  min-width: 0;
+}
+
+.register-flow .feature-addon-card-label > input[type="checkbox"] {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  align-self: center;
+}
+
+.register-flow .feature-addon-card-label > .addon-price {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  align-self: center;
+  margin: 0;
+}
+
+.register-flow .feature-addon-card-label > .addon-meta {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Custom add-on checkboxes: white fill when checked, blue border + blue tick (all viewports). */
+.register-flow .feature-addon-card input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 2px solid #b8cce8;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.register-flow .feature-addon-card input[type="checkbox"]:hover {
+  border-color: var(--blue);
+}
+
+.register-flow .feature-addon-card input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+
+.register-flow .feature-addon-card input[type="checkbox"]:checked {
+  background-color: #fff;
+  border-color: var(--blue);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath stroke='%232f6df6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.2 6.5 11.2 12.5 4.5'/%3E%3C/svg%3E");
+  background-size: 16px 16px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.register-flow .feature-addon-card input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 860px) {
@@ -2094,68 +2190,29 @@ export const registerPageStyles = `
     grid-template-columns: 1fr;
   }
 
-  .register-flow .feature-addon-card {
-    flex-direction: column;
+  .register-flow .feature-addon-card-label {
+    text-align: center;
+    grid-template-columns: 1fr auto auto 1fr;
+  }
+
+  .register-flow .feature-addon-card-label > input[type="checkbox"] {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .register-flow .feature-addon-card-label > .addon-price {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: start;
+  }
+
+  .register-flow .feature-addon-card-label > .addon-meta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
     align-items: center;
     text-align: center;
-    gap: 14px;
-  }
-
-  .register-flow .feature-addon-card label {
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    flex: none;
-    width: 100%;
-  }
-
-  .register-flow .feature-addon-card .addon-meta {
-    align-items: center;
-    text-align: center;
-  }
-
-  .register-flow .feature-addon-card .addon-price {
-    margin: 0;
-  }
-
-  .register-flow .feature-addon-card input[type="checkbox"] {
-    appearance: none;
-    -webkit-appearance: none;
-    margin: 0;
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    border: 2px solid #b8cce8;
-    border-radius: 8px;
-    background: #fff;
-    cursor: pointer;
-    transition:
-      border-color 0.15s ease,
-      box-shadow 0.15s ease,
-      background-color 0.15s ease;
-  }
-
-  .register-flow .feature-addon-card input[type="checkbox"]:hover {
-    border-color: var(--blue);
-  }
-
-  .register-flow .feature-addon-card input[type="checkbox"]:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
-  }
-
-  .register-flow .feature-addon-card input[type="checkbox"]:checked {
-    background-color: var(--blue);
-    border-color: var(--blue);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.2 6.5 11.2 12.5 4.5'/%3E%3C/svg%3E");
-    background-size: 16px 16px;
-    background-position: center;
-    background-repeat: no-repeat;
-  }
-
-  .register-flow .feature-addon-card input[type="checkbox"]:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 }
 

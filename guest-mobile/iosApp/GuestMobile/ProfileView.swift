@@ -62,7 +62,7 @@ struct ProfileView: View {
                                             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                                     } else {
                                         Image(systemName: "person.fill")
-                                            .foregroundStyle(Color.accentColor)
+                                            .foregroundColor(Color.accentColor)
                                     }
                                 }
                             }
@@ -72,7 +72,7 @@ struct ProfileView: View {
                                 Text("\(profile.firstName) \(profile.lastName)".trimmingCharacters(in: .whitespaces))
                                     .font(.title3.weight(.semibold))
                                 Text(profile.email)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundColor(.secondary)
                             }
                         }
 
@@ -89,7 +89,7 @@ struct ProfileView: View {
                         if let remoteError, !remoteError.isEmpty {
                             Text(remoteError)
                                 .font(.caption)
-                                .foregroundStyle(.red)
+                                .foregroundColor(.red)
                         }
                     }
                 }
@@ -97,7 +97,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Preferences")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .textCase(.uppercase)
                         .padding(.leading, 4)
                     VStack(spacing: 0) {
@@ -115,15 +115,15 @@ struct ProfileView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "rectangle.portrait.and.arrow.right")
                                     .font(.body)
-                                    .foregroundStyle(Color.red)
+                                    .foregroundColor(Color.red)
                                     .frame(width: 22, alignment: .leading)
                                 Text("Log out")
                                     .font(.headline)
-                                    .foregroundStyle(Color.red)
+                                    .foregroundColor(Color.red)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundColor(Color(UIColor.tertiaryLabel))
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 14)
@@ -148,7 +148,7 @@ struct ProfileView: View {
         .task(id: avatarPickerTrigger) {
             await refreshAvatar()
         }
-        .onChange(of: photoPickerItem) { _, newItem in
+        .onChange(of: photoPickerItem) { newItem in
             Task { await handlePickedPhoto(newItem) }
         }
         .confirmationDialog("Language", isPresented: $showLanguagePicker, titleVisibility: .visible) {
@@ -326,17 +326,17 @@ struct ProfileView: View {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .frame(width: 22, alignment: .leading)
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
                 Spacer()
                 Text(value)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -373,7 +373,7 @@ private struct NotificationPreferencesSheet: View {
                                 .font(.headline)
                             Text("New inbox messages from your provider")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                         }
                     }
                     .disabled(saving)
@@ -390,7 +390,7 @@ private struct NotificationPreferencesSheet: View {
                                 .font(.headline)
                             Text("Appointment reminders and updates")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                         }
                     }
                     .disabled(saving)
@@ -496,9 +496,9 @@ struct AddCardSheet: View {
                     if panDigits.isEmpty {
                         Text("Enter digits; card type is detected automatically.")
                     } else if panValid {
-                        Text("\(brand.displayName) · valid number").foregroundStyle(.green)
+                        Text("\(brand.displayName) · valid number").foregroundColor(.green)
                     } else if panDigits.count >= 13, !GuestPaymentCard.luhnValid(panDigits) {
-                        Text("Card number is not valid").foregroundStyle(.red)
+                        Text("Card number is not valid").foregroundColor(.red)
                     } else {
                         Text("\(brand.displayName) · \(panDigits.count) digits")
                     }
@@ -512,11 +512,11 @@ struct AddCardSheet: View {
                     if expiry.isEmpty {
                         Text("Expiry in MM/YY format.")
                     } else if !expiryFormatOk {
-                        Text("Use format MM/YY").foregroundStyle(.red)
+                        Text("Use format MM/YY").foregroundColor(.red)
                     } else if !expiryValid {
-                        Text("Expiry date is in the past").foregroundStyle(.red)
+                        Text("Expiry date is in the past").foregroundColor(.red)
                     } else {
-                        Text("Looks good").foregroundStyle(.green)
+                        Text("Looks good").foregroundColor(.green)
                     }
                 }
             }

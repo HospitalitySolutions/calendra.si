@@ -61,7 +61,7 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedSuperAdmin() {
-        final String superAdminEmail = "dmirc@hosp-it.eu";
+        final String superAdminEmail = "dmirc@calendra.si";
         final String superAdminPassword = "Admin123!";
         Company platformCompany = companies.findAll().stream()
                 .filter(c -> c.getName() != null && c.getName().equalsIgnoreCase("Platform Admin"))

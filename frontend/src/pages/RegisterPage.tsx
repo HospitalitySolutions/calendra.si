@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type Dispatch,
   type RefObject,
   type SetStateAction,
@@ -13,88 +14,41 @@ import loginLogo from '../assets/login-logo.png'
 import { useToast } from '../components/Toast'
 import { Field } from '../components/ui'
 import { useLocale } from '../locale'
+import { ensureRegisterCatalogLoaded } from '../lib/registerCatalogBootstrap'
+import { useRegisterFooterClickOutside } from '../lib/useRegisterFooterClickOutside'
 import { registerPageStyles } from './registerPageStyles'
 import {
   getBillableAdditionalUserSlots,
   parseRegisterSelection,
   selectionToSearch,
-  type RegisterBillingCycle,
   type RegisterPlanKey,
   type RegisterSelection,
 } from './registerFlow'
+import {
+  annualSaveBadgeText,
+  buildRegisterFooterPill,
+  buildSummary,
+  formatEuro,
+  getAddonCatalog,
+  getFeatureItems,
+  getPlanCardPriceNote,
+  getPlanDisplay,
+  getRegisterPlanPageCopy,
+  getSelectionMonthlyAmounts,
+  plansForLocale,
+  type RegisterLocale,
+  type RegisterPlanPageCopy,
+  type RegisterSummary,
+} from './registerPlanCopy'
 
-type FeatureKey =
-  | 'appointments'
-  | 'staff'
-  | 'group'
-  | 'resources'
-  | 'payments'
-  | 'reminders'
-  | 'ai'
-  | 'integrations'
-  | 'reporting'
-  | 'multilocation'
-
-type AddonKey = 'voice' | 'billing' | 'whitelabel'
-
-type PlanConfig = {
-  name: string
-  monthly: number
-  description: string
-  recommendation: string
-  upsell: string
-  features: FeatureKey[]
-}
-
-export const plans: Record<RegisterPlanKey, PlanConfig> = {
-  basic: {
-    name: 'Basic',
-    monthly: 18.9,
-    description: 'Ideal for solo providers starting with simple one-on-one bookings and a low-friction onboarding path.',
-    recommendation: 'Recommended: Basic for solo one-on-one businesses that want the lightest start',
-    upsell: 'Basic is the cleanest entry offer here because the 14-day free trial removes friction before account creation and billing.',
-    features: ['appointments', 'staff'],
-  },
-  pro: {
-    name: 'Pro',
-    monthly: 34.9,
-    description: 'Best for growing businesses with reminders, payments, and more advanced booking flows.',
-    recommendation: 'Recommended: Pro for small teams with mixed booking needs',
-    upsell: 'Pro is the best fit when you need reminders, payments, team coordination, or richer scheduling from the start.',
-    features: ['appointments', 'staff', 'group', 'resources', 'payments', 'reminders', 'ai', 'integrations'],
-  },
-  business: {
-    name: 'Business',
-    monthly: 59.9,
-    description: 'For larger teams, multiple locations, and advanced reporting.',
-    recommendation: 'Recommended: Business for larger teams, resources, and multi-location workflows',
-    upsell: 'Business is the strongest fit when you manage multiple branches, broader operations, or advanced reporting needs.',
-    features: ['appointments', 'staff', 'group', 'resources', 'payments', 'reminders', 'ai', 'integrations', 'reporting', 'multilocation'],
-  },
-}
-
-const featureItems: Array<{ key: FeatureKey; index: number; name: string; description: string }> = [
-  { key: 'appointments', index: 1, name: 'Unlimited appointments', description: 'Accept bookings without monthly caps.' },
-  { key: 'staff', index: 2, name: 'Team members', description: 'Manage staff schedules and availability.' },
-  { key: 'group', index: 3, name: 'Group bookings', description: 'Classes, sessions, workshops, and shared slots.' },
-  { key: 'resources', index: 4, name: 'Resource scheduling', description: 'Rooms, chairs, courts, equipment, and assets.' },
-  { key: 'payments', index: 5, name: 'Online payments', description: 'Deposits and prepayments during booking.' },
-  { key: 'reminders', index: 6, name: 'SMS & email reminders', description: 'Reduce no-shows automatically.' },
-  { key: 'ai', index: 7, name: 'AI booking assistant', description: 'Voice booking and intelligent scheduling help.' },
-  { key: 'integrations', index: 8, name: 'Integrations', description: 'Google, Outlook, Zoom, payments, automation.' },
-  { key: 'reporting', index: 9, name: 'Advanced reporting', description: 'Revenue, utilization, and booking analytics.' },
-  { key: 'multilocation', index: 10, name: 'Multi-location support', description: 'Manage multiple branches in one account.' },
-]
-
-const addonCatalog: Record<AddonKey, { name: string; monthly: number; description: string }> = {
-  voice: { name: 'AI voice booking', monthly: 12, description: 'Hands-free assistant for faster scheduling.' },
-  billing: { name: 'Billing & invoices', monthly: 8, description: 'Invoices, payment records, and exports.' },
-  whitelabel: { name: 'Branded booking experience', monthly: 10, description: 'Custom colors, domain, and branded notifications.' },
-}
+export type { RegisterSummary } from './registerPlanCopy'
+export { buildSummary, formatEuro, getSelectionMonthlyAmounts, plans } from './registerPlanCopy'
 
 type RegisterPlanAddonSectionsProps = {
   selection: RegisterSelection
   setSelection: Dispatch<SetStateAction<RegisterSelection>>
+  pageCopy: RegisterPlanPageCopy
+  locale: RegisterLocale
   featureAddonsSectionRef?: RefObject<HTMLElement | null> | null
   /** Bottom sentinel for scroll / “fully viewed” detection (e.g. add-ons page footer CTA). */
   featureAddonsEndRef?: RefObject<HTMLDivElement | null> | null
@@ -102,26 +56,42 @@ type RegisterPlanAddonSectionsProps = {
   addonsModalPresentation?: boolean
 }
 
+function linearRangePercent(value: number, min: number, max: number): number {
+  if (max <= min) return 0
+  return ((value - min) / (max - min)) * 100
+}
+
+function sliderThumbLabelStyle(percent: number): { left: string; transform: string } {
+  return {
+    left: `clamp(14px, ${percent}%, calc(100% - 14px))`,
+    transform: 'translateX(-50%)',
+  }
+}
+
 export function RegisterPlanAddonSections({
   selection,
   setSelection,
+  pageCopy,
+  locale,
   featureAddonsSectionRef,
   featureAddonsEndRef,
   addonsModalPresentation = false,
 }: RegisterPlanAddonSectionsProps) {
+  const addonCatalog = getAddonCatalog(locale)
+  const pm = locale === 'sl' ? '/mes.' : '/mo'
+
   return (
     <>
-      <section className="slider-section" aria-label="Usage-based add-ons">
-        <div className="section-divider"><span>Usage-based add-ons</span></div>
+      <section className="slider-section" aria-label={pageCopy.usageAddonsSectionAria}>
+        <div className="section-divider"><span>{pageCopy.usageAddonsDivider}</span></div>
 
         <div className="slider-stack">
           <div className="slider-card">
             <div className="slider-head">
               <div className="slider-meta">
-                <strong>Users</strong>
-                <span>Add extra team members on top of your selected plan allowance.</span>
+                <strong>{pageCopy.usersStrong}</strong>
+                <span>{pageCopy.usersHint}</span>
               </div>
-              <div className="slider-value">{selection.additionalUsers} {selection.additionalUsers === 1 ? 'user' : 'users'}</div>
             </div>
 
             <div className="slider-input-wrap">
@@ -132,28 +102,35 @@ export function RegisterPlanAddonSections({
                 step="1"
                 value={selection.additionalUsers}
                 onChange={(event) => setSelection((current) => ({ ...current, additionalUsers: Number(event.target.value) }))}
+                style={
+                  { '--fill-pct': linearRangePercent(selection.additionalUsers, 1, 10) } as CSSProperties
+                }
               />
               <div className="slider-scale">
-                <span>1</span>
-                <span>10 users</span>
+                <span
+                  className="slider-scale-thumb"
+                  style={sliderThumbLabelStyle(linearRangePercent(selection.additionalUsers, 1, 10))}
+                >
+                  {selection.additionalUsers}{' '}
+                  {selection.additionalUsers === 1 ? pageCopy.userSingular : pageCopy.userPlural}
+                </span>
               </div>
             </div>
 
             <div className="slider-price-note">
               {!addonsModalPresentation ? (
-                <span>First additional user free; then €9.90 / user / month</span>
+                <span>{pageCopy.firstUserFreeNote}</span>
               ) : null}
-              <strong>{`${formatEuro(getBillableAdditionalUserSlots(selection) * 9.9)}/mo`}</strong>
+              <strong>{`${formatEuro(getBillableAdditionalUserSlots(selection) * 9.9)}${pm}`}</strong>
             </div>
           </div>
 
           <div className="slider-card">
             <div className="slider-head">
               <div className="slider-meta">
-                <strong>SMS messages</strong>
-                <span>Increase reminder volume in blocks of 100 SMS messages.</span>
+                <strong>{pageCopy.smsStrong}</strong>
+                <span>{pageCopy.smsHint}</span>
               </div>
-              <div className="slider-value">{selection.additionalSms} SMS</div>
             </div>
 
             <div className="slider-input-wrap">
@@ -161,19 +138,30 @@ export function RegisterPlanAddonSections({
                 type="range"
                 min="0"
                 max="1000"
-                step="100"
+                step="50"
                 value={selection.additionalSms}
-                onChange={(event) => setSelection((current) => ({ ...current, additionalSms: Number(event.target.value) }))}
+                onChange={(event) =>
+                  setSelection((current) => ({ ...current, additionalSms: Number(event.target.value) }))
+                }
+                style={
+                  { '--fill-pct': linearRangePercent(selection.additionalSms, 0, 1000) } as CSSProperties
+                }
               />
               <div className="slider-scale">
-                <span>0</span>
-                <span>1000 SMS</span>
+                <span
+                  className="slider-scale-thumb"
+                  style={sliderThumbLabelStyle(linearRangePercent(selection.additionalSms, 0, 1000))}
+                >
+                  {pageCopy.smsCount(selection.additionalSms)}
+                </span>
               </div>
             </div>
 
             <div className="slider-price-note">
-              <span>€0.05 per SMS (€5.00 per 100)</span>
-              <strong>{selection.additionalSms > 0 ? `${formatEuro(selection.additionalSms * 0.05)}/mo` : '€0/mo'}</strong>
+              <span>{pageCopy.smsPriceNote}</span>
+              <strong>
+                {selection.additionalSms > 0 ? `${formatEuro(selection.additionalSms * 0.05)}${pm}` : pageCopy.smsZeroPerMo}
+              </strong>
             </div>
           </div>
         </div>
@@ -183,16 +171,16 @@ export function RegisterPlanAddonSections({
         ref={featureAddonsSectionRef ?? undefined}
         id="register-feature-add-ons"
         className="feature-addons-section"
-        aria-label="Feature add-ons"
+        aria-label={pageCopy.featureAddonsAria}
       >
-        <div className="addons-divider"><span>Feature add-ons</span></div>
+        <div className="addons-divider"><span>{pageCopy.featureAddonsDivider}</span></div>
 
         <div className="feature-addons-list">
           {(['voice', 'billing', 'whitelabel'] as const).map((addonKey) => {
             const addon = addonCatalog[addonKey]
             return (
               <div key={addonKey} className="feature-addon-card">
-                <label>
+                <label className="feature-addon-card-label">
                   <input
                     type="checkbox"
                     checked={selection.addons[addonKey]}
@@ -204,12 +192,12 @@ export function RegisterPlanAddonSections({
                       },
                     }))}
                   />
+                  <span className="addon-price">+{formatEuro(addon.monthly)}{pm}</span>
                   <span className="addon-meta">
                     <span className="addon-name">{addon.name}</span>
                     <span className="addon-desc">{addon.description}</span>
                   </span>
                 </label>
-                <span className="addon-price">+{formatEuro(addon.monthly)}/mo</span>
               </div>
             )
           })}
@@ -218,178 +206,6 @@ export function RegisterPlanAddonSections({
       </section>
     </>
   )
-}
-
-function annualPrice(monthly: number) {
-  return Number((monthly * 12 * 0.85).toFixed(2))
-}
-
-export function formatEuro(value: number) {
-  const rounded = Math.round(value * 100) / 100
-  return rounded % 1 === 0 ? `€${rounded.toFixed(0)}` : `€${rounded.toFixed(2)}`
-}
-
-function getPlanDisplay(planKey: RegisterPlanKey, billing: RegisterBillingCycle) {
-  const plan = plans[planKey]
-
-  if (planKey === 'basic' && billing === 'monthly') {
-    return {
-      primary: `${formatEuro(plans.basic.monthly)}/mo`,
-      secondary: `14-day free trial, then ${formatEuro(plans.basic.monthly)}/mo`,
-    }
-  }
-
-  if (billing === 'annual') {
-    const annual = annualPrice(plan.monthly)
-    return {
-      primary: `${formatEuro(annual / 12)}/mo`,
-      secondary: `Billed annually at ${formatEuro(annual)}/yr`,
-    }
-  }
-
-  return {
-    primary: `${formatEuro(plan.monthly)}/mo`,
-    secondary: 'Billed monthly',
-  }
-}
-
-function getPlanCardPriceNote(planKey: RegisterPlanKey, billing: RegisterBillingCycle) {
-  if (planKey === 'basic') {
-    if (billing === 'monthly') {
-      return {
-        badgeVisible: true,
-        price: formatEuro(plans.basic.monthly),
-        per: '/mo',
-        oldPriceVisible: false,
-        oldPrice: '',
-        note: '',
-        noteIsTrial: true,
-      }
-    }
-
-    const annual = annualPrice(plans.basic.monthly)
-    return {
-      badgeVisible: false,
-      price: formatEuro(annual / 12),
-      per: '/mo',
-      oldPriceVisible: false,
-      oldPrice: '',
-      note: `Billed annually at ${formatEuro(annual)}/yr (15% off).`,
-      noteIsTrial: false,
-    }
-  }
-
-  if (billing === 'annual') {
-    const annual = annualPrice(plans[planKey].monthly)
-    return {
-      badgeVisible: false,
-      price: formatEuro(annual / 12),
-      per: '/mo',
-      oldPriceVisible: false,
-      oldPrice: '',
-      note: `Billed annually at ${formatEuro(annual)}/yr.`,
-      noteIsTrial: false,
-    }
-  }
-
-  return {
-    badgeVisible: false,
-    price: formatEuro(plans[planKey].monthly),
-    per: '/mo',
-    oldPriceVisible: false,
-    oldPrice: '',
-    note: planKey === 'pro'
-      ? 'Best for growing businesses with up to 5 team members.'
-      : 'Built for larger operations and multi-location teams.',
-    noteIsTrial: false,
-  }
-}
-
-export function getSelectionMonthlyAmounts(selection: RegisterSelection) {
-  const selectedPlan = selection.plan
-  const planMonthly = selectedPlan === 'basic' && selection.billing === 'monthly' ? 0 : plans[selectedPlan].monthly
-  const usersMonthly = getBillableAdditionalUserSlots(selection) * 9.9
-  const smsMonthly = selection.additionalSms * 0.05
-  const addonsMonthly = (selection.addons.voice ? addonCatalog.voice.monthly : 0)
-    + (selection.addons.billing ? addonCatalog.billing.monthly : 0)
-    + (selection.addons.whitelabel ? addonCatalog.whitelabel.monthly : 0)
-
-  return {
-    planMonthly,
-    usersMonthly,
-    smsMonthly,
-    addonsMonthly,
-    totalMonthly: planMonthly + usersMonthly + smsMonthly + addonsMonthly,
-  }
-}
-
-export type RegisterSummary = {
-  rows: Array<{ label: string; value: string }>
-  totalPrimary: string
-  totalSecondary: string
-  /** Annual-only: savings vs undiscounted plan+usage bundle (15% on plan/users/feature add-ons). */
-  annualSavingsYr?: number
-}
-
-export function buildSummary(selection: RegisterSelection): RegisterSummary {
-  const monthly = getSelectionMonthlyAmounts(selection)
-  const rows: Array<{ label: string; value: string }> = []
-
-  if (selection.plan === 'basic' && selection.billing === 'monthly') {
-    rows.push({ label: 'Basic plan', value: '€0 now' })
-    rows.push({ label: 'After 14-day trial', value: `${formatEuro(plans.basic.monthly)}/mo` })
-  } else if (selection.billing === 'annual') {
-    rows.push({ label: `${plans[selection.plan].name} plan`, value: `${formatEuro(monthly.planMonthly * 0.85)}/mo` })
-  } else {
-    rows.push({ label: `${plans[selection.plan].name} plan`, value: `${formatEuro(monthly.planMonthly)}/mo` })
-  }
-
-  if (getBillableAdditionalUserSlots(selection) > 0) {
-    const usersValue = selection.billing === 'annual'
-      ? `${formatEuro(monthly.usersMonthly * 0.85)}/mo`
-      : `${formatEuro(monthly.usersMonthly)}/mo`
-    rows.push({ label: `Users × ${selection.additionalUsers}`, value: usersValue })
-  }
-
-  if (selection.additionalSms > 0) {
-    rows.push({ label: `SMS messages × ${selection.additionalSms}`, value: `${formatEuro(monthly.smsMonthly)}/mo` })
-  }
-
-  ;(['voice', 'billing', 'whitelabel'] as const).forEach((addonKey) => {
-    if (!selection.addons[addonKey]) return
-    const addon = addonCatalog[addonKey]
-    const displayValue = selection.billing === 'annual'
-      ? `${formatEuro(addon.monthly * 0.85)}/mo`
-      : `${formatEuro(addon.monthly)}/mo`
-    rows.push({ label: addon.name, value: displayValue })
-  })
-
-  if (selection.plan === 'basic' && selection.billing === 'monthly') {
-    const addOnsOnly = monthly.usersMonthly + monthly.smsMonthly + monthly.addonsMonthly
-    return {
-      rows,
-      totalPrimary: addOnsOnly > 0 ? `${formatEuro(addOnsOnly)}/mo add-ons only` : '€0 now',
-      totalSecondary: '',
-    }
-  }
-
-  if (selection.billing === 'annual') {
-    const totalAnnual = (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * 10.2 + monthly.smsMonthly * 12
-    const undiscountedAnnual = (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * 12 + monthly.smsMonthly * 12
-    const annualSavingsYr = Math.max(0, undiscountedAnnual - totalAnnual)
-    return {
-      rows,
-      totalPrimary: `${formatEuro(totalAnnual / 12)}/mo`,
-      totalSecondary: '',
-      annualSavingsYr,
-    }
-  }
-
-  return {
-    rows,
-    totalPrimary: `${formatEuro(monthly.totalMonthly)}/mo`,
-    totalSecondary: '',
-  }
 }
 
 export function RegisterFooterListIcon() {
@@ -421,11 +237,18 @@ export function RegisterFooterChevron({ up, className, size = 18 }: { up: boolea
 
 export function RegisterPage() {
   const navigate = useNavigate()
-  const { locale, setLocale } = useLocale()
+  const { locale, setLocale, t } = useLocale()
+  const lang: RegisterLocale = locale === 'sl' ? 'sl' : 'en'
+  const pc = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
+  const plansLoc = useMemo(() => plansForLocale(lang), [lang])
+  const featureItems = useMemo(() => getFeatureItems(lang), [lang])
+  const pm = lang === 'sl' ? '/mes.' : '/mo'
   const { showToast } = useToast()
   const [selection, setSelection] = useState<RegisterSelection>(() => parseRegisterSelection(window.location.search))
   const [previewPlan, setPreviewPlan] = useState<RegisterPlanKey>(selection.plan)
   const [footerExpanded, setFooterExpanded] = useState(false)
+  const registerFooterRef = useRef<HTMLElement | null>(null)
+  useRegisterFooterClickOutside(registerFooterRef, footerExpanded, setFooterExpanded)
   const [contactOpen, setContactOpen] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -439,6 +262,10 @@ export function RegisterPage() {
   const [isCompactLayout, setIsCompactLayout] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches,
   )
+
+  useEffect(() => {
+    void ensureRegisterCatalogLoaded()
+  }, [])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1024px)')
@@ -492,23 +319,12 @@ export function RegisterPage() {
     navigate(`/register/account?${selectionToSearch(selection)}`)
   }, [navigate, selection])
 
-  const planDisplay = useMemo(() => getPlanDisplay(previewPlan, selection.billing), [previewPlan, selection.billing])
-  const summary = useMemo(() => buildSummary(selection), [selection])
+  const planDisplay = useMemo(() => getPlanDisplay(previewPlan, selection.billing, lang), [previewPlan, selection.billing, lang])
+  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang])
   const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection])
   const websiteUrl = (import.meta.env.VITE_WEBSITE_URL as string | undefined)?.trim() || 'https://calendra.si'
 
-  const footerPill = useMemo(() => {
-    const plan = plans[selection.plan]
-    const featureCount = plan.features.length
-    const lineCount = summary.rows.length
-    const extraLines = Math.max(0, lineCount - 1)
-    const title = `${featureCount} plan feature${featureCount === 1 ? '' : 's'} · ${lineCount} estimate line${lineCount === 1 ? '' : 's'}`
-    const subParts = [`${plan.name} plan`, selection.billing === 'annual' ? 'Annual billing' : 'Monthly billing']
-    if (extraLines > 0) {
-      subParts.push(`${extraLines} usage & add-on${extraLines === 1 ? '' : 's'}`)
-    }
-    return { title, sub: subParts.join(' · ') }
-  }, [selection, summary])
+  const footerPill = useMemo(() => buildRegisterFooterPill(selection, summary, lang), [selection, summary, lang])
 
   const peekAddonMonthly = useMemo(() => {
     const m = monthlyAmounts
@@ -546,17 +362,17 @@ export function RegisterPage() {
     const phone = contactPhone.trim()
     const message = contactMessage.trim()
     if (!name || !email || !message) {
-      setContactError('Please fill in your name, email, and message.')
+      setContactError(pc.contactErrRequired)
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setContactError('Please enter a valid email address.')
+      setContactError(pc.contactErrEmail)
       return
     }
-    const subject = encodeURIComponent('Calendra — Custom solution inquiry')
+    const subject = encodeURIComponent(pc.contactSubject)
     const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\nPhone: ${phone || '—'}\n\n${message}`)
     window.location.href = `mailto:${contactSalesEmail}?subject=${subject}&body=${body}`
-    showToast('success', 'Opening your email client…')
+    showToast('success', pc.toastOpenMail)
     closeContactModal()
     setContactName('')
     setContactEmail('')
@@ -574,79 +390,78 @@ export function RegisterPage() {
     }
   }
 
-  const planForPreview = plans[previewPlan]
+  const planForPreview = plansLoc[previewPlan]
 
   return (
     <div className="register-flow">
       <style>{registerPageStyles}</style>
+      <header className="topbar">
+        <div className="brand">
+          <img className="brand-logo" src={loginLogo} alt={pc.brandAlt} />
+        </div>
+
+        <div className="top-actions">
+          <div className="lang-switch" role="group" aria-label={t('language')}>
+            <button
+              type="button"
+              className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+              aria-pressed={locale === 'sl'}
+              onClick={() => setLocale('sl')}
+            >
+              SL
+            </button>
+            <button
+              type="button"
+              className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+              aria-pressed={locale === 'en'}
+              onClick={() => setLocale('en')}
+            >
+              EN
+            </button>
+          </div>
+        </div>
+      </header>
+
       <div className="app">
-        <header className="topbar">
-          <div className="brand">
-            <img className="brand-logo" src={loginLogo} alt="Calendra — Simplify Your Booking" />
-          </div>
-
-          <div className="top-actions">
-            <div className="lang-switch" role="group" aria-label="Language">
-              <button
-                type="button"
-                className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                aria-pressed={locale === 'sl'}
-                onClick={() => setLocale('sl')}
-              >
-                SL
-              </button>
-              <button
-                type="button"
-                className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                aria-pressed={locale === 'en'}
-                onClick={() => setLocale('en')}
-              >
-                EN
-              </button>
-            </div>
-          </div>
-        </header>
-
         <main className="content">
-          <h1 className="register-sr-only">Calendra — plan selection</h1>
+          <h1 className="register-sr-only">{pc.srOnlyPlanTitle}</h1>
           <div className="register-plan-page-stack">
             <section className="layout">
             <div className="register-stepper-row">
-              <div className="stepper" aria-label="Registration progress">
-                <div className="step active">1 Plan Selection</div>
-                <div className="step">2 Account Setup</div>
-                <div className="step">3 Billing Details</div>
+              <div className="stepper" aria-label={pc.stepperAria}>
+                <div className="step active">{pc.step1}</div>
+                <div className="step">{pc.step2}</div>
+                <div className="step">{pc.step3}</div>
               </div>
-              <div className="recommendation">{planForPreview.recommendation}</div>
             </div>
 
             <section className="panel right-panel">
               <div className="billing-toggle-wrap">
                 <div>
-                  <div className="billing-toggle" aria-label="Billing cycle selector">
+                  <div className="billing-toggle" aria-label={pc.billingCycleAria}>
                     <button
                       className={selection.billing === 'monthly' ? 'billing-option active' : 'billing-option'}
                       type="button"
                       onClick={() => setSelection((current) => ({ ...current, billing: 'monthly' }))}
                     >
-                      Monthly
+                      {pc.monthly}
                     </button>
                     <button
                       className={selection.billing === 'annual' ? 'billing-option active' : 'billing-option'}
                       type="button"
                       onClick={() => setSelection((current) => ({ ...current, billing: 'annual' }))}
                     >
-                      Annual
+                      {pc.annual}
                     </button>
                   </div>
                 </div>
-                <div className="annual-save">Save 15% with annual billing</div>
+                <div className="annual-save">{pc.annualSaveBanner}</div>
               </div>
 
               <div className="plans-grid">
                 {(['basic', 'pro', 'business'] as const).map((planKey) => {
-                  const plan = plans[planKey]
-                  const priceBlock = getPlanCardPriceNote(planKey, selection.billing)
+                  const plan = plansLoc[planKey]
+                  const priceBlock = getPlanCardPriceNote(planKey, selection.billing, lang)
                   const isSelected = selection.plan === planKey
                   return (
                     <article
@@ -670,9 +485,9 @@ export function RegisterPage() {
                       }}
                     >
                       <div className="badge-row">
-                        {planKey === 'pro' && <span className="badge gold">Recommended</span>}
-                        {planKey === 'business' && <span className="badge soft">Premium</span>}
-                        {planKey === 'basic' && priceBlock.badgeVisible && <span className="badge green">14-day free trial</span>}
+                        {planKey === 'pro' && <span className="badge gold">{pc.badgeRecommended}</span>}
+                        {planKey === 'business' && <span className="badge soft">{pc.badgePremium}</span>}
+                        {planKey === 'basic' && priceBlock.badgeVisible && <span className="badge green">{pc.badgeTrial14}</span>}
                       </div>
                       <h3 className="plan-name">{plan.name}</h3>
                       <div className="price-stack">
@@ -686,35 +501,30 @@ export function RegisterPage() {
                           </div>
                         )}
                         <div className="price-note">
-                          {priceBlock.noteIsTrial ? <span className="trial-note">Free for 14 days</span> : null}
-                          {priceBlock.noteIsTrial ? `, then ${formatEuro(plans.basic.monthly)}/mo unless cancelled.` : priceBlock.note}
+                          {priceBlock.noteIsTrial ? <span className="trial-note">{priceBlock.trialHighlight}</span> : null}
+                          {priceBlock.noteIsTrial ? priceBlock.trialUnlessCancelled : priceBlock.note}
                         </div>
-                      </div>
-                      <div className="plan-desc">
-                        {planKey === 'basic' && 'For solo providers with simple one-on-one appointments and the easiest possible start.'}
-                        {planKey === 'pro' && 'Best for growing businesses with reminders, payments, and more advanced booking flows.'}
-                        {planKey === 'business' && 'For larger teams, multiple locations, and advanced reporting.'}
                       </div>
                       <div className="mini-points">
                         {planKey === 'basic' && (
                           <>
-                            <div><span className="check">✓</span><span>Simple booking page</span></div>
-                            <div><span className="check">✓</span><span>Email confirmations</span></div>
-                            <div><span className="check">✓</span><span>Single user setup</span></div>
+                            {pc.miniBasic.map((line) => (
+                              <div key={line}><span className="check">✓</span><span>{line}</span></div>
+                            ))}
                           </>
                         )}
                         {planKey === 'pro' && (
                           <>
-                            <div><span className="check">✓</span><span>Payments and reminders</span></div>
-                            <div><span className="check">✓</span><span>Up to 5 team members</span></div>
-                            <div><span className="check">✓</span><span>Group and resource scheduling</span></div>
+                            {pc.miniPro.map((line) => (
+                              <div key={line}><span className="check">✓</span><span>{line}</span></div>
+                            ))}
                           </>
                         )}
                         {planKey === 'business' && (
                           <>
-                            <div><span className="check">✓</span><span>Unlimited staff and resources</span></div>
-                            <div><span className="check">✓</span><span>Advanced reporting</span></div>
-                            <div><span className="check">✓</span><span>Multi-location control</span></div>
+                            {pc.miniBusiness.map((line) => (
+                              <div key={line}><span className="check">✓</span><span>{line}</span></div>
+                            ))}
                           </>
                         )}
                       </div>
@@ -723,7 +533,13 @@ export function RegisterPage() {
                         event.stopPropagation()
                         setPlan(planKey)
                       }}>
-                        {isSelected ? '✓ Selected' : planKey === 'basic' ? (selection.billing === 'monthly' ? 'Select Free Trial' : 'Select Basic') : planKey === 'pro' ? 'Select Pro' : 'Select Business'}
+                        {isSelected
+                          ? pc.selectedCheck
+                          : planKey === 'basic'
+                            ? (selection.billing === 'monthly' ? pc.selectFreeTrial : pc.selectBasic)
+                            : planKey === 'pro'
+                              ? pc.selectPro
+                              : pc.selectBusiness}
                       </button>
                     </article>
                   )
@@ -731,24 +547,22 @@ export function RegisterPage() {
               </div>
 
               <button type="button" className="custom-cta custom-cta--inline" onClick={openContactModal}>
-                Need a custom solution? Contact us
+                {pc.customCta}
               </button>
 
               {!isCompactLayout ? (
                 <RegisterPlanAddonSections
                   selection={selection}
                   setSelection={setSelection}
+                  pageCopy={pc}
+                  locale={lang}
                   featureAddonsSectionRef={featureAddonsSectionRef}
                 />
               ) : null}
             </section>
 
             <aside ref={planPreviewPanelRef} className="panel left-panel">
-              <div className="plan-preview-head-row">
-                <div className="eyebrow">Plan preview</div>
-                <span className="plan-preview-name">{planForPreview.name}</span>
-              </div>
-              <h2 className="plan-preview-heading">What’s included in this plan</h2>
+              <h2 className="plan-preview-heading">{pc.planPreviewHeading}</h2>
 
               <div className="selected-box">
                 <div>
@@ -782,16 +596,22 @@ export function RegisterPage() {
         </main>
       </div>
 
-      <footer className={`register-fixed-footer${footerExpanded ? ' is-expanded' : ''}`} role="contentinfo">
+      <footer
+        ref={registerFooterRef}
+        className={`register-fixed-footer${footerExpanded ? ' is-expanded' : ''}`}
+        role="contentinfo"
+      >
         <div className={`register-fixed-footer-inner register-footer-panel${footerExpanded ? ' is-expanded' : ''}`}>
           <div className="register-footer-toolbar">
-            <div className="register-footer-back">
-              <button className="back-link" type="button" onClick={() => window.location.assign(websiteUrl)}>← Back to website</button>
-            </div>
+            <div className="register-footer-toolbar-lead">
+              <div className="register-footer-back">
+                <button className="back-link" type="button" onClick={() => window.location.assign(websiteUrl)}>{pc.backWebsite}</button>
+              </div>
 
-            <button type="button" className="custom-cta custom-cta--footer-toolbar" onClick={openContactModal}>
-              Need a custom solution? Contact us
-            </button>
+              <button type="button" className="custom-cta custom-cta--footer-toolbar" onClick={openContactModal}>
+                {pc.customCta}
+              </button>
+            </div>
 
             <div className="register-footer-center-cluster">
               <div className="register-footer-toolbar-mid">
@@ -800,7 +620,7 @@ export function RegisterPage() {
                   className="register-footer-pill"
                   aria-expanded={footerExpanded}
                   aria-controls="register-footer-details"
-                  aria-label={footerExpanded ? 'Hide estimate details' : 'Show estimate details'}
+                  aria-label={footerExpanded ? pc.footerHideDetails : pc.footerShowDetails}
                   onClick={() => setFooterExpanded((v) => !v)}
                 >
                   <span className="register-footer-pill-icon" aria-hidden>
@@ -811,11 +631,11 @@ export function RegisterPage() {
                     <span className="register-footer-pill-sub">{footerPill.sub}</span>
                   </span>
                   <span className="register-footer-pill-total-inline">
-                    <span className="register-footer-total-label">Est. total</span>
+                    <span className="register-footer-total-label">{pc.footerEstTotal}</span>
                     <strong className="register-footer-total-value">{summary.totalPrimary}</strong>
                   </span>
                   <span className="register-footer-pill-chevron" aria-hidden>
-                    <RegisterFooterChevron up={footerExpanded} />
+                    <RegisterFooterChevron up={!footerExpanded} />
                   </span>
                 </button>
               </div>
@@ -835,20 +655,20 @@ export function RegisterPage() {
                   }}
                 >
                   {isCompactLayout
-                    ? 'Continue to add-ons selection'
+                    ? pc.continueAddons
                     : selection.plan === 'basic' && selection.billing === 'monthly'
-                      ? 'Continue to account creation'
-                      : 'Continue with selected plan'}
+                      ? pc.continueAccountBasic
+                      : pc.continueWithPlan}
                 </button>
               ) : (
                 <button
                   className="continue-button continue-button-scroll-hint"
                   type="button"
                   onClick={revealPlanExtrasAndAllowContinue}
-                  aria-label="Scroll down to review feature add-ons and usage options on this page"
+                  aria-label={pc.footerContinueScrollAria}
                 >
                   <RegisterFooterChevron up={false} size={22} className="continue-button-scroll-chevron" />
-                  <span className="continue-button-scroll-hint-text">Add-ons below</span>
+                  <span className="continue-button-scroll-hint-text">{pc.addonsBelow}</span>
                 </button>
               )}
             </div>
@@ -858,24 +678,25 @@ export function RegisterPage() {
             <div className="register-footer-expanded" id="register-footer-details">
               <div className="register-footer-peek">
                 <div className="register-footer-peek-col">
-                  <span className="register-footer-peek-label">Plan</span>
-                  <strong className="register-footer-peek-name">{plans[selection.plan].name}</strong>
+                  <span className="register-footer-peek-label">{pc.footerPlanPeek}</span>
+                  <strong className="register-footer-peek-name">{plansLoc[selection.plan].name}</strong>
                   <span className="register-footer-peek-value">{summary.rows[0]?.value ?? '—'}</span>
                 </div>
                 <div className="register-footer-peek-plus" aria-hidden>
                   +
                 </div>
                 <div className="register-footer-peek-col">
-                  <span className="register-footer-peek-label">Usage &amp; add-ons</span>
+                  <span className="register-footer-peek-label">{pc.footerUsagePeek}</span>
                   <strong className="register-footer-peek-name">
-                    {usageAddonLineCount} {usageAddonLineCount === 1 ? 'item' : 'items'}
+                    {usageAddonLineCount}{' '}
+                    {usageAddonLineCount === 1 ? pc.footerItemSingular : pc.footerItemPlural}
                   </strong>
-                  <span className="register-footer-peek-value">{formatEuro(peekAddonMonthly)}/mo</span>
+                  <span className="register-footer-peek-value">{formatEuro(peekAddonMonthly)}{pm}</span>
                 </div>
               </div>
 
               <div className="register-footer-detail-card">
-                <h3 className="register-footer-detail-title">Estimate breakdown</h3>
+                <h3 className="register-footer-detail-title">{pc.footerBreakdownTitle}</h3>
                 <ul className="register-footer-detail-list">
                   {summary.rows.map((row) => (
                     <li key={`${row.label}-${row.value}`} className="register-footer-detail-row">
@@ -888,18 +709,18 @@ export function RegisterPage() {
                 <div className="register-footer-detail-foot">
                   {summary.annualSavingsYr != null && summary.annualSavingsYr > 0 ? (
                     <span className="register-footer-save-badge">
-                      You save {formatEuro(summary.annualSavingsYr)}/yr (15%)
+                      {annualSaveBadgeText(formatEuro(summary.annualSavingsYr), lang)}
                     </span>
                   ) : null}
                   <div className="register-footer-detail-total">
-                    <span className="register-footer-detail-total-label">Est. total</span>
+                    <span className="register-footer-detail-total-label">{pc.footerEstTotal}</span>
                     <strong className="register-footer-detail-total-value">{summary.totalPrimary}</strong>
                   </div>
                 </div>
               </div>
 
               <button type="button" className="register-footer-hide-link" onClick={() => setFooterExpanded(false)}>
-                Hide details
+                {pc.footerHideDetails}
                 <RegisterFooterChevron up />
               </button>
             </div>
@@ -909,36 +730,36 @@ export function RegisterPage() {
 
       {contactOpen ? (
         <div className="register-contact-modal-root" role="presentation">
-          <button type="button" className="register-contact-modal-backdrop" aria-label="Close contact form" onClick={closeContactModal} />
+          <button type="button" className="register-contact-modal-backdrop" aria-label={pc.contactCloseBackdrop} onClick={closeContactModal} />
           <div
             className="register-contact-modal-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="register-contact-title"
           >
-            <h2 id="register-contact-title" className="register-contact-modal-title">Contact us</h2>
-            <p className="register-contact-modal-intro">Tell us what you need. We will follow up by email.</p>
+            <h2 id="register-contact-title" className="register-contact-modal-title">{pc.contactTitle}</h2>
+            <p className="register-contact-modal-intro">{pc.contactIntro}</p>
             <div className="register-contact-form stack gap-md">
-              <Field label="Name">
+              <Field label={pc.contactName}>
                 <input value={contactName} onChange={(e) => setContactName(e.target.value)} autoComplete="name" />
               </Field>
-              <Field label="Email">
+              <Field label={pc.contactEmail}>
                 <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} autoComplete="email" />
               </Field>
-              <Field label="Phone" hint="Optional">
+              <Field label={pc.contactPhone} hint={pc.contactPhoneHint}>
                 <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} autoComplete="tel" />
               </Field>
-              <Field label="Message">
-                <textarea rows={4} value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} placeholder="Describe your needs…" />
+              <Field label={pc.contactMessage}>
+                <textarea rows={4} value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} placeholder={pc.contactPlaceholder} />
               </Field>
               {contactError ? <p className="register-contact-error" role="alert">{contactError}</p> : null}
             </div>
             <div className="register-contact-modal-actions">
               <button type="button" className="register-contact-cancel" onClick={closeContactModal}>
-                Cancel
+                {pc.contactCancel}
               </button>
               <button type="button" className="register-contact-submit" onClick={submitContactModal}>
-                Send via email
+                {pc.contactSubmit}
               </button>
             </div>
           </div>

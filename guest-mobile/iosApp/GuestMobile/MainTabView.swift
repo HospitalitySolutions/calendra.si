@@ -130,12 +130,12 @@ struct MainTabView: View {
                 HStack(spacing: 4) {
                     Text(store.currentTenant.name)
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundColor(Color.primary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundColor(Color.primary)
                 }
                 .frame(maxWidth: 240, alignment: .leading)
                 .contentShape(Rectangle())
@@ -160,13 +160,13 @@ struct MainTabView: View {
                     if isInbox {
                         Image(systemName: "phone.fill")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(canDialInboxTenant ? Color.primary : Color.primary.opacity(0.35))
+                            .foregroundColor(canDialInboxTenant ? Color.primary : Color.primary.opacity(0.35))
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     } else {
                         Image(systemName: "plus")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.primary)
+                            .foregroundColor(Color.primary)
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
@@ -180,13 +180,13 @@ struct MainTabView: View {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.primary)
+                            .foregroundColor(Color.primary)
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                         if unreadNotifications > 0 {
                             Text("\(min(unreadNotifications, 99))")
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(.white)
+                                .foregroundColor(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
                                 .background(Capsule(style: .continuous).fill(brandOrange))
@@ -225,7 +225,7 @@ struct MainTabView: View {
                     ZStack {
                         Image(systemName: "calendar")
                             .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(selectedTab == .book ? Color.white : brandBlue)
+                            .foregroundColor(selectedTab == .book ? Color.white : brandBlue)
                             .offset(y: -1)
                         Circle()
                             .fill(brandOrange)
@@ -233,7 +233,7 @@ struct MainTabView: View {
                             .overlay(
                                 Image(systemName: "plus")
                                     .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(Color.white)
+                                    .foregroundColor(Color.white)
                             )
                             .offset(x: 13, y: 13)
                     }
@@ -264,7 +264,7 @@ struct MainTabView: View {
                 Text(title)
                     .font(.caption2.weight(selectedTab == tab ? .semibold : .medium))
             }
-            .foregroundStyle(selectedTab == tab ? brandBlue : Color.secondary)
+            .foregroundColor(selectedTab == tab ? brandBlue : Color.secondary)
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
@@ -283,7 +283,7 @@ private struct TenantCodeEntrySheet: View {
                 Text("Add tenancy with code")
                     .font(.title2.weight(.bold))
                 Text("Enter the tenancy code you received from the company.")
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 TextField("Tenant code", text: $tenantCode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
@@ -334,14 +334,14 @@ private struct TenantQRScannerSheet: View {
             VStack(spacing: 12) {
                 Text("Scan tenancy QR")
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                 Text("Center the QR code inside the frame.")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundColor(.white.opacity(0.8))
                 Button("Close") { dismiss() }
                     .buttonStyle(.borderedProminent)
                     .tint(.white)
-                    .foregroundStyle(.black)
+                    .foregroundColor(.black)
             }
             .padding(24)
             .frame(maxWidth: .infinity)

@@ -257,8 +257,8 @@ final class AppStore: ObservableObject {
             return
         }
         await run {
-            try await api.markNotificationRead(companyId: companyId, notificationId: notificationId)
-            applyReadState(companyId: companyId, notificationId: notificationId, readAt: isoNow())
+            try await self.api.markNotificationRead(companyId: companyId, notificationId: notificationId)
+            self.applyReadState(companyId: companyId, notificationId: notificationId, readAt: self.isoNow())
         }
     }
 
@@ -268,8 +268,8 @@ final class AppStore: ObservableObject {
             return
         }
         await run {
-            try await api.markAllNotificationsRead(companyId: companyId)
-            applyReadStateAll(companyId: companyId, readAt: isoNow())
+            try await self.api.markAllNotificationsRead(companyId: companyId)
+            self.applyReadStateAll(companyId: companyId, readAt: self.isoNow())
         }
     }
 
@@ -334,10 +334,10 @@ final class AppStore: ObservableObject {
     func loadInboxMessages(companyId: String) async {
         guard !usePreviewData else { return }
         await run {
-            let items = try await api.inboxMessages(companyId: companyId)
-            let refreshedThread = (try await api.inboxThreads(companyId: companyId)).first
-            if let dashboard = tenantDashboards[companyId] {
-                tenantDashboards[companyId] = TenantDashboardModel(
+            let items = try await self.api.inboxMessages(companyId: companyId)
+            let refreshedThread = (try await self.api.inboxThreads(companyId: companyId)).first
+            if let dashboard = self.tenantDashboards[companyId] {
+                self.tenantDashboards[companyId] = TenantDashboardModel(
                     tenant: dashboard.tenant,
                     upcomingBookings: dashboard.upcomingBookings,
                     entitlements: dashboard.entitlements,
@@ -354,12 +354,12 @@ final class AppStore: ObservableObject {
     func sendInboxMessage(companyId: String, body: String, attachmentFileIds: [Int64] = []) async {
         guard !usePreviewData else { return }
         await run {
-            _ = try await api.sendInboxMessage(companyId: companyId, body: body, attachmentFileIds: attachmentFileIds)
-            try await refreshTenant(companyId: companyId)
-            let items = try await api.inboxMessages(companyId: companyId)
-            let refreshedThread = (try await api.inboxThreads(companyId: companyId)).first
-            if let dashboard = tenantDashboards[companyId] {
-                tenantDashboards[companyId] = TenantDashboardModel(
+            _ = try await self.api.sendInboxMessage(companyId: companyId, body: body, attachmentFileIds: attachmentFileIds)
+            try await self.refreshTenant(companyId: companyId)
+            let items = try await self.api.inboxMessages(companyId: companyId)
+            let refreshedThread = (try await self.api.inboxThreads(companyId: companyId)).first
+            if let dashboard = self.tenantDashboards[companyId] {
+                self.tenantDashboards[companyId] = TenantDashboardModel(
                     tenant: dashboard.tenant,
                     upcomingBookings: dashboard.upcomingBookings,
                     entitlements: dashboard.entitlements,
@@ -424,7 +424,7 @@ final class AppStore: ObservableObject {
     func loadInboxAttachmentThumbnail(companyId: String, attachment: GuestInboxAttachmentModel, maxPixelSize: CGFloat = 720) async throws -> UIImage? {
         guard attachment.isImageAttachment else { return nil }
         let url = try await downloadInboxAttachment(companyId: companyId, attachment: attachment)
-        return try await Task.detached(priority: .utility) {
+        return await Task.detached(priority: .utility) {
             let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
             guard let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else {
                 return UIImage(contentsOfFile: url.path)

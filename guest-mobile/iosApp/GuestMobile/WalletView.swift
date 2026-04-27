@@ -78,7 +78,7 @@ struct WalletView: View {
             if let message = statusMessage {
                 Text(message)
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
@@ -108,7 +108,7 @@ struct WalletView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.88)
                     }
-                    .foregroundStyle(subTab == tab ? Color.white : Color(.secondaryLabel))
+                    .foregroundColor(subTab == tab ? Color.white : Color(.secondaryLabel))
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .padding(.horizontal, 6)
                     .background(
@@ -216,7 +216,7 @@ struct WalletView: View {
                         Spacer()
                         Text("View all orders")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(walletBlue)
+                            .foregroundColor(walletBlue)
                     }
                     .padding(.bottom, 2)
 
@@ -270,13 +270,13 @@ struct WalletView: View {
         VStack(spacing: 10) {
             Image(systemName: iconName)
                 .font(.system(size: 42))
-                .foregroundStyle(Color(.secondaryLabel))
+                .foregroundColor(Color(.secondaryLabel))
             Text(title)
                 .font(.headline)
                 .multilineTextAlignment(.center)
             Text(subtitle)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -335,28 +335,28 @@ private struct EntitlementTicketCard: View {
                 entitlementIconBadge(type: entitlement.type, size: 52, background: Color.white.opacity(0.18), tint: .white)
                 Text(entitlement.name)
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
                 Text(priceLine)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundColor(.white.opacity(0.88))
                 HStack(spacing: 10) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(Color.white.opacity(0.18))
                         Image(systemName: "ticket")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundColor(.white)
                     }
                     .frame(width: 36, height: 36)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(accessHeadline)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundColor(.white)
                         if let accessSub {
                             Text(accessSub)
                                 .font(.caption)
-                                .foregroundStyle(.white.opacity(0.75))
+                                .foregroundColor(.white.opacity(0.75))
                         }
                     }
                 }
@@ -372,22 +372,22 @@ private struct EntitlementTicketCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("TICKET ID")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundColor(.white.opacity(0.65))
                     .tracking(0.5)
                 Text(entitlement.displayCode ?? "—")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                 if let validUntilText {
                     Spacer().frame(height: 2)
                     horizontalDashedDivider
                     Spacer().frame(height: 2)
                     Text("VALID UNTIL")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundColor(.white.opacity(0.65))
                         .tracking(0.5)
                     Text(validUntilText)
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundColor(.white)
                 }
                 Spacer(minLength: 0)
             }
@@ -448,7 +448,7 @@ private struct EntitlementTicketCard: View {
                 path.addLine(to: CGPoint(x: x, y: proxy.size.height))
             }
             .stroke(style: StrokeStyle(lineWidth: 1.2, dash: [5, 5]))
-            .foregroundStyle(.white.opacity(0.45))
+            .foregroundColor(.white.opacity(0.45))
         }
         .frame(width: 1)
     }
@@ -461,7 +461,7 @@ private struct EntitlementTicketCard: View {
                 path.addLine(to: CGPoint(x: proxy.size.width, y: y))
             }
             .stroke(style: StrokeStyle(lineWidth: 1.2, dash: [5, 5]))
-            .foregroundStyle(.white.opacity(0.45))
+            .foregroundColor(.white.opacity(0.45))
         }
         .frame(height: 1)
     }
@@ -548,7 +548,7 @@ private struct EntitlementCompactRow: View {
                         .font(.body.weight(.bold))
                     Text(subtitle)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
                 Spacer(minLength: 0)
             }
@@ -562,7 +562,7 @@ private struct EntitlementCompactRow: View {
 
             Text(priceLabel)
                 .font(.body.weight(.bold))
-                .foregroundStyle(walletBlue)
+                .foregroundColor(walletBlue)
                 .frame(width: 120, alignment: .center)
                 .padding(.vertical, 14)
         }
@@ -597,7 +597,7 @@ private struct EntitlementCompactRow: View {
                 path.addLine(to: CGPoint(x: x, y: proxy.size.height))
             }
             .stroke(style: StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
-            .foregroundStyle(walletBlue.opacity(0.35))
+            .foregroundColor(walletBlue.opacity(0.35))
         }
         .frame(width: 1)
     }
@@ -680,23 +680,23 @@ private func entitlementIconBadge(type: String, size: CGFloat, background: Color
             ZStack {
                 Image(systemName: "ticket")
                     .font(.system(size: size * 0.48, weight: .semibold))
-                    .foregroundStyle(tint.opacity(0.55))
+                    .foregroundColor(tint.opacity(0.55))
                     .rotationEffect(.degrees(14))
                     .offset(x: size * 0.09, y: -size * 0.06)
                 Image(systemName: "ticket")
                     .font(.system(size: size * 0.48, weight: .semibold))
-                    .foregroundStyle(tint)
+                    .foregroundColor(tint)
                     .rotationEffect(.degrees(-8))
                     .offset(x: -size * 0.06, y: size * 0.06)
             }
         case "MEMBERSHIP":
             Image(systemName: "rosette")
                 .font(.system(size: size * 0.46, weight: .semibold))
-                .foregroundStyle(tint)
+                .foregroundColor(tint)
         default:
             Image(systemName: "ticket")
                 .font(.system(size: size * 0.52, weight: .semibold))
-                .foregroundStyle(tint)
+                .foregroundColor(tint)
         }
     }
     .frame(width: size, height: size)
@@ -731,7 +731,7 @@ private struct BuyOfferCard: View {
                         if let promo = offer.promoText, !promo.isEmpty {
                             Text(promo)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(walletGreen)
+                                .foregroundColor(walletGreen)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
                                 .background(walletGreenSoft, in: Capsule())
@@ -739,11 +739,11 @@ private struct BuyOfferCard: View {
                     }
                     Text(productTypeLabel(offer.productType))
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                     if let description = offer.description, !description.isEmpty {
                         Text(description)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .padding(.top, 2)
                     }
                     Text(String(format: "%.2f %@", offer.priceGross, offer.currency))
@@ -758,7 +758,7 @@ private struct BuyOfferCard: View {
                         .font(.body.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .foregroundStyle(.white)
+                .foregroundColor(.white)
                 .background(walletBlue, in: RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
@@ -796,7 +796,7 @@ private struct BuyPaymentSheet: View {
                 .font(.title3.weight(.bold))
             Text("\(offer.name) • \(String(format: "%.2f %@", offer.priceGross, offer.currency))")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
 
             ForEach(availableMethods, id: \.self) { method in
                 PaymentMethodRow(
@@ -812,7 +812,7 @@ private struct BuyPaymentSheet: View {
                 Text("Continue")
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                     .background(walletBlue, in: RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
@@ -824,7 +824,7 @@ private struct BuyPaymentSheet: View {
                     .padding(.vertical, 8)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(walletBlue)
+            .foregroundColor(walletBlue)
         }
         .padding(20)
     }
@@ -848,7 +848,7 @@ private struct PaymentMethodRow: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label).font(.subheadline.weight(.semibold))
-                    Text(helper).font(.footnote).foregroundStyle(.secondary)
+                    Text(helper).font(.footnote).foregroundColor(.secondary)
                 }
                 Spacer()
             }
@@ -898,11 +898,11 @@ private struct OrderRow: View {
                     .font(.subheadline.weight(.semibold))
                 Text(referenceLabel)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 if !createdLabel.isEmpty {
                     Text(createdLabel)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
             Spacer()
@@ -950,7 +950,7 @@ private struct OrderRow: View {
         var body: some View {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(fg)
+                .foregroundColor(fg)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(bg, in: Capsule())

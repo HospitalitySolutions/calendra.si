@@ -79,7 +79,7 @@ private struct InboxAttachmentCard: View {
                                 Text(isLoadingThumbnail ? "Loading preview…" : "Image preview")
                                     .font(.caption.weight(.semibold))
                             }
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -91,13 +91,13 @@ private struct InboxAttachmentCard: View {
                             .frame(width: 42, height: 42)
                         Image(systemName: iconName)
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(iconForeground)
+                            .foregroundColor(iconForeground)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(attachment.fileName)
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
+                            .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
                             .lineLimit(2)
                         HStack(spacing: 8) {
@@ -109,7 +109,7 @@ private struct InboxAttachmentCard: View {
                             if let formattedSize = attachment.formattedSize {
                                 Text(formattedSize)
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundColor(.secondary)
                             }
                         }
                     }
@@ -122,7 +122,7 @@ private struct InboxAttachmentCard: View {
                     } else {
                         Text(attachment.isImageAttachment ? "Preview" : "Open")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.blue)
+                            .foregroundColor(.blue)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -250,7 +250,7 @@ struct InboxView: View {
             VStack(spacing: 0) {
                 GuestSurfaceCard {
                     Text("No messages yet. Start the conversation from the web app or send the first reply here.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
@@ -305,7 +305,7 @@ struct InboxView: View {
             Spacer()
             Text(label)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
                 .background(Color(.systemBackground), in: Capsule())
@@ -348,17 +348,17 @@ struct InboxView: View {
                     HStack(alignment: .bottom, spacing: 8) {
                         Text(message.body)
                             .font(.body)
-                            .foregroundStyle(textColor)
+                            .foregroundColor(textColor)
                         Text(time)
                             .font(.caption2)
-                            .foregroundStyle(metaColor)
+                            .foregroundColor(metaColor)
                     }
                 } else {
                     HStack {
                         Spacer(minLength: 0)
                         Text(time)
                             .font(.caption2)
-                            .foregroundStyle(metaColor)
+                            .foregroundColor(metaColor)
                     }
                 }
             }
@@ -386,7 +386,7 @@ struct InboxView: View {
                     }
                 }
                 HStack(alignment: .center, spacing: 4) {
-                    TextField("", text: $draft, prompt: Text("Message").foregroundStyle(.secondary))
+                    TextField("", text: $draft, prompt: Text("Message").foregroundColor(.secondary))
                         .textFieldStyle(.plain)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -397,7 +397,7 @@ struct InboxView: View {
                     } label: {
                         Image(systemName: "paperclip")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .frame(width: 36, height: 36)
                     }
                     .buttonStyle(.plain)
@@ -410,7 +410,7 @@ struct InboxView: View {
                     ) {
                         Image(systemName: "photo.on.rectangle")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .frame(width: 36, height: 36)
                     }
                     .buttonStyle(.plain)
@@ -440,7 +440,7 @@ struct InboxView: View {
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                     .frame(width: 44, height: 44)
                     .background(
                         Circle().fill(Color.black.opacity(canSend ? 1.0 : 0.25))
@@ -468,10 +468,10 @@ struct InboxView: View {
                 ProgressView().controlSize(.small)
             } else if pending.errorMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundColor(.red)
             } else {
                 Image(systemName: "paperclip")
-                    .foregroundStyle(.blue)
+                    .foregroundColor(.blue)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(pending.fileName)
@@ -480,7 +480,7 @@ struct InboxView: View {
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -488,7 +488,7 @@ struct InboxView: View {
                 removePendingAttachment(pending)
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
         }

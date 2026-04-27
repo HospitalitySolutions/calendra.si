@@ -4,6 +4,7 @@ import com.example.app.billing.TaxRate;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
+import com.example.app.company.CompanyRepository;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.securitycenter.SecurityCenterService;
@@ -54,6 +55,7 @@ public class SignupService {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final CompanyProvisioningService companyProvisioningService;
+    private final CompanyRepository companies;
     private final AppSettingRepository settings;
     private final TransactionServiceRepository txServices;
     private final SecurityCenterService securityCenterService;
@@ -70,6 +72,7 @@ public class SignupService {
             UserRepository users,
             PasswordEncoder passwordEncoder,
             CompanyProvisioningService companyProvisioningService,
+            CompanyRepository companies,
             AppSettingRepository settings,
             TransactionServiceRepository txServices,
             SecurityCenterService securityCenterService,
@@ -85,6 +88,7 @@ public class SignupService {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.companyProvisioningService = companyProvisioningService;
+        this.companies = companies;
         this.settings = settings;
         this.txServices = txServices;
         this.securityCenterService = securityCenterService;
@@ -452,6 +456,53 @@ public class SignupService {
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "New account sign-in").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         return ResponseEntity.ok(authSuccessResponse(owner, sessionToken, httpRequest));
+    }
+
+    @Transactional
+    public ResponseEntity<?> saveSignupBillingDetails(User authenticatedUser, AuthController.SignupBillingDetailsRequest request) {
+        if (authenticatedUser == null || authenticatedUser.getId() == null || authenticatedUser.getCompany() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Not authenticated."));
+        }
+        String firstName = trimToNull(request.firstName());
+        String lastName = trimToNull(request.lastName());
+        if (firstName == null || lastName == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "First and last name are required."));
+        }
+
+        Long companyId = authenticatedUser.getCompany().getId();
+        Company company = companies.findByIdForUpdate(companyId)
+                .orElse(authenticatedUser.getCompany());
+        User owner = users.findById(authenticatedUser.getId()).orElse(authenticatedUser);
+
+        owner.setFirstName(firstName);
+        owner.setLastName(lastName);
+        users.save(owner);
+
+        String companyName = trimToNull(request.companyName());
+        if (companyName != null) {
+            company.setName(companyName);
+            companies.save(company);
+            seedSetting(company, SettingKey.COMPANY_NAME, companyName);
+        }
+
+        seedSetting(company, SettingKey.COMPANY_VAT_ID, stringOrEmpty(request.vatId()));
+        seedSetting(company, SettingKey.COMPANY_ADDRESS, stringOrEmpty(request.address()));
+        seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, stringOrEmpty(request.postalCode()));
+        seedSetting(company, SettingKey.COMPANY_CITY, stringOrEmpty(request.city()));
+
+        String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
+        seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
+
+        String interval = request.billingInterval() == null ? "MONTHLY" : request.billingInterval().trim().toUpperCase(Locale.ROOT);
+        if (!"MONTHLY".equals(interval) && !"YEARLY".equals(interval)) {
+            interval = "MONTHLY";
+        }
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
+
+        return ResponseEntity.ok(Map.of(
+                "ok", true,
+                "packageType", normalizedPackageType,
+                "billingInterval", interval));
     }
 
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {
@@ -903,5 +954,9 @@ public class SignupService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private String stringOrEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 }

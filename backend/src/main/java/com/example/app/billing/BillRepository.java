@@ -54,5 +54,4 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     List<Long> findDistinctCompanyIdsByStripeFieldsContainingIgnoreCase(@Param("needle") String needle);
 
     List<Bill> findTop8ByCompany_IdOrderByIdDesc(Long companyId);
-
 }

@@ -122,7 +122,7 @@ final class PreviewStore: ObservableObject {
                 ],
                 inboxThread: GuestInboxThreadModel(clientId: 2, clientFirstName: "Ana", clientLastName: "Novak", lastPreview: "Welcome to Blue River Yoga", lastSenderName: "Studio team", lastSentAt: "2026-04-16T08:00:00Z", messageCount: 1, unreadCount: 1),
                 inboxMessages: [
-                    GuestInboxMessageModel(id: 11, clientId: 2, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "OUTBOUND", status: "SENT", subject: nil, body: "Welcome to Blue River Yoga", externalMessageId: nil, errorMessage: nil, senderName: "Studio team", senderPhone: nil, sentAt: "2026-04-16T08:00:00Z", createdAt: "2026-04-16T08:00:00Z")
+                    GuestInboxMessageModel(id: 11, clientId: 2, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "OUTBOUND", status: "SENT", subject: nil, body: "Welcome to Blue River Yoga", externalMessageId: nil, errorMessage: nil, senderName: "Studio team", senderPhone: nil, sentAt: "2026-04-16T08:00:00Z", createdAt: "2026-04-16T08:00:00Z", attachments: nil)
                 ]
             )
         }
@@ -153,8 +153,8 @@ final class PreviewStore: ObservableObject {
             ],
             inboxThread: GuestInboxThreadModel(clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", lastPreview: "Can you confirm my visit?", lastSenderName: "Ana Novak", lastSentAt: "2026-04-16T08:00:00Z", messageCount: 2, unreadCount: 0),
             inboxMessages: [
-                GuestInboxMessageModel(id: 1, clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "OUTBOUND", status: "READ", subject: nil, body: "Welcome to Northside Fitness", externalMessageId: nil, errorMessage: nil, senderName: "Studio team", senderPhone: nil, sentAt: "2026-04-15T08:00:00Z", createdAt: "2026-04-15T08:00:00Z"),
-                GuestInboxMessageModel(id: 2, clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "INBOUND", status: "RECEIVED", subject: nil, body: "Can you confirm my visit?", externalMessageId: nil, errorMessage: nil, senderName: "Ana Novak", senderPhone: nil, sentAt: "2026-04-16T08:00:00Z", createdAt: "2026-04-16T08:00:00Z")
+                GuestInboxMessageModel(id: 1, clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "OUTBOUND", status: "READ", subject: nil, body: "Welcome to Northside Fitness", externalMessageId: nil, errorMessage: nil, senderName: "Studio team", senderPhone: nil, sentAt: "2026-04-15T08:00:00Z", createdAt: "2026-04-15T08:00:00Z", attachments: nil),
+                GuestInboxMessageModel(id: 2, clientId: 1, clientFirstName: "Ana", clientLastName: "Novak", recipient: "ana@example.com", channel: "GUEST_APP", direction: "INBOUND", status: "RECEIVED", subject: nil, body: "Can you confirm my visit?", externalMessageId: nil, errorMessage: nil, senderName: "Ana Novak", senderPhone: nil, sentAt: "2026-04-16T08:00:00Z", createdAt: "2026-04-16T08:00:00Z", attachments: nil)
             ]
         )
     }

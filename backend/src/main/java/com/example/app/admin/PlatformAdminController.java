@@ -4,6 +4,8 @@ import com.example.app.billing.Bill;
 import com.example.app.billing.BillRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.register.RegisterCatalogService;
+import com.example.app.register.RegisterPriceCatalog;
 import com.example.app.session.SpaceRepository;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -17,11 +19,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,23 +40,32 @@ public class PlatformAdminController {
     private static final String TEST_INVOICE_DEFAULT = "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices";
     private static final String TEST_PREMISE_DEFAULT = "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices/register";
 
+    private static final Set<String> ALLOWED_PLATFORM_TENANCY_AUDIT_ACTIONS = Set.of(
+            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS");
+
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
     private final UserRepository users;
     private final SpaceRepository spaces;
     private final BillRepository bills;
+    private final RegisterCatalogService registerCatalogService;
+    private final PlatformTenancyAdminAuditLogRepository tenancyAdminAuditLogs;
 
     public PlatformAdminController(
             CompanyRepository companies,
             AppSettingRepository settings,
             UserRepository users,
             SpaceRepository spaces,
-            BillRepository bills) {
+            BillRepository bills,
+            RegisterCatalogService registerCatalogService,
+            PlatformTenancyAdminAuditLogRepository tenancyAdminAuditLogs) {
         this.companies = companies;
         this.settings = settings;
         this.users = users;
         this.spaces = spaces;
         this.bills = bills;
+        this.registerCatalogService = registerCatalogService;
+        this.tenancyAdminAuditLogs = tenancyAdminAuditLogs;
     }
 
     public record TenancyRow(Long id, String tenantCode, String name) {}
@@ -72,6 +85,9 @@ public class PlatformAdminController {
             String contactName,
             String contactEmail,
             String contactPhone,
+            String companyAddress,
+            String companyPostalCode,
+            String companyCity,
             String createdAt,
             String subscriptionStart,
             String subscriptionEnd,
@@ -89,6 +105,21 @@ public class PlatformAdminController {
             String signupCompletionSummary,
             String vatId,
             String stripeCustomerIdPreview) {}
+
+    public record AuditLogEntryDto(String occurredAt, String category, String summary, String detail, String actorEmail) {}
+
+    public record CreatePlatformTenancyAuditRequest(String actionType, String summary, String detail, String reason) {}
+
+    @GetMapping("/register-prices")
+    public RegisterPriceCatalog registerPrices(@AuthenticationPrincipal User me) {
+        return registerCatalogService.readForCompany(me.getCompany().getId());
+    }
+
+    @PutMapping("/register-prices")
+    public RegisterPriceCatalog saveRegisterPrices(
+            @AuthenticationPrincipal User me, @RequestBody RegisterPriceCatalog body) {
+        return registerCatalogService.saveForCompany(me.getCompany().getId(), me, body);
+    }
 
     @GetMapping("/tenancies")
     public List<TenancyRow> tenancies() {
@@ -137,6 +168,49 @@ public class PlatformAdminController {
         return buildTenancyDetails(company);
     }
 
+    /**
+     * Immutable-style log of actions taken from the platform admin console for this tenancy (change plan, price
+     * override, suspend, add-ons, etc.).
+     */
+    @GetMapping("/tenancies/{id}/audit-log")
+    public List<AuditLogEntryDto> tenancyAuditLog(@PathVariable Long id) {
+        companies.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return tenancyAdminAuditLogs.findRecentByCompanyId(id, PageRequest.of(0, 200)).stream()
+                .map(this::toAuditLogDto)
+                .toList();
+    }
+
+    @PostMapping("/tenancies/{id}/audit-log")
+    public AuditLogEntryDto appendTenancyAuditLog(
+            @PathVariable Long id,
+            @RequestBody CreatePlatformTenancyAuditRequest body,
+            @AuthenticationPrincipal User actor) {
+        Company company = companies.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (body == null || body.actionType() == null || body.actionType().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "actionType is required");
+        }
+        String action = body.actionType().trim().toUpperCase(Locale.ROOT);
+        if (!ALLOWED_PLATFORM_TENANCY_AUDIT_ACTIONS.contains(action)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported actionType");
+        }
+        String summary = clampText(body.summary(), 500);
+        if (summary.isBlank()) {
+            summary = "Recorded action";
+        }
+        String detail = clampText(body.detail(), 8000);
+        String reason = clampText(body.reason(), 4000);
+
+        PlatformTenancyAdminAuditLog row = new PlatformTenancyAdminAuditLog();
+        row.setCompany(company);
+        row.setActorUser(actor);
+        row.setActionType(action);
+        row.setSummary(summary);
+        row.setDetail(detail.isBlank() ? null : detail);
+        row.setReason(reason.isBlank() ? null : reason);
+        tenancyAdminAuditLogs.save(row);
+        return toAuditLogDto(row);
+    }
+
     private TenancySearchHit toSearchHit(Company company) {
         TenancyDetailsDto full = buildTenancyDetails(company);
         return new TenancySearchHit(
@@ -174,6 +248,9 @@ public class PlatformAdminController {
         int smsSent = parseIntegerOrZero(settingTrim(cid, SettingKey.TENANCY_SMS_SENT_COUNT));
 
         String phone = settingTrim(cid, SettingKey.COMPANY_TELEPHONE);
+        String companyAddress = settingTrim(cid, SettingKey.COMPANY_ADDRESS);
+        String companyPostalCode = settingTrim(cid, SettingKey.COMPANY_POSTAL_CODE);
+        String companyCity = settingTrim(cid, SettingKey.COMPANY_CITY);
         String tenantCode = company.getTenantCode() == null ? "" : company.getTenantCode().trim();
         String vatId = settingTrim(cid, SettingKey.COMPANY_VAT_ID);
         boolean ownerPasswordPending = settings.findByCompanyIdAndKey(cid, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING)
@@ -188,6 +265,9 @@ public class PlatformAdminController {
                 contactName,
                 contactEmail,
                 phone,
+                companyAddress,
+                companyPostalCode,
+                companyCity,
                 company.getCreatedAt() == null ? "" : company.getCreatedAt().toString(),
                 subscriptionStart,
                 subscriptionEnd,
@@ -299,6 +379,50 @@ public class PlatformAdminController {
     private static int parseIntegerOrZero(String raw) {
         Integer n = parseInteger(raw);
         return n == null ? 0 : n;
+    }
+
+    private AuditLogEntryDto toAuditLogDto(PlatformTenancyAdminAuditLog e) {
+        String actor = "";
+        if (e.getActorUser() != null && e.getActorUser().getEmail() != null) {
+            actor = e.getActorUser().getEmail().trim();
+        }
+        String d = e.getDetail() == null ? "" : e.getDetail().trim();
+        if (e.getReason() != null && !e.getReason().isBlank()) {
+            if (!d.isEmpty()) {
+                d += "\n";
+            }
+            d += "Reason: " + e.getReason().trim();
+        }
+        return new AuditLogEntryDto(
+                e.getCreatedAt() == null ? "" : e.getCreatedAt().toString(),
+                humanizeTenancyAuditAction(e.getActionType()),
+                e.getSummary() == null ? "" : e.getSummary(),
+                d,
+                actor);
+    }
+
+    private static String humanizeTenancyAuditAction(String code) {
+        if (code == null || code.isBlank()) {
+            return "Platform admin";
+        }
+        return switch (code) {
+            case "CHANGE_PLAN" -> "Change plan";
+            case "PRICE_OVERRIDE" -> "Price override";
+            case "SUSPEND_TENANT" -> "Suspend tenant";
+            case "MANAGE_ADDONS" -> "Manage add-ons";
+            default -> code;
+        };
+    }
+
+    private static String clampText(String raw, int maxLen) {
+        if (raw == null) {
+            return "";
+        }
+        String t = raw.trim();
+        if (t.length() <= maxLen) {
+            return t;
+        }
+        return t.substring(0, maxLen - 1) + "…";
     }
 
     private static String normalizePackageType(String raw) {

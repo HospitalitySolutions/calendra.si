@@ -48,7 +48,7 @@ struct LoginView: View {
 
                 Text("Google sign-in can be enabled by adding the GoogleSignIn Swift package and wiring it to the same `/api/guest/auth/google/token` backend endpoint.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
         }
     }

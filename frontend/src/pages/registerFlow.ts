@@ -56,11 +56,14 @@ export function parseRegisterSelection(search: string): RegisterSelection {
 
   const billing: RegisterBillingCycle = rawBilling === 'annual' || rawBilling === 'yearly' ? 'annual' : 'monthly'
 
+  const rawSms = clampInt(params.get('sms'), 0, 1000, 0)
+  const additionalSms = Math.min(1000, Math.max(0, Math.round(rawSms / 50) * 50))
+
   return {
     plan,
     billing,
     additionalUsers: clampInt(params.get('users'), 1, 10, 1),
-    additionalSms: clampInt(params.get('sms'), 0, 1000, 0),
+    additionalSms,
     addons: {
       voice: parseBool(params.get('voice')),
       billing: parseBool(params.get('billingAddon')),

@@ -298,6 +298,28 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
+    public record SignupBillingDetailsRequest(
+            @NotBlank String firstName,
+            @NotBlank String lastName,
+            String companyName,
+            String vatId,
+            String address,
+            String postalCode,
+            String city,
+            String packageName,
+            /** MONTHLY or YEARLY */
+            String billingInterval,
+            String paymentMethod
+    ) {}
+
+    @PostMapping("/signup/billing-details")
+    public ResponseEntity<?> saveSignupBillingDetails(@Valid @RequestBody SignupBillingDetailsRequest body, Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Not authenticated."));
+        }
+        return signupService.saveSignupBillingDetails(user, body);
+    }
+
     private String normalizePackageType(String rawValue, String fallback) {
         String normalizedFallback = fallback == null || fallback.isBlank() ? "PROFESSIONAL" : fallback.trim().toUpperCase(Locale.ROOT);
         if (rawValue == null || rawValue.isBlank()) return normalizedFallback;

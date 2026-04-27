@@ -9,7 +9,7 @@ public class SeederProperties {
     private boolean enabled = true;
     private boolean demoTenantsEnabled = true;
     private boolean superAdminEnabled = true;
-    private String superAdminEmail = "dmirc@hosp-it.eu";
+    private String superAdminEmail = "dmirc@calendra.si";
     private String superAdminPassword = "Admin123!";
     private String demoAdminPassword = "Admin123!";
 

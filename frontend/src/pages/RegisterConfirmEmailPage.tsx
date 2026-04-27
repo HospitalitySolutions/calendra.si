@@ -6,16 +6,21 @@ import { api } from '../api'
 import { useToast } from '../components/Toast'
 import { Field } from '../components/ui'
 import { useLocale } from '../locale'
+import { ensureRegisterCatalogLoaded } from '../lib/registerCatalogBootstrap'
+import { useRegisterFooterClickOutside } from '../lib/useRegisterFooterClickOutside'
 import { storeAuthenticatedSession } from '../lib/session'
-import { parseRegisterSelection, selectionToSearch } from './registerFlow'
+import { parseRegisterSelection, registerPlanToPackage, selectionToSearch } from './registerFlow'
+import { RegisterFooterChevron, RegisterFooterListIcon } from './RegisterPage'
 import {
-  RegisterFooterChevron,
-  RegisterFooterListIcon,
+  annualSaveBadgeText,
+  buildRegisterFooterPill,
   buildSummary,
   formatEuro,
+  getRegisterPlanPageCopy,
   getSelectionMonthlyAmounts,
-  plans,
-} from './RegisterPage'
+  plansForLocale,
+  type RegisterLocale,
+} from './registerPlanCopy'
 import { registerPageStyles } from './registerPageStyles'
 
 const confirmEmailStyles = `
@@ -71,6 +76,19 @@ const confirmEmailStyles = `
   .register-confirm-shell .register-confirm-submit {
     width: 100%; height: 60px; border-radius: 16px; border: 0; cursor: pointer;
     background: linear-gradient(180deg,#2f6df6,#1957e6); color: #fff; font-size: 1rem; font-weight: 900;
+  }
+  .register-flow.register-confirm-shell:not(.register-account-page) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .register-flow.register-confirm-shell:not(.register-account-page) > .app {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
   }
   .register-flow.register-account-page {
     display: flex;
@@ -400,11 +418,6 @@ type CompleteEmailResponse = {
   returnSearch?: string
 }
 
-const footerPlanCopy: Record<'en' | 'sl', { annual: string; monthly: string }> = {
-  en: { annual: 'Annual billing', monthly: 'Monthly billing' },
-  sl: { annual: 'Letno obračunavanje', monthly: 'Mesečno obračunavanje' },
-}
-
 const billingStrings: Record<
   'en' | 'sl',
   {
@@ -572,12 +585,18 @@ export function RegisterConfirmEmailPage() {
   const [flowStep, setFlowStep] = useState<FlowStep>('password')
   const [savedReturnSearch, setSavedReturnSearch] = useState('')
   const [footerExpanded, setFooterExpanded] = useState(false)
+  const registerFooterRef = useRef<HTMLElement | null>(null)
+  useRegisterFooterClickOutside(registerFooterRef, footerExpanded, setFooterExpanded)
   const [contactOpen, setContactOpen] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [contactMessage, setContactMessage] = useState('')
   const [contactError, setContactError] = useState('')
+
+  useEffect(() => {
+    void ensureRegisterCatalogLoaded()
+  }, [])
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -595,9 +614,11 @@ export function RegisterConfirmEmailPage() {
   const [billingError, setBillingError] = useState('')
   const [billingSubmitting, setBillingSubmitting] = useState(false)
 
-  const lang = (locale === 'sl' ? 'sl' : 'en') as 'en' | 'sl'
+  const lang: RegisterLocale = locale === 'sl' ? 'sl' : 'en'
   const bc = billingStrings[lang]
-  const planFooterWords = footerPlanCopy[lang]
+  const registerShell = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
+  const plans = useMemo(() => plansForLocale(lang), [lang])
+  const pm = lang === 'sl' ? '/mes.' : '/mo'
 
   const selection = useMemo(() => {
     const urlParams = new URLSearchParams(location.search)
@@ -611,23 +632,12 @@ export function RegisterConfirmEmailPage() {
     return parseRegisterSelection('')
   }, [location.search, savedReturnSearch])
 
-  const summary = useMemo(() => buildSummary(selection), [selection])
+  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang])
   const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection])
   const websiteUrl = (import.meta.env.VITE_WEBSITE_URL as string | undefined)?.trim() || 'https://calendra.si'
   const contactSalesEmail = (import.meta.env.VITE_CONTACT_EMAIL as string | undefined)?.trim() || 'info@calendra.si'
 
-  const footerPill = useMemo(() => {
-    const plan = plans[selection.plan]
-    const featureCount = plan.features.length
-    const lineCount = summary.rows.length
-    const extraLines = Math.max(0, lineCount - 1)
-    const title = `${featureCount} plan feature${featureCount === 1 ? '' : 's'} · ${lineCount} estimate line${lineCount === 1 ? '' : 's'}`
-    const subParts = [plan.name, selection.billing === 'annual' ? planFooterWords.annual : planFooterWords.monthly]
-    if (extraLines > 0) {
-      subParts.push(`${extraLines} usage & add-on${extraLines === 1 ? '' : 's'}`)
-    }
-    return { title, sub: subParts.join(' · ') }
-  }, [planFooterWords.annual, planFooterWords.monthly, selection, summary.rows.length])
+  const footerPill = useMemo(() => buildRegisterFooterPill(selection, summary, lang), [selection, summary, lang])
 
   const peekAddonMonthly = useMemo(() => {
     if (selection.billing === 'annual') {
@@ -773,7 +783,7 @@ export function RegisterConfirmEmailPage() {
     }
   }
 
-  const submitBilling = (e: React.FormEvent) => {
+  const submitBilling = async (e: React.FormEvent) => {
     e.preventDefault()
     setBillingError('')
     if (!firstName.trim() || !lastName.trim()) {
@@ -796,7 +806,26 @@ export function RegisterConfirmEmailPage() {
     }
     setBillingSubmitting(true)
     try {
+      await api.post('/auth/signup/billing-details', {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        companyName: companyName.trim(),
+        vatId: vatId.trim(),
+        address: billingAddress.trim(),
+        postalCode: postalCode.trim(),
+        city: city.trim(),
+        packageName: registerPlanToPackage[selection.plan],
+        billingInterval: selection.billing === 'annual' ? 'YEARLY' : 'MONTHLY',
+        paymentMethod,
+      })
       window.location.assign('/calendar')
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const message = (err.response?.data as { message?: string } | undefined)?.message
+        setBillingError(message || (lang === 'sl' ? 'Shranjevanje obračunskih podatkov ni uspelo.' : 'Could not save billing details.'))
+      } else {
+        setBillingError(lang === 'sl' ? 'Shranjevanje obračunskih podatkov ni uspelo.' : 'Could not save billing details.')
+      }
     } finally {
       setBillingSubmitting(false)
     }
@@ -818,17 +847,17 @@ export function RegisterConfirmEmailPage() {
     const phoneValue = contactPhone.trim()
     const message = contactMessage.trim()
     if (!name || !emailValue || !message) {
-      setContactError('Please fill in your name, email, and message.')
+      setContactError(registerShell.contactErrRequired)
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
-      setContactError('Please enter a valid email address.')
+      setContactError(registerShell.contactErrEmail)
       return
     }
-    const subject = encodeURIComponent('Calendra — Custom solution inquiry')
+    const subject = encodeURIComponent(registerShell.contactSubject)
     const body = encodeURIComponent(`Name: ${name}\nEmail: ${emailValue}\nPhone: ${phoneValue || '—'}\n\n${message}`)
     window.location.href = `mailto:${contactSalesEmail}?subject=${subject}&body=${body}`
-    showToast('success', 'Opening your email client…')
+    showToast('success', registerShell.toastOpenMail)
     closeContactModal()
     setContactName('')
     setContactEmail('')
@@ -837,18 +866,24 @@ export function RegisterConfirmEmailPage() {
   }
 
   const renderFooter = () => (
-    <footer className={`register-fixed-footer${footerExpanded ? ' is-expanded' : ''}`} role="contentinfo">
+    <footer
+      ref={registerFooterRef}
+      className={`register-fixed-footer${footerExpanded ? ' is-expanded' : ''}`}
+      role="contentinfo"
+    >
       <div className={`register-fixed-footer-inner register-footer-panel${footerExpanded ? ' is-expanded' : ''}`}>
         <div className="register-footer-toolbar">
-          <div className="register-footer-back">
-            <button className="back-link" type="button" onClick={() => window.location.assign(websiteUrl)}>
-              ← Back to website
+          <div className="register-footer-toolbar-lead">
+            <div className="register-footer-back">
+              <button className="back-link" type="button" onClick={() => window.location.assign(websiteUrl)}>
+                {registerShell.backWebsite}
+              </button>
+            </div>
+
+            <button type="button" className="custom-cta custom-cta--footer-toolbar" onClick={openContactModal}>
+              {registerShell.customCta}
             </button>
           </div>
-
-          <button type="button" className="custom-cta custom-cta--footer-toolbar" onClick={openContactModal}>
-            Need a custom solution? Contact us
-          </button>
 
           <div className="register-footer-center-cluster">
             <div className="register-footer-toolbar-mid">
@@ -857,7 +892,7 @@ export function RegisterConfirmEmailPage() {
                 className="register-footer-pill"
                 aria-expanded={footerExpanded}
                 aria-controls="register-footer-details"
-                aria-label={footerExpanded ? 'Hide estimate details' : 'Show estimate details'}
+                aria-label={footerExpanded ? registerShell.footerHideDetails : registerShell.footerShowDetails}
                 onClick={() => setFooterExpanded((v) => !v)}
               >
                 <span className="register-footer-pill-icon" aria-hidden>
@@ -868,11 +903,11 @@ export function RegisterConfirmEmailPage() {
                   <span className="register-footer-pill-sub">{footerPill.sub}</span>
                 </span>
                 <span className="register-footer-pill-total-inline">
-                  <span className="register-footer-total-label">Est. total</span>
+                  <span className="register-footer-total-label">{registerShell.footerEstTotal}</span>
                   <strong className="register-footer-total-value">{summary.totalPrimary}</strong>
                 </span>
                 <span className="register-footer-pill-chevron" aria-hidden>
-                  <RegisterFooterChevron up={footerExpanded} />
+                  <RegisterFooterChevron up={!footerExpanded} />
                 </span>
               </button>
             </div>
@@ -885,7 +920,7 @@ export function RegisterConfirmEmailPage() {
           <div className="register-footer-expanded" id="register-footer-details">
             <div className="register-footer-peek">
               <div className="register-footer-peek-col">
-                <span className="register-footer-peek-label">Plan</span>
+                <span className="register-footer-peek-label">{registerShell.footerPlanPeek}</span>
                 <strong className="register-footer-peek-name">{plans[selection.plan].name}</strong>
                 <span className="register-footer-peek-value">{summary.rows[0]?.value ?? '—'}</span>
               </div>
@@ -893,16 +928,17 @@ export function RegisterConfirmEmailPage() {
                 +
               </div>
               <div className="register-footer-peek-col">
-                <span className="register-footer-peek-label">Usage &amp; add-ons</span>
+                <span className="register-footer-peek-label">{registerShell.footerUsagePeek}</span>
                 <strong className="register-footer-peek-name">
-                  {usageAddonLineCount} {usageAddonLineCount === 1 ? 'item' : 'items'}
+                  {usageAddonLineCount}{' '}
+                  {usageAddonLineCount === 1 ? registerShell.footerItemSingular : registerShell.footerItemPlural}
                 </strong>
-                <span className="register-footer-peek-value">{formatEuro(peekAddonMonthly)}/mo</span>
+                <span className="register-footer-peek-value">{formatEuro(peekAddonMonthly)}{pm}</span>
               </div>
             </div>
 
             <div className="register-footer-detail-card">
-              <h3 className="register-footer-detail-title">Estimate breakdown</h3>
+              <h3 className="register-footer-detail-title">{registerShell.footerBreakdownTitle}</h3>
               <ul className="register-footer-detail-list">
                 {summary.rows.map((row) => (
                   <li key={`${row.label}-${row.value}`} className="register-footer-detail-row">
@@ -917,18 +953,18 @@ export function RegisterConfirmEmailPage() {
               <div className="register-footer-detail-foot">
                 {summary.annualSavingsYr != null && summary.annualSavingsYr > 0 ? (
                   <span className="register-footer-save-badge">
-                    You save {formatEuro(summary.annualSavingsYr)}/yr (15%)
+                    {annualSaveBadgeText(formatEuro(summary.annualSavingsYr), lang)}
                   </span>
                 ) : null}
                 <div className="register-footer-detail-total">
-                  <span className="register-footer-detail-total-label">Est. total</span>
+                  <span className="register-footer-detail-total-label">{registerShell.footerEstTotal}</span>
                   <strong className="register-footer-detail-total-value">{summary.totalPrimary}</strong>
                 </div>
               </div>
             </div>
 
             <button type="button" className="register-footer-hide-link" onClick={() => setFooterExpanded(false)}>
-              Hide details
+              {registerShell.footerHideDetails}
               <RegisterFooterChevron up />
             </button>
           </div>
@@ -943,32 +979,32 @@ export function RegisterConfirmEmailPage() {
     return (
       <div className="register-flow register-account-page register-confirm-shell register-confirm-flow">
         <style>{sharedStyles}</style>
+        <header className="topbar">
+          <div className="brand">
+            <img className="brand-logo" src={loginLogo} alt={registerShell.brandAlt} />
+          </div>
+          <div className="top-actions">
+            <div className="lang-switch" role="group" aria-label={t('language')}>
+              <button
+                type="button"
+                className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+                aria-pressed={locale === 'sl'}
+                onClick={() => setLocale('sl')}
+              >
+                SL
+              </button>
+              <button
+                type="button"
+                className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+                aria-pressed={locale === 'en'}
+                onClick={() => setLocale('en')}
+              >
+                EN
+              </button>
+            </div>
+          </div>
+        </header>
         <div className="app">
-          <header className="topbar">
-            <div className="brand">
-              <img className="brand-logo" src={loginLogo} alt="Calendra — Simplify Your Booking" />
-            </div>
-            <div className="top-actions">
-              <div className="lang-switch" role="group" aria-label={t('language')}>
-                <button
-                  type="button"
-                  className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                  aria-pressed={locale === 'sl'}
-                  onClick={() => setLocale('sl')}
-                >
-                  SL
-                </button>
-                <button
-                  type="button"
-                  className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                  aria-pressed={locale === 'en'}
-                  onClick={() => setLocale('en')}
-                >
-                  EN
-                </button>
-              </div>
-            </div>
-          </header>
           <main className="content">
             <div className="register-account-main">
               <div className="register-account-page-stack">
@@ -992,12 +1028,12 @@ export function RegisterConfirmEmailPage() {
     return (
       <div className="register-flow register-confirm-shell">
         <style>{sharedStyles}</style>
+        <header className="topbar">
+          <div className="brand">
+            <img className="brand-logo" src={loginLogo} alt={registerShell.brandAlt} />
+          </div>
+        </header>
         <div className="app">
-          <header className="topbar">
-            <div className="brand">
-              <img className="brand-logo" src={loginLogo} alt="Calendra — Simplify Your Booking" />
-            </div>
-          </header>
           <main className="content">
             <section className="panel register-account-card">
               <div className="register-confirm-badges">
@@ -1061,33 +1097,33 @@ export function RegisterConfirmEmailPage() {
   return (
     <div className="register-flow register-account-page register-confirm-shell register-confirm-flow">
       <style>{sharedStyles}</style>
-      <div className="app">
-        <header className="topbar">
-          <div className="brand">
-            <img className="brand-logo" src={loginLogo} alt="Calendra — Simplify Your Booking" />
+      <header className="topbar">
+        <div className="brand">
+          <img className="brand-logo" src={loginLogo} alt={registerShell.brandAlt} />
+        </div>
+        <div className="top-actions">
+          <div className="lang-switch" role="group" aria-label={t('language')}>
+            <button
+              type="button"
+              className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+              aria-pressed={locale === 'sl'}
+              onClick={() => setLocale('sl')}
+            >
+              SL
+            </button>
+            <button
+              type="button"
+              className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+              aria-pressed={locale === 'en'}
+              onClick={() => setLocale('en')}
+            >
+              EN
+            </button>
           </div>
-          <div className="top-actions">
-            <div className="lang-switch" role="group" aria-label={t('language')}>
-              <button
-                type="button"
-                className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                aria-pressed={locale === 'sl'}
-                onClick={() => setLocale('sl')}
-              >
-                SL
-              </button>
-              <button
-                type="button"
-                className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                aria-pressed={locale === 'en'}
-                onClick={() => setLocale('en')}
-              >
-                EN
-              </button>
-            </div>
-          </div>
-        </header>
+        </div>
+      </header>
 
+      <div className="app">
         <main className="content">
           {flowStep === 'password' ? (
             <div className="register-account-main">
@@ -1416,24 +1452,24 @@ export function RegisterConfirmEmailPage() {
 
       {contactOpen ? (
         <div className="register-contact-modal-root" role="presentation">
-          <button type="button" className="register-contact-modal-backdrop" aria-label="Close contact form" onClick={closeContactModal} />
+          <button type="button" className="register-contact-modal-backdrop" aria-label={registerShell.contactCloseBackdrop} onClick={closeContactModal} />
           <div className="register-contact-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="register-contact-title">
             <h2 id="register-contact-title" className="register-contact-modal-title">
-              Contact us
+              {registerShell.contactTitle}
             </h2>
-            <p className="register-contact-modal-intro">Tell us what you need. We will follow up by email.</p>
+            <p className="register-contact-modal-intro">{registerShell.contactIntro}</p>
             <div className="register-contact-form stack gap-md">
-              <Field label="Name">
+              <Field label={registerShell.contactName}>
                 <input value={contactName} onChange={(e) => setContactName(e.target.value)} autoComplete="name" />
               </Field>
-              <Field label="Email">
+              <Field label={registerShell.contactEmail}>
                 <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} autoComplete="email" />
               </Field>
-              <Field label="Phone" hint="Optional">
+              <Field label={registerShell.contactPhone} hint={registerShell.contactPhoneHint}>
                 <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} autoComplete="tel" />
               </Field>
-              <Field label="Message">
-                <textarea rows={4} value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} placeholder="Describe your needs…" />
+              <Field label={registerShell.contactMessage}>
+                <textarea rows={4} value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} placeholder={registerShell.contactPlaceholder} />
               </Field>
               {contactError ? (
                 <p className="register-contact-error" role="alert">
@@ -1443,10 +1479,10 @@ export function RegisterConfirmEmailPage() {
             </div>
             <div className="register-contact-modal-actions">
               <button type="button" className="register-contact-modal-cancel" onClick={closeContactModal}>
-                Cancel
+                {registerShell.contactCancel}
               </button>
               <button type="button" className="register-contact-modal-submit" onClick={submitContactModal}>
-                Send via email
+                {registerShell.contactSubmit}
               </button>
             </div>
           </div>

@@ -225,7 +225,7 @@ struct BookView: View {
             } label: {
                 Image(systemName: "arrow.left")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(canGoBack ? Color.primary : Color.primary.opacity(0.35))
+                    .foregroundColor(canGoBack ? Color.primary : Color.primary.opacity(0.35))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -234,7 +234,7 @@ struct BookView: View {
 
             Text("Book a session")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
 
             Spacer(minLength: 0)
 
@@ -244,13 +244,13 @@ struct BookView: View {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.primary)
+                        .foregroundColor(Color.primary)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                     if unreadNotifications > 0 {
                         Text("\(min(unreadNotifications, 99))")
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
                             .background(Capsule(style: .continuous).fill(brandOrange))
@@ -301,11 +301,11 @@ struct BookView: View {
                                         if completed {
                                             Image(systemName: "checkmark")
                                                 .font(.system(size: 14, weight: .bold))
-                                                .foregroundStyle(Color.white)
+                                                .foregroundColor(Color.white)
                                         } else {
                                             Text("\(idx + 1)")
                                                 .font(.subheadline.weight(.semibold))
-                                                .foregroundStyle(active ? Color.white : Color.secondary)
+                                                .foregroundColor(active ? Color.white : Color.secondary)
                                         }
                                     }
                                 )
@@ -314,7 +314,7 @@ struct BookView: View {
 
                         Text(stepDisplayTitle(step))
                             .font(.caption.weight(active ? .semibold : .regular))
-                            .foregroundStyle(active ? Color.primary : Color.secondary)
+                            .foregroundColor(active ? Color.primary : Color.secondary)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
@@ -351,7 +351,7 @@ struct BookView: View {
                         .font(.system(size: 16, weight: .bold))
                     Text("Choose the employee to perform the service")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
 
@@ -360,13 +360,13 @@ struct BookView: View {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading employees…")
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                     }
                 }
             } else if consultants.isEmpty {
                 GuestSurfaceCard {
                     Text("No employees available for this service yet.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             } else {
                 VStack(spacing: 8) {
@@ -395,7 +395,7 @@ struct BookView: View {
                         .font(.system(size: 16, weight: .bold))
                     Text("Choose a tenancy/organization you're subscribed to")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -415,7 +415,7 @@ struct BookView: View {
             if providers.isEmpty {
                 GuestSurfaceCard {
                     Text("No subscribed providers yet. Join a tenancy first to start booking.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             } else {
                 VStack(spacing: 8) {
@@ -437,7 +437,7 @@ struct BookView: View {
                                 trailing: AnyView(
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(Color.secondary)
+                                        .foregroundColor(Color.secondary)
                                 )
                             )
                         }
@@ -456,7 +456,7 @@ struct BookView: View {
                         .font(.system(size: 16, weight: .bold))
                     Text("Choose a service from the options provided by the selected provider")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -476,12 +476,12 @@ struct BookView: View {
             if selectedProvider == nil {
                 GuestSurfaceCard {
                     Text("Select a provider first.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             } else if servicesForSelectedProvider.isEmpty {
                 GuestSurfaceCard {
                     Text("No guest-enabled services are available for this provider.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             } else {
                 VStack(spacing: 8) {
@@ -524,7 +524,7 @@ struct BookView: View {
                         .font(.system(size: 16, weight: .bold))
                     Text("Pick a date and an available time slot")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -552,14 +552,14 @@ struct BookView: View {
 
                         Text(selectedDate.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
+                            .foregroundColor(.primary)
 
                         if isLoadingSlots {
                             ProgressView("Loading available times…")
                                 .padding(.vertical, 8)
                         } else if slots.isEmpty {
                             Text("No slots available on the selected date.")
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                                 .padding(.bottom, 6)
                         } else {
                             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
@@ -569,7 +569,7 @@ struct BookView: View {
                                     } label: {
                                         Text(DateFormatting.prettyTime(slot.startsAt))
                                             .font(.system(size: 14, weight: .semibold))
-                                            .foregroundStyle(selectedSlotId == slot.id ? Color.white : Color.primary)
+                                            .foregroundColor(selectedSlotId == slot.id ? Color.white : Color.primary)
                                             .frame(maxWidth: .infinity)
                                             .padding(.vertical, 10)
                                             .background(
@@ -590,7 +590,7 @@ struct BookView: View {
             } else {
                 GuestSurfaceCard {
                     Text("Select a service first.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
         }
@@ -604,7 +604,7 @@ struct BookView: View {
                         .font(.system(size: 16, weight: .bold))
                     Text(skipsOnlinePaymentMethods ? "Confirm your booking without online payment (pay at venue)." : "Choose your preferred payment method")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -625,7 +625,7 @@ struct BookView: View {
                 GuestSurfaceCard {
                     Text("Payment is collected at the venue. Tap Confirm booking to reserve your slot.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
@@ -684,7 +684,7 @@ struct BookView: View {
                 HStack {
                     Text("Booking summary")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                     Spacer()
                     Text("\(priceString(service.priceGross)) \(service.currency)")
                         .font(.system(size: 20, weight: .semibold))
@@ -698,7 +698,7 @@ struct BookView: View {
                                 .font(.system(size: 18, weight: .semibold))
                             Text(DateFormatting.prettyRange(start: slot.startsAt, end: slot.endsAt))
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -734,7 +734,7 @@ struct BookView: View {
                 Text(primaryButtonTitle)
                     .font(.system(size: 16, weight: .semibold))
             }
-            .foregroundStyle(Color.white)
+            .foregroundColor(Color.white)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
             .background(
@@ -888,10 +888,10 @@ struct BookView: View {
                 VStack(alignment: .leading, spacing: (compact || extraCompact) ? 2 : 4) {
                     Text(title)
                         .font(titleFont)
-                        .foregroundStyle(.primary)
+                        .foregroundColor(.primary)
                     Text(subtitle)
                         .font(subtitleFont)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
                 Spacer(minLength: (compact || extraCompact) ? 6 : 12)
                 if let trailing {
@@ -912,7 +912,7 @@ struct BookView: View {
                     .frame(width: size, height: size)
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.41, weight: .bold))
-                    .foregroundStyle(Color.white)
+                    .foregroundColor(Color.white)
             }
         }
     }
@@ -920,7 +920,7 @@ struct BookView: View {
     private func bookInfoPill(title: String) -> some View {
         Text(title)
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(.secondary)
+            .foregroundColor(.secondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
@@ -929,7 +929,7 @@ struct BookView: View {
     private func bookInfoPillCompact(title: String) -> some View {
         Text(title)
             .font(.caption2.weight(.medium))
-            .foregroundStyle(.secondary)
+            .foregroundColor(.secondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
@@ -938,7 +938,7 @@ struct BookView: View {
     private func priceBadgeCompact(value: String) -> some View {
         Text(value)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.primary)
+            .foregroundColor(.primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
@@ -947,7 +947,7 @@ struct BookView: View {
     private func priceBadge(value: String) -> some View {
         Text(value)
             .font(.headline.weight(.semibold))
-            .foregroundStyle(.primary)
+            .foregroundColor(.primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
@@ -956,7 +956,7 @@ struct BookView: View {
     private func paymentBrandBadge(_ title: String) -> some View {
         Text(title)
             .font(.caption2.weight(.bold))
-            .foregroundStyle(.secondary)
+            .foregroundColor(.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(.secondarySystemBackground)))
@@ -983,11 +983,11 @@ struct BookView: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(title)
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(disabled ? Color.secondary : Color.primary)
+                                .foregroundColor(disabled ? Color.secondary : Color.primary)
                             if let subtitle, !subtitle.isEmpty {
                                 Text(subtitle)
                                     .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundColor(.secondary)
                                     .lineLimit(2)
                             }
                         }
@@ -1005,7 +1005,7 @@ struct BookView: View {
                     Button(action: onChevronTap) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .padding(6)
                     }
                     .buttonStyle(.plain)
@@ -1062,7 +1062,7 @@ private struct StoredCardPickerSheet: View {
             List {
                 if cards.isEmpty {
                     Text("No stored cards yet.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 } else {
                     ForEach(cards, id: \.self) { card in
                         Button {
@@ -1072,15 +1072,15 @@ private struct StoredCardPickerSheet: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(card)
-                                        .foregroundStyle(.primary)
+                                        .foregroundColor(.primary)
                                     Text("Stored on this device")
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundColor(.secondary)
                                 }
                                 Spacer()
                                 if selectedCard == card {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(Color.primary)
+                                        .foregroundColor(Color.primary)
                                 }
                             }
                         }
@@ -1108,14 +1108,14 @@ private struct StoredCardPickerSheet: View {
     }
 }
 
-private extension String {
+extension String {
     var nilIfBlank: String? {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 }
 
-private extension Optional where Wrapped == String {
+extension Optional where Wrapped == String {
     var nilIfBlank: String? {
         guard let self else { return nil }
         let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1190,7 +1190,7 @@ private struct MonthCalendarView: View {
                         Text(monthName(-1))
                             .font(compact ? .caption : .subheadline)
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
 
@@ -1198,7 +1198,7 @@ private struct MonthCalendarView: View {
 
                 Text(monthTitle)
                     .font(compact ? .headline.weight(.semibold) : .title3.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
 
                 Spacer()
 
@@ -1213,7 +1213,7 @@ private struct MonthCalendarView: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: compact ? 11 : 13, weight: .semibold))
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -1222,7 +1222,7 @@ private struct MonthCalendarView: View {
                 ForEach(weekdaySymbols, id: \.self) { sym in
                     Text(sym)
                         .font(compact ? .caption2.weight(.medium) : .caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -1247,7 +1247,7 @@ private struct MonthCalendarView: View {
                                 }
                                 Text("\(calendar.component(.day, from: date))")
                                     .font(.system(size: compact ? 14 : 16, weight: isSelected ? .semibold : .regular))
-                                    .foregroundStyle(
+                                    .foregroundColor(
                                         isSelected
                                         ? Color.white
                                         : (isPast ? Color.secondary.opacity(0.5) : Color.primary)

@@ -4,6 +4,8 @@ import loginLogo from '../assets/login-logo.png'
 import { useToast } from '../components/Toast'
 import { Field } from '../components/ui'
 import { useLocale } from '../locale'
+import { ensureRegisterCatalogLoaded } from '../lib/registerCatalogBootstrap'
+import { useRegisterFooterClickOutside } from '../lib/useRegisterFooterClickOutside'
 import { registerPageStyles } from './registerPageStyles'
 import {
   getBillableAdditionalUserSlots,
@@ -15,19 +17,31 @@ import {
   RegisterFooterChevron,
   RegisterFooterListIcon,
   RegisterPlanAddonSections,
+} from './RegisterPage'
+import {
+  annualSaveBadgeText,
+  buildRegisterFooterPill,
   buildSummary,
   formatEuro,
+  getRegisterPlanPageCopy,
   getSelectionMonthlyAmounts,
-  plans,
-} from './RegisterPage'
+  plansForLocale,
+  type RegisterLocale,
+} from './registerPlanCopy'
 
 export function RegisterPlanAddonsPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { locale, setLocale } = useLocale()
+  const { locale, setLocale, t } = useLocale()
+  const lang: RegisterLocale = locale === 'sl' ? 'sl' : 'en'
+  const pc = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
+  const plansLoc = useMemo(() => plansForLocale(lang), [lang])
+  const pm = lang === 'sl' ? '/mes.' : '/mo'
   const { showToast } = useToast()
   const [selection, setSelection] = useState<RegisterSelection>(() => parseRegisterSelection(location.search))
   const [footerExpanded, setFooterExpanded] = useState(false)
+  const registerFooterRef = useRef<HTMLElement | null>(null)
+  useRegisterFooterClickOutside(registerFooterRef, footerExpanded, setFooterExpanded)
   const [contactOpen, setContactOpen] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -42,6 +56,10 @@ export function RegisterPlanAddonsPage() {
     window.scrollTo(0, 0)
     setFeatureAddonsFullySeen(false)
   }, [location.key])
+
+  useEffect(() => {
+    void ensureRegisterCatalogLoaded()
+  }, [])
 
   useEffect(() => {
     const sentinel = featureAddonsEndRef.current
@@ -68,22 +86,11 @@ export function RegisterPlanAddonsPage() {
     setSelection((prev) => (selectionToSearch(prev) === selectionToSearch(parsed) ? prev : parsed))
   }, [location.search])
 
-  const summary = useMemo(() => buildSummary(selection), [selection])
+  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang])
   const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection])
   const websiteUrl = (import.meta.env.VITE_WEBSITE_URL as string | undefined)?.trim() || 'https://calendra.si'
 
-  const footerPill = useMemo(() => {
-    const plan = plans[selection.plan]
-    const featureCount = plan.features.length
-    const lineCount = summary.rows.length
-    const extraLines = Math.max(0, lineCount - 1)
-    const title = `${featureCount} plan feature${featureCount === 1 ? '' : 's'} · ${lineCount} estimate line${lineCount === 1 ? '' : 's'}`
-    const subParts = [`${plan.name} plan`, selection.billing === 'annual' ? 'Annual billing' : 'Monthly billing']
-    if (extraLines > 0) {
-      subParts.push(`${extraLines} usage & add-on${extraLines === 1 ? '' : 's'}`)
-    }
-    return { title, sub: subParts.join(' · ') }
-  }, [selection, summary])
+  const footerPill = useMemo(() => buildRegisterFooterPill(selection, summary, lang), [selection, summary, lang])
 
   const peekAddonMonthly = useMemo(() => {
     const m = monthlyAmounts
@@ -137,17 +144,17 @@ export function RegisterPlanAddonsPage() {
     const phone = contactPhone.trim()
     const message = contactMessage.trim()
     if (!name || !email || !message) {
-      setContactError('Please fill in your name, email, and message.')
+      setContactError(pc.contactErrRequired)
       return
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setContactError('Please enter a valid email address.')
+      setContactError(pc.contactErrEmail)
       return
     }
-    const subject = encodeURIComponent('Calendra — Custom solution inquiry')
+    const subject = encodeURIComponent(pc.contactSubject)
     const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\nPhone: ${phone || '—'}\n\n${message}`)
     window.location.href = `mailto:${contactSalesEmail}?subject=${subject}&body=${body}`
-    showToast('success', 'Opening your email client…')
+    showToast('success', pc.toastOpenMail)
     closeContactModal()
     setContactName('')
     setContactEmail('')
@@ -158,47 +165,49 @@ export function RegisterPlanAddonsPage() {
   return (
     <div className="register-flow">
       <style>{registerPageStyles}</style>
+      <header className="topbar">
+        <div className="brand">
+          <img className="brand-logo" src={loginLogo} alt={pc.brandAlt} />
+        </div>
+
+        <div className="top-actions">
+          <div className="lang-switch" role="group" aria-label={t('language')}>
+            <button
+              type="button"
+              className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+              aria-pressed={locale === 'sl'}
+              onClick={() => setLocale('sl')}
+            >
+              SL
+            </button>
+            <button
+              type="button"
+              className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
+              aria-pressed={locale === 'en'}
+              onClick={() => setLocale('en')}
+            >
+              EN
+            </button>
+          </div>
+        </div>
+      </header>
+
       <div className="app">
-        <header className="topbar">
-          <div className="brand">
-            <img className="brand-logo" src={loginLogo} alt="Calendra — Simplify Your Booking" />
-          </div>
-
-          <div className="top-actions">
-            <div className="lang-switch" role="group" aria-label="Language">
-              <button
-                type="button"
-                className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                aria-pressed={locale === 'sl'}
-                onClick={() => setLocale('sl')}
-              >
-                SL
-              </button>
-              <button
-                type="button"
-                className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-                aria-pressed={locale === 'en'}
-                onClick={() => setLocale('en')}
-              >
-                EN
-              </button>
-            </div>
-          </div>
-        </header>
-
         <main className="content">
-          <h1 className="register-sr-only">Calendra — usage and feature add-ons</h1>
+          <h1 className="register-sr-only">{pc.srOnlyAddonsTitle}</h1>
           <div className="register-addons-page">
             <button
               type="button"
               className="back-link register-addons-back"
               onClick={() => navigate(`/register?${selectionToSearch(selection)}`)}
             >
-              ← Back to plan
+              {pc.addonsBackToPlan}
             </button>
             <RegisterPlanAddonSections
               selection={selection}
               setSelection={setSelection}
+              pageCopy={pc}
+              locale={lang}
               featureAddonsSectionRef={featureAddonsSectionRef}
               featureAddonsEndRef={featureAddonsEndRef}
               addonsModalPresentation
@@ -207,16 +216,22 @@ export function RegisterPlanAddonsPage() {
         </main>
       </div>
 
-      <footer className={`register-fixed-footer${footerExpanded ? ' is-expanded' : ''}`} role="contentinfo">
+      <footer
+        ref={registerFooterRef}
+        className={`register-fixed-footer${footerExpanded ? ' is-expanded' : ''}`}
+        role="contentinfo"
+      >
         <div className={`register-fixed-footer-inner register-footer-panel${footerExpanded ? ' is-expanded' : ''}`}>
           <div className="register-footer-toolbar">
-            <div className="register-footer-back">
-              <button className="back-link" type="button" onClick={() => window.location.assign(websiteUrl)}>← Back to website</button>
-            </div>
+            <div className="register-footer-toolbar-lead">
+              <div className="register-footer-back">
+                <button className="back-link" type="button" onClick={() => window.location.assign(websiteUrl)}>{pc.backWebsite}</button>
+              </div>
 
-            <button type="button" className="custom-cta custom-cta--footer-toolbar" onClick={openContactModal}>
-              Need a custom solution? Contact us
-            </button>
+              <button type="button" className="custom-cta custom-cta--footer-toolbar" onClick={openContactModal}>
+                {pc.customCta}
+              </button>
+            </div>
 
             <div className="register-footer-center-cluster">
               <div className="register-footer-toolbar-mid">
@@ -225,7 +240,7 @@ export function RegisterPlanAddonsPage() {
                   className="register-footer-pill"
                   aria-expanded={footerExpanded}
                   aria-controls="register-footer-details"
-                  aria-label={footerExpanded ? 'Hide estimate details' : 'Show estimate details'}
+                  aria-label={footerExpanded ? pc.footerHideDetails : pc.footerShowDetails}
                   onClick={() => setFooterExpanded((v) => !v)}
                 >
                   <span className="register-footer-pill-icon" aria-hidden>
@@ -236,11 +251,11 @@ export function RegisterPlanAddonsPage() {
                     <span className="register-footer-pill-sub">{footerPill.sub}</span>
                   </span>
                   <span className="register-footer-pill-total-inline">
-                    <span className="register-footer-total-label">Est. total</span>
+                    <span className="register-footer-total-label">{pc.footerEstTotal}</span>
                     <strong className="register-footer-total-value">{summary.totalPrimary}</strong>
                   </span>
                   <span className="register-footer-pill-chevron" aria-hidden>
-                    <RegisterFooterChevron up={footerExpanded} />
+                    <RegisterFooterChevron up={!footerExpanded} />
                   </span>
                 </button>
               </div>
@@ -251,17 +266,13 @@ export function RegisterPlanAddonsPage() {
                 className="continue-button"
                 type="button"
                 onClick={onFooterPrimaryClick}
-                aria-label={
-                  featureAddonsFullySeen
-                    ? undefined
-                    : 'Scroll to feature add-ons to review options before continuing'
-                }
+                aria-label={featureAddonsFullySeen ? undefined : pc.footerContinueScrollAria}
               >
                 {!featureAddonsFullySeen
-                  ? 'To Feature Add-ons'
+                  ? pc.continueToAddons
                   : selection.plan === 'basic' && selection.billing === 'monthly'
-                    ? 'Continue to account creation'
-                    : 'Continue with selected plan'}
+                    ? pc.continueAccountBasic
+                    : pc.continueWithPlan}
               </button>
             </div>
           </div>
@@ -270,24 +281,25 @@ export function RegisterPlanAddonsPage() {
             <div className="register-footer-expanded" id="register-footer-details">
               <div className="register-footer-peek">
                 <div className="register-footer-peek-col">
-                  <span className="register-footer-peek-label">Plan</span>
-                  <strong className="register-footer-peek-name">{plans[selection.plan].name}</strong>
+                  <span className="register-footer-peek-label">{pc.footerPlanPeek}</span>
+                  <strong className="register-footer-peek-name">{plansLoc[selection.plan].name}</strong>
                   <span className="register-footer-peek-value">{summary.rows[0]?.value ?? '—'}</span>
                 </div>
                 <div className="register-footer-peek-plus" aria-hidden>
                   +
                 </div>
                 <div className="register-footer-peek-col">
-                  <span className="register-footer-peek-label">Usage & add-ons</span>
+                  <span className="register-footer-peek-label">{pc.footerUsagePeek}</span>
                   <strong className="register-footer-peek-name">
-                    {usageAddonLineCount} {usageAddonLineCount === 1 ? 'item' : 'items'}
+                    {usageAddonLineCount}{' '}
+                    {usageAddonLineCount === 1 ? pc.footerItemSingular : pc.footerItemPlural}
                   </strong>
-                  <span className="register-footer-peek-value">{formatEuro(peekAddonMonthly)}/mo</span>
+                  <span className="register-footer-peek-value">{formatEuro(peekAddonMonthly)}{pm}</span>
                 </div>
               </div>
 
               <div className="register-footer-detail-card">
-                <h3 className="register-footer-detail-title">Estimate breakdown</h3>
+                <h3 className="register-footer-detail-title">{pc.footerBreakdownTitle}</h3>
                 <ul className="register-footer-detail-list">
                   {summary.rows.map((row) => (
                     <li key={`${row.label}-${row.value}`} className="register-footer-detail-row">
@@ -300,18 +312,18 @@ export function RegisterPlanAddonsPage() {
                 <div className="register-footer-detail-foot">
                   {summary.annualSavingsYr != null && summary.annualSavingsYr > 0 ? (
                     <span className="register-footer-save-badge">
-                      You save {formatEuro(summary.annualSavingsYr)}/yr (15%)
+                      {annualSaveBadgeText(formatEuro(summary.annualSavingsYr), lang)}
                     </span>
                   ) : null}
                   <div className="register-footer-detail-total">
-                    <span className="register-footer-detail-total-label">Est. total</span>
+                    <span className="register-footer-detail-total-label">{pc.footerEstTotal}</span>
                     <strong className="register-footer-detail-total-value">{summary.totalPrimary}</strong>
                   </div>
                 </div>
               </div>
 
               <button type="button" className="register-footer-hide-link" onClick={() => setFooterExpanded(false)}>
-                Hide details
+                {pc.footerHideDetails}
                 <RegisterFooterChevron up />
               </button>
             </div>
@@ -321,36 +333,36 @@ export function RegisterPlanAddonsPage() {
 
       {contactOpen ? (
         <div className="register-contact-modal-root" role="presentation">
-          <button type="button" className="register-contact-modal-backdrop" aria-label="Close contact form" onClick={closeContactModal} />
+          <button type="button" className="register-contact-modal-backdrop" aria-label={pc.contactCloseBackdrop} onClick={closeContactModal} />
           <div
             className="register-contact-modal-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="register-contact-title"
           >
-            <h2 id="register-contact-title" className="register-contact-modal-title">Contact us</h2>
-            <p className="register-contact-modal-intro">Tell us what you need. We will follow up by email.</p>
+            <h2 id="register-contact-title" className="register-contact-modal-title">{pc.contactTitle}</h2>
+            <p className="register-contact-modal-intro">{pc.contactIntro}</p>
             <div className="register-contact-form stack gap-md">
-              <Field label="Name">
+              <Field label={pc.contactName}>
                 <input value={contactName} onChange={(e) => setContactName(e.target.value)} autoComplete="name" />
               </Field>
-              <Field label="Email">
+              <Field label={pc.contactEmail}>
                 <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} autoComplete="email" />
               </Field>
-              <Field label="Phone" hint="Optional">
+              <Field label={pc.contactPhone} hint={pc.contactPhoneHint}>
                 <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} autoComplete="tel" />
               </Field>
-              <Field label="Message">
-                <textarea rows={4} value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} placeholder="Describe your needs…" />
+              <Field label={pc.contactMessage}>
+                <textarea rows={4} value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} placeholder={pc.contactPlaceholder} />
               </Field>
               {contactError ? <p className="register-contact-error" role="alert">{contactError}</p> : null}
             </div>
             <div className="register-contact-modal-actions">
               <button type="button" className="register-contact-cancel" onClick={closeContactModal}>
-                Cancel
+                {pc.contactCancel}
               </button>
               <button type="button" className="register-contact-submit" onClick={submitContactModal}>
-                Send via email
+                {pc.contactSubmit}
               </button>
             </div>
           </div>

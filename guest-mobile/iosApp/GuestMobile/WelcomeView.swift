@@ -9,7 +9,7 @@ struct WelcomeView: View {
             Text("Calendra Guest")
                 .font(.largeTitle.bold())
             Text("Native SwiftUI guest app scaffold with KMP shared domain layer.")
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
             Button("Continue", action: onContinue)
                 .buttonStyle(.borderedProminent)
             Spacer()

@@ -126,6 +126,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers("/api/auth/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/register/catalog").permitAll();
                     auth.requestMatchers("/api/guest/auth/**").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/guest/tenants/resolve-code").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/guest/tenants/invite/**").permitAll();

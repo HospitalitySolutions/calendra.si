@@ -39,7 +39,7 @@ struct GuestPill: View {
     var body: some View {
         Text(title)
             .font(.caption.weight(.semibold))
-            .foregroundStyle(foreground)
+            .foregroundColor(foreground)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
@@ -71,7 +71,7 @@ struct GuestSectionHeader: View {
                 .font(.system(size: 28, weight: .bold))
             if let subtitle {
                 Text(subtitle)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
         }
     }
