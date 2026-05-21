@@ -105,7 +105,11 @@ public class BillFolioPdfService {
         }
 
         req.setIssuedBy(bill.getConsultant().getFirstName() + " " + bill.getConsultant().getLastName());
-        if (bill.getPaymentMethod() != null) {
+        List<FolioPdfRequest.PaymentLine> paymentLines = buildPaymentLines(bill);
+        req.setPaymentMethods(paymentLines);
+        if (!paymentLines.isEmpty()) {
+            req.setPaymentMethod(buildPaymentSummary(paymentLines));
+        } else if (bill.getPaymentMethod() != null) {
             req.setPaymentMethod(bill.getPaymentMethod().getName());
         }
         if (isBankTransferPayment(bill.getPaymentMethod())) {
@@ -167,6 +171,43 @@ public class BillFolioPdfService {
         }
         req.setServices(serviceLines);
         return req;
+    }
+
+    private List<FolioPdfRequest.PaymentLine> buildPaymentLines(Bill bill) {
+        var rows = new ArrayList<FolioPdfRequest.PaymentLine>();
+        if (bill == null) return rows;
+
+        List<BillPayment> splits = bill.getPaymentSplits() == null ? List.of() : bill.getPaymentSplits();
+        for (BillPayment split : splits) {
+            if (split == null || split.getPaymentMethod() == null) continue;
+            BigDecimal amount = split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross();
+            if (amount.compareTo(BigDecimal.ZERO) == 0) continue;
+            rows.add(new FolioPdfRequest.PaymentLine(split.getPaymentMethod().getName(), amount.setScale(2, RoundingMode.HALF_UP)));
+        }
+
+        if (rows.isEmpty() && bill.getPaymentMethod() != null) {
+            BigDecimal amount = bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross();
+            rows.add(new FolioPdfRequest.PaymentLine(bill.getPaymentMethod().getName(), amount.setScale(2, RoundingMode.HALF_UP)));
+        }
+        return rows;
+    }
+
+    private String buildPaymentSummary(List<FolioPdfRequest.PaymentLine> paymentLines) {
+        if (paymentLines == null || paymentLines.isEmpty()) return "";
+        var parts = new ArrayList<String>();
+        for (FolioPdfRequest.PaymentLine line : paymentLines) {
+            if (line == null) continue;
+            String name = line.getName() == null ? "" : line.getName().trim();
+            if (name.isBlank()) name = "Payment";
+            BigDecimal amount = line.getAmountGross() == null ? BigDecimal.ZERO : line.getAmountGross();
+            parts.add(name + " " + fmtEur(amount));
+        }
+        return String.join(", ", parts);
+    }
+
+    private static String fmtEur(BigDecimal value) {
+        BigDecimal normalized = value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
+        return "EUR " + normalized.toPlainString();
     }
 
     private int resolvePaymentDeadlineDays(Long companyId) {

@@ -93,11 +93,11 @@ public interface AdvanceAllocationRepository extends JpaRepository<AdvanceAlloca
 
     List<AdvanceAllocation> findAllByCompanyIdAndOpenBillId(Long companyId, Long openBillId);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query("DELETE FROM AdvanceAllocation a WHERE a.company.id = :companyId AND a.openBill.id = :openBillId")
     void deleteByCompanyIdAndOpenBillId(@Param("companyId") Long companyId, @Param("openBillId") Long openBillId);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query("DELETE FROM AdvanceAllocation a WHERE a.company.id = :companyId AND a.openBill.id = :openBillId AND a.sessionBookingId = :sessionBookingId")
     void deleteByCompanyIdAndOpenBillIdAndSessionBookingId(
             @Param("companyId") Long companyId,
@@ -105,7 +105,7 @@ public interface AdvanceAllocationRepository extends JpaRepository<AdvanceAlloca
             @Param("sessionBookingId") Long sessionBookingId
     );
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query(
             value = "UPDATE advance_allocations SET open_bill_id = :newOpenBillId "
                     + "WHERE company_id = :companyId AND open_bill_id = :oldOpenBillId AND session_booking_id = :sessionId",

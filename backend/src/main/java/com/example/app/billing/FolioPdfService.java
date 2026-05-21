@@ -310,14 +310,50 @@ public class FolioPdfService {
         footerValues.put("noVat", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.NO_VAT)));
         if (req.getNotes() != null && !req.getNotes().isBlank())
             footerValues.put("notes", safe(req.getNotes()));
-        if (req.getPaymentMethod() != null && !req.getPaymentMethod().isBlank())
-            footerValues.put("payment", safe(req.getPaymentMethod()));
+        List<String> paymentLines = paymentFooterLines(req);
+        if (!paymentLines.isEmpty())
+            footerValues.put("payment", safe(paymentLines.get(0)));
         if (req.getIban() != null && !req.getIban().isBlank())
             footerValues.put("iban", safe(req.getIban()));
         if (req.getIssuedBy() != null && !req.getIssuedBy().isBlank())
             footerValues.put("issuedBy", safe(req.getIssuedBy()));
 
         for (var item : ftr.getItems()) {
+            if ("payment".equals(item.getKey())) {
+                if (paymentLines.isEmpty()) continue;
+                String label = resolveLocalized(item.getLabelI18n(), item.getLabel(), locale);
+                PDFont font = item.isBold() ? fonts.bold() : fonts.regular();
+                float lineGap = Math.max(item.getFontSize() + 3, Math.min(ftr.getLineSpacing(), 14));
+
+                if (item.getX() >= 0 && item.getY() >= 0) {
+                    float itemY = shiftedBelowServicesTableY(item.getY(), layout, tableFlowOffset);
+                    float firstLineY = itemY - (lineGap * Math.max(0, paymentLines.size() - 1));
+                    float itemRight = item.getWidth() > 0 ? item.getX() + item.getWidth() : rightEdge;
+                    for (int i = 0; i < paymentLines.size(); i++) {
+                        String value = paymentLines.get(i);
+                        String text = (i == 0 && label != null && !label.isBlank()) ? (label + ": " + value) : value;
+                        float absY = pageH - (firstLineY + lineGap * i) - item.getFontSize();
+                        if ("right".equals(item.getAlignment())) {
+                            drawTextRight(ctx, font, item.getFontSize(), itemRight, absY, text);
+                        } else {
+                            drawText(ctx, font, item.getFontSize(), item.getX(), absY, text);
+                        }
+                    }
+                } else {
+                    for (int i = 0; i < paymentLines.size(); i++) {
+                        String value = paymentLines.get(i);
+                        String text = (i == 0 && label != null && !label.isBlank()) ? (label + ": " + value) : value;
+                        if ("right".equals(item.getAlignment())) {
+                            drawTextRight(ctx, font, item.getFontSize(), rightEdge, y, text);
+                        } else {
+                            drawText(ctx, font, item.getFontSize(), leftEdge, y, text);
+                        }
+                        y -= ftr.getLineSpacing();
+                    }
+                }
+                continue;
+            }
+
             String value = footerValues.get(item.getKey());
             if (value == null || value.isBlank()) continue;
             String label = resolveLocalized(item.getLabelI18n(), item.getLabel(), locale);
@@ -344,6 +380,24 @@ public class FolioPdfService {
                 y -= ftr.getLineSpacing();
             }
         }
+    }
+
+    private List<String> paymentFooterLines(FolioPdfRequest req) {
+        var lines = new ArrayList<String>();
+        if (req != null && req.getPaymentMethods() != null) {
+            for (FolioPdfRequest.PaymentLine line : req.getPaymentMethods()) {
+                if (line == null) continue;
+                String name = safe(line.getName());
+                BigDecimal amount = line.getAmountGross();
+                if (name.isBlank() && amount == null) continue;
+                if (name.isBlank()) name = "Payment";
+                lines.add(name + (amount == null ? "" : " " + fmtEur(amount)));
+            }
+        }
+        if (lines.isEmpty() && req != null && req.getPaymentMethod() != null && !req.getPaymentMethod().isBlank()) {
+            lines.add(safe(req.getPaymentMethod()));
+        }
+        return lines;
     }
 
     /* ────────────────────────── payment QR ────────────────────────── */

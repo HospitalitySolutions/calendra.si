@@ -71,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import si.calendra.guest.android.R
 import si.calendra.guest.shared.models.TenantSummary
@@ -111,6 +112,8 @@ fun JoinTenantScreen(
     onBack: () -> Unit
 ) {
     var mode by remember { mutableStateOf(JoinMode.Browse) }
+    var showCodeDialog by remember { mutableStateOf(false) }
+    var showScanDialog by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(tenantTypes.first()) }
     var tenantQuery by remember { mutableStateOf("") }
@@ -132,7 +135,12 @@ fun JoinTenantScreen(
             .fillMaxSize()
             .background(PageBackground)
     ) {
-        DecorativeJoinTenantBackground()
+        Image(
+            painter = painterResource(id = R.drawable.add_tenant_background),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
 
         Column(
             modifier = Modifier
@@ -142,9 +150,7 @@ fun JoinTenantScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandHeader()
-            Spacer(Modifier.height(10.dp))
-            TitleBlock()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -155,7 +161,10 @@ fun JoinTenantScreen(
                     mode = JoinMode.Code,
                     selected = mode == JoinMode.Code,
                     modifier = Modifier.weight(1f),
-                    onClick = { mode = JoinMode.Code }
+                    onClick = {
+                        mode = JoinMode.Code
+                        showCodeDialog = true
+                    }
                 )
                 JoinModeTile(
                     label = "Scan QR",
@@ -164,7 +173,7 @@ fun JoinTenantScreen(
                     modifier = Modifier.weight(1f),
                     onClick = {
                         mode = JoinMode.Scan
-                        onScanQr()
+                        showScanDialog = true
                     }
                 )
                 JoinModeTile(
@@ -199,16 +208,29 @@ fun JoinTenantScreen(
                 else -> TenantCarousel(tenants = tenants, onSelectTenant = { onJoinPublicTenant(it.companyId) })
             }
 
-            if (mode == JoinMode.Code) {
-                Spacer(Modifier.height(18.dp))
-                JoinWithCodeSection(
-                    code = code,
-                    onCodeChange = { code = it },
-                    onJoin = { onJoinWithCode(code) }
-                )
-            }
-
             Spacer(Modifier.height(20.dp))
+        }
+
+        if (showCodeDialog) {
+            JoinWithCodePopup(
+                code = code,
+                onCodeChange = { code = it },
+                onDismiss = { showCodeDialog = false },
+                onJoin = {
+                    showCodeDialog = false
+                    onJoinWithCode(code)
+                }
+            )
+        }
+
+        if (showScanDialog) {
+            ScanQrPopup(
+                onDismiss = { showScanDialog = false },
+                onOpenScanner = {
+                    showScanDialog = false
+                    onScanQr()
+                }
+            )
         }
     }
 }
@@ -368,7 +390,7 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit) {
         singleLine = true,
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(44.dp),
         shape = RoundedCornerShape(18.dp),
         placeholder = { Text("Search tenant", color = Color(0xFFA0AAC0), fontSize = 15.sp) },
         leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = SoftText, modifier = Modifier.size(20.dp)) },
@@ -416,11 +438,11 @@ private fun TenantCarousel(tenants: List<TenantSummary>, onSelectTenant: (Tenant
     val pagerState = rememberPagerState(pageCount = { tenants.size })
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.fillMaxWidth().height(450.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxWidth().height(430.dp), contentAlignment = Alignment.Center) {
             HorizontalPager(
                 state = pagerState,
-                contentPadding = PaddingValues(horizontal = 44.dp),
-                pageSpacing = (-20).dp,
+                contentPadding = PaddingValues(horizontal = 6.dp),
+                pageSpacing = 14.dp,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val offset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
@@ -456,7 +478,7 @@ private fun TenantCarousel(tenants: List<TenantSummary>, onSelectTenant: (Tenant
 private fun TenantCarouselCard(tenant: TenantSummary, modifier: Modifier = Modifier, onSelect: () -> Unit) {
     Surface(
         modifier = modifier
-            .width(288.dp)
+            .fillMaxWidth()
             .fillMaxHeight()
             .shadow(14.dp, RoundedCornerShape(28.dp), clip = false),
         shape = RoundedCornerShape(28.dp),
@@ -577,6 +599,125 @@ private fun TenantCarouselCard(tenant: TenantSummary, modifier: Modifier = Modif
     }
 }
 
+
+@Composable
+private fun JoinWithCodePopup(
+    code: String,
+    onCodeChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onJoin: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White,
+            shadowElevation = 18.dp
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("Join with tenant code", color = TitleText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("Enter the code provided by the tenant.", color = SoftText, fontSize = 14.sp)
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = onCodeChange,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    singleLine = true,
+                    placeholder = { Text("e.g. TEN-7X9K", fontSize = 14.sp) },
+                    leadingIcon = { CodeGlyph() },
+                    shape = RoundedCornerShape(16.dp)
+                )
+                Spacer(Modifier.height(18.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        modifier = Modifier.weight(1f).height(50.dp).clickable(onClick = onDismiss),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("Cancel", color = CalendraBlue, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Button(
+                        onClick = onJoin,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Join", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScanQrPopup(onDismiss: () -> Unit, onOpenScanner: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White,
+            shadowElevation = 18.dp
+        ) {
+            Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Scan QR", color = TitleText, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(4.dp))
+                Text("Align the provider QR in the frame.", color = SoftText, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(210.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xFFF6F8FC),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Canvas(modifier = Modifier.fillMaxSize().padding(28.dp)) {
+                            val stroke = 4.dp.toPx()
+                            val corner = 42.dp.toPx()
+                            val inset = 18.dp.toPx()
+                            val w = size.width
+                            val h = size.height
+                            drawLine(CalendraBlue, Offset(inset, inset + corner), Offset(inset, inset), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraBlue, Offset(inset, inset), Offset(inset + corner, inset), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraBlue, Offset(w - inset - corner, inset), Offset(w - inset, inset), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraBlue, Offset(w - inset, inset), Offset(w - inset, inset + corner), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraBlue, Offset(inset, h - inset - corner), Offset(inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraBlue, Offset(inset, h - inset), Offset(inset + corner, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraBlue, Offset(w - inset - corner, h - inset), Offset(w - inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraBlue, Offset(w - inset, h - inset - corner), Offset(w - inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+                            drawLine(CalendraOrange, Offset(w * 0.20f, h * 0.52f), Offset(w * 0.80f, h * 0.52f), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+                        }
+                        ScanGlyph()
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        modifier = Modifier.weight(1f).height(50.dp).clickable(onClick = onDismiss),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("Cancel", color = CalendraBlue, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Button(
+                        onClick = onOpenScanner,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Open scanner", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun JoinWithCodeSection(code: String, onCodeChange: (String) -> Unit, onJoin: () -> Unit) {
     Surface(
@@ -645,30 +786,6 @@ private fun EmptyTenantCard() {
             Spacer(Modifier.height(6.dp))
             Text("Try another category or search term.", color = SoftText, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), textAlign = TextAlign.Center)
         }
-    }
-}
-
-@Composable
-private fun DecorativeJoinTenantBackground() {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(width = 190.dp, height = 94.dp)
-                .clip(RoundedCornerShape(bottomStart = 120.dp, bottomEnd = 6.dp, topStart = 0.dp, topEnd = 0.dp))
-                .background(Brush.horizontalGradient(listOf(CalendraBlue, CalendraOrange)))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .size(width = 182.dp, height = 92.dp)
-                .clip(RoundedCornerShape(topEnd = 120.dp))
-                .background(Brush.horizontalGradient(listOf(CalendraBlue, CalendraOrange)))
-        )
-        Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = 78.dp).size(7.dp).clip(CircleShape).background(CalendraBlue.copy(alpha = 0.35f)))
-        Box(modifier = Modifier.align(Alignment.TopEnd).padding(top = 120.dp, end = 26.dp).size(7.dp).clip(CircleShape).background(CalendraOrange.copy(alpha = 0.65f)))
-        Box(modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 160.dp, end = 20.dp).size(7.dp).clip(CircleShape).background(CalendraBlue.copy(alpha = 0.52f)))
-        Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 22.dp).size(7.dp).clip(CircleShape).background(CalendraOrange.copy(alpha = 0.65f)))
     }
 }
 

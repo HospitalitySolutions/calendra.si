@@ -4,6 +4,8 @@ struct JoinTenantView: View {
     @EnvironmentObject private var store: AppStore
     @State private var tenantCode: String = ""
     @State private var selectedMode: JoinTenantMode = .browse
+    @State private var showCodePopup = false
+    @State private var showScanPopup = false
     @State private var selectedCategory: JoinTenantCategory = .all
     @State private var tenantQuery: String = ""
     @State private var selectedCardIndex: Int = 0
@@ -31,26 +33,49 @@ struct JoinTenantView: View {
             Color(red: 0.961, green: 0.968, blue: 0.984)
                 .ignoresSafeArea()
 
-            JoinTenantDecorativeBackground()
+            Image("AddTenantBackground")
+                .resizable()
+                .scaledToFill()
                 .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     brandHeader
-                    titleBlock
                     modeButtons
                     searchField
                     categoryChips
                     tenantCarousel
-
-                    if selectedMode == .code {
-                        joinWithCodeSection
-                    }
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 16)
                 .padding(.bottom, 24)
             }
+        }
+        .sheet(isPresented: $showCodePopup) {
+            JoinCodePopup(
+                tenantCode: $tenantCode,
+                onCancel: { showCodePopup = false },
+                onJoin: {
+                    Task {
+                        await store.joinTenant(code: tenantCode)
+                        if store.errorMessage == nil {
+                            showCodePopup = false
+                            onJoin()
+                        }
+                    }
+                }
+            )
+            .presentationDetents([.height(260)])
+        }
+        .sheet(isPresented: $showScanPopup) {
+            ScanQrPopup(
+                onCancel: { showScanPopup = false },
+                onOpenScanner: {
+                    showScanPopup = false
+                    store.noticeMessage = "QR scanner opens from this popup. Connect the existing native scanner here."
+                }
+            )
+            .presentationDetents([.height(360)])
         }
     }
 
@@ -62,21 +87,16 @@ struct JoinTenantView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var titleBlock: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Add tenant")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
-            Text("Find and add a tenant to your property")
-                .font(.system(size: 16))
-                .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
-        }
-    }
-
     private var modeButtons: some View {
         HStack(spacing: 12) {
-            JoinTenantModeButton(title: "Enter tenant code", mode: .code, selected: selectedMode == .code) { selectedMode = .code }
-            JoinTenantModeButton(title: "Scan QR", mode: .scan, selected: selectedMode == .scan) { selectedMode = .scan }
+            JoinTenantModeButton(title: "Enter tenant code", mode: .code, selected: selectedMode == .code) {
+                selectedMode = .code
+                showCodePopup = true
+            }
+            JoinTenantModeButton(title: "Scan QR", mode: .scan, selected: selectedMode == .scan) {
+                selectedMode = .scan
+                showScanPopup = true
+            }
             JoinTenantModeButton(title: "Browse tenant", mode: .browse, selected: selectedMode == .browse) { selectedMode = .browse }
         }
     }
@@ -92,7 +112,7 @@ struct JoinTenantView: View {
                 .autocorrectionDisabled()
         }
         .padding(.horizontal, 16)
-        .frame(height: 50)
+        .frame(height: 42)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.white)
@@ -170,56 +190,158 @@ struct JoinTenantView: View {
         }
     }
 
-    private var joinWithCodeSection: some View {
-        GuestSurfaceCard(background: .white, contentPadding: 16, cornerRadius: 24) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Join with tenant code")
-                    .font(.system(size: 21, weight: .bold))
-                    .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
+}
 
-                Text("Already have a code? Enter it below.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
+private struct JoinCodePopup: View {
+    @Binding var tenantCode: String
+    let onCancel: () -> Void
+    let onJoin: () -> Void
 
-                HStack(alignment: .center, spacing: 12) {
-                    HStack(spacing: 10) {
-                        CodeModeGlyph()
-                            .frame(width: 26, height: 20)
-                        TextField("e.g. TEN-7X9K", text: $tenantCode)
-                            .font(.system(size: 15))
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                    }
-                    .padding(.horizontal, 14)
-                    .frame(height: 52)
-                    .background(
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Join with tenant code")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
+            Text("Enter the code provided by the tenant.")
+                .font(.system(size: 14))
+                .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
+
+            HStack(spacing: 10) {
+                CodeModeGlyph()
+                    .frame(width: 26, height: 20)
+                TextField("e.g. TEN-7X9K", text: $tenantCode)
+                    .font(.system(size: 15))
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white)
+                    .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
-                            )
+                            .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
                     )
+            )
 
-                    Button {
-                        Task {
-                            await store.joinTenant(code: tenantCode)
-                            if store.errorMessage == nil {
-                                onJoin()
-                            }
-                        }
-                    } label: {
-                        Text("Join")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(minWidth: 78)
-                            .frame(height: 52)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color(red: 0.086, green: 0.408, blue: 0.957))
-                            )
-                    }
+            HStack(spacing: 12) {
+                Button(action: onCancel) {
+                    Text("Cancel")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.white)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
+                                )
+                        )
                 }
+                Button(action: onJoin) {
+                    Text("Join")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color(red: 0.086, green: 0.408, blue: 0.957))
+                        )
+                }
+            }
+        }
+        .padding(22)
+        .background(Color(red: 0.961, green: 0.968, blue: 0.984))
+    }
+}
+
+private struct ScanQrPopup: View {
+    let onCancel: () -> Void
+    let onOpenScanner: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Scan QR")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
+            Text("Align the provider QR in the frame.")
+                .font(.system(size: 14))
+                .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(red: 0.965, green: 0.973, blue: 0.988))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
+                    )
+                ScanFrameIllustration()
+                ScanModeGlyph()
+                    .frame(width: 42, height: 42)
+            }
+            .frame(height: 190)
+
+            HStack(spacing: 12) {
+                Button(action: onCancel) {
+                    Text("Cancel")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.white)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
+                                )
+                        )
+                }
+                Button(action: onOpenScanner) {
+                    Text("Open scanner")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color(red: 0.086, green: 0.408, blue: 0.957))
+                        )
+                }
+            }
+        }
+        .padding(22)
+        .background(Color(red: 0.961, green: 0.968, blue: 0.984))
+    }
+}
+
+private struct ScanFrameIllustration: View {
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            let blue = Color(red: 0.086, green: 0.408, blue: 0.957)
+            let orange = Color(red: 1.0, green: 0.616, blue: 0.106)
+            let inset: CGFloat = 28
+            let corner: CGFloat = 44
+            ZStack {
+                Path { p in
+                    p.move(to: CGPoint(x: inset, y: inset + corner)); p.addLine(to: CGPoint(x: inset, y: inset)); p.addLine(to: CGPoint(x: inset + corner, y: inset))
+                    p.move(to: CGPoint(x: w - inset - corner, y: inset)); p.addLine(to: CGPoint(x: w - inset, y: inset)); p.addLine(to: CGPoint(x: w - inset, y: inset + corner))
+                    p.move(to: CGPoint(x: inset, y: h - inset - corner)); p.addLine(to: CGPoint(x: inset, y: h - inset)); p.addLine(to: CGPoint(x: inset + corner, y: h - inset))
+                    p.move(to: CGPoint(x: w - inset - corner, y: h - inset)); p.addLine(to: CGPoint(x: w - inset, y: h - inset)); p.addLine(to: CGPoint(x: w - inset, y: h - inset - corner))
+                }
+                .stroke(blue, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+
+                Path { p in
+                    p.move(to: CGPoint(x: w * 0.22, y: h * 0.52))
+                    p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.52))
+                }
+                .stroke(orange, style: StrokeStyle(lineWidth: 3, lineCap: .round))
             }
         }
     }
@@ -481,7 +603,7 @@ private struct JoinTenantPreviewCard: View {
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
+                    .frame(height: 46)
                     .background(
                         RoundedRectangle(cornerRadius: 17, style: .continuous)
                             .fill(Color(red: 0.086, green: 0.408, blue: 0.957))
@@ -515,81 +637,5 @@ private struct JoinTenantPreviewCard: View {
 
     private var initials: String {
         tenant.name.split(separator: " ").prefix(2).compactMap { $0.first }.map { String($0) }.joined()
-    }
-}
-
-private struct JoinTenantDecorativeBackground: View {
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                TopRightDecorShape()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.086, green: 0.408, blue: 0.957), Color(red: 1.0, green: 0.616, blue: 0.106)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 190, height: 94)
-                    .position(x: proxy.size.width - 95, y: 47)
-
-                BottomLeftDecorShape()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.086, green: 0.408, blue: 0.957), Color(red: 1.0, green: 0.616, blue: 0.106)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: 182, height: 92)
-                    .position(x: 91, y: proxy.size.height - 46)
-
-                Circle()
-                    .fill(Color(red: 1.0, green: 0.616, blue: 0.106).opacity(0.65))
-                    .frame(width: 7, height: 7)
-                    .position(x: proxy.size.width - 28, y: 140)
-
-                Circle()
-                    .fill(Color(red: 0.086, green: 0.408, blue: 0.957).opacity(0.35))
-                    .frame(width: 7, height: 7)
-                    .position(x: proxy.size.width * 0.56, y: 92)
-
-                Circle()
-                    .fill(Color(red: 1.0, green: 0.616, blue: 0.106).opacity(0.65))
-                    .frame(width: 7, height: 7)
-                    .position(x: 22, y: proxy.size.height * 0.50)
-
-                Circle()
-                    .fill(Color(red: 0.086, green: 0.408, blue: 0.957).opacity(0.52))
-                    .frame(width: 7, height: 7)
-                    .position(x: proxy.size.width - 18, y: proxy.size.height - 172)
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
-
-private struct TopRightDecorShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addQuadCurve(to: CGPoint(x: 0, y: rect.maxY), control: CGPoint(x: rect.width * 0.18, y: rect.height * 0.08))
-        path.closeSubpath()
-        return path
-    }
-}
-
-private struct BottomLeftDecorShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: 0, y: rect.maxY))
-        path.addQuadCurve(to: CGPoint(x: 0, y: 0), control: CGPoint(x: rect.width * 0.92, y: rect.height * 0.08))
-        path.closeSubpath()
-        return path
     }
 }

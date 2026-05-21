@@ -35,10 +35,28 @@ public class FolioPdfRequest {
     /* ── footer ── */
     private String notes;
     private String paymentMethod;
+    private List<PaymentLine> paymentMethods;
     private String issuedBy;
     private String iban;
     private String paymentQrPayload;
     private String locale;
+
+    public static class PaymentLine {
+        private String name;
+        private BigDecimal amountGross;
+
+        public PaymentLine() {}
+
+        public PaymentLine(String name, BigDecimal amountGross) {
+            this.name = name;
+            this.amountGross = amountGross;
+        }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public BigDecimal getAmountGross() { return amountGross; }
+        public void setAmountGross(BigDecimal amountGross) { this.amountGross = amountGross; }
+    }
 
     public static class ServiceLine {
         private String date;
@@ -113,6 +131,8 @@ public class FolioPdfRequest {
     public void setNotes(String notes) { this.notes = notes; }
     public String getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public List<PaymentLine> getPaymentMethods() { return paymentMethods; }
+    public void setPaymentMethods(List<PaymentLine> paymentMethods) { this.paymentMethods = paymentMethods; }
     public String getIssuedBy() { return issuedBy; }
     public void setIssuedBy(String issuedBy) { this.issuedBy = issuedBy; }
     public String getIban() { return iban; }
