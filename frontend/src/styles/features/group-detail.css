@@ -1,0 +1,127 @@
+/* Group detail (Clients): member search matches Dodaj termin client picker; chips use .calendar-multi-client-chip */
+.group-members-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.group-members-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0;
+}
+
+.group-members-header span {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.group-members-client-picker {
+    position: relative;
+    width: 100%;
+}
+
+.group-members-client-picker.client-picker {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+}
+
+.group-members-client-dropdown.client-dropdown-panel {
+    z-index: 120;
+}
+
+.group-members-candidate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.group-members-candidate-check {
+    flex-shrink: 0;
+    width: 1.25rem;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--color-primary, #2563eb);
+}
+
+.group-members-candidate-name {
+    min-width: 0;
+    text-align: left;
+}
+
+.group-members-dropdown-footer {
+    padding: 8px 4px 2px;
+    margin-top: 4px;
+    border-top: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
+    display: flex;
+    justify-content: stretch;
+}
+
+.group-members-dropdown-footer .primary {
+    width: 100%;
+    justify-content: center;
+}
+
+.group-members-chip-box {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--color-surface-alt, #eef0f5);
+    border: 1px solid var(--color-border, rgba(0, 0, 0, 0.06));
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.group-members-chip-box-empty {
+    font-size: 0.88rem;
+    padding: 2px 0;
+}
+
+.group-members-chip-box .calendar-multi-client-chip {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.group-members-chip-box .calendar-multi-client-chip__label.group-members-chip-name {
+    cursor: default;
+    max-width: min(100%, 320px);
+}
+
+.group-members-chip-box .calendar-multi-client-chip__label.group-members-chip-name:hover {
+    text-decoration: none;
+}
+
+.group-members-chip-box .calendar-multi-client-chip.group-members-chip-readonly .calendar-multi-client-chip__label {
+    padding-right: 14px;
+    max-width: min(100%, 320px);
+}
+
+.group-detail-nested-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    background: rgba(15, 23, 42, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.group-detail-nested-modal {
+    background: var(--card-bg, #fff);
+    border-radius: 12px;
+    padding: 16px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border-color, #e5e7eb);
+}
+

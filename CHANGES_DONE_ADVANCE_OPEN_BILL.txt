@@ -1,0 +1,34 @@
+Changes done
+============
+
+1) Advance/deposit invoices are no longer treated as open/session invoices
+   - Session payment allocations now distinguish ADVANCE bills from INVOICE bills.
+   - ADVANCE bills are shown as linked advance history but are not counted as paid/pending amount for the session service invoice.
+   - This keeps the session payment status open/unpaid until a real open bill / invoice is created for the session.
+
+2) Creating a session open bill after an advance remains possible
+   - Closing/issuing an advance/deposit for a RESERVED session no longer makes the session look already invoiced.
+   - Open bill creation now remains available after an advance exists, and created service invoices stay INVOICE type unless the open bill was explicitly created as ADVANCE.
+   - Existing advance offset logic remains available when the real session open bill is later created.
+
+3) RESERVED session invoice/advance action behavior updated
+   - RESERVED sessions still open Novo predplačilo first.
+   - Once an advance exists and no open bill/invoice exists, the booking service action switches back to the invoice/open-bill flow so the actual session bill can be created manually.
+   - Payment manager rows show the advance reference separately and do not confuse it with an open bill.
+
+4) Multiple clients on deposit/advance creation
+   - Opening Novo predplačilo from a RESERVED session with multiple clients now passes all session client ids into the embedded Billing create form.
+   - The Billing create form now displays client tabs for ADVANCE creation, matching the open bill tab behavior.
+   - Selecting a tab changes the advance payee to that client.
+
+Files changed
+=============
+backend/src/main/java/com/example/app/session/SessionBookingController.java
+backend/src/main/java/com/example/app/billing/BillingController.java
+frontend/src/pages/calendar/CalendarPageContent.tsx
+frontend/src/pages/calendar/components/CalendarSessionModals.tsx
+frontend/src/pages/BillingPage.tsx
+
+Validation
+==========
+A full frontend/backend build was not run in this sandbox because dependencies are not installed in the uploaded package.

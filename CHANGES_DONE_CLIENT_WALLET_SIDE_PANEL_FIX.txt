@@ -1,0 +1,10 @@
+Updated client wallet entitlement purchase UI so that when "Kupi ugodnost" is clicked, the purchase flow opens as a full-height side panel docked to the right side of the client popup.
+
+Changes done:
+- Enlarged the client detail modal only while the wallet purchase drawer is open.
+- Repositioned the entitlement purchase drawer to behave as a full-height right-side panel inside the client popup.
+- Added right-side spacing so the main wallet content remains visible and does not sit under the side panel.
+- Kept responsive fallback behavior for smaller widths.
+
+Updated file:
+- frontend/src/styles/features/modern-clients.css

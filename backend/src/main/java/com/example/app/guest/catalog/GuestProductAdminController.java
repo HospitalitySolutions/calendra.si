@@ -1,0 +1,323 @@
+package com.example.app.guest.catalog;
+
+import com.example.app.guest.model.GuestEntitlementRepository;
+import com.example.app.guest.model.GuestOrderItemRepository;
+import com.example.app.guest.model.GuestProduct;
+import com.example.app.billing.TransactionService;
+import com.example.app.billing.TransactionServiceRepository;
+import com.example.app.guest.model.GuestProductRepository;
+import com.example.app.billing.PriceMath;
+import com.example.app.guest.model.ProductType;
+import com.example.app.session.SessionType;
+import com.example.app.session.SessionTypeRepository;
+import com.example.app.session.TypeTransactionService;
+import com.example.app.user.User;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+@RestController
+@RequestMapping("/api/guest/admin/products")
+@PreAuthorize("hasRole('ADMIN')")
+public class GuestProductAdminController {
+    private final GuestProductRepository products;
+    private final SessionTypeRepository sessionTypes;
+    private final TransactionServiceRepository transactionServices;
+    private final GuestOrderItemRepository orderItems;
+    private final GuestEntitlementRepository entitlements;
+
+    public GuestProductAdminController(
+            GuestProductRepository products,
+            SessionTypeRepository sessionTypes,
+            TransactionServiceRepository transactionServices,
+            GuestOrderItemRepository orderItems,
+            GuestEntitlementRepository entitlements
+    ) {
+        this.products = products;
+        this.sessionTypes = sessionTypes;
+        this.transactionServices = transactionServices;
+        this.orderItems = orderItems;
+        this.entitlements = entitlements;
+    }
+
+    @GetMapping
+    @Transactional(readOnly = true)
+    public List<ProductAdminResponse> list(@AuthenticationPrincipal User me) {
+        return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(me.getCompany().getId()).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @PostMapping
+    @Transactional
+    public ProductAdminResponse create(@RequestBody ProductAdminRequest request, @AuthenticationPrincipal User me) {
+        GuestProduct product = new GuestProduct();
+        product.setCompany(me.getCompany());
+        apply(product, request, me);
+        return toResponse(products.save(product));
+    }
+
+    @PutMapping("/{id}")
+    @Transactional
+    public ProductAdminResponse update(@PathVariable Long id, @RequestBody ProductAdminRequest request, @AuthenticationPrincipal User me) {
+        GuestProduct product = products.findByIdAndCompanyId(id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
+        apply(product, request, me);
+        return toResponse(products.save(product));
+    }
+
+    @DeleteMapping("/{id}")
+    @Transactional
+    public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        GuestProduct product = products.findByIdAndCompanyId(id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
+        if (orderItems.countByProductId(product.getId()) > 0 || entitlements.countByProductId(product.getId()) > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This card already has orders or entitlements. Archive it instead of deleting it.");
+        }
+        products.delete(product);
+    }
+
+    private void apply(GuestProduct product, ProductAdminRequest request, User me) {
+        String name = String.valueOf(request.name() == null ? "" : request.name()).trim();
+        if (name.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name is required.");
+        }
+        ProductType productType = parseProductType(request.productType());
+        BigDecimal priceGross = request.priceGross() == null ? null : request.priceGross().setScale(2, RoundingMode.HALF_UP);
+        if (priceGross == null || priceGross.compareTo(BigDecimal.ZERO) < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Price must be zero or greater.");
+        }
+
+        Long companyId = me.getCompany().getId();
+        SessionType sessionType = productType == ProductType.GIFT_CARD
+                ? null
+                : resolveSessionType(request.sessionTypeId(), companyId);
+        TransactionService transactionService = productType == ProductType.GIFT_CARD
+                ? resolveTransactionService(request.transactionServiceId(), companyId)
+                : null;
+        boolean bookable = productType != ProductType.GIFT_CARD && Boolean.TRUE.equals(request.bookable());
+        if (bookable && sessionType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bookable products must be linked to a service type.");
+        }
+        if (productType == ProductType.CLASS_TICKET && sessionType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class tickets must be linked to a service type.");
+        }
+        if (productType == ProductType.PACK && sessionType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pack cards must be linked to a service type.");
+        }
+
+        Integer usageLimit = (productType == ProductType.CLASS_TICKET || productType == ProductType.MEMBERSHIP || productType == ProductType.GIFT_CARD)
+                ? Integer.valueOf(1)
+                : normalizePositiveInteger(request.usageLimit(), "Usage limit");
+        if (productType == ProductType.PACK && (usageLimit == null || usageLimit <= 1)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pack quantity must be greater than 1.");
+        }
+        validatePackOrClassPriceGross(productType, sessionType, usageLimit, priceGross);
+
+        Integer validityDays = normalizePositiveInteger(request.validityDays(), "Validity days");
+        if (productType == ProductType.GIFT_CARD && validityDays == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift cards must have an expiry date.");
+        }
+        boolean autoRenews = productType == ProductType.MEMBERSHIP && Boolean.TRUE.equals(request.autoRenews());
+        boolean nextActive = request.active() == null || Boolean.TRUE.equals(request.active());
+        if (product.getId() != null && product.isActive() && !nextActive
+                && entitlements.countByProductId(product.getId()) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This card or membership already has guest entitlements and cannot be archived."
+            );
+        }
+
+        product.setName(name);
+        product.setDescription(trimToNull(request.description()));
+        product.setPromoText(trimToNull(request.promoText()));
+        product.setProductType(productType);
+        product.setPriceGross(priceGross);
+        product.setCurrency(normalizeCurrency(request.currency()));
+        product.setSessionType(sessionType);
+        product.setTransactionService(transactionService);
+        product.setActive(nextActive);
+        product.setGuestVisible(request.guestVisible() == null || Boolean.TRUE.equals(request.guestVisible()));
+        product.setBookable(bookable);
+        product.setUsageLimit(usageLimit);
+        product.setValidityDays(validityDays);
+        product.setAutoRenews(autoRenews);
+        product.setSortOrder(request.sortOrder() == null ? 0 : request.sortOrder());
+    }
+
+    private ProductType parseProductType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product type is required.");
+        }
+        try {
+            return ProductType.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported product type.");
+        }
+    }
+
+    private SessionType resolveSessionType(Long sessionTypeId, Long companyId) {
+        if (sessionTypeId == null) return null;
+        return sessionTypes.findByIdAndCompanyIdWithLinkedServices(sessionTypeId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type was not found."));
+    }
+
+    private TransactionService resolveTransactionService(Long transactionServiceId, Long companyId) {
+        if (transactionServiceId == null) return null;
+        return transactionServices.findByIdAndCompanyId(transactionServiceId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected transaction service was not found."));
+    }
+
+    /** PACK / CLASS_TICKET price must equal sum(link unit gross) × usage (usage 1 for class). */
+    private static void validatePackOrClassPriceGross(
+            ProductType productType,
+            SessionType sessionType,
+            Integer usageLimit,
+            BigDecimal priceGross
+    ) {
+        if (productType != ProductType.PACK && productType != ProductType.CLASS_TICKET) {
+            return;
+        }
+        BigDecimal expected = expectedGuestCardGrossFromSessionType(sessionType, productType, usageLimit);
+        if (expected == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "The service type must have at least one transaction service line with a price.");
+        }
+        if (priceGross.subtract(expected).abs().compareTo(new BigDecimal("0.01")) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Price gross must match the configured transaction services for this service type (expected " + expected + ").");
+        }
+    }
+
+    private static BigDecimal expectedGuestCardGrossFromSessionType(
+            SessionType sessionType,
+            ProductType productType,
+            Integer usageLimit
+    ) {
+        if (sessionType == null || sessionType.getLinkedServices() == null || sessionType.getLinkedServices().isEmpty()) {
+            return null;
+        }
+        BigDecimal unitSum = BigDecimal.ZERO;
+        for (TypeTransactionService link : sessionType.getLinkedServices()) {
+            var tx = link.getTransactionService();
+            if (tx == null) {
+                return null;
+            }
+            BigDecimal effectiveNet = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            BigDecimal unitGross = PriceMath.unitGrossFromNet(effectiveNet, tx.getTaxRate());
+            if (unitGross == null) {
+                return null;
+            }
+            unitSum = unitSum.add(unitGross);
+        }
+        int factor = productType == ProductType.CLASS_TICKET ? 1 : usageLimit;
+        return unitSum.multiply(BigDecimal.valueOf(factor)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private Integer normalizePositiveInteger(Integer value, String label) {
+        if (value == null || value <= 0) return null;
+        if (value > 100000) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " is too large.");
+        }
+        return value;
+    }
+
+    private String normalizeCurrency(String raw) {
+        String currency = trimToNull(raw);
+        String normalized = currency == null ? "EUR" : currency.toUpperCase(Locale.ROOT);
+        if (normalized.length() != 3) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency must be a 3-letter code.");
+        }
+        return normalized;
+    }
+
+    private static String trimToNull(String raw) {
+        if (raw == null) return null;
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private ProductAdminResponse toResponse(GuestProduct product) {
+        return new ProductAdminResponse(
+                product.getId(),
+                product.getName(),
+                product.getDescription(),
+                product.getPromoText(),
+                product.getProductType().name(),
+                product.getPriceGross(),
+                product.getCurrency(),
+                product.isActive(),
+                product.isGuestVisible(),
+                product.isBookable(),
+                product.getUsageLimit(),
+                product.getValidityDays(),
+                product.isAutoRenews(),
+                product.getSortOrder(),
+                product.getSessionType() == null ? null : product.getSessionType().getId(),
+                product.getSessionType() == null ? null : product.getSessionType().getName(),
+                product.getTransactionService() == null ? null : product.getTransactionService().getId(),
+                product.getTransactionService() == null ? null : product.getTransactionService().getCode(),
+                product.getTransactionService() == null ? null : product.getTransactionService().getDescription(),
+                product.getCreatedAt(),
+                product.getUpdatedAt()
+        );
+    }
+
+    public record ProductAdminRequest(
+            String name,
+            String description,
+            /** Short badge label shown on the guest Buy card (e.g. "Best value"). */
+            String promoText,
+            String productType,
+            BigDecimal priceGross,
+            String currency,
+            Boolean active,
+            Boolean guestVisible,
+            Boolean bookable,
+            Integer usageLimit,
+            Integer validityDays,
+            Boolean autoRenews,
+            Integer sortOrder,
+            Long sessionTypeId,
+            Long transactionServiceId
+    ) {}
+
+    public record ProductAdminResponse(
+            Long id,
+            String name,
+            String description,
+            String promoText,
+            String productType,
+            BigDecimal priceGross,
+            String currency,
+            boolean active,
+            boolean guestVisible,
+            boolean bookable,
+            Integer usageLimit,
+            Integer validityDays,
+            boolean autoRenews,
+            int sortOrder,
+            Long sessionTypeId,
+            String sessionTypeName,
+            Long transactionServiceId,
+            String transactionServiceCode,
+            String transactionServiceDescription,
+            Instant createdAt,
+            Instant updatedAt
+    ) {}
+}

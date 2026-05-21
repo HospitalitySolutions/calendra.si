@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Terminko</string>
+    <string name="title_activity_main">Terminko</string>
+    <string name="package_name">com.Terminko.app</string>
+    <string name="custom_url_scheme">com.Terminko.app</string>
+</resources>

@@ -1,0 +1,86 @@
+services:
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "${STAGING_HTTP_PORT:-8080}:80"
+      - "${STAGING_HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_staging_data:/data
+      - caddy_staging_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-calendra_staging}
+      POSTGRES_USER: ${POSTGRES_USER:-calendra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-staging}
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calendra} -d ${POSTGRES_DB:-calendra_staging}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: 4000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-calendra_staging}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-calendra}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me-staging}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      APP_RATE_LIMIT_BACKEND: ${APP_RATE_LIMIT_BACKEND:-auto}
+      APP_WIDGET_RATE_LIMIT_BACKEND: ${APP_WIDGET_RATE_LIMIT_BACKEND:-auto}
+      APP_WIDGET_REQUIRE_ALLOWED_ORIGIN: ${APP_WIDGET_REQUIRE_ALLOWED_ORIGIN:-false}
+      APP_WIDGET_TURNSTILE_REQUIRED_FOR_PUBLIC_ACTIONS: ${APP_WIDGET_TURNSTILE_REQUIRED_FOR_PUBLIC_ACTIONS:-false}
+      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      APP_AUTH_FRONTEND_URL: ${APP_AUTH_FRONTEND_URL:-http://localhost:3000}
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+      AWS_STAGING_SECRET_ID: ${AWS_STAGING_SECRET_ID:-calendra-staging}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        BUILD_SCRIPT: ${FRONTEND_BUILD_SCRIPT:-build}
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+volumes:
+  postgres_staging_data:
+  redis_staging_data:
+  caddy_staging_data:
+  caddy_staging_config:

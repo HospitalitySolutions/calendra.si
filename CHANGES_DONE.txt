@@ -1,0 +1,13 @@
+Implemented booking-status option hiding after a session open bill is closed.
+
+Changed files:
+- frontend/src/pages/calendar/CalendarPageContent.tsx
+
+What changed:
+- Added detection for closed/finalized session open bills by checking the selected booked session payment allocations for a linked INVOICE bill.
+- When the booked session lifecycle status is CHECKED OUT and at least one linked invoice allocation exists, the status transition targets are filtered so CANCELLED and NO SHOW are no longer passed to the booking-status dropdown.
+- The current CHECKED OUT status remains visible, but the dropdown no longer offers CANCELLED or NO SHOW once the session bill has been closed into an invoice.
+
+Validation:
+- Attempted frontend build with npm run build.
+- Build could not complete in this sandbox because frontend dependencies/node_modules are not installed in the uploaded zip, causing missing module errors for React, Axios, FullCalendar, etc.

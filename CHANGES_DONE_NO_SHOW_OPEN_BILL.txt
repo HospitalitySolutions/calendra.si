@@ -1,0 +1,24 @@
+Changes done:
+
+1. Added NO SHOW transaction service configuration
+   - Added new setting key NO_SHOW_TRANSACTION_SERVICE_ID.
+   - Added a new "NO SHOW" switch on Service type -> Transaction services.
+   - Only one transaction service can be selected as the NO SHOW service at a time.
+   - Transaction service list now shows a NO SHOW badge/category label when a service is selected for this purpose.
+
+2. NO SHOW billing behavior
+   - When a booking client is marked as NO SHOW, the open bill for that service client is created/updated if it is still open/not already closed.
+   - Existing normal service lines for that service client/session are replaced with the configured NO SHOW transaction service.
+   - If the booking status is later changed away from NO SHOW, the configured NO SHOW line is removed and normal linked service lines are restored.
+
+3. Closed bill protection
+   - Clients with an already closed/generated bill for that session cannot be selected in the NO SHOW client picker.
+   - Backend validation also blocks marking a client as NO SHOW when that client's session bill is already closed.
+
+4. UI updates
+   - NO SHOW client picker disables clients whose bill is already closed and shows a short explanation under the client name.
+   - Added styling for the new NO SHOW transaction service switch and disabled NO SHOW picker rows.
+
+Validation:
+- Backend compile could not be completed in this sandbox because Maven Wrapper needed to download Maven from repo.maven.apache.org and external network access is unavailable.
+- Frontend build was not run because node_modules/dependencies are not installed in this sandbox.

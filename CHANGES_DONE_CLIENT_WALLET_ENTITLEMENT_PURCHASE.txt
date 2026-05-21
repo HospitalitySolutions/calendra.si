@@ -1,0 +1,27 @@
+Implemented client wallet entitlement purchase flow (second design)
+
+Frontend
+- Added a modern "Kupi ugodnost" action on Client popup > Denarnica, matching the second preview design.
+- Added the right-side "Nakup ugodnosti" purchase drawer with:
+  - two-step indicator (Izbira ugodnosti / Račun),
+  - search field,
+  - selectable compact rows for active class tickets, packs, memberships, and gift cards,
+  - type badges,
+  - summary panel,
+  - footer actions "Nazaj" and "Odpri nov račun".
+- "Odpri nov račun" now creates a prepared open bill for the selected wallet product and navigates directly to the existing open bill editor so the user can edit/close the folio.
+- Added refresh and empty-state helper UI on the Denarnica tab.
+
+Backend
+- Added API endpoints under /api/clients/{clientId}/wallet:
+  - GET /products returns active buyable wallet products from Cards & Memberships / guest products.
+  - POST /products/{productId}/open-bill creates a staff-initiated wallet purchase open bill.
+- Staff-created wallet purchase open bills are linked to a pending GuestOrder via open_bills.source_guest_order_id.
+- Added schema migration for open_bills.source_guest_order_id.
+- Open bill line items and pricing are generated from the selected product, using the product transaction service, linked service, or a generated fallback transaction service.
+- When the linked open bill is closed and paid, the GuestOrder is marked paid and the existing entitlement creation logic generates the entitlement for the client/guest.
+- Stripe paid-bill finalization now also forwards to the wallet order paid handler, so linked wallet orders can be settled after Stripe payment.
+
+Notes
+- If the client is not already linked to a guest app account, the backend creates/activates a guest link from the client's email. If the client has no email and no active guest-app link, the purchase endpoint returns a validation error.
+- Maven build could not be run in this sandbox because the Maven wrapper attempted to download Maven from repo.maven.apache.org and network access is unavailable. The updated TSX file was syntax-checked with the TypeScript compiler API.

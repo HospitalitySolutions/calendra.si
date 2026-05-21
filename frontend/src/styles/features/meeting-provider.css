@@ -1,0 +1,54 @@
+/* Meeting provider */
+.meeting-provider-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.meeting-provider-change-btn {
+    padding: 4px 10px;
+    font-size: 0.85rem;
+}
+
+.meeting-provider-picker-backdrop {
+    z-index: 10050;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.meeting-provider-picker-modal {
+    width: min(320px, 100%);
+    max-width: calc(100vw - 32px);
+    padding: 20px;
+    text-align: center;
+}
+
+.meeting-provider-picker-title {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.meeting-provider-picker-hint {
+    margin: 0 0 16px;
+    font-size: 0.88rem;
+}
+
+.meeting-provider-picker-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.meeting-provider-picker-actions button {
+    width: 100%;
+}
+
+.meeting-provider-picker-cancel {
+    width: 100%;
+}
+

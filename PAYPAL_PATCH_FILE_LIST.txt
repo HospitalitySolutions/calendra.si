@@ -1,0 +1,25 @@
+Files included in this patch:
+backend/src/main/java/com/example/app/paypal/PayPalConfig.java
+backend/src/main/java/com/example/app/paypal/PayPalClient.java
+backend/src/main/java/com/example/app/company/Company.java
+backend/src/main/java/com/example/app/company/CompanyPayPalSchemaMigration.java
+backend/src/main/java/com/example/app/guest/model/GuestPaymentMethodType.java
+backend/src/main/java/com/example/app/guest/model/GuestOrder.java
+backend/src/main/java/com/example/app/guest/model/GuestOrderRepository.java
+backend/src/main/java/com/example/app/guest/order/GuestOrderService.java
+backend/src/main/java/com/example/app/guest/common/GuestHomeController.java
+backend/src/main/java/com/example/app/guest/common/GuestSchemaMigration.java
+backend/src/main/java/com/example/app/security/SecurityConfig.java
+backend/env.local.example
+.env.example
+guest-mobile/androidApp/src/main/AndroidManifest.xml
+guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/MainActivity.kt
+guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/payments/PaymentRedirectBus.kt
+guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/GuestMobileRoot.kt
+guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/screens/BookScreen.kt
+guest-mobile/iosApp/GuestMobile/Info.plist
+guest-mobile/iosApp/GuestMobile/GuestMobileApp.swift
+guest-mobile/iosApp/GuestMobile/AppStore.swift
+guest-mobile/iosApp/GuestMobile/ContentView.swift
+guest-mobile/iosApp/GuestMobile/BookView.swift
+guest-mobile/shared/src/commonMain/kotlin/si/calendra/guest/shared/sample/PreviewDataFactory.kt

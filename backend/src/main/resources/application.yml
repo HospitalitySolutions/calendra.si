@@ -1,0 +1,197 @@
+# No credentials or API secrets belong in this file.
+# — Local: copy backend/env.local.example → backend/.env.local (loaded automatically before Spring starts).
+# — Docker: use a root .env file for compose variable substitution (see .env.example).
+# — Staging / production: AWS Secrets Manager (application-staging.yml / application-production.yml).
+#   Staging/production profiles map spring.cloud.aws.credentials from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+#   (from the secret JSON after import, or from the host). Lightsail needs host bootstrap creds for the first SM fetch.
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:eu-central-1}
+      s3:
+        # Matches app.invoice-s3.enabled; keeps S3Client off the context when archival is disabled (typical local dev).
+        enabled: ${APP_INVOICE_S3_ENABLED:false}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/calendradb}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: create
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
+  mail:
+    # Public SES endpoint (not a secret); credentials come from env / Secrets Manager only.
+    host: ${SPRING_MAIL_HOST:email-smtp.eu-north-1.amazonaws.com}
+    port: ${SPRING_MAIL_PORT:465}
+    test-connection: false
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: ${SPRING_MAIL_SMTP_SSL_ENABLE:true}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:false}
+server:
+  port: 4000
+  address: 0.0.0.0
+  error:
+    include-message: always
+
+# Mail is optional until SPRING_MAIL_* are set; do not fail /actuator/health when password is blank.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    mail:
+      enabled: false
+  tracing:
+    enabled: ${MANAGEMENT_TRACING_ENABLED:false}
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.10}
+  otlp:
+    tracing:
+      endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+
+app:
+  security:
+    rate-limit:
+      enabled: ${APP_RATE_LIMIT_ENABLED:true}
+      backend: ${APP_RATE_LIMIT_BACKEND:auto}
+      redis-key-prefix: ${APP_RATE_LIMIT_REDIS_KEY_PREFIX:calendra:rate-limit:auth}
+      window-seconds: ${APP_RATE_LIMIT_WINDOW_SECONDS:60}
+      staff-login-per-ip: ${APP_RATE_LIMIT_STAFF_LOGIN_PER_IP:30}
+      staff-login-per-identity: ${APP_RATE_LIMIT_STAFF_LOGIN_PER_IDENTITY:8}
+      staff-signup-per-ip: ${APP_RATE_LIMIT_STAFF_SIGNUP_PER_IP:12}
+      staff-signup-per-identity: ${APP_RATE_LIMIT_STAFF_SIGNUP_PER_IDENTITY:4}
+      password-reset-per-ip: ${APP_RATE_LIMIT_PASSWORD_RESET_PER_IP:8}
+      password-reset-per-identity: ${APP_RATE_LIMIT_PASSWORD_RESET_PER_IDENTITY:4}
+      guest-login-per-ip: ${APP_RATE_LIMIT_GUEST_LOGIN_PER_IP:40}
+      guest-login-per-identity: ${APP_RATE_LIMIT_GUEST_LOGIN_PER_IDENTITY:10}
+      guest-signup-per-ip: ${APP_RATE_LIMIT_GUEST_SIGNUP_PER_IP:20}
+      guest-signup-per-identity: ${APP_RATE_LIMIT_GUEST_SIGNUP_PER_IDENTITY:5}
+      guest-social-login-per-ip: ${APP_RATE_LIMIT_GUEST_SOCIAL_LOGIN_PER_IP:50}
+  widget:
+    security:
+      # Leave false while testing tenants without configured embed domains; set true in production profile.
+      require-allowed-origin: ${APP_WIDGET_REQUIRE_ALLOWED_ORIGIN:false}
+      trust-referer-when-origin-missing: ${APP_WIDGET_TRUST_REFERER_WHEN_ORIGIN_MISSING:false}
+      allowed-origins: ${APP_WIDGET_ALLOWED_ORIGINS:}
+      rate-limit-backend: ${APP_WIDGET_RATE_LIMIT_BACKEND:auto}
+      rate-limit-redis-key-prefix: ${APP_WIDGET_RATE_LIMIT_REDIS_KEY_PREFIX:calendra:rate-limit:widget}
+      general-requests-per-minute-per-ip: ${APP_WIDGET_GENERAL_REQUESTS_PER_MINUTE_PER_IP:120}
+      general-requests-per-minute-per-tenant: ${APP_WIDGET_GENERAL_REQUESTS_PER_MINUTE_PER_TENANT:600}
+      bookings-per-minute-per-ip: ${APP_WIDGET_BOOKINGS_PER_MINUTE_PER_IP:10}
+      bookings-per-minute-per-tenant: ${APP_WIDGET_BOOKINGS_PER_MINUTE_PER_TENANT:120}
+    turnstile:
+      site-key: ${APP_WIDGET_TURNSTILE_SITE_KEY:}
+      secret-key: ${APP_WIDGET_TURNSTILE_SECRET_KEY:}
+      required-for-public-actions: ${APP_WIDGET_TURNSTILE_REQUIRED_FOR_PUBLIC_ACTIONS:false}
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  reminders:
+    enabled: ${APP_REMINDERS_ENABLED:true}
+    timezone: ${APP_REMINDERS_TIMEZONE:Europe/Ljubljana}
+  mail:
+    from: ${APP_MAIL_FROM:}
+  auth:
+    frontend-url: ${APP_AUTH_FRONTEND_URL:http://localhost:3000}
+    cookie:
+      name: ${APP_AUTH_COOKIE_NAME:calendra_auth}
+      same-site: ${APP_AUTH_COOKIE_SAME_SITE:Lax}
+      path: ${APP_AUTH_COOKIE_PATH:/}
+      domain: ${APP_AUTH_COOKIE_DOMAIN:}
+      secure: ${APP_AUTH_COOKIE_SECURE:}
+  webauthn:
+    rp-id: ${APP_WEBAUTHN_RP_ID:}
+    rp-name: ${APP_WEBAUTHN_RP_NAME:Calendra}
+    allowed-origins: ${APP_WEBAUTHN_ALLOWED_ORIGINS:}
+  sms:
+    a1:
+      auth-token: ${A1_CROSSCHAT_SMS_AUTH_TOKEN:}
+      use-test-environment: ${A1_CROSSCHAT_SMS_USE_TEST_ENVIRONMENT:true}
+  zoom:
+    client-id: ${ZOOM_CLIENT_ID:}
+    client-secret: ${ZOOM_CLIENT_SECRET:}
+    redirect-uri: ${ZOOM_REDIRECT_URI:}
+    frontend-url: ${ZOOM_FRONTEND_URL:}
+  google-meet:
+    client-id: ${GOOGLE_MEET_CLIENT_ID:}
+    client-secret: ${GOOGLE_MEET_CLIENT_SECRET:}
+    redirect-uri: ${GOOGLE_MEET_REDIRECT_URI:}
+    frontend-url: ${GOOGLE_MEET_FRONTEND_URL:}
+  jwt:
+    secret: ${APP_JWT_SECRET}
+    expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
+  guest:
+    auth:
+      google-client-id: ${APP_GUEST_AUTH_GOOGLE_CLIENT_ID:}
+      apple-client-id: ${APP_GUEST_AUTH_APPLE_CLIENT_ID:}
+
+    push:
+      enabled: ${APP_GUEST_PUSH_ENABLED:false}
+      connect-timeout-seconds: ${APP_GUEST_PUSH_CONNECT_TIMEOUT_SECONDS:10}
+      fcm:
+        project-id: ${APP_GUEST_PUSH_FCM_PROJECT_ID:}
+        service-account-json: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON:}
+        service-account-json-base64: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON_BASE64:}
+        service-account-file: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_FILE:}
+        token-uri: ${APP_GUEST_PUSH_FCM_TOKEN_URI:https://oauth2.googleapis.com/token}
+        scope: ${APP_GUEST_PUSH_FCM_SCOPE:https://www.googleapis.com/auth/firebase.messaging}
+      apns:
+        team-id: ${APP_GUEST_PUSH_APNS_TEAM_ID:}
+        key-id: ${APP_GUEST_PUSH_APNS_KEY_ID:}
+        bundle-id: ${APP_GUEST_PUSH_APNS_BUNDLE_ID:si.calendra.guest.mobile}
+        private-key-pem: ${APP_GUEST_PUSH_APNS_PRIVATE_KEY_PEM:}
+        private-key-base64: ${APP_GUEST_PUSH_APNS_PRIVATE_KEY_BASE64:}
+        private-key-file: ${APP_GUEST_PUSH_APNS_PRIVATE_KEY_FILE:}
+        use-sandbox: ${APP_GUEST_PUSH_APNS_USE_SANDBOX:true}
+  fiscal:
+    trust-certificate-locations: ${APP_FISCAL_TRUST_CERTIFICATE_LOCATIONS:classpath:fiscal-certs/si-trust-root.crt,classpath:fiscal-certs/sigov-ca2.xcert.crt,classpath:fiscal-certs/blagajne-test.fu.gov.si.cer}
+  invoice-s3:
+    enabled: ${APP_INVOICE_S3_ENABLED:false}
+    bucket: ${APP_INVOICE_S3_BUCKET:}
+    prefix: ${APP_INVOICE_S3_PREFIX:invoices}
+    public-base-url: ${APP_INVOICE_S3_PUBLIC_BASE_URL:}
+  stripe:
+    secret-key: ${STRIPE_SECRET_KEY:}
+    publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+    base-url: ${STRIPE_BASE_URL:https://api.stripe.com}
+    currency: ${STRIPE_CURRENCY:eur}
+    success-url: ${STRIPE_SUCCESS_URL:}
+    cancel-url: ${STRIPE_CANCEL_URL:}
+    webhook-url: ${STRIPE_WEBHOOK_URL:}
+    eu-bank-transfer-country: ${STRIPE_EU_BANK_TRANSFER_COUNTRY:NL}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4000}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.example.app: ${LOG_LEVEL_APP:INFO}

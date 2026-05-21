@@ -1,0 +1,1123 @@
+diff --git a/frontend/src/lib/qrCode.ts b/frontend/src/lib/qrCode.ts
+new file mode 100644
+index 0000000..d77fe6a
+--- /dev/null
++++ b/frontend/src/lib/qrCode.ts
+@@ -0,0 +1,291 @@
++const QR_ALPHANUMERIC_CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:'
++const QR_VERSION = 4
++const QR_SIZE = 17 + QR_VERSION * 4
++const QR_DATA_CODEWORDS = 80
++const QR_ECC_CODEWORDS = 20
++const QR_ECL_FORMAT_BITS_L = 0b01
++const QR_MASK_PATTERN = 0
++
++type QrEncodingMode = 'alphanumeric' | 'byte'
++
++type QrPayload = {
++  mode: QrEncodingMode
++  bits: number[]
++}
++
++const appendBits = (target: number[], value: number, length: number) => {
++  if (length < 0 || length > 31 || value >>> length !== 0) {
++    throw new Error('Invalid QR bit segment.')
++  }
++  for (let i = length - 1; i >= 0; i -= 1) {
++    target.push((value >>> i) & 1)
++  }
++}
++
++const encodeQrPayload = (content: string): QrPayload => {
++  const normalized = content.trim()
++  if (!normalized) throw new Error('QR content is empty.')
++
++  const canUseAlphanumeric = [...normalized].every((char) => QR_ALPHANUMERIC_CHARSET.includes(char))
++  if (canUseAlphanumeric) {
++    const bits: number[] = []
++    for (let i = 0; i < normalized.length; i += 2) {
++      if (i + 1 < normalized.length) {
++        const value = QR_ALPHANUMERIC_CHARSET.indexOf(normalized[i]) * 45 + QR_ALPHANUMERIC_CHARSET.indexOf(normalized[i + 1])
++        appendBits(bits, value, 11)
++      } else {
++        appendBits(bits, QR_ALPHANUMERIC_CHARSET.indexOf(normalized[i]), 6)
++      }
++    }
++    return { mode: 'alphanumeric', bits }
++  }
++
++  const bytes = new TextEncoder().encode(normalized)
++  const bits: number[] = []
++  for (const byte of bytes) appendBits(bits, byte, 8)
++  return { mode: 'byte', bits }
++}
++
++const buildDataCodewords = (content: string): number[] => {
++  const payload = encodeQrPayload(content)
++  const normalized = content.trim()
++  const bits: number[] = []
++  const contentLength = payload.mode === 'byte' ? new TextEncoder().encode(normalized).length : normalized.length
++
++  if (payload.mode === 'alphanumeric') {
++    appendBits(bits, 0b0010, 4)
++    appendBits(bits, contentLength, 9)
++  } else {
++    appendBits(bits, 0b0100, 4)
++    appendBits(bits, contentLength, 8)
++  }
++  bits.push(...payload.bits)
++
++  const capacityBits = QR_DATA_CODEWORDS * 8
++  if (bits.length > capacityBits) {
++    throw new Error('QR content is too long for the selected QR version.')
++  }
++
++  appendBits(bits, 0, Math.min(4, capacityBits - bits.length))
++  while (bits.length % 8 !== 0) bits.push(0)
++
++  const dataCodewords: number[] = []
++  for (let i = 0; i < bits.length; i += 8) {
++    let byte = 0
++    for (let j = 0; j < 8; j += 1) byte = (byte << 1) | bits[i + j]
++    dataCodewords.push(byte)
++  }
++
++  for (let pad = 0; dataCodewords.length < QR_DATA_CODEWORDS; pad += 1) {
++    dataCodewords.push(pad % 2 === 0 ? 0xec : 0x11)
++  }
++  return dataCodewords
++}
++
++const createGaloisTables = () => {
++  const exp = new Array<number>(512).fill(0)
++  const log = new Array<number>(256).fill(0)
++  let value = 1
++  for (let i = 0; i < 255; i += 1) {
++    exp[i] = value
++    log[value] = i
++    value <<= 1
++    if (value & 0x100) value ^= 0x11d
++  }
++  for (let i = 255; i < 512; i += 1) exp[i] = exp[i - 255]
++  return { exp, log }
++}
++
++const QR_GF = createGaloisTables()
++
++const gfMultiply = (left: number, right: number) => {
++  if (left === 0 || right === 0) return 0
++  return QR_GF.exp[QR_GF.log[left] + QR_GF.log[right]]
++}
++
++const reedSolomonGenerator = (degree: number): number[] => {
++  let poly = [1]
++  for (let i = 0; i < degree; i += 1) {
++    const next = new Array<number>(poly.length + 1).fill(0)
++    for (let j = 0; j < poly.length; j += 1) {
++      next[j] ^= poly[j]
++      next[j + 1] ^= gfMultiply(poly[j], QR_GF.exp[i])
++    }
++    poly = next
++  }
++  return poly
++}
++
++const reedSolomonRemainder = (data: number[], degree: number): number[] => {
++  const generator = reedSolomonGenerator(degree)
++  const result = data.concat(new Array<number>(degree).fill(0))
++  for (let i = 0; i < data.length; i += 1) {
++    const coefficient = result[i]
++    if (coefficient === 0) continue
++    for (let j = 0; j < generator.length; j += 1) {
++      result[i + j] ^= gfMultiply(generator[j], coefficient)
++    }
++  }
++  return result.slice(data.length)
++}
++
++const buildMessageCodewords = (content: string): number[] => {
++  const data = buildDataCodewords(content)
++  return data.concat(reedSolomonRemainder(data, QR_ECC_CODEWORDS))
++}
++
++const maskBit = (x: number, y: number) => (x + y) % 2 === 0
++
++const formatBits = (errorCorrectionLevelBits: number, maskPattern: number): number => {
++  const data = (errorCorrectionLevelBits << 3) | maskPattern
++  let remainder = data
++  for (let i = 0; i < 10; i += 1) {
++    remainder = (remainder << 1) ^ (((remainder >>> 9) & 1) ? 0x537 : 0)
++  }
++  return ((data << 10) | remainder) ^ 0x5412
++}
++
++const bitAt = (value: number, index: number) => ((value >>> index) & 1) === 1
++
++const createEmptyMatrix = () => ({
++  modules: Array.from({ length: QR_SIZE }, () => new Array<boolean>(QR_SIZE).fill(false)),
++  reserved: Array.from({ length: QR_SIZE }, () => new Array<boolean>(QR_SIZE).fill(false)),
++})
++
++const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < QR_SIZE && y < QR_SIZE
++
++const drawFunctionModule = (
++  modules: boolean[][],
++  reserved: boolean[][],
++  x: number,
++  y: number,
++  dark: boolean,
++) => {
++  if (!inBounds(x, y)) return
++  modules[y][x] = dark
++  reserved[y][x] = true
++}
++
++const drawFinder = (modules: boolean[][], reserved: boolean[][], left: number, top: number) => {
++  for (let dy = -1; dy <= 7; dy += 1) {
++    for (let dx = -1; dx <= 7; dx += 1) {
++      const x = left + dx
++      const y = top + dy
++      if (!inBounds(x, y)) continue
++      const isFinder = dx >= 0 && dx <= 6 && dy >= 0 && dy <= 6 && (
++        dx === 0 || dx === 6 || dy === 0 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4)
++      )
++      drawFunctionModule(modules, reserved, x, y, isFinder)
++    }
++  }
++}
++
++const drawAlignment = (modules: boolean[][], reserved: boolean[][], centerX: number, centerY: number) => {
++  for (let dy = -2; dy <= 2; dy += 1) {
++    for (let dx = -2; dx <= 2; dx += 1) {
++      const x = centerX + dx
++      const y = centerY + dy
++      if (!inBounds(x, y) || reserved[y][x]) continue
++      const distance = Math.max(Math.abs(dx), Math.abs(dy))
++      drawFunctionModule(modules, reserved, x, y, distance !== 1)
++    }
++  }
++}
++
++const drawTimingPatterns = (modules: boolean[][], reserved: boolean[][]) => {
++  for (let i = 8; i < QR_SIZE - 8; i += 1) {
++    const dark = i % 2 === 0
++    if (!reserved[6][i]) drawFunctionModule(modules, reserved, i, 6, dark)
++    if (!reserved[i][6]) drawFunctionModule(modules, reserved, 6, i, dark)
++  }
++}
++
++const reserveFormatAreas = (modules: boolean[][], reserved: boolean[][]) => {
++  for (let i = 0; i <= 8; i += 1) {
++    if (i !== 6) {
++      drawFunctionModule(modules, reserved, 8, i, false)
++      drawFunctionModule(modules, reserved, i, 8, false)
++    }
++  }
++  for (let i = 0; i < 8; i += 1) drawFunctionModule(modules, reserved, QR_SIZE - 1 - i, 8, false)
++  for (let i = 0; i < 7; i += 1) drawFunctionModule(modules, reserved, 8, QR_SIZE - 1 - i, false)
++  drawFunctionModule(modules, reserved, 8, 4 * QR_VERSION + 9, true)
++}
++
++const drawFormatBits = (modules: boolean[][], reserved: boolean[][]) => {
++  const bits = formatBits(QR_ECL_FORMAT_BITS_L, QR_MASK_PATTERN)
++  for (let i = 0; i <= 5; i += 1) drawFunctionModule(modules, reserved, 8, i, bitAt(bits, i))
++  drawFunctionModule(modules, reserved, 8, 7, bitAt(bits, 6))
++  drawFunctionModule(modules, reserved, 8, 8, bitAt(bits, 7))
++  drawFunctionModule(modules, reserved, 7, 8, bitAt(bits, 8))
++  for (let i = 9; i < 15; i += 1) drawFunctionModule(modules, reserved, 14 - i, 8, bitAt(bits, i))
++
++  for (let i = 0; i < 8; i += 1) drawFunctionModule(modules, reserved, QR_SIZE - 1 - i, 8, bitAt(bits, i))
++  for (let i = 8; i < 15; i += 1) drawFunctionModule(modules, reserved, 8, QR_SIZE - 15 + i, bitAt(bits, i))
++  drawFunctionModule(modules, reserved, 8, 4 * QR_VERSION + 9, true)
++}
++
++const drawCodewords = (modules: boolean[][], reserved: boolean[][], codewords: number[]) => {
++  const bits: number[] = []
++  for (const codeword of codewords) appendBits(bits, codeword, 8)
++
++  let bitIndex = 0
++  let upward = true
++  for (let right = QR_SIZE - 1; right >= 1; right -= 2) {
++    if (right === 6) right -= 1
++    for (let vertical = 0; vertical < QR_SIZE; vertical += 1) {
++      const y = upward ? QR_SIZE - 1 - vertical : vertical
++      for (let dx = 0; dx < 2; dx += 1) {
++        const x = right - dx
++        if (reserved[y][x]) continue
++        const dark = bitIndex < bits.length ? bits[bitIndex] === 1 : false
++        modules[y][x] = dark !== maskBit(x, y)
++        bitIndex += 1
++      }
++    }
++    upward = !upward
++  }
++}
++
++const escapeXml = (value: string) => value.replace(/[&<>'"]/g, (char) => {
++  const entities: Record<string, string> = {
++    '&': '&amp;',
++    '<': '&lt;',
++    '>': '&gt;',
++    "'": '&apos;',
++    '"': '&quot;',
++  }
++  return entities[char] || char
++})
++
++const createQrMatrix = (content: string): boolean[][] => {
++  const { modules, reserved } = createEmptyMatrix()
++  drawFinder(modules, reserved, 0, 0)
++  drawFinder(modules, reserved, QR_SIZE - 7, 0)
++  drawFinder(modules, reserved, 0, QR_SIZE - 7)
++  drawTimingPatterns(modules, reserved)
++  drawAlignment(modules, reserved, QR_SIZE - 7, QR_SIZE - 7)
++  reserveFormatAreas(modules, reserved)
++  drawCodewords(modules, reserved, buildMessageCodewords(content))
++  drawFormatBits(modules, reserved)
++  return modules
++}
++
++export const createQrSvg = (content: string, scale = 8) => {
++  const normalized = content.trim()
++  if (!normalized) throw new Error('QR content is empty.')
++  const quietZone = 4
++  const matrix = createQrMatrix(normalized)
++  const viewBoxSize = QR_SIZE + quietZone * 2
++  const moduleSize = Math.max(1, scale)
++  const renderedSize = viewBoxSize * moduleSize
++  const paths: string[] = []
++
++  for (let y = 0; y < QR_SIZE; y += 1) {
++    for (let x = 0; x < QR_SIZE; x += 1) {
++      if (matrix[y][x]) paths.push(`M${x + quietZone} ${y + quietZone}h1v1h-1z`)
++    }
++  }
++
++  return `<svg xmlns="http://www.w3.org/2000/svg" width="${renderedSize}" height="${renderedSize}" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" role="img" aria-label="QR code for ${escapeXml(normalized)}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${paths.join(' ')}" fill="#000"/></svg>`
++}
+diff --git a/frontend/src/pages/ConfigurationPage.tsx b/frontend/src/pages/ConfigurationPage.tsx
+index 0bd1830..9ab02d4 100644
+--- a/frontend/src/pages/ConfigurationPage.tsx
++++ b/frontend/src/pages/ConfigurationPage.tsx
+@@ -14,10 +14,12 @@ import { SecurityPage } from './SecurityPage'
+ import { useLocale } from '../locale'
+ import { getDefaultAllowedRoute } from '../lib/packageAccess'
+ import { helpTooltip } from '../helpContent'
++import { createQrSvg } from '../lib/qrCode'
+ 
+ type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'whatsapp' | 'viber' | 'modules' | 'security'
+ type BookingSubtab = 'tasks' | 'spaces'
+ type BillingSubtab = 'settings' | 'paymentMethods' | 'paypal' | 'fiscal' | 'folioLayout'
++type GuestAppSubtab = 'general' | 'bookingRules' | 'paymentMethods' | 'qrCode'
+ type PersonalTaskPreset = { id: string; name: string; color: string }
+ 
+ type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'whatsapp' | 'viber' | 'modules' | 'security'
+@@ -440,6 +442,7 @@ export function ConfigurationPage() {
+   const [tab, setTab] = useState<Tab>('company')
+   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('spaces')
+   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
++  const [guestAppSubtab, setGuestAppSubtab] = useState<GuestAppSubtab>('qrCode')
+   const [startingPaypalOnboarding, setStartingPaypalOnboarding] = useState(false)
+ 
+   const [settings, setSettings] = useState<Record<string, string>>({})
+@@ -883,6 +886,47 @@ export function ConfigurationPage() {
+     }
+   }
+ 
++
++  const tenantCode = String(me.tenantCode || '').trim()
++  const tenantQrSvg = useMemo(() => {
++    if (!tenantCode) return ''
++    try {
++      return createQrSvg(tenantCode, 7)
++    } catch (err) {
++      console.error('Failed to generate tenant QR code', err)
++      return ''
++    }
++  }, [tenantCode])
++  const tenantQrDataUrl = useMemo(() => (
++    tenantQrSvg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(tenantQrSvg)}` : ''
++  ), [tenantQrSvg])
++
++  const downloadTenantQrCode = () => {
++    if (!tenantQrSvg || !tenantCode) return
++    const blob = new Blob([tenantQrSvg], { type: 'image/svg+xml;charset=utf-8' })
++    const url = URL.createObjectURL(blob)
++    const link = document.createElement('a')
++    link.href = url
++    link.download = `${tenantCode}-guest-app-qr.svg`
++    document.body.appendChild(link)
++    link.click()
++    link.remove()
++    URL.revokeObjectURL(url)
++  }
++
++  const printTenantQrCode = () => {
++    if (!tenantQrSvg || !tenantCode) return
++    const printWindow = window.open('', '_blank', 'width=720,height=720')
++    if (!printWindow) {
++      window.alert('Popup blocked. Please allow popups to print the QR code.')
++      return
++    }
++    const htmlEntities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
++    const escapedTenantCode = tenantCode.replace(/[&<>"']/g, (char) => htmlEntities[char] || char)
++    printWindow.document.write(`<!doctype html><html><head><title>${escapedTenantCode} guest app QR code</title><style>body{font-family:Inter,Arial,sans-serif;margin:0;padding:40px;color:#111827;text-align:center}.qr-card{display:inline-block;border:1px solid #e5e7eb;border-radius:24px;padding:32px;box-shadow:0 14px 40px rgba(15,23,42,.12)}h1{font-size:22px;margin:0 0 8px}.muted{color:#64748b;margin:0 0 20px}.tenant{display:inline-block;margin-top:16px;padding:8px 12px;border-radius:999px;background:#eaf3ff;color:#0b5ed7;font-weight:700}@media print{body{padding:0}.qr-card{border:none;box-shadow:none}}</style></head><body><div class="qr-card"><h1>Tenant QR Code</h1><p class="muted">Scan this QR code in the guest mobile app to add the tenant.</p>${tenantQrSvg}<div class="tenant">Tenant code: ${escapedTenantCode}</div></div><script>window.onload=function(){window.focus();window.print();}</script></body></html>`)
++    printWindow.document.close()
++  }
++
+   const uploadGuestAppAsset = async (field: GuestAppAssetField, file: File | null) => {
+     if (!isAdmin || !file) return
+     const assetTypeByField: Record<GuestAppAssetField, 'card' | 'logo' | 'icon'> = {
+@@ -1756,210 +1800,314 @@ export function ConfigurationPage() {
+       
+       ) : tab === 'guestApp' ? (
+         <div className="stack gap-lg">
+-          <Card className="settings-card">
++          <Card className="settings-card guest-app-settings-card">
+             <SectionTitle>Guest app</SectionTitle>
+-            <p className="muted">Manage the guest-facing mobile app settings already used by the native guest app and guest backend.</p>
+-            <div className="form-grid">
+-              <Field label="Tenant code" hint="Guests use this code to join your tenant from the mobile app.">
+-                <input value={me.tenantCode || ''} readOnly />
+-              </Field>
+-              <Field label="Public discoverable" hint="When ON, this tenant can appear in guest-app public search results.">
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button type="button" className={!guestAppSettings.publicDiscoverable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, publicDiscoverable: false })}>OFF</button>
+-                  <button type="button" className={guestAppSettings.publicDiscoverable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, publicDiscoverable: true })}>ON</button>
+-                </div>
+-              </Field>
+-              <Field label="Tenant type" hint="Controls which guest-mobile browse carousel this tenant appears in.">
+-                <select value={guestAppSettings.tenantType} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, tenantType: e.target.value as GuestAppSettingsForm['tenantType'] })}>
+-                  <option value="salon">Salon</option>
+-                  <option value="gym">Gym</option>
+-                  <option value="spa">Spa</option>
+-                  <option value="therapy">Therapy</option>
+-                </select>
+-              </Field>
+-              <Field label="Employee selection step" hint="When ON, guest clients pick an employee after choosing the service in the mobile app and website booking widget.">
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button type="button" className={!guestAppSettings.employeeSelectionStep ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, employeeSelectionStep: false })}>OFF</button>
+-                  <button type="button" className={guestAppSettings.employeeSelectionStep ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, employeeSelectionStep: true })}>ON</button>
+-                </div>
+-              </Field>
+-              <Field label="Use employee contact" hint="When ON, Upcoming bookings on guest Home use assigned employee phone for Call/Message when available.">
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button type="button" className={!guestAppSettings.useEmployeeContact ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, useEmployeeContact: false })}>OFF</button>
+-                  <button type="button" className={guestAppSettings.useEmployeeContact ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, useEmployeeContact: true })}>ON</button>
+-                </div>
+-              </Field>
+-              <Field label="Default language">
+-                <select value={guestAppSettings.defaultLanguage} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, defaultLanguage: e.target.value === 'en' ? 'en' : 'sl' })}>
+-                  <option value="sl">Slovenian</option>
+-                  <option value="en">English</option>
+-                </select>
+-              </Field>
+-              <Field label="Public name"><input value={guestAppSettings.publicName} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, publicName: e.target.value })} /></Field>
+-              <Field label="Public city"><input value={guestAppSettings.publicCity} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, publicCity: e.target.value })} /></Field>
+-              <Field label="Carousel card image" hint="Upload image used as the large card visual on guest-mobile tenancy carousel.">
+-                <input
+-                  type="file"
+-                  accept="image/*"
+-                  onChange={(e) => {
+-                    const selected = e.target.files?.[0] || null
+-                    void uploadGuestAppAsset('cardImageUrl', selected)
+-                    e.currentTarget.value = ''
+-                  }}
+-                />
+-                {uploadingGuestAsset === 'cardImageUrl' ? <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>Uploading...</p> : null}
+-                {guestAppSettings.cardImageUrl ? (
+-                  <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+-                    <p className="muted" style={{ margin: 0 }}>Current image (single active)</p>
+-                    <img
+-                      src={guestAppSettings.cardImageUrl}
+-                      alt="Current carousel card image"
+-                      style={{ width: '100%', maxWidth: 220, height: 120, objectFit: 'cover', borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff' }}
++            <p className="muted guest-app-settings-intro">Manage the guest-facing mobile app settings already used by the native guest app and guest backend.</p>
++            <div className="guest-app-tabs" role="tablist" aria-label="Guest app settings">
++              <button
++                type="button"
++                role="tab"
++                aria-selected={guestAppSubtab === 'general'}
++                className={`guest-app-tab${guestAppSubtab === 'general' ? ' is-active' : ''}`}
++                onClick={() => setGuestAppSubtab('general')}
++              >
++                General
++              </button>
++              <button
++                type="button"
++                role="tab"
++                aria-selected={guestAppSubtab === 'bookingRules'}
++                className={`guest-app-tab${guestAppSubtab === 'bookingRules' ? ' is-active' : ''}`}
++                onClick={() => setGuestAppSubtab('bookingRules')}
++              >
++                Booking and payment rules
++              </button>
++              <button
++                type="button"
++                role="tab"
++                aria-selected={guestAppSubtab === 'paymentMethods'}
++                className={`guest-app-tab${guestAppSubtab === 'paymentMethods' ? ' is-active' : ''}`}
++                onClick={() => setGuestAppSubtab('paymentMethods')}
++              >
++                Payment methods
++              </button>
++              <button
++                type="button"
++                role="tab"
++                aria-selected={guestAppSubtab === 'qrCode'}
++                className={`guest-app-tab${guestAppSubtab === 'qrCode' ? ' is-active' : ''}`}
++                onClick={() => setGuestAppSubtab('qrCode')}
++              >
++                QR Code
++              </button>
++            </div>
++
++            {guestAppSubtab === 'general' ? (
++              <div className="guest-app-tab-panel" role="tabpanel">
++                <div className="form-grid">
++                  <Field label="Tenant code" hint="Guests use this code to join your tenant from the mobile app.">
++                    <input value={tenantCode} readOnly />
++                  </Field>
++                  <Field label="Public discoverable" hint="When ON, this tenant can appear in guest-app public search results.">
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button type="button" className={!guestAppSettings.publicDiscoverable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, publicDiscoverable: false })}>OFF</button>
++                      <button type="button" className={guestAppSettings.publicDiscoverable ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, publicDiscoverable: true })}>ON</button>
++                    </div>
++                  </Field>
++                  <Field label="Tenant type" hint="Controls which guest-mobile browse carousel this tenant appears in.">
++                    <select value={guestAppSettings.tenantType} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, tenantType: e.target.value as GuestAppSettingsForm['tenantType'] })}>
++                      <option value="salon">Salon</option>
++                      <option value="gym">Gym</option>
++                      <option value="spa">Spa</option>
++                      <option value="therapy">Therapy</option>
++                    </select>
++                  </Field>
++                  <Field label="Employee selection step" hint="When ON, guest clients pick an employee after choosing the service in the mobile app and website booking widget.">
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button type="button" className={!guestAppSettings.employeeSelectionStep ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, employeeSelectionStep: false })}>OFF</button>
++                      <button type="button" className={guestAppSettings.employeeSelectionStep ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, employeeSelectionStep: true })}>ON</button>
++                    </div>
++                  </Field>
++                  <Field label="Use employee contact" hint="When ON, Upcoming bookings on guest Home use assigned employee phone for Call/Message when available.">
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button type="button" className={!guestAppSettings.useEmployeeContact ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, useEmployeeContact: false })}>OFF</button>
++                      <button type="button" className={guestAppSettings.useEmployeeContact ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestAppSettings({ ...guestAppSettings, useEmployeeContact: true })}>ON</button>
++                    </div>
++                  </Field>
++                  <Field label="Default language">
++                    <select value={guestAppSettings.defaultLanguage} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, defaultLanguage: e.target.value === 'en' ? 'en' : 'sl' })}>
++                      <option value="sl">Slovenian</option>
++                      <option value="en">English</option>
++                    </select>
++                  </Field>
++                  <Field label="Public name"><input value={guestAppSettings.publicName} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, publicName: e.target.value })} /></Field>
++                  <Field label="Public city"><input value={guestAppSettings.publicCity} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, publicCity: e.target.value })} /></Field>
++                  <Field label="Carousel card image" hint="Upload image used as the large card visual on guest-mobile tenancy carousel.">
++                    <input
++                      type="file"
++                      accept="image/*"
++                      onChange={(e) => {
++                        const selected = e.target.files?.[0] || null
++                        void uploadGuestAppAsset('cardImageUrl', selected)
++                        e.currentTarget.value = ''
++                      }}
+                     />
+-                    <p className="muted" style={{ margin: 0, wordBreak: 'break-all', fontSize: 12 }}>{guestAppSettings.cardImageUrl}</p>
+-                    <a href={guestAppSettings.cardImageUrl} target="_blank" rel="noreferrer">Open uploaded image</a>
+-                  </div>
+-                ) : null}
+-              </Field>
+-              <Field label="Carousel logo" hint="Upload circular logo shown over the guest-mobile carousel card.">
+-                <input
+-                  type="file"
+-                  accept="image/*"
+-                  onChange={(e) => {
+-                    const selected = e.target.files?.[0] || null
+-                    void uploadGuestAppAsset('logoImageUrl', selected)
+-                    e.currentTarget.value = ''
+-                  }}
+-                />
+-                {uploadingGuestAsset === 'logoImageUrl' ? <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>Uploading...</p> : null}
+-                {guestAppSettings.logoImageUrl ? (
+-                  <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+-                    <p className="muted" style={{ margin: 0 }}>Current image (single active)</p>
+-                    <img
+-                      src={guestAppSettings.logoImageUrl}
+-                      alt="Current carousel logo image"
+-                      style={{ width: 92, height: 92, objectFit: 'cover', borderRadius: 999, border: '1px solid #e5e7eb', background: '#fff' }}
++                    {uploadingGuestAsset === 'cardImageUrl' ? <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>Uploading...</p> : null}
++                    {guestAppSettings.cardImageUrl ? (
++                      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
++                        <p className="muted" style={{ margin: 0 }}>Current image (single active)</p>
++                        <img
++                          src={guestAppSettings.cardImageUrl}
++                          alt="Current carousel card image"
++                          style={{ width: '100%', maxWidth: 220, height: 120, objectFit: 'cover', borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff' }}
++                        />
++                        <p className="muted" style={{ margin: 0, wordBreak: 'break-all', fontSize: 12 }}>{guestAppSettings.cardImageUrl}</p>
++                        <a href={guestAppSettings.cardImageUrl} target="_blank" rel="noreferrer">Open uploaded image</a>
++                      </div>
++                    ) : null}
++                  </Field>
++                  <Field label="Carousel logo" hint="Upload circular logo shown over the guest-mobile carousel card.">
++                    <input
++                      type="file"
++                      accept="image/*"
++                      onChange={(e) => {
++                        const selected = e.target.files?.[0] || null
++                        void uploadGuestAppAsset('logoImageUrl', selected)
++                        e.currentTarget.value = ''
++                      }}
+                     />
+-                    <p className="muted" style={{ margin: 0, wordBreak: 'break-all', fontSize: 12 }}>{guestAppSettings.logoImageUrl}</p>
+-                    <a href={guestAppSettings.logoImageUrl} target="_blank" rel="noreferrer">Open uploaded image</a>
+-                  </div>
+-                ) : null}
+-              </Field>
+-              <Field label="Carousel icon" hint="Upload optional icon for guest app surfaces.">
+-                <input
+-                  type="file"
+-                  accept="image/*"
+-                  onChange={(e) => {
+-                    const selected = e.target.files?.[0] || null
+-                    void uploadGuestAppAsset('iconImageUrl', selected)
+-                    e.currentTarget.value = ''
+-                  }}
+-                />
+-                {uploadingGuestAsset === 'iconImageUrl' ? <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>Uploading...</p> : null}
+-                {guestAppSettings.iconImageUrl ? (
+-                  <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+-                    <p className="muted" style={{ margin: 0 }}>Current image (single active)</p>
+-                    <img
+-                      src={guestAppSettings.iconImageUrl}
+-                      alt="Current carousel icon image"
+-                      style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff' }}
++                    {uploadingGuestAsset === 'logoImageUrl' ? <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>Uploading...</p> : null}
++                    {guestAppSettings.logoImageUrl ? (
++                      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
++                        <p className="muted" style={{ margin: 0 }}>Current image (single active)</p>
++                        <img
++                          src={guestAppSettings.logoImageUrl}
++                          alt="Current carousel logo image"
++                          style={{ width: 92, height: 92, objectFit: 'cover', borderRadius: 999, border: '1px solid #e5e7eb', background: '#fff' }}
++                        />
++                        <p className="muted" style={{ margin: 0, wordBreak: 'break-all', fontSize: 12 }}>{guestAppSettings.logoImageUrl}</p>
++                        <a href={guestAppSettings.logoImageUrl} target="_blank" rel="noreferrer">Open uploaded image</a>
++                      </div>
++                    ) : null}
++                  </Field>
++                  <Field label="Carousel icon" hint="Upload optional icon for guest app surfaces.">
++                    <input
++                      type="file"
++                      accept="image/*"
++                      onChange={(e) => {
++                        const selected = e.target.files?.[0] || null
++                        void uploadGuestAppAsset('iconImageUrl', selected)
++                        e.currentTarget.value = ''
++                      }}
+                     />
+-                    <p className="muted" style={{ margin: 0, wordBreak: 'break-all', fontSize: 12 }}>{guestAppSettings.iconImageUrl}</p>
+-                    <a href={guestAppSettings.iconImageUrl} target="_blank" rel="noreferrer">Open uploaded image</a>
+-                  </div>
+-                ) : null}
+-              </Field>
+-              <Field label="Public description" hint="Shown when a guest resolves the tenant code or sees this tenant in public search.">
+-                <textarea rows={3} value={guestAppSettings.publicDescription} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, publicDescription: e.target.value })} />
+-              </Field>
+-            </div>
+-          </Card>
+-
+-          <Card className="settings-card">
+-            <SectionTitle>Booking and payment rules</SectionTitle>
+-            <p className="muted">These rules are already enforced by the guest booking and checkout backend.</p>
+-            <div className="form-grid">
+-              <Field label="Cancel until (hours before)">
+-                <input type="number" min="0" step="1" value={guestBookingRules.cancelUntilHours} onChange={(e) => setGuestBookingRules({ ...guestBookingRules, cancelUntilHours: e.target.value })} />
+-              </Field>
+-              <Field label="Reschedule until (hours before)">
+-                <input type="number" min="0" step="1" value={guestBookingRules.rescheduleUntilHours} onChange={(e) => setGuestBookingRules({ ...guestBookingRules, rescheduleUntilHours: e.target.value })} />
+-              </Field>
+-              <Field label="Late cancel consumes credit">
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button type="button" className={!guestBookingRules.lateCancelConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, lateCancelConsumesCredit: false })}>OFF</button>
+-                  <button type="button" className={guestBookingRules.lateCancelConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, lateCancelConsumesCredit: true })}>ON</button>
++                    {uploadingGuestAsset === 'iconImageUrl' ? <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>Uploading...</p> : null}
++                    {guestAppSettings.iconImageUrl ? (
++                      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
++                        <p className="muted" style={{ margin: 0 }}>Current image (single active)</p>
++                        <img
++                          src={guestAppSettings.iconImageUrl}
++                          alt="Current carousel icon image"
++                          style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff' }}
++                        />
++                        <p className="muted" style={{ margin: 0, wordBreak: 'break-all', fontSize: 12 }}>{guestAppSettings.iconImageUrl}</p>
++                        <a href={guestAppSettings.iconImageUrl} target="_blank" rel="noreferrer">Open uploaded image</a>
++                      </div>
++                    ) : null}
++                  </Field>
++                  <Field label="Public description" hint="Shown when a guest resolves the tenant code or sees this tenant in public search.">
++                    <textarea rows={3} value={guestAppSettings.publicDescription} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, publicDescription: e.target.value })} />
++                  </Field>
+                 </div>
+-              </Field>
+-              <Field label="No-show consumes credit">
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button type="button" className={!guestBookingRules.noShowConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, noShowConsumesCredit: false })}>OFF</button>
+-                  <button type="button" className={guestBookingRules.noShowConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, noShowConsumesCredit: true })}>ON</button>
++                <div className="form-actions" style={{ marginTop: 16 }}>
++                  <button type="button" onClick={saveGuestAppConfiguration} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
+                 </div>
+-              </Field>
+-              <Field label="Same-day bank transfer allowed">
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button type="button" className={!guestBookingRules.sameDayBankTransferAllowed ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, sameDayBankTransferAllowed: false })}>OFF</button>
+-                  <button type="button" className={guestBookingRules.sameDayBankTransferAllowed ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, sameDayBankTransferAllowed: true })}>ON</button>
++              </div>
++            ) : null}
++
++            {guestAppSubtab === 'bookingRules' ? (
++              <div className="guest-app-tab-panel" role="tabpanel">
++                <SectionTitle>Booking and payment rules</SectionTitle>
++                <p className="muted">These rules are already enforced by the guest booking and checkout backend.</p>
++                <div className="form-grid">
++                  <Field label="Cancel until (hours before)">
++                    <input type="number" min="0" step="1" value={guestBookingRules.cancelUntilHours} onChange={(e) => setGuestBookingRules({ ...guestBookingRules, cancelUntilHours: e.target.value })} />
++                  </Field>
++                  <Field label="Reschedule until (hours before)">
++                    <input type="number" min="0" step="1" value={guestBookingRules.rescheduleUntilHours} onChange={(e) => setGuestBookingRules({ ...guestBookingRules, rescheduleUntilHours: e.target.value })} />
++                  </Field>
++                  <Field label="Late cancel consumes credit">
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button type="button" className={!guestBookingRules.lateCancelConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, lateCancelConsumesCredit: false })}>OFF</button>
++                      <button type="button" className={guestBookingRules.lateCancelConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, lateCancelConsumesCredit: true })}>ON</button>
++                    </div>
++                  </Field>
++                  <Field label="No-show consumes credit">
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button type="button" className={!guestBookingRules.noShowConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, noShowConsumesCredit: false })}>OFF</button>
++                      <button type="button" className={guestBookingRules.noShowConsumesCredit ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, noShowConsumesCredit: true })}>ON</button>
++                    </div>
++                  </Field>
++                  <Field label="Same-day bank transfer allowed">
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button type="button" className={!guestBookingRules.sameDayBankTransferAllowed ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, sameDayBankTransferAllowed: false })}>OFF</button>
++                      <button type="button" className={guestBookingRules.sameDayBankTransferAllowed ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, sameDayBankTransferAllowed: true })}>ON</button>
++                    </div>
++                  </Field>
++                  <Field label="Bank transfer reserves slot">
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button type="button" className={!guestBookingRules.bankTransferReservesSlot ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, bankTransferReservesSlot: false })}>OFF</button>
++                      <button type="button" className={guestBookingRules.bankTransferReservesSlot ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, bankTransferReservesSlot: true })}>ON</button>
++                    </div>
++                  </Field>
++                  <Field label={t('configGuestRequireOnlinePayment')} hint={t('configGuestRequireOnlinePaymentHint')}>
++                    <div className="online-live-toggle" style={{ maxWidth: 220 }}>
++                      <button
++                        type="button"
++                        className={!guestBookingRules.requireOnlinePayment ? 'toggle-btn active' : 'toggle-btn'}
++                        onClick={() => setGuestBookingRules({ ...guestBookingRules, requireOnlinePayment: false })}
++                      >
++                        OFF
++                      </button>
++                      <button
++                        type="button"
++                        className={guestBookingRules.requireOnlinePayment ? 'toggle-btn active' : 'toggle-btn'}
++                        onClick={() => setGuestBookingRules({ ...guestBookingRules, requireOnlinePayment: true })}
++                      >
++                        ON
++                      </button>
++                    </div>
++                  </Field>
+                 </div>
+-              </Field>
+-              <Field label="Bank transfer reserves slot">
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button type="button" className={!guestBookingRules.bankTransferReservesSlot ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, bankTransferReservesSlot: false })}>OFF</button>
+-                  <button type="button" className={guestBookingRules.bankTransferReservesSlot ? 'toggle-btn active' : 'toggle-btn'} onClick={() => setGuestBookingRules({ ...guestBookingRules, bankTransferReservesSlot: true })}>ON</button>
++                <div className="form-actions" style={{ marginTop: 16 }}>
++                  <button type="button" onClick={saveGuestAppConfiguration} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
+                 </div>
+-              </Field>
+-              <Field label={t('configGuestRequireOnlinePayment')} hint={t('configGuestRequireOnlinePaymentHint')}>
+-                <div className="online-live-toggle" style={{ maxWidth: 220 }}>
+-                  <button
+-                    type="button"
+-                    className={!guestBookingRules.requireOnlinePayment ? 'toggle-btn active' : 'toggle-btn'}
+-                    onClick={() => setGuestBookingRules({ ...guestBookingRules, requireOnlinePayment: false })}
+-                  >
+-                    OFF
+-                  </button>
+-                  <button
+-                    type="button"
+-                    className={guestBookingRules.requireOnlinePayment ? 'toggle-btn active' : 'toggle-btn'}
+-                    onClick={() => setGuestBookingRules({ ...guestBookingRules, requireOnlinePayment: true })}
+-                  >
+-                    ON
+-                  </button>
++              </div>
++            ) : null}
++
++            {guestAppSubtab === 'paymentMethods' ? (
++              <div className="guest-app-tab-panel" role="tabpanel">
++                <SectionTitle>Payment methods</SectionTitle>
++                <p className="muted">Payment methods follow each method's <strong>Guest booking</strong> mode from Billing → Payment methods (ALL / WEBSITE / GUEST / DISABLED).</p>
++                {paymentMethods.length === 0 ? (
++                  <EmptyState title="No payment methods yet" text="Create payment methods in Billing → Payment methods, then enable Guest app on the ones that should appear in the guest app." />
++                ) : (
++                  <div className="table-wrap">
++                    <table>
++                      <thead>
++                        <tr>
++                          <th>Name</th>
++                          <th>Type</th>
++                          <th>Guest booking</th>
++                        </tr>
++                      </thead>
++                      <tbody>
++                        {paymentMethods.map((method) => (
++                          <tr key={method.id}>
++                            <td>{method.name}</td>
++                            <td>{method.paymentType}</td>
++                            <td className="clients-muted">{paymentMethodGuestBookingModeFromFlags(method.widgetEnabled, method.guestEnabled)}</td>
++                          </tr>
++                        ))}
++                      </tbody>
++                    </table>
++                  </div>
++                )}
++              </div>
++            ) : null}
++
++            {guestAppSubtab === 'qrCode' ? (
++              <div className="guest-app-tab-panel guest-app-qr-panel" role="tabpanel">
++                <div className="guest-app-qr-layout">
++                  <div className="guest-app-qr-copy">
++                    <SectionTitle>Tenant QR Code</SectionTitle>
++                    <p className="muted">This QR code identifies the tenant in the guest mobile app and can be scanned to add the tenant.</p>
++                    <div className="guest-app-tenant-code-row">
++                      <span>Tenant code:</span>
++                      <span className="guest-app-tenant-code-pill">{tenantCode || 'Not available'}</span>
++                    </div>
++                    <div className="guest-app-qr-note">
++                      <span className="guest-app-qr-note-icon" aria-hidden>i</span>
++                      <span>Use this QR code to add the tenant in the guest mobile app.</span>
++                    </div>
++                  </div>
++                  <div className="guest-app-qr-preview" aria-label="Tenant QR Code preview">
++                    {tenantQrDataUrl ? (
++                      <img src={tenantQrDataUrl} alt={`Guest mobile tenant QR code for ${tenantCode}`} />
++                    ) : (
++                      <div className="guest-app-qr-placeholder">Tenant code unavailable</div>
++                    )}
++                  </div>
++                  <div className="guest-app-qr-actions">
++                    <button
++                      type="button"
++                      className="guest-app-action-button guest-app-action-button--outline"
++                      onClick={printTenantQrCode}
++                      disabled={!tenantQrSvg}
++                    >
++                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
++                        <path d="M6 9V2h12v7" />
++                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
++                        <path d="M6 14h12v8H6z" />
++                      </svg>
++                      Print
++                    </button>
++                    <button
++                      type="button"
++                      className="guest-app-action-button guest-app-action-button--primary"
++                      onClick={downloadTenantQrCode}
++                      disabled={!tenantQrSvg}
++                    >
++                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
++                        <path d="M12 3v12" />
++                        <path d="m7 10 5 5 5-5" />
++                        <path d="M5 21h14" />
++                      </svg>
++                      Save
++                    </button>
++                  </div>
+                 </div>
+-              </Field>
+-            </div>
+-          </Card>
+-
+-          <Card className="settings-card">
+-            <SectionTitle>Guest payment methods</SectionTitle>
+-            <p className="muted">Payment methods follow each method's <strong>Guest booking</strong> mode from Billing → Payment methods (ALL / WEBSITE / GUEST / DISABLED).</p>
+-            {paymentMethods.length === 0 ? (
+-              <EmptyState title="No payment methods yet" text="Create payment methods in Billing → Payment methods, then enable Guest app on the ones that should appear in the guest app." />
+-            ) : (
+-              <div className="table-wrap">
+-                <table>
+-                  <thead>
+-                    <tr>
+-                      <th>Name</th>
+-                      <th>Type</th>
+-                      <th>Guest booking</th>
+-                    </tr>
+-                  </thead>
+-                  <tbody>
+-                    {paymentMethods.map((method) => (
+-                      <tr key={method.id}>
+-                        <td>{method.name}</td>
+-                        <td>{method.paymentType}</td>
+-                        <td className="clients-muted">{paymentMethodGuestBookingModeFromFlags(method.widgetEnabled, method.guestEnabled)}</td>
+-                      </tr>
+-                    ))}
+-                  </tbody>
+-                </table>
+               </div>
+-            )}
+-            <div className="form-actions" style={{ marginTop: 16 }}>
+-              <button onClick={saveGuestAppConfiguration} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
+-            </div>
++            ) : null}
+           </Card>
+         </div>
+ ) : tab === 'notifications' ? (
+diff --git a/frontend/src/styles/components.css b/frontend/src/styles/components.css
+index b59b9d3..9e256ac 100644
+--- a/frontend/src/styles/components.css
++++ b/frontend/src/styles/components.css
+@@ -983,4 +983,237 @@ tr.tenancy-row-clickable:hover {
+ tr.tenancy-row-clickable:focus-visible {
+     outline: 2px solid var(--color-primary, #6366f1);
+     outline-offset: -2px;
+-}
+\ No newline at end of file
++}
++/* Guest app nested tabs */
++.guest-app-settings-card {
++    max-width: 880px;
++}
++
++.guest-app-settings-intro {
++    margin-bottom: 28px;
++}
++
++.guest-app-tabs {
++    display: flex;
++    align-items: center;
++    gap: 28px;
++    border-bottom: 1px solid var(--border);
++    margin-bottom: 28px;
++    overflow-x: auto;
++}
++
++.guest-app-tab {
++    position: relative;
++    appearance: none;
++    border: 0;
++    border-radius: 0;
++    background: transparent;
++    color: var(--color-text-muted);
++    box-shadow: none;
++    padding: 0 0 14px;
++    min-height: 34px;
++    font: inherit;
++    font-weight: 600;
++    white-space: nowrap;
++    cursor: pointer;
++    transition: color 0.15s ease;
++}
++
++.guest-app-tab::after {
++    content: '';
++    position: absolute;
++    left: 0;
++    right: 0;
++    bottom: -1px;
++    height: 2px;
++    border-radius: 999px 999px 0 0;
++    background: transparent;
++}
++
++.guest-app-tab:hover,
++.guest-app-tab.is-active {
++    color: var(--color-primary);
++    box-shadow: none;
++    transform: none;
++}
++
++.guest-app-tab.is-active::after {
++    background: var(--color-primary);
++}
++
++.guest-app-tab-panel {
++    min-height: 160px;
++}
++
++.guest-app-qr-panel {
++    padding-top: 14px;
++}
++
++.guest-app-qr-layout {
++    display: grid;
++    grid-template-columns: minmax(0, 1fr) auto 150px;
++    align-items: center;
++    gap: 32px;
++}
++
++.guest-app-qr-copy {
++    display: grid;
++    gap: 14px;
++    max-width: 360px;
++}
++
++.guest-app-qr-copy .section-title-row {
++    margin-bottom: 0;
++}
++
++.guest-app-tenant-code-row {
++    display: inline-flex;
++    align-items: center;
++    gap: 10px;
++    color: var(--color-text);
++    font-weight: 600;
++}
++
++.guest-app-tenant-code-pill {
++    display: inline-flex;
++    align-items: center;
++    padding: 5px 11px;
++    border-radius: 999px;
++    background: var(--color-primary-soft);
++    color: var(--color-primary);
++    font-size: 0.86rem;
++    font-weight: 700;
++    letter-spacing: 0.01em;
++}
++
++.guest-app-qr-note {
++    display: flex;
++    align-items: flex-start;
++    gap: 12px;
++    border-top: 1px solid var(--border);
++    margin-top: 6px;
++    padding-top: 16px;
++    color: var(--color-text-muted);
++    line-height: 1.5;
++}
++
++.guest-app-qr-note-icon {
++    display: inline-flex;
++    align-items: center;
++    justify-content: center;
++    width: 26px;
++    height: 26px;
++    flex: 0 0 26px;
++    border-radius: 50%;
++    background: var(--color-primary-soft);
++    color: var(--color-primary);
++    font-weight: 800;
++    font-size: 0.86rem;
++}
++
++.guest-app-qr-preview {
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    width: 192px;
++    height: 192px;
++    border: 1px solid var(--border);
++    border-radius: 16px;
++    background: #ffffff;
++    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.08);
++    padding: 14px;
++}
++
++.guest-app-qr-preview img,
++.guest-app-qr-preview svg {
++    width: 100%;
++    height: 100%;
++    display: block;
++}
++
++.guest-app-qr-placeholder {
++    display: flex;
++    align-items: center;
++    justify-content: center;
++    width: 100%;
++    height: 100%;
++    border-radius: 12px;
++    background: #f8fafc;
++    color: var(--color-text-muted);
++    font-size: 0.88rem;
++    text-align: center;
++    padding: 12px;
++}
++
++.guest-app-qr-actions {
++    display: grid;
++    gap: 12px;
++}
++
++.guest-app-action-button {
++    display: inline-flex;
++    align-items: center;
++    justify-content: center;
++    gap: 10px;
++    min-width: 132px;
++    min-height: 48px;
++}
++
++.guest-app-action-button--outline {
++    background: #ffffff;
++    color: var(--color-primary);
++    border: 1px solid var(--color-primary);
++    box-shadow: none;
++}
++
++.guest-app-action-button--outline:hover {
++    background: var(--color-primary-soft);
++    box-shadow: none;
++}
++
++.guest-app-action-button--primary {
++    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
++    color: #ffffff;
++}
++
++[data-theme="dark"] .guest-app-tab {
++    color: var(--color-text-muted);
++}
++
++[data-theme="dark"] .guest-app-tab:hover,
++[data-theme="dark"] .guest-app-tab.is-active {
++    color: var(--color-primary);
++}
++
++[data-theme="dark"] .guest-app-action-button--outline {
++    background: rgba(255, 255, 255, 0.04);
++    color: var(--color-primary);
++    border-color: var(--color-primary);
++}
++
++[data-theme="dark"] .guest-app-qr-preview {
++    border-color: rgba(255, 255, 255, 0.14);
++}
++
++@media (max-width: 980px) {
++    .guest-app-qr-layout {
++        grid-template-columns: 1fr;
++        justify-items: start;
++    }
++
++    .guest-app-qr-actions {
++        display: flex;
++        flex-wrap: wrap;
++    }
++}
++
++@media (max-width: 640px) {
++    .guest-app-tabs {
++        gap: 20px;
++    }
++
++    .guest-app-qr-preview {
++        width: 168px;
++        height: 168px;
++    }
++}

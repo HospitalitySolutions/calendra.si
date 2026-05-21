@@ -1,0 +1,9 @@
+Changes done:
+- Edit open bill tabs now keep the payee as the main tab title, but also show the actual service client under it as "Klient: ..." / "Client: ...".
+- The service client label is derived from the open bill line source session, session summaries, and booking payment status data, so it remains visible even if the payee is changed to another client or company.
+- In one-payee-for-all mode, the Client column now shows the actual service user for each line instead of the changed payee.
+- When an open bill tab is closed into an invoice, the editor now moves to the next remaining open bill tab and resets the editor root if the closed bill was the root, so the closed tab disappears from the popup.
+- Added styling for the new service-client label in the bookmark tabs, including dark mode support.
+
+Validation:
+- Attempted frontend build with `npm run build`, but dependencies such as react, axios and react-router-dom are not installed in this sandbox, so the build cannot run here without npm install/network access.

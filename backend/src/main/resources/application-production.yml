@@ -1,0 +1,71 @@
+# Profile: production
+# JSON secret "calendra-app" — same flat keys as staging (including AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+# AWS_REGION). For fiscalized invoice PDF archival to S3 after successful FURS send, set all of:
+#   APP_INVOICE_S3_ENABLED=true
+#   APP_INVOICE_S3_BUCKET=<production-bucket-name>
+#   optional: APP_INVOICE_S3_PREFIX=invoices
+# Without these, archival is skipped (no error to the client). Archived PDF uses the folio-layout based invoice renderer shared by GET .../pdf and GET .../folio-pdf.
+#
+# Lightsail: include AWS_* in Secrets Manager for Spring; bootstrap IAM user on the host (or container env) must still
+# be able to call secretsmanager:GetSecretValue for this secret before the JSON is loaded (see application-staging.yml).
+server:
+  forward-headers-strategy: framework
+spring:
+  config:
+    # Override with AWS_PRODUCTION_SECRET_ID to force exact lookup (recommended: full ARN).
+    import: optional:aws-secretsmanager:${AWS_PRODUCTION_SECRET_ID:calendra-app},optional:aws-secretsmanager:/${AWS_PRODUCTION_SECRET_ID:calendra-app}
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:eu-central-1}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
+app:
+  security:
+    rate-limit:
+      backend: ${APP_RATE_LIMIT_BACKEND:redis}
+  widget:
+    security:
+      require-allowed-origin: ${APP_WIDGET_REQUIRE_ALLOWED_ORIGIN:true}
+      trust-referer-when-origin-missing: ${APP_WIDGET_TRUST_REFERER_WHEN_ORIGIN_MISSING:false}
+      rate-limit-backend: ${APP_WIDGET_RATE_LIMIT_BACKEND:redis}
+      general-requests-per-minute-per-ip: ${APP_WIDGET_GENERAL_REQUESTS_PER_MINUTE_PER_IP:60}
+      general-requests-per-minute-per-tenant: ${APP_WIDGET_GENERAL_REQUESTS_PER_MINUTE_PER_TENANT:600}
+      bookings-per-minute-per-ip: ${APP_WIDGET_BOOKINGS_PER_MINUTE_PER_IP:5}
+      bookings-per-minute-per-tenant: ${APP_WIDGET_BOOKINGS_PER_MINUTE_PER_TENANT:60}
+    turnstile:
+      site-key: ${APP_WIDGET_TURNSTILE_SITE_KEY:}
+      secret-key: ${APP_WIDGET_TURNSTILE_SECRET_KEY:}
+      required-for-public-actions: ${APP_WIDGET_TURNSTILE_REQUIRED_FOR_PUBLIC_ACTIONS:true}
+  auth:
+    frontend-url: ${APP_AUTH_FRONTEND_URL:https://app.calendra.si}
+    cookie:
+      secure: ${APP_AUTH_COOKIE_SECURE:true}
+      same-site: ${APP_AUTH_COOKIE_SAME_SITE:Lax}
+      domain: ${APP_AUTH_COOKIE_DOMAIN:}
+  webauthn:
+    rp-id: ${APP_WEBAUTHN_RP_ID:app.calendra.si}
+    allowed-origins: ${APP_WEBAUTHN_ALLOWED_ORIGINS:https://app.calendra.si}
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    enabled: ${MANAGEMENT_TRACING_ENABLED:false}
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.20}
+  otlp:
+    tracing:
+      endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.example.app: ${LOG_LEVEL_APP:INFO}

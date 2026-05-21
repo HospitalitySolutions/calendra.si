@@ -1,0 +1,811 @@
+/* Config */
+.config-shell {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.config-nav {
+    background: var(--color-surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: sticky;
+    top: 10px;
+}
+
+.config-nav-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    margin: 2px 6px 6px;
+    font-weight: 700;
+}
+
+.config-nav-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-text);
+    justify-content: flex-start;
+}
+
+/* Brand marks as vector on solid white (sidebar is tinted; logos read clearly). */
+.config-nav-tab-brand-wrap {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #ffffff;
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+.config-nav-tab-brand-wrap svg {
+    display: block;
+}
+
+a.config-nav-item {
+    text-decoration: none;
+    font: inherit;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.config-nav-item.active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    border-color: rgba(22, 114, 243, 0.28);
+}
+
+.notification-event-block {
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+.notification-event-block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+.notification-tag-hint {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+}
+.notification-tag-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.notification-tag-pill {
+    border: none;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    background: #15803d;
+    color: #fff;
+    font-weight: 500;
+}
+.notification-tag-pill:hover {
+    filter: brightness(1.08);
+}
+[data-theme="dark"] .notification-tag-pill {
+    background: #166534;
+}
+.notification-rich-editor {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--color-surface);
+    overflow: hidden;
+}
+.notification-rich-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.04);
+    border-bottom: 1px solid var(--border);
+}
+[data-theme="dark"] .notification-rich-toolbar {
+    background: rgba(255, 255, 255, 0.06);
+}
+.notification-rich-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--color-surface);
+    cursor: pointer;
+    color: var(--color-text-muted);
+}
+.notification-rich-tool:hover {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    border-color: rgba(22, 114, 243, 0.35);
+}
+[data-theme="dark"] .notification-rich-tool:hover {
+    color: var(--color-text);
+}
+.notification-rich-body {
+    min-height: 220px;
+    padding: 12px 14px;
+    outline: none;
+    line-height: 1.5;
+}
+
+.config-content {
+    min-width: 0;
+}
+
+/* Notifications / Obvestila: spare space so the fixed AI voice FAB does not cover the Inbox card footer */
+.config-notifications-page {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Save under Nova seja / Sprememba seje / Preklic seje — bottom right, aligned with toggle row height band */
+.config-notifications-templates-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 20px;
+    min-height: 56px;
+    border-top: 1px solid var(--border);
+}
+
+.config-notifications-save-btn {
+    margin: 0;
+    padding: 12px 28px;
+    border-radius: 12px;
+    font-weight: 600;
+    box-shadow: 0 4px 18px rgba(22, 114, 243, 0.35);
+}
+
+.config-booking-shell {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.config-booking-nav {
+    background: var(--color-surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: sticky;
+    top: 10px;
+}
+
+.config-booking-content {
+    min-width: 0;
+}
+
+.config-module-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.config-module-row {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.config-module-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.config-setting-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+@media (min-width: 640px) {
+    .config-setting-row {
+        display: grid;
+        grid-template-columns: minmax(160px, 1fr) 1fr;
+        align-items: center;
+        gap: 12px;
+    }
+}
+
+.config-setting-row input {
+    margin: 0;
+    width: 100%;
+}
+
+.config-modules-save {
+    margin-top: 14px;
+    padding-bottom: 8px;
+}
+
+/* Booking → Moduli: no outer card shell; rows sit on config/page background */
+.config-booking-modules {
+    min-width: 0;
+    max-width: 880px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+/* Booking subtab strip: no card wrapper; gray pill sits on page background */
+.config-booking-subtabs {
+    min-width: 0;
+    max-width: 880px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.config-help-hint {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: help;
+    position: relative;
+}
+
+.config-help-hint:hover::after,
+.config-help-hint:focus-visible::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #fff;
+    font-size: 0.76rem;
+    line-height: 1.3;
+    padding: 8px 10px;
+    border-radius: 8px;
+    width: max-content;
+    max-width: 240px;
+    z-index: 20;
+    white-space: normal;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+}
+
+.config-label-with-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.config-task-preset-summary {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.config-task-preset-count {
+    min-width: 48px;
+    height: 48px;
+    border-radius: 999px;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.folio-template-stage {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.08);
+}
+
+.folio-template-canvas {
+    position: relative;
+    width: min(820px, 100%);
+    aspect-ratio: 210 / 297;
+    border: 1px solid #d6d9e0;
+    border-radius: 4px;
+    background: #ffffff;
+    box-shadow: 0 18px 36px rgba(2, 6, 23, 0.2);
+    overflow: hidden;
+}
+
+.folio-template-static-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.folio-bg-logo {
+    position: absolute;
+    top: 6%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: #d31d26;
+    letter-spacing: 0.5px;
+}
+
+.folio-bg-box {
+    position: absolute;
+    border: 1px solid rgba(30, 41, 59, 0.75);
+}
+
+.folio-bg-box.left-company {
+    left: 8%;
+    top: 21%;
+    width: 30%;
+    height: 26%;
+}
+
+.folio-bg-box.left-recipient {
+    left: 8%;
+    top: 52%;
+    width: 34%;
+    height: 16.5%;
+}
+
+.folio-bg-box.right-meta {
+    right: 8%;
+    top: 24%;
+    width: 30%;
+    height: 19%;
+}
+
+.folio-bg-box.table-wrap {
+    left: 8%;
+    top: 73.8%;
+    width: 84%;
+    height: 12.8%;
+}
+
+.folio-bg-divider.table-header-divider {
+    position: absolute;
+    left: 8%;
+    top: 78.4%;
+    width: 84%;
+    border-top: 1px solid rgba(30, 41, 59, 0.75);
+}
+
+.folio-bg-box.totals-wrap {
+    right: 8%;
+    top: 88.5%;
+    width: 30%;
+    height: 10.5%;
+}
+
+.folio-bg-line {
+    position: absolute;
+    border-top: 1px solid rgba(30, 41, 59, 0.75);
+}
+
+.folio-bg-line.totals-top {
+    right: 8%;
+    top: 87.2%;
+    width: 30%;
+}
+
+.folio-bg-note {
+    position: absolute;
+    color: rgba(30, 41, 59, 0.78);
+    font-size: 0.52rem;
+    line-height: 1.2;
+}
+
+.folio-bg-note.ddv-note {
+    left: 8.2%;
+    top: 87%;
+}
+
+.folio-bg-note.payment-note {
+    left: 8.2%;
+    top: 92%;
+}
+
+.folio-bg-note.reclamation-note {
+    left: 8.2%;
+    top: 95.6%;
+}
+
+.folio-bg-line.signature-line-left {
+    left: 8%;
+    top: 97.5%;
+    width: 18%;
+}
+
+.folio-bg-line.signature-line-right {
+    right: 8%;
+    top: 97.5%;
+    width: 18%;
+}
+
+.folio-template-item {
+    position: absolute;
+    border: 1px dashed rgba(71, 85, 105, 0.55);
+    background: rgba(148, 163, 184, 0.14);
+    color: #0f172a;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: grab;
+    user-select: none;
+}
+
+.folio-template-item.selected {
+    outline: 2px solid #1672f3;
+    outline-offset: -1px;
+}
+
+.folio-template-item.line {
+    border: 0;
+    border-top: 1px solid rgba(30, 41, 59, 0.9);
+    background: transparent;
+    border-radius: 0;
+}
+
+.folio-template-item.dragging {
+    cursor: grabbing;
+    box-shadow: 0 10px 22px rgba(30, 41, 59, 0.2);
+}
+
+.folio-toolbox {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.folio-toolbox select {
+    min-width: 220px;
+}
+
+.folio-editor-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 12px;
+}
+
+.folio-editor-panel {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--color-surface);
+    align-self: start;
+}
+
+.folio-preview-modal.modal.large-modal {
+    width: min(980px, calc(100vw - 32px));
+    max-width: min(980px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.folio-preview-modal .booking-side-panel-body {
+    overflow: auto;
+}
+
+.folio-template-canvas-preview {
+    width: min(760px, 100%);
+}
+
+.folio-template-preview-item {
+    position: absolute;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(248, 250, 252, 0.95);
+    border-radius: 4px;
+    padding: 8px 10px;
+    overflow: hidden;
+}
+
+.folio-template-preview-line {
+    position: absolute;
+    border-top: 1px solid rgba(30, 41, 59, 0.92);
+}
+
+.folio-preview-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    color: #111827;
+}
+
+.folio-preview-content span {
+    white-space: pre-line;
+}
+
+[data-theme="dark"] .folio-template-stage {
+    background: rgba(15, 23, 42, 0.28);
+}
+
+[data-theme="dark"] .folio-template-canvas {
+    border-color: #1f2937;
+}
+
+[data-theme="dark"] .folio-template-item {
+    border-color: rgba(100, 116, 139, 0.75);
+    background: rgba(148, 163, 184, 0.18);
+}
+
+@media (max-width: 1100px) {
+    .folio-editor-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.consultants-modern-grid .consultants-form-card {
+    align-self: start;
+}
+
+
+/* Mobile-first configuration landing page */
+.config-shell--overview,
+.config-shell--detail {
+    display: block;
+    width: 100%;
+}
+
+.config-shell--overview {
+    max-width: 620px;
+    margin: 0 auto;
+}
+
+.config-overview-panel {
+    width: 100%;
+    border-radius: 28px;
+    border: 1px solid rgba(213, 223, 238, 0.88);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 24px 58px rgba(15, 23, 42, 0.08);
+    padding: 26px;
+}
+
+.config-overview-heading {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 0 0 24px;
+    color: #07173b;
+    font-size: clamp(23px, 5.5vw, 32px);
+    line-height: 1.1;
+    font-weight: 900;
+    letter-spacing: -0.035em;
+}
+
+.config-overview-heading-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    color: #1264f4;
+    background: linear-gradient(180deg, #eef5ff 0%, #eaf2ff 100%);
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.config-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.config-overview-tile {
+    min-height: 144px;
+    border: 1px solid rgba(213, 223, 238, 0.94);
+    border-radius: 18px;
+    background: #ffffff;
+    color: #07173b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 18px 10px;
+    font: inherit;
+    cursor: pointer;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease, color .18s ease;
+}
+
+.config-overview-tile:hover,
+.config-overview-tile:focus-visible {
+    transform: translateY(-2px);
+    border-color: rgba(37, 99, 235, 0.38);
+    box-shadow: 0 18px 42px rgba(37, 99, 235, 0.14);
+    outline: none;
+}
+
+.config-overview-tile.is-featured {
+    border-color: rgba(37, 99, 235, 0.44);
+    background: linear-gradient(180deg, #f4f8ff 0%, #edf5ff 100%);
+    color: #1264f4;
+}
+
+.config-overview-tile-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    color: inherit;
+}
+
+.config-overview-tile-icon svg {
+    width: 38px;
+    height: 38px;
+}
+
+.config-overview-tile .config-nav-tab-brand-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: transparent;
+}
+
+.config-overview-tile .config-nav-tab-brand-wrap svg {
+    width: 38px;
+    height: 38px;
+}
+
+.config-overview-tile-label {
+    min-width: 0;
+    max-width: 100%;
+    color: inherit;
+    font-size: clamp(13px, 3.5vw, 18px);
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.config-detail-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 68px;
+    margin: -4px 0 20px;
+    padding: 0 4px;
+    color: #07173b;
+    font-size: 22px;
+    font-weight: 850;
+    letter-spacing: -0.03em;
+}
+
+.config-detail-back {
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    border: 1px solid rgba(203, 213, 225, 0.78);
+    background: #ffffff;
+    color: #1264f4;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+}
+
+.config-detail-back:hover,
+.config-detail-back:focus-visible {
+    border-color: rgba(37, 99, 235, 0.42);
+    box-shadow: 0 14px 32px rgba(37, 99, 235, 0.14);
+    outline: none;
+}
+
+@media (max-width: 800px) {
+    .config-shell--overview {
+        max-width: none;
+        margin: 0;
+    }
+
+    .config-overview-panel {
+        border-radius: 24px;
+        padding: 22px;
+        box-shadow: 0 20px 46px rgba(15, 23, 42, 0.075);
+    }
+
+    .config-overview-grid {
+        gap: 14px;
+    }
+
+    .config-overview-tile {
+        min-height: 118px;
+        border-radius: 16px;
+        gap: 12px;
+        padding: 14px 8px;
+    }
+
+}
+
+@media (max-width: 480px) {
+    .config-overview-panel {
+        border-radius: 22px;
+        padding: 18px;
+    }
+
+    .config-overview-heading {
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .config-overview-heading-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 18px;
+    }
+
+    .config-overview-grid {
+        gap: 12px;
+    }
+
+    .config-overview-tile {
+        min-height: 108px;
+    }
+
+    .config-overview-tile-icon,
+    .config-overview-tile .config-nav-tab-brand-wrap {
+        width: 38px;
+        height: 38px;
+    }
+
+    .config-overview-tile-icon svg,
+    .config-overview-tile .config-nav-tab-brand-wrap svg {
+        width: 32px;
+        height: 32px;
+    }
+}

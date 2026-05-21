@@ -1,0 +1,317 @@
+/* Batch payment invoice modal */
+.billing-bill-modal-card-head--inline {
+    align-items: center;
+}
+
+.billing-bill-modal-heading-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.billing-batch-on-pill,
+.billing-batch-enabled-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.billing-batch-on-pill {
+    min-height: 26px;
+    padding: 6px 11px;
+    color: #0b63f6;
+    background: #dbeafe;
+}
+
+.billing-batch-included {
+    margin-bottom: 18px;
+    padding: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.billing-batch-included-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.billing-batch-included-head h4 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.98rem;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+}
+
+.billing-batch-included-head p {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 0.86rem;
+}
+
+.billing-batch-split-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 330px;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    font-weight: 700;
+}
+
+.billing-batch-split-note span {
+    color: #64748b;
+    font-weight: 900;
+}
+
+.billing-batch-included-list {
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 14px;
+    background: #ffffff;
+}
+
+.billing-batch-included-entry {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.billing-batch-included-entry:last-child {
+    border-bottom: none;
+}
+
+.billing-batch-included-row {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) minmax(90px, auto) auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 62px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.billing-batch-included-row:hover {
+    background: #f8fbff;
+}
+
+.billing-batch-included-row.is-expanded {
+    background: #f8fbff;
+}
+
+.billing-batch-included-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-self: end;
+    gap: 8px;
+}
+
+.billing-batch-expand-btn,
+.billing-batch-split-btn {
+    min-height: 34px;
+    padding: 7px 13px;
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 10px;
+    background: #ffffff;
+    color: #172033;
+    box-shadow: none;
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.billing-batch-expand-btn:hover:not(:disabled),
+.billing-batch-split-btn:hover:not(:disabled) {
+    border-color: rgba(22, 114, 243, 0.38);
+    background: #f8fbff;
+    color: #0b63f6;
+    box-shadow: none;
+}
+
+.billing-batch-included-editor {
+    display: grid;
+    gap: 10px;
+    padding: 0 14px 14px 14px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.26);
+    background: #ffffff;
+}
+
+.billing-batch-included-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 10px;
+    color: #64748b;
+    background: #ffffff;
+}
+
+.billing-batch-included-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.billing-batch-included-text strong {
+    color: #172033;
+    font-size: 0.9rem;
+    line-height: 1.2;
+}
+
+.billing-batch-included-text span {
+    color: #64748b;
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.billing-batch-included-amount {
+    color: #0f172a;
+    font-size: 0.92rem;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.billing-bill-modal-batch-summary-card {
+    padding: 16px;
+}
+
+.billing-batch-summary-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.billing-batch-summary-head p {
+    margin-bottom: 7px;
+}
+
+.billing-batch-summary-head small {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.billing-batch-enabled-badge {
+    width: 42px;
+    min-width: 42px;
+    height: 24px;
+    padding: 0 8px;
+    color: #ffffff;
+    background: #0b63f6;
+    box-shadow: inset -12px 0 0 rgba(255, 255, 255, 0.22);
+}
+
+.billing-batch-summary-chip {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    margin-top: 14px;
+    padding: 10px 11px;
+    border: 1px solid rgba(22, 114, 243, 0.16);
+    border-radius: 10px;
+    background: #eff6ff;
+    color: #172033;
+}
+
+.billing-batch-info-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    color: #0b63f6;
+    border: 1px solid rgba(22, 114, 243, 0.45);
+    font-size: 0.74rem;
+    font-weight: 900;
+    font-style: normal;
+}
+
+.billing-batch-summary-chip strong {
+    color: #172033;
+    font-size: 0.82rem;
+    min-width: 0;
+}
+
+.billing-batch-summary-chip button {
+    padding: 0;
+    min-height: 0;
+    border: none;
+    background: transparent;
+    color: #0b63f6;
+    box-shadow: none;
+    font-size: 0.8rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.billing-batch-summary-chip button:hover {
+    text-decoration: underline;
+    box-shadow: none;
+}
+
+@media (max-width: 720px) {
+    .billing-batch-included-head {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .billing-batch-split-note {
+        max-width: none;
+    }
+
+    .billing-batch-included-row {
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        gap: 10px;
+    }
+
+    .billing-batch-included-actions {
+        grid-column: 2 / -1;
+        justify-self: end;
+    }
+
+    .billing-batch-included-amount {
+        font-size: 0.86rem;
+    }
+
+    .billing-batch-summary-chip {
+        grid-template-columns: 22px minmax(0, 1fr);
+    }
+
+    .billing-batch-summary-chip button {
+        grid-column: 2 / -1;
+        justify-self: start;
+    }
+}
+
+[data-theme="dark"] .billing-batch-included,
+[data-theme="dark"] .billing-batch-included-list,
+[data-theme="dark"] .billing-batch-included-editor,
+[data-theme="dark"] .billing-batch-included-icon,
+[data-theme="dark"] .billing-batch-expand-btn,
+[data-theme="dark"] .billing-batch-split-btn {
+    background: var(--color-surface);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .billing-batch-included-head h4,
+[data-theme="dark"] .billing-batch-included-text strong,
+[data-theme="dark"] .billing-batch-included-amount,
+[data-theme="dark"] .billing-batch-summary-chip strong {
+    color: var(--color-text);
+}
+

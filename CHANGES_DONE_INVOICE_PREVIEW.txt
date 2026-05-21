@@ -1,0 +1,29 @@
+Invoice preview for Edit Open Bill
+
+Changed files:
+- backend/src/main/java/com/example/app/billing/BillingController.java
+- frontend/src/pages/BillingPage.tsx
+- frontend/src/styles/main/billing-open-bill-popup.css
+
+What changed:
+1. Added a new temporary PDF preview endpoint:
+   POST /api/billing/open-bills/{id}/preview-pdf?locale={locale}
+
+2. The endpoint builds an in-memory Bill from the current open-bill editor payload and returns an inline PDF.
+   It does not:
+   - create/save a Bill row,
+   - reserve or increment the invoice counter,
+   - fiscalize the invoice,
+   - archive a PDF to S3,
+   - delete or close the open bill.
+
+3. Added an Invoice preview / Predogled računa button to the Edit Invoice footer, positioned between Delete and Save changes.
+
+4. The preview button sends the current unsaved editor state to the backend, opens the temporary PDF in a new browser tab, and keeps the open bill editable.
+
+5. Added styling for the preview button so it matches the modern blue invoice modal actions and works on smaller screens.
+
+Notes:
+- Backend compile could not be completed because the Maven wrapper tried to download Maven from repo.maven.apache.org and the sandbox has no external network access. No local Maven installation was available.
+- Frontend build could not be completed because node_modules are not included in the uploaded zip. npm run build fails on missing packages such as react, axios, react-router-dom, and @capacitor/core.
+- The returned PDF filename is invoice-preview-open-{openBillId}.pdf and the PDF folio number is PREVIEW-OPEN-{openBillId}, so it is clearly not an issued invoice number.

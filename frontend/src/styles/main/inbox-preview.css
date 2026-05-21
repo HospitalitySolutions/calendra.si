@@ -1,0 +1,77 @@
+/* Inbox preview matching refinements */
+.analytics-inbox-modern {
+    padding-bottom: 10px;
+}
+
+.analytics-inbox-thread-list--modern .empty-state {
+    min-height: 110px;
+    border-radius: 18px;
+    background: #f4f7fb;
+}
+
+.analytics-inbox-avatar--photo {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 50% 34%, #fde7d2 0 18%, transparent 19%),
+        radial-gradient(circle at 50% 58%, #ffe7c7 0 22%, transparent 23%),
+        radial-gradient(circle at 50% 28%, #4b2f25 0 24%, transparent 25%),
+        linear-gradient(135deg, #dbeafe 0%, #f8fafc 100%);
+    color: #0f5ed7;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.62);
+}
+
+.analytics-inbox-thread--modern:nth-child(2n) .analytics-inbox-avatar--photo {
+    background:
+        radial-gradient(circle at 50% 36%, #e8c4a6 0 18%, transparent 19%),
+        radial-gradient(circle at 50% 60%, #f2cfb5 0 22%, transparent 23%),
+        radial-gradient(circle at 50% 28%, #202938 0 24%, transparent 25%),
+        linear-gradient(135deg, #e0f2fe 0%, #f1f5f9 100%);
+}
+
+.analytics-inbox-thread--modern:nth-child(3n) .analytics-inbox-avatar--photo {
+    background:
+        radial-gradient(circle at 50% 36%, #f1c8ad 0 18%, transparent 19%),
+        radial-gradient(circle at 50% 60%, #fbd5bc 0 22%, transparent 23%),
+        radial-gradient(circle at 50% 28%, #713f12 0 24%, transparent 25%),
+        linear-gradient(135deg, #fee2e2 0%, #f5f3ff 100%);
+}
+
+.analytics-inbox-message-row--in .analytics-inbox-bubble--whatsapp {
+    background: #eefaf3;
+    border-color: rgba(34, 197, 94, 0.18);
+}
+
+.analytics-inbox-modern .analytics-inbox-bubble__body {
+    white-space: pre-line;
+}
+
+.analytics-inbox-channel-switch--modern {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.analytics-inbox-channel-switch--modern .analytics-inbox-channel-btn {
+    min-height: 38px;
+    padding: 8px 9px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.analytics-inbox-channel-switch--modern .analytics-inbox-channel-btn span {
+    font-size: 0.86rem;
+}
+
+.analytics-inbox-client-details-card {
+    min-height: 164px;
+}
+
+.analytics-inbox-compose-card--modern {
+    flex: 1;
+}
+
+@media (max-width: 720px) {
+    .analytics-inbox-channel-switch--modern {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+

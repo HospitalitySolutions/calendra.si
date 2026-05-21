@@ -1,0 +1,526 @@
+/* Employees create/edit — centered modern popup */
+.employees-form-popup-backdrop.booking-side-panel-backdrop {
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    overflow: auto;
+    background: rgba(15, 23, 42, 0.46);
+    backdrop-filter: blur(9px);
+}
+
+.employees-form-popup.modal.large-modal.booking-side-panel {
+    width: min(760px, calc(100vw - 40px));
+    max-width: min(760px, calc(100vw - 40px));
+    height: auto;
+    max-height: calc(100vh - 56px);
+    margin: auto;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 28px 90px rgba(15, 23, 42, 0.30), 0 1px 0 rgba(255, 255, 255, 0.88) inset;
+}
+
+@supports (height: 100dvh) {
+    .employees-form-popup.modal.large-modal.booking-side-panel {
+        max-height: calc(100dvh - 56px);
+    }
+}
+
+.employees-form-popup-header.booking-side-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 22px 28px 20px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.88);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.92) 100%);
+    flex-shrink: 0;
+}
+
+.employees-form-title-wrap {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.employees-form-title-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #1672f3;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    box-shadow: 0 10px 24px rgba(22, 114, 243, 0.14);
+}
+
+.employees-form-title-wrap h2 {
+    margin: 0;
+    color: #111827;
+    font-size: 1.35rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+}
+
+.employees-form-close.booking-side-panel-close {
+    min-width: 42px;
+    width: 42px;
+    height: 42px;
+    border: 0;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    box-shadow: none !important;
+    font-size: 1.35rem;
+    font-weight: 500;
+}
+
+.employees-form-close.booking-side-panel-close:hover {
+    background: #eef2f7;
+    color: #0f172a;
+}
+
+.employees-form-popup-stack.consultant-panel-stack {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.employees-form-popup-body.booking-side-panel-body {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 22px;
+    padding: 24px 28px 22px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.98);
+}
+
+.employees-form-popup-body .field {
+    gap: 8px;
+}
+
+.employees-form-popup-body .field-label {
+    color: #1f2937;
+    font-size: 0.9rem;
+    font-weight: 750;
+}
+
+.employees-form-popup-body .field-hint {
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    margin-top: -2px;
+}
+
+.employees-form-popup-body input,
+.employees-form-popup-body select {
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid #dfe4ec;
+    background: #ffffff;
+    color: #111827;
+    font-size: 0.94rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.employees-form-popup-body input::placeholder {
+    color: #94a3b8;
+}
+
+.employees-form-popup-body input:focus,
+.employees-form-popup-body select:focus {
+    border-color: rgba(22, 114, 243, 0.72);
+    box-shadow: 0 0 0 4px rgba(22, 114, 243, 0.12);
+}
+
+.employees-password-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.employees-password-input-wrap input {
+    padding-right: 46px;
+}
+
+.employees-password-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: #64748b;
+    box-shadow: none !important;
+}
+
+.employees-password-toggle:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.employee-form-consultant-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 4px 0 0;
+    color: #1f2937;
+    font-size: 0.95rem;
+    font-weight: 650;
+}
+
+.employee-form-status-switch {
+    width: auto;
+    min-width: 126px;
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 10px 8px 14px;
+    border-radius: 999px;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    color: #1672f3;
+    box-shadow: none !important;
+    font-size: 0.76rem;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.employee-form-status-switch:hover:not(:disabled) {
+    background: #dbeafe;
+}
+
+.employee-form-status-switch:disabled {
+    opacity: 1;
+    cursor: default;
+}
+
+.employee-form-status-switch-track {
+    width: 34px;
+    height: 22px;
+    padding: 2px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    background: #cbd5e1;
+    transition: background 0.2s ease;
+}
+
+.employee-form-status-switch-track span {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.20);
+    transform: translateX(0);
+    transition: transform 0.2s ease;
+}
+
+.employee-form-status-switch--on {
+    border-color: rgba(22, 114, 243, 0.34);
+    background: rgba(22, 114, 243, 0.10);
+    color: #1162d5;
+}
+
+.employee-form-status-switch--on .employee-form-status-switch-track {
+    background: #1672f3;
+}
+
+.employee-form-status-switch--on .employee-form-status-switch-track span {
+    transform: translateX(12px);
+}
+
+.employees-form-popup-body .employee-form-tabs.clients-session-tabs {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    gap: 6px;
+    margin: 2px 0 0;
+    padding: 5px;
+    border-radius: 12px;
+    background: #f1f5f9;
+}
+
+.employees-form-popup-body .employee-form-tabs .clients-session-tab {
+    min-height: 40px;
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 10px;
+    color: #64748b;
+    font-size: 0.86rem;
+    font-weight: 750;
+    box-shadow: none;
+}
+
+.employees-form-popup-body .employee-form-tabs .clients-session-tab svg {
+    width: 16px;
+    height: 16px;
+}
+
+.employees-form-popup-body .employee-form-tabs .clients-session-tab.active {
+    background: linear-gradient(135deg, #1672f3 0%, #0f62d8 100%);
+    color: #ffffff;
+    box-shadow: 0 8px 18px rgba(22, 114, 243, 0.24);
+}
+
+.employee-form-working-card.consultant-wh-card,
+.employee-form-permissions-card.consultant-permissions-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+.employee-form-permissions-card.consultant-permissions-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+}
+
+.employee-form-working-card .consultant-wh-card-header {
+    min-height: 54px;
+    padding: 14px 18px;
+    border-bottom-color: #e2e8f0;
+}
+
+.employee-form-working-card .consultant-wh-card-header-label {
+    color: #1f2937;
+    font-size: 0.94rem;
+    font-weight: 750;
+}
+
+.employee-form-working-card .consultant-wh-row {
+    padding: 14px 18px;
+    border-bottom-color: #eef2f7;
+}
+
+.employee-form-working-card .consultant-wh-time-input {
+    min-height: 42px;
+    border-radius: 12px;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.employee-form-working-card .consultant-wh-time-label {
+    color: #64748b;
+    font-size: 0.76rem;
+    font-weight: 750;
+}
+
+.employee-form-working-card .consultant-wh-all-days-label,
+.employee-form-working-card .consultant-wh-day-check {
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.employees-form-alert {
+    padding: 11px 14px;
+    border-radius: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    font-size: 0.9rem;
+}
+
+.employees-form-popup-footer.booking-side-panel-footer {
+    width: 100%;
+    margin-top: 0 !important;
+    padding: 18px 28px;
+    border-top: 1px solid rgba(226, 232, 240, 0.88);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: sticky;
+    bottom: 0;
+    flex-shrink: 0;
+}
+
+.employees-form-footer-left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.employees-form-popup-footer button {
+    min-height: 42px;
+    border-radius: 10px;
+    font-weight: 750;
+}
+
+.employees-form-cancel-btn.secondary {
+    min-width: 118px;
+    background: #ffffff;
+    border: 1px solid #dfe4ec;
+    color: #334155;
+    box-shadow: none !important;
+}
+
+.employees-form-cancel-btn.secondary:hover {
+    background: #f8fafc;
+}
+
+.employees-form-delete-btn.danger.secondary {
+    min-width: 118px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    color: #e11d48;
+    box-shadow: none !important;
+}
+
+.employees-form-delete-btn.danger.secondary:hover {
+    background: #ffe4e6;
+}
+
+.employees-form-popup-footer .gapp-primary-button {
+    min-width: 176px;
+    min-height: 44px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 14px;
+}
+
+.employees-form-popup-footer .gapp-primary-button:disabled {
+    box-shadow: none;
+}
+
+@media (max-width: 720px) {
+    .employees-form-popup-backdrop.booking-side-panel-backdrop {
+        padding: 12px;
+        align-items: flex-end;
+    }
+
+    .employees-form-popup.modal.large-modal.booking-side-panel {
+        width: min(100%, calc(100vw - 24px));
+        max-width: min(100%, calc(100vw - 24px));
+        max-height: calc(100vh - 24px);
+        border-radius: 22px;
+    }
+
+    .employees-form-popup-header.booking-side-panel-header {
+        padding: 18px 18px 16px;
+    }
+
+    .employees-form-title-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+    }
+
+    .employees-form-title-wrap h2 {
+        font-size: 1.18rem;
+    }
+
+    .employees-form-popup-body.booking-side-panel-body {
+        grid-template-columns: 1fr;
+        padding: 18px;
+    }
+
+    .employee-form-consultant-row {
+        padding-top: 0;
+    }
+
+    .employee-form-permissions-card.consultant-permissions-card {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .employees-form-popup-footer.booking-side-panel-footer {
+        padding: 14px 18px max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
+        flex-wrap: wrap;
+    }
+
+    .employees-form-footer-left,
+    .employees-form-popup-footer .gapp-primary-button,
+    .employees-form-cancel-btn.secondary,
+    .employees-form-delete-btn.danger.secondary {
+        width: 100%;
+    }
+
+    .employees-form-popup-footer button {
+        width: 100%;
+    }
+}
+
+[data-theme="dark"] .employees-form-popup.modal.large-modal.booking-side-panel,
+[data-theme="dark"] .employees-form-popup-body.booking-side-panel-body,
+[data-theme="dark"] .employees-form-popup-footer.booking-side-panel-footer {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] .employees-form-popup-header.booking-side-panel-header {
+    background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+    border-bottom-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] .employees-form-title-wrap h2,
+[data-theme="dark"] .employees-form-popup-body .field-label,
+[data-theme="dark"] .employee-form-consultant-row,
+[data-theme="dark"] .employee-form-working-card .consultant-wh-card-header-label,
+[data-theme="dark"] .employee-form-working-card .consultant-wh-all-days-label,
+[data-theme="dark"] .employee-form-working-card .consultant-wh-day-check {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .employees-form-close.booking-side-panel-close,
+[data-theme="dark"] .employees-form-cancel-btn.secondary {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .employees-form-popup-body input,
+[data-theme="dark"] .employees-form-popup-body select,
+[data-theme="dark"] .employee-form-working-card .consultant-wh-time-input {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(148, 163, 184, 0.24);
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .employees-form-popup-body .employee-form-tabs.clients-session-tabs,
+[data-theme="dark"] .employee-form-working-card.consultant-wh-card,
+[data-theme="dark"] .employee-form-permissions-card.consultant-permissions-card,
+[data-theme="dark"] .employees-form-alert {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] .employee-form-working-card .consultant-wh-card-header,
+[data-theme="dark"] .employee-form-working-card .consultant-wh-row,
+[data-theme="dark"] .employees-form-popup-footer.booking-side-panel-footer {
+    border-color: rgba(148, 163, 184, 0.22);
+}

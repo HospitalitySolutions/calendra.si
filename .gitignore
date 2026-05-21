@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+.env.local
+env.local
+.env
+.env.staging
+backend/.env.local
+.idea/
+.vscode/
+.env.*.local
+.DS_Store
+*.tsbuildinfo
+.cursor/debug-*.log

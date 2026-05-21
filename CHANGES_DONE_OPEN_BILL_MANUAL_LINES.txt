@@ -1,0 +1,28 @@
+Changes done - Edit open bill manual line item fix
+
+Files updated:
+- frontend/src/pages/BillingPage.tsx
+- backend/src/main/java/com/example/app/billing/BillingController.java
+- frontend/src/styles/main/billing-open-bill-popup.css (included from the previous invoice preview update so the patch remains self-contained)
+
+What changed:
+1. Fixed Add line item in the Edit Invoice / open bill popup so newly added manual rows stay as their own rows and do not collapse/revert back to the original server rows.
+   - The editor now keeps open-bill draft rows exactly as the user edits them instead of re-merging rows during every UI update.
+   - Server rows and manually added rows keep stable row identities while editing.
+
+2. Manual Add line item rows no longer show a specific booked client in the Client column.
+   - New manual rows are marked with an internal negative source-session sentinel.
+   - The Client column now shows "—" for those manual rows instead of inheriting the booked session client.
+
+3. Backend handling was updated for those manual editor rows.
+   - The sentinel is preserved while the bill is still open so the UI can keep recognizing the row as manually added after save/reload.
+   - PDF preview and final invoice creation treat the sentinel as no line-specific booked session, so it is not written as a real session/client source on generated invoice lines.
+   - Billability checks and open-bill session summaries ignore the manual-line sentinel.
+
+4. Existing invoice preview behavior is preserved.
+   - Preview still creates only a temporary PDF response.
+   - It does not reserve an invoice number, fiscalize, archive to S3, or create a real invoice row.
+
+Notes:
+- I could not run Maven or frontend builds in the sandbox because dependencies/build tooling are not installed here.
+- Please run your normal backend and frontend build/tests locally after applying the files.

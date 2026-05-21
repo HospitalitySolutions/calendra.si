@@ -1,0 +1,403 @@
+/* Calendar add/edit popup: refined Client-tab-like type tabs + compact availability form */
+.calendar-edit-session-panel .booking-type-switcher {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0;
+    margin: 0 0 14px;
+    background: transparent;
+    border-radius: 0;
+}
+
+.calendar-edit-session-panel .booking-type-btn {
+    --booking-type-accent: var(--color-primary, #1672f3);
+    --booking-type-soft: rgba(22, 114, 243, 0.08);
+    min-width: 0;
+    min-height: 46px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--booking-type-accent) 42%, #dbe3ee);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--booking-type-accent);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    font-size: 0.92rem;
+    font-weight: 750;
+    line-height: 1.1;
+}
+
+.calendar-edit-session-panel .booking-type-btn--booking {
+    --booking-type-accent: #16a34a;
+    --booking-type-soft: #f0fdf4;
+}
+
+.calendar-edit-session-panel .booking-type-btn--personal {
+    --booking-type-accent: #f97316;
+    --booking-type-soft: #fff7ed;
+}
+
+.calendar-edit-session-panel .booking-type-btn--todo {
+    --booking-type-accent: #2563eb;
+    --booking-type-soft: #eff6ff;
+}
+
+.calendar-edit-session-panel .booking-type-btn--availability {
+    --booking-type-accent: #0f9f91;
+    --booking-type-soft: #ecfeff;
+}
+
+.calendar-edit-session-panel .booking-type-btn:not(.active) {
+    background: linear-gradient(180deg, #fff 0%, var(--booking-type-soft) 100%);
+}
+
+.calendar-edit-session-panel .booking-type-btn.active {
+    background: linear-gradient(135deg, var(--booking-type-accent) 0%, color-mix(in srgb, var(--booking-type-accent) 88%, #0f172a) 100%);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--booking-type-accent) 28%, transparent), inset 0 0 0 1px rgba(255, 255, 255, 0.20);
+}
+
+.calendar-edit-session-panel .booking-type-btn-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    gap: 8px;
+}
+
+.calendar-edit-session-panel .booking-type-btn-icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .calendar-edit-session-panel .booking-type-btn:not(.active):hover {
+        background: var(--booking-type-soft);
+        border-color: color-mix(in srgb, var(--booking-type-accent) 58%, #dbe3ee);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        transform: translateY(-1px);
+    }
+
+    .calendar-edit-session-panel .booking-type-btn.active:hover {
+        background: linear-gradient(135deg, var(--booking-type-accent) 0%, color-mix(in srgb, var(--booking-type-accent) 84%, #0f172a) 100%);
+        box-shadow: 0 12px 24px color-mix(in srgb, var(--booking-type-accent) 32%, transparent), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+        transform: translateY(-1px);
+    }
+}
+
+.calendar-edit-session-panel--availability .form-row-layout {
+    gap: 11px;
+}
+
+.calendar-edit-session-panel--availability .form-row.form-row-timespan {
+    padding: 10px 12px;
+}
+
+.calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) {
+    display: grid;
+    grid-template-columns: minmax(92px, 0.8fr) minmax(92px, 0.8fr) minmax(178px, 1.2fr);
+    gap: 10px;
+    align-items: stretch;
+}
+
+.calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-field,
+.calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-field--date {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+}
+
+.calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner {
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-field:not(.calendar-timespan-field--date) .calendar-timespan-input-inner {
+    width: 100%;
+    padding: 0;
+}
+
+.calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner input {
+    min-height: 50px;
+    font-size: 0.96rem;
+    font-weight: 700;
+}
+
+.calendar-edit-session-panel--availability .calendar-timespan-date-head {
+    gap: 6px;
+}
+
+.calendar-edit-session-panel--availability .calendar-timespan-all-day-caption {
+    color: var(--color-text, #0f172a);
+    font-weight: 700;
+}
+
+.calendar-edit-session-panel--availability .online-live-switch-row--inline {
+    width: 100%;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 38px;
+    padding: 0 4px;
+}
+
+.calendar-edit-session-panel--availability .form-row--bare {
+    border: 1px solid var(--border) !important;
+    border-radius: 12px;
+    background: #fff !important;
+    padding: 8px 12px !important;
+}
+
+.calendar-edit-session-panel--availability .form-row--bare .form-field-inline-label {
+    margin-bottom: 4px;
+}
+
+.calendar-edit-session-panel--availability .calendar-availability-datum-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.calendar-edit-session-panel--availability .calendar-availability-datum-row .calendar-timespan-field--date {
+    min-width: 0;
+}
+
+.calendar-edit-session-panel--availability .calendar-availability-datum-row .calendar-timespan-input-inner {
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.calendar-edit-session-panel--availability .calendar-availability-datum-row input[type="date"] {
+    min-height: 50px;
+    font-size: 0.96rem;
+    font-weight: 700;
+}
+
+@media (max-width: 640px) {
+    .calendar-edit-session-panel .booking-type-switcher {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+
+    .calendar-edit-session-panel .booking-type-btn {
+        min-height: 38px;
+        padding: 7px 4px;
+        border-radius: 10px;
+        font-size: 0.72rem;
+        letter-spacing: -0.01em;
+    }
+
+    .calendar-edit-session-panel .booking-type-btn-label {
+        gap: 4px;
+    }
+
+    .calendar-edit-session-panel .booking-type-btn-icon {
+        width: 15px;
+        height: 15px;
+    }
+
+    .booking-side-panel.calendar-edit-session-panel--availability.modal.large-modal {
+        width: 100vw;
+        max-width: 100vw;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-header {
+        padding: 10px 14px 8px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-header .page-header h1 {
+        font-size: clamp(1.25rem, 7vw, 1.65rem);
+        line-height: 1.1;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-close {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-body {
+        padding: 10px 12px 8px;
+        overflow-y: hidden;
+    }
+
+    .calendar-edit-session-panel--availability .form-row-layout {
+        gap: 7px;
+    }
+
+    .calendar-edit-session-panel--availability .form-row,
+    .calendar-edit-session-panel--availability .form-row.form-row-infield,
+    .calendar-edit-session-panel--availability .form-row.form-row-timespan {
+        padding: 7px 9px;
+        border-radius: 12px;
+    }
+
+    .calendar-edit-session-panel--availability .form-row--bare {
+        padding: 6px 9px !important;
+    }
+
+    .calendar-edit-session-panel--availability .form-field-inline-label,
+    .calendar-edit-session-panel--availability .calendar-timespan-label,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-caption {
+        font-size: 0.68rem;
+    }
+
+    .calendar-edit-session-panel--availability .form-row.form-row-infield .form-field-inline-control > select,
+    .calendar-edit-session-panel--availability .form-row.form-row-infield .form-field-inline-control > input:not([type="checkbox"]):not([type="radio"]) {
+        padding: 1px 4px 2px;
+        font-size: 0.9rem;
+        min-height: 24px;
+    }
+
+    .calendar-edit-session-panel--availability .online-live-switch-row--inline {
+        min-height: 30px;
+        padding: 0 2px;
+    }
+
+    .calendar-edit-session-panel--availability .online-live-switch-text {
+        font-size: 0.82rem;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) {
+        grid-template-columns: minmax(0, 0.72fr) minmax(0, 0.72fr) minmax(0, 1.38fr);
+        gap: 6px;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner,
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row .calendar-timespan-input-inner {
+        min-height: 0;
+        padding: 0;
+        border-radius: 0;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner input,
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row input[type="date"] {
+        min-height: 48px;
+        font-size: 0.82rem;
+        line-height: 1.15;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-field--date .calendar-timespan-date-head {
+        align-items: flex-start;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-line {
+        flex-direction: column-reverse;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-switch.repeats-toggle-switch {
+        width: 30px;
+        height: 16px;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-switch .repeats-toggle-slider::before {
+        width: 12px;
+        height: 12px;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-switch.repeats-toggle-switch input:checked + .repeats-toggle-slider::before {
+        transform: translateX(14px);
+    }
+
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row {
+        gap: 7px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-footer {
+        padding: 9px 12px max(10px, calc(8px + env(safe-area-inset-bottom, 0px)));
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-footer.row.gap {
+        justify-content: stretch !important;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-footer .calendar-form-footer-btn {
+        width: 100%;
+        min-height: 42px;
+        justify-content: center;
+        border-radius: 12px;
+    }
+}
+
+@media (max-width: 380px), (max-height: 720px) {
+    .calendar-edit-session-panel--availability .booking-side-panel-header {
+        padding-top: 8px;
+        padding-bottom: 6px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-body {
+        padding-top: 8px;
+        padding-bottom: 6px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-type-switcher {
+        gap: 4px;
+        margin-bottom: 8px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-type-btn {
+        min-height: 34px;
+        padding: 5px 2px;
+        font-size: 0.66rem;
+        border-radius: 9px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-type-btn-icon {
+        width: 13px;
+        height: 13px;
+    }
+
+    .calendar-edit-session-panel--availability .form-row-layout {
+        gap: 5px;
+    }
+
+    .calendar-edit-session-panel--availability .form-row,
+    .calendar-edit-session-panel--availability .form-row.form-row-infield,
+    .calendar-edit-session-panel--availability .form-row.form-row-timespan,
+    .calendar-edit-session-panel--availability .form-row--bare {
+        padding-top: 5px !important;
+        padding-bottom: 5px !important;
+    }
+
+    .calendar-edit-session-panel--availability .online-live-switch-row--inline {
+        min-height: 27px;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner,
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row .calendar-timespan-input-inner {
+        min-height: 0;
+        padding: 0;
+    }
+
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner input,
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row input[type="date"] {
+        min-height: 44px;
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-footer {
+        padding-top: 7px;
+        padding-bottom: max(8px, calc(6px + env(safe-area-inset-bottom, 0px)));
+    }
+
+    .calendar-edit-session-panel--availability .booking-side-panel-footer .calendar-form-footer-btn {
+        min-height: 38px;
+    }
+}
+
+[data-theme="dark"] .calendar-edit-session-panel .booking-type-btn:not(.active),
+[data-theme="dark"] .calendar-edit-session-panel--availability .form-row--bare,
+[data-theme="dark"] .calendar-edit-session-panel--availability .calendar-timespan-input-inner input,
+[data-theme="dark"] .calendar-edit-session-panel--availability .calendar-availability-datum-row input[type="date"] {
+    background: rgba(15, 23, 42, 0.72) !important;
+}
+

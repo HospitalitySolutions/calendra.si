@@ -1,0 +1,17 @@
+Changes done:
+
+1. NO SHOW confirmation now opens the edit open bill popup:
+   - After confirming selected NO SHOW client(s), the frontend now creates/reuses the related open bill and immediately opens the existing Edit Open Bill modal.
+   - Works for the one-client direct NO SHOW flow and the multi-client "Potrdi NO SHOW" picker flow.
+   - Existing open bill tabs are reused when already present; new open bills are created only when needed.
+
+2. Client column is always visible in Edit Open Bill:
+   - The Klient/Client column is now always shown for bill items, even when "Uporabi enega plačnika za vse račune" is OFF.
+   - Each bill item continues to show the service client, separate from the selected payee.
+
+Files changed:
+- frontend/src/pages/calendar/CalendarPageContent.tsx
+- frontend/src/pages/BillingPage.tsx
+
+Validation:
+- Frontend build was not run because node_modules/dependencies are not installed in the sandbox.

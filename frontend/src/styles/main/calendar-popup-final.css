@@ -1,0 +1,120 @@
+/* Final compact no-block override for calendar add/edit popups. Loaded after legacy popup rules. */
+/* Initial viewport-center placement before React measures the popup. */
+.calendar-session-popup.modal.large-modal.calendar-edit-session-panel {
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.calendar-session-popup.modal.large-modal.calendar-edit-session-panel,
+.calendar-edit-session-panel.booking-side-panel {
+    width: min(900px, calc(100vw - 32px));
+    max-width: min(900px, calc(100vw - 32px));
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.20);
+}
+
+.calendar-edit-session-panel .booking-side-panel-header {
+    padding: 22px 32px 18px !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+    background: #fff;
+}
+
+.calendar-edit-session-panel .booking-side-panel-header .page-header {
+    margin: 0;
+    align-items: center;
+}
+
+.calendar-edit-session-panel .booking-side-panel-header .page-header h1,
+.calendar-edit-session-panel .booking-side-panel-header .page-header .booking-title-with-help > span:first-child {
+    font-size: clamp(1.65rem, 2.2vw, 2rem);
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+    font-weight: 850;
+    color: #0f172a;
+}
+
+.calendar-edit-session-panel .booking-side-panel-close,
+.calendar-edit-session-panel .booking-side-panel-header .header-actions .booking-side-panel-close {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #0f172a;
+    font-size: 1.65rem;
+    line-height: 1;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+}
+
+.calendar-edit-session-panel .booking-side-panel-body,
+.calendar-edit-session-panel--availability .booking-side-panel-body {
+    padding: 18px 32px 20px !important;
+    background: #fff;
+    overflow-y: auto !important;
+}
+
+.calendar-edit-session-panel .booking-type-switcher,
+.calendar-edit-session-panel--availability .booking-type-switcher {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0 0 18px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.calendar-edit-session-panel .booking-type-btn,
+.calendar-edit-session-panel--availability .booking-type-btn {
+    min-width: 0;
+    min-height: 44px;
+    border-radius: 11px;
+    padding: 9px 14px;
+    font-size: 0.96rem;
+    font-weight: 760;
+    border-width: 1px;
+    box-shadow: none;
+}
+
+.calendar-edit-session-panel .booking-type-btn-icon { display: none; }
+.calendar-edit-session-panel .booking-type-btn-label { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+.calendar-edit-session-panel .booking-type-btn-label::before { width: 18px; height: 18px; flex: 0 0 18px; }
+.calendar-edit-session-panel .booking-type-btn.active { box-shadow: none; }
+.calendar-edit-session-panel .booking-type-btn--booking.active { color: #16a34a; background: #ecfdf3; border-color: #a7f3d0; }
+.calendar-edit-session-panel .booking-type-btn--personal.active { color: #f97316; background: #fff7ed; border-color: #fed7aa; }
+.calendar-edit-session-panel .booking-type-btn--todo.active { color: #2563eb; background: #eff6ff; border-color: #bfdbfe; }
+.calendar-edit-session-panel .booking-type-btn--availability.active { color: #0d9488; background: #f0fdfa; border-color: #99f6e4; }
+.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--booking { color: #16a34a; border-color: #e6edf5; background: #fff; }
+.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--personal { color: #f97316; border-color: #e6edf5; background: #fff; }
+.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--todo { color: #2563eb; border-color: #e6edf5; background: #fff; }
+.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--availability { color: #0d9488; border-color: #e6edf5; background: #fff; }
+@media (hover: hover) and (pointer: fine) {
+    .calendar-edit-session-panel .booking-type-btn.active:hover {
+        transform: none;
+        box-shadow: none;
+    }
+    .calendar-edit-session-panel .booking-type-btn--booking.active:hover { color: #16a34a; background: #ecfdf3; border-color: #a7f3d0; }
+    .calendar-edit-session-panel .booking-type-btn--personal.active:hover { color: #f97316; background: #fff7ed; border-color: #fed7aa; }
+    .calendar-edit-session-panel .booking-type-btn--todo.active:hover { color: #2563eb; background: #eff6ff; border-color: #bfdbfe; }
+    .calendar-edit-session-panel .booking-type-btn--availability.active:hover { color: #0d9488; background: #f0fdfa; border-color: #99f6e4; }
+}
+
+.calendar-edit-session-panel .form-row-layout,
+.calendar-edit-session-panel--availability .form-row-layout {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px 24px;
+    align-items: end;
+}
+
+.calendar-edit-session-panel .form-row-layout > .form-row { grid-column: span 6; }
+.calendar-edit-session-panel .form-row-layout > .form-row-timespan,
+.calendar-edit-session-panel .form-row-layout > .form-row.stretch,
+.calendar-edit-session-panel .form-row-layout > .form-row-repeats-section,
+.calendar-edit-session-panel .form-row-layout > .form-row--bare { grid-column: 1 / -1; }
+.calendar-edit-session-panel--availability .form-row-layout > .form-row { grid-column: 1 / -1; }
+

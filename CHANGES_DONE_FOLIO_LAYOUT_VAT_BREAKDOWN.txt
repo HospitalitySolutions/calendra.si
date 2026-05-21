@@ -1,0 +1,39 @@
+Folio layout / invoice PDF changes
+==================================
+
+Updated files:
+- backend/src/main/java/com/example/app/billing/FolioLayoutConfig.java
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- backend/src/test/java/com/example/app/billing/FolioPdfServiceTest.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+- frontend/src/styles/folio-layout-editor.css
+
+Changes done:
+1. Added configurable VAT breakdown table to the folio layout model.
+   - New layout section: vatBreakdownTable.
+   - Configurable from the Folio Layout Editor: X, Y, width, header height, row height, header font, body font, visible.
+
+2. Added VAT breakdown table rendering to generated folio PDFs.
+   - Always renders the requested VAT rows: 22%, 9.5%, and 0%.
+   - Columns:
+     - Opis DDV
+     - Stopnja DDV
+     - Osnova DDV
+     - Vrednost DDV
+   - Osnova DDV is calculated from net line totals per VAT rate.
+   - Vrednost DDV is calculated from the line VAT amount per VAT rate.
+
+3. Fixed layout movement below services table.
+   - Footer items, VAT breakdown table, payment QR, and signature now move down when the services table has more rows than the layout preview baseline.
+   - Movement uses the services table row height, so each added invoice line pushes below-table content down by one row height.
+   - Pagination still resets the movement calculation on continuation pages, so below-table content is based on the rows rendered on the last page.
+
+4. Removed the old automatic inline VAT summary text under the total gross footer.
+   - Legacy footer keys vat22, vat95, vat0, and noVat are still populated if a saved custom layout uses them.
+   - The new VAT table is now the main VAT breakdown output.
+
+5. Updated FolioPdfServiceTest for the new VAT breakdown table output.
+
+Validation notes:
+- Java syntax for the updated folio PDF classes was checked using local stubbed dependencies because Maven could not download dependencies in this sandbox.
+- Frontend build could not be completed because node_modules/dependencies are not installed in the sandbox.

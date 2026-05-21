@@ -1,0 +1,18 @@
+Changes done:
+
+- Fixed Client > Wallet entitlement creation after the wallet purchase invoice is paid.
+- Wallet purchase open bills now flush the linked guest order billId when the open bill is converted into a real bill, so later bank-transfer reconciliation / mark-paid events can find the correct guest order.
+- The linked guest order payment method is synchronized from the actual closed bill payment method.
+- Bill-paid handling is now idempotent: if a paid wallet order already exists but its entitlement was missed, the paid-bill event creates the entitlement safely without duplicates.
+- Client > Wallet now self-heals already-paid wallet orders for that client before displaying wallet entitlements, so previously paid wallet purchases can appear after refresh.
+- Bank-transfer flow remains payment_pending until the invoice is marked paid/reconciled; entitlement is generated only when paid.
+- Normal close-open-bill flow remains unchanged: fiscalization still follows the selected payment method configuration, and bank-transfer/Stripe emailing is handled by the existing checkout-session step used by other open bills.
+
+Updated files:
+- backend/src/main/java/com/example/app/billing/BillingController.java
+- backend/src/main/java/com/example/app/client/ClientController.java
+- backend/src/main/java/com/example/app/guest/model/GuestOrderRepository.java
+- backend/src/main/java/com/example/app/guest/order/GuestOrderService.java
+
+Build note:
+- Backend Maven compile could not be executed in the sandbox because the Maven wrapper needs to download Maven from repo.maven.apache.org and outbound network access is unavailable.
