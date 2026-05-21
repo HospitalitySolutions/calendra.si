@@ -1,4 +1,6 @@
 import SwiftUI
+import AVFoundation
+import UIKit
 
 struct JoinTenantView: View {
     @EnvironmentObject private var store: AppStore
@@ -47,7 +49,7 @@ struct JoinTenantView: View {
                     tenantCarousel
                 }
                 .padding(.horizontal, 22)
-                .padding(.top, 16)
+                .padding(.top, 34)
                 .padding(.bottom, 24)
             }
         }
@@ -70,12 +72,18 @@ struct JoinTenantView: View {
         .sheet(isPresented: $showScanPopup) {
             ScanQrPopup(
                 onCancel: { showScanPopup = false },
-                onOpenScanner: {
-                    showScanPopup = false
-                    store.noticeMessage = "QR scanner opens from this popup. Connect the existing native scanner here."
+                onCodeScanned: { raw in
+                    let code = addTenantExtractTenantCode(from: raw)
+                    Task {
+                        await store.joinTenant(code: code)
+                        if store.errorMessage == nil {
+                            showScanPopup = false
+                            onJoin()
+                        }
+                    }
                 }
             )
-            .presentationDetents([.height(360)])
+            .presentationDetents([.height(410)])
         }
     }
 
@@ -106,10 +114,27 @@ struct JoinTenantView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
-            TextField("Search tenant", text: $tenantQuery)
-                .font(.system(size: 15))
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled()
+            TextField(
+                "",
+                text: $tenantQuery,
+                prompt: Text("Search tenant").foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576).opacity(0.92))
+            )
+            .font(.system(size: 15))
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+
+            if !tenantQuery.isEmpty {
+                Button {
+                    tenantQuery = ""
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color(red: 0.914, green: 0.933, blue: 0.973)))
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 16)
         .frame(height: 42)
@@ -261,7 +286,7 @@ private struct JoinCodePopup: View {
 
 private struct ScanQrPopup: View {
     let onCancel: () -> Void
-    let onOpenScanner: () -> Void
+    let onCodeScanned: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -273,45 +298,36 @@ private struct ScanQrPopup: View {
                 .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
 
             ZStack {
+                AddTenantQRScannerView(onCodeScanned: onCodeScanned)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                ScanFrameIllustration()
+                    .allowsHitTesting(false)
+            }
+            .frame(height: 220)
+            .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Color(red: 0.965, green: 0.973, blue: 0.988))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24, style: .continuous)
                             .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
                     )
-                ScanFrameIllustration()
-                ScanModeGlyph()
-                    .frame(width: 42, height: 42)
-            }
-            .frame(height: 190)
+            )
 
-            HStack(spacing: 12) {
-                Button(action: onCancel) {
-                    Text("Cancel")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color.white)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
-                                )
-                        )
-                }
-                Button(action: onOpenScanner) {
-                    Text("Open scanner")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color(red: 0.086, green: 0.408, blue: 0.957))
-                        )
-                }
+            Button(action: onCancel) {
+                Text("Cancel")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
+                            )
+                    )
             }
         }
         .padding(22)
@@ -346,6 +362,108 @@ private struct ScanFrameIllustration: View {
         }
     }
 }
+
+private struct AddTenantQRScannerView: UIViewControllerRepresentable {
+    let onCodeScanned: (String) -> Void
+
+    func makeUIViewController(context: Context) -> AddTenantQRScannerViewController {
+        let controller = AddTenantQRScannerViewController()
+        controller.onCodeScanned = onCodeScanned
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: AddTenantQRScannerViewController, context: Context) {}
+}
+
+private final class AddTenantQRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+    var onCodeScanned: ((String) -> Void)?
+    private let session = AVCaptureSession()
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var didEmitCode = false
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        configureSession()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if !session.isRunning { session.startRunning() }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if session.isRunning { session.stopRunning() }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
+        updatePreviewOrientation()
+    }
+
+    private func configureSession() {
+        guard let captureDevice = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: captureDevice),
+              session.canAddInput(input) else { return }
+
+        session.addInput(input)
+
+        let output = AVCaptureMetadataOutput()
+        guard session.canAddOutput(output) else { return }
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
+        output.metadataObjectTypes = [.qr]
+
+        let preview = AVCaptureVideoPreviewLayer(session: session)
+        preview.videoGravity = .resizeAspectFill
+        preview.frame = view.bounds
+        view.layer.addSublayer(preview)
+        previewLayer = preview
+        updatePreviewOrientation()
+    }
+
+    private func updatePreviewOrientation() {
+        guard let connection = previewLayer?.connection else { return }
+        guard connection.isVideoOrientationSupported else { return }
+        let interfaceOrientation = view.window?.windowScene?.interfaceOrientation ?? .portrait
+        connection.videoOrientation = switch interfaceOrientation {
+        case .landscapeLeft: .landscapeLeft
+        case .landscapeRight: .landscapeRight
+        case .portraitUpsideDown: .portraitUpsideDown
+        default: .portrait
+        }
+    }
+
+    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+        guard !didEmitCode,
+              let metadataObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+              metadataObject.type == .qr,
+              let value = metadataObject.stringValue else { return }
+        didEmitCode = true
+        session.stopRunning()
+        onCodeScanned?(value)
+    }
+}
+
+private func addTenantExtractTenantCode(from raw: String) -> String {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let components = URLComponents(string: trimmed), components.scheme != nil else {
+        return trimmed
+    }
+
+    if let queryValue = components.queryItems?.first(where: { $0.name == "tenantCode" || $0.name == "code" })?.value, !queryValue.isEmpty {
+        return queryValue
+    }
+
+    if let lastPath = components.path.split(separator: "/").last, !lastPath.isEmpty {
+        return String(lastPath)
+    }
+
+    return trimmed
+}
+
 
 private enum JoinTenantMode {
     case code

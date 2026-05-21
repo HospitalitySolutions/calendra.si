@@ -1464,7 +1464,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   ) => {
     const detailsDraft = openBillDetailsEdits[ob.id]
     const paymentSplits = buildPaymentSplitsPayload(getOpenBillPaymentSplits(ob, overrides?.paymentTotalGross ?? estimateGross(items)))
-    const primaryPaymentMethodId = paymentSplits[0]?.paymentMethodId ?? ob.paymentMethod?.id
+    const primaryPaymentMethodId = paymentSplits[0]?.paymentMethodId
+      ?? (ob.paymentMethod?.id && !isDepositPaymentMethod(ob.paymentMethod) ? ob.paymentMethod.id : undefined)
     const payload: Record<string, unknown> = {
       paymentMethodId: overrides && Object.prototype.hasOwnProperty.call(overrides, 'paymentMethodId')
         ? overrides.paymentMethodId
@@ -1593,7 +1594,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         acc.push({
           key: split.id != null ? `server-${split.id}` : `server-${ob.id}-${index}`,
           paymentMethodId: split.paymentMethod.id,
-          amountGross: formatPaymentAmountInput(amountGross),
+          amountGross: formatPaymentAmountInput(isAdvanceMethod ? 0 : amountGross),
           sourceAdvanceBillId,
           advanceSelections: [],
         })
@@ -1614,18 +1615,26 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ]
     }
     if (ob.paymentMethod?.id) {
+      const paymentMethodIsAdvance = isDepositPaymentMethod(ob.paymentMethod)
       return [{
         key: `legacy-${ob.id}`,
         paymentMethodId: ob.paymentMethod.id,
-        amountGross: formatPaymentAmountInput(totalGross),
+        amountGross: formatPaymentAmountInput(paymentMethodIsAdvance ? 0 : totalGross),
         advanceSelections: [],
       }]
     }
     return legacyAdvanceSplit ? [legacyAdvanceSplit] : []
   }
 
+  function paymentSplitEffectiveGross(split: OpenBillPaymentSplitDraft) {
+    if (isAdvancePaymentSplit(split)) {
+      return sumAdvanceSelectionGross(normalizeAdvanceSelections(split.advanceSelections))
+    }
+    return Number(split.amountGross || 0)
+  }
+
   function paymentSplitTotalGross(splits: OpenBillPaymentSplitDraft[]) {
-    return splits.reduce((sum, split) => sum + Number(split.amountGross || 0), 0)
+    return splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
   }
 
   function paymentSplitsMatchInvoiceTotal(splits: OpenBillPaymentSplitDraft[], totalGross: number) {
@@ -1639,7 +1648,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function paymentSplitAmountToMatchRow(splits: OpenBillPaymentSplitDraft[], key: string, totalGross: number) {
-    const otherTotal = splits.reduce((sum, split) => (split.key === key ? sum : sum + Number(split.amountGross || 0)), 0)
+    const otherTotal = splits.reduce((sum, split) => (split.key === key ? sum : sum + paymentSplitEffectiveGross(split)), 0)
     return Math.max(0, totalGross - otherTotal)
   }
 
@@ -1722,7 +1731,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       : paymentMethods
     const method = eligibleMethods.find((entry) => !usedIds.has(entry.id)) || eligibleMethods[0]
     if (!method) return
-    const assigned = current.reduce((sum, split) => sum + Number(split.amountGross || 0), 0)
+    const assigned = current.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
     const remainder = Math.max(0, totalGross - assigned)
     setOpenBillPaymentSplits(ob, [
       ...current,
@@ -1778,7 +1787,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const eligibleMethods = createAvailablePaymentMethods
     const method = eligibleMethods.find((entry) => !usedIds.has(entry.id)) || eligibleMethods[0]
     if (!method) return
-    const assigned = current.reduce((sum, split) => sum + Number(split.amountGross || 0), 0)
+    const assigned = current.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
     const remainder = Math.max(0, totalGross - assigned)
     setCreateBillPaymentSplits([
       ...current,
@@ -1804,6 +1813,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           sourceAdvanceBillId: selection.advanceBillId,
         }))
       }
+      if (isAdvancePaymentSplit(split)) return []
       return [{
         paymentMethodId,
         amountGross: Number(split.amountGross || 0),
@@ -3057,8 +3067,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       if (!validateOpenBillDetailsDraft(draft)) return null
       const entryItems = getOpenBillItems(entry)
       const payload = buildOpenBillUpdatePayload(entry, entryItems, entry.id === target.id ? { paymentTotalGross: combinedGross } : undefined)
-      if (entry.id === target.id && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, entry.id)) {
-        const methodId = Number(payload.paymentMethodId || entry.paymentMethod?.id || paymentMethods[0]?.id || 0)
+      const payloadPaymentSplits = Array.isArray(payload.paymentSplits) ? payload.paymentSplits : []
+      if (entry.id === target.id && payloadPaymentSplits.length === 0 && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, entry.id)) {
+        const fallbackMethod = entry.paymentMethod && !isDepositPaymentMethod(entry.paymentMethod)
+          ? entry.paymentMethod
+          : paymentMethods.find((method) => !isDepositPaymentMethod(method))
+        const methodId = Number(fallbackMethod?.id || 0)
         if (methodId > 0) {
           payload.paymentMethodId = methodId
           payload.paymentSplits = [{ paymentMethodId: methodId, amountGross: Number(combinedGross.toFixed(2)) }]
@@ -3196,8 +3210,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         previewItems,
         related.length > 1 ? { paymentTotalGross: combinedGross } : undefined,
       )
-      if (related.length > 1 && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, target.id)) {
-        const methodId = Number(payload.paymentMethodId || target.paymentMethod?.id || paymentMethods[0]?.id || 0)
+      const payloadPaymentSplits = Array.isArray(payload.paymentSplits) ? payload.paymentSplits : []
+      if (related.length > 1 && payloadPaymentSplits.length === 0 && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, target.id)) {
+        const fallbackMethod = target.paymentMethod && !isDepositPaymentMethod(target.paymentMethod)
+          ? target.paymentMethod
+          : paymentMethods.find((method) => !isDepositPaymentMethod(method))
+        const methodId = Number(fallbackMethod?.id || 0)
         if (methodId > 0) {
           payload.paymentMethodId = methodId
           payload.paymentSplits = [{ paymentMethodId: methodId, amountGross: Number(combinedGross.toFixed(2)) }]
@@ -4046,6 +4064,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             const methodOptions = selectedMethod && !availableMethods.some((entry) => entry.id === selectedMethod.id)
               ? [...availableMethods, selectedMethod]
               : availableMethods
+            const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(advanceSelections)) : split.amountGross
             return (
               <div key={split.key} className={`billing-invoice-payment-row billing-invoice-payment-row--split${isEntitlement ? ' billing-invoice-payment-row--entitlement' : ''}`}>
                 <span className="billing-invoice-payment-icon" aria-hidden>
@@ -4060,11 +4079,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     }
                     const paymentMethodId = Number(e.target.value)
                     const nextMethod = paymentMethods.find((method) => method.id === paymentMethodId) || null
+                    const nextAdvanceSelections = isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : []
                     updateOpenBillPaymentSplit(ob, split.key, {
                       kind: 'payment',
                       entitlementCode: undefined,
                       paymentMethodId,
-                      advanceSelections: isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : [],
+                      amountGross: isDepositPaymentMethod(nextMethod) ? formatPaymentAmountInput(sumAdvanceSelectionGross(nextAdvanceSelections)) : split.amountGross,
+                      advanceSelections: nextAdvanceSelections,
                     })
                     if (isDepositPaymentMethod(nextMethod)) {
                       openAdvancePaymentModalForOpenBill(ob, split.key)
@@ -4081,7 +4102,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   className="billing-invoice-payment-amount-input"
                   type="text"
                   inputMode="decimal"
-                  value={split.amountGross}
+                  value={displayedAmountGross}
                   readOnly={isEntitlement || isAdvanceSplit}
                   onClick={() => {
                     if (isEntitlement) {
@@ -4817,6 +4838,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             const methodOptions = selectedMethod && !createAvailablePaymentMethods.some((entry) => entry.id === selectedMethod.id)
               ? [...createAvailablePaymentMethods, selectedMethod]
               : createAvailablePaymentMethods
+            const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(advanceSelections)) : split.amountGross
             return (
               <div key={split.key} className="billing-invoice-payment-row billing-invoice-payment-row--split">
                 <span className="billing-invoice-payment-icon" aria-hidden>
@@ -4827,9 +4849,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   onChange={(e) => {
                     const paymentMethodId = Number(e.target.value)
                     const nextMethod = paymentMethods.find((method) => method.id === paymentMethodId) || null
+                    const nextAdvanceSelections = isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : []
                     updateCreateBillPaymentSplit(split.key, {
                       paymentMethodId,
-                      advanceSelections: isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : [],
+                      amountGross: isDepositPaymentMethod(nextMethod) ? formatPaymentAmountInput(sumAdvanceSelectionGross(nextAdvanceSelections)) : split.amountGross,
+                      advanceSelections: nextAdvanceSelections,
                     })
                     if (isDepositPaymentMethod(nextMethod)) openAdvancePaymentModalForCreate(split.key)
                   }}
@@ -4843,7 +4867,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   className="billing-invoice-payment-amount-input"
                   type="text"
                   inputMode="decimal"
-                  value={split.amountGross}
+                  value={displayedAmountGross}
                   readOnly={isAdvanceSplit}
                   onClick={() => { if (isAdvanceSplit) openAdvancePaymentModalForCreate(split.key) }}
                   onChange={(e) => {

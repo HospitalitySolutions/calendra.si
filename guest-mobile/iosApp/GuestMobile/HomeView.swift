@@ -7,6 +7,13 @@ private enum HomeBookingTab: String, CaseIterable {
     case cancelled = "Cancelled"
 }
 
+private let homeBg = Color(red: 0.953, green: 0.957, blue: 0.973)
+private let brandBlue = Color(red: 0.082, green: 0.408, blue: 0.957)
+private let brandOrange = Color(red: 1.0, green: 0.616, blue: 0.106)
+private let brandText = Color(red: 0.055, green: 0.145, blue: 0.345)
+private let mutedText = Color(red: 0.424, green: 0.471, blue: 0.576)
+private let softBorder = Color(red: 0.898, green: 0.918, blue: 0.953)
+
 struct HomeView: View {
     @EnvironmentObject private var store: AppStore
     let onChooseTenant: () -> Void
@@ -14,8 +21,10 @@ struct HomeView: View {
     let onBookNow: () -> Void
     let onReschedule: (BookingCardModel) -> Void
     let onCancelBooking: (BookingCardModel) -> Void
+
     @State private var selectedBookingTab: HomeBookingTab = .future
     @State private var bookingPendingCancel: BookingCardModel?
+    @State private var selectedPage: Int = 0
 
     init(
         onChooseTenant: @escaping () -> Void = {},
@@ -44,48 +53,23 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                homeHeader
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                headerBlock
                     .padding(.horizontal, 24)
-
-                if store.bookingCards.isEmpty {
-                    emptyBookingHero
-                } else {
-                    bookingTabsRow
+                bookingTabsRow
+                    .padding(.horizontal, 24)
+                if filteredBookingCards.isEmpty {
+                    emptyBookingsCard
                         .padding(.horizontal, 24)
-
-                    if filteredBookingCards.isEmpty {
-                        emptyFilteredBookingsCard
-                            .padding(.horizontal, 24)
-                    } else {
-                        UpcomingBookingsDeck(
-                            bookings: filteredBookingCards,
-                            onCall: openPhone,
-                            onMessage: openMessage,
-                            onReschedule: onReschedule,
-                            onCancelBooking: { bookingPendingCancel = $0 }
-                        )
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 20)
-                    }
+                } else {
+                    bookingDeck
                 }
             }
-            .padding(.top, 10)
+            .padding(.top, 18)
             .padding(.bottom, 104)
         }
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.96, green: 0.98, blue: 1.00),
-                    Color(red: 0.91, green: 0.95, blue: 1.00),
-                    Color.white
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
+        .background(homeBg.ignoresSafeArea())
         .scrollDisabled(true)
         .alert("Cancel booking?", isPresented: Binding(
             get: { bookingPendingCancel != nil },
@@ -103,129 +87,202 @@ struct HomeView: View {
                 Text("This will cancel \(booking.title) on \(bookingDate(booking.startsAt)).")
             }
         }
+        .onChange(of: selectedBookingTab) { _ in selectedPage = 0 }
     }
 
-    private var homeHeader: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Text("Hello, \(store.user.firstName.isEmpty ? "there" : store.user.firstName)")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-            Spacer(minLength: 8)
-            HStack(spacing: 10) {
-                Button(action: onChooseTenant) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "building.2")
-                            .font(.system(size: 15, weight: .semibold))
-                        Text("Add tenant")
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                    }
-                    .foregroundColor(Color(red: 0.02, green: 0.11, blue: 0.21))
-                    .padding(.horizontal, 10)
+    private var headerBlock: some View {
+        let firstName = store.user.firstName.isEmpty ? "Alex" : store.user.firstName
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                Image("CalendraLogo")
+                    .resizable()
+                    .scaledToFit()
                     .frame(height: 34)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.white)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color(red: 0.83, green: 0.87, blue: 0.93), lineWidth: 1)
-                    )
+                Spacer(minLength: 10)
+                HStack(spacing: 10) {
+                    Button(action: onChooseTenant) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.badge.plus")
+                                .font(.system(size: 14, weight: .medium))
+                            Text("Add tenant")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(brandBlue)
+                        .padding(.horizontal, 10)
+                        .frame(height: 34)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(brandBlue, lineWidth: 1.2)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: onOpenNotifications) {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bell")
+                                .font(.system(size: 19, weight: .medium))
+                                .foregroundColor(brandText)
+                                .frame(width: 34, height: 34)
+                            Circle()
+                                .fill(brandBlue)
+                                .frame(width: 10, height: 10)
+                                .offset(x: -2, y: 6)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                Button(action: onOpenNotifications) {
-                    Image(systemName: "bell")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundColor(.primary)
-                        .frame(width: 34, height: 34)
-                }
-                .buttonStyle(.plain)
             }
+            .padding(.bottom, 14)
+            Text("Hello, \(firstName)")
+                .font(.system(size: 28, weight: .heavy))
+                .foregroundColor(brandText)
+            Text(store.bookingCards.isEmpty ? "Here’s what’s next." : "Here’s your upcoming booking.")
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(mutedText)
+                .padding(.top, 6)
         }
-        .frame(minHeight: 52)
     }
 
     private var bookingTabsRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             ForEach(HomeBookingTab.allCases, id: \.self) { tab in
+                let active = selectedBookingTab == tab
                 Button {
                     selectedBookingTab = tab
                 } label: {
-                    Text(tab.rawValue)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .foregroundColor(selectedBookingTab == tab ? .white : .primary)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .background(selectedBookingTab == tab ? brandBlue : Color.white.opacity(0.62))
-                        .overlay(
-                            Rectangle()
-                                .stroke(selectedBookingTab == tab ? brandBlue : Color(red: 0.83, green: 0.87, blue: 0.93), lineWidth: 1)
-                        )
+                    VStack(spacing: 0) {
+                        Text(tab.rawValue)
+                            .font(.system(size: 12, weight: active ? .bold : .medium))
+                            .foregroundColor(active ? brandBlue : mutedText)
+                            .padding(.top, 7)
+                            .padding(.bottom, 6)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(active ? brandBlue : Color.clear)
+                            .frame(width: 72, height: 3)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
             }
         }
+        .frame(height: 50)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
+        )
     }
 
-    private var emptyFilteredBookingsCard: some View {
+    private var emptyBookingsCard: some View {
         let title: String = {
             switch selectedBookingTab {
-            case .future: return "No future bookings"
+            case .future: return "No upcoming bookings"
             case .past: return "No past bookings"
             case .cancelled: return "No cancelled bookings"
             }
         }()
         let subtitle: String = {
             switch selectedBookingTab {
-            case .future: return "Book your next visit from the Book tab."
+            case .future: return "You’re all set — there are no future bookings right now."
             case .past: return "Completed visits will appear here."
             case .cancelled: return "Cancelled bookings will appear here."
             }
         }()
-        return HStack(spacing: 12) {
-            Image(systemName: "calendar")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(brandBlue)
-                .frame(width: 28, height: 28)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.primary)
-                Text(subtitle)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(.secondary)
+
+        return VStack(spacing: 0) {
+            Group {
+                switch selectedBookingTab {
+                case .future:
+                    Image("HomeEmptyIllustration")
+                        .resizable()
+                        .scaledToFit()
+                case .past:
+                    Image("HomeEmptyPastIllustration")
+                        .resizable()
+                        .scaledToFit()
+                case .cancelled:
+                    Image("HomeEmptyCancelledIllustration")
+                        .resizable()
+                        .scaledToFit()
+                }
             }
-            Spacer()
+            .padding(.top, 10)
+            .padding(.horizontal, 10)
+
+            Text(title)
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundColor(brandText)
+                .padding(.top, selectedBookingTab == .future ? 12 : 10)
+            Text(subtitle)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(mutedText)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+                .padding(.top, 10)
+
+            if selectedBookingTab == .future || selectedBookingTab == .cancelled {
+                Button(action: onBookNow) {
+                    Text("Book now")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(brandBlue)
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 28)
+                .padding(.top, 22)
+            }
+
+            HStack(spacing: 10) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(brandBlue)
+                Text("Explore available sessions from the Book tab.")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(mutedText)
+            }
+            .padding(.top, 18)
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 22)
         .frame(maxWidth: .infinity)
         .background(
-            Rectangle()
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 14, x: 0, y: 8)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.05), radius: 12, x: 0, y: 5)
         )
-        .overlay(Rectangle().stroke(Color.white.opacity(0.88), lineWidth: 1.1))
     }
 
-    private var emptyBookingHero: some View {
-        Button(action: onBookNow) {
-            Image("HomeBookingBackground")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .aspectRatio(941.0 / 965.0, contentMode: .fit)
-                .clipped()
-                .contentShape(Rectangle())
+    private var bookingDeck: some View {
+        VStack(spacing: 12) {
+            TabView(selection: $selectedPage) {
+                ForEach(Array(filteredBookingCards.enumerated()), id: \.element.id) { index, booking in
+                    HomeBookingCard(
+                        booking: booking,
+                        onCall: openPhone,
+                        onMessage: openMessage,
+                        onReschedule: onReschedule,
+                        onCancel: { bookingPendingCancel = booking }
+                    )
+                    .padding(.horizontal, 24)
+                    .tag(index)
+                }
+            }
+            .frame(height: 760)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            HStack(spacing: 10) {
+                ForEach(filteredBookingCards.indices, id: \.self) { index in
+                    Circle()
+                        .fill(index == selectedPage ? brandBlue : Color(red: 0.792, green: 0.816, blue: 0.855))
+                        .frame(width: index == selectedPage ? 10 : 8, height: index == selectedPage ? 10 : 8)
+                }
+            }
         }
-        .buttonStyle(.plain)
     }
-
-
-    private var brandBlue: Color { Color(red: 0.02, green: 0.41, blue: 0.96) }
 
     private func openPhone(_ phone: String?) {
         guard let url = phone.flatMap(phoneURL) else { return }
@@ -248,369 +305,168 @@ struct HomeView: View {
         guard !cleaned.isEmpty else { return nil }
         return URL(string: "sms://\(cleaned)")
     }
-
-    private func formatDateTime(_ raw: String) -> String {
-        DateFormatting.prettyDateTime(raw)
-    }
 }
 
-private struct UpcomingBookingsDeck: View {
-    let bookings: [BookingCardModel]
+private struct HomeBookingCard: View {
+    let booking: BookingCardModel
     let onCall: (String?) -> Void
     let onMessage: (String?) -> Void
     let onReschedule: (BookingCardModel) -> Void
-    let onCancelBooking: (BookingCardModel) -> Void
-    @State private var activeIndex = 0
-
-    private var brandBlue: Color { Color(red: 0.02, green: 0.41, blue: 0.96) }
+    let onCancel: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                ForEach(visibleLayers, id: \.layerKey) { layer in
-                    if layer.offset == 0 {
-                        BookingFocusCard(
-                            booking: layer.booking,
-                            onCall: { onCall(layer.booking.tenantPhone) },
-                            onMessage: { onMessage(layer.booking.tenantPhone) },
-                            onReschedule: onReschedule,
-                            onCancelBooking: { onCancelBooking(layer.booking) }
-                        )
-                        .frame(width: 304, height: 486)
-                        .zIndex(10)
-                        .transition(.scale.combined(with: .opacity))
+        VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                Group {
+                    if let url = booking.cardImageUrl, let imageURL = URL(string: url) {
+                        AsyncImage(url: imageURL) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Image("GymBookingBackground").resizable().scaledToFill()
+                        }
                     } else {
-                        BookingSideCard(booking: layer.booking)
-                            .frame(width: 132, height: 430)
-                            .scaleEffect(layer.offset.magnitude == 1 ? 0.93 : 0.84)
-                            .opacity(layer.offset.magnitude == 1 ? 0.88 : 0.52)
-                            .offset(x: CGFloat(layer.offset) * 154, y: layer.offset.magnitude == 1 ? 8 : 16)
-                            .zIndex(Double(5 - layer.offset.magnitude))
+                        Image("GymBookingBackground")
+                            .resizable()
+                            .scaledToFill()
                     }
                 }
-            }
-            .frame(height: 506)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 18)
-                    .onEnded { value in
-                        guard bookings.count > 1 else { return }
-                        withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
-                            if value.translation.width < -36 {
-                                activeIndex = (activeIndex + 1) % bookings.count
-                            } else if value.translation.width > 36 {
-                                activeIndex = (activeIndex - 1 + bookings.count) % bookings.count
+                .frame(height: 286)
+                .clipped()
+
+                HStack(alignment: .top) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white)
+                            .frame(width: 68, height: 68)
+                        Group {
+                            if let url = booking.logoImageUrl, let imageURL = URL(string: url) {
+                                AsyncImage(url: imageURL) { image in
+                                    image.resizable().scaledToFit().padding(8)
+                                } placeholder: {
+                                    Image("CalendraLogo").resizable().scaledToFit().padding(8)
+                                }
+                            } else {
+                                Image("CalendraLogo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .padding(8)
                             }
                         }
                     }
-            )
-
-            HStack(spacing: 10) {
-                ForEach(0..<bookings.count, id: \.self) { index in
-                    Circle()
-                        .fill(index == activeIndex ? brandBlue : Color(.separator).opacity(0.58))
-                        .frame(width: index == activeIndex ? 9 : 7, height: index == activeIndex ? 9 : 7)
+                    Spacer()
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Color(red: 0.165, green: 0.662, blue: 0.322))
+                            .frame(width: 12, height: 12)
+                        Text(bookingStatus(booking.status))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(red: 0.129, green: 0.588, blue: 0.325))
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 50)
+                    .background(Capsule(style: .continuous).fill(Color(red: 0.898, green: 0.973, blue: 0.910)))
                 }
+                .padding(16)
             }
 
-        }
-    }
-
-    private var visibleLayers: [BookingLayer] {
-        guard !bookings.isEmpty else { return [] }
-        let offsets = bookings.count == 1 ? [0] : [-2, -1, 0, 1, 2]
-        return offsets.compactMap { offset in
-            if bookings.count < 3 && abs(offset) > 1 { return nil }
-            let index = (activeIndex + offset + bookings.count) % bookings.count
-            return BookingLayer(offset: offset, booking: bookings[index], index: index)
-        }
-    }
-}
-
-private struct BookingLayer: Hashable {
-    let offset: Int
-    let booking: BookingCardModel
-    let index: Int
-
-    var layerKey: String { "\(booking.id)-\(offset)-\(index)" }
-}
-
-private struct BookingFocusCard: View {
-    let booking: BookingCardModel
-    let onCall: () -> Void
-    let onMessage: () -> Void
-    let onReschedule: (BookingCardModel) -> Void
-    let onCancelBooking: () -> Void
-    private let brandBlue = Color(red: 0.02, green: 0.41, blue: 0.96)
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            BookingHero(
-                tenantName: booking.tenantName,
-                cardImageUrl: booking.cardImageUrl,
-                logoImageUrl: booking.logoImageUrl,
-                iconImageUrl: booking.iconImageUrl
-            )
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(booking.title)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                statusPill
-                Divider().opacity(0.42)
-                BookingInfoRow(systemName: "calendar", text: bookingDate(booking.startsAt))
-                BookingInfoRow(systemName: "clock", text: bookingTime(booking.startsAt))
-                BookingInfoRow(systemName: "dumbbell", text: booking.tenantName)
-                BookingInfoRow(systemName: "person", text: booking.consultantName?.isEmpty == false ? booking.consultantName! : "with your specialist")
-                BookingInfoRow(systemName: "location", text: booking.tenantCity?.isEmpty == false ? booking.tenantCity! : "Location to be confirmed")
-
-                Spacer(minLength: 0)
-
-                HStack(spacing: 10) {
-                    ContactActionButton(title: "Call", systemName: "phone", enabled: booking.tenantPhone?.isEmpty == false, action: onCall)
-                    ContactActionButton(title: "SMS", systemName: "message", enabled: booking.tenantPhone?.isEmpty == false, action: onMessage)
+                    .font(.system(size: 22, weight: .heavy))
+                    .foregroundColor(brandText)
+                    .padding(.top, 18)
+                HStack(spacing: 18) {
+                    metaItem(icon: "calendar", text: bookingDate(booking.startsAt))
+                    metaItem(icon: "clock", text: bookingTime(booking.startsAt))
                 }
-                .padding(.top, 2)
+                .padding(.top, 18)
 
-                Button(action: { onReschedule(booking) }) {
-                    HStack(spacing: 7) {
-                        Image(systemName: "calendar")
-                        Text("Reschedule")
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(booking.canBeCancelled ? brandBlue : .secondary.opacity(0.5))
-                    .frame(maxWidth: .infinity, minHeight: 40)
-                    .background(
-                        Rectangle()
-                            .fill(Color(.systemBackground))
-                            .overlay(
-                                Rectangle()
-                                    .stroke(booking.canBeCancelled ? brandBlue.opacity(0.55) : Color(.separator).opacity(0.32), lineWidth: 1)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(!booking.canBeCancelled)
+                Divider().overlay(softBorder).padding(.top, 18)
+                detailLine(icon: "person", iconColor: brandBlue, label: "Tenant", value: booking.tenantName)
+                Divider().overlay(softBorder).padding(.top, 11)
+                detailLine(icon: "person", iconColor: brandOrange, label: "Consultant", value: booking.consultantName?.isEmpty == false ? booking.consultantName! : "To be confirmed")
+                Divider().overlay(softBorder).padding(.top, 11)
+                detailLine(icon: "location", iconColor: Color(red: 0.482, green: 0.380, blue: 1.0), label: "Location", value: booking.tenantName, subvalue: booking.tenantCity ?? "Location to be confirmed")
 
-                Button(action: onCancelBooking) {
-                    HStack(spacing: 7) {
-                        Image(systemName: "xmark")
-                        Text("Cancel")
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(booking.canBeCancelled ? Color(red: 0.71, green: 0.14, blue: 0.10) : .secondary.opacity(0.5))
-                    .frame(maxWidth: .infinity, minHeight: 40)
-                    .background(
-                        Rectangle()
-                            .fill(Color(.systemBackground))
-                            .overlay(
-                                Rectangle()
-                                    .stroke(booking.canBeCancelled ? Color(red: 0.82, green: 0.26, blue: 0.23) : Color(.separator).opacity(0.32), lineWidth: 1)
-                            )
-                    )
+                HStack(spacing: 12) {
+                    actionButton(title: "Call", systemName: "phone", tint: brandBlue, action: { onCall(booking.tenantPhone) })
+                    actionButton(title: "SMS", systemName: "ellipsis.message", tint: brandBlue, action: { onMessage(booking.tenantPhone) })
+                    actionButton(title: "Reschedule", systemName: "calendar.badge.clock", tint: brandOrange, action: { onReschedule(booking) })
+                    actionButton(title: "Cancel", systemName: "xmark", tint: Color.red, action: onCancel)
                 }
-                .buttonStyle(.plain)
-                .disabled(!booking.canBeCancelled)
+                .padding(.top, 22)
+                .padding(.bottom, 18)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 14)
-            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, 12)
+            .background(Color.white)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
         .background(
-            Rectangle()
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.11), radius: 20, x: 0, y: 12)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
         )
-        .overlay(
-            Rectangle()
-                .stroke(Color.white.opacity(0.88), lineWidth: 1.2)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
     }
 
-    private var statusPill: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 10, weight: .semibold))
-            Text(statusLabel(booking.status))
-                .font(.system(size: 12, weight: .semibold))
+    private func metaItem(icon: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(mutedText)
+            Text(text)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(mutedText)
         }
-        .foregroundColor(brandBlue)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Capsule(style: .continuous).fill(brandBlue.opacity(0.12)))
     }
-}
 
-private struct BookingSideCard: View {
-    let booking: BookingCardModel
-    private let brandBlue = Color(red: 0.02, green: 0.41, blue: 0.96)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            BookingHero(
-                tenantName: booking.tenantName,
-                cardImageUrl: booking.cardImageUrl,
-                logoImageUrl: booking.logoImageUrl,
-                iconImageUrl: booking.iconImageUrl,
-                compact: true
-            )
-            HStack(alignment: .top, spacing: 8) {
-                Text(booking.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                HStack(spacing: 5) {
-                    Image(systemName: statusLabel(booking.status).lowercased() == "pending" ? "hourglass" : "checkmark.seal")
-                        .font(.system(size: 9, weight: .semibold))
-                    Text(statusLabel(booking.status))
-                        .font(.system(size: 9, weight: .semibold))
-                }
-                .foregroundColor(brandBlue)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Capsule(style: .continuous).fill(brandBlue.opacity(0.10)))
-                .offset(x: 3)
+    private func detailLine(icon: String, iconColor: Color, label: String, value: String, subvalue: String? = nil) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.10))
+                    .frame(width: 42, height: 42)
+                Image(systemName: icon == "location" ? "location.circle" : icon)
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundColor(iconColor)
             }
-            BookingInfoRow(systemName: "calendar", text: bookingDate(booking.startsAt), compact: true)
-            BookingInfoRow(systemName: "clock", text: bookingTime(booking.startsAt), compact: true)
-            BookingInfoRow(systemName: "mappin.and.ellipse", text: booking.tenantName, compact: true)
-            BookingInfoRow(systemName: "location", text: booking.tenantCity ?? "", compact: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(mutedText)
+                Text(value)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(brandText)
+                if let subvalue {
+                    Text(subvalue)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(mutedText)
+                }
+            }
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .frame(height: 430)
-        .background(
-            Rectangle()
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 12)
-        )
-    }
-}
-
-private struct BookingHero: View {
-    let tenantName: String
-    let cardImageUrl: String?
-    let logoImageUrl: String?
-    let iconImageUrl: String?
-    var compact: Bool = false
-    private let brandBlue = Color(red: 0.02, green: 0.41, blue: 0.96)
-    
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image("GymBookingBackground")
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-
-            Circle()
-                .fill(Color(red: 0.90, green: 0.95, blue: 1.00))
-                .frame(width: compact ? 50 : 82, height: compact ? 50 : 82)
-                .overlay(
-                    Image("GymBookingIcon")
-                        .resizable()
-                        .scaledToFill()
-                        .clipShape(Circle())
-                        .padding(compact ? 6 : 9)
-                )
-                .offset(x: compact ? -18 : -42, y: compact ? 24 : 42)
-        }
-        .frame(height: compact ? 92 : 126)
-        .clipped()
+        .padding(.top, 11)
     }
 
-    private var fallbackLogo: some View {
-        VStack(spacing: 0) {
-            Text(initials(tenantName))
-                .font(.system(size: compact ? 16 : 20, weight: .bold))
-                .foregroundColor(Color(.systemBackground))
-            Text("STUDIO")
-                .font(.system(size: compact ? 6 : 8, weight: .semibold))
-                .foregroundColor(Color(.systemBackground).opacity(0.72))
-        }
-    }
-
-    private var iconBadge: some View {
-        ZStack {
-            Circle()
-                .fill(Color(.systemBackground).opacity(0.94))
-                .overlay(Circle().stroke(Color(.separator).opacity(0.35), lineWidth: 1))
-            if let iconImageUrl, !iconImageUrl.isEmpty, let imageUrl = URL(string: iconImageUrl) {
-                AsyncImage(url: imageUrl) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .clipShape(Circle())
-                            .padding(4)
-                    } else {
-                        Image(systemName: "square.stack.3d.up")
-                            .font(.system(size: compact ? 10 : 12, weight: .semibold))
-                            .foregroundColor(brandBlue)
-                    }
-                }
-            } else {
-                Image(systemName: "square.stack.3d.up")
-                    .font(.system(size: compact ? 10 : 12, weight: .semibold))
-                    .foregroundColor(brandBlue)
-            }
-        }
-        .frame(width: compact ? 22 : 28, height: compact ? 22 : 28)
-        .offset(x: compact ? 54 : 98, y: compact ? -36 : -58)
-    }
-}
-
-private struct BookingInfoRow: View {
-    let systemName: String
-    let text: String
-    var compact: Bool = false
-
-    var body: some View {
-        HStack(spacing: compact ? 5 : 9) {
-            Image(systemName: systemName)
-                .font(.system(size: compact ? 10 : 13, weight: .medium))
-                .frame(width: compact ? 12 : 16)
-                .foregroundColor(.secondary)
-            Text(text)
-                .font(compact ? .system(size: 10, weight: .medium) : .system(size: 14, weight: .regular))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-        }
-    }
-}
-
-private struct ContactActionButton: View {
-    let title: String
-    let systemName: String
-    let enabled: Bool
-    let action: () -> Void
-    private let brandBlue = Color(red: 0.02, green: 0.41, blue: 0.96)
-
-    var body: some View {
+    private func actionButton(title: String, systemName: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            VStack(spacing: 10) {
                 Image(systemName: systemName)
+                    .font(.system(size: 21, weight: .medium))
                 Text(title)
+                    .font(.system(size: 12, weight: .semibold))
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(enabled ? brandBlue : .secondary.opacity(0.5))
+            .foregroundColor(tint)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .frame(height: 74)
             .background(
-                Rectangle()
-                    .fill(Color(.systemBackground))
-                    .overlay(
-                        Rectangle()
-                            .stroke(enabled ? brandBlue.opacity(0.45) : Color(.separator).opacity(0.3), lineWidth: 1)
-                    )
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(softBorder, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .disabled(!enabled)
     }
 }
 
@@ -618,42 +474,32 @@ private extension BookingCardModel {
     func matches(tab: HomeBookingTab) -> Bool {
         switch tab {
         case .future:
-            return canBeCancelled
+            return !isCancelled && (startDate ?? .distantFuture) >= Date()
         case .past:
-            return !isCancelled && !canBeCancelled
+            return !isCancelled && (startDate ?? .distantPast) < Date()
         case .cancelled:
             return isCancelled
         }
     }
 
-    var canBeCancelled: Bool {
-        guard !isCancelled else { return false }
-        guard let start = startDate else { return true }
-        return start > Date()
+    var isCancelled: Bool {
+        status.lowercased().contains("cancel") || status.uppercased() == "NO_SHOW"
     }
 
     var startDate: Date? {
         parseBookingDate(startsAt)
     }
-
-    var isCancelled: Bool {
-        status.lowercased().contains("cancel") || status.uppercased() == "NO_SHOW"
-    }
 }
 
-private func statusLabel(_ status: String) -> String {
-    status.replacingOccurrences(of: "_", with: " ")
-        .lowercased()
-        .split(separator: " ")
-        .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-        .joined(separator: " ")
+private func bookingStatus(_ raw: String) -> String {
+    raw.replacingOccurrences(of: "_", with: " ").lowercased().capitalized
 }
 
 private func bookingDate(_ raw: String) -> String {
     guard let date = parseBookingDate(raw) else { return raw }
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "EEE, d MMM"
+    formatter.dateFormat = "MMM d, yyyy"
     return formatter.string(from: date)
 }
 
@@ -661,26 +507,18 @@ private func bookingTime(_ raw: String) -> String {
     guard let date = parseBookingDate(raw) else { return "Time to be confirmed" }
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "HH:mm"
+    formatter.dateFormat = "h:mm a"
     return formatter.string(from: date)
 }
 
 private func parseBookingDate(_ raw: String) -> Date? {
     let iso = ISO8601DateFormatter()
+    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     if let date = iso.date(from: raw) { return date }
-    let local = DateFormatter()
-    local.locale = Locale(identifier: "en_US_POSIX")
-    local.timeZone = TimeZone.current
-    local.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-    if let date = local.date(from: raw) { return date }
-    local.dateFormat = "yyyy-MM-dd'T'HH:mm"
-    return local.date(from: raw)
-}
-
-private func initials(_ name: String) -> String {
-    let parts = name
-        .split { $0 == " " || $0 == "-" || $0 == "&" }
-        .compactMap { $0.first }
-        .map { String($0).uppercased() }
-    return parts.prefix(2).joined().isEmpty ? "C" : parts.prefix(2).joined()
+    let iso2 = ISO8601DateFormatter()
+    if let date = iso2.date(from: raw) { return date }
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+    return formatter.date(from: raw)
 }

@@ -673,14 +673,24 @@ fun GuestMobileRoot() {
                                 .onFailure { statusMessage = it.message ?: "Tenant join failed" }
                         }
                     },
-                    onScanQr = {
-                        val options = ScanOptions().apply {
-                            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                            setPrompt("Scan tenancy QR code")
-                            setBeepEnabled(false)
-                            setOrientationLocked(true)
+                    onQrScanned = { raw ->
+                        val tenantCode = extractTenantCode(raw)
+                        if (!tenantCode.isNullOrBlank()) {
+                            scope.launch {
+                                runCatching {
+                                    joinTenantWithCode(
+                                        tenantCode,
+                                        repo,
+                                        state,
+                                        navController,
+                                        onPersistToken = { preferencesStore.saveAuthToken(it) }
+                                    )
+                                }
+                                    .onFailure { statusMessage = it.message ?: "Tenant join failed" }
+                            }
+                        } else {
+                            statusMessage = "The QR code does not contain a tenancy code."
                         }
-                        qrScannerLauncher.launch(options)
                     },
                     onBack = {
                         if (state.uiState.linkedTenants.isEmpty()) {

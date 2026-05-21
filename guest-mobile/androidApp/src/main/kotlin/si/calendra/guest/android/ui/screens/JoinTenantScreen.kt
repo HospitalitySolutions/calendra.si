@@ -1,5 +1,18 @@
 package si.calendra.guest.android.ui.screens
 
+import com.journeyapps.barcodescanner.DefaultDecoderFactory
+import com.journeyapps.barcodescanner.DecoratedBarcodeView
+import com.journeyapps.barcodescanner.BarcodeResult
+import com.journeyapps.barcodescanner.BarcodeCallback
+import com.google.zxing.BarcodeFormat
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.content.pm.PackageManager
+import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -33,6 +46,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apartment
 import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.LocalHospital
@@ -108,7 +122,7 @@ fun JoinTenantScreen(
     subscribedTenantIds: Set<String> = emptySet(),
     onJoinWithCode: (String) -> Unit,
     onJoinPublicTenant: (String) -> Unit,
-    onScanQr: () -> Unit,
+    onQrScanned: (String) -> Unit,
     onBack: () -> Unit
 ) {
     var mode by remember { mutableStateOf(JoinMode.Browse) }
@@ -146,7 +160,7 @@ fun JoinTenantScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 16.dp),
+                .padding(start = 22.dp, end = 22.dp, top = 34.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandHeader()
@@ -226,9 +240,9 @@ fun JoinTenantScreen(
         if (showScanDialog) {
             ScanQrPopup(
                 onDismiss = { showScanDialog = false },
-                onOpenScanner = {
+                onQrScanned = { raw ->
                     showScanDialog = false
-                    onScanQr()
+                    onQrScanned(raw)
                 }
             )
         }
@@ -242,29 +256,11 @@ private fun BrandHeader() {
         contentDescription = "Calendra",
         modifier = Modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(36.dp)
             .wrapContentWidth(Alignment.Start),
         contentScale = ContentScale.Fit,
         alignment = Alignment.CenterStart
     )
-}
-
-@Composable
-private fun TitleBlock() {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Add tenant",
-            color = TitleText,
-            style = MaterialTheme.typography.headlineLarge.copy(fontSize = 28.sp),
-            fontWeight = FontWeight.ExtraBold
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Find and add a tenant to your property",
-            color = SoftText,
-            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
-        )
-    }
 }
 
 @Composable
@@ -390,10 +386,26 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit) {
         singleLine = true,
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp),
+            .height(48.dp),
         shape = RoundedCornerShape(18.dp),
-        placeholder = { Text("Search tenant", color = Color(0xFFA0AAC0), fontSize = 15.sp) },
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, color = TitleText),
+        placeholder = { Text("Search tenant", color = SoftText.copy(alpha = 0.92f), fontSize = 15.sp) },
         leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = SoftText, modifier = Modifier.size(20.dp)) },
+        trailingIcon = {
+            if (value.isNotBlank()) {
+                Surface(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clickable { onValueChange("") },
+                    shape = CircleShape,
+                    color = Color(0xFFE9EEF8)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Clear", tint = SoftText, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        },
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
     )
 }
@@ -441,7 +453,7 @@ private fun TenantCarousel(tenants: List<TenantSummary>, onSelectTenant: (Tenant
         Box(modifier = Modifier.fillMaxWidth().height(430.dp), contentAlignment = Alignment.Center) {
             HorizontalPager(
                 state = pagerState,
-                contentPadding = PaddingValues(horizontal = 6.dp),
+                contentPadding = PaddingValues(horizontal = 0.dp),
                 pageSpacing = 14.dp,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
@@ -450,7 +462,9 @@ private fun TenantCarousel(tenants: List<TenantSummary>, onSelectTenant: (Tenant
                 val alpha = 1f - (offset.coerceIn(0f, 1f) * 0.32f)
                 TenantCarouselCard(
                     tenant = tenants[page],
-                    modifier = Modifier.graphicsLayer {
+                    modifier = Modifier
+                        .padding(horizontal = 2.dp)
+                        .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
                         this.alpha = alpha
@@ -654,7 +668,23 @@ private fun JoinWithCodePopup(
 }
 
 @Composable
-private fun ScanQrPopup(onDismiss: () -> Unit, onOpenScanner: () -> Unit) {
+private fun ScanQrPopup(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
+    val context = LocalContext.current
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasCameraPermission = granted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -668,55 +698,104 @@ private fun ScanQrPopup(onDismiss: () -> Unit, onOpenScanner: () -> Unit) {
                 Text("Align the provider QR in the frame.", color = SoftText, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(16.dp))
                 Surface(
-                    modifier = Modifier.fillMaxWidth().height(210.dp),
+                    modifier = Modifier.fillMaxWidth().height(220.dp),
                     shape = RoundedCornerShape(24.dp),
                     color = Color(0xFFF6F8FC),
                     border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Canvas(modifier = Modifier.fillMaxSize().padding(28.dp)) {
-                            val stroke = 4.dp.toPx()
-                            val corner = 42.dp.toPx()
-                            val inset = 18.dp.toPx()
-                            val w = size.width
-                            val h = size.height
-                            drawLine(CalendraBlue, Offset(inset, inset + corner), Offset(inset, inset), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraBlue, Offset(inset, inset), Offset(inset + corner, inset), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraBlue, Offset(w - inset - corner, inset), Offset(w - inset, inset), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraBlue, Offset(w - inset, inset), Offset(w - inset, inset + corner), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraBlue, Offset(inset, h - inset - corner), Offset(inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraBlue, Offset(inset, h - inset), Offset(inset + corner, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraBlue, Offset(w - inset - corner, h - inset), Offset(w - inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraBlue, Offset(w - inset, h - inset - corner), Offset(w - inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
-                            drawLine(CalendraOrange, Offset(w * 0.20f, h * 0.52f), Offset(w * 0.80f, h * 0.52f), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+                        if (hasCameraPermission) {
+                            EmbeddedQrScanner(
+                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)),
+                                onQrScanned = onQrScanned
+                            )
+                            ScannerFrameOverlay(modifier = Modifier.fillMaxSize())
+                        } else {
+                            Text(
+                                "Camera permission is required to scan the tenant QR code.",
+                                color = SoftText,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(24.dp)
+                            )
                         }
-                        ScanGlyph()
                     }
                 }
-                Spacer(Modifier.height(18.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    Surface(
-                        modifier = Modifier.weight(1f).height(50.dp).clickable(onClick = onDismiss),
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("Cancel", color = CalendraBlue, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    Button(
-                        onClick = onOpenScanner,
-                        modifier = Modifier.weight(1f).height(50.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("Open scanner", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onDismiss),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("Cancel", color = CalendraBlue, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun EmbeddedQrScanner(modifier: Modifier = Modifier, onQrScanned: (String) -> Unit) {
+    var scanned by remember { mutableStateOf(false) }
+    var barcodeView by remember { mutableStateOf<DecoratedBarcodeView?>(null) }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            DecoratedBarcodeView(context).apply {
+                barcodeView = this
+                setStatusText("")
+                this.barcodeView.decoderFactory = DefaultDecoderFactory(listOf(BarcodeFormat.QR_CODE))
+                decodeContinuous(object : BarcodeCallback {
+                    override fun barcodeResult(result: BarcodeResult?) {
+                        val value = result?.text?.trim().orEmpty()
+                        if (value.isNotBlank() && !scanned) {
+                            post {
+                                if (!scanned) {
+                                    scanned = true
+                                    pause()
+                                    onQrScanned(value)
+                                }
+                            }
+                        }
+                    }
+                })
+                resume()
+            }
+        },
+        update = { view ->
+            if (!scanned) view.resume()
+        }
+    )
+
+    DisposableEffect(Unit) {
+        onDispose { barcodeView?.pause() }
+    }
+}
+
+@Composable
+private fun ScannerFrameOverlay(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.padding(28.dp)) {
+        val stroke = 4.dp.toPx()
+        val corner = 42.dp.toPx()
+        val inset = 18.dp.toPx()
+        val w = size.width
+        val h = size.height
+        drawLine(CalendraBlue, Offset(inset, inset + corner), Offset(inset, inset), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraBlue, Offset(inset, inset), Offset(inset + corner, inset), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraBlue, Offset(w - inset - corner, inset), Offset(w - inset, inset), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraBlue, Offset(w - inset, inset), Offset(w - inset, inset + corner), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraBlue, Offset(inset, h - inset - corner), Offset(inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraBlue, Offset(inset, h - inset), Offset(inset + corner, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraBlue, Offset(w - inset - corner, h - inset), Offset(w - inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraBlue, Offset(w - inset, h - inset - corner), Offset(w - inset, h - inset), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(CalendraOrange, Offset(w * 0.20f, h * 0.52f), Offset(w * 0.80f, h * 0.52f), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+    }
+}
+
 
 @Composable
 private fun JoinWithCodeSection(code: String, onCodeChange: (String) -> Unit, onJoin: () -> Unit) {
