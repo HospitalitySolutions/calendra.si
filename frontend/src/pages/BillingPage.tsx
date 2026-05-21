@@ -112,6 +112,7 @@ type OpenBillPaymentSplitDraft = {
   amountGross: string
   kind?: 'payment' | 'entitlement'
   entitlementCode?: string
+  sourceAdvanceBillId?: number | null
   advanceSelections?: AdvancePaymentSelectionDraft[]
 }
 
@@ -866,6 +867,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [applyAmountNet, setApplyAmountNet] = useState('')
   const [advancePaymentModal, setAdvancePaymentModal] = useState<AdvancePaymentModalState | null>(null)
   const [advancePaymentDraftSelections, setAdvancePaymentDraftSelections] = useState<AdvancePaymentSelectionDraft[]>([])
+  const [advancePaymentInitialSelections, setAdvancePaymentInitialSelections] = useState<AdvancePaymentSelectionDraft[]>([])
   const [advancePaymentShowOther, setAdvancePaymentShowOther] = useState(false)
   const [applyingAdvance, setApplyingAdvance] = useState(false)
   const [newCompanyName, setNewCompanyName] = useState('')
@@ -1032,6 +1034,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ...split,
       paymentMethod: normalizePaymentMethod(split.paymentMethod)!,
       amountGross: Number(split.amountGross || 0),
+      sourceAdvanceBillId: split.sourceAdvanceBillId ?? null,
     })),
   })
 
@@ -1409,21 +1412,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (historyPagination.page !== historyPage) setHistoryPage(historyPagination.page)
   }, [historyPagination.page, historyPage])
 
-  function getOpenBillItems(ob: OpenBill) {
-    return openBillEdits[ob.id]
-      ?? ob.items.map((i, index) => ({
-        openBillItemId: i.id,
-        clientRowKey: Number(i.id) > 0 ? undefined : `server-row-${ob.id}-${index}`,
-        transactionServiceId: i.transactionService.id,
-        quantity: i.quantity,
-        netPrice: String(i.netPrice),
-        sourceSessionBookingId: i.sourceSessionBookingId ?? null,
-        sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
-      }))
-  }
-
-  function openBillServerItemsToDraft(ob: OpenBill): OpenBillEditItem[] {
-    return ob.items.map((i, index) => ({
+  function openBillItemToDraft(ob: OpenBill, i: OpenBill['items'][number], index: number): OpenBillEditItem {
+    return {
       openBillItemId: i.id,
       clientRowKey: Number(i.id) > 0 ? undefined : `server-row-${ob.id}-${index}`,
       transactionServiceId: i.transactionService.id,
@@ -1431,7 +1421,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       netPrice: String(i.netPrice),
       sourceSessionBookingId: i.sourceSessionBookingId ?? null,
       sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
-    }))
+    }
+  }
+
+  function getOpenBillItems(ob: OpenBill) {
+    return (openBillEdits[ob.id]
+      ?? ob.items.map((i, index) => openBillItemToDraft(ob, i, index)))
+      .filter((item) => !isLegacyAdvanceOffsetDraftItem(item))
+  }
+
+  function openBillServerItemsToDraft(ob: OpenBill): OpenBillEditItem[] {
+    return ob.items
+      .map((i, index) => openBillItemToDraft(ob, i, index))
+      .filter((item) => !isLegacyAdvanceOffsetDraftItem(item))
   }
 
   const markOpenBillDirty = (ob: OpenBill) => {
@@ -1461,9 +1463,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     overrides?: { paymentMethodId?: number | null; paymentTotalGross?: number },
   ) => {
     const detailsDraft = openBillDetailsEdits[ob.id]
-    const paymentSplits = getOpenBillPaymentSplits(ob, overrides?.paymentTotalGross ?? estimateGross(items))
-      .filter((split) => split.paymentMethodId)
-      .map((split) => ({ paymentMethodId: split.paymentMethodId, amountGross: Number(split.amountGross || 0) }))
+    const paymentSplits = buildPaymentSplitsPayload(getOpenBillPaymentSplits(ob, overrides?.paymentTotalGross ?? estimateGross(items)))
     const primaryPaymentMethodId = paymentSplits[0]?.paymentMethodId ?? ob.paymentMethod?.id
     const payload: Record<string, unknown> = {
       paymentMethodId: overrides && Object.prototype.hasOwnProperty.call(overrides, 'paymentMethodId')
@@ -1471,13 +1471,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : primaryPaymentMethodId,
       paymentSplits,
       reference: ob.reference ?? '',
-      items: items.map((i) => ({
-        transactionServiceId: i.transactionServiceId,
-        quantity: i.quantity,
-        netPrice: Number(i.netPrice),
-        sourceSessionBookingId: i.sourceSessionBookingId ?? null,
-        sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
-      })),
+      items: items
+        .filter((i) => !isLegacyAdvanceOffsetDraftItem(i))
+        .map((i) => ({
+          transactionServiceId: i.transactionServiceId,
+          quantity: i.quantity,
+          netPrice: Number(i.netPrice),
+          sourceSessionBookingId: i.sourceSessionBookingId ?? null,
+          sourceAdvanceBillId: null,
+        })),
     }
 
     if (detailsDraft) {
@@ -1505,20 +1507,21 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return amount.toFixed(2)
   }
 
-  function getOpenBillPaymentSplits(ob: OpenBill, totalGross: number): OpenBillPaymentSplitDraft[] {
-    if (Object.prototype.hasOwnProperty.call(openBillPaymentEdits, ob.id)) {
-      return openBillPaymentEdits[ob.id]
-    }
-    const appliedAdvanceSelections = getOpenBillItems(ob)
+  function isLegacyAdvanceOffsetDraftItem(item: { sourceAdvanceBillId?: number | null; netPrice?: string | number | null } | null | undefined) {
+    return item?.sourceAdvanceBillId != null && Number(item.netPrice || 0) < 0
+  }
+
+  function getLegacyAdvanceSelectionsFromOpenBillItems(ob: OpenBill) {
+    return (ob.items ?? [])
       .filter((item) => item.sourceAdvanceBillId != null && Number(item.netPrice || 0) < 0)
       .reduce<AdvancePaymentSelectionDraft[]>((acc, item) => {
         const advanceBillId = Number(item.sourceAdvanceBillId)
         if (!Number.isFinite(advanceBillId) || advanceBillId <= 0) return acc
-        const grossAmount = lineGrossTotal({
-          transactionServiceId: item.transactionServiceId,
+        const grossAmount = estimateGross([{
+          transactionServiceId: item.transactionService.id,
           quantity: item.quantity,
           netPrice: String(Math.abs(Number(item.netPrice || 0))),
-        })
+        }])
         const existing = acc.find((entry) => entry.advanceBillId === advanceBillId)
         if (existing) {
           existing.amountGross = formatPaymentAmountInput(Number(existing.amountGross || 0) + grossAmount)
@@ -1532,24 +1535,93 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         })
         return acc
       }, [])
+  }
+
+  function findAdvancePaymentMethodForOpenBill(ob: OpenBill) {
+    if (ob.paymentMethod && isDepositPaymentMethod(ob.paymentMethod)) return ob.paymentMethod
+    return paymentMethods.find((method) => isDepositPaymentMethod(method)) || null
+  }
+
+  function buildLegacyAdvancePaymentSplit(ob: OpenBill, selections: AdvancePaymentSelectionDraft[]): OpenBillPaymentSplitDraft | null {
+    if (selections.length === 0) return null
+    const method = findAdvancePaymentMethodForOpenBill(ob)
+    if (!method) return null
+    return {
+      key: `legacy-advance-offset-${ob.id}`,
+      paymentMethodId: method.id,
+      amountGross: formatPaymentAmountInput(sumAdvanceSelectionGross(selections)),
+      sourceAdvanceBillId: null,
+      advanceSelections: selections,
+    }
+  }
+
+  function getOpenBillPaymentSplits(ob: OpenBill, totalGross: number): OpenBillPaymentSplitDraft[] {
+    if (Object.prototype.hasOwnProperty.call(openBillPaymentEdits, ob.id)) {
+      return openBillPaymentEdits[ob.id]
+    }
+    const hasAdvanceSourcePaymentSplits = (ob.paymentSplits ?? []).some((split) => split.sourceAdvanceBillId != null)
+    const legacyAdvanceSelections = hasAdvanceSourcePaymentSplits ? [] : getLegacyAdvanceSelectionsFromOpenBillItems(ob)
+    const legacyAdvanceSplit = buildLegacyAdvancePaymentSplit(ob, legacyAdvanceSelections)
     const serverSplits = (ob.paymentSplits ?? [])
       .filter((split) => split.paymentMethod?.id)
-      .map((split, index) => ({
-        key: split.id != null ? `server-${split.id}` : `server-${ob.id}-${index}`,
-        paymentMethodId: split.paymentMethod.id,
-        amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)),
-        advanceSelections: isDepositPaymentMethod(split.paymentMethod) ? appliedAdvanceSelections : [],
-      }))
-    if (serverSplits.length > 0) return serverSplits
+      .reduce<OpenBillPaymentSplitDraft[]>((acc, split, index) => {
+        const isAdvanceMethod = isDepositPaymentMethod(split.paymentMethod)
+        const sourceAdvanceBillId = split.sourceAdvanceBillId == null ? null : Number(split.sourceAdvanceBillId)
+        const amountGross = Number(split.amountGross || 0)
+        if (isAdvanceMethod && sourceAdvanceBillId != null && Number.isFinite(sourceAdvanceBillId) && sourceAdvanceBillId > 0) {
+          const groupKey = `server-advance-${ob.id}-${split.paymentMethod.id}`
+          const existing = acc.find((entry) => entry.key === groupKey)
+          const selection: AdvancePaymentSelectionDraft = {
+            advanceBillId: sourceAdvanceBillId,
+            mode: 'partial',
+            amountGross: formatPaymentAmountInput(amountGross),
+          }
+          if (existing) {
+            existing.amountGross = formatPaymentAmountInput(Number(existing.amountGross || 0) + amountGross)
+            existing.advanceSelections = [...(existing.advanceSelections ?? []), selection]
+            return acc
+          }
+          acc.push({
+            key: groupKey,
+            paymentMethodId: split.paymentMethod.id,
+            amountGross: formatPaymentAmountInput(amountGross),
+            sourceAdvanceBillId: null,
+            advanceSelections: [selection],
+          })
+          return acc
+        }
+        acc.push({
+          key: split.id != null ? `server-${split.id}` : `server-${ob.id}-${index}`,
+          paymentMethodId: split.paymentMethod.id,
+          amountGross: formatPaymentAmountInput(amountGross),
+          sourceAdvanceBillId,
+          advanceSelections: [],
+        })
+        return acc
+      }, [])
+    if (serverSplits.length > 0) return legacyAdvanceSplit ? [...serverSplits, legacyAdvanceSplit] : serverSplits
+    if (legacyAdvanceSplit && (!ob.paymentMethod?.id || isDepositPaymentMethod(ob.paymentMethod))) return [legacyAdvanceSplit]
+    if (legacyAdvanceSplit && ob.paymentMethod?.id) {
+      const remainingGross = Math.max(0, totalGross - Number(legacyAdvanceSplit.amountGross || 0))
+      return [
+        legacyAdvanceSplit,
+        ...(remainingGross > 0.005 ? [{
+          key: `legacy-${ob.id}`,
+          paymentMethodId: ob.paymentMethod.id,
+          amountGross: formatPaymentAmountInput(remainingGross),
+          advanceSelections: [],
+        }] : []),
+      ]
+    }
     if (ob.paymentMethod?.id) {
       return [{
         key: `legacy-${ob.id}`,
         paymentMethodId: ob.paymentMethod.id,
         amountGross: formatPaymentAmountInput(totalGross),
-        advanceSelections: isDepositPaymentMethod(ob.paymentMethod) ? appliedAdvanceSelections : [],
+        advanceSelections: [],
       }]
     }
-    return []
+    return legacyAdvanceSplit ? [legacyAdvanceSplit] : []
   }
 
   function paymentSplitTotalGross(splits: OpenBillPaymentSplitDraft[]) {
@@ -1718,10 +1790,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     ])
   }
 
+  function buildPaymentSplitsPayload(splits: OpenBillPaymentSplitDraft[]) {
+    return splits.flatMap((split) => {
+      const paymentMethodId = split.paymentMethodId
+      if (!paymentMethodId) return []
+      const advanceSelections = isAdvancePaymentSplit(split)
+        ? normalizeAdvanceSelections(split.advanceSelections)
+        : []
+      if (advanceSelections.length > 0) {
+        return advanceSelections.map((selection) => ({
+          paymentMethodId,
+          amountGross: Number(selection.amountGross || 0),
+          sourceAdvanceBillId: selection.advanceBillId,
+        }))
+      }
+      return [{
+        paymentMethodId,
+        amountGross: Number(split.amountGross || 0),
+        sourceAdvanceBillId: split.sourceAdvanceBillId ?? null,
+      }]
+    })
+  }
+
   function buildCreatePaymentSplitsPayload(totalGross: number) {
-    return getCreateBillPaymentSplits(totalGross)
-      .filter((split) => split.paymentMethodId)
-      .map((split) => ({ paymentMethodId: split.paymentMethodId, amountGross: Number(split.amountGross || 0) }))
+    return buildPaymentSplitsPayload(getCreateBillPaymentSplits(totalGross))
   }
 
   function sumAdvanceSelectionGross(selections: AdvancePaymentSelectionDraft[] | null | undefined) {
@@ -1800,14 +1892,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   function openAdvancePaymentModalForCreate(splitKey: string) {
     const split = getCreateBillPaymentSplits(grossPreview).find((entry) => entry.key === splitKey)
-    setAdvancePaymentDraftSelections(normalizeAdvanceSelections(split?.advanceSelections))
+    const initialSelections = normalizeAdvanceSelections(split?.advanceSelections)
+    setAdvancePaymentDraftSelections(initialSelections)
+    setAdvancePaymentInitialSelections(initialSelections)
     setAdvancePaymentShowOther(false)
     setAdvancePaymentModal({ mode: 'create', splitKey })
   }
 
   function openAdvancePaymentModalForOpenBill(ob: OpenBill, splitKey: string) {
     const split = getOpenBillPaymentSplits(ob, estimateGross(getOpenBillItems(ob))).find((entry) => entry.key === splitKey)
-    setAdvancePaymentDraftSelections(normalizeAdvanceSelections(split?.advanceSelections))
+    const initialSelections = normalizeAdvanceSelections(split?.advanceSelections)
+    setAdvancePaymentDraftSelections(initialSelections)
+    setAdvancePaymentInitialSelections(initialSelections)
     setAdvancePaymentShowOther(false)
     setAdvancePaymentModal({ mode: 'open', openBillId: ob.id, splitKey })
   }
@@ -1815,6 +1911,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   function closeAdvancePaymentModal() {
     setAdvancePaymentModal(null)
     setAdvancePaymentDraftSelections([])
+    setAdvancePaymentInitialSelections([])
     setAdvancePaymentShowOther(false)
   }
 
@@ -1856,7 +1953,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       let next: AdvancePaymentSelectionDraft = { ...entry, ...patch }
       if (patch.mode === 'full') {
         const advance = findUnusedAdvanceById(advanceBillId)
-        next = { ...next, amountGross: formatPaymentAmountInput(Number(advance?.remainingGross || 0)) }
+        const fullAmount = patch.amountGross != null ? Number(patch.amountGross) : Number(advance?.remainingGross || 0)
+        next = { ...next, amountGross: formatPaymentAmountInput(fullAmount) }
       }
       if (patch.amountGross != null) {
         next = { ...next, amountGross: patch.amountGross.replace(/[^0-9.,-]/g, '').replace(',', '.') }
@@ -1874,7 +1972,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         advanceBillId: selection.advanceBillId,
         openBillId,
         sessionId,
-        applyAmountNet: grossToAdvanceNet(amountGross),
+        applyAmountGross: amountGross,
       })
     }
   }
@@ -2600,13 +2698,52 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       detailOpenBill.batchTargetCompanyId != null || detailOpenBill.batchScope === 'COMPANY'
         ? 'COMPANY'
         : 'PERSON'
-    return unusedAdvances.filter((entry) => doesUnusedAdvanceMatchRecipient(
-      entry,
-      detailRecipientTarget,
-      detailOpenBill.client?.id ?? null,
-      detailOpenBill.batchTargetCompanyId ?? null,
-    ))
-  }, [unusedAdvances, detailOpenBill])
+    const byId = new Map<number, UnusedAdvance>()
+    unusedAdvances
+      .filter((entry) => doesUnusedAdvanceMatchRecipient(
+        entry,
+        detailRecipientTarget,
+        detailOpenBill.client?.id ?? null,
+        detailOpenBill.batchTargetCompanyId ?? null,
+      ))
+      .forEach((entry) => byId.set(entry.advanceBillId, { ...entry }))
+
+    const persistedAdvanceSelections = (() => {
+      const serverSelections = (detailOpenBill.paymentSplits ?? [])
+        .filter((split) => isDepositPaymentMethod(split.paymentMethod) && split.sourceAdvanceBillId != null)
+        .map<AdvancePaymentSelectionDraft>((split) => ({
+          advanceBillId: Number(split.sourceAdvanceBillId),
+          mode: 'partial',
+          amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)),
+        }))
+        .filter((selection) => Number.isFinite(selection.advanceBillId) && selection.advanceBillId > 0)
+      const hasAdvanceSourcePaymentSplits = serverSelections.length > 0
+      return hasAdvanceSourcePaymentSplits ? serverSelections : getLegacyAdvanceSelectionsFromOpenBillItems(detailOpenBill)
+    })()
+
+    persistedAdvanceSelections.forEach((selection) => {
+      const selectedAmountGross = Number(selection.amountGross || 0)
+      if (!Number.isFinite(selectedAmountGross) || selectedAmountGross <= 0) return
+      if (byId.has(selection.advanceBillId)) return
+      const bill = bills.find((entry) => entry.id === selection.advanceBillId)
+      byId.set(selection.advanceBillId, {
+        advanceBillId: selection.advanceBillId,
+        billNumber: bill?.billNumber || `ADV-${selection.advanceBillId}`,
+        sessionId: bill?.sessionId ?? null,
+        client: bill?.client ? { id: bill.client.id, firstName: bill.client.firstName, lastName: bill.client.lastName } : null,
+        recipientCompany: bill?.recipientCompany ? { id: bill.recipientCompany.id, name: bill.recipientCompany.name } : null,
+        billingTarget: bill?.billingTarget ?? null,
+        issueDate: bill?.issueDate || '',
+        totalNet: selectedAmountGross,
+        usedNet: 0,
+        remainingNet: selectedAmountGross,
+        totalGross: selectedAmountGross,
+        usedGross: 0,
+        remainingGross: selectedAmountGross,
+      })
+    })
+    return Array.from(byId.values())
+  }, [unusedAdvances, detailOpenBill, bills, services, paymentMethods])
   const createEligibleUnusedAdvances = useMemo(
     () => unusedAdvances.filter((entry) => doesUnusedAdvanceMatchRecipient(
       entry,
@@ -2694,11 +2831,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               sessionDisplayId: ob.sessionDisplayId,
               sessionInfo: ob.sessionInfo || '',
               clientName: openBillClientLabel(ob),
-              totalGross: estimateGross((ob.items || []).map((item) => ({
-                transactionServiceId: Number(item.transactionService?.id ?? item.id ?? 0),
-                quantity: Number(item.quantity ?? 0),
-                netPrice: String(item.netPrice ?? 0),
-              }))),
+              totalGross: estimateGross(getOpenBillItems(ob)),
             }]
           : [])
       for (const session of sessions) {
@@ -2851,7 +2984,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         advanceBillId: effectiveAdvanceBillId,
         openBillId: appliedOpenBillId,
         sessionId: effectiveSessionId,
-        applyAmountNet: numericAmount,
+        applyAmountGross: numericAmount,
       })
       showToast('success', billingCopy.advanceAppliedSuccess)
       setApplyAmountNet('')
@@ -3104,25 +3237,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         ? []
         : getRelatedOpenBillsForEditor(sourceOpenBill)
       const items = getOpenBillItems(sourceOpenBill)
-      const transactionGross = estimateGross(items.filter((item) => item.sourceAdvanceBillId == null))
-      const paymentSplits = getOpenBillPaymentSplits(sourceOpenBill, transactionGross)
-      const advanceSelections = paymentSplits
-        .filter((split) => isAdvancePaymentSplit(split))
-        .flatMap((split) => getAdvanceSelectionsForSplit(split))
-      const targetSessionId = sourceOpenBill.sessions?.[0]?.sessionId ?? sourceOpenBill.sessionId ?? null
-
-      if (advanceSelections.length > 0 && !targetSessionId) {
-        showToast('error', billingCopy.requiredOpenBillSessionSelection)
-        return
-      }
-
       const detailsDraft = openBillDetailsEdits[sourceOpenBill.id]
       if (!validateOpenBillDetailsDraft(detailsDraft)) return
       await api.put(`/billing/open-bills/${sourceOpenBill.id}`, buildOpenBillUpdatePayload(sourceOpenBill, items))
-
-      if (advanceSelections.length > 0 && targetSessionId != null) {
-        await applyAdvanceSelectionsToOpenBill(sourceOpenBill.id, targetSessionId, advanceSelections)
-      }
 
       const { data } = await api.post(`/billing/open-bills/${sourceOpenBill.id}/create-bill`)
       if (data?.id) setBills((prev) => [{ ...data, paymentMethod: normalizePaymentMethod(data.paymentMethod) }, ...prev])
@@ -3225,18 +3342,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       const responses: any[] = Array.isArray(createdList) ? createdList : []
       const newlyCreated = responses.find((entry) => entry?.id != null && !existingIds.has(entry.id))
         ?? [...responses].sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0))[0]
-      const targetId = newlyCreated?.id
-      const targetSessionId = newlyCreated?.sessionId ?? billForm.sessionId
-      const advanceSelections = getCreateBillPaymentSplits(grossPreview)
-        .filter((split) => isAdvancePaymentSplit(split))
-        .flatMap((split) => getAdvanceSelectionsForSplit(split))
-      if (advanceSelections.length > 0 && targetSessionId == null) {
-        showToast('error', billingCopy.requiredOpenBillSessionSelection)
-        return
-      }
-      if (targetId && targetSessionId != null && advanceSelections.length > 0) {
-        await applyAdvanceSelectionsToOpenBill(targetId, targetSessionId, advanceSelections)
-      }
       const snapshot = await load()
       const refreshed = snapshot.openBills.map((entry) => normalizeOpenBill(entry))
       setOpenBills(refreshed)
@@ -3264,17 +3369,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       if (!targetId) {
         showToast('error', locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.')
         return
-      }
-      const targetSessionId = newlyCreated?.sessionId ?? billForm.sessionId
-      const advanceSelections = getCreateBillPaymentSplits(grossPreview)
-        .filter((split) => isAdvancePaymentSplit(split))
-        .flatMap((split) => getAdvanceSelectionsForSplit(split))
-      if (advanceSelections.length > 0 && targetSessionId == null) {
-        showToast('error', billingCopy.requiredOpenBillSessionSelection)
-        return
-      }
-      if (targetSessionId != null && advanceSelections.length > 0) {
-        await applyAdvanceSelectionsToOpenBill(targetId, targetSessionId, advanceSelections)
       }
       const { data: bill } = await api.post(`/billing/open-bills/${targetId}/create-bill`)
       if (bill?.id) setBills((prev) => [{ ...bill, paymentMethod: normalizePaymentMethod(bill.paymentMethod) }, ...prev])
@@ -4074,16 +4168,76 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ? null
       : (openBills.find((entry) => entry.id === advancePaymentModal.openBillId) || detailOpenBill)
     const targetDetails = targetOpenBill ? getOpenBillDetailsDraft(targetOpenBill) : null
+    const modalUnusedAdvances = (() => {
+      const byId = new Map<number, UnusedAdvance>()
+      unusedAdvances.forEach((advance) => byId.set(advance.advanceBillId, { ...advance }))
+
+      // Keep selections that were already assigned when the picker opened visible if
+      // the backend no longer returns them as unused. Do not add the selected amount
+      // to an existing unused balance, because that duplicates the visible deposit total.
+      advancePaymentInitialSelections.forEach((selection) => {
+        const selectedAmountGross = getAdvanceSelectionAmount(selection)
+        if (!Number.isFinite(selectedAmountGross) || selectedAmountGross <= 0) return
+        if (byId.has(selection.advanceBillId)) return
+        const bill = bills.find((entry) => entry.id === selection.advanceBillId)
+        byId.set(selection.advanceBillId, {
+          advanceBillId: selection.advanceBillId,
+          billNumber: bill?.billNumber || `ADV-${selection.advanceBillId}`,
+          sessionId: bill?.sessionId ?? null,
+          client: bill?.client ? { id: bill.client.id, firstName: bill.client.firstName, lastName: bill.client.lastName } : null,
+          recipientCompany: bill?.recipientCompany ? { id: bill.recipientCompany.id, name: bill.recipientCompany.name } : null,
+          billingTarget: bill?.billingTarget ?? null,
+          issueDate: bill?.issueDate || '',
+          totalNet: grossToAdvanceNet(selectedAmountGross),
+          usedNet: 0,
+          remainingNet: grossToAdvanceNet(selectedAmountGross),
+          totalGross: selectedAmountGross,
+          usedGross: 0,
+          remainingGross: selectedAmountGross,
+        })
+      })
+
+      // Keep a currently selected advance visible even if it is no longer returned as unused.
+      // Do not add this amount to an existing remaining amount; it is only a fallback row.
+      advancePaymentDraftSelections.forEach((selection) => {
+        if (byId.has(selection.advanceBillId)) return
+        const selectedAmountGross = getAdvanceSelectionAmount(selection)
+        if (!Number.isFinite(selectedAmountGross) || selectedAmountGross <= 0) return
+        const bill = bills.find((entry) => entry.id === selection.advanceBillId)
+        byId.set(selection.advanceBillId, {
+          advanceBillId: selection.advanceBillId,
+          billNumber: bill?.billNumber || `ADV-${selection.advanceBillId}`,
+          sessionId: bill?.sessionId ?? null,
+          client: bill?.client ? { id: bill.client.id, firstName: bill.client.firstName, lastName: bill.client.lastName } : null,
+          recipientCompany: bill?.recipientCompany ? { id: bill.recipientCompany.id, name: bill.recipientCompany.name } : null,
+          billingTarget: bill?.billingTarget ?? null,
+          issueDate: bill?.issueDate || '',
+          totalNet: grossToAdvanceNet(selectedAmountGross),
+          usedNet: 0,
+          remainingNet: grossToAdvanceNet(selectedAmountGross),
+          totalGross: selectedAmountGross,
+          usedGross: 0,
+          remainingGross: selectedAmountGross,
+        })
+      })
+      return Array.from(byId.values())
+    })()
+    const selectedAdvanceIds = new Set(advancePaymentDraftSelections.map((entry) => entry.advanceBillId))
     const primaryAdvances = isCreateMode
-      ? createEligibleUnusedAdvances
-      : unusedAdvances.filter((entry) => doesUnusedAdvanceMatchRecipient(
+      ? modalUnusedAdvances.filter((entry) => selectedAdvanceIds.has(entry.advanceBillId) || doesUnusedAdvanceMatchRecipient(
+          entry,
+          billForm.billingTarget,
+          billForm.clientId ?? null,
+          billForm.recipientCompanyId ?? null,
+        ))
+      : modalUnusedAdvances.filter((entry) => selectedAdvanceIds.has(entry.advanceBillId) || doesUnusedAdvanceMatchRecipient(
           entry,
           targetDetails?.billingTarget ?? 'PERSON',
           targetDetails?.clientId ?? targetOpenBill?.client?.id ?? null,
           targetDetails?.recipientCompanyId ?? targetOpenBill?.batchTargetCompanyId ?? null,
         ))
     const primaryAdvanceIds = new Set(primaryAdvances.map((entry) => entry.advanceBillId))
-    const otherAdvances = unusedAdvances.filter((entry) => !primaryAdvanceIds.has(entry.advanceBillId))
+    const otherAdvances = modalUnusedAdvances.filter((entry) => !primaryAdvanceIds.has(entry.advanceBillId))
     const targetClient = isCreateMode
       ? clients.find((client) => client.id === billForm.clientId) || null
       : clients.find((client) => client.id === (targetDetails?.clientId ?? targetOpenBill?.client?.id)) || null
@@ -4095,7 +4249,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       : (targetClient ? fullName(targetClient) : (locale === 'sl' ? 'Izbrana stranka' : 'Selected client'))
     const limitGross = isCreateMode ? grossPreview : detailOpenBillTransactionGross
     const selectedTotal = sumAdvanceSelectionGross(advancePaymentDraftSelections)
-    const canConfirm = validateAdvanceSelections(advancePaymentDraftSelections, unusedAdvances, limitGross)
+    const canConfirm = validateAdvanceSelections(advancePaymentDraftSelections, modalUnusedAdvances, limitGross)
     const selectedCount = advancePaymentDraftSelections.length
 
     const getAdvanceRecipientCaption = (advance: UnusedAdvance) => {
@@ -4112,13 +4266,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       checked: boolean,
       label: string,
       trailing: ReactNode,
+      amountGross?: string,
     ) => (
       <label className={`billing-advance-picker-mode-row${checked ? ' is-active' : ''}`}>
         <input
           type="radio"
           name={`advance-mode-${advanceBillId}`}
           checked={checked}
-          onChange={() => updateAdvanceDraftSelection(advanceBillId, { mode })}
+          onChange={() => updateAdvanceDraftSelection(advanceBillId, { mode, ...(amountGross != null ? { amountGross } : {}) })}
         />
         <span className="billing-advance-picker-mode-radio" aria-hidden />
         <span className="billing-advance-picker-mode-label">{label}</span>
@@ -4169,25 +4324,31 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 selected.mode === 'full',
                 locale === 'sl' ? 'Uporabi celoten znesek' : 'Use full amount',
                 currency(remainingGross),
+                formatPaymentAmountInput(remainingGross),
               )}
               {renderAdvanceSelectionModeRow(
                 advance.advanceBillId,
                 'partial',
                 selected.mode === 'partial',
-                locale === 'sl' ? 'Uporabi del zneska' : 'Use part of amount',
+                locale === 'sl' ? 'Uporabi znesek na tem računu' : 'Use amount on this bill',
                 <span className="billing-advance-picker-amount-field-wrap">
                   <input
                     type="text"
                     inputMode="decimal"
                     value={selected.amountGross}
+                    placeholder="0.00"
                     readOnly={selected.mode !== 'partial'}
                     onChange={(e) => updateAdvanceDraftSelection(advance.advanceBillId, { amountGross: e.target.value })}
                     onBlur={() => updateAdvanceDraftSelection(advance.advanceBillId, { amountGross: formatPaymentAmountInput(getAdvanceSelectionAmount(selected)) })}
-                    aria-label={locale === 'sl' ? 'Znesek predplačila' : 'Advance amount'}
+                    aria-label={locale === 'sl' ? 'Znesek predplačila za ta račun' : 'Advance amount for this bill'}
                   />
-                  <span>EUR</span>
                 </span>,
               )}
+              <p className="billing-advance-picker-payment-note">
+                {locale === 'sl'
+                  ? 'Izbrani znesek se doda kot plačilna metoda samo na ta račun. Neuporabljeni preostanek ostane na predplačilu.'
+                  : 'The selected amount is added as a payment method only on this bill. Any unused remainder stays on the deposit.'}
+              </p>
             </div>
           )}
         </div>
@@ -4200,7 +4361,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div className="billing-payee-modal-head billing-advance-picker-head">
             <div>
               <h3>{locale === 'sl' ? 'Izberi neizkoriščena predplačila' : 'Choose unused advance payments'}</h3>
-              <p>{locale === 'sl' ? 'Izberite predplačila, s katerimi želite plačati.' : 'Choose the advance payments you want to use.'}</p>
+              <p>{locale === 'sl' ? 'Izberite predplačila, ki jih želite uporabiti kot način plačila na tem računu.' : 'Choose the advance payments you want to use as payment methods on this bill.'}</p>
             </div>
             <button type="button" className="billing-bill-modal-close" onClick={closeAdvancePaymentModal} aria-label="Close">×</button>
           </div>

@@ -24,4 +24,9 @@ public class OpenBillPayment extends BaseEntity {
 
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;
+
+    /** Advance/deposit bill reserved for this draft payment split. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_advance_bill_id")
+    private Bill sourceAdvanceBill;
 }

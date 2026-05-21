@@ -1823,7 +1823,7 @@
     color: #0f172a;
     font-weight: 800;
     text-align: right;
-    padding: 0 11px;
+    padding: 0 14px;
     box-shadow: none;
 }
 
@@ -2391,7 +2391,7 @@
     background: #ffffff;
 }
 
-.billing-advance-picker-mode-row input {
+.billing-advance-picker-mode-row > input[type="radio"] {
     position: absolute;
     opacity: 0;
     pointer-events: none;
@@ -2426,7 +2426,7 @@
 
 .billing-advance-picker-amount-field-wrap {
     display: inline-grid;
-    grid-template-columns: minmax(104px, 128px) auto;
+    grid-template-columns: minmax(132px, 168px);
     align-items: center;
     min-height: 44px;
     border-radius: 12px;
@@ -2442,21 +2442,16 @@
     background: transparent;
     color: #0f172a;
     font-weight: 800;
-    padding: 0 11px;
+    padding: 0 14px;
     font-size: 16px;
 }
 
-.billing-advance-picker-amount-field-wrap span {
-    min-width: 56px;
-    height: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #f8fafc;
-    border-left: 1px solid rgba(226, 232, 240, 1);
-    color: #475569;
-    font-size: 13px;
-    font-weight: 800;
+.billing-advance-picker-payment-note {
+    margin: 2px 4px 0 40px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.45;
+    font-weight: 650;
 }
 
 .billing-advance-picker-empty {
@@ -2596,7 +2591,10 @@
     }
     .billing-advance-picker-amount-field-wrap {
         width: 100%;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .billing-advance-picker-payment-note {
+        margin-left: 0;
     }
     .billing-invoice-compact-summary > div {
         border-right: 0;

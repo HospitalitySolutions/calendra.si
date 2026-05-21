@@ -160,8 +160,8 @@ public class BillingController {
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
     public record PaymentMethodSummary(Long id, String name, PaymentType paymentType, boolean fiscalized, boolean stripeEnabled) {}
-    public record PaymentSplitRequest(Long paymentMethodId, BigDecimal amountGross) {}
-    public record PaymentSplitResponse(Long id, PaymentMethodSummary paymentMethod, BigDecimal amountGross) {}
+    public record PaymentSplitRequest(Long paymentMethodId, BigDecimal amountGross, Long sourceAdvanceBillId) {}
+    public record PaymentSplitResponse(Long id, PaymentMethodSummary paymentMethod, BigDecimal amountGross, Long sourceAdvanceBillId) {}
     public record ServiceSummary(Long id, String code, String description, TaxRate taxRate, BigDecimal netPrice) {}
     public record BillItemResponse(
             Long id,
@@ -267,7 +267,7 @@ public class BillingController {
             BigDecimal usedGross,
             BigDecimal remainingGross
     ) {}
-    public record ApplyUnusedAdvanceRequest(Long advanceBillId, Long openBillId, Long sessionId, BigDecimal applyAmountNet) {}
+    public record ApplyUnusedAdvanceRequest(Long advanceBillId, Long openBillId, Long sessionId, BigDecimal applyAmountNet, BigDecimal applyAmountGross) {}
     public record ApplyUnusedAdvanceResponse(Long openBillId, Long advanceBillId, BigDecimal remainingNet) {}
     public record OpenBillUpdateRequest(
             Long paymentMethodId,
@@ -949,11 +949,16 @@ public class BillingController {
             }
             var method = paymentMethodRepo.findByIdAndCompanyId(split.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
+            Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
+            if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
+            }
             if (firstMethod == null) firstMethod = method;
             var row = new OpenBillPayment();
             row.setOpenBill(open);
             row.setPaymentMethod(method);
             row.setAmountGross(amount);
+            row.setSourceAdvanceBill(sourceAdvance);
             row.setSortOrder(order++);
             open.getPaymentSplits().add(row);
         }
@@ -975,11 +980,16 @@ public class BillingController {
             }
             var method = paymentMethodRepo.findByIdAndCompanyId(split.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
+            Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
+            if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
+            }
             if (firstMethod == null) firstMethod = method;
             var row = new BillPayment();
             row.setBill(bill);
             row.setPaymentMethod(method);
             row.setAmountGross(amount);
+            row.setSourceAdvanceBill(sourceAdvance);
             row.setSortOrder(order++);
             bill.getPaymentSplits().add(row);
         }
@@ -996,6 +1006,82 @@ public class BillingController {
         }
     }
 
+    private boolean isAdvanceLikePaymentMethod(PaymentMethod method) {
+        if (method == null) return false;
+        if (method.getPaymentType() == PaymentType.ADVANCE) return true;
+        String haystack = ((method.getName() == null ? "" : method.getName()) + " " + (method.getPaymentType() == null ? "" : method.getPaymentType().name()))
+                .toLowerCase(Locale.ROOT);
+        return haystack.contains("advance")
+                || haystack.contains("deposit")
+                || haystack.contains("predpla")
+                || haystack.contains("avans")
+                || haystack.contains("polog");
+    }
+
+    private Bill resolvePaymentSplitSourceAdvance(PaymentSplitRequest split, Long companyId) {
+        if (split == null || split.sourceAdvanceBillId() == null) return null;
+        Bill advance = billRepo.findByIdAndCompanyId(split.sourceAdvanceBillId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid source advance bill."));
+        if (advance.getBillType() != BillType.ADVANCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId must reference an ADVANCE bill.");
+        }
+        if (!BillPaymentStatus.PAID.equals(advance.getPaymentStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only paid advances can be used as payment methods.");
+        }
+        return advance;
+    }
+
+    private static boolean isLegacyAdvanceOffsetItem(OpenBillItem item) {
+        return item != null
+                && item.getSourceAdvanceBillId() != null
+                && item.getNetPrice() != null
+                && item.getNetPrice().compareTo(BigDecimal.ZERO) < 0;
+    }
+
+    private static boolean isLegacyAdvanceOffsetRequest(OpenBillItemRequest item) {
+        return item != null
+                && item.sourceAdvanceBillId() != null
+                && item.netPrice() != null
+                && item.netPrice().compareTo(BigDecimal.ZERO) < 0;
+    }
+
+    private PaymentMethod resolveAdvancePaymentMethodForOpenBill(OpenBill openBill, Long companyId) {
+        if (openBill != null && isAdvanceLikePaymentMethod(openBill.getPaymentMethod())) {
+            return openBill.getPaymentMethod();
+        }
+        if (openBill != null && openBill.getPaymentSplits() != null) {
+            for (OpenBillPayment split : openBill.getPaymentSplits()) {
+                if (split != null && isAdvanceLikePaymentMethod(split.getPaymentMethod())) {
+                    return split.getPaymentMethod();
+                }
+            }
+        }
+        return paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(this::isAdvanceLikePaymentMethod)
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No advance/deposit payment method is configured."));
+    }
+
+    private static BigDecimal advanceNetToGross(Bill advance, BigDecimal amountNet) {
+        BigDecimal safeNet = amountNet == null ? BigDecimal.ZERO : amountNet;
+        if (advance == null || advance.getTotalNet() == null || advance.getTotalGross() == null
+                || advance.getTotalNet().compareTo(BigDecimal.ZERO) == 0) {
+            return safeNet.setScale(2, RoundingMode.HALF_UP);
+        }
+        return safeNet.multiply(advance.getTotalGross())
+                .divide(advance.getTotalNet(), 2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal advanceGrossToNet(Bill advance, BigDecimal amountGross) {
+        BigDecimal safeGross = amountGross == null ? BigDecimal.ZERO : amountGross;
+        if (advance == null || advance.getTotalGross() == null || advance.getTotalNet() == null
+                || advance.getTotalGross().compareTo(BigDecimal.ZERO) == 0) {
+            return safeGross.setScale(2, RoundingMode.HALF_UP);
+        }
+        return safeGross.multiply(advance.getTotalNet())
+                .divide(advance.getTotalGross(), 2, RoundingMode.HALF_UP);
+    }
+
     private void copyOpenBillPaymentSplitsToBill(OpenBill open, Bill bill, BigDecimal totalGross) {
         if (open == null || bill == null) return;
         bill.getPaymentSplits().clear();
@@ -1007,6 +1093,7 @@ public class BillingController {
                 row.setBill(bill);
                 row.setPaymentMethod(split.getPaymentMethod());
                 row.setAmountGross((split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross()).setScale(2, RoundingMode.HALF_UP));
+                row.setSourceAdvanceBill(split.getSourceAdvanceBill());
                 row.setSortOrder(order++);
                 bill.getPaymentSplits().add(row);
             }
@@ -1142,6 +1229,10 @@ public class BillingController {
         }
         if (req.paymentSplits() != null) {
             replaceOpenBillPaymentSplits(open, req.paymentSplits(), companyId);
+            if (req.paymentSplits().stream().anyMatch(split -> split != null && split.sourceAdvanceBillId() != null)) {
+                deleteAdvanceAllocationsForOpenBill(companyId, open.getId());
+                advanceAllocationRepo.flush();
+            }
         }
         open.setReference(req.reference() == null ? null : req.reference().trim());
         var existingItems = new ArrayList<>(open.getItems());
@@ -1149,6 +1240,10 @@ public class BillingController {
         if (req.items() != null) {
             int idx = 0;
             for (var item : req.items()) {
+                if (isLegacyAdvanceOffsetRequest(item)) {
+                    idx++;
+                    continue;
+                }
                 var tx = txRepo.findByIdAndCompanyId(item.transactionServiceId(), companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
                 var obi = new OpenBillItem();
@@ -1158,9 +1253,8 @@ public class BillingController {
                 obi.setNetPrice(item.netPrice() != null ? item.netPrice() : tx.getNetPrice());
                 var fallbackItem = idx < existingItems.size() ? existingItems.get(idx) : null;
                 Long fallbackSourceSessionId = fallbackItem != null ? fallbackItem.getSourceSessionBookingId() : null;
-                Long fallbackSourceAdvanceBillId = fallbackItem != null ? fallbackItem.getSourceAdvanceBillId() : null;
                 obi.setSourceSessionBookingId(item.sourceSessionBookingId() != null ? item.sourceSessionBookingId() : fallbackSourceSessionId);
-                obi.setSourceAdvanceBillId(item.sourceAdvanceBillId() != null ? item.sourceAdvanceBillId() : fallbackSourceAdvanceBillId);
+                obi.setSourceAdvanceBillId(null);
                 open.getItems().add(obi);
                 idx++;
             }
@@ -1524,6 +1618,9 @@ public class BillingController {
         BigDecimal totalNet = BigDecimal.ZERO;
         BigDecimal totalGross = BigDecimal.ZERO;
         for (var obi : open.getItems()) {
+            if (isLegacyAdvanceOffsetItem(obi)) {
+                continue;
+            }
             var tx = obi.getTransactionService();
             if (explicitAdvanceOpenBill && (tx == null || !allowedAdvanceServiceIds.contains(tx.getId()))) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ADVANCE bills can only use transaction services marked for advance deduction.");
@@ -1534,12 +1631,15 @@ public class BillingController {
             item.setQuantity(obi.getQuantity());
             item.setNetPrice(obi.getNetPrice());
             item.setSourceSessionBookingId(resolveInvoiceLineSourceSessionId(obi.getSourceSessionBookingId(), linkedSessionId));
-            item.setSourceAdvanceBillId(obi.getSourceAdvanceBillId());
+            item.setSourceAdvanceBillId(null);
             var grossSingle = obi.getNetPrice().add(obi.getNetPrice().multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
             item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(obi.getQuantity())));
             totalNet = totalNet.add(obi.getNetPrice().multiply(BigDecimal.valueOf(obi.getQuantity())));
             totalGross = totalGross.add(item.getGrossPrice());
             bill.getItems().add(item);
+        }
+        if (bill.getItems().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no billable items.");
         }
         bill.setTotalNet(totalNet);
         bill.setTotalGross(totalGross);
@@ -1619,6 +1719,10 @@ public class BillingController {
             List<OpenBillItem> existingItems = open.getItems() == null ? List.of() : new ArrayList<>(open.getItems());
             for (OpenBillItemRequest requested : requestedItems) {
                 if (requested == null || requested.transactionServiceId() == null) continue;
+                if (isLegacyAdvanceOffsetRequest(requested)) {
+                    idx++;
+                    continue;
+                }
                 var tx = txRepo.findByIdAndCompanyId(requested.transactionServiceId(), companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
                 OpenBillItem fallback = idx < existingItems.size() ? existingItems.get(idx) : null;
@@ -1630,9 +1734,7 @@ public class BillingController {
                         resolveInvoiceLineSourceSessionId(
                                 requested.sourceSessionBookingId(),
                                 fallback == null ? linkedSessionId : fallback.getSourceSessionBookingId()),
-                        requested.sourceAdvanceBillId() != null
-                                ? requested.sourceAdvanceBillId()
-                                : (fallback == null ? null : fallback.getSourceAdvanceBillId())
+                        null
                 );
                 totalNet = totalNet.add(item.getNetPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
                 totalGross = totalGross.add(item.getGrossPrice());
@@ -1641,14 +1743,14 @@ public class BillingController {
             }
         } else if (open.getItems() != null) {
             for (OpenBillItem openItem : open.getItems()) {
-                if (openItem == null || openItem.getTransactionService() == null) continue;
+                if (openItem == null || openItem.getTransactionService() == null || isLegacyAdvanceOffsetItem(openItem)) continue;
                 var item = newTransientBillItem(
                         bill,
                         openItem.getTransactionService(),
                         openItem.getQuantity(),
                         openItem.getNetPrice(),
                         resolveInvoiceLineSourceSessionId(openItem.getSourceSessionBookingId(), linkedSessionId),
-                        openItem.getSourceAdvanceBillId()
+                        null
                 );
                 totalNet = totalNet.add(item.getNetPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
                 totalGross = totalGross.add(item.getGrossPrice());
@@ -2492,6 +2594,7 @@ public class BillingController {
         Map<Long, BigDecimal> sessionGrossTotals = new HashMap<>();
         Map<Long, Integer> sessionLineCounts = new HashMap<>();
         for (var item : o.getItems()) {
+            if (isLegacyAdvanceOffsetItem(item)) continue;
             Long groupingSessionId = item.getSourceSessionBookingId();
             if (isManualOpenBillLineSourceId(groupingSessionId)) continue;
             if (groupingSessionId == null && o.getSessionBooking() != null) {
@@ -2515,6 +2618,7 @@ public class BillingController {
 
         Map<Long, OpenBillSessionSummary> grouped = new LinkedHashMap<>();
         for (var item : o.getItems()) {
+            if (isLegacyAdvanceOffsetItem(item)) continue;
             if (item.getSourceSessionBookingId() == null || isManualOpenBillLineSourceId(item.getSourceSessionBookingId())) continue;
             var session = sessionsById.get(item.getSourceSessionBookingId());
             if (session == null) continue;
@@ -2742,6 +2846,7 @@ public class BillingController {
 
         BigDecimal totalNet = BigDecimal.ZERO;
         BigDecimal totalGross = BigDecimal.ZERO;
+        List<PaymentSplitRequest> legacyUnusedAdvanceSplits = new ArrayList<>();
         for (var req : request.items()) {
             if (requestedBillType == BillType.ADVANCE) {
                 Long txId = req == null ? null : req.transactionServiceId();
@@ -2791,28 +2896,25 @@ public class BillingController {
             if (remainingNet.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Advance is already fully used.");
             }
-            var deductionService = resolveAdvanceDeductionService(companyId);
-            BigDecimal divisor = BigDecimal.ONE.add(deductionService.getTaxRate().multiplier);
-            BigDecimal applyAmountNet = applyAmountGross.divide(divisor, 2, RoundingMode.HALF_UP);
+            BigDecimal applyAmountNet = advanceGrossToNet(advance, applyAmountGross);
             if (applyAmountNet.compareTo(remainingNet) > 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Requested unused deposit amount exceeds remaining advance.");
             }
-            var depositItem = new BillItem();
-            depositItem.setBill(bill);
-            depositItem.setTransactionService(deductionService);
-            depositItem.setQuantity(1);
-            depositItem.setNetPrice(applyAmountNet.negate());
-            depositItem.setGrossPrice(applyAmountGross.negate());
-            depositItem.setSourceSessionBookingId(selectedSession != null ? selectedSession.getId() : null);
-            depositItem.setSourceAdvanceBillId(advance.getId());
-            totalNet = totalNet.add(depositItem.getNetPrice());
-            totalGross = totalGross.add(depositItem.getGrossPrice());
-            bill.getItems().add(depositItem);
+            PaymentMethod advancePaymentMethod = resolveAdvancePaymentMethodForOpenBill(null, companyId);
+            legacyUnusedAdvanceSplits.add(new PaymentSplitRequest(advancePaymentMethod.getId(), applyAmountGross, advance.getId()));
+            BigDecimal remainderGross = totalGross.subtract(applyAmountGross).setScale(2, RoundingMode.HALF_UP);
+            if (remainderGross.compareTo(BigDecimal.ZERO) > 0 && bill.getPaymentMethod() != null && !isAdvanceLikePaymentMethod(bill.getPaymentMethod())) {
+                legacyUnusedAdvanceSplits.add(new PaymentSplitRequest(bill.getPaymentMethod().getId(), remainderGross, null));
+            }
         }
         bill.setTotalNet(totalNet);
         bill.setTotalGross(totalGross);
         if (request.paymentSplits() != null) {
             replaceBillPaymentSplits(bill, request.paymentSplits(), companyId, totalGross);
+            bill.setPaymentStatus(resolveInitialPaymentStatus(bill.getPaymentMethod()));
+            bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? OffsetDateTime.now() : null);
+        } else if (!legacyUnusedAdvanceSplits.isEmpty()) {
+            replaceBillPaymentSplits(bill, legacyUnusedAdvanceSplits, companyId, totalGross);
             bill.setPaymentStatus(resolveInitialPaymentStatus(bill.getPaymentMethod()));
             bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? OffsetDateTime.now() : null);
         }
@@ -2911,14 +3013,11 @@ public class BillingController {
     @PostMapping("/unused-advances/apply")
     @Transactional
     public ApplyUnusedAdvanceResponse applyUnusedAdvance(@RequestBody ApplyUnusedAdvanceRequest request, @AuthenticationPrincipal User me) {
-        if (request == null || request.advanceBillId() == null || request.openBillId() == null || request.sessionId() == null || request.applyAmountNet() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "advanceBillId, openBillId, sessionId and applyAmountNet are required.");
+        if (request == null || request.advanceBillId() == null || request.openBillId() == null || request.sessionId() == null
+                || (request.applyAmountGross() == null && request.applyAmountNet() == null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "advanceBillId, openBillId, sessionId and applyAmountGross are required.");
         }
         Long companyId = me.getCompany().getId();
-        BigDecimal applyAmountNet = request.applyAmountNet().setScale(2, RoundingMode.HALF_UP);
-        if (applyAmountNet.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "applyAmountNet must be > 0.");
-        }
 
         Bill advance = billRepo.findByIdAndCompanyId(request.advanceBillId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Advance bill not found."));
@@ -2934,50 +3033,68 @@ public class BillingController {
         if (!companyId.equals(openBill.getCompany().getId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Open bill not found.");
         }
-        // Avoid mutating a partially hydrated items bag (JOIN FETCH + DISTINCT pitfalls); orphanRemoval would delete missing rows on save.
         Hibernate.initialize(openBill.getItems());
+        Hibernate.initialize(openBill.getPaymentSplits());
         if (!openBillContainsSessionTarget(openBill, request.sessionId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected sessionId is not part of the target open bill.");
         }
 
-        BigDecimal remaining = computeRemainingAdvanceNet(companyId, advance);
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+        BigDecimal remainingGross = computeRemainingAdvanceGross(companyId, advance).setScale(2, RoundingMode.HALF_UP);
+        if (remainingGross.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Advance is already fully used.");
         }
-        if (applyAmountNet.compareTo(remaining) > 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "applyAmountNet exceeds remaining advance amount.");
+        BigDecimal applyAmountGross = request.applyAmountGross() != null
+                ? request.applyAmountGross().setScale(2, RoundingMode.HALF_UP)
+                : advanceNetToGross(advance, request.applyAmountNet()).setScale(2, RoundingMode.HALF_UP);
+        if (applyAmountGross.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "applyAmountGross must be > 0.");
+        }
+        if (applyAmountGross.compareTo(remainingGross) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "applyAmountGross exceeds remaining advance amount.");
         }
 
-        var deductionService = resolveAdvanceDeductionService(companyId);
-        BigDecimal applyAmountGross = applyAmountNet
-                .multiply(BigDecimal.ONE.add(deductionService.getTaxRate().multiplier))
-                .setScale(2, RoundingMode.HALF_UP);
         BigDecimal targetTransactionGross = computeOpenBillSessionTransactionGross(openBill, request.sessionId());
         if (targetTransactionGross.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target open bill session has no transaction services to cover.");
         }
-        if (applyAmountGross.compareTo(targetTransactionGross) > 0) {
+        BigDecimal alreadySelectedOnBillGross = openBill.getPaymentSplits().stream()
+                .filter(split -> split != null && split.getSourceAdvanceBill() != null)
+                .map(split -> split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (alreadySelectedOnBillGross.add(applyAmountGross).compareTo(targetTransactionGross) > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unused deposit amount cannot exceed the target open bill amount.");
         }
 
-        var openItem = new OpenBillItem();
-        openItem.setOpenBill(openBill);
-        openItem.setTransactionService(deductionService);
-        openItem.setQuantity(1);
-        openItem.setNetPrice(applyAmountNet.negate());
-        openItem.setSourceSessionBookingId(request.sessionId());
-        openItem.setSourceAdvanceBillId(advance.getId());
-        openBill.getItems().add(openItem);
+        PaymentMethod advancePaymentMethod = resolveAdvancePaymentMethodForOpenBill(openBill, companyId);
+        OpenBillPayment existingSplit = openBill.getPaymentSplits().stream()
+                .filter(split -> split != null
+                        && split.getSourceAdvanceBill() != null
+                        && Objects.equals(split.getSourceAdvanceBill().getId(), advance.getId())
+                        && split.getPaymentMethod() != null
+                        && Objects.equals(split.getPaymentMethod().getId(), advancePaymentMethod.getId()))
+                .findFirst()
+                .orElse(null);
+        if (existingSplit != null) {
+            BigDecimal existingAmount = existingSplit.getAmountGross() == null ? BigDecimal.ZERO : existingSplit.getAmountGross();
+            existingSplit.setAmountGross(existingAmount.add(applyAmountGross).setScale(2, RoundingMode.HALF_UP));
+        } else {
+            int nextOrder = openBill.getPaymentSplits().stream()
+                    .map(OpenBillPayment::getSortOrder)
+                    .filter(Objects::nonNull)
+                    .max(Integer::compareTo)
+                    .orElse(-1) + 1;
+            var split = new OpenBillPayment();
+            split.setOpenBill(openBill);
+            split.setPaymentMethod(advancePaymentMethod);
+            split.setAmountGross(applyAmountGross);
+            split.setSourceAdvanceBill(advance);
+            split.setSortOrder(nextOrder);
+            openBill.getPaymentSplits().add(split);
+        }
+        if (openBill.getPaymentMethod() == null) {
+            openBill.setPaymentMethod(advancePaymentMethod);
+        }
         openBillRepo.save(openBill);
-
-        var allocation = new AdvanceAllocation();
-        allocation.setCompany(openBill.getCompany());
-        allocation.setAdvanceBill(advance);
-        allocation.setOpenBill(openBill);
-        allocation.setSessionBookingId(request.sessionId());
-        allocation.setTransactionService(deductionService);
-        allocation.setAmountNet(applyAmountNet);
-        advanceAllocationRepo.save(allocation);
 
         BigDecimal remainingAfter = computeRemainingAdvanceNet(companyId, advance).setScale(2, RoundingMode.HALF_UP);
         return new ApplyUnusedAdvanceResponse(openBill.getId(), advance.getId(), remainingAfter);
@@ -3102,13 +3219,20 @@ public class BillingController {
 
     private UnusedAdvanceResponse toUnusedAdvanceResponse(Long companyId, Bill advance) {
         BigDecimal total = (advance.getTotalNet() == null ? BigDecimal.ZERO : advance.getTotalNet()).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal used = totalAdvanceConsumedNet(companyId, advance.getId()).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal remaining = total.subtract(used).setScale(2, RoundingMode.HALF_UP);
         BigDecimal totalGross = (advance.getTotalGross() == null ? BigDecimal.ZERO : advance.getTotalGross()).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal remainingGross = total.compareTo(BigDecimal.ZERO) > 0
-                ? remaining.multiply(totalGross).divide(total, 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        BigDecimal usedGross = totalGross.subtract(remainingGross).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal usedGross = totalAdvanceConsumedGross(companyId, advance).setScale(2, RoundingMode.HALF_UP);
+        if (usedGross.compareTo(totalGross) > 0) {
+            usedGross = totalGross;
+        }
+        BigDecimal remainingGross = totalGross.subtract(usedGross).setScale(2, RoundingMode.HALF_UP);
+        if (remainingGross.compareTo(BigDecimal.ZERO) < 0) {
+            remainingGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal remaining = advanceGrossToNet(advance, remainingGross).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal used = total.subtract(remaining).setScale(2, RoundingMode.HALF_UP);
+        if (used.compareTo(BigDecimal.ZERO) < 0) {
+            used = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
         var c = advance.getClient();
         var clientSummary = c == null
                 ? null
@@ -3133,18 +3257,48 @@ public class BillingController {
     }
 
     private BigDecimal computeRemainingAdvanceNet(Long companyId, Bill advance) {
-        BigDecimal total = advance.getTotalNet() == null ? BigDecimal.ZERO : advance.getTotalNet();
-        BigDecimal used = totalAdvanceConsumedNet(companyId, advance.getId());
-        return total.subtract(used);
+        return advanceGrossToNet(advance, computeRemainingAdvanceGross(companyId, advance));
+    }
+
+    private BigDecimal computeRemainingAdvanceGross(Long companyId, Bill advance) {
+        BigDecimal totalGross = advance == null || advance.getTotalGross() == null ? BigDecimal.ZERO : advance.getTotalGross();
+        BigDecimal usedGross = totalAdvanceConsumedGross(companyId, advance);
+        BigDecimal remainingGross = totalGross.subtract(usedGross).setScale(2, RoundingMode.HALF_UP);
+        return remainingGross.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : remainingGross;
     }
 
     /** Open-bill allocations plus folio lines that carried {@link BillItem#getSourceAdvanceBillId()} when the open bill was closed. */
     private BigDecimal totalAdvanceConsumedNet(Long companyId, Long advanceBillId) {
         BigDecimal fromAllocations = advanceAllocationRepo.sumAmountNetByCompanyIdAndAdvanceBillId(companyId, advanceBillId);
         BigDecimal fromFolio = advanceAllocationRepo.sumConsumedFromFolioByAdvanceBillId(companyId, advanceBillId);
+        BigDecimal fromOpenBillPayments = advanceAllocationRepo.sumConsumedFromOpenBillPaymentsByAdvanceBillId(companyId, advanceBillId);
+        BigDecimal fromBillPayments = advanceAllocationRepo.sumConsumedFromBillPaymentsByAdvanceBillId(companyId, advanceBillId);
         BigDecimal a = fromAllocations == null ? BigDecimal.ZERO : fromAllocations;
         BigDecimal b = fromFolio == null ? BigDecimal.ZERO : fromFolio;
-        return a.add(b);
+        BigDecimal c = fromOpenBillPayments == null ? BigDecimal.ZERO : fromOpenBillPayments;
+        BigDecimal d = fromBillPayments == null ? BigDecimal.ZERO : fromBillPayments;
+        return a.add(b).add(c).add(d);
+    }
+
+    /**
+     * Display/reservation balance is gross-first: a user-entered gross 44.00 must consume
+     * exactly 44.00 of the deposit, not 44.01 after net/tax round-tripping.
+     */
+    private BigDecimal totalAdvanceConsumedGross(Long companyId, Bill advance) {
+        if (advance == null || advance.getId() == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        Long advanceBillId = advance.getId();
+        BigDecimal fromAllocations = advanceAllocationRepo.sumAmountNetByCompanyIdAndAdvanceBillId(companyId, advanceBillId);
+        BigDecimal fromFolio = advanceAllocationRepo.sumConsumedFromFolioByAdvanceBillId(companyId, advanceBillId);
+        BigDecimal legacyNet = (fromAllocations == null ? BigDecimal.ZERO : fromAllocations)
+                .add(fromFolio == null ? BigDecimal.ZERO : fromFolio);
+        BigDecimal legacyGross = advanceNetToGross(advance, legacyNet).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal fromOpenBillPayments = advanceAllocationRepo.sumConsumedGrossFromOpenBillPaymentsByAdvanceBillId(companyId, advanceBillId);
+        BigDecimal fromBillPayments = advanceAllocationRepo.sumConsumedGrossFromBillPaymentsByAdvanceBillId(companyId, advanceBillId);
+        BigDecimal openGross = fromOpenBillPayments == null ? BigDecimal.ZERO : fromOpenBillPayments;
+        BigDecimal billGross = fromBillPayments == null ? BigDecimal.ZERO : fromBillPayments;
+        return legacyGross.add(openGross).add(billGross).setScale(2, RoundingMode.HALF_UP);
     }
 
     private void deleteAdvanceAllocationsForOpenBill(Long companyId, Long openBillId) {
@@ -3573,7 +3727,7 @@ public class BillingController {
         if (open == null || open.getItems() == null) return BigDecimal.ZERO;
         BigDecimal total = BigDecimal.ZERO;
         for (var item : open.getItems()) {
-            if (item == null || item.getTransactionService() == null) continue;
+            if (item == null || item.getTransactionService() == null || isLegacyAdvanceOffsetItem(item)) continue;
             BigDecimal net = item.getNetPrice() == null ? BigDecimal.ZERO : item.getNetPrice();
             int qty = item.getQuantity() == null ? 1 : Math.max(1, item.getQuantity());
             BigDecimal grossSingle = net.add(net.multiply(item.getTransactionService().getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
@@ -3590,12 +3744,13 @@ public class BillingController {
                     .map(split -> new PaymentSplitResponse(
                             split.getId(),
                             toPaymentMethodSummary(split.getPaymentMethod()),
-                            (split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross()).setScale(2, RoundingMode.HALF_UP)
+                            (split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross()).setScale(2, RoundingMode.HALF_UP),
+                            split.getSourceAdvanceBill() == null ? null : split.getSourceAdvanceBill().getId()
                     ))
                     .toList();
         }
         if (open == null || open.getPaymentMethod() == null) return List.of();
-        return List.of(new PaymentSplitResponse(null, toPaymentMethodSummary(open.getPaymentMethod()), (fallbackGross == null ? BigDecimal.ZERO : fallbackGross).setScale(2, RoundingMode.HALF_UP)));
+        return List.of(new PaymentSplitResponse(null, toPaymentMethodSummary(open.getPaymentMethod()), (fallbackGross == null ? BigDecimal.ZERO : fallbackGross).setScale(2, RoundingMode.HALF_UP), null));
     }
 
     private static List<PaymentSplitResponse> toBillPaymentSplitResponses(Bill bill) {
@@ -3606,12 +3761,13 @@ public class BillingController {
                     .map(split -> new PaymentSplitResponse(
                             split.getId(),
                             toPaymentMethodSummary(split.getPaymentMethod()),
-                            (split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross()).setScale(2, RoundingMode.HALF_UP)
+                            (split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross()).setScale(2, RoundingMode.HALF_UP),
+                            split.getSourceAdvanceBill() == null ? null : split.getSourceAdvanceBill().getId()
                     ))
                     .toList();
         }
         if (bill == null || bill.getPaymentMethod() == null) return List.of();
-        return List.of(new PaymentSplitResponse(null, toPaymentMethodSummary(bill.getPaymentMethod()), (bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross()).setScale(2, RoundingMode.HALF_UP)));
+        return List.of(new PaymentSplitResponse(null, toPaymentMethodSummary(bill.getPaymentMethod()), (bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross()).setScale(2, RoundingMode.HALF_UP), null));
     }
 
     private static PaymentMethodSummary toPaymentMethodSummary(PaymentMethod paymentMethod) {

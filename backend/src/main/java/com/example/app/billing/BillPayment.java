@@ -24,4 +24,9 @@ public class BillPayment extends BaseEntity {
 
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;
+
+    /** Advance/deposit bill consumed by this payment split, when the split uses an unused deposit. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_advance_bill_id")
+    private Bill sourceAdvanceBill;
 }

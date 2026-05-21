@@ -221,6 +221,7 @@ export type PaymentSplit = {
   id?: number | null
   paymentMethod: PaymentMethod
   amountGross: number
+  sourceAdvanceBillId?: number | null
 }
 
 export type PaymentMethod = {
