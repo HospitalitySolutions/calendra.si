@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
@@ -29,8 +31,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -127,148 +131,69 @@ fun InboxScreen(
         !isUploading &&
         (draft.trim().isNotEmpty() || hasUploadedAttachment)
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFFF8FBFF), Color(0xFFF3F8FF), Color(0xFFFFFBF6))
+                )
+            )
     ) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (messages.isEmpty()) {
-                ElevatedCard(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 8.dp)
-                ) {
-                    Text(
-                        "No messages yet. Start the conversation from the web app or send the first reply here.",
-                        modifier = Modifier.padding(18.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                val entries = remember(messages) { buildChatEntries(messages) }
-                val reversedEntries = remember(entries) { entries.asReversed() }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    reverseLayout = true,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    items(reversedEntries, key = { it.key }) { entry ->
-                        when (entry) {
-                            is ChatEntry.DateHeader -> DateSeparator(entry.label)
-                            is ChatEntry.Msg -> MessageBubble(
-                                message = entry.message,
-                                onOpenAttachment = onOpenAttachment,
-                                loadAttachmentPreview = loadAttachmentPreview
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        InboxSubtleBackground(modifier = Modifier.matchParentSize())
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (pendingAttachments.isNotEmpty()) {
-                        LazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(pendingAttachments, key = { it.localId }) { pending ->
-                                PendingAttachmentChip(
-                                    pending = pending,
-                                    onRemove = {
-                                        val uploadedId = pending.uploadedId
-                                        pendingAttachments.removeAll { it.localId == pending.localId }
-                                        if (uploadedId != null) {
-                                            scope.launch {
-                                                runCatching { discardAttachment(uploadedId) }
-                                            }
-                                        }
-                                    }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (messages.isEmpty()) {
+                    EmptyInboxState(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    val entries = remember(messages) { buildChatEntries(messages) }
+                    val reversedEntries = remember(entries) { entries.asReversed() }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        reverseLayout = true,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        items(reversedEntries, key = { it.key }) { entry ->
+                            when (entry) {
+                                is ChatEntry.DateHeader -> DateSeparator(entry.label)
+                                is ChatEntry.Msg -> MessageBubble(
+                                    message = entry.message,
+                                    onOpenAttachment = onOpenAttachment,
+                                    loadAttachmentPreview = loadAttachmentPreview
                                 )
                             }
                         }
                     }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 44.dp)
-                            .padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            BasicTextField(
-                                value = draft,
-                                onValueChange = { draft = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                singleLine = true,
-                                maxLines = 1,
-                                decorationBox = { innerTextField ->
-                                    if (draft.isEmpty()) {
-                                        Text(
-                                            "Message",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            )
-                        }
-                        IconButton(
-                            onClick = { filePicker.launch(arrayOf("*/*")) },
-                            enabled = tenantName != null,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.AttachFile,
-                                contentDescription = "Attach file",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                photoPicker.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                                )
-                            },
-                            enabled = tenantName != null,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.PhotoLibrary,
-                                contentDescription = "Attach photo",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                 }
             }
-            FilledIconButton(
-                onClick = {
+
+            InboxComposerBar(
+                draft = draft,
+                onDraftChange = { draft = it },
+                pendingAttachments = pendingAttachments,
+                tenantSelected = tenantName != null,
+                canSend = canSend,
+                onPickFile = { filePicker.launch(arrayOf("*/*")) },
+                onPickPhoto = {
+                    photoPicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                    )
+                },
+                onRemovePending = { pending ->
+                    val uploadedId = pending.uploadedId
+                    pendingAttachments.removeAll { it.localId == pending.localId }
+                    if (uploadedId != null) {
+                        scope.launch { runCatching { discardAttachment(uploadedId) } }
+                    }
+                },
+                onSendClick = {
                     val body = draft.trim()
                     val ids = pendingAttachments.mapNotNull { it.uploadedId }
                     if (body.isNotEmpty() || ids.isNotEmpty()) {
@@ -276,21 +201,212 @@ fun InboxScreen(
                         draft = ""
                         pendingAttachments.clear()
                     }
-                },
-                enabled = canSend,
-                shape = CircleShape,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    modifier = Modifier.size(20.dp)
-                )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun InboxSubtleBackground(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        drawCircle(Color(0xFF1D66F4).copy(alpha = 0.055f), radius = width * 0.34f, center = androidx.compose.ui.geometry.Offset(width * 0.48f, height * 0.32f))
+        drawCircle(Color(0xFF1D66F4).copy(alpha = 0.045f), radius = width * 0.26f, center = androidx.compose.ui.geometry.Offset(width * 1.03f, height * 0.42f))
+        drawCircle(Color(0xFFFF9500).copy(alpha = 0.055f), radius = width * 0.30f, center = androidx.compose.ui.geometry.Offset(width * -0.08f, height * 0.84f))
+        drawCircle(Color(0xFF1D66F4).copy(alpha = 0.035f), radius = width * 0.22f, center = androidx.compose.ui.geometry.Offset(width * 0.92f, height * 0.88f))
+    }
+}
+
+@Composable
+private fun EmptyInboxState(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(172.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(142.dp)
+                    .background(Color(0xFF1D66F4).copy(alpha = 0.07f), CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 14.dp, y = 30.dp)
+                    .size(74.dp)
+                    .background(Color.White.copy(alpha = 0.72f), RoundedCornerShape(22.dp))
+            )
+            Icon(
+                imageVector = Icons.Outlined.ChatBubbleOutline,
+                contentDescription = null,
+                tint = Color(0xFF1263F1),
+                modifier = Modifier.size(76.dp)
+            )
+            Text(
+                text = "•••",
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.offset(y = (-5).dp)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-12).dp, y = 24.dp)
+                    .size(7.dp)
+                    .background(Color(0xFFFF9500), CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .offset(x = 30.dp, y = (-20).dp)
+                    .size(7.dp)
+                    .background(Color(0xFFFF9500).copy(alpha = 0.80f), CircleShape)
+            )
+        }
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Your inbox is empty",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color(0xFF071D3A),
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "No messages yet. Start the conversation\nfrom the web app or send the first\nreply here.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color(0xFF62738A),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun InboxComposerBar(
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    pendingAttachments: List<PendingInboxAttachment>,
+    tenantSelected: Boolean,
+    canSend: Boolean,
+    onPickFile: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onRemovePending: (PendingInboxAttachment) -> Unit,
+    onSendClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(30.dp),
+            color = Color.White.copy(alpha = 0.94f),
+            border = BorderStroke(1.dp, Color(0xFFB9C6D7).copy(alpha = 0.80f)),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (pendingAttachments.isNotEmpty()) {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(pendingAttachments, key = { it.localId }) { pending ->
+                            PendingAttachmentChip(
+                                pending = pending,
+                                onRemove = { onRemovePending(pending) }
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 54.dp)
+                        .padding(start = 10.dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        BasicTextField(
+                            value = draft,
+                            onValueChange = onDraftChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF071D3A)),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            singleLine = true,
+                            maxLines = 1,
+                            decorationBox = { innerTextField ->
+                                if (draft.isEmpty()) {
+                                    Text(
+                                        "Message",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = Color(0xFF607188)
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        )
+                    }
+                    IconButton(
+                        onClick = onPickFile,
+                        enabled = tenantSelected,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.AttachFile,
+                            contentDescription = "Attach file",
+                            tint = Color(0xFF4E627A)
+                        )
+                    }
+                    IconButton(
+                        onClick = onPickPhoto,
+                        enabled = tenantSelected,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.PhotoLibrary,
+                            contentDescription = "Attach photo",
+                            tint = Color(0xFF4E627A)
+                        )
+                    }
+                }
             }
+        }
+        FilledIconButton(
+            onClick = onSendClick,
+            enabled = canSend,
+            shape = CircleShape,
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = Color(0xFF1263F1),
+                contentColor = Color.White,
+                disabledContainerColor = Color(0xFFE3E6EA),
+                disabledContentColor = Color(0xFF8C9AAD)
+            ),
+            modifier = Modifier.size(58.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Send,
+                contentDescription = "Send",
+                modifier = Modifier.size(26.dp)
+            )
         }
     }
 }
@@ -607,9 +723,9 @@ private fun MessageBubble(
     loadAttachmentPreview: suspend (GuestInboxAttachment) -> Bitmap?
 ) {
     val isStaff = message.direction == "OUTBOUND"
-    val bubbleColor = if (isStaff) MaterialTheme.colorScheme.surface else Color(0xFFF29A3B)
-    val textColor = if (isStaff) MaterialTheme.colorScheme.onSurface else Color.White
-    val metaColor = if (isStaff) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f)
+    val bubbleColor = if (isStaff) Color.White.copy(alpha = 0.96f) else Color(0xFFEAF3FF)
+    val textColor = Color(0xFF071D3A)
+    val metaColor = if (isStaff) Color(0xFF62738A) else Color(0xFF5472A1)
     val shape = if (isStaff) {
         RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
     } else {
@@ -627,7 +743,7 @@ private fun MessageBubble(
         Surface(
             color = bubbleColor,
             shape = shape,
-            shadowElevation = if (isStaff) 1.dp else 0.dp
+            shadowElevation = 1.dp
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),

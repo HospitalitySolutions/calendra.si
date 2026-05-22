@@ -30,6 +30,7 @@ struct BookView: View {
     @State private var visibleMonth: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var slots: [AvailabilitySlotModel] = []
     @State private var selectedSlotId: String?
+    @State private var timePageIndex = 0
     @State private var selectedPaymentMethod: GuestBookingPaymentChoice = .card
     @State private var isLoadingSlots = false
     @State private var isSubmitting = false
@@ -37,6 +38,7 @@ struct BookView: View {
     @State private var storedProfile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", cards: [])
     @State private var selectedStoredCard: String?
     @State private var showingStoredCardSheet = false
+    @State private var showingPaymentMethodsSheet = false
     @State private var showingAddCardSheet = false
     private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
     private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
@@ -222,28 +224,40 @@ struct BookView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 10) {
-                    stepper
-                    stepContent
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 16)
-            }
-
+        ZStack {
+            bookingBackground
             VStack(spacing: 0) {
-                Divider()
-                primaryActionButton
+                header
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        stepContent
+                    }
                     .padding(.horizontal, 20)
-                    .padding(.top, 6)
-                    .padding(.bottom, 8)
+                    .padding(.top, 18)
+                    .padding(.bottom, 16)
+                }
+
+                VStack(spacing: 0) {
+                    Divider().opacity(0.35)
+                    if currentStep == .paymentReview, let service = selectedService {
+                        if !skipsOnlinePaymentMethods {
+                            selectedPaymentMethodCard
+                                .padding(.horizontal, 20)
+                                .padding(.top, 8)
+                        }
+                        paymentTotalRow(service: service)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                            .padding(.bottom, 2)
+                    }
+                    primaryActionButton
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+                        .padding(.bottom, 8)
+                }
+                .background(Color(.systemBackground).opacity(0.94))
             }
-            .background(Color(.systemBackground))
         }
-        .background(Color(.systemBackground))
         .onAppear {
             storedProfile = LocalProfileStore.shared.load(from: store.user)
             selectedStoredCard = storedProfile.cards.first
@@ -326,6 +340,19 @@ struct BookView: View {
                 }
             )
         }
+        .sheet(isPresented: $showingPaymentMethodsSheet) {
+            PaymentMethodPickerSheet(
+                options: paymentMethodPickerOptions,
+                selectedMethod: selectedPaymentMethod,
+                onSelect: { method in
+                    selectedPaymentMethod = method
+                    showingPaymentMethodsSheet = false
+                    if method == .card && storedProfile.cards.isEmpty {
+                        showingAddCardSheet = true
+                    }
+                }
+            )
+        }
         .sheet(isPresented: $showingAddCardSheet) {
             AddCardSheet { card in
                 storedProfile.cards.append(card)
@@ -341,52 +368,36 @@ struct BookView: View {
     }
 
     private var header: some View {
-        let canGoBack = currentStep != .provider
-        return HStack(spacing: 0) {
-            Button {
-                moveBack()
-            } label: {
-                Image(systemName: "arrow.left")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(canGoBack ? Color.primary : Color.primary.opacity(0.35))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!canGoBack)
+        stepper
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+    }
 
-            Text("Book a session")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.primary)
-
-            Spacer(minLength: 0)
-
-            Button {
-                onOpenNotifications()
-            } label: {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "bell")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(Color.primary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                    if unreadNotifications > 0 {
-                        Text("\(min(unreadNotifications, 99))")
-                            .font(.caption2.weight(.bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Capsule(style: .continuous).fill(brandOrange))
-                            .offset(x: 4, y: -2)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
+    private var stepBackgroundImageName: String {
+        switch currentStep {
+        case .provider:
+            return "BookStepProviderBackground"
+        case .service:
+            return "BookStepServiceBackground"
+        case .employee:
+            return "BookStepEmployeeBackground"
+        case .dateTime:
+            return "BookStepDateTimeBackground"
+        case .paymentReview:
+            return "BookStepPaymentReviewBackground"
         }
-        .padding(.leading, 4)
-        .padding(.trailing, 4)
-        .frame(height: 56)
-        .background(Color(.systemBackground))
+    }
+
+    private var bookingBackground: some View {
+        GeometryReader { proxy in
+            Image(stepBackgroundImageName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+        }
+        .ignoresSafeArea()
     }
 
     private var stepper: some View {
@@ -405,20 +416,24 @@ struct BookView: View {
                     guard canNavigate(to: step) else { return }
                     currentStep = step
                 } label: {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 3) {
                         ZStack {
                             HStack(spacing: 0) {
                                 Rectangle()
-                                    .fill(isFirst ? Color.clear : (leftActive ? brandBlue : Color(.systemGray4)))
+                                    .fill(isFirst ? Color.clear : (leftActive ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.84, green: 0.89, blue: 0.95)))
                                     .frame(height: 2)
-                                Spacer().frame(width: 36)
+                                Spacer().frame(width: 34)
                                 Rectangle()
-                                    .fill(isLast ? Color.clear : (rightActive ? brandBlue : Color(.systemGray4)))
+                                    .fill(isLast ? Color.clear : (rightActive ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.84, green: 0.89, blue: 0.95)))
                                     .frame(height: 2)
                             }
                             Circle()
-                                .fill(active || completed ? brandBlue : Color(.secondarySystemBackground))
-                                .frame(width: 36, height: 36)
+                                .fill(active || completed ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.97, green: 0.98, blue: 1.0))
+                                .frame(width: 34, height: 34)
+                                .shadow(color: active ? brandBlue.opacity(0.22) : Color.clear, radius: 5, y: 3)
+                                .overlay(
+                                    Circle().stroke(active || completed ? Color.clear : Color(red: 0.84, green: 0.89, blue: 0.95), lineWidth: 1)
+                                )
                                 .overlay(
                                     Group {
                                         if completed {
@@ -427,27 +442,27 @@ struct BookView: View {
                                                 .foregroundColor(Color.white)
                                         } else {
                                             Text("\(idx + 1)")
-                                                .font(.subheadline.weight(.semibold))
+                                                .font(.system(size: 14, weight: .bold))
                                                 .foregroundColor(active ? Color.white : Color.secondary)
                                         }
                                     }
                                 )
                         }
-                        .frame(height: 36)
+                        .frame(height: 34)
 
                         Text(stepDisplayTitle(step))
-                            .font(.caption.weight(active ? .semibold : .regular))
-                            .foregroundColor(active ? Color.primary : Color.secondary)
+                            .font(.system(size: 11, weight: active || completed ? .bold : .medium))
+                            .foregroundColor(active || completed ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color.secondary)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.bottom, 2)
     }
 
     @ViewBuilder
@@ -468,12 +483,6 @@ struct BookView: View {
 
     private var employeeStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            bookOpenHero(
-                title: "Choose employee",
-                subtitle: "Select who should perform\nyour service.",
-                icon: "person.text.rectangle",
-                accentIcon: "checkmark"
-            )
             straightSectionHeader("SELECT EMPLOYEE")
 
             if isLoadingConsultants {
@@ -486,7 +495,7 @@ struct BookView: View {
             } else if consultants.isEmpty {
                 emptyInlineMessage("No employees available", "This service has no bookable employees.")
             } else {
-                VStack(spacing: 0) {
+                VStack(spacing: 12) {
                     ForEach(consultants) { consultant in
                         Button {
                             selectedConsultantId = consultant.id
@@ -506,18 +515,12 @@ struct BookView: View {
 
     private var providerStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            bookOpenHero(
-                title: "Let's get started",
-                subtitle: "Choose the provider where\nyou want to book a session.",
-                icon: "mappin.circle.fill",
-                accentIcon: "dumbbell.fill"
-            )
             straightSectionHeader("SELECT PROVIDER")
 
             if providers.isEmpty {
                 emptyInlineMessage("No subscribed providers yet", "Join a tenancy first to start booking.")
             } else {
-                VStack(spacing: 0) {
+                VStack(spacing: 12) {
                     ForEach(providers) { provider in
                         let subtitle = provider.companyAddress.nilIfBlank
                             ?? provider.city.nilIfBlank
@@ -542,12 +545,6 @@ struct BookView: View {
 
     private var serviceStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            bookOpenHero(
-                title: "Choose a service",
-                subtitle: "Select the service you want\nto book with your provider.",
-                icon: "checklist",
-                accentIcon: "dumbbell.fill"
-            )
             straightSectionHeader("SELECTED SERVICE")
 
             if selectedProvider == nil {
@@ -555,7 +552,7 @@ struct BookView: View {
             } else if servicesForSelectedProvider.isEmpty {
                 emptyInlineMessage("No services available", "This provider does not currently expose any guest-app services.")
             } else {
-                VStack(spacing: 0) {
+                VStack(spacing: 12) {
                     ForEach(servicesForSelectedProvider) { service in
                         Button {
                             selectedServiceId = service.id
@@ -571,12 +568,6 @@ struct BookView: View {
 
     private var dateStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            bookOpenHero(
-                title: "Choose date & time",
-                subtitle: "Pick a day and time that\nworks best for you.",
-                icon: "calendar",
-                accentIcon: "clock"
-            )
 
             if selectedService != nil {
                 straightSectionHeader("SELECT DATE")
@@ -595,25 +586,7 @@ struct BookView: View {
                         .foregroundColor(.secondary)
                         .padding(.bottom, 6)
                 } else {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 8) {
-                        ForEach(slots) { slot in
-                            Button {
-                                selectedSlotId = slot.id
-                            } label: {
-                                Text(DateFormatting.prettyTime(slot.startsAt))
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(selectedSlotId == slot.id ? Color.white : Color.primary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(selectedSlotId == slot.id ? brandBlue : Color.clear)
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(selectedSlotId == slot.id ? brandBlue : Color(.systemGray4), lineWidth: 1)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    singleTimeSelector
                 }
             } else {
                 emptyInlineMessage("Select a service first", "Choose a service before selecting date and time.")
@@ -621,285 +594,291 @@ struct BookView: View {
         }
     }
 
-    private var paymentReviewStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            bookOpenHero(
-                title: skipsOnlinePaymentMethods ? "Review booking" : "Payment & review",
-                subtitle: skipsOnlinePaymentMethods
-                    ? "Review your booking details\nand confirm your session."
-                    : "Choose your preferred payment\nmethod and review your booking.",
-                icon: "creditcard.fill",
-                accentIcon: "checkmark.shield.fill"
-            )
+    private var singleTimeSelector: some View {
+        let pages = timeSlotPages
+        let currentPage = min(max(timePageIndex, 0), max(pages.count - 1, 0))
+        let pageSlots = pages.isEmpty ? [] : pages[currentPage]
+        let canGoLeft = currentPage > 0
+        let canGoRight = currentPage < max(pages.count - 1, 0)
 
-            if skipsOnlinePaymentMethods {
-                emptyInlineMessage("Pay at venue", "Payment is collected at the venue. Tap Confirm booking to reserve your slot.")
-            } else {
-                straightSectionHeader("PAYMENT METHOD")
-                VStack(spacing: 0) {
-                    if !matchingEntitlements.isEmpty {
-                        paymentLineRow(
-                            title: "Use pass or visit",
-                            subtitle: matchingEntitlements.first.map { entitlement in
-                                let remaining = entitlement.remainingUses.map(String.init) ?? "Unlimited"
-                                return "\(entitlement.name) • \(remaining) left"
-                            } ?? "No valid pass or pack available",
-                            selected: selectedPaymentMethod == .entitlement,
-                            disabled: matchingEntitlements.isEmpty,
-                            icon: "ticket",
-                            trailing: nil,
-                            onChevronTap: nil,
-                            onSelect: { selectedPaymentMethod = .entitlement }
-                        )
-                    }
-                    if isPaymentMethodAllowed(.giftCard), hasGiftCardCoverage, let giftCard = matchingGiftCards.first {
-                        let balanceText = giftCard.remainingValueGross.map { priceString($0) } ?? "available"
-                        let currencyText = giftCard.currency ?? selectedService?.currency ?? ""
-                        let subtitle = "\(giftCard.name) • \(balanceText) \(currencyText)".trimmingCharacters(in: .whitespaces)
-                        paymentLineRow(
-                            title: "Gift card",
-                            subtitle: selectedPaymentMethod == .giftCard ? subtitle : "Use your gift card balance",
-                            selected: selectedPaymentMethod == .giftCard,
-                            disabled: false,
-                            icon: "giftcard",
-                            trailing: nil,
-                            onChevronTap: nil,
-                            onSelect: { selectedPaymentMethod = .giftCard }
-                        )
-                    }
-                    if isPaymentMethodAllowed(.card) {
-                        paymentLineRow(
-                            title: "Credit Card",
-                            subtitle: creditCardSubtitle,
-                            selected: selectedPaymentMethod == .card,
-                            disabled: false,
-                            icon: "creditcard.fill",
-                            trailing: AnyView(HStack(spacing: 6) {
-                                paymentBrandBadge("VISA")
-                                paymentBrandBadge("MC")
-                            }),
-                            onChevronTap: {
-                                if storedProfile.cards.isEmpty {
-                                    showingAddCardSheet = true
-                                } else {
-                                    showingStoredCardSheet = true
-                                }
-                            },
-                            onSelect: { selectedPaymentMethod = .card }
-                        )
-                    }
-                    if isPaymentMethodAllowed(.bankTransfer) {
-                        paymentLineRow(
-                            title: "Bank Transfer",
-                            subtitle: nil,
-                            selected: selectedPaymentMethod == .bankTransfer,
-                            disabled: false,
-                            icon: "building.columns.fill",
-                            trailing: nil,
-                            onChevronTap: nil,
-                            onSelect: { selectedPaymentMethod = .bankTransfer }
-                        )
-                    }
-                    if isPaymentMethodAllowed(.payPal) {
-                        paymentLineRow(
-                            title: "PayPal",
-                            subtitle: selectedPaymentMethod == .payPal ? "Approve securely in PayPal" : nil,
-                            selected: selectedPaymentMethod == .payPal,
-                            disabled: false,
-                            icon: "p.square.fill",
-                            trailing: nil,
-                            onChevronTap: nil,
-                            onSelect: { selectedPaymentMethod = .payPal }
-                        )
+        return ZStack {
+            HStack(spacing: 7) {
+                ForEach(0..<4, id: \.self) { index in
+                    if index < pageSlots.count {
+                        let slot = pageSlots[index]
+                        Button {
+                            selectedSlotId = slot.id
+                        } label: {
+                            Text(DateFormatting.prettyTime(slot.startsAt))
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(selectedSlotId == slot.id ? Color.white : Color(red: 0.05, green: 0.42, blue: 1.0))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 42)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .fill(selectedSlotId == slot.id ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(.systemBackground).opacity(0.96))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .stroke(selectedSlotId == slot.id ? Color.clear : Color(red: 0.84, green: 0.89, blue: 0.95), lineWidth: 1)
+                                )
+                                .shadow(color: selectedSlotId == slot.id ? brandBlue.opacity(0.16) : Color.black.opacity(0.025), radius: selectedSlotId == slot.id ? 7 : 3, y: selectedSlotId == slot.id ? 4 : 2)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
                     }
                 }
             }
+            .padding(.horizontal, 16)
 
+            HStack {
+                Button {
+                    changeTimePage(-1)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(canGoLeft ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.62, green: 0.68, blue: 0.75).opacity(0.42))
+                        .frame(width: 18, height: 42)
+                }
+                .buttonStyle(.plain)
+                .opacity(canGoLeft ? 1 : 0.45)
+                .disabled(!canGoLeft)
+                .offset(x: -2)
+
+                Spacer(minLength: 0)
+
+                Button {
+                    changeTimePage(1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(canGoRight ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.62, green: 0.68, blue: 0.75).opacity(0.42))
+                        .frame(width: 18, height: 42)
+                }
+                .buttonStyle(.plain)
+                .opacity(canGoRight ? 1 : 0.45)
+                .disabled(!canGoRight)
+                .offset(x: 2)
+            }
+        }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 24)
+                .onEnded { value in
+                    if value.translation.width < -34 {
+                        changeTimePage(1)
+                    } else if value.translation.width > 34 {
+                        changeTimePage(-1)
+                    }
+                }
+        )
+        .onAppear {
+            if selectedSlotId == nil {
+                selectedSlotId = slots.first?.id
+            }
+            syncTimePageToSelected()
+        }
+        .onChange(of: slots.map(\.id)) { _ in
+            if slots.contains(where: { $0.id == selectedSlotId }) == false {
+                selectedSlotId = slots.first?.id
+            }
+            syncTimePageToSelected()
+        }
+        .onChange(of: selectedSlotId) { _ in
+            syncTimePageToSelected()
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var timeSlotPages: [[AvailabilitySlotModel]] {
+        stride(from: 0, to: slots.count, by: 4).map { start in
+            Array(slots[start..<min(start + 4, slots.count)])
+        }
+    }
+
+    private var selectedSlotIndex: Int? {
+        guard let selectedSlotId else { return nil }
+        return slots.firstIndex(where: { $0.id == selectedSlotId })
+    }
+
+    private func changeTimePage(_ delta: Int) {
+        let pages = timeSlotPages
+        guard !pages.isEmpty else { return }
+        let nextPage = min(max(timePageIndex + delta, 0), pages.count - 1)
+        guard nextPage != timePageIndex else { return }
+        timePageIndex = nextPage
+        if let firstVisible = pages[nextPage].first {
+            selectedSlotId = firstVisible.id
+        }
+    }
+
+    private func syncTimePageToSelected() {
+        guard let index = selectedSlotIndex else {
+            timePageIndex = 0
+            return
+        }
+        timePageIndex = max(0, min(index / 4, max(timeSlotPages.count - 1, 0)))
+    }
+
+    private var paymentReviewStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
             if let service = selectedService {
                 reviewSummary(service: service)
+
+                if skipsOnlinePaymentMethods {
+                    emptyInlineMessage("Pay at venue", "Payment is collected at the venue. Tap Confirm booking to reserve your slot.")
+                }
             }
         }
     }
 
     private func bookOpenHero(title: String, subtitle: String, icon: String, accentIcon: String) -> some View {
-        HStack(alignment: .center, spacing: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(title)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(subtitle)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(.secondary)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            minimalBookIllustration(icon: icon, accentIcon: accentIcon)
-        }
-        .frame(minHeight: 142)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-    }
-
-    private func minimalBookIllustration(icon: String, accentIcon: String) -> some View {
-        ZStack(alignment: .center) {
-            Circle()
-                .fill(brandBlue.opacity(0.08))
-                .frame(width: 112, height: 112)
-                .offset(x: 18, y: -2)
-
-            Rectangle()
-                .stroke(Color(.systemGray4), lineWidth: 1)
-                .background(Color(.systemBackground).opacity(0.86))
-                .frame(width: 78, height: 62)
-                .overlay(
-                    Image(systemName: accentIcon)
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.primary)
-                )
-                .offset(x: 12, y: 24)
-
-            Image(systemName: icon)
-                .font(.system(size: 38, weight: .semibold))
-                .foregroundColor(brandBlue)
-                .offset(x: 8, y: -30)
-
-            Rectangle()
-                .fill(Color(.systemGray4))
-                .frame(width: 118, height: 1)
-                .offset(y: 58)
-        }
-        .frame(width: 150, height: 120)
+        Color.clear
+            .frame(height: 0)
+            .accessibilityHidden(true)
     }
 
     private func straightSectionHeader(_ title: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 10) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.secondary)
-            Divider()
+                .font(.system(size: 14, weight: .bold))
+                .tracking(1.6)
+                .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(brandOrange.opacity(0.9))
+                .frame(width: 24, height: 3)
+            Spacer(minLength: 0)
         }
     }
 
     private func emptyInlineMessage(_ title: String, _ description: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.primary)
+                .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
             Text(description)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Divider().padding(.top, 10)
         }
-        .padding(.vertical, 12)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardBackground)
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(Color(.systemBackground))
+            .shadow(color: Color.black.opacity(0.07), radius: 12, y: 6)
     }
 
     private func squareIconTile(_ systemName: String, selected: Bool = true) -> some View {
         ZStack {
-            Rectangle()
-                .fill(selected ? brandBlue : Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    selected
+                    ? LinearGradient(colors: [Color(red: 0.06, green: 0.43, blue: 1.0), brandBlue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    : LinearGradient(colors: [Color(red: 0.92, green: 0.96, blue: 1.0), Color(red: 0.86, green: 0.92, blue: 1.0)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
             Image(systemName: systemName)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(selected ? .white : .secondary)
+                .font(.system(size: 26, weight: .bold))
+                .foregroundColor(selected ? .white : brandBlue)
         }
-        .frame(width: 48, height: 48)
+        .frame(width: 60, height: 60)
     }
 
     private func selectionRail(_ selected: Bool) -> some View {
-        Rectangle()
-            .fill(selected ? brandBlue : Color.clear)
-            .frame(width: 3, height: 48)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(selected ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color.clear)
+            .frame(width: 4, height: 74)
     }
 
     private func providerLineRow(title: String, subtitle: String, selected: Bool) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                selectionRail(selected)
-                squareIconTile("dumbbell.fill", selected: selected)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
+        HStack(spacing: 12) {
+            selectionRail(selected)
+            squareIconTile("dumbbell.fill", selected: selected)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
+                Text(subtitle)
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
             }
-            .padding(.vertical, 14)
-            Divider()
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(Color(red: 0.55, green: 0.61, blue: 0.69))
         }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(cardBackground)
         .contentShape(Rectangle())
     }
 
     private func serviceLineRow(service: ServiceOptionModel, selected: Bool) -> some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 12) {
-                selectionRail(selected)
-                squareIconTile("dumbbell.fill", selected: selected)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(service.name)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                    Text(service.description.nilIfBlank ?? "Bookable service")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    HStack(spacing: 6) {
-                        straightTag(service.tenantName)
-                        if let durationMinutes = service.durationMinutes {
-                            straightTag("\(durationMinutes) min")
-                        }
+        HStack(alignment: .center, spacing: 12) {
+            selectionRail(selected)
+            squareIconTile("dumbbell.fill", selected: selected)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(service.name)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
+                Text(service.description.nilIfBlank ?? "Bookable service")
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                HStack(spacing: 7) {
+                    straightTag(service.tenantName)
+                    if let durationMinutes = service.durationMinutes {
+                        straightTag("\(durationMinutes) min")
                     }
                 }
-                Spacer(minLength: 8)
-                Text("\(priceString(service.priceGross)) \(service.currency)")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(brandBlue)
             }
-            .padding(.vertical, 14)
-            Divider()
+            Spacer(minLength: 8)
+            Text("\(priceString(service.priceGross)) \(service.currency)")
+                .font(.system(size: 18, weight: .heavy))
+                .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
         }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(cardBackground)
         .contentShape(Rectangle())
     }
 
     private func consultantLineRow(title: String, subtitle: String, selected: Bool) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                selectionRail(selected)
-                squareIconTile("person.text.rectangle", selected: selected)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                    if !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
+        HStack(spacing: 12) {
+            selectionRail(selected)
+            squareIconTile("person.text.rectangle", selected: selected)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 15))
+                        .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
                 }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
             }
-            .padding(.vertical, 14)
-            Divider()
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(Color(red: 0.55, green: 0.61, blue: 0.69))
         }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(cardBackground)
         .contentShape(Rectangle())
     }
 
     private func straightTag(_ title: String) -> some View {
         Text(title)
-            .font(.caption.weight(.medium))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Rectangle().fill(Color(.secondarySystemBackground)))
+            .font(.caption.weight(.semibold))
+            .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(red: 0.94, green: 0.97, blue: 1.0)))
     }
 
     private func paymentLineRow(
@@ -912,102 +891,198 @@ struct BookView: View {
         onChevronTap: (() -> Void)?,
         onSelect: @escaping () -> Void
     ) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button {
-                    guard !disabled else { return }
-                    onSelect()
-                } label: {
-                    selectionIndicator(selected: selected, size: 24)
-                        .opacity(disabled ? 0.45 : 1)
-                }
-                .buttonStyle(.plain)
-                .disabled(disabled)
-
-                squareIconTile(icon, selected: selected)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(disabled ? .secondary : .primary)
-                    if let subtitle, !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
-                    }
-                }
-                Spacer(minLength: 8)
-                if let trailing {
-                    trailing
-                }
-                Button {
-                    if let onChevronTap { onChevronTap() } else { onSelect() }
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 30, height: 34)
-                }
-                .buttonStyle(.plain)
-                .disabled(disabled)
+        HStack(spacing: 12) {
+            Button {
+                guard !disabled else { return }
+                onSelect()
+            } label: {
+                selectionIndicator(selected: selected, size: 24)
+                    .opacity(disabled ? 0.45 : 1)
             }
-            .padding(.horizontal, selected ? 12 : 0)
-            .padding(.vertical, 12)
-            .overlay(
-                Rectangle()
-                    .stroke(selected ? brandBlue : Color.clear, lineWidth: 1)
-            )
-            Divider()
+            .buttonStyle(.plain)
+            .disabled(disabled)
+
+            squareIconTile(icon, selected: selected)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(disabled ? .secondary : Color(red: 0.03, green: 0.13, blue: 0.27))
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            Spacer(minLength: 8)
+            if let trailing { trailing }
+            Button {
+                if let onChevronTap { onChevronTap() } else { onSelect() }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(Color(red: 0.55, green: 0.61, blue: 0.69))
+                    .frame(width: 30, height: 34)
+            }
+            .buttonStyle(.plain)
+            .disabled(disabled)
         }
+        .padding(14)
+        .background(cardBackground)
         .contentShape(Rectangle())
+    }
+
+    private var paymentMethodPickerOptions: [PaymentMethodPickerOption] {
+        availablePaymentChoices.map { method in
+            PaymentMethodPickerOption(
+                method: method,
+                title: paymentMethodTitle(method),
+                subtitle: paymentMethodSubtitle(method),
+                icon: paymentMethodIcon(method)
+            )
+        }
+    }
+
+    private var availablePaymentChoices: [GuestBookingPaymentChoice] {
+        var choices: [GuestBookingPaymentChoice] = []
+        if !matchingEntitlements.isEmpty { choices.append(.entitlement) }
+        if isPaymentMethodAllowed(.giftCard), hasGiftCardCoverage { choices.append(.giftCard) }
+        if isPaymentMethodAllowed(.card) { choices.append(.card) }
+        if isPaymentMethodAllowed(.bankTransfer) { choices.append(.bankTransfer) }
+        if isPaymentMethodAllowed(.payPal) { choices.append(.payPal) }
+        return choices
+    }
+
+    private var selectedPaymentMethodCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("PAYMENT METHOD")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.0)
+                .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+            HStack(spacing: 9) {
+                selectionIndicator(selected: true, size: 20)
+                Image(systemName: paymentMethodIcon(selectedPaymentMethod))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                    .frame(width: 28, height: 22)
+                Text(paymentMethodTitle(selectedPaymentMethod))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
+                Spacer(minLength: 8)
+                Button("Change") {
+                    showingPaymentMethodsSheet = true
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(cardBackground)
+    }
+
+    private func paymentMethodTitle(_ method: GuestBookingPaymentChoice) -> String {
+        switch method {
+        case .card: return "Credit card"
+        case .bankTransfer: return "Bank Transfer"
+        case .entitlement: return "Use pass or visit"
+        case .payPal: return "PayPal"
+        case .giftCard: return "Gift card"
+        }
+    }
+
+    private func paymentMethodIcon(_ method: GuestBookingPaymentChoice) -> String {
+        switch method {
+        case .card: return "creditcard.fill"
+        case .bankTransfer: return "building.columns.fill"
+        case .entitlement: return "ticket"
+        case .payPal: return "p.square.fill"
+        case .giftCard: return "giftcard"
+        }
+    }
+
+    private func paymentMethodSubtitle(_ method: GuestBookingPaymentChoice) -> String? {
+        switch method {
+        case .card:
+            return creditCardSubtitle
+        case .bankTransfer:
+            return nil
+        case .entitlement:
+            return matchingEntitlements.first.map { entitlement in
+                let remaining = entitlement.remainingUses.map(String.init) ?? "Unlimited"
+                return "\(entitlement.name) • \(remaining) left"
+            } ?? "No valid pass or pack available"
+        case .payPal:
+            return "Approve securely in PayPal"
+        case .giftCard:
+            if let giftCard = matchingGiftCards.first {
+                let balanceText = giftCard.remainingValueGross.map { priceString($0) } ?? "available"
+                let currencyText = giftCard.currency ?? selectedService?.currency ?? ""
+                return "\(giftCard.name) • \(balanceText) \(currencyText)".trimmingCharacters(in: .whitespaces)
+            }
+            return "Use your gift card balance"
+        }
     }
 
     private func reviewSummary(service: ServiceOptionModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            straightSectionHeader("REVIEW SUMMARY")
+            Text("BOOKING SUMMARY")
+                .font(.system(size: 14, weight: .bold))
+                .tracking(1.2)
+                .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                .padding(.bottom, 6)
+            if let provider = selectedProvider {
+                reviewSummaryLine(icon: "building.2", label: "Provider", value: provider.name)
+            }
             reviewSummaryLine(icon: "dumbbell.fill", label: "Service", value: service.name)
+            if employeeStepEnabled, let consultant = selectedConsultant {
+                reviewSummaryLine(icon: "person", label: "Employee", value: consultant.fullName)
+            }
+            if let durationMinutes = service.durationMinutes {
+                reviewSummaryLine(icon: "timer", label: "Duration", value: "\(durationMinutes) min")
+            }
             if let slot = selectedSlot {
                 reviewSummaryLine(icon: "calendar", label: "Date & time", value: DateFormatting.prettyRange(start: slot.startsAt, end: slot.endsAt))
             }
             if !skipsOnlinePaymentMethods && isDepositMode {
                 reviewSummaryLine(icon: "creditcard", label: "Deposit", value: "\(depositPercentValue)% · \(priceString(amountDueNow)) \(service.currency)")
             }
-            HStack(spacing: 14) {
-                Image(systemName: "tag")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .frame(width: 26)
-                Text("Total")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
-                Spacer()
-                Text("\(priceString(service.priceGross)) \(service.currency)")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.primary)
-            }
-            .padding(.vertical, 13)
+        }
+        .padding(16)
+        .background(cardBackground)
+    }
+
+    private func paymentTotalRow(service: ServiceOptionModel) -> some View {
+        HStack(spacing: 14) {
+            Text("TOTAL")
+                .font(.system(size: 14, weight: .bold))
+                .tracking(1.2)
+                .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+            Spacer()
+            Text("\(priceString(service.priceGross)) \(service.currency)")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
         }
     }
 
     private func reviewSummaryLine(icon: String, label: String, value: String) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 14) {
+            HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 26)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                    .frame(width: 24)
                 Text(label)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
                 Spacer(minLength: 8)
                 Text(value)
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
                     .multilineTextAlignment(.trailing)
             }
-            .padding(.vertical, 12)
-            Divider()
+            .padding(.vertical, 10)
+            Divider().opacity(0.45)
         }
     }
 
@@ -1037,15 +1112,18 @@ struct BookView: View {
                         .scaleEffect(0.9)
                 }
                 Text(primaryButtonTitle)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 17, weight: .bold))
             }
             .foregroundColor(Color.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(continueDisabled ? brandBlue.opacity(0.4) : brandBlue)
+            .frame(height: 56)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(continueDisabled ? brandBlue.opacity(0.42) : Color(red: 0.05, green: 0.42, blue: 1.0))
+            )
             .overlay(alignment: .trailing) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 20, weight: .semibold))
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.trailing, 22)
             }
@@ -1127,7 +1205,7 @@ struct BookView: View {
                 consultantId: employeeStepEnabled ? selectedConsultantId : nil
             )
             if slots.contains(where: { $0.id == selectedSlotId }) == false {
-                selectedSlotId = nil
+                selectedSlotId = slots.first?.id
             }
             isLoadingSlots = false
         } catch {
@@ -1400,6 +1478,65 @@ private enum GuestBookingPaymentChoice: String {
     }
 }
 
+private struct PaymentMethodPickerOption: Identifiable {
+    let method: GuestBookingPaymentChoice
+    let title: String
+    let subtitle: String?
+    let icon: String
+
+    var id: String { method.rawValue }
+}
+
+private struct PaymentMethodPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let options: [PaymentMethodPickerOption]
+    let selectedMethod: GuestBookingPaymentChoice
+    let onSelect: (GuestBookingPaymentChoice) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(options) { option in
+                    Button {
+                        onSelect(option.method)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: option.icon)
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(option.title)
+                                    .foregroundColor(.primary)
+                                if let subtitle = option.subtitle, !subtitle.isEmpty {
+                                    Text(subtitle)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                            Spacer()
+                            if selectedMethod == option.method {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .navigationTitle("Payment method")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 private struct StoredCardPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     let cards: [String]
@@ -1478,6 +1615,7 @@ private struct MonthCalendarView: View {
     @Binding var visibleMonth: Date
     @Binding var selectedDate: Date
     var compact: Bool = false
+    private let calendarBlue = Color(red: 0.05, green: 0.42, blue: 1.0)
 
     private var calendar: Calendar {
         var cal = Calendar(identifier: .gregorian)
@@ -1590,8 +1728,8 @@ private struct MonthCalendarView: View {
                         } label: {
                             ZStack {
                                 if isSelected {
-                                    Rectangle()
-                                        .fill(brandBlue)
+                                    Circle()
+                                        .fill(calendarBlue)
                                         .frame(width: circle, height: circle)
                                 }
                                 Text("\(calendar.component(.day, from: date))")
@@ -1613,5 +1751,12 @@ private struct MonthCalendarView: View {
                 }
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.07), radius: 12, y: 6)
+        )
     }
 }

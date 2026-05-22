@@ -31,6 +31,11 @@
 		F3B994202F93546D005A7895 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941B2F93546D005A7895 /* DateFormatting.swift */; };
 		F3B994212F93546D005A7895 /* LocalProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941E2F93546D005A7895 /* LocalProfileStore.swift */; };
 		F3B994222F93546D005A7895 /* GuestApiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941C2F93546D005A7895 /* GuestApiClient.swift */; };
+		C0A000010000000000000001 /* BookStepProviderBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000110000000000000001 /* BookStepProviderBackground.png */; };
+		C0A000020000000000000001 /* BookStepServiceBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000120000000000000001 /* BookStepServiceBackground.png */; };
+		C0A000030000000000000001 /* BookStepEmployeeBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000130000000000000001 /* BookStepEmployeeBackground.png */; };
+		C0A000040000000000000001 /* BookStepDateTimeBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000140000000000000001 /* BookStepDateTimeBackground.png */; };
+		C0A000050000000000000001 /* BookStepPaymentReviewBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = C0A000150000000000000001 /* BookStepPaymentReviewBackground.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +65,11 @@
 		F3B9941C2F93546D005A7895 /* GuestApiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestApiClient.swift; sourceTree = "<group>"; };
 		F3B9941D2F93546D005A7895 /* GuestDesignComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestDesignComponents.swift; sourceTree = "<group>"; };
 		F3B9941E2F93546D005A7895 /* LocalProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalProfileStore.swift; sourceTree = "<group>"; };
+		C0A000110000000000000001 /* BookStepProviderBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepProviderBackground.png; sourceTree = "<group>"; };
+		C0A000120000000000000001 /* BookStepServiceBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepServiceBackground.png; sourceTree = "<group>"; };
+		C0A000130000000000000001 /* BookStepEmployeeBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepEmployeeBackground.png; sourceTree = "<group>"; };
+		C0A000140000000000000001 /* BookStepDateTimeBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepDateTimeBackground.png; sourceTree = "<group>"; };
+		C0A000150000000000000001 /* BookStepPaymentReviewBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = BookStepPaymentReviewBackground.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,6 +118,11 @@
 				A100001D0000000000000001 /* InboxView.swift */,
 				A100001E0000000000000001 /* ProfileView.swift */,
 				A10000200000000000000001 /* NotificationsView.swift */,
+				C0A000110000000000000001 /* BookStepProviderBackground.png */,
+				C0A000120000000000000001 /* BookStepServiceBackground.png */,
+				C0A000130000000000000001 /* BookStepEmployeeBackground.png */,
+				C0A000140000000000000001 /* BookStepDateTimeBackground.png */,
+				C0A000150000000000000001 /* BookStepPaymentReviewBackground.png */,
 				A100001F0000000000000001 /* Info.plist */,
 			);
 			path = GuestMobile;
@@ -184,6 +199,11 @@
 				A9D0E1000000000000000001 /* HomeBookingBackground.png in Resources */,
 				F3B9A2002F9A000000000002 /* SignupBackground.png in Resources */,
 				B1A1B1A1B1A1B1A1B1A1B1A1 /* SigninBackground.png in Resources */,
+				C0A000010000000000000001 /* BookStepProviderBackground.png in Resources */,
+				C0A000020000000000000001 /* BookStepServiceBackground.png in Resources */,
+				C0A000030000000000000001 /* BookStepEmployeeBackground.png in Resources */,
+				C0A000040000000000000001 /* BookStepDateTimeBackground.png in Resources */,
+				C0A000050000000000000001 /* BookStepPaymentReviewBackground.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

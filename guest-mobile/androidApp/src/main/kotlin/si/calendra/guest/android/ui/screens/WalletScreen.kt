@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -1005,7 +1006,7 @@ private fun WalletPullOutEntitlementDeck(
     if (walletCards.isEmpty()) return
 
     var activeIndex by remember(walletCards) { mutableStateOf(0) }
-    var isPulledForward by remember(walletCards) { mutableStateOf(false) }
+    var isPulledForward by remember(walletCards) { mutableStateOf(true) }
 
     androidx.compose.runtime.LaunchedEffect(focusedEntitlementId, walletCards) {
         val requestedIndex = walletCards.indexOfFirst { it.id == focusedEntitlementId }
@@ -1037,6 +1038,7 @@ private fun WalletPullOutEntitlementDeck(
                             } else if (walletCards.size > 1) {
                                 val next = (activeIndex + 1) % walletCards.size
                                 activeIndex = next
+                                isPulledForward = true
                                 onFocus(walletCards[next].id)
                             }
                         }
@@ -1057,42 +1059,57 @@ private fun WalletPullOutEntitlementDeck(
         },
         contentAlignment = Alignment.TopCenter
     ) {
-        val compactLayout = maxHeight < 540.dp
-        val fullCardHeight = if (compactLayout) 220.dp else 248.dp
-        val pocketHeight = if (compactLayout) 260.dp else 320.dp
-        val visiblePocketSlice = if (isPulledForward) {
-            if (compactLayout) 46.dp else 56.dp
+        val compactLayout = maxHeight < 560.dp
+        val fullCardHeight = if (compactLayout) 260.dp else 316.dp
+        val pocketHeight = if (compactLayout) 270.dp else 328.dp
+        val pocketTopWhenStored = maxHeight - if (compactLayout) 178.dp else 214.dp
+        // In the pulled-out state the leather pocket should slide almost completely
+        // down, leaving only a small top slice visible. The remaining passes stay
+        // stacked just above that visible pocket edge, so the selected pass can own
+        // the screen while the wallet still reads as the storage area.
+        val pocketVisibleSliceWhenPulled = if (compactLayout) 26.dp else 34.dp
+        val pocketTopWhenPulled = maxHeight - pocketVisibleSliceWhenPulled
+        val pocketTop = if (isPulledForward) pocketTopWhenPulled else pocketTopWhenStored
+        val pocketOffsetDown = pocketTop
+        val storedCardStep = if (isPulledForward) {
+            if (compactLayout) 42.dp else 48.dp
         } else {
-            if (compactLayout) 168.dp else 188.dp
+            if (compactLayout) 52.dp else 60.dp
         }
-        val pocketOffsetDown = pocketHeight - visiblePocketSlice
-        val pocketVisibleTop = maxHeight - visiblePocketSlice
+        val storedCards = (if (isPulledForward) stackCards.drop(1) else stackCards).take(3)
 
-        val storedStep = if (compactLayout) 56.dp else 66.dp
-        val storedBackTop = pocketVisibleTop - (storedStep * stackCards.size)
-        val pulledFrontTop = if (compactLayout) 6.dp else 8.dp
-        val pulledWalletBackTop = pocketVisibleTop - (storedStep * 3)
-        val pulledStackStep = storedStep
+        if (isPulledForward) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (pocketTop - (storedCardStep * storedCards.size.coerceAtLeast(1)) - 36.dp).coerceAtLeast(fullCardHeight + 18.dp))
+                    .zIndex(110f)
+            ) {
+                Text("⌃", color = WalletInk.copy(alpha = 0.62f), fontSize = 30.sp, fontWeight = FontWeight.Bold, lineHeight = 30.sp)
+            }
+        }
 
         stackCards.asReversed().forEach { card ->
             key(card.id) {
                 val stackPosition = stackCards.indexOf(card)
                 val originalIndex = cards.indexOfFirst { it.id == card.id }.coerceAtLeast(0)
                 val isActive = stackPosition == 0
+                val cardHeight = if (isActive && isPulledForward) fullCardHeight else if (compactLayout) 148.dp else 172.dp
                 val cardTop = if (isPulledForward) {
-                    if (stackPosition == 0) {
-                        pulledFrontTop
+                    if (isActive) {
+                        0.dp
                     } else {
-                        val walletStackPosition = stackPosition - 1
-                        val walletStackCount = (stackCards.size - 1).coerceAtLeast(1)
-                        pulledWalletBackTop + (pulledStackStep * ((walletStackCount - 1) - walletStackPosition))
+                        val visibleIndex = (stackPosition - 1).coerceAtLeast(0)
+                        val visibleCount = storedCards.size.coerceAtLeast(1)
+                        pocketTop - (storedCardStep * (visibleCount - visibleIndex)) - 8.dp
                     }
                 } else {
-                    storedBackTop + (storedStep * (stackCards.lastIndex - stackPosition))
+                    val visibleCount = stackCards.size.coerceAtLeast(1)
+                    pocketTop - (storedCardStep * (visibleCount - stackPosition)) - 8.dp
                 }
                 val yOffset by animateDpAsState(
                     targetValue = cardTop,
-                    animationSpec = spring(dampingRatio = 0.82f, stiffness = 280f),
+                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 260f),
                     label = "walletStoredPassYOffset"
                 )
 
@@ -1115,14 +1132,14 @@ private fun WalletPullOutEntitlementDeck(
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
                         .offset(y = yOffset)
-                        .height(fullCardHeight)
+                        .height(cardHeight)
                         .graphicsLayer {
+                            shadowElevation = if (isActive && isPulledForward) 30f else 14f
                             scaleX = 1f
                             scaleY = 1f
-                            shadowElevation = if (isActive) 26f else 10f
                         }
-                        .zIndex(if (isPulledForward) { if (isActive) 90f else 40f - stackPosition.toFloat() } else { 50f - stackPosition.toFloat() })
-                        .clip(RoundedCornerShape(22.dp))
+                        .zIndex(if (isActive && isPulledForward) 120f else 40f + stackPosition.toFloat())
+                        .clip(RoundedCornerShape(26.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -1143,32 +1160,33 @@ private fun WalletPullOutEntitlementDeck(
 
         WalletLeatherPocket(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .height(pocketHeight)
                 .offset(y = pocketOffsetDown)
-                .zIndex(56f)
+                .zIndex(70f)
         )
-        if (showAllEnabled) {
+
+        if (showAllEnabled && !isPulledForward) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = pocketVisibleTop + 8.dp)
-                    .zIndex(70f)
+                    .offset(y = pocketTop + 14.dp)
+                    .zIndex(95f)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onShowAll
                     ),
                 shape = RoundedCornerShape(999.dp),
-                color = Color(0xFF17243A).copy(alpha = 0.96f),
-                border = BorderStroke(1.dp, Color(0xFF3A516F)),
+                color = Color.White.copy(alpha = 0.96f),
+                border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.95f)),
                 tonalElevation = 0.dp,
                 shadowElevation = 6.dp
             ) {
                 Text(
-                    text = "Show all",
-                    color = Color.White.copy(alpha = 0.96f),
+                    text = "Show all entitlements",
+                    color = WalletBlueSoft,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -1211,74 +1229,119 @@ private fun PulledForwardBadge(modifier: Modifier = Modifier) {
 
 @Composable
 private fun WalletLeatherPocket(modifier: Modifier = Modifier) {
-    val outerShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+    val outerShape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp, bottomStart = 32.dp, bottomEnd = 32.dp)
     Box(
         modifier = modifier
-            .shadow(26.dp, outerShape, clip = false)
+            .shadow(28.dp, outerShape, clip = false)
             .clip(outerShape)
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(Color(0xFF263752), Color(0xFF17243A), Color(0xFF0D1627))
+                    colors = listOf(Color(0xFF0F4C99), Color(0xFF0A3474), Color(0xFF082552))
                 )
             )
-            .border(BorderStroke(1.2.dp, Color(0xFF31435F).copy(alpha = 0.96f)), outerShape)
+            .border(BorderStroke(1.3.dp, Color(0xFF2D73C9).copy(alpha = 0.88f)), outerShape)
     ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(44.dp)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.08f), Color.Transparent)
-                    )
-                )
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 16.dp, vertical = 18.dp)
-                .fillMaxWidth()
-                .height(2.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color.White.copy(alpha = 0.12f))
-        )
+        WalletLeatherTexture(modifier = Modifier.fillMaxSize())
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-            val stitchInsetX = 16.dp.toPx()
-            val stitchTop = 24.dp.toPx()
-            val stitchBottom = 18.dp.toPx()
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.13f),
-                topLeft = Offset(stitchInsetX, stitchTop),
-                size = Size(size.width - stitchInsetX * 2, size.height - stitchTop - stitchBottom),
-                cornerRadius = CornerRadius(24.dp.toPx(), 24.dp.toPx()),
-                style = Stroke(width = 1.1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 6f)))
+            val rimHeight = 54.dp.toPx()
+            val stitchInset = 18.dp.toPx()
+            val stitchTop = 28.dp.toPx()
+            val orange = Color(0xFFFF8B19)
+            drawLine(
+                color = Color.White.copy(alpha = 0.18f),
+                start = Offset(18.dp.toPx(), rimHeight * 0.34f),
+                end = Offset(size.width - 18.dp.toPx(), rimHeight * 0.34f),
+                strokeWidth = 1.2.dp.toPx()
             )
-            for (i in 0..14) {
-                val y = size.height * (0.18f + i * 0.045f)
-                drawLine(
-                    color = Color.White.copy(alpha = 0.025f),
-                    start = Offset(size.width * 0.10f, y),
-                    end = Offset(size.width * 0.90f, y + ((i % 2) * 1.5f)),
-                    strokeWidth = 1.dp.toPx()
-                )
+            drawLine(
+                color = orange.copy(alpha = 0.82f),
+                start = Offset(stitchInset, stitchTop),
+                end = Offset(size.width - stitchInset, stitchTop),
+                strokeWidth = 1.2.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+            )
+            val wave = Path().apply {
+                moveTo(0f, rimHeight * 0.55f)
+                cubicTo(size.width * 0.22f, rimHeight * 0.95f, size.width * 0.45f, rimHeight * 0.02f, size.width * 0.62f, rimHeight * 0.46f)
+                cubicTo(size.width * 0.78f, rimHeight * 0.86f, size.width * 0.90f, rimHeight * 0.30f, size.width, rimHeight * 0.48f)
+                lineTo(size.width, 0f)
+                lineTo(0f, 0f)
+                close()
+            }
+            drawPath(wave, color = Color.White.copy(alpha = 0.09f))
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.10f),
+                topLeft = Offset(0f, rimHeight * 0.82f),
+                size = Size(size.width, 6.dp.toPx()),
+                cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = 18.dp)
+                .width(54.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color.White.copy(alpha = 0.20f))
+        )
+
+        Surface(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = 10.dp, y = 12.dp)
+                .size(width = 92.dp, height = 74.dp),
+            shape = RoundedCornerShape(topStart = 42.dp, bottomStart = 42.dp, topEnd = 18.dp, bottomEnd = 18.dp),
+            color = Color(0xFF0B3C83),
+            border = BorderStroke(1.dp, Color(0xFF2B70C8).copy(alpha = 0.65f)),
+            tonalElevation = 0.dp,
+            shadowElevation = 12.dp
+        ) {
+            Box(contentAlignment = Alignment.CenterStart) {
+                Surface(
+                    modifier = Modifier.padding(start = 16.dp).size(42.dp),
+                    shape = CircleShape,
+                    color = WalletAmber,
+                    shadowElevation = 8.dp,
+                    tonalElevation = 0.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("C", color = Color(0xFF0B3C83), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
             }
         }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 24.dp, top = 92.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("♢", color = Color.White.copy(alpha = 0.68f), fontSize = 21.sp, lineHeight = 21.sp)
-                Text("Wallet pocket", color = Color.White.copy(alpha = 0.78f), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            text = "calendra",
+            color = Color.White.copy(alpha = 0.09f),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.align(Alignment.Center).padding(top = 86.dp)
+        )
+    }
+}
+
+@Composable
+private fun WalletLeatherTexture(modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        for (i in 0..20) {
+            val y = size.height * (0.12f + i * 0.041f)
+            drawLine(
+                color = Color.White.copy(alpha = 0.025f),
+                start = Offset(size.width * 0.06f, y),
+                end = Offset(size.width * 0.94f, y + ((i % 3) - 1) * 2f),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+        repeat(5) { i ->
+            val path = Path().apply {
+                val y = size.height * (0.35f + i * 0.08f)
+                moveTo(size.width * 0.03f, y)
+                cubicTo(size.width * 0.25f, y - 22f, size.width * 0.52f, y + 16f, size.width * 0.97f, y - 8f)
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("▣", color = Color.White.copy(alpha = 0.48f), fontSize = 17.sp, lineHeight = 17.sp)
-                Text("Secure passes", color = Color.White.copy(alpha = 0.52f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            }
+            drawPath(path, color = Color.White.copy(alpha = 0.035f), style = Stroke(width = 1.1.dp.toPx()))
         }
     }
 }
@@ -1329,143 +1392,200 @@ private fun WalletStackedPassCard(
     onToggleAutoRenew: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = remember { CompactTicketShape(cornerRadius = 20.dp, notchRadius = 10.dp, notchFractionY = 0.48f) }
+    val type = card.type.uppercase(Locale.getDefault())
     val style = walletTicketStyle(card.type, index)
+    val isLightCard = type == "CLASS_TICKET" || type == "GIFT_CARD"
+    val shape = RoundedCornerShape(26.dp)
     val code = card.entitlementCode?.takeIf { it.isNotBlank() }
         ?: card.displayCode?.takeIf { it.isNotBlank() }
         ?: card.id
     val headerStatus = entitlementHeaderStatus(card)
-    val headerStatusAccent = if (headerStatus == "Inactive") Color(0xFFE53935) else WalletGreen
+    val statusAccent = if (headerStatus == "Inactive") Color(0xFF7C8798) else WalletGreen
+    val primary = primaryMetric(card)
+    val secondary = secondaryMetric(card)
+    val textColor = if (isLightCard) WalletInk else Color.White
+    val mutedColor = if (isLightCard) WalletMuted else Color.White.copy(alpha = 0.78f)
+    val lineColor = if (isLightCard) WalletLine.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.22f)
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(248.dp)
-            .shadow(12.dp, shape, clip = false)
+            .heightIn(min = 154.dp)
+            .shadow(16.dp, shape, clip = false)
             .clip(shape)
             .background(
                 Brush.linearGradient(
-                    colors = listOf(style.background, Color.White, style.softAccent),
+                    colors = walletPassGradient(card.type, index),
                     start = Offset(0f, 0f),
-                    end = Offset(900f, 900f)
+                    end = Offset(1000f, 750f)
                 )
             )
-            .border(BorderStroke(1.25.dp, style.border), shape)
+            .border(BorderStroke(1.25.dp, style.border.copy(alpha = 0.95f)), shape)
             .clickable { onTap() }
     ) {
         WalletPassWave(
-            accent = style.accent,
+            accent = if (isLightCard) style.accent else Color.White,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 14.dp, bottom = 16.dp)
-                .size(width = 190.dp, height = 90.dp)
+                .padding(end = 10.dp, bottom = 8.dp)
+                .size(width = 230.dp, height = 116.dp)
         )
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 18.dp, vertical = 16.dp)
+        ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(82.dp)
-                    .padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Row(
+                WalletPassIconBadge(
+                    type = card.type,
+                    accent = style.accent
+                )
+                Column(
                     modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    WalletTypeTag(label = entitlementHeaderTypeTag(card.type), accent = style.accent)
+                    Text(
+                        text = entitlementHeaderTypeTag(card.type),
+                        color = if (isLightCard) style.accent else Color.White.copy(alpha = 0.82f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
                     Text(
                         text = entitlementHeaderCardName(card.title),
-                        color = WalletInk,
-                        fontSize = 18.sp,
-                        lineHeight = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        color = textColor,
+                        fontSize = 25.sp,
+                        lineHeight = 30.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = card.tenantName?.takeIf { it.isNotBlank() } ?: "Oceanview Club",
+                        color = mutedColor,
+                        fontSize = 17.sp,
+                        lineHeight = 21.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    WalletStatusChip(status = headerStatus, accent = headerStatusAccent)
-                    if (card.type == "PACK" && card.remainingUses != null) {
-                        WalletCountChip(
-                            label = "${card.remainingUses} left",
-                            accent = style.accent
-                        )
+                    WalletStatusChip(status = headerStatus, accent = statusAccent)
+                    Box(
+                        modifier = Modifier
+                            .size(width = 86.dp, height = 94.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .border(BorderStroke(1.dp, Color.Black.copy(alpha = 0.05f)), RoundedCornerShape(16.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onQRCodeTap(code) }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            WalletQRCode(content = code, modifier = Modifier.size(58.dp))
+                            Text("Show QR", color = WalletBlueSoft, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
 
-            CompactDashedSeparator(color = style.accent.copy(alpha = 0.62f), modifier = Modifier.padding(horizontal = 17.dp))
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(lineColor))
+            Spacer(Modifier.height(14.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val primary = primaryMetric(card)
-                        val secondary = secondaryMetric(card)
-                        TicketDetailBlock(
-                            label = primary.first.uppercase(Locale.getDefault()),
-                            value = primary.second,
-                            accent = style.accent,
-                            modifier = Modifier.weight(1f)
+                WalletMetricColumn(
+                    label = secondary.first.uppercase(Locale.getDefault()),
+                    value = secondary.second,
+                    textColor = textColor,
+                    mutedColor = mutedColor,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(Modifier.height(40.dp).width(1.dp).background(lineColor))
+                WalletMetricColumn(
+                    label = primary.first.uppercase(Locale.getDefault()),
+                    value = primary.second,
+                    textColor = textColor,
+                    mutedColor = mutedColor,
+                    modifier = Modifier.weight(1f).padding(start = 16.dp)
+                )
+                Box(Modifier.height(40.dp).width(1.dp).background(lineColor))
+                Column(
+                    modifier = Modifier.weight(1f).padding(start = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text("AUTO-RENEW", color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    if (card.type == "MEMBERSHIP") {
+                        Switch(
+                            checked = card.autoRenews,
+                            onCheckedChange = { onToggleAutoRenew(card.id, it) },
+                            modifier = Modifier.height(28.dp)
                         )
-                        Box(
-                            modifier = Modifier
-                                .height(42.dp)
-                                .width(1.dp)
-                                .background(WalletLine.copy(alpha = 0.95f))
-                        )
-                        TicketDetailBlock(
-                            label = secondary.first.uppercase(Locale.getDefault()),
-                            value = secondary.second,
-                            accent = style.accent,
-                            modifier = Modifier.weight(1f).padding(start = 18.dp)
-                        )
-                    }
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(WalletLine.copy(alpha = 0.55f)))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "SCAN CODE",
-                            color = WalletInk.copy(alpha = 0.58f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = code,
-                            color = WalletInk,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    } else {
+                        Text(card.remainingUses?.let { "$it left" } ?: statusLabelForCard(card), color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Spacer(Modifier.width(10.dp))
+            }
+
+            Spacer(Modifier.weight(1f))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(96.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onQRCodeTap(code) }
-                        ),
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isLightCard) style.accent.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(Modifier.size(92.dp).border(BorderStroke(1.dp, style.accent.copy(alpha = 0.12f)), CircleShape))
-                    Box(Modifier.size(82.dp).border(BorderStroke(1.dp, style.accent.copy(alpha = 0.22f)), CircleShape))
-                    WalletQRCode(content = code, modifier = Modifier.size(74.dp))
+                    Text("▦", color = if (isLightCard) style.accent else Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("YOUR ACCESS CODE", color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(code, color = textColor, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text("Tap at check-in", color = mutedColor, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
+}
+
+@Composable
+private fun WalletMetricColumn(
+    label: String,
+    value: String,
+    textColor: Color,
+    mutedColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(value, color = textColor, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+private fun walletPassGradient(type: String, index: Int): List<Color> = when (type.uppercase(Locale.getDefault())) {
+    "MEMBERSHIP" -> listOf(Color(0xFF0F7BFF), Color(0xFF0056D6), Color(0xFF003DA8))
+    "PACK" -> listOf(Color(0xFFFFB11E), Color(0xFFFF8A00), Color(0xFFFF6D00))
+    "CLASS_TICKET" -> listOf(Color(0xFFF5FAFF), Color(0xFFEAF4FF), Color(0xFFFFFFFF))
+    "GIFT_CARD" -> listOf(Color(0xFFFFF8EF), Color(0xFFFFF1DD), Color(0xFFFFFFFF))
+    else -> if (index % 2 == 0) listOf(Color(0xFFF5FAFF), Color(0xFFEAF4FF), Color.White) else listOf(Color(0xFF0F7BFF), Color(0xFF0056D6), Color(0xFF003DA8))
 }
 
 @Composable
@@ -1555,7 +1675,7 @@ private fun WalletCommercePassCard(
                 WalletStatusChip(status = statusLabel, accent = statusAccent)
             }
 
-            CompactDashedSeparator(color = style.accent.copy(alpha = 0.62f), modifier = Modifier.padding(horizontal = 17.dp))
+            CompactDashedSeparator(color = style.accent.copy(alpha = 0.62f), modifier = Modifier.padding(horizontal = 13.dp))
 
             Row(
                 modifier = Modifier
@@ -1595,7 +1715,7 @@ private fun WalletCommercePassCard(
                         Text(
                             text = code,
                             color = WalletInk,
-                            fontSize = 15.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -1801,38 +1921,38 @@ private fun CompactDashedSeparator(color: Color, modifier: Modifier = Modifier) 
     }
 }
 
-private fun walletTicketStyle(type: String, index: Int): WalletTicketStyle = when (type) {
+private fun walletTicketStyle(type: String, index: Int): WalletTicketStyle = when (type.uppercase(Locale.getDefault())) {
     "MEMBERSHIP" -> WalletTicketStyle(
-        background = Color(0xFFF0FAF4),
-        accent = WalletGreen,
-        border = WalletGreen.copy(alpha = 0.82f),
-        softAccent = Color(0xFFCDEFD9)
+        background = Color(0xFF0F7BFF),
+        accent = Color(0xFF0F6BE8),
+        border = Color(0xFF2C8BFF),
+        softAccent = Color(0xFF003DA8)
     )
     "PACK" -> WalletTicketStyle(
-        background = Color(0xFFEFF6FF),
-        accent = WalletBlueSoft,
-        border = WalletBlueSoft.copy(alpha = 0.78f),
-        softAccent = Color(0xFFC7E5FF)
+        background = Color(0xFFFF9800),
+        accent = Color(0xFFFF8A00),
+        border = Color(0xFFFFB33E),
+        softAccent = Color(0xFFFF6D00)
     )
     "CLASS_TICKET" -> WalletTicketStyle(
-        background = Color(0xFFFFF4E6),
-        accent = WalletAmber,
-        border = WalletAmber.copy(alpha = 0.66f),
-        softAccent = Color(0xFFFFD9A8)
+        background = Color(0xFFEFF7FF),
+        accent = WalletBlueSoft,
+        border = WalletBlueSoft.copy(alpha = 0.72f),
+        softAccent = Color(0xFFFFFFFF)
     )
     "GIFT_CARD" -> WalletTicketStyle(
         background = Color(0xFFFFF7ED),
         accent = WalletAmber,
         border = WalletAmber.copy(alpha = 0.74f),
-        softAccent = Color(0xFFFFE1B8)
+        softAccent = Color(0xFFFFFFFF)
     )
     else -> {
         val isBlue = index % 2 == 0
         WalletTicketStyle(
-            background = if (isBlue) Color(0xFFF0F8FF) else Color(0xFFFFF4E6),
+            background = if (isBlue) Color(0xFFEFF7FF) else Color(0xFFFF9800),
             accent = if (isBlue) WalletBlueSoft else WalletAmber,
             border = (if (isBlue) WalletBlueSoft else WalletAmber).copy(alpha = 0.66f),
-            softAccent = if (isBlue) Color(0xFFC7E5FF) else Color(0xFFFFD9A8)
+            softAccent = if (isBlue) Color.White else Color(0xFFFF6D00)
         )
     }
 }
@@ -2119,7 +2239,6 @@ private fun BuyPanel(
         return
     }
 
-    var query by remember { mutableStateOf("") }
     val categories = remember { BuyMarketplaceCategory.values().toList() }
     val initialCategory = remember(offers) {
         categories.firstOrNull { category -> offers.any { offer -> offerMatchesMarketplaceCategory(offer, category) } }
@@ -2130,46 +2249,20 @@ private fun BuyPanel(
         offers.firstOrNull { it.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" }
             ?: offers.first()
     }
-    val visibleOffers = remember(offers, selectedCategory, query, featuredOffer) {
-        val normalizedQuery = query.trim()
+    val visibleOffers = remember(offers, selectedCategory, featuredOffer) {
         offers
             .asSequence()
             .filter { it.productId != featuredOffer.productId }
             .filter { offerMatchesMarketplaceCategory(it, selectedCategory) }
-            .filter { offer ->
-                normalizedQuery.isBlank() ||
-                    offer.name.contains(normalizedQuery, ignoreCase = true) ||
-                    offer.productType.contains(normalizedQuery, ignoreCase = true) ||
-                    (offer.description?.contains(normalizedQuery, ignoreCase = true) == true) ||
-                    (offer.sessionTypeName?.contains(normalizedQuery, ignoreCase = true) == true)
-            }
             .toList()
-            .ifEmpty {
-                offers
-                    .filter { it.productId != featuredOffer.productId }
-                    .filter { offer ->
-                        normalizedQuery.isBlank() ||
-                            offer.name.contains(normalizedQuery, ignoreCase = true) ||
-                            offer.productType.contains(normalizedQuery, ignoreCase = true) ||
-                            (offer.description?.contains(normalizedQuery, ignoreCase = true) == true) ||
-                            (offer.sessionTypeName?.contains(normalizedQuery, ignoreCase = true) == true)
-                    }
-            }
+            .ifEmpty { offers.filter { it.productId != featuredOffer.productId } }
     }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item { BuyMarketplaceHeader() }
-        item {
-            BuyMarketplaceSearchRow(
-                query = query,
-                onQueryChange = { query = it },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
         item {
             BuyMarketplaceCategoryRow(
                 categories = categories,
@@ -2223,22 +2316,87 @@ private fun offerMatchesMarketplaceCategory(offer: WalletOfferCard, category: Bu
 
 @Composable
 private fun BuyMarketplaceHeader() {
-    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(
-            text = "Find something to buy",
-            color = WalletInk,
-            fontSize = 31.sp,
-            lineHeight = 34.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.6f).sp
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Text(
+                text = "Find the perfect fit",
+                color = WalletInk,
+                fontSize = 31.sp,
+                lineHeight = 34.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.7f).sp
+            )
+            Text(
+                text = "Memberships, class packs, and more to support your wellness journey.",
+                color = WalletMuted,
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        BuyMarketplaceHeaderArt(
+            modifier = Modifier
+                .width(168.dp)
+                .height(98.dp)
         )
-        Text(
-            text = "Passes, packs, memberships, and offers ready for instant checkout.",
-            color = WalletMuted,
-            fontSize = 15.sp,
-            lineHeight = 20.sp,
-            fontWeight = FontWeight.Medium
+    }
+}
+
+@Composable
+private fun BuyMarketplaceHeaderArt(modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.BottomCenter) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .width(142.dp)
+                .height(54.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0xFFEAF3FF))
         )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 8.dp, bottom = 8.dp)
+                .size(width = 62.dp, height = 24.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color(0xFFBFD9FF)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = Color(0xFF1E5AE8), modifier = Modifier.size(20.dp))
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = 12.dp, y = (-7).dp)
+                .size(72.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.verticalGradient(listOf(Color(0xFF1D66F4), Color(0xFF0A49BD)))
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Rounded.CardMembership, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+        }
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = 18.dp, y = (-12).dp),
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFFFFE2BE),
+            tonalElevation = 0.dp,
+            shadowElevation = 2.dp
+        ) {
+            Text("%", color = Color(0xFFFF7A00), fontWeight = FontWeight.ExtraBold, fontSize = 23.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
+        }
+        Text("✦", color = Color(0xFFFF9A1B), fontSize = 16.sp, modifier = Modifier.align(Alignment.TopStart).offset(x = 20.dp, y = 16.dp))
+        Text("✦", color = Color(0xFFFFD08A), fontSize = 13.sp, modifier = Modifier.align(Alignment.TopEnd).offset(x = (-4).dp, y = 25.dp))
     }
 }
 
@@ -2256,7 +2414,7 @@ private fun BuyMarketplaceSearchRow(
         Surface(
             modifier = Modifier
                 .weight(1f)
-                .height(56.dp),
+                .height(50.dp),
             shape = RoundedCornerShape(19.dp),
             color = Color.White.copy(alpha = 0.92f),
             border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.95f)),
@@ -2285,14 +2443,14 @@ private fun BuyMarketplaceSearchRow(
                             imageVector = Icons.Rounded.Search,
                             contentDescription = null,
                             tint = WalletMuted,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                             if (query.isBlank()) {
                                 Text(
                                     text = "Search passes, classes, offers...",
                                     color = WalletMuted.copy(alpha = 0.74f),
-                                    fontSize = 15.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -2306,7 +2464,7 @@ private fun BuyMarketplaceSearchRow(
         }
 
         Surface(
-            modifier = Modifier.height(56.dp),
+            modifier = Modifier.height(50.dp),
             shape = RoundedCornerShape(19.dp),
             color = Color.White.copy(alpha = 0.92f),
             border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.95f)),
@@ -2318,8 +2476,8 @@ private fun BuyMarketplaceSearchRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                Icon(Icons.Rounded.Tune, contentDescription = null, tint = WalletInk, modifier = Modifier.size(21.dp))
-                Text("Filters", color = WalletInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Rounded.Tune, contentDescription = null, tint = WalletInk, modifier = Modifier.size(18.dp))
+                Text("Filters", color = WalletInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -2340,7 +2498,6 @@ private fun BuyMarketplaceCategoryRow(
     ) {
         items(categories, key = { it.title }) { category ->
             val active = selected == category
-            val count = offers.count { offerMatchesMarketplaceCategory(it, category) }
             Surface(
                 modifier = Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -2355,27 +2512,19 @@ private fun BuyMarketplaceCategoryRow(
             ) {
                 Row(
                     modifier = Modifier
-                        .height(45.dp)
-                        .padding(horizontal = 14.dp),
+                        .height(32.dp)
+                        .padding(horizontal = if (active) 12.dp else 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     BuyMarketplaceCategoryIcon(category = category, selected = active)
                     Text(
                         text = category.title,
                         color = if (active) Color.White else WalletInk,
-                        fontSize = 14.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
-                    if (count > 0) {
-                        Text(
-                            text = count.toString(),
-                            color = if (active) Color.White.copy(alpha = 0.7f) else WalletMuted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                 }
             }
         }
@@ -2386,10 +2535,10 @@ private fun BuyMarketplaceCategoryRow(
 private fun BuyMarketplaceCategoryIcon(category: BuyMarketplaceCategory, selected: Boolean) {
     val tint = if (selected) Color.White else WalletInk
     when (category) {
-        BuyMarketplaceCategory.Memberships -> Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-        BuyMarketplaceCategory.ClassPacks -> Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-        BuyMarketplaceCategory.DropIns -> Icon(Icons.Rounded.Schedule, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-        BuyMarketplaceCategory.GiftCards -> Text("🎁", fontSize = 16.sp, lineHeight = 16.sp)
+        BuyMarketplaceCategory.Memberships -> Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        BuyMarketplaceCategory.ClassPacks -> Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        BuyMarketplaceCategory.DropIns -> Icon(Icons.Rounded.Schedule, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        BuyMarketplaceCategory.GiftCards -> Text("🎁", fontSize = 12.sp, lineHeight = 12.sp)
     }
 }
 
@@ -2403,144 +2552,140 @@ private fun BuyMarketplaceFeaturedCard(
     val price = buyOfferPriceLabel(offer)
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(25.dp),
+        shape = RoundedCornerShape(24.dp),
         color = Color.Transparent,
-        shadowElevation = 8.dp,
+        shadowElevation = 9.dp,
         tonalElevation = 0.dp
     ) {
         Box(
             modifier = Modifier
-                .heightIn(min = 205.dp)
+                .heightIn(min = 172.dp)
                 .background(
                     Brush.linearGradient(
-                        colors = listOf(Color(0xFF061B42), Color(0xFF082B66), Color(0xFF0A4EA8)),
+                        colors = listOf(Color(0xFF005FEE), Color(0xFF0048C5), Color(0xFF003A9F)),
                         start = Offset(0f, 0f),
-                        end = Offset(850f, 520f)
+                        end = Offset(920f, 480f)
                     )
                 )
-                .padding(18.dp)
+                .padding(16.dp)
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .offset(x = 64.dp, y = 16.dp)
-                    .size(190.dp)
+                    .offset(x = 82.dp, y = (-18).dp)
+                    .size(250.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF236BDA).copy(alpha = 0.36f))
+                    .background(Color.White.copy(alpha = 0.08f))
             )
             WalletPassWave(
-                accent = Color(0xFF2B80FF),
+                accent = Color(0xFF2D86FF),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 4.dp, bottom = 2.dp)
-                    .size(width = 185.dp, height = 84.dp)
+                    .padding(end = 8.dp, bottom = 0.dp)
+                    .size(width = 210.dp, height = 88.dp)
             )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 20.dp)
-                    .size(92.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(Color.White.copy(alpha = 0.13f))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)), RoundedCornerShape(28.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.FitnessCenter,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.86f),
-                    modifier = Modifier.size(50.dp)
-                )
-            }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth(0.68f)
-                    .align(Alignment.TopStart),
-                verticalArrangement = Arrangement.spacedBy(11.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = WalletAmber.copy(alpha = 0.22f),
-                    border = BorderStroke(1.dp, WalletAmber.copy(alpha = 0.24f)),
-                    tonalElevation = 0.dp
+                Box(
+                    modifier = Modifier
+                        .size(66.dp)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(Icons.Rounded.Star, contentDescription = null, tint = WalletAmber, modifier = Modifier.size(15.dp))
-                        Text(
-                            text = marketplaceFeaturedTag(offer).uppercase(Locale.getDefault()),
-                            color = Color(0xFFFFB161),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
+                    BuyMarketplaceOfferIcon(offer = offer, accent = Color(0xFF1E5AE8))
                 }
-
-                Text(
-                    text = offer.name.ifBlank { "Unlimited Monthly" },
-                    color = Color.White,
-                    fontSize = 29.sp,
-                    lineHeight = 31.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = marketplaceFeaturedDescription(offer),
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = price,
-                        color = Color.White,
-                        fontSize = 30.sp,
-                        lineHeight = 32.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = marketplaceFeaturedTag(offer).uppercase(Locale.getDefault()),
+                        color = WalletAmber,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 1
                     )
-                    if (availableMethods.isNotEmpty()) {
-                        Text(
-                            text = "Secure checkout",
-                            color = Color.White.copy(alpha = 0.68f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1
-                        )
+                    Text(
+                        text = offer.name.ifBlank { "Unlimited Monthly" },
+                        color = Color.White,
+                        fontSize = 23.sp,
+                        lineHeight = 26.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = marketplaceFeaturedDescription(offer),
+                        color = Color.White.copy(alpha = 0.88f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(18.dp)
+                    ) {
+                        BuyFeaturedInfoPill("Billed monthly")
+                        if (availableMethods.isNotEmpty()) BuyFeaturedInfoPill("Secure checkout")
                     }
                 }
-                Surface(
+                Box(
                     modifier = Modifier
-                        .height(50.dp)
-                        .widthIn(min = 132.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onBuyClick
-                        ),
-                    shape = RoundedCornerShape(15.dp),
-                    color = Color(0xFFFF6B4A),
-                    shadowElevation = 5.dp,
-                    tonalElevation = 0.dp
+                        .heightIn(min = 130.dp)
+                        .width(132.dp),
+                    contentAlignment = Alignment.CenterEnd
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("Buy now", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.align(Alignment.CenterStart).width(1.dp).height(120.dp).background(Color.White.copy(alpha = 0.35f)))
+                    Column(
+                        horizontalAlignment = Alignment.Start,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        Text("From", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(price, color = Color.White, fontSize = 27.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                        Text("Billed monthly", color = Color.White.copy(alpha = 0.78f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Surface(
+                            modifier = Modifier
+                                .height(44.dp)
+                                .width(120.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onBuyClick
+                                ),
+                            shape = RoundedCornerShape(999.dp),
+                            color = Color.White,
+                            shadowElevation = 6.dp,
+                            tonalElevation = 0.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Buy now", color = Color(0xFF005DEB), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                                Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF005DEB), modifier = Modifier.size(19.dp))
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BuyFeaturedInfoPill(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color.White.copy(alpha = 0.86f), modifier = Modifier.size(14.dp))
+        Text(text, color = Color.White.copy(alpha = 0.86f), fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -2555,21 +2700,21 @@ private fun BuyMarketplaceOfferCard(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(22.dp),
-        color = Color.White.copy(alpha = 0.96f),
-        border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.76f)),
+        color = Color.White,
+        border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.78f)),
         shadowElevation = 5.dp,
         tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(11.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(74.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(accent.copy(alpha = 0.12f)),
+                    .size(62.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(accent.copy(alpha = 0.13f)),
                 contentAlignment = Alignment.Center
             ) {
                 BuyMarketplaceOfferIcon(offer = offer, accent = accent)
@@ -2579,66 +2724,85 @@ private fun BuyMarketplaceOfferCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = offer.name.ifBlank { productTypeLabel(offer.productType) },
-                    color = WalletInk,
-                    fontSize = 20.sp,
-                    lineHeight = 23.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(Icons.Rounded.Star, contentDescription = null, tint = WalletAmber, modifier = Modifier.size(15.dp))
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = accent.copy(alpha = 0.12f),
+                    tonalElevation = 0.dp
+                ) {
                     Text(
-                        text = marketplaceOfferTag(offer),
-                        color = WalletAmber,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = marketplaceOfferTag(offer).uppercase(Locale.getDefault()),
+                        color = accent,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                        maxLines = 1
                     )
                 }
                 Text(
+                    text = offer.name.ifBlank { productTypeLabel(offer.productType) },
+                    color = WalletInk,
+                    fontSize = 17.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
                     text = marketplaceOfferDescription(offer),
                     color = WalletMuted,
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Rounded.Schedule, contentDescription = null, tint = WalletMuted, modifier = Modifier.size(12.dp))
+                    Text(
+                        text = buyMarketplaceValidityLabel(offer),
+                        color = WalletMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             Column(
                 horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = buyOfferPriceLabel(offer),
                     color = WalletInk,
-                    fontSize = 25.sp,
-                    lineHeight = 27.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    lineHeight = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.End,
                     maxLines = 1
                 )
                 Surface(
                     modifier = Modifier
-                        .height(44.dp)
-                        .width(112.dp)
+                        .height(38.dp)
+                        .width(108.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onBuyClick
                         ),
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF1E5AE8),
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color(0xFF0067F5),
                     shadowElevation = 4.dp,
                     tonalElevation = 0.dp
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("Buy now", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Buy now", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
                     }
                 }
             }
@@ -2646,18 +2810,24 @@ private fun BuyMarketplaceOfferCard(
     }
 }
 
+private fun buyMarketplaceValidityLabel(offer: WalletOfferCard): String {
+    val validity = offer.validityDays?.takeIf { it > 0 }?.let { "Valid for $it days" }
+    val usage = offer.usageLimit?.takeIf { it > 0 }?.let { count -> if (count == 1) "1 class" else "$count classes" }
+    return listOfNotNull(validity, usage).joinToString("  •  ").ifBlank { "Digital delivery" }
+}
+
 @Composable
 private fun BuyMarketplaceOfferIcon(offer: WalletOfferCard, accent: Color) {
     when {
-        isGiftOffer(offer) -> Text("🎁", fontSize = 31.sp, lineHeight = 31.sp)
-        offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> Icon(Icons.Rounded.CardMembership, contentDescription = null, tint = accent, modifier = Modifier.size(34.dp))
+        isGiftOffer(offer) -> Text("🎁", fontSize = 25.sp, lineHeight = 25.sp)
+        offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> Icon(Icons.Rounded.CardMembership, contentDescription = null, tint = accent, modifier = Modifier.size(28.dp))
         offer.productType.uppercase(Locale.getDefault()) == "PACK" -> Text(
             text = (offer.usageLimit?.takeIf { it > 0 } ?: 10).toString(),
             color = accent,
-            fontSize = 27.sp,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
-        else -> Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = accent, modifier = Modifier.size(34.dp))
+        else -> Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = accent, modifier = Modifier.size(28.dp))
     }
 }
 
@@ -4125,14 +4295,14 @@ private fun WalletOrderFilterRow(
             ) {
                 Box(
                     modifier = Modifier
-                        .height(34.dp)
-                        .padding(horizontal = if (selectedChip) 13.dp else 11.dp),
+                        .height(32.dp)
+                        .padding(horizontal = if (selectedChip) 12.dp else 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = label,
                         color = if (selectedChip) Color.White else WalletInk.copy(alpha = 0.88f),
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = if (selectedChip) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1
                     )
@@ -4196,89 +4366,140 @@ private fun WalletOrderReceiptCard(
     val isPendingTransfer = status == OrderChipStatus.Pending && order.paymentMethodType.equals("BANK_TRANSFER", ignoreCase = true)
     val reference = order.referenceCode?.takeIf { it.isNotBlank() } ?: "ORD-${order.orderId.takeLast(8)}"
     val displayOrderId = order.invoiceOrderId?.takeIf { it.isNotBlank() } ?: reference
+    val amount = "${formatPrice(order.totalGross)} ${order.currency}"
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, style.cardBorder),
+        border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.86f)),
         tonalElevation = 0.dp,
-        shadowElevation = 4.dp
+        shadowElevation = 5.dp
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(style.fg)
+            )
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(start = 14.dp, top = 13.dp, end = 14.dp, bottom = 13.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(74.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(style.iconBg),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = style.receiptIcon,
-                        contentDescription = null,
-                        tint = style.fg,
-                        modifier = Modifier.size(38.dp)
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = order.productName?.takeIf { it.isNotBlank() } ?: "Order",
-                                color = Color(0xFF071C4D),
-                                fontSize = 22.sp,
-                                lineHeight = 25.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = tenantName?.takeIf { it.isNotBlank() } ?: "Calendra",
-                                color = Color(0xFF53617C),
-                                fontSize = 15.sp,
-                                lineHeight = 20.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = displayOrderId,
-                                color = Color(0xFF53617C),
-                                fontSize = 15.sp,
-                                lineHeight = 22.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(style.iconBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = orderProductIcon(order.productType),
+                            contentDescription = null,
+                            tint = style.fg,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = order.productName?.takeIf { it.isNotBlank() } ?: "Order",
+                            color = WalletInk,
+                            fontSize = 18.sp,
+                            lineHeight = 21.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = tenantName?.takeIf { it.isNotBlank() } ?: "Calendra",
+                            color = WalletMuted,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.widthIn(min = 92.dp)
+                    ) {
                         WalletOrderStatusPill(style = style)
+                        Text("Total", color = WalletMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            amount,
+                            color = WalletInk,
+                            fontSize = 20.sp,
+                            lineHeight = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = TextAlign.End,
+                            maxLines = 1
+                        )
                     }
                 }
-            }
 
-            Box(Modifier.fillMaxWidth().height(1.dp).background(WalletLine.copy(alpha = 0.72f)))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(WalletLine.copy(alpha = 0.78f)))
 
-            WalletOrderDetailRows(
-                total = "${formatPrice(order.totalGross)} ${order.currency}",
-                ordered = formatOrderDateShort(order.createdAt).ifBlank { "—" },
-                paymentMethod = walletOrderPaymentLabel(order.paymentMethodType),
-                orderId = displayOrderId
-            )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    WalletOrderMetric(label = "Order ID", value = displayOrderId, modifier = Modifier.weight(1.0f))
+                    Box(Modifier.width(1.dp).height(36.dp).background(WalletLine.copy(alpha = 0.72f)))
+                    WalletOrderMetric(label = "Ordered on", value = formatOrderDateShort(order.createdAt).ifBlank { "—" }, modifier = Modifier.weight(1.0f))
+                    Box(Modifier.width(1.dp).height(36.dp).background(WalletLine.copy(alpha = 0.72f)))
+                    WalletOrderMetric(label = "Payment method", value = walletOrderPaymentLabel(order.paymentMethodType), modifier = Modifier.weight(1.15f))
+                }
 
-            if (isPendingTransfer) {
-                WalletPendingTransferCallout(onPaymentInstructions = onPaymentInstructions)
-            } else {
-                WalletViewReceiptRow(onClick = onViewReceipt)
+                if (isPendingTransfer) {
+                    WalletPendingTransferCallout(onPaymentInstructions = onPaymentInstructions)
+                } else {
+                    WalletViewReceiptRow(onClick = onViewReceipt)
+                }
             }
         }
+    }
+}
+
+private fun orderProductIcon(productType: String?): ImageVector {
+    val type = productType.orEmpty().uppercase(Locale.getDefault())
+    return when {
+        type == "MEMBERSHIP" -> Icons.Rounded.CardMembership
+        type == "PACK" -> Icons.Rounded.FitnessCenter
+        type.contains("GIFT") -> Icons.Rounded.Star
+        else -> Icons.Rounded.ConfirmationNumber
+    }
+}
+
+@Composable
+private fun WalletOrderMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            text = label,
+            color = WalletMuted,
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = value,
+            color = WalletInk,
+            fontSize = 13.sp,
+            lineHeight = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -4290,62 +4511,24 @@ private fun WalletOrderStatusPill(style: WalletOrderStatusStyle) {
         tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.height(38.dp).padding(horizontal = 10.dp),
+            modifier = Modifier.height(30.dp).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Icon(
                 imageVector = style.icon,
                 contentDescription = null,
                 tint = style.fg,
-                modifier = Modifier.size(17.dp)
+                modifier = Modifier.size(14.dp)
             )
             Text(
                 text = style.label,
                 color = style.fg,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
             )
         }
-    }
-}
-
-@Composable
-private fun WalletOrderDetailRows(
-    total: String,
-    ordered: String,
-    paymentMethod: String,
-    orderId: String
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        WalletOrderDetailRow(label = "Total", value = total)
-        WalletOrderDetailRow(label = "Ordered", value = ordered)
-        WalletOrderDetailRow(label = "Payment method", value = paymentMethod)
-        WalletOrderDetailRow(label = "Order ID", value = orderId)
-    }
-}
-
-@Composable
-private fun WalletOrderDetailRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Text(
-            text = label,
-            color = Color(0xFF53617C),
-            fontSize = 15.sp,
-            lineHeight = 20.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = value,
-            color = Color(0xFF071C4D),
-            fontSize = 15.sp,
-            lineHeight = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1.12f)
-        )
     }
 }
 
@@ -4359,21 +4542,21 @@ private fun WalletPendingTransferCallout(onPaymentInstructions: () -> Unit) {
         tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 imageVector = Icons.Rounded.Info,
                 contentDescription = null,
                 tint = Color(0xFFB96800),
-                modifier = Modifier.size(25.dp)
+                modifier = Modifier.size(20.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Awaiting transfer",
                     color = Color(0xFFB96800),
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
@@ -4391,9 +4574,9 @@ private fun WalletPendingTransferCallout(onPaymentInstructions: () -> Unit) {
                 Text(
                     text = "Payment instructions",
                     color = Color.White,
-                    fontSize = 12.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
                     maxLines = 1
                 )
             }

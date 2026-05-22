@@ -41,6 +41,35 @@ struct MainTabView: View {
         return p.contains { $0.isNumber }
     }
 
+    private var inboxSelectedTenant: TenantModel? {
+        let selectedId = store.selectedTenantId ?? store.currentTenant.id
+        return store.linkedTenants.first { $0.id == selectedId } ?? store.currentTenant
+    }
+
+    private var inboxDashboardTenantName: String? {
+        guard let selectedId = inboxSelectedTenant?.id else { return nil }
+        return store.tenantDashboards[selectedId]?.tenant.name
+    }
+
+    private var inboxPrimaryTenantName: String {
+        let fallback = inboxSelectedTenant?.name ?? store.currentTenant.name
+        let dashboardName = inboxDashboardTenantName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !dashboardName.isEmpty && dashboardName.caseInsensitiveCompare(fallback) != .orderedSame {
+            return dashboardName
+        }
+        return fallback
+    }
+
+    private var inboxTenantSubtitle: String? {
+        let fallback = inboxSelectedTenant?.name ?? store.currentTenant.name
+        if inboxPrimaryTenantName.caseInsensitiveCompare(fallback) != .orderedSame {
+            return fallback
+        }
+        let city = inboxSelectedTenant?.city?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !city.isEmpty && city.caseInsensitiveCompare(inboxPrimaryTenantName) != .orderedSame { return city }
+        return nil
+    }
+
     private func dialInboxTenant() {
         guard let raw = inboxDialPhone, canDialInboxTenant else { return }
         let cleaned = String(raw.unicodeScalars.filter { CharacterSet(charactersIn: "+0123456789").contains($0) })
@@ -232,17 +261,38 @@ struct MainTabView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Text(store.currentTenant.name)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(Color.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color.primary)
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.07, green: 0.39, blue: 0.95))
+                            .shadow(color: Color(red: 0.07, green: 0.39, blue: 0.95).opacity(0.28), radius: 6, y: 3)
+                        Image(systemName: "dumbbell.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 44, height: 44)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 5) {
+                            Text(inboxPrimaryTenantName)
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundColor(Color(red: 0.03, green: 0.12, blue: 0.24))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(Color(red: 0.03, green: 0.12, blue: 0.24))
+                        }
+                        if let inboxTenantSubtitle {
+                            Text(inboxTenantSubtitle)
+                                .font(.system(size: 14, weight: .regular))
+                                .foregroundColor(Color(red: 0.36, green: 0.45, blue: 0.56))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                    }
+                    .frame(maxWidth: 210, alignment: .leading)
                 }
-                .frame(maxWidth: 240, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -338,16 +388,16 @@ struct MainTabView: View {
             VStack(spacing: 4) {
                 ZStack {
                     Circle()
-                        .fill(brandBlue)
+                        .fill(Color(red: 0.114, green: 0.400, blue: 0.957))
                         .frame(width: 46, height: 46)
-                        .shadow(color: brandBlue.opacity(0.25), radius: 12, x: 0, y: 6)
+                        .shadow(color: Color(red: 0.114, green: 0.400, blue: 0.957).opacity(0.22), radius: 12, x: 0, y: 6)
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white)
                 }
                 Text("Book")
                     .font(.caption2.weight(selectedTab == .book ? .semibold : .medium))
-                    .foregroundColor(selectedTab == .book ? brandBlue : Color.secondary)
+                    .foregroundColor(selectedTab == .book ? Color(red: 0.114, green: 0.400, blue: 0.957) : Color(red: 0.369, green: 0.435, blue: 0.522))
             }
             .frame(maxWidth: .infinity)
         }
@@ -380,7 +430,7 @@ struct MainTabView: View {
                 Text(title)
                     .font(.caption2.weight(selectedTab == tab ? .semibold : .medium))
             }
-            .foregroundColor(selectedTab == tab ? brandBlue : Color.secondary)
+            .foregroundColor(selectedTab == tab ? Color(red: 0.114, green: 0.400, blue: 0.957) : Color(red: 0.369, green: 0.435, blue: 0.522))
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)

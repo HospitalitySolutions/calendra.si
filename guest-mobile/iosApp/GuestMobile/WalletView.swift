@@ -98,7 +98,7 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
         case .all: return "All"
         case .memberships: return "Memberships"
         case .classPacks: return "Class Packs"
-        case .dropIns: return "Drop-ins"
+        case .dropIns: return "Day Passes"
         case .giftCards: return "Gift Cards"
         }
     }
@@ -390,56 +390,15 @@ struct WalletView: View {
 
     private var buyPanel: some View {
         let allOffers = store.walletScopedOffers
-        let categoryOffers = allOffers.filter { selectedBuyCategory.matches($0) }
-        let featuredOffer = buySearchText.isEmpty ? buyFeaturedOffer(from: categoryOffers) : nil
-        let visibleOffers = buyVisibleOffers(from: allOffers, excluding: featuredOffer?.id)
+        let visibleOffers = allOffers.filter { selectedBuyCategory.matches($0) }
 
         return ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Find something to buy")
-                        .font(.system(size: 32, weight: .heavy))
-                        .tracking(-0.9)
-                        .foregroundColor(walletInk)
-                    Text("Search passes, class packs, memberships, and offers for this location.")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(walletMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.top, 8)
-
-                HStack(spacing: 12) {
-                    BuySearchField(text: $buySearchText)
-                    Button {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                            selectedBuyCategory = selectedBuyCategory == .all ? .memberships : .all
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("Filters")
-                                .font(.system(size: 15, weight: .bold))
-                        }
-                        .foregroundColor(walletInk)
-                        .frame(height: 54)
-                        .padding(.horizontal, 15)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(walletLine.opacity(0.95), lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.04), radius: 10, y: 5)
-                    }
-                    .buttonStyle(.plain)
-                }
-
+            VStack(alignment: .leading, spacing: 14) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(WalletBuyCategory.allCases) { category in
-                            BuyCategoryChip(
-                                title: category.title,
-                                iconName: category.iconName,
+                            BuyShowcaseCategoryChip(
+                                category: category,
                                 selected: selectedBuyCategory == category
                             ) {
                                 withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
@@ -448,48 +407,29 @@ struct WalletView: View {
                             }
                         }
                     }
-                    .padding(.vertical, 1)
+                    .padding(.vertical, 2)
                 }
 
-                if allOffers.isEmpty {
-                    emptyState(
-                        iconName: "creditcard",
-                        title: "Nothing to buy yet",
-                        subtitle: "Your tenant has not published any tickets, packs, or memberships."
+                if visibleOffers.isEmpty {
+                    BuyNoResultsCard(
+                        title: "No offers in this category",
+                        subtitle: "Try another category to browse available products."
                     )
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 52)
-                    .padding(.bottom, 140)
                 } else {
-                    if let featuredOffer, buySearchText.isEmpty {
-                        BuyMarketplaceHeroCard(
-                            offer: featuredOffer,
-                            priceLabel: offerPriceLabel(featuredOffer),
-                            subtitle: buyHeroSubtitle(for: featuredOffer),
-                            onTap: { pendingOffer = featuredOffer }
-                        )
-                    }
-
-                    if visibleOffers.isEmpty {
-                        BuyNoResultsCard(
-                            title: buySearchText.isEmpty ? "No offers in this category" : "No matching offers",
-                            subtitle: buySearchText.isEmpty ? "Try another category or reset filters." : "Try a shorter search term or clear the search field."
-                        )
-                    } else {
-                        LazyVStack(spacing: 14) {
-                            ForEach(Array(visibleOffers.enumerated()), id: \.element.id) { index, offer in
-                                BuyMarketplaceOfferRow(
-                                    offer: offer,
-                                    index: index,
-                                    priceLabel: offerPriceLabel(offer),
-                                    eyebrow: buyOfferEyebrow(for: offer, index: index),
-                                    subtitle: buyOfferSubtitle(for: offer),
-                                    onTap: { pendingOffer = offer }
-                                )
-                            }
+                    LazyVStack(spacing: 14) {
+                        ForEach(Array(visibleOffers.enumerated()), id: \.element.id) { index, offer in
+                            BuyShowcaseOfferCard(
+                                offer: offer,
+                                index: index,
+                                priceLabel: offerPriceLabel(offer),
+                                onTap: { pendingOffer = offer }
+                            )
                         }
                     }
                 }
+
+                BuyShowcaseFooterStrip()
+                    .padding(.top, 4)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 18)
@@ -549,6 +489,65 @@ struct WalletView: View {
         case "MEMBERSHIP": return index == 0 ? "Most popular" : "Membership"
         case "CLASS_TICKET": return "Great for trying out"
         default: return productTypeLabel(offer.productType)
+        }
+    }
+
+
+    private func buyShowcaseDescription(for offer: WalletOfferModel) -> String {
+        if let description = offer.description, !description.isEmpty { return description }
+        switch offer.productType {
+        case "MEMBERSHIP":
+            return "Unlimited access to your favourite services with one simple membership."
+        case "PACK":
+            return "Bundle sessions together for better value and flexible booking."
+        default:
+            return "A simple pass ready to use on your next visit."
+        }
+    }
+
+    private func buyShowcaseLabel(for offer: WalletOfferModel) -> String {
+        switch offer.productType {
+        case "MEMBERSHIP": return "MEMBERSHIP"
+        case "PACK": return "CLASS PACK"
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return "GIFT CARD"
+        default: return "DAY PASS"
+        }
+    }
+
+    private func buyShowcaseAccent(for offer: WalletOfferModel, index: Int) -> Color {
+        switch offer.productType {
+        case "MEMBERSHIP": return walletBlueSoft
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletAmber
+        case "PACK": return index % 2 == 0 ? Color(red: 1.0, green: 0.60, blue: 0.12) : Color(red: 0.55, green: 0.40, blue: 0.96)
+        default: return Color(red: 0.12, green: 0.71, blue: 0.42)
+        }
+    }
+
+    private func buyShowcaseTileBackground(for offer: WalletOfferModel, index: Int) -> Color {
+        switch offer.productType {
+        case "MEMBERSHIP": return walletCardBlue
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletCardCream
+        case "PACK": return index % 2 == 0 ? walletCardCream : walletCardLavender
+        default: return walletCardMint
+        }
+    }
+
+    private func buyShowcaseQuantityLabel(for offer: WalletOfferModel) -> String? {
+        guard offer.productType != "MEMBERSHIP" else { return nil }
+        if let usageLimit = offer.usageLimit, usageLimit > 1 { return "\(usageLimit) Sessions" }
+        return "1 Session"
+    }
+
+    private func buyShowcasePriceSubLabel(for offer: WalletOfferModel) -> String {
+        switch offer.productType {
+        case "MEMBERSHIP":
+            return "Billed monthly"
+        case "PACK":
+            let count = max(Double(offer.usageLimit ?? 1), 1)
+            let each = offer.priceGross / count
+            return "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) per session"
+        default:
+            return "One-time payment"
         }
     }
 
@@ -2265,6 +2264,266 @@ private struct BuyCategoryChip: View {
             .shadow(color: selected ? walletBlueSoft.opacity(0.22) : Color.black.opacity(0.035), radius: selected ? 12 : 7, y: selected ? 6 : 3)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct BuyShowcaseCategoryChip: View {
+    let category: WalletBuyCategory
+    let selected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                if category != .all {
+                    Image(systemName: category.iconName)
+                        .font(.system(size: 14, weight: .bold))
+                }
+                Text(category.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .lineLimit(1)
+            }
+            .foregroundColor(selected ? .white : walletInk)
+            .padding(.horizontal, 16)
+            .frame(height: 44)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(selected ? walletBlueSoft : .white)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(selected ? Color.clear : walletLine.opacity(0.95), lineWidth: 1)
+            )
+            .shadow(color: selected ? walletBlueSoft.opacity(0.20) : Color.black.opacity(0.035), radius: selected ? 12 : 7, y: selected ? 6 : 3)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct BuyShowcaseOfferCard: View {
+    let offer: WalletOfferModel
+    let index: Int
+    let priceLabel: String
+    let onTap: () -> Void
+
+    private var accent: Color {
+        switch offer.productType {
+        case "MEMBERSHIP": return walletBlueSoft
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletAmber
+        case "PACK": return index % 2 == 0 ? Color(red: 1.0, green: 0.60, blue: 0.12) : Color(red: 0.55, green: 0.40, blue: 0.96)
+        default: return Color(red: 0.12, green: 0.71, blue: 0.42)
+        }
+    }
+
+    private var tileBackground: Color {
+        switch offer.productType {
+        case "MEMBERSHIP": return walletCardBlue
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletCardCream
+        case "PACK": return index % 2 == 0 ? walletCardCream : walletCardLavender
+        default: return walletCardMint
+        }
+    }
+
+    private var quantityLabel: String? {
+        guard offer.productType != "MEMBERSHIP" else { return nil }
+        if let usageLimit = offer.usageLimit, usageLimit > 1 { return "\(usageLimit) Sessions" }
+        return "1 Session"
+    }
+
+    private var priceSubLabel: String {
+        switch offer.productType {
+        case "MEMBERSHIP":
+            return "Billed monthly"
+        case "PACK":
+            let count = max(Double(offer.usageLimit ?? 1), 1)
+            let each = offer.priceGross / count
+            return "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) per session"
+        default:
+            return "One-time payment"
+        }
+    }
+
+    private var cardLabel: String {
+        switch offer.productType {
+        case "MEMBERSHIP": return "MEMBERSHIP"
+        case "PACK": return "CLASS PACK"
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return "GIFT CARD"
+        default: return "DAY PASS"
+        }
+    }
+
+    private var descriptionText: String {
+        if let description = offer.description, !description.isEmpty { return description }
+        switch offer.productType {
+        case "MEMBERSHIP": return "Unlimited access to your favourite services with one simple membership."
+        case "PACK": return "Bundle sessions together for better value and flexible booking."
+        default: return "A simple pass ready to use on your next visit."
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 16) {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(tileBackground)
+                .frame(width: 112, height: 132)
+                .overlay(alignment: .topLeading) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Image(systemName: iconName)
+                            .font(.system(size: 40, weight: .regular))
+                            .foregroundColor(accent)
+                        HStack(spacing: 6) {
+                            Circle().fill(accent).frame(width: 6, height: 6)
+                            Circle().fill(accent.opacity(0.35)).frame(width: 6, height: 6)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(cardLabel)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(accent.opacity(0.12), in: Capsule(style: .continuous))
+                Text(offer.name)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(walletInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(descriptionText)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(walletInk.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 14) {
+                    if let quantityLabel {
+                        BuyShowcaseMetaView(iconName: "shippingbox", text: quantityLabel)
+                    }
+                    BuyShowcaseMetaView(iconName: "calendar", text: offerValidityLabel(offer.validityDays))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(priceLabel)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(walletInk)
+                Text(priceSubLabel)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(walletInk.opacity(0.58))
+                HStack(spacing: 8) {
+                    Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : "shippingbox")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(accent)
+                    Text(offer.productType == "MEMBERSHIP" ? "Valid until cancelled" : (quantityLabel ?? "Ready to buy"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(walletInk)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+                .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                Button(action: onTap) {
+                    HStack(spacing: 8) {
+                        Spacer(minLength: 0)
+                        Text("Buy now")
+                            .font(.system(size: 15, weight: .bold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .frame(height: 50)
+                    .frame(maxWidth: .infinity)
+                    .background(walletBlueSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(width: 150, alignment: .leading)
+        }
+        .padding(16)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(walletLine.opacity(0.92), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.05), radius: 12, y: 6)
+    }
+
+    private var iconName: String {
+        switch offer.productType {
+        case "MEMBERSHIP": return "crown.fill"
+        case "PACK": return "dumbbell.fill"
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return "gift.fill"
+        default: return "figure.mind.and.body"
+        }
+    }
+}
+
+private struct BuyShowcaseMetaView: View {
+    let iconName: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(walletInk.opacity(0.84))
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(walletInk.opacity(0.84))
+                .lineLimit(1)
+        }
+    }
+}
+
+private struct BuyShowcaseFooterStrip: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            BuyShowcaseFooterItem(iconName: "shield", title: "Secure
+checkout")
+            footerDivider
+            BuyShowcaseFooterItem(iconName: "arrow.triangle.2.circlepath", title: "Cancel
+anytime")
+            footerDivider
+            BuyShowcaseFooterItem(iconName: "lock", title: "Safe & encrypted
+payments")
+            footerDivider
+            BuyShowcaseFooterItem(iconName: "headphones", title: "Member
+support")
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(walletLine.opacity(0.92), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.035), radius: 10, y: 5)
+    }
+
+    private var footerDivider: some View {
+        Rectangle().fill(walletLine.opacity(0.9)).frame(width: 1, height: 34)
+    }
+}
+
+private struct BuyShowcaseFooterItem: View {
+    let iconName: String
+    let title: String
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: iconName)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(walletBlueSoft)
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(walletInk.opacity(0.86))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

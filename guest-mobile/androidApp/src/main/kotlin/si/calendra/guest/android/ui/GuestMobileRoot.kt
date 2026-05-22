@@ -21,6 +21,8 @@ import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Wallet
@@ -1038,9 +1040,12 @@ fun GuestMobileRoot() {
             composable(RootRoute.Inbox.route) {
                 val inboxSelectedId = state.uiState.selectedTenantId
                     ?: state.uiState.linkedTenants.firstOrNull()?.companyId
-                val inboxTenantPhone = state.uiState.linkedTenants
-                    .firstOrNull { it.companyId == inboxSelectedId }
-                    ?.publicPhone
+                val activeTenantId = inboxSelectedId
+                val activeDashboard = activeTenantId?.let { state.uiState.tenantDashboards[it] }
+                val inboxTenantPhone = activeDashboard?.tenant?.publicPhone
+                    ?: state.uiState.linkedTenants
+                        .firstOrNull { it.companyId == inboxSelectedId }
+                        ?.publicPhone
                 GuestTabsScaffold(
                     current = RootRoute.Inbox.route,
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
@@ -1063,14 +1068,13 @@ fun GuestMobileRoot() {
                         InboxTenantPickerButton(
                             tenants = state.uiState.linkedTenants,
                             selectedTenantId = state.uiState.selectedTenantId,
+                            displayTitle = activeDashboard?.tenant?.companyName,
                             onSelect = { tenantId ->
                                 state.uiState = state.uiState.copy(selectedTenantId = tenantId)
                             }
                         )
                     }
                 ) { innerModifier ->
-                    val activeTenantId = state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId
-                    val activeDashboard = activeTenantId?.let { state.uiState.tenantDashboards[it] }
                     LaunchedEffect(activeTenantId) {
                         val tenantId = activeTenantId ?: return@LaunchedEffect
                         runCatching {
@@ -1454,7 +1458,7 @@ private fun GuestUtilityTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leading != null) {
-                Box(modifier = Modifier.weight(1f, fill = false)) { leading() }
+                Box(modifier = Modifier.widthIn(max = 170.dp)) { leading() }
             } else {
                 Spacer(Modifier.weight(1f))
             }
@@ -1533,35 +1537,75 @@ private fun GuestUtilityTopBar(
 private fun InboxTenantPickerButton(
     tenants: List<si.calendra.guest.shared.models.TenantSummary>,
     selectedTenantId: String?,
+    displayTitle: String? = null,
     onSelect: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = tenants.firstOrNull { it.companyId == selectedTenantId } ?: tenants.firstOrNull()
-    val label = selected?.companyName ?: "Select tenancy"
+    val fallbackLabel = selected?.companyName ?: "Select tenancy"
+    val primaryLabel = displayTitle
+        ?.takeIf { it.isNotBlank() && !it.equals(fallbackLabel, ignoreCase = true) }
+        ?: fallbackLabel
+    val subtitle = when {
+        !primaryLabel.equals(fallbackLabel, ignoreCase = true) -> fallbackLabel
+        else -> selected?.let { inboxTenantSubtitle(it) }
+    }?.takeIf { it.isNotBlank() && !it.equals(primaryLabel, ignoreCase = true) }
+
     Box {
         Row(
             modifier = Modifier
                 .clickable(enabled = tenants.isNotEmpty()) { expanded = true }
-                .heightIn(min = 44.dp)
+                .heightIn(min = 52.dp)
                 .padding(start = 4.dp, end = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 220.dp)
-            )
-            Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                color = BottomTabAccent,
+                shadowElevation = 6.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = inboxTenantIcon(selected?.tenantType),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            Column(
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.widthIn(max = 210.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = primaryLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF071D3A),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 170.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color(0xFF071D3A)
+                    )
+                }
+                subtitle?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF607188),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             tenants.forEach { tenant ->
@@ -1576,6 +1620,27 @@ private fun InboxTenantPickerButton(
         }
     }
 }
+
+private fun inboxTenantSubtitle(tenant: si.calendra.guest.shared.models.TenantSummary): String? {
+    val city = tenant.publicCity?.trim().orEmpty()
+    if (city.isNotBlank() && !city.equals(tenant.companyName, ignoreCase = true)) return city
+    val type = tenant.tenantType?.trim().orEmpty()
+    if (type.isBlank() || type.equals(tenant.companyName, ignoreCase = true)) return null
+    return type.lowercase().replace('_', ' ').replaceFirstChar { char ->
+        if (char.isLowerCase()) char.titlecase() else char.toString()
+    }
+}
+
+private fun inboxTenantIcon(tenantType: String?) = when {
+    tenantType?.contains("gym", ignoreCase = true) == true ||
+        tenantType?.contains("fitness", ignoreCase = true) == true ||
+        tenantType?.contains("trainer", ignoreCase = true) == true -> Icons.Rounded.FitnessCenter
+    else -> Icons.Rounded.Business
+}
+
+private val BottomTabAccent = Color(0xFF1D66F4)
+private val BottomTabInactive = Color(0xFF5E6F85)
+private val BottomTabBackground = Color.White
 
 @Composable
 private fun BottomNavBar(
@@ -1594,7 +1659,7 @@ private fun BottomNavBar(
         modifier = Modifier
             .fillMaxWidth(),
         shape = RectangleShape,
-        color = MaterialTheme.colorScheme.surface,
+        color = BottomTabBackground,
         shadowElevation = 0.dp,
         tonalElevation = 0.dp
     ) {
@@ -1603,7 +1668,7 @@ private fun BottomNavBar(
                 .fillMaxWidth()
                 .navigationBarsPadding()
         ) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            HorizontalDivider(color = Color(0xFFE7ECF3))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1652,7 +1717,7 @@ private fun BookCenterItem(selected: Boolean, onClick: () -> Unit, modifier: Mod
         Surface(
             modifier = Modifier.size(46.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary,
+            color = BottomTabAccent,
             shadowElevation = 12.dp,
             tonalElevation = 0.dp
         ) {
@@ -1669,7 +1734,7 @@ private fun BookCenterItem(selected: Boolean, onClick: () -> Unit, modifier: Mod
             "Book",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (selected) BottomTabAccent else BottomTabInactive
         )
     }
 }
@@ -1690,7 +1755,7 @@ private fun BottomItem(
         shape = RoundedCornerShape(18.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            CompositionLocalProvider(LocalContentColor provides if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) {
+            CompositionLocalProvider(LocalContentColor provides if (selected) BottomTabAccent else BottomTabInactive) {
                 BadgedBox(
                     badge = {
                         if (badgeCount > 0) {
@@ -1705,7 +1770,7 @@ private fun BottomItem(
                 label,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (selected) BottomTabAccent else BottomTabInactive
             )
         }
     }

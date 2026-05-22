@@ -4,6 +4,84 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+
+private let inboxBrandBlue = Color(red: 0.07, green: 0.39, blue: 0.95)
+private let inboxDarkText = Color(red: 0.03, green: 0.12, blue: 0.24)
+private let inboxMutedText = Color(red: 0.36, green: 0.45, blue: 0.56)
+private let inboxBrandOrange = Color(red: 1.0, green: 0.58, blue: 0.00)
+
+private struct InboxSubtleBackground: View {
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                LinearGradient(
+                    colors: [Color(red: 0.98, green: 0.99, blue: 1.00), Color(red: 0.95, green: 0.98, blue: 1.00), Color(red: 1.00, green: 0.98, blue: 0.95)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                Circle()
+                    .fill(inboxBrandBlue.opacity(0.055))
+                    .frame(width: geo.size.width * 0.70, height: geo.size.width * 0.70)
+                    .position(x: geo.size.width * 0.50, y: geo.size.height * 0.33)
+                Circle()
+                    .fill(inboxBrandBlue.opacity(0.045))
+                    .frame(width: geo.size.width * 0.52, height: geo.size.width * 0.52)
+                    .position(x: geo.size.width * 1.02, y: geo.size.height * 0.44)
+                Circle()
+                    .fill(inboxBrandOrange.opacity(0.055))
+                    .frame(width: geo.size.width * 0.60, height: geo.size.width * 0.60)
+                    .position(x: geo.size.width * -0.08, y: geo.size.height * 0.84)
+                Circle()
+                    .fill(inboxBrandBlue.opacity(0.035))
+                    .frame(width: geo.size.width * 0.46, height: geo.size.width * 0.46)
+                    .position(x: geo.size.width * 0.92, y: geo.size.height * 0.88)
+            }
+        }
+    }
+}
+
+private struct EmptyInboxStateView: View {
+    var body: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .fill(inboxBrandBlue.opacity(0.07))
+                    .frame(width: 142, height: 142)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color.white.opacity(0.72))
+                    .frame(width: 74, height: 58)
+                    .offset(x: -36, y: -18)
+                Image(systemName: "ellipsis.message")
+                    .font(.system(size: 76, weight: .bold))
+                    .foregroundColor(inboxBrandBlue)
+                Circle()
+                    .fill(inboxBrandOrange)
+                    .frame(width: 7, height: 7)
+                    .offset(x: 60, y: -52)
+                Circle()
+                    .fill(inboxBrandOrange.opacity(0.80))
+                    .frame(width: 7, height: 7)
+                    .offset(x: -56, y: 55)
+            }
+            .frame(width: 172, height: 172)
+
+            VStack(spacing: 10) {
+                Text("Your inbox is empty")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(inboxDarkText)
+                    .multilineTextAlignment(.center)
+                Text("No messages yet. Start the conversation\nfrom the web app or send the first\nreply here.")
+                    .font(.system(size: 17, weight: .regular))
+                    .lineSpacing(5)
+                    .foregroundColor(inboxMutedText)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 18)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 private struct InboxAttachmentPreviewItem: Identifiable {
     let id = UUID()
     let url: URL
@@ -207,13 +285,17 @@ struct InboxView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            messagesArea
-            composerBar
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
+        ZStack {
+            InboxSubtleBackground()
+                .ignoresSafeArea()
+            VStack(spacing: 0) {
+                messagesArea
+                composerBar
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+            }
+            .padding(.bottom, 60)
         }
-        .padding(.bottom, 60)
         .task(id: activeTenantId) {
             if let activeTenantId {
                 await store.loadInboxMessages(companyId: activeTenantId)
@@ -249,12 +331,8 @@ struct InboxView: View {
         } else {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                GuestSurfaceCard {
-                    Text("No messages yet. Start the conversation from the web app or send the first reply here.")
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
+                EmptyInboxStateView()
+                Spacer(minLength: 28)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -318,10 +396,10 @@ struct InboxView: View {
     private func messageBubble(_ message: GuestInboxMessageModel) -> some View {
         let isStaff = message.direction == "OUTBOUND"
         let bubbleColor: Color = isStaff
-            ? Color(.systemBackground)
-            : Color(red: 0.95, green: 0.59, blue: 0.23)
-        let textColor: Color = isStaff ? .primary : .white
-        let metaColor: Color = isStaff ? .secondary : Color.white.opacity(0.85)
+            ? Color.white.opacity(0.96)
+            : Color(red: 0.92, green: 0.96, blue: 1.00)
+        let textColor: Color = inboxDarkText
+        let metaColor: Color = isStaff ? inboxMutedText : Color(red: 0.32, green: 0.44, blue: 0.63)
         let time = formatMessageClock(message: message)
         let shape = UnevenRoundedRectangle(
             topLeadingRadius: isStaff ? 4 : 18,
@@ -366,7 +444,7 @@ struct InboxView: View {
             .padding(.vertical, 8)
             .background(bubbleColor)
             .clipShape(shape)
-            .shadow(color: isStaff ? Color.black.opacity(0.08) : Color.clear, radius: 2, y: 1)
+            .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
             if isStaff { Spacer(minLength: 48) }
         }
     }
@@ -386,7 +464,7 @@ struct InboxView: View {
                     }
                 }
                 HStack(alignment: .center, spacing: 4) {
-                    TextField("", text: $draft, prompt: Text("Message").foregroundColor(.secondary))
+                    TextField("", text: $draft, prompt: Text("Message").foregroundColor(inboxMutedText))
                         .textFieldStyle(.plain)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -419,12 +497,12 @@ struct InboxView: View {
                 .padding(.trailing, 4)
             }
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color(.systemBackground))
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.white.opacity(0.94))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(Color(red: 0.73, green: 0.78, blue: 0.84).opacity(0.80), lineWidth: 1)
             )
 
             Button {
@@ -438,12 +516,12 @@ struct InboxView: View {
                     await store.loadInboxMessages(companyId: activeTenantId)
                 }
             } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 18, weight: .bold))
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 21, weight: .bold))
                     .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 54, height: 54)
                     .background(
-                        Circle().fill(Color.black.opacity(canSend ? 1.0 : 0.25))
+                        Circle().fill(canSend ? inboxBrandBlue : Color(red: 0.88, green: 0.90, blue: 0.92))
                     )
             }
             .buttonStyle(.plain)

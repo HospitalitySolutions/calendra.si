@@ -2,6 +2,8 @@ package si.calendra.guest.android.ui.screens
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.ColumnScope
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -74,8 +77,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -83,6 +89,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import si.calendra.guest.android.BuildConfig
+import si.calendra.guest.android.R
 import si.calendra.guest.android.ui.PaymentCardBrand
 import si.calendra.guest.android.ui.PaymentCardBrandMark
 import si.calendra.guest.android.ui.SavedCardUi
@@ -192,7 +199,7 @@ private enum class PaymentMethodUi(
     val enabled: Boolean,
     val helper: String? = null
 ) {
-    CARD("Credit Card", "CARD", true),
+    CARD("Credit card", "CARD", true),
     BANK_TRANSFER("Bank Transfer", "BANK_TRANSFER", true),
     ENTITLEMENT("Use pass or visit", "ENTITLEMENT", true),
     GIFT_CARD("Gift card", "GIFT_CARD", true, "Use your gift card balance"),
@@ -236,6 +243,7 @@ fun BookScreen(
     var submitting by remember { mutableStateOf(false) }
     var showAddCardDialog by remember { mutableStateOf(false) }
     var showCardChooserDialog by remember { mutableStateOf(false) }
+    var showPaymentMethodChooserDialog by rememberSaveable { mutableStateOf(false) }
 
     val employeeStepActive = selectedProviderId?.let(employeeSelectionStepEnabled) == true
     val visibleSteps = if (rescheduleContext == null) {
@@ -312,6 +320,7 @@ fun BookScreen(
         return acceptedPaymentApiValues.contains(apiValue)
     }
     val selectedSlot = slots.firstOrNull { it.slotId == selectedSlotId }
+    val selectedConsultant = consultants.firstOrNull { it.id == selectedConsultantId }
     val matchingEntitlements = redeemableEntitlements.filter { entitlement ->
         selectedService != null && entitlement.companyId == selectedService.companyId
                 && !entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
@@ -325,6 +334,48 @@ fun BookScreen(
     }.sortedBy { it.remainingValueGross ?: 0.0 }
     val matchingGiftCardsTotal = matchingGiftCards.sumOf { it.remainingValueGross ?: 0.0 }
     val hasGiftCardCoverage = selectedService != null && matchingGiftCardsTotal + 0.0001 >= amountDueNow
+    val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
+    val cardSubtitle = activeCard?.let {
+        "Card ending in ${it.last4}"
+    } ?: "Add a card to pay by credit card"
+    val bestEntitlement = matchingEntitlements.firstOrNull()
+    val entitlementSubtitle = bestEntitlement?.let {
+        buildString {
+            append(it.productName)
+            append(" • ")
+            append(it.remainingUses?.let { remaining -> "$remaining left" } ?: "unlimited")
+            if (!it.validUntil.isNullOrBlank()) {
+                append(" • valid until ")
+                append(it.validUntil.take(10))
+            }
+        }
+    } ?: "No valid pass or pack available for this service"
+    val bestGiftCard = matchingGiftCards.firstOrNull()
+    val giftCardSubtitle = bestGiftCard?.let { giftCard ->
+        buildString {
+            append(giftCard.productName)
+            append(" • ")
+            append(giftCard.remainingValueGross?.let { balance -> "${balance.formatPrice()} ${giftCard.currency ?: selectedService?.currency.orEmpty()}" } ?: "available")
+            if (!giftCard.validUntil.isNullOrBlank()) {
+                append(" • valid until ")
+                append(giftCard.validUntil.take(10))
+            }
+        }
+    } ?: PaymentMethodUi.GIFT_CARD.helper
+    val availablePaymentMethods = buildList {
+        if (matchingEntitlements.isNotEmpty()) add(PaymentMethodUi.ENTITLEMENT)
+        if (hasGiftCardCoverage && isMethodAllowed(PaymentMethodUi.GIFT_CARD)) add(PaymentMethodUi.GIFT_CARD)
+        if (isMethodAllowed(PaymentMethodUi.CARD)) add(PaymentMethodUi.CARD)
+        if (isMethodAllowed(PaymentMethodUi.BANK_TRANSFER)) add(PaymentMethodUi.BANK_TRANSFER)
+        if (isMethodAllowed(PaymentMethodUi.PAYPAL)) add(PaymentMethodUi.PAYPAL)
+    }
+    fun paymentSubtitle(method: PaymentMethodUi): String? = when (method) {
+        PaymentMethodUi.CARD -> cardSubtitle
+        PaymentMethodUi.BANK_TRANSFER -> null
+        PaymentMethodUi.ENTITLEMENT -> entitlementSubtitle
+        PaymentMethodUi.GIFT_CARD -> giftCardSubtitle
+        PaymentMethodUi.PAYPAL -> PaymentMethodUi.PAYPAL.helper
+    }
 
     fun moveBackStep(): Boolean {
         val idx = visibleSteps.indexOf(currentStep)
@@ -349,6 +400,7 @@ fun BookScreen(
             runCatching { onLoadAvailability(service, selectedDate, consultantIdForLoad) }
                 .onSuccess { list ->
                     slots = list
+                    selectedSlotId = list.firstOrNull()?.slotId
                     if (BuildConfig.DEBUG) {
                         Log.i(
                             GUEST_AVAILABILITY_DEBUG_TAG,
@@ -436,39 +488,56 @@ fun BookScreen(
         )
     }
 
-    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        BookingHeader(
-            currentStep = currentStep,
-            onOpenNotifications = onOpenNotifications,
-            onBack = {
-                if (!moveBackStep()) onExit()
+    if (showPaymentMethodChooserDialog) {
+        PaymentMethodChooserDialog(
+            methods = availablePaymentMethods,
+            selectedMethod = selectedPaymentMethod,
+            subtitleFor = { paymentSubtitle(it) },
+            onDismiss = { showPaymentMethodChooserDialog = false },
+            onSelect = { method ->
+                selectedPaymentMethod = method
+                showPaymentMethodChooserDialog = false
+                if (method == PaymentMethodUi.CARD && savedCards.isEmpty()) {
+                    showAddCardDialog = true
+                }
             }
         )
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            item {
-                BookingStepper(
-                    currentStep = currentStep,
-                    visibleSteps = visibleSteps,
-                    skipsOnlinePayment = skipsOnlinePayment
-                )
-            }
+    }
 
-            when (currentStep) {
+    fun canNavigateTo(step: BookingFlowStep): Boolean = when (step) {
+        BookingFlowStep.PROVIDER -> true
+        BookingFlowStep.SERVICE -> selectedProvider != null
+        BookingFlowStep.EMPLOYEE -> selectedService != null
+        BookingFlowStep.DATE_TIME -> selectedService != null && (!employeeStepActive || selectedConsultantId != null)
+        BookingFlowStep.PAYMENT_REVIEW -> selectedSlot != null
+    }
+
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
+        Image(
+            painter = painterResource(id = bookingBackgroundRes(currentStep)),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        Column(modifier = Modifier.fillMaxSize()) {
+            BookingHeader(
+                currentStep = currentStep,
+                visibleSteps = visibleSteps,
+                skipsOnlinePayment = skipsOnlinePayment,
+                canNavigateTo = { step -> canNavigateTo(step) },
+                onStepSelected = { currentStep = it }
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                when (currentStep) {
                 BookingFlowStep.PROVIDER -> {
-                    item {
-                        BookIntroHeader(
-                            title = "Let's get started",
-                            subtitle = "Choose the provider where\nyou want to book a session.",
-                            icon = Icons.Rounded.LocationOn,
-                            accentIcon = Icons.Rounded.FitnessCenter
-                        )
-                    }
                     item { StraightSectionHeader("SELECT PROVIDER") }
 
                     if (providers.isEmpty()) {
@@ -491,14 +560,6 @@ fun BookScreen(
                 }
 
                 BookingFlowStep.SERVICE -> {
-                    item {
-                        BookIntroHeader(
-                            title = "Choose a service",
-                            subtitle = "Select the service you want\nto book with your provider.",
-                            icon = Icons.Rounded.Assignment,
-                            accentIcon = Icons.Rounded.FitnessCenter
-                        )
-                    }
                     item { StraightSectionHeader("SELECTED SERVICE") }
 
                     if (providerScopedServices.isEmpty()) {
@@ -520,14 +581,6 @@ fun BookScreen(
                 }
 
                 BookingFlowStep.EMPLOYEE -> {
-                    item {
-                        BookIntroHeader(
-                            title = "Choose employee",
-                            subtitle = "Select who should perform\nyour service.",
-                            icon = Icons.Rounded.Assignment,
-                            accentIcon = Icons.Rounded.Check
-                        )
-                    }
                     item { StraightSectionHeader("SELECT EMPLOYEE") }
 
                     if (loadingConsultants) {
@@ -560,14 +613,6 @@ fun BookScreen(
                 }
 
                 BookingFlowStep.DATE_TIME -> {
-                    item {
-                        BookIntroHeader(
-                            title = "Choose date & time",
-                            subtitle = "Pick a day and time that\nworks best for you.",
-                            icon = Icons.Rounded.CalendarMonth,
-                            accentIcon = Icons.Rounded.EventAvailable
-                        )
-                    }
 
                     if (selectedService != null) {
                         item { StraightSectionHeader("SELECT DATE") }
@@ -612,24 +657,11 @@ fun BookScreen(
                                     EmptyInlineMessage("No slots available", "There are no available times on this day.")
                                 }
                             } else {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    slots.chunked(4).forEach { rowSlots ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            rowSlots.forEach { slot ->
-                                                TimeChip(
-                                                    modifier = Modifier.weight(1f),
-                                                    time = slot.startsAt.asSlotTime(),
-                                                    selected = slot.slotId == selectedSlotId,
-                                                    onClick = { selectedSlotId = slot.slotId }
-                                                )
-                                            }
-                                            repeat(4 - rowSlots.size) { Spacer(modifier = Modifier.weight(1f)) }
-                                        }
-                                    }
-                                }
+                                SingleTimeSelector(
+                                    slots = slots,
+                                    selectedSlotId = selectedSlotId,
+                                    onSelectSlot = { selectedSlotId = it }
+                                )
                             }
                         }
                     } else {
@@ -638,17 +670,20 @@ fun BookScreen(
                 }
 
                 BookingFlowStep.PAYMENT_REVIEW -> {
-                    item {
-                        BookIntroHeader(
-                            title = if (skipsOnlinePayment) "Review booking" else "Payment & review",
-                            subtitle = if (skipsOnlinePayment) {
-                                "Review your booking details\nand confirm your session."
-                            } else {
-                                "Choose your preferred payment\nmethod and review your booking."
-                            },
-                            icon = Icons.Rounded.CreditCard,
-                            accentIcon = Icons.Rounded.Security
-                        )
+                    if (selectedService != null) {
+                        item {
+                            BookingReviewSummary(
+                                providerName = selectedProvider?.tenantName.orEmpty(),
+                                serviceName = selectedService.name,
+                                employeeName = if (employeeStepActive) selectedConsultant?.fullName else null,
+                                duration = selectedService.durationMinutes?.let { "$it min" },
+                                dateTime = selectedSlot?.startsAt?.asSummaryDateTime().orEmpty(),
+                                total = "",
+                                depositText = if (!skipsOnlinePayment && isDepositMode) {
+                                    "Pay now: $depositPercent% (${amountDueNow.formatPrice()} ${selectedService.currency})"
+                                } else null
+                            )
+                        }
                     }
 
                     if (skipsOnlinePayment) {
@@ -656,116 +691,6 @@ fun BookScreen(
                             EmptyInlineMessage(
                                 title = "Pay at venue",
                                 description = "Payment is collected at the venue. Tap Confirm booking to reserve your slot."
-                            )
-                        }
-                    } else {
-                        val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
-                        val cardSubtitle = activeCard?.let {
-                            "•••• ${it.last4}        ${it.expiryMonth}/${it.expiryYear}"
-                        } ?: "Add a card to pay by credit card"
-                        val bestEntitlement = matchingEntitlements.firstOrNull()
-                        val entitlementSubtitle = bestEntitlement?.let {
-                            buildString {
-                                append(it.productName)
-                                append(" • ")
-                                append(it.remainingUses?.let { remaining -> "$remaining left" } ?: "unlimited")
-                                if (!it.validUntil.isNullOrBlank()) {
-                                    append(" • valid until ")
-                                    append(it.validUntil.take(10))
-                                }
-                            }
-                        } ?: "No valid pass or pack available for this service"
-
-                        val bestGiftCard = matchingGiftCards.firstOrNull()
-                        val giftCardSubtitle = bestGiftCard?.let { giftCard ->
-                            buildString {
-                                append(giftCard.productName)
-                                append(" • ")
-                                append(giftCard.remainingValueGross?.let { balance -> "${balance.formatPrice()} ${giftCard.currency ?: selectedService?.currency.orEmpty()}" } ?: "available")
-                                if (!giftCard.validUntil.isNullOrBlank()) {
-                                    append(" • valid until ")
-                                    append(giftCard.validUntil.take(10))
-                                }
-                            }
-                        } ?: PaymentMethodUi.GIFT_CARD.helper
-
-                        item { StraightSectionHeader("PAYMENT METHOD") }
-                        if (matchingEntitlements.isNotEmpty()) {
-                            item {
-                                PaymentMethodLine(
-                                    label = PaymentMethodUi.ENTITLEMENT.title,
-                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT) entitlementSubtitle else null,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT,
-                                    enabled = true,
-                                    icon = Icons.Rounded.EventAvailable,
-                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.ENTITLEMENT }
-                                )
-                            }
-                        }
-                        if (hasGiftCardCoverage && isMethodAllowed(PaymentMethodUi.GIFT_CARD)) {
-                            item {
-                                PaymentMethodLine(
-                                    label = PaymentMethodUi.GIFT_CARD.title,
-                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.GIFT_CARD) giftCardSubtitle else PaymentMethodUi.GIFT_CARD.helper,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.GIFT_CARD,
-                                    enabled = true,
-                                    icon = Icons.Rounded.ReceiptLong,
-                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.GIFT_CARD }
-                                )
-                            }
-                        }
-                        if (isMethodAllowed(PaymentMethodUi.CARD)) {
-                            item {
-                                PaymentMethodLine(
-                                    label = PaymentMethodUi.CARD.title,
-                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.CARD) cardSubtitle else null,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.CARD,
-                                    enabled = true,
-                                    icon = Icons.Rounded.CreditCard,
-                                    trailing = { CardBrandBadges() },
-                                    onChevron = {
-                                        if (savedCards.isEmpty()) showAddCardDialog = true
-                                        else showCardChooserDialog = true
-                                    },
-                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.CARD }
-                                )
-                            }
-                        }
-                        if (isMethodAllowed(PaymentMethodUi.BANK_TRANSFER)) {
-                            item {
-                                PaymentMethodLine(
-                                    label = PaymentMethodUi.BANK_TRANSFER.title,
-                                    subtitle = null,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.BANK_TRANSFER,
-                                    enabled = true,
-                                    icon = Icons.Rounded.AccountBalance,
-                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.BANK_TRANSFER }
-                                )
-                            }
-                        }
-                        if (isMethodAllowed(PaymentMethodUi.PAYPAL)) {
-                            item {
-                                PaymentMethodLine(
-                                    label = PaymentMethodUi.PAYPAL.title,
-                                    subtitle = if (selectedPaymentMethod == PaymentMethodUi.PAYPAL) PaymentMethodUi.PAYPAL.helper else null,
-                                    selected = selectedPaymentMethod == PaymentMethodUi.PAYPAL,
-                                    enabled = true,
-                                    icon = Icons.Rounded.CreditCard,
-                                    onSelect = { selectedPaymentMethod = PaymentMethodUi.PAYPAL }
-                                )
-                            }
-                        }
-                    }
-
-                    if (selectedService != null) {
-                        item {
-                            BookingReviewSummary(
-                                serviceName = selectedService.name,
-                                dateTime = selectedSlot?.startsAt?.asSummaryDateTime().orEmpty(),
-                                total = "${selectedService.priceGross.formatPrice()} ${selectedService.currency}",
-                                depositText = if (!skipsOnlinePayment && isDepositMode) {
-                                    "Pay now: $depositPercent% (${amountDueNow.formatPrice()} ${selectedService.currency})"
-                                } else null
                             )
                         }
                     }
@@ -831,82 +756,77 @@ fun BookScreen(
                         onClick = advanceStep
                     )
                 }
-                BookingFlowStep.PAYMENT_REVIEW -> ContinueButton(
-                    label = "Confirm booking",
-                    enabled = selectedService != null && selectedSlot != null && !submitting && (
-                        skipsOnlinePayment || (
-                            selectedPaymentMethod.enabled &&
-                                (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || matchingEntitlements.isNotEmpty()) &&
-                                (selectedPaymentMethod != PaymentMethodUi.GIFT_CARD || hasGiftCardCoverage) &&
-                                (selectedPaymentMethod != PaymentMethodUi.CARD || selectedSavedCardId != null)
+                BookingFlowStep.PAYMENT_REVIEW -> {
+                    if (selectedService != null) {
+                        if (!skipsOnlinePayment) {
+                            SelectedPaymentMethodCard(
+                                method = selectedPaymentMethod,
+                                subtitle = paymentSubtitle(selectedPaymentMethod),
+                                onChange = { showPaymentMethodChooserDialog = true }
                             )
-                        ),
-                    loading = submitting,
-                    onClick = {
-                        val service = selectedService ?: return@ContinueButton
-                        val slot = selectedSlot ?: return@ContinueButton
-                        val method = if (skipsOnlinePayment) "PAY_AT_VENUE" else (selectedPaymentMethod.apiValue ?: return@ContinueButton)
-                        scope.launch {
-                            submitting = true
-                            val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null
-                            runCatching { onCheckout(service, slot.slotId, method, consultantIdForOrder) }
-                            submitting = false
+                            Spacer(Modifier.height(7.dp))
                         }
+                        PaymentTotalRow(total = "${selectedService.priceGross.formatPrice()} ${selectedService.currency}")
+                        Spacer(Modifier.height(5.dp))
                     }
-                )
+                    ContinueButton(
+                        label = "Confirm booking",
+                        enabled = selectedService != null && selectedSlot != null && !submitting && (
+                            skipsOnlinePayment || (
+                                selectedPaymentMethod.enabled &&
+                                    (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || matchingEntitlements.isNotEmpty()) &&
+                                    (selectedPaymentMethod != PaymentMethodUi.GIFT_CARD || hasGiftCardCoverage) &&
+                                    (selectedPaymentMethod != PaymentMethodUi.CARD || selectedSavedCardId != null)
+                                )
+                            ),
+                        loading = submitting,
+                        onClick = {
+                            val service = selectedService ?: return@ContinueButton
+                            val slot = selectedSlot ?: return@ContinueButton
+                            val method = if (skipsOnlinePayment) "PAY_AT_VENUE" else (selectedPaymentMethod.apiValue ?: return@ContinueButton)
+                            scope.launch {
+                                submitting = true
+                                val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null
+                                runCatching { onCheckout(service, slot.slotId, method, consultantIdForOrder) }
+                                submitting = false
+                            }
+                        }
+                    )
+                }
             }
         }
     }
+}
 }
 
 @Composable
 private fun BookingHeader(
     currentStep: BookingFlowStep,
-    onOpenNotifications: () -> Unit,
-    onBack: () -> Unit
+    visibleSteps: List<BookingFlowStep>,
+    skipsOnlinePayment: Boolean,
+    canNavigateTo: (BookingFlowStep) -> Boolean,
+    onStepSelected: (BookingFlowStep) -> Unit
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        color = Color.Transparent,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(start = 4.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 4.dp),
+            contentAlignment = Alignment.Center
         ) {
-            IconButton(
-                onClick = onBack,
-                enabled = currentStep != BookingFlowStep.PROVIDER,
-                modifier = Modifier.size(44.dp)
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "Back",
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Text(
-                "Book a session",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
+            BookingStepper(
+                currentStep = currentStep,
+                visibleSteps = visibleSteps,
+                skipsOnlinePayment = skipsOnlinePayment,
+                canNavigateTo = canNavigateTo,
+                onStepSelected = onStepSelected,
+                modifier = Modifier.fillMaxWidth()
             )
-            IconButton(
-                onClick = onOpenNotifications,
-                modifier = Modifier.size(44.dp)
-            ) {
-                Icon(
-                    Icons.Rounded.NotificationsNone,
-                    contentDescription = "Notifications",
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
         }
     }
 }
@@ -916,12 +836,14 @@ private fun BookingStepper(
     currentStep: BookingFlowStep,
     visibleSteps: List<BookingFlowStep> = BookingFlowStep.ordered,
     skipsOnlinePayment: Boolean = false,
+    canNavigateTo: (BookingFlowStep) -> Boolean = { false },
+    onStepSelected: (BookingFlowStep) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val steps = visibleSteps
     val stateIndex = steps.indexOf(currentStep)
-    val primary = MaterialTheme.colorScheme.primary
-    val inactiveConnector = MaterialTheme.colorScheme.outline.copy(alpha = 0.85f)
+    val primary = Color(0xFF0F6BFF)
+    val inactiveConnector = Color(0xFFD6E1F0)
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -930,18 +852,22 @@ private fun BookingStepper(
         steps.forEachIndexed { index, step ->
             val active = step == currentStep
             val completed = index < stateIndex
-            val circleColor = if (active || completed) primary else Color.Transparent
             val leftActive = index > 0 && index <= stateIndex
             val rightActive = index < steps.lastIndex && index < stateIndex
+            val enabled = canNavigateTo(step)
 
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(enabled = enabled) { onStepSelected(step) }
+                    .padding(vertical = 3.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(36.dp),
+                        .height(34.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
@@ -960,7 +886,7 @@ private fun BookingStepper(
                                     }
                                 )
                         )
-                        Spacer(Modifier.width(36.dp))
+                        Spacer(Modifier.width(34.dp))
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -975,10 +901,11 @@ private fun BookingStepper(
                         )
                     }
                     Surface(
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(34.dp),
                         shape = CircleShape,
-                        color = circleColor,
-                        border = if (active || completed) null else BorderStroke(1.dp, inactiveConnector)
+                        color = if (active || completed) primary else Color(0xFFF7FAFF),
+                        border = if (active || completed) null else BorderStroke(1.dp, inactiveConnector),
+                        shadowElevation = if (active) 4.dp else 0.dp
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             if (completed) {
@@ -986,14 +913,14 @@ private fun BookingStepper(
                                     Icons.Rounded.Check,
                                     contentDescription = null,
                                     tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                             } else {
                                 Text(
                                     (index + 1).toString(),
-                                    color = if (active) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold
+                                    color = if (active) Color.White else Color(0xFF73849A),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -1004,15 +931,64 @@ private fun BookingStepper(
                     if (skipsOnlinePayment && step == BookingFlowStep.PAYMENT_REVIEW) "Review" else step.stepTitle,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 2.dp),
+                        .padding(horizontal = 1.dp),
                     textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     maxLines = 2,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    color = if (active || completed) primary else Color(0xFF60728A)
                 )
             }
         }
+    }
+}
+
+private fun bookingBackgroundRes(step: BookingFlowStep): Int = when (step) {
+    BookingFlowStep.PROVIDER -> R.drawable.book_step_provider_background
+    BookingFlowStep.SERVICE -> R.drawable.book_step_service_background
+    BookingFlowStep.EMPLOYEE -> R.drawable.book_step_employee_background
+    BookingFlowStep.DATE_TIME -> R.drawable.book_step_date_time_background
+    BookingFlowStep.PAYMENT_REVIEW -> R.drawable.book_step_payment_review_background
+}
+
+@Composable
+private fun BookingBackgroundDecor() {
+
+    val primary = Color(0xFF0F6BFF)
+    val orange = Color(0xFFFF8A00)
+    Box(Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = (-88).dp, y = (-76).dp)
+                .size(220.dp)
+                .clip(CircleShape)
+                .background(primary.copy(alpha = 0.055f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 72.dp, y = 260.dp)
+                .size(172.dp)
+                .clip(CircleShape)
+                .background(primary.copy(alpha = 0.055f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = (-110).dp, y = 64.dp)
+                .size(230.dp)
+                .clip(CircleShape)
+                .background(orange.copy(alpha = 0.06f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = 72.dp, y = 72.dp)
+                .size(190.dp)
+                .clip(CircleShape)
+                .background(primary.copy(alpha = 0.05f))
+        )
     }
 }
 
@@ -1023,99 +999,30 @@ private fun BookIntroHeader(
     icon: ImageVector,
     accentIcon: ImageVector
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 142.dp)
-            .padding(top = 8.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 22.sp
-            )
-        }
-        Spacer(Modifier.width(16.dp))
-        MinimalBookIllustration(icon = icon, accentIcon = accentIcon)
-    }
-}
-
-@Composable
-private fun MinimalBookIllustration(icon: ImageVector, accentIcon: ImageVector) {
-    val primary = MaterialTheme.colorScheme.primary
-    val pale = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
-    Box(
-        modifier = Modifier
-            .width(150.dp)
-            .height(120.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(112.dp)
-                .align(Alignment.CenterEnd)
-                .clip(CircleShape)
-                .background(pale)
-        )
-        Box(
-            modifier = Modifier
-                .width(78.dp)
-                .height(62.dp)
-                .align(Alignment.BottomCenter)
-                .border(1.2.dp, MaterialTheme.colorScheme.outline, RectangleShape)
-                .background(Color.White.copy(alpha = 0.88f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                accentIcon,
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.onBackground
-            )
-        }
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier
-                .size(48.dp)
-                .align(Alignment.TopCenter),
-            tint = primary
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .width(112.dp)
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outline)
-        )
-    }
+    Spacer(modifier = Modifier.height(0.dp))
 }
 
 @Composable
 private fun StraightSectionHeader(title: String) {
-    Column(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
             title,
             style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.6.sp,
+            color = Color(0xFF60728A)
         )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Box(
+            modifier = Modifier
+                .width(24.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color(0xFFFF8A00).copy(alpha = 0.9f))
+        )
     }
 }
 
@@ -1137,15 +1044,22 @@ private fun EmptyInlineMessage(title: String, description: String) {
 private fun SquareBookIcon(icon: ImageVector, selected: Boolean = true) {
     Box(
         modifier = Modifier
-            .size(48.dp)
-            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
+            .size(60.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                if (selected) {
+                    Brush.verticalGradient(listOf(Color(0xFF0F6BFF), Color(0xFF0B57D0)))
+                } else {
+                    Brush.verticalGradient(listOf(Color(0xFFEAF3FF), Color(0xFFDDEBFF)))
+                }
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             icon,
             contentDescription = null,
-            modifier = Modifier.size(27.dp),
-            tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+            modifier = Modifier.size(30.dp),
+            tint = if (selected) Color.White else Color(0xFF0F6BFF)
         )
     }
 }
@@ -1154,97 +1068,204 @@ private fun SquareBookIcon(icon: ImageVector, selected: Boolean = true) {
 private fun SelectionRail(selected: Boolean) {
     Box(
         modifier = Modifier
-            .width(3.dp)
-            .height(48.dp)
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .width(4.dp)
+            .height(74.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) Color(0xFF0F6BFF) else Color.Transparent)
     )
 }
 
 @Composable
 private fun ProviderListRow(provider: ProviderOption, selected: Boolean, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SelectionRail(selected)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(12.dp))
             SquareBookIcon(Icons.Rounded.FitnessCenter, selected = selected)
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(provider.tenantName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(provider.tenantAddress ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(provider.tenantName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
+                Text(provider.tenantAddress ?: "Subscribed organization", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
             }
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color(0xFF8A99AD))
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.78f))
     }
 }
 
 @Composable
 private fun ServiceListRow(service: ServiceOption, selected: Boolean, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SelectionRail(selected)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(12.dp))
             SquareBookIcon(Icons.Rounded.FitnessCenter, selected = selected)
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(service.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(service.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
                 Text(
                     service.description?.takeIf { it.isNotBlank() } ?: "Bookable service",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF60728A)
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                     TagPillCompact(service.tenantName)
                     service.durationMinutes?.let { TagPillCompact("$it min") }
                 }
             }
             Text(
                 "${service.priceGross.formatPrice()} ${service.currency}",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color(0xFF0F6BFF)
             )
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.78f))
     }
 }
 
 @Composable
 private fun ConsultantListRow(consultant: ConsultantOption, selected: Boolean, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             SelectionRail(selected)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(12.dp))
             SquareBookIcon(Icons.Rounded.Assignment, selected = selected)
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(consultant.fullName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(consultant.fullName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
                 consultant.email?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
                 }
             }
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color(0xFF8A99AD))
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.78f))
     }
+}
+
+@Composable
+private fun SelectedPaymentMethodCard(
+    method: PaymentMethodUi,
+    subtitle: String?,
+    onChange: () -> Unit
+) {
+    ElevatedCard(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                "PAYMENT METHOD",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.0.sp,
+                color = Color(0xFF60728A)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                SelectIndicator(selected = true, enabled = true, size = 20.dp)
+                Icon(paymentMethodIcon(method), contentDescription = null, modifier = Modifier.size(22.dp), tint = Color(0xFF0F6BFF))
+                Text(method.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color(0xFF082143), modifier = Modifier.weight(1f))
+                TextButton(onClick = onChange, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                    Text("Change", color = Color(0xFF0F6BFF), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+private fun paymentMethodIcon(method: PaymentMethodUi): ImageVector = when (method) {
+    PaymentMethodUi.CARD -> Icons.Rounded.CreditCard
+    PaymentMethodUi.BANK_TRANSFER -> Icons.Rounded.AccountBalance
+    PaymentMethodUi.ENTITLEMENT -> Icons.Rounded.EventAvailable
+    PaymentMethodUi.GIFT_CARD -> Icons.Rounded.ReceiptLong
+    PaymentMethodUi.PAYPAL -> Icons.Rounded.CreditCard
+}
+
+@Composable
+private fun PaymentMethodChooserDialog(
+    methods: List<PaymentMethodUi>,
+    selectedMethod: PaymentMethodUi,
+    subtitleFor: (PaymentMethodUi) -> String?,
+    onDismiss: () -> Unit,
+    onSelect: (PaymentMethodUi) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Payment method") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                methods.forEach { method ->
+                    OutlinedCard(
+                        onClick = { onSelect(method) },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (method == selectedMethod) Color(0xFFEAF2FF) else Color.White
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(paymentMethodIcon(method), contentDescription = null, modifier = Modifier.size(24.dp), tint = Color(0xFF0F6BFF))
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(method.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF082143))
+                                subtitleFor(method)?.takeIf { it.isNotBlank() }?.let {
+                                    Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFF60728A), maxLines = 2)
+                                }
+                            }
+                            if (method == selectedMethod) {
+                                Icon(Icons.Rounded.TaskAlt, contentDescription = null, tint = Color(0xFF0F6BFF))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        }
+    )
 }
 
 @Composable
@@ -1258,13 +1279,18 @@ private fun PaymentMethodLine(
     onChevron: (() -> Unit)? = null,
     onSelect: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        onClick = onSelect,
+        enabled = enabled,
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (selected) Modifier.border(1.dp, MaterialTheme.colorScheme.primary, RectangleShape) else Modifier)
-                .clickable(enabled = enabled, onClick = onSelect)
-                .padding(horizontal = if (selected) 12.dp else 13.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -1274,45 +1300,75 @@ private fun PaymentMethodLine(
                 Text(
                     label,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                    fontWeight = FontWeight.Bold,
+                    color = if (enabled) Color(0xFF082143) else Color(0xFF8A99AD)
                 )
                 subtitle?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFF60728A))
                 }
             }
             trailing?.invoke()
             IconButton(onClick = onChevron ?: onSelect, enabled = enabled, modifier = Modifier.size(34.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF8A99AD))
             }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.78f))
     }
 }
 
 @Composable
 private fun BookingReviewSummary(
+    providerName: String,
     serviceName: String,
+    employeeName: String?,
+    duration: String?,
     dateTime: String,
     total: String,
     depositText: String? = null
 ) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        StraightSectionHeader("REVIEW SUMMARY")
-        ReviewSummaryLine(icon = Icons.Rounded.FitnessCenter, label = "Service", value = serviceName)
-        ReviewSummaryLine(icon = Icons.Rounded.CalendarMonth, label = "Date & time", value = dateTime)
-        depositText?.let { ReviewSummaryLine(icon = Icons.Rounded.CreditCard, label = "Deposit", value = it) }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Rounded.ReceiptLong, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.width(14.dp))
-            Text("Total", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(total, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+    ElevatedCard(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            Text(
+                "BOOKING SUMMARY",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = Color(0xFF60728A)
+            )
+            Spacer(Modifier.height(6.dp))
+            ReviewSummaryLine(icon = Icons.Rounded.LocationOn, label = "Provider", value = providerName)
+            ReviewSummaryLine(icon = Icons.Rounded.FitnessCenter, label = "Service", value = serviceName)
+            employeeName?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.Assignment, label = "Employee", value = it) }
+            duration?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.EventAvailable, label = "Duration", value = it) }
+            ReviewSummaryLine(icon = Icons.Rounded.CalendarMonth, label = "Date & time", value = dateTime)
+            depositText?.let { ReviewSummaryLine(icon = Icons.Rounded.CreditCard, label = "Deposit", value = it) }
         }
+    }
+}
+
+@Composable
+private fun PaymentTotalRow(total: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "TOTAL",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF60728A),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            total,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF082143)
+        )
     }
 }
 
@@ -1322,380 +1378,15 @@ private fun ReviewSummaryLine(icon: ImageVector, label: String, value: String) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(14.dp))
-            Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF0F6BFF))
+            Spacer(Modifier.width(12.dp))
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color(0xFF082143), modifier = Modifier.weight(1f))
+            Text(value, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A), textAlign = TextAlign.End)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.78f))
-    }
-}
-
-@Composable
-private fun StepHeader(title: String, subtitle: String) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-/** Provider and service steps: compact type and soft bottom fade into the screen background. */
-@Composable
-private fun BookSelectStepHeader(title: String, subtitle: String) {
-    val fadeTarget = MaterialTheme.colorScheme.background
-    val shape = RoundedCornerShape(18.dp)
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Surface(
-            shape = shape,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-        ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                fadeTarget.copy(alpha = 0.2f),
-                                fadeTarget.copy(alpha = 0.88f)
-                            )
-                        )
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyStateCard(title: String, description: String) {
-    ElevatedCard(
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun ProviderCard(provider: ProviderOption, selected: Boolean, onClick: () -> Unit) {
-    ElevatedCard(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SelectIndicator(selected = selected, size = 26.dp)
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(provider.tenantName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(provider.tenantAddress ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun ServiceCard(service: ServiceOption, selected: Boolean, onClick: () -> Unit) {
-    ElevatedCard(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                SelectIndicator(selected = selected, size = 26.dp)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                ) {
-                    Text(
-                        service.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        service.description?.takeIf { it.isNotBlank() } ?: "Bookable service",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                PriceChipCompact("${service.priceGross.formatPrice()} ${service.currency}")
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 36.dp, top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                TagPillCompact(service.tenantName)
-                service.durationMinutes?.let { TagPillCompact("$it min") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ConsultantCard(consultant: ConsultantOption, selected: Boolean, onClick: () -> Unit) {
-    ElevatedCard(
-        onClick = onClick,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SelectIndicator(selected = selected, size = 26.dp)
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(consultant.fullName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                consultant.email?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun MonthCalendar(
-    selectedMonth: YearMonth,
-    selectedDate: LocalDate,
-    onMonthChange: (YearMonth) -> Unit,
-    onDateSelected: (LocalDate) -> Unit,
-    compact: Boolean = false
-) {
-    val today = LocalDate.now()
-    val dayHeaders = DayOfWeek.values().toList()
-    val firstOfMonth = selectedMonth.atDay(1)
-    val offset = (firstOfMonth.dayOfWeek.value + 6) % 7
-    val totalDays = selectedMonth.lengthOfMonth()
-    val cells = buildList<LocalDate?> {
-        repeat(offset) { add(null) }
-        for (day in 1..totalDays) add(selectedMonth.atDay(day))
-        while (size % 7 != 0) add(null)
-    }
-
-    val shortMonthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH)
-    val navStyle = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
-    val monthTitleStyle = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge
-    val arrowSize = if (compact) 16.dp else 18.dp
-    val dayHeaderStyle = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium
-    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier
-                    .clip(RectangleShape)
-                    .clickable { onMonthChange(selectedMonth.minusMonths(1)) }
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                    contentDescription = "Previous month",
-                    modifier = Modifier.size(arrowSize),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    selectedMonth.minusMonths(1).format(shortMonthFmt),
-                    style = navStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(
-                selectedMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)),
-                style = monthTitleStyle,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(
-                modifier = Modifier
-                    .clip(RectangleShape)
-                    .clickable { onMonthChange(selectedMonth.plusMonths(1)) }
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    selectedMonth.plusMonths(1).format(shortMonthFmt),
-                    style = navStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = "Next month",
-                    modifier = Modifier.size(arrowSize),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Row(modifier = Modifier.fillMaxWidth()) {
-            dayHeaders.forEach { headerDay ->
-                Text(
-                    headerDay.getDisplayName(TextStyle.SHORT, Locale.ENGLISH),
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    style = dayHeaderStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        cells.chunked(7).forEach { week ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                week.forEach { date ->
-                    CalendarDateCell(
-                        date = date,
-                        isSelected = date == selectedDate,
-                        isEnabled = date != null && !date.isBefore(today),
-                        compact = compact,
-                        onClick = {
-                            if (date != null && !date.isBefore(today)) onDateSelected(date)
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.CalendarDateCell(
-    date: LocalDate?,
-    isSelected: Boolean,
-    isEnabled: Boolean,
-    compact: Boolean,
-    onClick: () -> Unit
-) {
-    val cellSize = if (compact) 34.dp else 42.dp
-    val placeholder = if (compact) 32.dp else 40.dp
-    val dayStyle = if (compact) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleMedium
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .padding(vertical = if (compact) 2.dp else 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        if (date == null) {
-            Spacer(Modifier.size(placeholder))
-        } else {
-            Surface(
-                modifier = Modifier
-                    .size(cellSize)
-                    .clickable(enabled = isEnabled, onClick = onClick),
-                shape = RectangleShape,
-                color = when {
-                    isSelected -> MaterialTheme.colorScheme.primary
-                    else -> Color.Transparent
-                }
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        date.dayOfMonth.toString(),
-                        color = when {
-                            isSelected -> Color.White
-                            isEnabled -> MaterialTheme.colorScheme.onSurface
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        },
-                        style = dayStyle,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TimeChip(
-    time: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RectangleShape,
-        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        tonalElevation = 0.dp
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                time,
-                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+        HorizontalDivider(color = Color(0xFFE3EBF6))
     }
 }
 
@@ -1760,6 +1451,291 @@ private fun PaymentMethodCard(
                     )
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun MonthCalendar(
+    selectedMonth: YearMonth,
+    selectedDate: LocalDate,
+    onMonthChange: (YearMonth) -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
+    compact: Boolean = false
+) {
+    val today = remember { LocalDate.now() }
+    val firstDay = selectedMonth.atDay(1)
+    val daysInMonth = selectedMonth.lengthOfMonth()
+    val firstWeekOffset = (firstDay.dayOfWeek.value + 6) % 7
+    val cells = buildList<LocalDate?> {
+        repeat(firstWeekOffset) { add(null) }
+        for (day in 1..daysInMonth) add(selectedMonth.atDay(day))
+        while (size % 7 != 0) add(null)
+    }
+    val shortMonthFmt = remember { DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH) }
+    val dayHeaders = remember { listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) }
+
+    ElevatedCard(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onMonthChange(selectedMonth.minusMonths(1)) }
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous month", modifier = Modifier.size(18.dp), tint = Color(0xFF60728A))
+                    Text(selectedMonth.minusMonths(1).format(shortMonthFmt), style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
+                }
+                Text(
+                    selectedMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF082143)
+                )
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onMonthChange(selectedMonth.plusMonths(1)) }
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(selectedMonth.plusMonths(1).format(shortMonthFmt), style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next month", modifier = Modifier.size(18.dp), tint = Color(0xFF60728A))
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                dayHeaders.forEach { headerDay ->
+                    Text(
+                        headerDay.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(Locale.ENGLISH),
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF60728A)
+                    )
+                }
+            }
+
+            cells.chunked(7).forEach { week ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    week.forEach { date ->
+                        CalendarDateCell(
+                            date = date,
+                            isSelected = date == selectedDate,
+                            isEnabled = date != null && !date.isBefore(today),
+                            compact = compact,
+                            onClick = { if (date != null && !date.isBefore(today)) onDateSelected(date) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.CalendarDateCell(
+    date: LocalDate?,
+    isSelected: Boolean,
+    isEnabled: Boolean,
+    compact: Boolean,
+    onClick: () -> Unit
+) {
+    val cellSize = if (compact) 34.dp else 42.dp
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .padding(vertical = 2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (date == null) {
+            Spacer(Modifier.size(cellSize))
+        } else {
+            Surface(
+                modifier = Modifier
+                    .size(cellSize)
+                    .clickable(enabled = isEnabled, onClick = onClick),
+                shape = CircleShape,
+                color = if (isSelected) Color(0xFF0F6BFF) else Color.Transparent
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        date.dayOfMonth.toString(),
+                        color = when {
+                            isSelected -> Color.White
+                            isEnabled -> Color(0xFF082143)
+                            else -> Color(0xFF9CA9B8).copy(alpha = 0.55f)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SingleTimeSelector(
+    slots: List<AvailabilitySlot>,
+    selectedSlotId: String?,
+    onSelectSlot: (String) -> Unit
+) {
+    if (slots.isEmpty()) return
+
+    val pages = remember(slots) { slots.chunked(4) }
+    val selectedIndex = slots.indexOfFirst { it.slotId == selectedSlotId }.takeIf { it >= 0 } ?: 0
+    var pageIndex by rememberSaveable(slots.map { it.slotId }.joinToString("|")) {
+        mutableStateOf((selectedIndex / 4).coerceIn(0, (pages.size - 1).coerceAtLeast(0)))
+    }
+    var dragAmount by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(slots, selectedSlotId) {
+        if (selectedSlotId == null) {
+            onSelectSlot(slots.first().slotId)
+        }
+        val targetPage = ((slots.indexOfFirst { it.slotId == selectedSlotId }.takeIf { it >= 0 } ?: 0) / 4)
+            .coerceIn(0, (pages.size - 1).coerceAtLeast(0))
+        if (targetPage != pageIndex) {
+            pageIndex = targetPage
+        }
+    }
+
+    fun changePage(delta: Int) {
+        val nextPage = (pageIndex + delta).coerceIn(0, pages.lastIndex)
+        if (nextPage != pageIndex) {
+            pageIndex = nextPage
+            onSelectSlot(pages[nextPage].first().slotId)
+        }
+    }
+
+    val currentPageSlots = pages[pageIndex]
+    val canGoLeft = pageIndex > 0
+    val canGoRight = pageIndex < pages.lastIndex
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(slots, pageIndex) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragAmount = 0f },
+                    onHorizontalDrag = { _, delta -> dragAmount += delta },
+                    onDragEnd = {
+                        when {
+                            dragAmount < -50f -> changePage(1)
+                            dragAmount > 50f -> changePage(-1)
+                        }
+                    }
+                )
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(4) { index ->
+                if (index < currentPageSlots.size) {
+                    val slot = currentPageSlots[index]
+                    TimeChip(
+                        time = slot.startsAt.asSlotTime(),
+                        selected = slot.slotId == selectedSlotId,
+                        onClick = { onSelectSlot(slot.slotId) },
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Spacer(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                    )
+                }
+            }
+        }
+
+        IconButton(
+            onClick = { changePage(-1) },
+            enabled = canGoLeft,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = (-2).dp)
+                .size(width = 18.dp, height = 42.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                contentDescription = "Previous time page",
+                modifier = Modifier.size(17.dp),
+                tint = if (canGoLeft) Color(0xFF0F6BFF) else Color(0xFF9CA9B8).copy(alpha = 0.42f)
+            )
+        }
+
+        IconButton(
+            onClick = { changePage(1) },
+            enabled = canGoRight,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = 2.dp)
+                .size(width = 18.dp, height = 42.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = "Next time page",
+                modifier = Modifier.size(17.dp),
+                tint = if (canGoRight) Color(0xFF0F6BFF) else Color(0xFF9CA9B8).copy(alpha = 0.42f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimeChip(
+    time: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) Color(0xFF0F6BFF) else Color.White,
+        border = if (selected) null else BorderStroke(1.dp, Color(0xFFDCE7F5)),
+        shadowElevation = if (selected) 3.dp else 1.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                time,
+                color = if (selected) Color.White else Color(0xFF0F6BFF),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -1897,16 +1873,16 @@ private fun ContinueButton(label: String, enabled: Boolean, loading: Boolean = f
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(56.dp),
         enabled = enabled && !loading,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
+            containerColor = if (enabled) Color(0xFF0F6BFF) else Color(0xFF0F6BFF).copy(alpha = 0.42f),
             contentColor = Color.White,
-            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+            disabledContainerColor = Color(0xFF0F6BFF).copy(alpha = 0.42f),
             disabledContentColor = Color.White
         ),
-        contentPadding = PaddingValues(horizontal = 20.dp)
+        contentPadding = PaddingValues(horizontal = 22.dp)
     ) {
         if (loading) {
             CircularProgressIndicator(
@@ -1916,11 +1892,11 @@ private fun ContinueButton(label: String, enabled: Boolean, loading: Boolean = f
             )
         } else {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Icon(
                     Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                     contentDescription = null,
-                    modifier = Modifier.align(Alignment.CenterEnd).size(24.dp),
+                    modifier = Modifier.align(Alignment.CenterEnd).size(26.dp),
                     tint = Color.White
                 )
             }
@@ -1935,7 +1911,7 @@ private fun SelectIndicator(selected: Boolean, enabled: Boolean = true, size: Dp
         modifier = Modifier.size(size),
         shape = CircleShape,
         color = when {
-            selected -> MaterialTheme.colorScheme.primary
+            selected -> Color(0xFF0F6BFF)
             else -> Color.Transparent
         },
         tonalElevation = if (selected) 0.dp else 0.dp
@@ -1970,8 +1946,8 @@ private fun PriceChipCompact(text: String) {
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
-            .clip(RoundedCornerShape(2.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFFF1F6FF))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     )
 }
@@ -1992,8 +1968,8 @@ private fun TagPill(text: String) {
 private fun TagPillCompact(text: String) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(2.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFFF1F6FF))
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

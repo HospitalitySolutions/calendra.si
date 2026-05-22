@@ -10,8 +10,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,14 +21,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.MoreVert
@@ -62,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -244,117 +252,142 @@ fun ProfileScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 124.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        item {
-            ElevatedCard(shape = RoundedCornerShape(30.dp), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(22.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(22.dp))
-                                .clickable(enabled = !uploadingAvatar && !loadingRemote) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        ProfileAmbientBackground()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 104.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                ElevatedCard(
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 5.dp)
+                ) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ProfileAvatar(
+                                uploading = uploadingAvatar,
+                                avatarBitmap = avatarBitmap,
+                                enabled = !uploadingAvatar && !loadingRemote,
+                                onClick = {
                                     pickAvatar.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                                 }
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                when {
-                                    uploadingAvatar ->
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(28.dp),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    avatarBitmap != null ->
-                                        Image(
-                                            bitmap = avatarBitmap!!.asImageBitmap(),
-                                            contentDescription = "Profile picture",
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    else ->
-                                        Icon(
-                                            Icons.Rounded.PersonOutline,
-                                            contentDescription = "Change profile picture",
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                }
+                            )
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    "${profile.firstName} ${profile.lastName}".trim(),
+                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 19.sp),
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF061B3A),
+                                    maxLines = 1
+                                )
+                                Text(
+                                    profile.email,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 11.sp),
+                                    color = Color(0xFF62728A),
+                                    maxLines = 1
+                                )
                             }
                         }
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("${profile.firstName} ${profile.lastName}".trim(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                            Text(profile.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
 
-                    Button(
-                        onClick = { editing = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
-                        enabled = !loadingRemote && !savingProfile
-                    ) {
-                        Text("Edit personal data")
-                    }
-                    if (loadingRemote) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
-                    remoteError?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = { editing = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            enabled = !loadingRemote && !savingProfile,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0968F5))
+                        ) {
+                            Icon(
+                                Icons.Rounded.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color.White
+                            )
+                            Text(
+                                "Edit personal data",
+                                style = MaterialTheme.typography.titleMedium.copy(fontSize = 11.sp),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        if (loadingRemote) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                        remoteError?.let {
+                            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
-        }
 
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "PREFERENCES",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                )
-                ElevatedCard(shape = RoundedCornerShape(16.dp), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        PreferenceNavigationRow(
-                            title = "Language",
-                            value = languageDisplayName(profile.language),
-                            leadingIcon = Icons.Rounded.Language,
-                            onClick = { showLanguagePicker = true }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-                        PreferenceNavigationRow(
-                            title = "Notifications",
-                            value = notificationsSummary(notifyMessagesEnabled, notifyRemindersEnabled),
-                            leadingIcon = Icons.Rounded.Notifications,
-                            onClick = { showNotificationsDialog = true }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-                        PreferenceNavigationRow(
-                            title = "Invoicing",
-                            value = invoiceSummary(invoiceSettings),
-                            leadingIcon = Icons.AutoMirrored.Rounded.ReceiptLong,
-                            onClick = { showInvoicingDialog = true }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-                        PreferenceNavigationRow(
-                            title = "Subscribed tenants",
-                            value = "${subscribedTenants.size}",
-                            leadingIcon = Icons.Rounded.Business,
-                            onClick = { showSubscribedTenantsDialog = true }
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-                        PreferenceLogoutRow(
-                            leadingIcon = Icons.AutoMirrored.Rounded.Logout,
-                            onClick = onLogout
-                        )
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "PREFERENCES",
+                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 9.sp),
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 2.2.sp,
+                        color = Color(0xFF5E738D),
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                    )
+                    ElevatedCard(
+                        shape = RoundedCornerShape(28.dp),
+                        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(Modifier.fillMaxWidth()) {
+                            PreferenceNavigationRow(
+                                title = "Language",
+                                value = languageDisplayName(profile.language),
+                                leadingIcon = Icons.Rounded.Language,
+                                iconTint = Color(0xFF0968F5),
+                                onClick = { showLanguagePicker = true }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceNavigationRow(
+                                title = "Notifications",
+                                value = notificationsSummary(notifyMessagesEnabled, notifyRemindersEnabled),
+                                leadingIcon = Icons.Rounded.Notifications,
+                                iconTint = Color(0xFFFF8A00),
+                                onClick = { showNotificationsDialog = true }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceNavigationRow(
+                                title = "Invoicing",
+                                value = invoiceSummary(invoiceSettings),
+                                leadingIcon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                                iconTint = Color(0xFF0968F5),
+                                onClick = { showInvoicingDialog = true }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceNavigationRow(
+                                title = "Subscribed tenants",
+                                value = "${subscribedTenants.size}",
+                                leadingIcon = Icons.Rounded.Business,
+                                iconTint = Color(0xFFFF8A00),
+                                onClick = { showSubscribedTenantsDialog = true }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceLogoutRow(
+                                leadingIcon = Icons.AutoMirrored.Rounded.Logout,
+                                onClick = onLogout
+                            )
+                        }
                     }
                 }
             }
@@ -408,7 +441,7 @@ fun ProfileScreen(
             onDismissRequest = { if (!savingPreference) showNotificationsDialog = false },
             title = { Text("Notifications") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Choose which push notifications you want to receive on this device when the app is in the background.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -649,6 +682,92 @@ fun ProfileScreen(
 
 }
 
+@Composable
+private fun BoxScope.ProfileAmbientBackground() {
+    Box(
+        Modifier
+            .size(260.dp)
+            .offset(x = (-120).dp, y = (-145).dp)
+            .align(Alignment.TopStart)
+            .background(Color(0xFFDCEBFF).copy(alpha = 0.55f), CircleShape)
+    )
+    Box(
+        Modifier
+            .size(190.dp)
+            .offset(x = 246.dp, y = 560.dp)
+            .align(Alignment.TopStart)
+            .background(Color(0xFFFFE2B8).copy(alpha = 0.24f), CircleShape)
+    )
+    Box(
+        Modifier
+            .width(2.dp)
+            .height(260.dp)
+            .offset(x = 350.dp, y = 620.dp)
+            .align(Alignment.TopStart)
+            .clip(RoundedCornerShape(50))
+            .background(Color(0xFFFF8A00).copy(alpha = 0.32f))
+    )
+    Box(
+        Modifier
+            .size(132.dp)
+            .offset(x = 280.dp, y = 52.dp)
+            .align(Alignment.TopStart)
+            .background(Color(0xFFEAF3FF).copy(alpha = 0.58f), CircleShape)
+    )
+}
+
+@Composable
+private fun ProfileAvatar(
+    uploading: Boolean,
+    avatarBitmap: Bitmap?,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(76.dp)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = Color(0xFFE8F2FF),
+            modifier = Modifier.size(76.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                when {
+                    uploading -> CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 2.dp,
+                        color = Color(0xFF0968F5)
+                    )
+                    avatarBitmap != null -> Image(
+                        bitmap = avatarBitmap.asImageBitmap(),
+                        contentDescription = "Profile picture",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    else -> Icon(
+                        Icons.Rounded.PersonOutline,
+                        contentDescription = "Change profile picture",
+                        tint = Color(0xFF0968F5),
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+            }
+        }
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .offset(y = 4.dp)
+                .width(58.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xFFFF8A00))
+        )
+    }
+}
+
 private fun languageDisplayName(code: String): String = when (code.lowercase()) {
     "sl" -> "Slovenščina"
     else -> "English"
@@ -694,20 +813,27 @@ private fun NotificationToggleRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp), fontWeight = FontWeight.SemiBold)
+            Text(description, style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 
 @Composable
-private fun PreferenceNavigationRow(title: String, value: String, leadingIcon: ImageVector, onClick: () -> Unit) {
+private fun PreferenceNavigationRow(
+    title: String,
+    value: String,
+    leadingIcon: ImageVector,
+    iconTint: Color,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -719,17 +845,23 @@ private fun PreferenceNavigationRow(title: String, value: String, leadingIcon: I
             Icon(
                 leadingIcon,
                 contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                modifier = Modifier.size(18.dp),
+                tint = iconTint
             )
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp),
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF061B3A)
+            )
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(value, style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp), color = Color(0xFF62728A))
             Icon(
                 Icons.Rounded.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                modifier = Modifier.size(18.dp),
+                tint = Color(0xFF9BA7B7)
             )
         }
     }
@@ -740,8 +872,9 @@ private fun PreferenceLogoutRow(leadingIcon: ImageVector, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -753,15 +886,21 @@ private fun PreferenceLogoutRow(leadingIcon: ImageVector, onClick: () -> Unit) {
             Icon(
                 leadingIcon,
                 contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.error
+                modifier = Modifier.size(18.dp),
+                tint = Color(0xFFD6291D)
             )
-            Text("Log out", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+            Text(
+                "Log out",
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp),
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFD6291D)
+            )
         }
         Icon(
             Icons.Rounded.KeyboardArrowRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
+            modifier = Modifier.size(18.dp),
+            tint = Color(0xFFD6291D)
         )
     }
 }
@@ -883,7 +1022,7 @@ private fun EditProfileDialog(
         onDismissRequest = { if (!saving) onDismiss() },
         title = { Text("Edit personal data") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = firstName, onValueChange = { firstName = it }, label = { Text("First name") }, singleLine = true, enabled = !saving)
                 OutlinedTextField(value = lastName, onValueChange = { lastName = it }, label = { Text("Last name") }, singleLine = true, enabled = !saving)
                 OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))

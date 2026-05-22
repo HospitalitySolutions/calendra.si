@@ -83,118 +83,140 @@ struct ProfileView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                GuestSectionHeader(title: "Profile", subtitle: "Account and preferences")
+        ZStack {
+            ProfileSoftBackground()
 
-                GuestSurfaceCard {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 14) {
-                            PhotosPicker(selection: $photoPickerItem, matching: .images, photoLibrary: .shared()) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .fill(Color.accentColor.opacity(0.12))
-                                        .frame(width: 56, height: 56)
-                                    if uploadingAvatar {
-                                        ProgressView()
-                                    } else if let avatarImage {
-                                        Image(uiImage: avatarImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 56, height: 56)
-                                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                    } else {
-                                        Image(systemName: "person.fill")
-                                            .foregroundColor(Color.accentColor)
-                                    }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    GuestSurfaceCard(contentPadding: 18, cornerRadius: 28) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 12) {
+                                PhotosPicker(selection: $photoPickerItem, matching: .images, photoLibrary: .shared()) {
+                                    ProfileAvatarButton(avatarImage: avatarImage, uploading: uploadingAvatar)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(loadingRemoteSettings || uploadingAvatar)
+
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text("\(profile.firstName) \(profile.lastName)".trimmingCharacters(in: .whitespaces))
+                                        .font(.system(size: 19, weight: .bold))
+                                        .foregroundColor(Color(red: 0.024, green: 0.106, blue: 0.227))
+                                        .lineLimit(1)
+                                    Text(profile.email)
+                                        .font(.system(size: 11, weight: .regular))
+                                        .foregroundColor(Color(red: 0.384, green: 0.447, blue: 0.541))
+                                        .lineLimit(1)
                                 }
                             }
+
+                            Button {
+                                showingEditSheet = true
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("Edit personal data")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity, minHeight: 42)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(Color(red: 0.035, green: 0.408, blue: 0.961))
+                                )
+                            }
                             .buttonStyle(.plain)
-                            .disabled(loadingRemoteSettings || uploadingAvatar)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(profile.firstName) \(profile.lastName)".trimmingCharacters(in: .whitespaces))
-                                    .font(.title3.weight(.semibold))
-                                Text(profile.email)
-                                    .foregroundColor(.secondary)
+                            .disabled(loadingRemoteSettings || savingProfile)
+
+                            if loadingRemoteSettings {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            if let remoteError, !remoteError.isEmpty {
+                                Text(remoteError)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
                             }
                         }
-
-                        Button("Edit personal data") {
-                            showingEditSheet = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(loadingRemoteSettings || savingProfile)
-
-                        if loadingRemoteSettings {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        if let remoteError, !remoteError.isEmpty {
-                            Text(remoteError)
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        }
                     }
-                }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Preferences")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-                        .padding(.leading, 4)
-                    VStack(spacing: 0) {
-                        preferenceNavigationRow(title: "Language", value: languageDisplay, systemImage: "globe") {
-                            showLanguagePicker = true
-                        }
-                        Divider().opacity(0.45)
-                        preferenceNavigationRow(title: "Notifications", value: notificationsSummary, systemImage: "bell.fill") {
-                            showNotificationsSheet = true
-                        }
-                        Divider().opacity(0.45)
-                        preferenceNavigationRow(title: "Invoicing", value: invoiceSummary, systemImage: "receipt") {
-                            showInvoicingSheet = true
-                        }
-                        Divider().opacity(0.45)
-                        preferenceNavigationRow(
-                            title: "Subscribed tenants",
-                            value: "\(store.linkedTenants.count)",
-                            systemImage: "building.2"
-                        ) {
-                            showSubscribedTenantsSheet = true
-                        }
-                        Divider().opacity(0.45)
-                        Button {
-                            store.logout()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                    .font(.body)
-                                    .foregroundColor(Color.red)
-                                    .frame(width: 22, alignment: .leading)
-                                Text("Log out")
-                                    .font(.headline)
-                                    .foregroundColor(Color.red)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preferences")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(Color(red: 0.365, green: 0.447, blue: 0.553))
+                            .tracking(2.4)
+                            .textCase(.uppercase)
+                            .padding(.leading, 4)
+
+                        VStack(spacing: 0) {
+                            preferenceNavigationRow(
+                                title: "Language",
+                                value: languageDisplay,
+                                systemImage: "globe",
+                                iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
+                            ) {
+                                showLanguagePicker = true
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            preferenceNavigationRow(
+                                title: "Notifications",
+                                value: notificationsSummary,
+                                systemImage: "bell",
+                                iconColor: Color(red: 1.0, green: 0.541, blue: 0.0)
+                            ) {
+                                showNotificationsSheet = true
+                            }
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            preferenceNavigationRow(
+                                title: "Invoicing",
+                                value: invoiceSummary,
+                                systemImage: "doc.text",
+                                iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
+                            ) {
+                                showInvoicingSheet = true
+                            }
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            preferenceNavigationRow(
+                                title: "Subscribed tenants",
+                                value: "\(store.linkedTenants.count)",
+                                systemImage: "building.2",
+                                iconColor: Color(red: 1.0, green: 0.541, blue: 0.0)
+                            ) {
+                                showSubscribedTenantsSheet = true
+                            }
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            Button {
+                                store.logout()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
+                                        .frame(width: 22, alignment: .center)
+                                    Text("Log out")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
+                                }
+                                .padding(.horizontal, 18)
+                                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        .background(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .fill(Color(.systemBackground))
+                                .shadow(color: .black.opacity(0.055), radius: 20, x: 0, y: 10)
+                        )
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(.secondarySystemGroupedBackground))
-                    )
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 100)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 110)
         }
         .task(id: activeTenantId) {
             profile = LocalProfileStore.shared.load(from: store.user)
@@ -528,30 +550,98 @@ struct ProfileView: View {
         }
     }
 
-    private func preferenceNavigationRow(title: String, value: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    private func preferenceNavigationRow(
+        title: String,
+        value: String,
+        systemImage: String,
+        iconColor: Color,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .frame(width: 22, alignment: .leading)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(iconColor)
+                    .frame(width: 22, alignment: .center)
                 Text(title)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(red: 0.024, green: 0.106, blue: 0.227))
                 Spacer()
                 Text(value)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(Color(red: 0.384, green: 0.447, blue: 0.541))
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color(UIColor.tertiaryLabel))
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(Color(red: 0.604, green: 0.659, blue: 0.722))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
         }
         .buttonStyle(.plain)
     }
 
+}
+
+private struct ProfileSoftBackground: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.965, green: 0.984, blue: 1.0),
+                    Color(red: 0.953, green: 0.976, blue: 1.0),
+                    Color(red: 1.0, green: 0.972, blue: 0.925)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            Circle()
+                .fill(Color(red: 0.812, green: 0.894, blue: 1.0).opacity(0.45))
+                .frame(width: 260, height: 260)
+                .offset(x: -190, y: -365)
+            Circle()
+                .fill(Color(red: 0.910, green: 0.957, blue: 1.0).opacity(0.62))
+                .frame(width: 170, height: 170)
+                .offset(x: 170, y: -175)
+            Circle()
+                .stroke(Color(red: 1.0, green: 0.541, blue: 0.0).opacity(0.32), lineWidth: 2)
+                .frame(width: 360, height: 360)
+                .offset(x: 238, y: 282)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct ProfileAvatarButton: View {
+    let avatarImage: UIImage?
+    let uploading: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color(red: 0.910, green: 0.957, blue: 1.0))
+                .frame(width: 76, height: 76)
+            Circle()
+                .trim(from: 0.58, to: 0.92)
+                .stroke(Color(red: 1.0, green: 0.541, blue: 0.0), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .frame(width: 76, height: 76)
+                .rotationEffect(.degrees(10))
+            if uploading {
+                ProgressView()
+            } else if let avatarImage {
+                Image(uiImage: avatarImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 76, height: 76)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "person")
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundColor(Color(red: 0.035, green: 0.408, blue: 0.961))
+            }
+        }
+        .frame(width: 76, height: 76)
+        .contentShape(Circle())
+    }
 }
 
 // MARK: - Notification preferences sheet
