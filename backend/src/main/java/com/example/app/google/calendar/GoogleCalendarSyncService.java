@@ -13,6 +13,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.client.HttpClientErrorException;
 
 @Service
 public class GoogleCalendarSyncService {
@@ -51,6 +54,10 @@ public class GoogleCalendarSyncService {
     public void upsertToGoogle(GoogleCalendarSyncJob job) throws Exception {
         GoogleCalendarConnection c = requireConnection(job);
         if (c.getStatus() != GoogleCalendarConnectionStatus.ACTIVE || c.getSyncDirection() == GoogleCalendarSyncDirection.GOOGLE_TO_CALENDRA || job.getAppEntityType() == null) return;
+        if (job.getAppEntityType() == GoogleCalendarEntityType.TODO) {
+            upsertTodoToGoogleTask(job, c);
+            return;
+        }
         ObjectNode event = switch (job.getAppEntityType()) {
             case SESSION_BOOKING -> mapper.toGoogleEvent(loadBooking(job));
             case PERSONAL_SESSION -> mapper.toGoogleEvent(loadPersonalBlock(job));
@@ -80,6 +87,50 @@ public class GoogleCalendarSyncService {
         links.save(link);
     }
 
+    private void upsertTodoToGoogleTask(GoogleCalendarSyncJob job, GoogleCalendarConnection c) throws Exception {
+        if (c.getScopes() != null && !c.getScopes().contains("https://www.googleapis.com/auth/tasks")) {
+            c.setStatus(GoogleCalendarConnectionStatus.NEEDS_RECONNECT);
+            c.setLastError("Reconnect Google Calendar to add Google Tasks permission so Calendra ToDos can sync as Google Tasks.");
+            connections.save(c);
+            return;
+        }
+        CalendarTodo todo = loadTodo(job);
+        ObjectNode task = mapper.toGoogleTask(todo);
+        String taskHash = mapper.hash(task);
+        GoogleCalendarEventLink link = links.findByConnection_IdAndCompany_IdAndAppEntityTypeAndAppEntityId(c.getId(), job.getCompany().getId(), GoogleCalendarEntityType.TODO, job.getAppEntityId()).orElse(null);
+        String token = connectionService.accessToken(c);
+        if (link != null && link.getGoogleIcalUid() != null && link.getGoogleEventId() != null && !link.getGoogleEventId().isBlank()) {
+            apiClient.deleteEvent(token, link.getCalendarId(), link.getGoogleEventId());
+            link.setCalendarId(null);
+            link.setGoogleIcalUid(null);
+            link.setGoogleEventId(null);
+            link.setDeletedAt(null);
+        }
+        String taskListId = link != null && link.getCalendarId() != null && !link.getCalendarId().isBlank()
+                ? link.getCalendarId()
+                : apiClient.defaultTaskListId(token);
+        JsonNode googleTask;
+        if (link == null || link.getDeletedAt() != null || link.getGoogleEventId() == null || link.getGoogleEventId().isBlank()) {
+            googleTask = apiClient.insertTask(token, taskListId, task);
+            if (link == null) {
+                link = new GoogleCalendarEventLink();
+                link.setCompany(job.getCompany());
+                link.setConnection(c);
+                link.setAppEntityType(GoogleCalendarEntityType.TODO);
+                link.setAppEntityId(job.getAppEntityId());
+                link.setOrigin(GoogleCalendarEventOrigin.CALENDRA);
+            }
+        } else {
+            try {
+                googleTask = apiClient.updateTask(token, taskListId, link.getGoogleEventId(), task);
+            } catch (HttpClientErrorException.NotFound notFound) {
+                googleTask = apiClient.insertTask(token, taskListId, task);
+            }
+        }
+        applyGoogleTaskFields(link, googleTask, taskListId, taskHash);
+        links.save(link);
+    }
+
     @Transactional
     public void deleteFromGoogle(GoogleCalendarSyncJob job) throws Exception {
         GoogleCalendarConnection c = requireConnection(job);
@@ -87,7 +138,18 @@ public class GoogleCalendarSyncService {
         var entityLinks = links.findAllByCompany_IdAndAppEntityTypeAndAppEntityId(job.getCompany().getId(), job.getAppEntityType(), job.getAppEntityId());
         for (GoogleCalendarEventLink link : entityLinks) {
             if (!link.getConnection().getId().equals(c.getId())) continue;
-            if (link.getGoogleEventId() != null && !link.getGoogleEventId().isBlank()) apiClient.deleteEvent(token, link.getCalendarId(), link.getGoogleEventId());
+            if (link.getGoogleEventId() != null && !link.getGoogleEventId().isBlank()) {
+                if (job.getAppEntityType() == GoogleCalendarEntityType.TODO) {
+                    try {
+                        apiClient.deleteTask(token, link.getCalendarId(), link.getGoogleEventId());
+                    } catch (HttpClientErrorException taskDeleteError) {
+                        if (!HttpStatus.FORBIDDEN.equals(taskDeleteError.getStatusCode()) && !HttpStatus.BAD_REQUEST.equals(taskDeleteError.getStatusCode())) throw taskDeleteError;
+                    }
+                    apiClient.deleteEvent(token, link.getCalendarId(), link.getGoogleEventId());
+                } else {
+                    apiClient.deleteEvent(token, link.getCalendarId(), link.getGoogleEventId());
+                }
+            }
             link.setDeletedAt(Instant.now());
             link.setSyncStatus("DELETED");
             link.setLastError(null);
@@ -119,9 +181,10 @@ public class GoogleCalendarSyncService {
             }
             throw expired;
         }
+        String tasksWarning = pullGoogleTasksFromGoogle(c, token);
         if (nextSyncToken != null && !nextSyncToken.isBlank()) c.setSyncToken(nextSyncToken);
         if (forceFullSync) c.setLastFullSyncAt(Instant.now()); else c.setLastIncrementalSyncAt(Instant.now());
-        c.setLastError(null);
+        c.setLastError(tasksWarning);
         connections.save(c);
     }
 
@@ -159,7 +222,7 @@ public class GoogleCalendarSyncService {
                 ? todos.findByCompanyAndDateRange(companyId, from, to)
                 : todos.findByOwnerAndDateRange(ownerId, companyId, from, to);
         for (CalendarTodo t : todoRows) {
-            if (t.getId() != null) refs.add(new CalendarPushRef(GoogleCalendarEntityType.TODO, t.getId()));
+            if (t.getId() != null && !hasGoogleOriginLink(c, GoogleCalendarEntityType.TODO, t.getId())) refs.add(new CalendarPushRef(GoogleCalendarEntityType.TODO, t.getId()));
         }
         for (CalendarPushRef ref : refs) {
             GoogleCalendarSyncJob pushJob = new GoogleCalendarSyncJob();
@@ -175,6 +238,7 @@ public class GoogleCalendarSyncService {
     private void consumeGoogleEvent(GoogleCalendarConnection c, JsonNode event) {
         String eventId = event.path("id").asText(null);
         if (eventId == null || eventId.isBlank()) return;
+        if (isGoogleCalendarTaskEvent(event)) return;
         GoogleCalendarEventLink link = links.findByConnection_IdAndCalendarIdAndGoogleEventId(c.getId(), c.getCalendarId(), eventId).orElse(null);
         if ("cancelled".equalsIgnoreCase(event.path("status").asText(null))) {
             if (link != null) handleGoogleCancelledEvent(link);
@@ -202,6 +266,80 @@ public class GoogleCalendarSyncService {
             return;
         }
         importExternalGoogleEvent(c, event);
+    }
+
+    private String pullGoogleTasksFromGoogle(GoogleCalendarConnection c, String token) throws Exception {
+        if (c.getSyncDirection() == GoogleCalendarSyncDirection.CALENDRA_TO_GOOGLE) return null;
+        if (c.getScopes() != null && !c.getScopes().contains("https://www.googleapis.com/auth/tasks")) {
+            return "Reconnect Google Calendar to add Google Tasks permission so Google Tasks can sync with Calendra ToDos.";
+        }
+        for (GoogleCalendarApiClient.TaskListSummary taskList : apiClient.listTaskLists(token)) {
+            String pageToken = null;
+            do {
+                GoogleCalendarApiClient.TasksPage page = apiClient.listTasks(token, taskList.id(), pageToken);
+                for (JsonNode task : page.tasks()) consumeGoogleTask(c, page.taskListId(), task);
+                pageToken = page.nextPageToken();
+            } while (pageToken != null && !pageToken.isBlank());
+        }
+        return null;
+    }
+
+    private void consumeGoogleTask(GoogleCalendarConnection c, String taskListId, JsonNode task) {
+        String taskId = task.path("id").asText(null);
+        if (taskId == null || taskId.isBlank() || taskListId == null || taskListId.isBlank()) return;
+        GoogleCalendarEventLink link = links.findByConnection_IdAndCalendarIdAndGoogleEventId(c.getId(), taskListId, taskId).orElse(null);
+        if (isGoogleTaskDeletedOrCompleted(task)) {
+            if (link != null) handleGoogleDeletedTask(link);
+            return;
+        }
+        if (link != null) {
+            updateMappedEntityFromGoogleTask(link, task);
+            applyGoogleTaskFields(link, task, taskListId, link.getLastSyncedHash());
+            links.save(link);
+            return;
+        }
+        if (c.getUser() == null) return;
+        LocalDateTime due = startFromGoogleTask(task);
+        if (due == null) return;
+        CalendarTodo todo = new CalendarTodo();
+        todo.setCompany(c.getCompany());
+        todo.setOwner(c.getUser());
+        todo.setStartTime(due);
+        todo.setTask(limit(task.path("title").asText("Google Task"), 200));
+        todo.setNotes(limit(task.path("notes").asText(null), 1000));
+        todo = todos.save(todo);
+
+        GoogleCalendarEventLink imported = new GoogleCalendarEventLink();
+        imported.setCompany(c.getCompany());
+        imported.setConnection(c);
+        imported.setCalendarId(taskListId);
+        imported.setGoogleEventId(taskId);
+        imported.setAppEntityType(GoogleCalendarEntityType.TODO);
+        imported.setAppEntityId(todo.getId());
+        imported.setOrigin(GoogleCalendarEventOrigin.GOOGLE);
+        applyGoogleTaskFields(imported, task, taskListId, null);
+        links.save(imported);
+    }
+
+    private void updateMappedEntityFromGoogleTask(GoogleCalendarEventLink link, JsonNode task) {
+        if (link.getAppEntityType() != GoogleCalendarEntityType.TODO) return;
+        todos.findById(link.getAppEntityId()).ifPresentOrElse(todo -> {
+            LocalDateTime due = startFromGoogleTask(task);
+            if (due != null) todo.setStartTime(due);
+            String title = task.path("title").asText(null);
+            if (title != null && !title.isBlank()) todo.setTask(limit(title, 200));
+            todo.setNotes(limit(task.path("notes").asText(null), 1000));
+            todos.save(todo);
+            clearConflict(link);
+        }, () -> markConflict(link, "CONFLICT_ENTITY_MISSING", "Mapped ToDo no longer exists."));
+    }
+
+    private void handleGoogleDeletedTask(GoogleCalendarEventLink link) {
+        if (link.getAppEntityType() == GoogleCalendarEntityType.TODO) {
+            todos.findById(link.getAppEntityId()).ifPresent(todos::delete);
+            markDeleted(link, "DELETED_IN_GOOGLE", null);
+            links.save(link);
+        }
     }
 
     private void updateMappedEntityFromGoogle(GoogleCalendarEventLink link, JsonNode event) {
@@ -548,6 +686,45 @@ public class GoogleCalendarSyncService {
         link.setDeletedAt(Instant.now());
         link.setSyncStatus(status);
         link.setLastError(limit(message, 2000));
+    }
+
+    private boolean isGoogleCalendarTaskEvent(JsonNode event) {
+        String eventType = event.path("eventType").asText(null);
+        return "task".equalsIgnoreCase(eventType) || "todo".equalsIgnoreCase(eventType);
+    }
+
+    private boolean isGoogleTaskDeletedOrCompleted(JsonNode task) {
+        return task.path("deleted").asBoolean(false) || "completed".equalsIgnoreCase(task.path("status").asText(null));
+    }
+
+    private LocalDateTime startFromGoogleTask(JsonNode task) {
+        String due = task.path("due").asText(null);
+        if (due == null || due.isBlank()) return null;
+        try {
+            return OffsetDateTime.parse(due).atZoneSameInstant(ZoneId.of(config.getTimezone())).toLocalDateTime();
+        } catch (Exception ignored) {
+            try {
+                return Instant.parse(due).atZone(ZoneId.of(config.getTimezone())).toLocalDateTime();
+            } catch (Exception ignoredAgain) {
+                return null;
+            }
+        }
+    }
+
+    private void applyGoogleTaskFields(GoogleCalendarEventLink link, JsonNode googleTask, String taskListId, String hash) {
+        link.setCalendarId(taskListId);
+        link.setGoogleEventId(googleTask.path("id").asText(link.getGoogleEventId()));
+        link.setGoogleEtag(googleTask.path("etag").asText(null));
+        link.setGoogleIcalUid(null);
+        String updated = googleTask.path("updated").asText(null);
+        if (updated != null && !updated.isBlank()) try { link.setGoogleUpdatedAt(Instant.parse(updated)); } catch (Exception ignored) {}
+        link.setLastSyncedHash(hash);
+        link.setLastSyncedAt(Instant.now());
+        link.setDeletedAt(null);
+        if (link.getSyncStatus() == null || !link.getSyncStatus().startsWith("CONFLICT")) {
+            link.setSyncStatus("SYNCED");
+            link.setLastError(null);
+        }
     }
 
     private boolean hasGoogleOriginLink(GoogleCalendarConnection c, GoogleCalendarEntityType type, Long entityId) {

@@ -1,0 +1,32 @@
+Google Calendar / Google Tasks ToDo sync changes
+
+Backend changes:
+- Added Google Tasks OAuth scope to the Google Calendar authorization URL:
+  https://www.googleapis.com/auth/tasks
+- Added Google Tasks API support in GoogleCalendarApiClient:
+  - list task lists
+  - list tasks from each task list
+  - insert Google Task
+  - update Google Task
+  - delete Google Task
+- Changed Calendra ToDo -> Google sync:
+  - Calendra ToDos now create/update Google Tasks instead of normal Google Calendar events.
+  - ToDo title is sent as the Google Task title.
+  - ToDo notes are sent as Google Task notes.
+  - ToDo startTime is sent as the Google Task due value.
+  - Existing legacy ToDo calendar-event links are migrated by deleting the old event and creating a Google Task.
+- Added Google Tasks -> Calendra import:
+  - Google Tasks from connected task lists are imported as CalendarTodo rows.
+  - Google Task title becomes the Calendra ToDo task text.
+  - Google Task notes become Calendra ToDo notes.
+  - Google Task due date/time becomes Calendra ToDo startTime.
+  - Completed or deleted Google Tasks remove the mapped Calendra ToDo.
+- Full sync now skips pushing Google-origin imported ToDos back to Google to avoid duplicates.
+- Google Calendar event import now ignores task/todo typed calendar items if Google ever exposes them in the Calendar events feed, so tasks do not get incorrectly imported as booked sessions/personal blocks.
+
+Important deployment note:
+- Existing Google Calendar connections must reconnect once so Google grants the new Google Tasks permission.
+- If a connection does not have the Tasks scope yet, the backend marks a clear reconnect message instead of silently failing ToDo sync.
+
+Validation note:
+- Maven compile could not be run in this sandbox because the Maven wrapper needs to download Maven from repo.maven.apache.org, which is unavailable here.

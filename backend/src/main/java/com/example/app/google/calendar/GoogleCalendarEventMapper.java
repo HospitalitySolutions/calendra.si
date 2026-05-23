@@ -57,6 +57,19 @@ public class GoogleCalendarEventMapper {
         return event;
     }
 
+    public ObjectNode toGoogleTask(CalendarTodo todo) {
+        ObjectNode task = objectMapper.createObjectNode();
+        task.put("title", safe(todo.getTask()));
+        if (todo.getNotes() != null && !todo.getNotes().isBlank()) {
+            task.put("notes", todo.getNotes());
+        } else {
+            task.putNull("notes");
+        }
+        putTaskDue(task, todo.getStartTime());
+        task.put("status", "needsAction");
+        return task;
+    }
+
     public String hash(ObjectNode event) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(event.toString().getBytes(StandardCharsets.UTF_8)));
@@ -91,6 +104,12 @@ public class GoogleCalendarEventMapper {
         ObjectNode node = event.putObject(field);
         node.put("dateTime", value.atZone(zone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
         node.put("timeZone", zone.getId());
+    }
+
+    private void putTaskDue(ObjectNode task, LocalDateTime value) {
+        if (value == null) return;
+        ZoneId zone = ZoneId.of(config.getTimezone());
+        task.put("due", value.atZone(zone).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
     }
 
     private void putPrivateProps(ObjectNode event, Long companyId, GoogleCalendarEntityType type, Long entityId) {

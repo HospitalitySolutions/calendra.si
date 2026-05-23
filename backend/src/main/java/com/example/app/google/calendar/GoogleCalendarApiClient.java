@@ -21,6 +21,7 @@ public class GoogleCalendarApiClient {
     private static final String TOKEN_URL = "https://oauth2.googleapis.com/token";
     private static final String USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
     private static final String CALENDAR_API = "https://www.googleapis.com/calendar/v3";
+    private static final String TASKS_API = "https://tasks.googleapis.com/tasks/v1";
 
     private final GoogleCalendarConfig config;
     private final RestTemplate restTemplate = new RestTemplate();
@@ -91,6 +92,59 @@ public class GoogleCalendarApiClient {
         }
     }
 
+    public List<TaskListSummary> listTaskLists(String accessToken) throws Exception {
+        String pageToken = null;
+        List<TaskListSummary> out = new ArrayList<>();
+        do {
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(TASKS_API + "/users/@me/lists")
+                    .queryParam("maxResults", "100");
+            if (pageToken != null && !pageToken.isBlank()) b.queryParam("pageToken", query(pageToken));
+            JsonNode root = objectMapper.readTree(restTemplate.exchange(b.build(true).toUri(), HttpMethod.GET, new HttpEntity<>(authHeaders(accessToken)), String.class).getBody());
+            for (JsonNode item : root.path("items")) {
+                out.add(new TaskListSummary(item.path("id").asText(), item.path("title").asText("My Tasks")));
+            }
+            pageToken = root.path("nextPageToken").asText(null);
+        } while (pageToken != null && !pageToken.isBlank());
+        return out;
+    }
+
+    public String defaultTaskListId(String accessToken) throws Exception {
+        List<TaskListSummary> lists = listTaskLists(accessToken);
+        return lists.stream()
+                .filter(list -> "My Tasks".equalsIgnoreCase(list.title()))
+                .findFirst()
+                .or(() -> lists.stream().findFirst())
+                .map(TaskListSummary::id)
+                .orElse("@default");
+    }
+
+    public JsonNode insertTask(String accessToken, String taskListId, ObjectNode task) throws Exception {
+        return sendJson(accessToken, HttpMethod.POST, TASKS_API + "/lists/" + path(taskListId) + "/tasks", task);
+    }
+
+    public JsonNode updateTask(String accessToken, String taskListId, String taskId, ObjectNode task) throws Exception {
+        return sendJson(accessToken, HttpMethod.PUT, TASKS_API + "/lists/" + path(taskListId) + "/tasks/" + path(taskId), task);
+    }
+
+    public void deleteTask(String accessToken, String taskListId, String taskId) throws Exception {
+        try {
+            restTemplate.exchange(URI.create(TASKS_API + "/lists/" + path(taskListId) + "/tasks/" + path(taskId)), HttpMethod.DELETE, new HttpEntity<>(authHeaders(accessToken)), String.class);
+        } catch (HttpClientErrorException.NotFound ignored) {}
+    }
+
+    public TasksPage listTasks(String accessToken, String taskListId, String pageToken) throws Exception {
+        UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(TASKS_API + "/lists/" + path(taskListId) + "/tasks")
+                .queryParam("maxResults", "100")
+                .queryParam("showCompleted", "true")
+                .queryParam("showDeleted", "true")
+                .queryParam("showHidden", "true");
+        if (pageToken != null && !pageToken.isBlank()) b.queryParam("pageToken", query(pageToken));
+        JsonNode root = objectMapper.readTree(restTemplate.exchange(b.build(true).toUri(), HttpMethod.GET, new HttpEntity<>(authHeaders(accessToken)), String.class).getBody());
+        List<JsonNode> tasks = new ArrayList<>();
+        for (JsonNode item : root.path("items")) tasks.add(item);
+        return new TasksPage(taskListId, tasks, root.path("nextPageToken").asText(null));
+    }
+
     public WatchResponse watchEvents(String accessToken, String calendarId, Long connectionId) throws Exception {
         if (config.getWebhookUrl() == null || config.getWebhookUrl().isBlank()) throw new IllegalStateException("GOOGLE_CALENDAR_WEBHOOK_URL is not configured.");
         ObjectNode payload = objectMapper.createObjectNode();
@@ -132,5 +186,7 @@ public class GoogleCalendarApiClient {
     public record TokenResponse(String accessToken, String refreshToken, long expiresIn, String scopes) {}
     public record CalendarSummary(String id, String summary, boolean primary, String accessRole) {}
     public record EventsPage(List<JsonNode> events, String nextSyncToken, String nextPageToken) {}
+    public record TaskListSummary(String id, String title) {}
+    public record TasksPage(String taskListId, List<JsonNode> tasks, String nextPageToken) {}
     public record WatchResponse(String channelId, String resourceId, Instant expiresAt) {}
 }

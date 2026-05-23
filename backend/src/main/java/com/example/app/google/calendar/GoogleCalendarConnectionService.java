@@ -15,7 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Service
 public class GoogleCalendarConnectionService {
     private static final String AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-    private static final String SCOPE = "openid email profile https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+    private static final String SCOPE = "openid email profile https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/tasks";
 
     private final GoogleCalendarConfig config;
     private final GoogleCalendarOAuthStateService stateService;
