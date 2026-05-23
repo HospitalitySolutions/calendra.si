@@ -95,7 +95,7 @@ function draftFromConnection(connection: GoogleCalendarConnection): GoogleCalend
     syncDirection: connection.syncDirection || 'TWO_WAY',
     allowGoogleToModifyBookings: Boolean(connection.allowGoogleToModifyBookings),
     bookingDeletePolicy: connection.bookingDeletePolicy || 'MARK_CONFLICT',
-    importGoogleEventsAs: connection.importGoogleEventsAs || 'PERSONAL_BLOCK',
+    importGoogleEventsAs: connection.importGoogleEventsAs || 'BOOKED_SESSION',
     enabled: connection.status !== 'DISABLED',
   }
 }
@@ -368,6 +368,7 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
                     value={draft.importGoogleEventsAs}
                     onChange={(e) => setDrafts((prev) => ({ ...prev, [connection.id]: { ...draft, importGoogleEventsAs: e.target.value } }))}
                   >
+                    <option value="BOOKED_SESSION">Import as booked sessions</option>
                     <option value="PERSONAL_BLOCK">Import as personal busy blocks</option>
                     <option value="IGNORE">Do not import</option>
                   </select>

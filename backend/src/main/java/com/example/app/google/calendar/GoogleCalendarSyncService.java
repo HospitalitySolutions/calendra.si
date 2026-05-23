@@ -1,5 +1,7 @@
 package com.example.app.google.calendar;
 
+import com.example.app.client.Client;
+import com.example.app.client.ClientRepository;
 import com.example.app.session.CalendarTodo;
 import com.example.app.session.CalendarTodoRepository;
 import com.example.app.session.PersonalCalendarBlock;
@@ -13,6 +15,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,8 +32,9 @@ public class GoogleCalendarSyncService {
     private final SessionBookingRepository bookings;
     private final PersonalCalendarBlockRepository personalBlocks;
     private final CalendarTodoRepository todos;
+    private final ClientRepository clients;
 
-    public GoogleCalendarSyncService(GoogleCalendarConfig config, GoogleCalendarConnectionService connectionService, GoogleCalendarApiClient apiClient, GoogleCalendarEventMapper mapper, GoogleCalendarConnectionRepository connections, GoogleCalendarEventLinkRepository links, SessionBookingRepository bookings, PersonalCalendarBlockRepository personalBlocks, CalendarTodoRepository todos) {
+    public GoogleCalendarSyncService(GoogleCalendarConfig config, GoogleCalendarConnectionService connectionService, GoogleCalendarApiClient apiClient, GoogleCalendarEventMapper mapper, GoogleCalendarConnectionRepository connections, GoogleCalendarEventLinkRepository links, SessionBookingRepository bookings, PersonalCalendarBlockRepository personalBlocks, CalendarTodoRepository todos, ClientRepository clients) {
         this.config = config;
         this.connectionService = connectionService;
         this.apiClient = apiClient;
@@ -40,6 +44,7 @@ public class GoogleCalendarSyncService {
         this.bookings = bookings;
         this.personalBlocks = personalBlocks;
         this.todos = todos;
+        this.clients = clients;
     }
 
     @Transactional
@@ -138,7 +143,11 @@ public class GoogleCalendarSyncService {
                 ? bookings.findByCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(companyId, from, to)
                 : bookings.findByConsultantIdAndCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(ownerId, companyId, from, to);
         for (SessionBooking b : bookingRows) {
-            if (b.getId() != null && !isCancelledBooking(b)) refs.add(new CalendarPushRef(GoogleCalendarEntityType.SESSION_BOOKING, b.getId()));
+            if (b.getId() != null
+                    && !isCancelledBooking(b)
+                    && !hasGoogleOriginLink(c, GoogleCalendarEntityType.SESSION_BOOKING, b.getId())) {
+                refs.add(new CalendarPushRef(GoogleCalendarEntityType.SESSION_BOOKING, b.getId()));
+            }
         }
         List<PersonalCalendarBlock> blockRows = ownerId == null
                 ? personalBlocks.findByCompanyAndDateRange(companyId, from, to)
@@ -210,7 +219,13 @@ public class GoogleCalendarSyncService {
         String description = event.path("description").asText(null);
         switch (link.getAppEntityType()) {
             case SESSION_BOOKING -> bookings.findById(link.getAppEntityId()).ifPresentOrElse(
-                    b -> updateBookingTimeIfValid(link, b, start, end, description),
+                    b -> {
+                        if (link.getOrigin() == GoogleCalendarEventOrigin.GOOGLE) {
+                            updateImportedBookingFromGoogle(link, b, event, start, end, description);
+                        } else {
+                            updateBookingTimeIfValid(link, b, start, end, description);
+                        }
+                    },
                     () -> markConflict(link, "CONFLICT_ENTITY_MISSING", "Mapped Calendra booking no longer exists."));
             case PERSONAL_SESSION -> personalBlocks.findById(link.getAppEntityId()).ifPresentOrElse(b -> {
                 if (!validWindow(link, start, end)) return;
@@ -261,19 +276,24 @@ public class GoogleCalendarSyncService {
     }
 
     private void importExternalGoogleEvent(GoogleCalendarConnection c, JsonNode event) {
-        if (c.getUser() == null || !"PERSONAL_BLOCK".equalsIgnoreCase(c.getImportGoogleEventsAs())) return;
+        String importMode = c.getImportGoogleEventsAs() == null || c.getImportGoogleEventsAs().isBlank()
+                ? "BOOKED_SESSION"
+                : c.getImportGoogleEventsAs().trim();
+        if ("IGNORE".equalsIgnoreCase(importMode)) return;
+        if ("BOOKED_SESSION".equalsIgnoreCase(importMode)) {
+            importExternalGoogleEventAsBooking(c, event);
+            return;
+        }
+        if (!"PERSONAL_BLOCK".equalsIgnoreCase(importMode)) return;
+        if (c.getUser() == null) return;
         String eventId = event.path("id").asText(null);
         if (eventId == null || eventId.isBlank()) return;
-        String iCalUid = event.path("iCalUID").asText(null);
-        boolean recurringInstance = event.hasNonNull("recurringEventId");
-        if (!recurringInstance && iCalUid != null && !iCalUid.isBlank()) {
-            GoogleCalendarEventLink existingByIcal = links.findFirstByConnection_IdAndGoogleIcalUidAndDeletedAtIsNull(c.getId(), iCalUid).orElse(null);
-            if (existingByIcal != null) {
-                updateMappedEntityFromGoogle(existingByIcal, event);
-                applyGoogleFields(existingByIcal, event, existingByIcal.getLastSyncedHash());
-                links.save(existingByIcal);
-                return;
-            }
+        GoogleCalendarEventLink existingByIcal = findExistingExternalEventByIcalUid(c, event);
+        if (existingByIcal != null) {
+            updateMappedEntityFromGoogle(existingByIcal, event);
+            applyGoogleFields(existingByIcal, event, existingByIcal.getLastSyncedHash());
+            links.save(existingByIcal);
+            return;
         }
         LocalDateTime start = mapper.startFromGoogleEvent(event);
         LocalDateTime end = mapper.endFromGoogleEvent(event);
@@ -298,6 +318,168 @@ public class GoogleCalendarSyncService {
         applyGoogleFields(link, event, null);
         links.save(link);
     }
+
+    private void importExternalGoogleEventAsBooking(GoogleCalendarConnection c, JsonNode event) {
+        String eventId = event.path("id").asText(null);
+        if (eventId == null || eventId.isBlank()) return;
+        GoogleCalendarEventLink existingByIcal = findExistingExternalEventByIcalUid(c, event);
+        if (existingByIcal != null) {
+            updateMappedEntityFromGoogle(existingByIcal, event);
+            applyGoogleFields(existingByIcal, event, existingByIcal.getLastSyncedHash());
+            links.save(existingByIcal);
+            return;
+        }
+        LocalDateTime start = mapper.startFromGoogleEvent(event);
+        LocalDateTime end = mapper.endFromGoogleEvent(event);
+        if (start == null) return;
+        if (end == null || !end.isAfter(start)) end = start.plusMinutes(30);
+
+        ImportedGoogleGuest guest = guestFromGoogleEvent(c, event);
+        Client client = resolveClientForGoogleGuest(c, null, guest);
+
+        SessionBooking booking = new SessionBooking();
+        booking.setCompany(c.getCompany());
+        booking.setClient(client);
+        booking.setConsultant(c.getUser());
+        booking.setBookingGroupKey(UUID.randomUUID().toString());
+        booking.setStartTime(start);
+        booking.setEndTime(end);
+        booking.setBookingStatus(SessionBookingStatus.RESERVED);
+        booking.setSourceChannel("GOOGLE_CALENDAR");
+        booking.setSourceOrderId(limit("google:" + eventId, 64));
+        booking.setNotes(limit(event.path("description").asText(null), 1000));
+        applyGoogleMeetingFields(booking, event);
+        booking = bookings.save(booking);
+
+        GoogleCalendarEventLink link = new GoogleCalendarEventLink();
+        link.setCompany(c.getCompany());
+        link.setConnection(c);
+        link.setCalendarId(c.getCalendarId());
+        link.setGoogleEventId(eventId);
+        link.setAppEntityType(GoogleCalendarEntityType.SESSION_BOOKING);
+        link.setAppEntityId(booking.getId());
+        link.setOrigin(GoogleCalendarEventOrigin.GOOGLE);
+        applyGoogleFields(link, event, null);
+        links.save(link);
+    }
+
+    private GoogleCalendarEventLink findExistingExternalEventByIcalUid(GoogleCalendarConnection c, JsonNode event) {
+        String iCalUid = event.path("iCalUID").asText(null);
+        boolean recurringInstance = event.hasNonNull("recurringEventId");
+        if (recurringInstance || iCalUid == null || iCalUid.isBlank()) return null;
+        return links.findFirstByConnection_IdAndGoogleIcalUidAndDeletedAtIsNull(c.getId(), iCalUid).orElse(null);
+    }
+
+    private void updateImportedBookingFromGoogle(GoogleCalendarEventLink link, SessionBooking booking, JsonNode event, LocalDateTime start, LocalDateTime end, String description) {
+        if (!validWindow(link, start, end)) return;
+        Long companyId = booking.getCompany().getId();
+        if (!companyId.equals(link.getCompany().getId())) {
+            markConflict(link, "CONFLICT_TENANT_MISMATCH", "Mapped booking belongs to a different tenant.");
+            return;
+        }
+        if (booking.getConsultant() != null && bookings.existsOverlappingForConsultantExceptBooking(companyId, booking.getConsultant().getId(), start, end, booking.getId())) {
+            markConflict(link, "CONFLICT_CONSULTANT", "Google moved this booking to a time where the consultant already has another session.");
+            return;
+        }
+        if (booking.getSpace() != null && bookings.existsOverlappingForSpaceExceptBooking(companyId, booking.getSpace().getId(), start, end, booking.getId())) {
+            markConflict(link, "CONFLICT_SPACE", "Google moved this booking to a time where the space is already occupied.");
+            return;
+        }
+        booking.setStartTime(start);
+        booking.setEndTime(end);
+        booking.setNotes(limit(description, 1000));
+        booking.setClient(resolveClientForGoogleGuest(link.getConnection(), booking.getClient(), guestFromGoogleEvent(link.getConnection(), event)));
+        applyGoogleMeetingFields(booking, event);
+        bookings.save(booking);
+        clearConflict(link);
+    }
+
+    private Client resolveClientForGoogleGuest(GoogleCalendarConnection c, Client currentClient, ImportedGoogleGuest guest) {
+        String normalizedEmail = Client.normalizeEmailStorage(guest.email());
+        if (normalizedEmail != null) {
+            Client existing = clients.findAllByCompanyIdAndNormalizedEmail(c.getCompany().getId(), normalizedEmail).stream().findFirst().orElse(null);
+            if (existing != null) return existing;
+            if (isClientFromSameCompany(c, currentClient) && Client.normalizeEmailStorage(currentClient.getEmail()) == null) {
+                applyGoogleGuestToClient(currentClient, guest, normalizedEmail);
+                return clients.save(currentClient);
+            }
+        } else if (isClientFromSameCompany(c, currentClient)) {
+            applyGoogleGuestToClient(currentClient, guest, null);
+            return clients.save(currentClient);
+        }
+        Client client = new Client();
+        client.setCompany(c.getCompany());
+        client.setAssignedTo(c.getUser());
+        applyGoogleGuestToClient(client, guest, normalizedEmail);
+        return clients.save(client);
+    }
+
+    private boolean isClientFromSameCompany(GoogleCalendarConnection c, Client client) {
+        return client != null
+                && client.getCompany() != null
+                && client.getCompany().getId() != null
+                && client.getCompany().getId().equals(c.getCompany().getId());
+    }
+
+    private void applyGoogleGuestToClient(Client client, ImportedGoogleGuest guest, String normalizedEmail) {
+        client.setFirstName(guest.firstName());
+        client.setLastName(guest.lastName());
+        if (normalizedEmail != null || client.getEmail() == null) {
+            client.setEmail(normalizedEmail);
+        }
+    }
+
+    private ImportedGoogleGuest guestFromGoogleEvent(GoogleCalendarConnection c, JsonNode event) {
+        String summary = event.path("summary").asText(null);
+        String[] nameParts = splitGoogleSummaryName(summary);
+        return new ImportedGoogleGuest(nameParts[0], nameParts[1], firstGuestEmail(c, event));
+    }
+
+    private String[] splitGoogleSummaryName(String summary) {
+        String title = summary == null ? "" : summary.trim();
+        if (title.isBlank()) return new String[]{"Google", "Event"};
+        String[] words = title.split("\\s+");
+        String firstName = words.length > 0 && !words[0].isBlank() ? words[0] : "Google";
+        String lastName = words.length > 1 ? words[1] : "";
+        return new String[]{limit(firstName, 255), limit(lastName, 255)};
+    }
+
+    private String firstGuestEmail(GoogleCalendarConnection c, JsonNode event) {
+        String connectedAccount = Client.normalizeEmailStorage(c.getGoogleAccountEmail());
+        for (JsonNode attendee : event.path("attendees")) {
+            String email = Client.normalizeEmailStorage(attendee.path("email").asText(null));
+            if (email == null) continue;
+            if (attendee.path("self").asBoolean(false)) continue;
+            if (attendee.path("resource").asBoolean(false)) continue;
+            if (connectedAccount != null && connectedAccount.equals(email)) continue;
+            return email;
+        }
+        return null;
+    }
+
+    private void applyGoogleMeetingFields(SessionBooking booking, JsonNode event) {
+        String meetingLink = event.path("hangoutLink").asText(null);
+        if (meetingLink == null || meetingLink.isBlank()) {
+            for (JsonNode entryPoint : event.path("conferenceData").path("entryPoints")) {
+                if ("video".equalsIgnoreCase(entryPoint.path("entryPointType").asText(null))) {
+                    String uri = entryPoint.path("uri").asText(null);
+                    if (uri != null && !uri.isBlank()) {
+                        meetingLink = uri;
+                        break;
+                    }
+                }
+            }
+        }
+        if (meetingLink != null && !meetingLink.isBlank()) {
+            booking.setMeetingLink(limit(meetingLink, 500));
+            booking.setMeetingProvider("google");
+        } else {
+            booking.setMeetingLink(null);
+            booking.setMeetingProvider(null);
+        }
+    }
+
+    private record ImportedGoogleGuest(String firstName, String lastName, String email) {}
 
     private void handleGoogleCancelledEvent(GoogleCalendarEventLink link) {
         switch (link.getAppEntityType()) {
@@ -366,6 +548,14 @@ public class GoogleCalendarSyncService {
         link.setDeletedAt(Instant.now());
         link.setSyncStatus(status);
         link.setLastError(limit(message, 2000));
+    }
+
+    private boolean hasGoogleOriginLink(GoogleCalendarConnection c, GoogleCalendarEntityType type, Long entityId) {
+        if (c == null || c.getId() == null || c.getCompany() == null || c.getCompany().getId() == null || entityId == null) return false;
+        return links.findByConnection_IdAndCompany_IdAndAppEntityTypeAndAppEntityId(c.getId(), c.getCompany().getId(), type, entityId)
+                .filter(link -> link.getDeletedAt() == null)
+                .map(link -> link.getOrigin() == GoogleCalendarEventOrigin.GOOGLE)
+                .orElse(false);
     }
 
     private boolean isCancelledBooking(SessionBooking booking) {

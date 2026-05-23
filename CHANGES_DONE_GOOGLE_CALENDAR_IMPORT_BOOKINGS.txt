@@ -1,0 +1,30 @@
+Google Calendar import as booked sessions
+========================================
+
+Backend
+-------
+- Added support for importing external Google Calendar events as Calendra booked sessions.
+- New Google import mode: BOOKED_SESSION.
+- New Google Calendar connections now default to BOOKED_SESSION.
+- Imported booked sessions use:
+  - Google event title first word -> client first name.
+  - Google event title second word -> client last name, when present.
+  - First non-self Google attendee email -> client email, when present.
+  - Google event start/end -> booking start/end.
+  - The connected Calendra user -> booking consultant.
+  - Google Meet / conference link -> session meeting link/provider, when present.
+- Added tenant-scoped client lookup by normalized email so repeated imports reuse an existing client where possible.
+- Existing imported Google bookings now update from later Google changes to title, guest email, time, description and Meet link.
+- Full sync skips Google-origin imported bookings when pushing existing Calendra bookings back to Google, so the original Google event is not overwritten.
+- Missing/invalid Google event date-time nodes now return null instead of silently using the current time.
+
+Frontend
+--------
+- Added the External Google events option: "Import as booked sessions".
+- The Google Calendar settings UI now defaults new drafts to BOOKED_SESSION.
+
+Notes
+-----
+- Existing Google Calendar connections that already have importGoogleEventsAs=PERSONAL_BLOCK will keep that setting until changed in Configuration -> Google Calendar.
+- Maven compile could not be run in this sandbox because the Maven wrapper needs to download Maven from repo.maven.apache.org and network access is unavailable.
+- Frontend build could not be run because node_modules/dependencies are not installed in this sandbox.

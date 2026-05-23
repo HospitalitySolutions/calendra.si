@@ -30,6 +30,19 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
 
     @Query(
             """
+            select c from Client c
+            where c.company.id = :companyId
+              and c.email is not null
+              and trim(c.email) <> ''
+              and lower(trim(c.email)) = :normalizedEmail
+            order by c.id asc
+            """)
+    List<Client> findAllByCompanyIdAndNormalizedEmail(
+            @Param("companyId") Long companyId,
+            @Param("normalizedEmail") String normalizedEmail);
+
+    @Query(
+            """
             select case when count(c) > 0 then true else false end from Client c
             where c.company.id = :companyId
               and c.email is not null

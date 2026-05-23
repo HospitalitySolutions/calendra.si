@@ -47,7 +47,7 @@ public class GoogleCalendarConnection extends BaseEntity {
     private GoogleCalendarBookingDeletePolicy bookingDeletePolicy = GoogleCalendarBookingDeletePolicy.MARK_CONFLICT;
 
     @Column(name = "import_google_events_as", nullable = false, length = 32)
-    private String importGoogleEventsAs = "PERSONAL_BLOCK";
+    private String importGoogleEventsAs = "BOOKED_SESSION";
 
     @Column(name = "access_token", nullable = false, length = 4000)
     private String accessToken;

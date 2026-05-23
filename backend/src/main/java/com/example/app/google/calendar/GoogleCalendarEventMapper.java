@@ -83,7 +83,7 @@ public class GoogleCalendarEventMapper {
         if (dt != null && !dt.isBlank()) return OffsetDateTime.parse(dt).toLocalDateTime();
         String date = node.path("date").asText(null);
         if (date != null && !date.isBlank()) return java.time.LocalDate.parse(date).atStartOfDay();
-        return LocalDateTime.now();
+        return null;
     }
 
     private void putDateTime(ObjectNode event, String field, LocalDateTime value) {
