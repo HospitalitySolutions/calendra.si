@@ -75,11 +75,11 @@ public class GoogleCalendarApiClient {
                 .queryParam("singleEvents", "true")
                 .queryParam("showDeleted", "true")
                 .queryParam("maxResults", "250");
-        if (pageToken != null && !pageToken.isBlank()) b.queryParam("pageToken", pageToken);
+        if (pageToken != null && !pageToken.isBlank()) b.queryParam("pageToken", query(pageToken));
         if (syncToken != null && !syncToken.isBlank()) {
-            b.queryParam("syncToken", syncToken);
+            b.queryParam("syncToken", query(syncToken));
         } else {
-            b.queryParam("timeMin", Instant.now().minusSeconds(config.getFullSyncLookbackDays() * 24L * 60L * 60L).toString());
+            b.queryParam("timeMin", query(Instant.now().minusSeconds(config.getFullSyncLookbackDays() * 24L * 60L * 60L).toString()));
         }
         try {
             JsonNode root = objectMapper.readTree(restTemplate.exchange(b.build(true).toUri(), HttpMethod.GET, new HttpEntity<>(authHeaders(accessToken)), String.class).getBody());
@@ -126,6 +126,7 @@ public class GoogleCalendarApiClient {
     private static HttpHeaders formHeaders() { HttpHeaders h = new HttpHeaders(); h.setContentType(MediaType.APPLICATION_FORM_URLENCODED); return h; }
     private static HttpHeaders authHeaders(String token) { HttpHeaders h = new HttpHeaders(); h.setBearerAuth(token); h.setAccept(List.of(MediaType.APPLICATION_JSON)); return h; }
     private static String enc(String v) { return URLEncoder.encode(v == null ? "" : v, StandardCharsets.UTF_8); }
+    private static String query(String v) { return URLEncoder.encode(v == null ? "" : v, StandardCharsets.UTF_8); }
     private static String path(String v) { return URLEncoder.encode(v == null ? "primary" : v, StandardCharsets.UTF_8).replace("+", "%20"); }
 
     public record TokenResponse(String accessToken, String refreshToken, long expiresIn, String scopes) {}

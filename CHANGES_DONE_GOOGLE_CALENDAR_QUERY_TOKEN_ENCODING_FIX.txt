@@ -1,0 +1,18 @@
+Google Calendar query token encoding fix
+
+Changed:
+- backend/src/main/java/com/example/app/google/calendar/GoogleCalendarApiClient.java
+
+Why:
+- Google incremental sync tokens and pagination tokens can contain reserved URL query characters such as '='.
+- The existing listEvents() method used UriComponentsBuilder.build(true), which expects query parameters to already be encoded.
+- Raw sync tokens with '=' caused Spring to fail with:
+  Invalid character '=' for QUERY_PARAM
+
+What changed:
+- pageToken, syncToken, and timeMin are now explicitly URL-encoded before building the already-encoded Google Calendar events URL.
+- This keeps calendarId/eventId path encoding behavior unchanged while fixing Google sync token URLs.
+
+After applying:
+- Rebuild and restart backend.
+- Click Run full sync again or wait for the scheduled Google Calendar job.
