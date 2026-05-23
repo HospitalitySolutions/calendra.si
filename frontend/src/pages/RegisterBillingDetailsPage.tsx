@@ -22,6 +22,18 @@ import {
   type RegisterLocale,
 } from './registerPlanCopy'
 
+const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
+const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
+
+function clearPendingBillingDetailsRedirect() {
+  try {
+    window.sessionStorage.removeItem(REGISTER_BILLING_DETAILS_REQUIRED_KEY)
+    window.sessionStorage.removeItem(REGISTER_BILLING_DETAILS_SEARCH_KEY)
+  } catch {
+    // Session storage is best-effort only.
+  }
+}
+
 const registerBillingDetailsStyles = `
   .register-flow.register-billing-details-page {
     min-height: 100vh;
@@ -436,6 +448,7 @@ export function RegisterBillingDetailsPage() {
 
   useEffect(() => {
     if (!selectionRequiresBillingDetails(selection)) {
+      clearPendingBillingDetailsRedirect()
       navigate('/calendar', { replace: true })
     }
   }, [navigate, selection])
@@ -487,6 +500,7 @@ export function RegisterBillingDetailsPage() {
         billingInterval: getBillingInterval(selection),
         paymentMethod,
       })
+      clearPendingBillingDetailsRedirect()
       showToast('success', copy.saved)
       window.location.assign('/calendar')
     } catch (err) {

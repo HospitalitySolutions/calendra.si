@@ -577,6 +577,8 @@ const registerAccountPageStyles = `
 
 
 const REGISTER_SELECTION_STORAGE_KEY = 'calendra.register.selectionSearch'
+const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
+const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
 const REGISTER_SELECTION_PARAM_KEYS = [
   'plan',
   'package',
@@ -634,6 +636,18 @@ function storeRegisterSelectionSearch(search?: string | null) {
     window.sessionStorage.setItem(REGISTER_SELECTION_STORAGE_KEY, normalized)
   } catch {
     // Best-effort only. The server returnSearch still keeps the flow correct.
+  }
+}
+
+function storePendingBillingDetailsRedirect(search?: string | null) {
+  const normalized = normalizeRegisterSelectionSearch(search)
+  if (!normalized || typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(REGISTER_SELECTION_STORAGE_KEY, normalized)
+    window.sessionStorage.setItem(REGISTER_BILLING_DETAILS_SEARCH_KEY, normalized)
+    window.sessionStorage.setItem(REGISTER_BILLING_DETAILS_REQUIRED_KEY, '1')
+  } catch {
+    // Best-effort only; the direct redirect below still carries the selection in the URL.
   }
 }
 
@@ -1281,9 +1295,14 @@ export function RegisterAccountPage() {
         const nextSearch = resolveRegisterSelectionSearch(data, location.search, selection)
         storeRegisterSelectionSearch(nextSearch)
         const nextSelection = parseRegisterSelection(nextSearch)
-        const nextPath = selectionRequiresBillingDetails(nextSelection)
-          ? `/register/billing-details?${selectionToSearch(nextSelection)}`
+        const nextSelectionSearch = selectionToSearch(nextSelection)
+        const requiresBillingDetails = selectionRequiresBillingDetails(nextSelection)
+        const nextPath = requiresBillingDetails
+          ? `/register/billing-details?${nextSelectionSearch}`
           : '/calendar'
+        if (requiresBillingDetails) {
+          storePendingBillingDetailsRedirect(nextSelectionSearch)
+        }
         window.location.assign(nextPath)
         return
       }

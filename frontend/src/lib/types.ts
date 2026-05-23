@@ -291,6 +291,7 @@ export type Bill = {
   issueDate: string
   totalNet: number
   totalGross: number
+  pendingPaymentGross?: number | null
   paymentStatus?: 'open' | 'payment_pending' | 'paid' | 'cancelled'
   checkoutSessionId?: string | null
   paymentIntentId?: string | null

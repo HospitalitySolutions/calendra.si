@@ -306,15 +306,12 @@ export function getAddonCatalog(locale: RegisterLocale) {
 }
 
 export function selectionRequiresBillingDetails(selection: RegisterSelection) {
-  const basePlanMonthly = planCore[selection.plan].monthly
-  const usersMonthly = getBillableAdditionalUserSlots(selection) * 9.9
-  const smsMonthly = selection.additionalSms * 0.05
-  const addonsMonthly =
-    (selection.addons.voice ? addonMonthlyAmounts.voice : 0)
-    + (selection.addons.billing ? addonMonthlyAmounts.billing : 0)
-    + (selection.addons.whitelabel ? addonMonthlyAmounts.whitelabel : 0)
+  const monthly = getSelectionMonthlyAmounts(selection)
+  const estimatedMonthlyPayable = selection.billing === 'annual'
+    ? (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * 0.85 + monthly.smsMonthly
+    : monthly.totalMonthly
 
-  return basePlanMonthly + usersMonthly + smsMonthly + addonsMonthly > 0.005
+  return estimatedMonthlyPayable > 0.005
 }
 
 export function getSelectionMonthlyAmounts(selection: RegisterSelection) {

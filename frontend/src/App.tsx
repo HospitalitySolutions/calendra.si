@@ -21,6 +21,18 @@ import { clearAuthStoragePreservingTheme } from './theme'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
+const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
+const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
+
+function getPendingRegisterBillingDetailsPath() {
+  try {
+    if (sessionStorage.getItem(REGISTER_BILLING_DETAILS_REQUIRED_KEY) !== '1') return ''
+    const selectionSearch = (sessionStorage.getItem(REGISTER_BILLING_DETAILS_SEARCH_KEY) || '').replace(/^\?/, '')
+    return selectionSearch ? `/register/billing-details?${selectionSearch}` : '/register/billing-details'
+  } catch {
+    return ''
+  }
+}
 
 function lazyWithReload<T extends ComponentType<any>>(
   importer: () => Promise<{ default: T }>,
@@ -212,6 +224,11 @@ export default function App() {
 
   if (location.pathname === '/register/billing-details') {
     return <RegisterBillingDetailsPage />
+  }
+
+  const pendingRegisterBillingDetailsPath = getPendingRegisterBillingDetailsPath()
+  if (pendingRegisterBillingDetailsPath) {
+    return <Navigate to={pendingRegisterBillingDetailsPath} replace />
   }
 
   if (user.role === 'SUPER_ADMIN') {

@@ -112,7 +112,8 @@ public class BillFolioPdfService {
         } else if (bill.getPaymentMethod() != null) {
             req.setPaymentMethod(bill.getPaymentMethod().getName());
         }
-        if (isBankTransferPayment(bill.getPaymentMethod())) {
+        BigDecimal bankTransferDue = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
+        if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
             ensureOwnBankTransferSettings(companyId);
             String companyIban = settingValue(companyId, SettingKey.COMPANY_IBAN);
             String companyBic = settingValue(companyId, SettingKey.COMPANY_BIC);
@@ -133,7 +134,7 @@ public class BillFolioPdfService {
                     payerName,
                     payerStreet,
                     payerCity,
-                    bill.getTotalGross(),
+                    bankTransferDue,
                     purposeCode,
                     purpose,
                     null,
@@ -286,10 +287,6 @@ public class BillFolioPdfService {
             log.warn("Invalid folio layout JSON for company={}, using defaults", companyId, e);
             return FolioLayoutConfig.defaultLayout();
         }
-    }
-
-    private static boolean isBankTransferPayment(PaymentMethod paymentMethod) {
-        return paymentMethod != null && paymentMethod.getPaymentType() == PaymentType.BANK_TRANSFER;
     }
 
     private String firstNonBlank(String... values) {

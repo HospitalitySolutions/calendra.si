@@ -186,6 +186,7 @@ public class BillingController {
             LocalDate issueDate,
             BigDecimal totalNet,
             BigDecimal totalGross,
+            BigDecimal pendingPaymentGross,
             String paymentStatus,
             String checkoutSessionId,
             String paymentIntentId,
@@ -1645,7 +1646,7 @@ public class BillingController {
         bill.setTotalGross(totalGross);
         copyOpenBillPaymentSplitsToBill(open, bill, totalGross);
         bill.setSourceSessionIdSnapshot(linkedSessionId != null ? linkedSessionId : linkedSessionIds.stream().findFirst().orElse(null));
-        bill.setPaymentStatus(resolveInitialPaymentStatus(bill.getPaymentMethod()));
+        bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
         if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
             bill.setPaidAt(OffsetDateTime.now());
         }
@@ -1765,12 +1766,12 @@ public class BillingController {
         bill.setSourceSessionIdSnapshot(linkedSessionId != null
                 ? linkedSessionId
                 : bill.getItems().stream().map(BillItem::getSourceSessionBookingId).filter(Objects::nonNull).findFirst().orElse(null));
-        bill.setPaymentStatus(resolveInitialPaymentStatus(bill.getPaymentMethod()));
         if (req != null && req.paymentSplits() != null) {
             replaceBillPaymentSplits(bill, req.paymentSplits(), companyId, bill.getTotalGross());
         } else {
             copyOpenBillPaymentSplitsToBill(open, bill, bill.getTotalGross());
         }
+        bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
         return bill;
     }
 
@@ -2839,7 +2840,7 @@ public class BillingController {
         bill.setPaymentMethod(resolvePaymentMethod(request.paymentMethodId(), companyId));
         bill.setBankTransferReference(request.bankTransferReference() == null ? null : request.bankTransferReference().trim());
         bill.setIssueDate(LocalDate.now());
-        bill.setPaymentStatus(resolveInitialPaymentStatus(bill.getPaymentMethod()));
+        bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
         if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
             bill.setPaidAt(OffsetDateTime.now());
         }
@@ -2911,11 +2912,11 @@ public class BillingController {
         bill.setTotalGross(totalGross);
         if (request.paymentSplits() != null) {
             replaceBillPaymentSplits(bill, request.paymentSplits(), companyId, totalGross);
-            bill.setPaymentStatus(resolveInitialPaymentStatus(bill.getPaymentMethod()));
+            bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
             bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? OffsetDateTime.now() : null);
         } else if (!legacyUnusedAdvanceSplits.isEmpty()) {
             replaceBillPaymentSplits(bill, legacyUnusedAdvanceSplits, companyId, totalGross);
-            bill.setPaymentStatus(resolveInitialPaymentStatus(bill.getPaymentMethod()));
+            bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
             bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? OffsetDateTime.now() : null);
         }
         invoiceOrderIdService.assignIfMissing(bill);
@@ -3109,7 +3110,8 @@ public class BillingController {
         if (bill.getPaymentMethod() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bill has no payment method.");
         }
-        if (isBankTransferPayment(bill.getPaymentMethod())) {
+        BigDecimal bankTransferDue = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
+        if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
             billFolioPdfService.ensureOwnBankTransferSettings(companyId);
             if (BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot send folio for a cancelled bill.");
@@ -3374,6 +3376,7 @@ public class BillingController {
                 bill.getIssueDate(),
                 bill.getTotalNet(),
                 bill.getTotalGross(),
+                BillPaymentSplitSupport.resolvePendingPaymentGross(bill),
                 normalizePaymentStatus(bill.getPaymentStatus()),
                 bill.getCheckoutSessionId(),
                 bill.getPaymentIntentId(),
@@ -4104,13 +4107,13 @@ public class BillingController {
         return paymentMethod != null && paymentMethod.isFiscalized();
     }
 
-    private static String resolveInitialPaymentStatus(PaymentMethod paymentMethod) {
-        if (isBankTransferPayment(paymentMethod)) return BillPaymentStatus.PAYMENT_PENDING;
+    private static String resolveInitialPaymentStatus(Bill bill) {
+        if (BillPaymentSplitSupport.resolveBankTransferDueGross(bill).compareTo(BigDecimal.ZERO) > 0) {
+            return BillPaymentStatus.PAYMENT_PENDING;
+        }
+        PaymentMethod paymentMethod = bill == null ? null : bill.getPaymentMethod();
         if (paymentMethod != null && paymentMethod.isStripeEnabled()) return BillPaymentStatus.OPEN;
         return BillPaymentStatus.PAID;
     }
 
-    private static boolean isBankTransferPayment(PaymentMethod paymentMethod) {
-        return paymentMethod != null && paymentMethod.getPaymentType() == PaymentType.BANK_TRANSFER;
-    }
 }

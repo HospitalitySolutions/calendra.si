@@ -228,15 +228,14 @@ public class SignupService {
         row.setActive(true);
         signupEmailIntents.save(row);
         sendSignupCodeEmail(normalizedEmail, code);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "We sent a verification code to your email.");
-        body.put("requiresEmailVerification", true);
-        body.put("pendingAccountCreation", true);
-        body.put("email", normalizedEmail);
-        body.put("challengeId", challengeId);
-        body.put("expiresAt", expiresAt.toString());
-        putSignupSelectionPayloadFields(body, payload);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(Map.of(
+                "message", "We sent a verification code to your email.",
+                "requiresEmailVerification", true,
+                "pendingAccountCreation", true,
+                "email", normalizedEmail,
+                "challengeId", challengeId,
+                "expiresAt", expiresAt.toString()
+        ));
     }
 
     @Transactional
@@ -299,21 +298,13 @@ public class SignupService {
         }
         String rowEmail = row.getEmail() == null ? "" : row.getEmail().trim().toLowerCase(Locale.ROOT);
         if (row.getExpiresAt() == null || row.getExpiresAt().isBefore(Instant.now())) {
-            Map<String, Object> payload = Map.of();
-            try {
-                payload = objectMapper.readValue(row.getPayloadJson(), new TypeReference<>() {
-                });
-            } catch (Exception e) {
-                log.warn("Failed parsing expired signup payload for {}: {}", rowEmail, e.getMessage());
-            }
             row.setActive(false);
             signupEmailIntents.save(row);
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("message", "This verification code has expired.");
-            body.put("invalidVerificationCode", true);
-            body.put("email", rowEmail);
-            putSignupSelectionPayloadFields(body, payload);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "message", "This verification code has expired.",
+                    "invalidVerificationCode", true,
+                    "email", rowEmail
+            ));
         }
         Map<String, Object> payloadMap;
         try {
@@ -377,8 +368,6 @@ public class SignupService {
             out.put(String.valueOf(e.getKey()), e.getValue());
         }
         out.put("returnSearch", rs);
-        out.put("packageName", request.packageName());
-        out.put("billingInterval", request.billingInterval());
         return ResponseEntity.status(provisioned.getStatusCode()).body(out);
     }
 
@@ -480,8 +469,6 @@ public class SignupService {
             out.put(String.valueOf(e.getKey()), e.getValue());
         }
         out.put("returnSearch", rs);
-        out.put("packageName", request.packageName());
-        out.put("billingInterval", request.billingInterval());
         return ResponseEntity.status(provisioned.getStatusCode()).body(out);
     }
 
@@ -625,17 +612,10 @@ public class SignupService {
         }
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
 
-        String paymentMethod = request.paymentMethod() == null ? "BANK_TRANSFER" : request.paymentMethod().trim().toUpperCase(Locale.ROOT);
-        if (!"BANK_TRANSFER".equals(paymentMethod) && !"CARD".equals(paymentMethod) && !"PAYPAL".equals(paymentMethod)) {
-            paymentMethod = "BANK_TRANSFER";
-        }
-        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, paymentMethod);
-
         return ResponseEntity.ok(Map.of(
                 "ok", true,
                 "packageType", normalizedPackageType,
-                "billingInterval", interval,
-                "paymentMethod", paymentMethod));
+                "billingInterval", interval));
     }
 
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {
@@ -653,13 +633,6 @@ public class SignupService {
             HttpServletResponse httpResponse
     ) {
         String rowEmail = row.getEmail() == null ? "" : row.getEmail().trim().toLowerCase();
-        Map<String, Object> payload = Map.of();
-        try {
-            payload = objectMapper.readValue(row.getPayloadJson(), new TypeReference<>() {
-            });
-        } catch (Exception e) {
-            log.warn("Failed parsing post-provision signup payload for {}: {}", rowEmail, e.getMessage());
-        }
         User owner = users.findById(ownerUserId).orElse(null);
         if (owner == null || owner.getEmail() == null || !owner.getEmail().trim().equalsIgnoreCase(rowEmail)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
@@ -683,9 +656,17 @@ public class SignupService {
         clearSignupOwnerPasswordPending(owner);
         String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Email verified sign-in").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
-        Map<String, Object> body = authSuccessResponse(owner, sessionToken, httpRequest);
-        putSignupSelectionPayloadFields(body, payload);
-        return ResponseEntity.ok(body);
+        Map<String, Object> out = new LinkedHashMap<>(authSuccessResponse(owner, sessionToken, httpRequest));
+        try {
+            Map<String, Object> payload = objectMapper.readValue(row.getPayloadJson(), new TypeReference<>() {
+            });
+            putIfPresent(out, "returnSearch", payload.get("returnSearch"));
+            putIfPresent(out, "packageName", payload.get("packageName"));
+            putIfPresent(out, "billingInterval", payload.get("billingInterval"));
+        } catch (Exception e) {
+            // The account is verified and signed in; missing selection metadata should not block login.
+        }
+        return ResponseEntity.ok(out);
     }
 
     /**
@@ -752,15 +733,15 @@ public class SignupService {
             log.warn("Failed to resend post-provision signup code: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Could not resend signup code."));
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "We sent a verification code to your email.");
-        body.put("challengeId", challengeId);
-        body.put("email", normalizedEmail);
-        body.put("expiresAt", Instant.now().plus(SIGNUP_CODE_TTL_MINUTES, ChronoUnit.MINUTES).toString());
-        body.put("returnSearch", stringOrEmpty(request.returnSearch()));
-        body.put("packageName", stringOrEmpty(request.packageName()));
-        body.put("billingInterval", stringOrEmpty(request.billingInterval()));
-        return ResponseEntity.ok(body);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("message", "We sent a verification code to your email.");
+        out.put("challengeId", challengeId);
+        out.put("email", normalizedEmail);
+        out.put("expiresAt", Instant.now().plus(SIGNUP_CODE_TTL_MINUTES, ChronoUnit.MINUTES).toString());
+        putIfPresent(out, "returnSearch", request.returnSearch());
+        putIfPresent(out, "packageName", request.packageName());
+        putIfPresent(out, "billingInterval", request.billingInterval());
+        return ResponseEntity.ok(out);
     }
 
     private AuthController.SignupRequest rebuildSignupRequestFromProvisionedOwner(User owner, String normalizedEmail) {
@@ -808,6 +789,12 @@ public class SignupService {
                     }
                 })
                 .orElse(defaultVal);
+    }
+
+    private static void putIfPresent(Map<String, Object> out, String key, Object value) {
+        if (value != null) {
+            out.put(key, value);
+        }
     }
 
     private static Long longVal(Object o) {
@@ -923,23 +910,15 @@ public class SignupService {
         row.setActive(true);
         signupEmailIntents.save(row);
         sendSignupCodeEmail(email, code);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "We sent a verification code to your email.");
-        body.put("challengeId", row.getToken());
-        body.put("email", email);
-        body.put("expiresAt", expiresAt.toString());
-        putSignupSelectionPayloadFields(body, payload);
-        return ResponseEntity.ok(body);
-    }
-
-    private void putSignupSelectionPayloadFields(Map<String, Object> body, Map<String, Object> payload) {
-        if (body == null || payload == null || payload.isEmpty()) return;
-        String returnSearch = stringVal(payload.get("returnSearch"));
-        if (returnSearch != null && !returnSearch.isBlank()) body.put("returnSearch", returnSearch);
-        String packageName = stringVal(payload.get("packageName"));
-        if (packageName != null && !packageName.isBlank()) body.put("packageName", packageName);
-        String billingInterval = stringVal(payload.get("billingInterval"));
-        if (billingInterval != null && !billingInterval.isBlank()) body.put("billingInterval", billingInterval);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("message", "We sent a verification code to your email.");
+        out.put("challengeId", row.getToken());
+        out.put("email", email);
+        out.put("expiresAt", expiresAt.toString());
+        putIfPresent(out, "returnSearch", payload.get("returnSearch"));
+        putIfPresent(out, "packageName", payload.get("packageName"));
+        putIfPresent(out, "billingInterval", payload.get("billingInterval"));
+        return ResponseEntity.ok(out);
     }
 
     private void sendSignupCodeEmail(String email, String code) {

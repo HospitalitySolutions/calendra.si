@@ -4,12 +4,12 @@ import com.example.app.company.CompanyRepository;
 import com.example.app.billing.Bill;
 import com.example.app.billing.BillItem;
 import com.example.app.billing.BillPaymentStatus;
+import com.example.app.billing.BillPaymentSplitSupport;
 import com.example.app.billing.BillRepository;
 import com.example.app.billing.BillType;
 import com.example.app.billing.OpenBill;
 import com.example.app.billing.OpenBillSyncService;
 import com.example.app.billing.OpenBillRepository;
-import com.example.app.billing.PaymentType;
 import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.reminder.ReminderService;
@@ -630,12 +630,24 @@ public class SessionBookingController {
                     // offset line and close as the session invoice.
                     continue;
                 }
+                BigDecimal bankTransferDueTotal = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
                 if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
                     paidGross = paidGross.add(amountGross);
-                } else if (isBankTransferBill(bill) || BillPaymentStatus.PAYMENT_PENDING.equals(bill.getPaymentStatus())) {
+                } else if (bankTransferDueTotal.compareTo(BigDecimal.ZERO) > 0
+                        || BillPaymentStatus.PAYMENT_PENDING.equals(bill.getPaymentStatus())) {
                     hasBankTransferInvoice = true;
-                    if (amountGross.compareTo(BigDecimal.ZERO) > 0) {
-                        pendingGross = pendingGross.add(amountGross);
+                    BigDecimal pendingForSession = bankTransferDueForSession(bill, row.getId(), amountGross, bankTransferDueTotal);
+                    if (pendingForSession.compareTo(BigDecimal.ZERO) <= 0
+                            && BillPaymentStatus.PAYMENT_PENDING.equals(bill.getPaymentStatus())
+                            && amountGross.compareTo(BigDecimal.ZERO) > 0) {
+                        pendingForSession = amountGross;
+                    }
+                    if (pendingForSession.compareTo(BigDecimal.ZERO) > 0) {
+                        pendingGross = pendingGross.add(pendingForSession);
+                    }
+                    BigDecimal settledPortion = amountGross.subtract(pendingForSession).setScale(2, RoundingMode.HALF_UP);
+                    if (settledPortion.compareTo(BigDecimal.ZERO) > 0) {
+                        paidGross = paidGross.add(settledPortion);
                     }
                 }
             }
@@ -711,12 +723,6 @@ public class SessionBookingController {
         return ids;
     }
 
-    private static boolean isBankTransferBill(Bill bill) {
-        return bill != null
-                && bill.getPaymentMethod() != null
-                && bill.getPaymentMethod().getPaymentType() == PaymentType.BANK_TRANSFER;
-    }
-
     private static BigDecimal linkedBillAmountForSession(Bill bill, Long sessionBookingId) {
         if (bill == null || sessionBookingId == null) {
             return null;
@@ -738,6 +744,32 @@ public class SessionBookingController {
             return bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross();
         }
         return null;
+    }
+
+    private static BigDecimal bankTransferDueForSession(Bill bill, Long sessionBookingId, BigDecimal linkedAmountGross, BigDecimal bankTransferDueTotal) {
+        BigDecimal linkedAmount = linkedAmountGross == null ? BigDecimal.ZERO : linkedAmountGross.setScale(2, RoundingMode.HALF_UP);
+        if (bankTransferDueTotal == null || bankTransferDueTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (linkedAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal totalGross = bill == null || bill.getTotalGross() == null
+                ? BigDecimal.ZERO
+                : bill.getTotalGross().setScale(2, RoundingMode.HALF_UP);
+        if (totalGross.compareTo(BigDecimal.ZERO) <= 0) {
+            return linkedAmount.min(bankTransferDueTotal).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal proportional = bankTransferDueTotal
+                .multiply(linkedAmount)
+                .divide(totalGross, 2, RoundingMode.HALF_UP);
+        if (proportional.compareTo(linkedAmount) > 0) {
+            proportional = linkedAmount;
+        }
+        if (proportional.compareTo(BigDecimal.ZERO) < 0) {
+            proportional = BigDecimal.ZERO;
+        }
+        return proportional.setScale(2, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal sessionGross(SessionBooking row, List<SessionBooking> groupRows) {

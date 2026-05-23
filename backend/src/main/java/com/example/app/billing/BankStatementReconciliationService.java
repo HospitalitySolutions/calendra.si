@@ -43,7 +43,7 @@ public class BankStatementReconciliationService {
         }
 
         List<Bill> candidates = billRepo.findAllByCompanyId(companyId).stream()
-                .filter(b -> b.getPaymentMethod() != null && b.getPaymentMethod().getPaymentType() == PaymentType.BANK_TRANSFER)
+                .filter(b -> BillPaymentSplitSupport.resolveBankTransferDueGross(b).compareTo(BigDecimal.ZERO) > 0)
                 .filter(b -> !BillPaymentStatus.PAID.equals(b.getPaymentStatus()))
                 .sorted((a, b) -> Long.compare(a.getId(), b.getId()))
                 .toList();
@@ -78,8 +78,9 @@ public class BankStatementReconciliationService {
 
                 String expectedReference = bankReferenceForBill(bill);
 
-                boolean amountMatch = bill.getTotalGross() != null
-                        && bill.getTotalGross().setScale(2, RoundingMode.HALF_UP).compareTo(rowAmount) == 0;
+                BigDecimal expectedAmount = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
+                boolean amountMatch = expectedAmount.compareTo(BigDecimal.ZERO) > 0
+                        && expectedAmount.setScale(2, RoundingMode.HALF_UP).compareTo(rowAmount) == 0;
 
                 if (!amountMatch) {
                     continue;

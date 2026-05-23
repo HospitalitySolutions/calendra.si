@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
 import { getStoredUser } from '../auth'
-import type { Bill, BillingService, Booking, Client, Company, OpenBill, PaymentMethod, User } from '../lib/types'
+import type { Bill, BillingService, Booking, Client, Company, OpenBill, PaymentMethod, PaymentSplit, User } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -413,6 +413,43 @@ function isDepositPaymentMethod(method: { name?: string | null; paymentType?: st
     || haystack.includes('predpla')
     || haystack.includes('avans')
     || haystack.includes('polog')
+}
+
+function billBankTransferDueAmount(bill: Pick<Bill, 'paymentMethod' | 'paymentSplits' | 'totalGross' | 'pendingPaymentGross'> | null | undefined): number {
+  if (!bill) return 0
+  const hasBankTransferSplit = (bill.paymentSplits ?? []).some((split) => split?.paymentMethod?.paymentType === 'BANK_TRANSFER')
+  const hasPrimaryBankTransfer = bill.paymentMethod?.paymentType === 'BANK_TRANSFER'
+  const hasBankTransferPortion = hasBankTransferSplit || hasPrimaryBankTransfer
+  const backendDue = Number(bill.pendingPaymentGross)
+  if (hasBankTransferPortion && Number.isFinite(backendDue) && backendDue >= 0) return backendDue
+  const splitDue = (bill.paymentSplits ?? [])
+    .filter((split) => split?.paymentMethod?.paymentType === 'BANK_TRANSFER')
+    .reduce((sum, split) => sum + Number(split?.amountGross || 0), 0)
+  if (splitDue > 0) return Number(splitDue.toFixed(2))
+  if (hasPrimaryBankTransfer) return Number(Number(bill.totalGross || 0).toFixed(2))
+  return Number(Number(bill.totalGross || 0).toFixed(2))
+}
+
+function shouldCreateCheckoutSession(bill: Pick<Bill, 'paymentMethod' | 'paymentSplits' | 'totalGross' | 'pendingPaymentGross'> | null | undefined): boolean {
+  if (!bill) return false
+  if (bill.paymentMethod?.stripeEnabled) return true
+  const hasBankTransferSplit = (bill.paymentSplits ?? []).some((split) => split?.paymentMethod?.paymentType === 'BANK_TRANSFER')
+  const hasPrimaryBankTransfer = bill.paymentMethod?.paymentType === 'BANK_TRANSFER'
+  return (hasBankTransferSplit || hasPrimaryBankTransfer) && billBankTransferDueAmount(bill) > 0
+}
+
+function normalizeBill(bill: Bill): Bill {
+  const normalizedSplits: PaymentSplit[] = (bill.paymentSplits ?? [])
+    .map((split) => ({
+      ...split,
+      paymentMethod: normalizePaymentMethod(split.paymentMethod),
+    }))
+    .filter((split): split is PaymentSplit => !!split.paymentMethod)
+  return {
+    ...bill,
+    paymentMethod: normalizePaymentMethod(bill.paymentMethod),
+    paymentSplits: normalizedSplits,
+  }
 }
 
 function formatAmountForInput(value: number): string {
@@ -924,7 +961,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     ])
     setSettings(settingsRes.data || {})
     setServices(servicesRes.data)
-    setBills((billsRes.data || []).map((b: Bill) => ({ ...b, paymentMethod: normalizePaymentMethod(b.paymentMethod) })))
+    setBills((billsRes.data || []).map((b: Bill) => normalizeBill(b)))
     setOpenBills((openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)))
     setBookings(bookingsRes.data || [])
     setUnusedAdvances(unusedAdvancesRes.data || [])
@@ -2329,7 +2366,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ? String(bill.recipientCompany?.name || '').toLowerCase()
           : (bill.client ? fullName(bill.client).toLowerCase() : '')
         const method = String(bill.paymentMethod?.name || '').toLowerCase()
-        const amount = String(bill.totalGross || '').toLowerCase()
+        const amount = String(billBankTransferDueAmount(bill) || '').toLowerCase()
         return billNo.includes(q) || orderId.includes(q) || client.includes(q) || method.includes(q) || amount.includes(q)
       })
       : unpaid
@@ -2348,7 +2385,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [unusedAdvances, unusedAdvancesSearch])
 
   const openPaymentsTotal = useMemo(
-    () => openPayments.reduce((sum, bill) => sum + Number(bill.totalGross || 0), 0),
+    () => openPayments.reduce((sum, bill) => sum + billBankTransferDueAmount(bill), 0),
     [openPayments],
   )
   const paymentDeadlineDays = useMemo(() => {
@@ -2497,7 +2534,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const notifyBillCreationResult = (data: any, pendingLabel = 'Bill created') => {
-    if (data?.paymentMethod?.paymentType === 'BANK_TRANSFER') {
+    if (billBankTransferDueAmount(data) > 0) {
       showToast('success', 'Bank transfer folio with UPN QR has been emailed to the client. Import your bank statement CSV later to mark it paid automatically in folio history.')
       return
     }
@@ -2543,7 +2580,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       const { data } = await api.post('/billing/bills', payload)
 
       // Show instantly in the list.
-      if (data?.id) setBills((prev) => [{ ...data, paymentMethod: normalizePaymentMethod(data.paymentMethod) }, ...prev])
+      if (data?.id) setBills((prev) => [normalizeBill(data), ...prev])
 
       const billId = data?.id
       if (billId && data?.paymentStatus === 'paid') {
@@ -2561,7 +2598,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE' })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
-      if (data?.id && (data?.paymentMethod?.paymentType === 'BANK_TRANSFER' || data?.paymentMethod?.stripeEnabled)) {
+      if (data?.id && shouldCreateCheckoutSession(data)) {
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
       notifyBillCreationResult(data)
@@ -3260,7 +3297,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       await api.put(`/billing/open-bills/${sourceOpenBill.id}`, buildOpenBillUpdatePayload(sourceOpenBill, items))
 
       const { data } = await api.post(`/billing/open-bills/${sourceOpenBill.id}/create-bill`)
-      if (data?.id) setBills((prev) => [{ ...data, paymentMethod: normalizePaymentMethod(data.paymentMethod) }, ...prev])
+      if (data?.id) setBills((prev) => [normalizeBill(data), ...prev])
       setOpenBills((prev) => prev.filter((x) => x.id !== sourceOpenBill.id))
       setOpenBillEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
       setOpenBillDetailsEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
@@ -3277,7 +3314,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         a.remove()
         window.URL.revokeObjectURL(url)
       }
-      if (data?.id && (data?.paymentMethod?.paymentType === 'BANK_TRANSFER' || data?.paymentMethod?.stripeEnabled)) {
+      if (data?.id && shouldCreateCheckoutSession(data)) {
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
       notifyBillCreationResult(data, 'Bill created')
@@ -3396,7 +3433,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         return
       }
       const { data: bill } = await api.post(`/billing/open-bills/${targetId}/create-bill`)
-      if (bill?.id) setBills((prev) => [{ ...bill, paymentMethod: normalizePaymentMethod(bill.paymentMethod) }, ...prev])
+      if (bill?.id) setBills((prev) => [normalizeBill(bill), ...prev])
       if (bill?.id && bill?.paymentStatus === 'paid') {
         const res = await api.get(`/billing/bills/${bill.id}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
         const blob = new Blob([res.data], { type: 'application/pdf' })
@@ -3409,7 +3446,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         a.remove()
         window.URL.revokeObjectURL(url)
       }
-      if (bill?.id && (bill?.paymentMethod?.paymentType === 'BANK_TRANSFER' || bill?.paymentMethod?.stripeEnabled)) {
+      if (bill?.id && shouldCreateCheckoutSession(bill)) {
         await api.post(`/billing/bills/${bill.id}/checkout-session`)
       }
       notifyBillCreationResult(bill)
@@ -5823,7 +5860,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setCreatingCheckoutBillId(bill.id)
     try {
       await api.post(`/billing/bills/${bill.id}/checkout-session`)
-      if (bill.paymentMethod?.paymentType === 'BANK_TRANSFER') {
+      if (billBankTransferDueAmount(bill) > 0) {
         showToast('success', 'Bank transfer folio with UPN QR sent to client email.')
       } else {
         showToast('success', 'Payment link sent to client email.')
@@ -5919,7 +5956,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const openFolioPanel = async (bill: Bill, tab: 'invoice' | 'fiscal' = 'invoice') => {
-    setDetailFolioBill({ ...bill, paymentMethod: normalizePaymentMethod(bill.paymentMethod) })
+    setDetailFolioBill(normalizeBill(bill))
     setFolioPanelTab(tab)
     await openFiscalLog(bill)
   }
@@ -6170,7 +6207,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                 <div className="billing-modern-main-text">{formatDateShort(dueDate)}</div>
                                 <div className={dueLabel.toLowerCase().includes('overdue') || dueLabel.toLowerCase().includes('zamude') ? 'billing-modern-overdue' : 'billing-modern-muted'}>{dueLabel}</div>
                               </td>
-                              <td className="billing-modern-amount">{currency(bill.totalGross)}</td>
+                              <td className="billing-modern-amount">{currency(billBankTransferDueAmount(bill))}</td>
                               <td className="billing-modern-actions" onClick={(e) => e.stopPropagation()}>
                                 <button type="button" className="billing-action-btn billing-action-btn--wide" onClick={() => markBillPaid(bill)} disabled={markingPaidBillId === bill.id}>
                                   {markingPaidBillId === bill.id ? 'SAVING…' : 'MARK AS PAID'}
