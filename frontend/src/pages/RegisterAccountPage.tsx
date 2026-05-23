@@ -1346,8 +1346,7 @@ export function RegisterAccountPage() {
           return
         }
         if (data?.pendingVerification) {
-          openFinishVerify(String(data.email || optionalWork))
-          return
+          // Google signup now bypasses verification-code step; continue to OAuth.
         }
       } catch {
         setError(t('signupFailed'))

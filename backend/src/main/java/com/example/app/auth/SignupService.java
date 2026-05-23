@@ -978,13 +978,14 @@ public class SignupService {
             ln = googleLastName == null || googleLastName.isBlank() ? "Account" : googleLastName.trim();
         }
         String returnSearch = pending.returnSearch() == null ? "" : pending.returnSearch();
+        String generatedPassword = "Google#" + UUID.randomUUID().toString().replace("-", "") + "Aa1";
         var request = new AuthController.SignupRequest(
                 pending.companyName(),
                 fn,
                 ln,
                 normalizedEmail,
                 trimToNull(pending.phone()),
-                null,
+                generatedPassword,
                 pending.packageName(),
                 pending.userCount(),
                 pending.smsCount(),
@@ -993,7 +994,49 @@ public class SignupService {
                 pending.fiscalizationNeeded(),
                 returnSearch
         );
-        return provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse, false);
+        ResponseEntity<?> provisioned = provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse, false);
+        if (!provisioned.getStatusCode().is2xxSuccessful() || !(provisioned.getBody() instanceof Map<?, ?> body)) {
+            return provisioned;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> e : body.entrySet()) {
+            out.put(String.valueOf(e.getKey()), e.getValue());
+        }
+        out.put("returnSearch", returnSearch);
+        putIfPresent(out, "packageName", pending.packageName());
+        putIfPresent(out, "billingInterval", pending.billingInterval());
+        return ResponseEntity.status(provisioned.getStatusCode()).body(out);
+    }
+
+    @Transactional
+    public ResponseEntity<?> finalizeGooglePendingOwnerSignup(
+            String normalizedEmail,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse,
+            String returnSearch,
+            String packageName,
+            String billingInterval
+    ) {
+        if (normalizedEmail == null || normalizedEmail.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Email is required."));
+        }
+        List<User> matches = users.findAllByEmailIgnoreCase(normalizedEmail.trim().toLowerCase(Locale.ROOT));
+        if (matches.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Account not found."));
+        }
+        User owner = matches.get(0);
+        if (!isOwnerAwaitingPasswordSetup(owner)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "No pending signup verification for this email."));
+        }
+        clearSignupOwnerPasswordPending(owner);
+        deactivateSignupIntentsForEmail(normalizedEmail.trim().toLowerCase(Locale.ROOT));
+        String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Google signup completion").token();
+        authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
+        Map<String, Object> out = new LinkedHashMap<>(authSuccessResponse(owner, sessionToken, httpRequest));
+        putIfPresent(out, "returnSearch", returnSearch);
+        putIfPresent(out, "packageName", packageName);
+        putIfPresent(out, "billingInterval", billingInterval);
+        return ResponseEntity.ok(out);
     }
 
     private Map<String, Object> authSuccessResponse(User user, String token, HttpServletRequest request) {

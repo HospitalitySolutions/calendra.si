@@ -86,16 +86,28 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             if (session != null) {
                 session.removeAttribute("SIGNUP_PENDING");
             }
-            if (user != null && signupService.hasPendingSignupVerificationForEmail(normalizedEmail)) {
-                String returnSearch = pending != null && pending.returnSearch() != null ? pending.returnSearch() : "";
-                String target = buildRegisterAccountFinishVerifyUrl(returnSearch, normalizedEmail);
-                log.info("Google signup: incomplete self-serve signup for email={}; redirecting to {}", normalizedEmail, target);
-                getRedirectStrategy().sendRedirect(request, response, target);
-                return;
-            }
             if (pending == null) {
                 log.warn("Google signup flow missing SIGNUP_PENDING session.");
                 redirectWithError(response, "Your signup session expired. Return to account setup and try again.");
+                return;
+            }
+            if (user != null && signupService.hasPendingSignupVerificationForEmail(normalizedEmail)) {
+                ResponseEntity<?> completion = signupService.finalizeGooglePendingOwnerSignup(
+                        normalizedEmail,
+                        request,
+                        response,
+                        pending.returnSearch(),
+                        pending.packageName(),
+                        pending.billingInterval()
+                );
+                if (!completion.getStatusCode().is2xxSuccessful()) {
+                    log.warn("Google signup pending completion failed for email={} status={}", normalizedEmail, completion.getStatusCode());
+                    redirectWithError(response, "Could not complete signup. Please try again.");
+                    return;
+                }
+                String target = buildRegisterBillingDetailsUrl(pending.returnSearch());
+                log.info("Google signup: completed pending self-serve signup for email={}; redirecting to {}", normalizedEmail, target);
+                getRedirectStrategy().sendRedirect(request, response, target);
                 return;
             }
             if (user != null) {
@@ -129,17 +141,11 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
                 redirectWithError(response, "Could not complete signup. Please try again.");
                 return;
             }
-            Object emailOut = body.get("email");
-            String verifyEmail = emailOut != null ? emailOut.toString() : normalizedEmail;
-            Object challenge = body.get("challengeId");
-            String target;
-            if (challenge != null && !challenge.toString().isBlank()) {
-                target = buildRegisterAccountFinishVerifyUrl(pending.returnSearch(), verifyEmail, challenge.toString());
-                log.info("Google signup provisioned; redirecting to OTP verification (email={})", verifyEmail);
-            } else {
-                target = buildRegisterAccountVerifyUrl(pending.returnSearch(), verifyEmail, null);
-                log.info("Google signup provisioned; redirecting to {}", target);
-            }
+            String returnSearch = body.get("returnSearch") == null
+                    ? (pending.returnSearch() == null ? "" : pending.returnSearch())
+                    : String.valueOf(body.get("returnSearch"));
+            String target = buildRegisterBillingDetailsUrl(returnSearch);
+            log.info("Google signup provisioned; redirecting to {}", target);
             getRedirectStrategy().sendRedirect(request, response, target);
             return;
         }
@@ -248,5 +254,13 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         }
         String sep = rs.contains("?") ? "&" : "?";
         return base + rs + sep + "existingAccount=1&email=" + URLEncoder.encode(email, StandardCharsets.UTF_8);
+    }
+
+    private String buildRegisterBillingDetailsUrl(String returnSearch) {
+        String base = frontendBaseUrl() + "/register/billing-details";
+        String rs = returnSearch == null ? "" : returnSearch.trim();
+        if (rs.isBlank()) return base;
+        if (rs.startsWith("?")) return base + rs;
+        return base + "?" + rs;
     }
 }
