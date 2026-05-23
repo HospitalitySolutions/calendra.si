@@ -1,0 +1,12 @@
+Build fix: Toast info type
+
+Changed files:
+- frontend/src/components/Toast.tsx
+- frontend/src/styles/components.css
+
+What changed:
+- Added `info` to the ToastType union so calls like `showToast('info', ...)` compile.
+- Added matching `.toast-info` styling and dismiss button styling.
+
+Why:
+- The staging frontend build failed because CalendarPageContent.tsx and CalendarSessionModals.tsx use informational toasts, but ToastType only allowed `success` and `error`.

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
-type ToastType = 'success' | 'error'
+type ToastType = 'success' | 'error' | 'info'
 type ToastMessage = { id: number; type: ToastType; message: string }
 
 const ToastContext = createContext<{

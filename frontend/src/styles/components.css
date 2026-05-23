@@ -865,6 +865,12 @@ tr:hover td { background: rgba(22, 114, 243, 0.03); }
     color: #991b1b;
 }
 
+.toast-info {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-color: rgba(37, 99, 235, 0.2);
+    color: #1e3a8a;
+}
+
 .toast-message {
     flex: 1;
     font-weight: 500;
@@ -886,6 +892,8 @@ tr:hover td { background: rgba(22, 114, 243, 0.03); }
 .toast-success .toast-dismiss:hover { background: rgba(5, 150, 105, 0.3); }
 .toast-error .toast-dismiss { background: rgba(220, 38, 38, 0.15); }
 .toast-error .toast-dismiss:hover { background: rgba(220, 38, 38, 0.25); }
+.toast-info .toast-dismiss { background: rgba(37, 99, 235, 0.15); }
+.toast-info .toast-dismiss:hover { background: rgba(37, 99, 235, 0.25); }
 
 /* --- Responsive --- */
 @media (max-width: 1024px) {
