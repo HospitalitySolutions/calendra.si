@@ -145,6 +145,22 @@ app:
     client-secret: ${GOOGLE_MEET_CLIENT_SECRET:}
     redirect-uri: ${GOOGLE_MEET_REDIRECT_URI:}
     frontend-url: ${GOOGLE_MEET_FRONTEND_URL:}
+  google-calendar:
+    enabled: ${GOOGLE_CALENDAR_ENABLED:true}
+    client-id: ${GOOGLE_CALENDAR_CLIENT_ID:${GOOGLE_MEET_CLIENT_ID:}}
+    client-secret: ${GOOGLE_CALENDAR_CLIENT_SECRET:${GOOGLE_MEET_CLIENT_SECRET:}}
+    redirect-uri: ${GOOGLE_CALENDAR_REDIRECT_URI:${GOOGLE_MEET_REDIRECT_URI:}}
+    frontend-url: ${GOOGLE_CALENDAR_FRONTEND_URL:${GOOGLE_MEET_FRONTEND_URL:}}
+    state-secret: ${GOOGLE_CALENDAR_STATE_SECRET:${APP_JWT_SECRET:}}
+    webhook-url: ${GOOGLE_CALENDAR_WEBHOOK_URL:}
+    webhook-token: ${GOOGLE_CALENDAR_WEBHOOK_TOKEN:}
+    token-encryption-secret: ${GOOGLE_CALENDAR_TOKEN_ENCRYPTION_SECRET:${GOOGLE_CALENDAR_STATE_SECRET:${APP_JWT_SECRET:}}}
+    timezone: ${GOOGLE_CALENDAR_TIMEZONE:Europe/Ljubljana}
+    todo-duration-minutes: ${GOOGLE_CALENDAR_TODO_DURATION_MINUTES:30}
+    full-sync-lookback-days: ${GOOGLE_CALENDAR_FULL_SYNC_LOOKBACK_DAYS:90}
+    full-sync-lookahead-days: ${GOOGLE_CALENDAR_FULL_SYNC_LOOKAHEAD_DAYS:365}
+    job-runner-delay-ms: ${GOOGLE_CALENDAR_JOB_RUNNER_DELAY_MS:30000}
+    watch-renewal-cron: ${GOOGLE_CALENDAR_WATCH_RENEWAL_CRON:0 23 * * * *}
   jwt:
     secret: ${APP_JWT_SECRET}
     expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}

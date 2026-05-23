@@ -1,0 +1,38 @@
+Google Calendar sync implementation started
+
+Backend changes:
+- Added tenant/user Google Calendar connection persistence.
+- Added generic Google Calendar event-link mapping for:
+  - SESSION_BOOKING
+  - PERSONAL_SESSION
+  - TODO
+  - GOOGLE_BUSY_BLOCK
+- Added signed OAuth state handling for tenant-aware Google Calendar authorization.
+- Added Google Calendar API client using REST calls for:
+  - OAuth token exchange/refresh
+  - account email lookup
+  - calendar list lookup
+  - event create/update/delete
+  - incremental/full event pull
+  - webhook channel watch start
+- Added backend endpoints under /api/google/calendar:
+  - GET /authorize
+  - GET /callback
+  - GET /status
+  - GET /connections/{connectionId}/calendars
+  - PUT /connections/{connectionId}
+  - POST /connections/{connectionId}/full-sync
+  - POST /connections/{connectionId}/disconnect
+  - POST /webhook
+- Added async sync jobs for pushing Calendra-created sessions, personal sessions and ToDos to Google Calendar.
+- Added webhook-driven pull sync scaffolding and scheduled job runner.
+- Added Google external event import as PersonalCalendarBlock via GOOGLE_BUSY_BLOCK mapping.
+- Added conflict protection for Google-side booking time changes: booking changes are only applied when allowGoogleToModifyBookings=true and no consultant/space overlap is detected.
+- Wired booking, personal block, and todo create/update/delete flows to enqueue Google Calendar sync jobs.
+- Added Google Calendar callback/webhook security exclusions.
+- Added app.google-calendar configuration and env.local.example entries.
+
+Notes:
+- This is backend-first. UI pages still need to be added for Configuration -> Integrations -> Google Calendar.
+- Google webhook push needs GOOGLE_CALENDAR_WEBHOOK_URL to be a public HTTPS URL in staging/production.
+- Maven build could not be executed in this environment because the Maven wrapper could not download Maven from repo.maven.apache.org.

@@ -1,6 +1,8 @@
 package com.example.app.session;
 
 import com.example.app.guest.model.GuestTenantLinkStatus;
+import com.example.app.google.calendar.GoogleCalendarEntityType;
+import com.example.app.google.calendar.GoogleCalendarSyncQueueService;
 import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.notifications.GuestPushService;
 import java.time.LocalDateTime;
@@ -20,15 +22,21 @@ public class BookingChangePublisher {
     private final SessionBookingRealtimeService realtimeService;
     private final GuestTenantLinkRepository guestTenantLinks;
     private final GuestPushService guestPushService;
+    private final SessionBookingRepository sessionBookings;
+    private final GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
 
     public BookingChangePublisher(
             SessionBookingRealtimeService realtimeService,
             GuestTenantLinkRepository guestTenantLinks,
-            GuestPushService guestPushService
+            GuestPushService guestPushService,
+            SessionBookingRepository sessionBookings,
+            GoogleCalendarSyncQueueService googleCalendarSyncQueueService
     ) {
         this.realtimeService = realtimeService;
         this.guestTenantLinks = guestTenantLinks;
         this.guestPushService = guestPushService;
+        this.sessionBookings = sessionBookings;
+        this.googleCalendarSyncQueueService = googleCalendarSyncQueueService;
     }
 
     public void publish(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
@@ -37,6 +45,28 @@ public class BookingChangePublisher {
         }
 
         realtimeService.publishBookingUpdated(companyId, bookingId, startTime, endTime, kind);
+
+        try {
+            if (BOOKING_DELETED.equals(kind) || BOOKING_CANCELLED.equals(kind)) {
+                sessionBookings.findById(bookingId).ifPresentOrElse(
+                        booking -> googleCalendarSyncQueueService.enqueueDelete(booking.getCompany(), GoogleCalendarEntityType.SESSION_BOOKING, booking.getId()),
+                        () -> {
+                            var company = new com.example.app.company.Company();
+                            company.setId(companyId);
+                            googleCalendarSyncQueueService.enqueueDelete(company, GoogleCalendarEntityType.SESSION_BOOKING, bookingId);
+                        }
+                );
+            } else {
+                sessionBookings.findById(bookingId).ifPresent(booking -> googleCalendarSyncQueueService.enqueueUpsert(
+                        booking.getCompany(),
+                        booking.getConsultant() == null ? null : booking.getConsultant().getId(),
+                        GoogleCalendarEntityType.SESSION_BOOKING,
+                        booking.getId()
+                ));
+            }
+        } catch (Exception ignored) {
+            // Realtime/push notifications should not fail because Google Calendar sync is unavailable.
+        }
 
         Map<String, String> data = new LinkedHashMap<>();
         data.put("type", "booking_changed");

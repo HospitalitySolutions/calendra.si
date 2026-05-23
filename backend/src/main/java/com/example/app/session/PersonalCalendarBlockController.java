@@ -1,5 +1,7 @@
 package com.example.app.session;
 
+import com.example.app.google.calendar.GoogleCalendarEntityType;
+import com.example.app.google.calendar.GoogleCalendarSyncQueueService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -16,10 +18,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class PersonalCalendarBlockController {
     private final PersonalCalendarBlockRepository repo;
     private final UserRepository users;
+    private final GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
 
-    public PersonalCalendarBlockController(PersonalCalendarBlockRepository repo, UserRepository users) {
+    public PersonalCalendarBlockController(PersonalCalendarBlockRepository repo, UserRepository users, GoogleCalendarSyncQueueService googleCalendarSyncQueueService) {
         this.repo = repo;
         this.users = users;
+        this.googleCalendarSyncQueueService = googleCalendarSyncQueueService;
     }
 
     public record PersonalBlockRequest(String startTime, String endTime, String task, String notes, Long consultantId) {}
@@ -50,6 +54,7 @@ public class PersonalCalendarBlockController {
         block.setTask(req.task().trim());
         block.setNotes(req.notes() != null ? req.notes().trim() : null);
         block = repo.save(block);
+        googleCalendarSyncQueueService.enqueueUpsert(block.getCompany(), block.getOwner().getId(), GoogleCalendarEntityType.PERSONAL_SESSION, block.getId());
         return toResponse(block);
     }
 
@@ -71,6 +76,7 @@ public class PersonalCalendarBlockController {
         block.setTask(req.task().trim());
         block.setNotes(req.notes() != null ? req.notes().trim() : null);
         block = repo.save(block);
+        googleCalendarSyncQueueService.enqueueUpsert(block.getCompany(), block.getOwner().getId(), GoogleCalendarEntityType.PERSONAL_SESSION, block.getId());
         return toResponse(block);
     }
 
@@ -81,6 +87,7 @@ public class PersonalCalendarBlockController {
         if (!block.getOwner().getId().equals(me.getId()) || !block.getCompany().getId().equals(me.getCompany().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+        googleCalendarSyncQueueService.enqueueDelete(block.getCompany(), GoogleCalendarEntityType.PERSONAL_SESSION, block.getId());
         repo.delete(block);
     }
 

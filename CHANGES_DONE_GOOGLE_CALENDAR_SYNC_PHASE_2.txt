@@ -1,0 +1,48 @@
+Google Calendar sync - Phase 2 changes
+======================================
+
+Backend
+-------
+1. Full sync now does both directions:
+   - Pulls Google Calendar events into Calendra.
+   - Pushes existing future Calendra bookings, personal sessions and ToDos to Google.
+
+2. Added paginated Google incremental sync support:
+   - Handles nextPageToken.
+   - Keeps nextSyncToken only after the final page.
+
+3. Added expired sync-token recovery:
+   - If Google returns 410 Gone for an incremental sync token, the app clears the token and automatically retries a full sync.
+
+4. Added configurable full-sync windows:
+   - GOOGLE_CALENDAR_FULL_SYNC_LOOKBACK_DAYS, default 90.
+   - GOOGLE_CALENDAR_FULL_SYNC_LOOKAHEAD_DAYS, default 365.
+
+5. Added mapping/conflict API endpoints:
+   - GET /api/google/calendar/conflicts
+   - GET /api/google/calendar/connections/{connectionId}/links
+
+6. Added repository methods needed to push existing future data:
+   - SessionBookingRepository range queries.
+   - PersonalCalendarBlockRepository range queries.
+
+Frontend
+--------
+1. Added Configuration -> Google Calendar tab.
+2. Added GoogleCalendarIntegrationSection.
+3. The UI can now:
+   - Connect/reconnect the current user's Google Calendar.
+   - Show connection status.
+   - Load/select Google calendars.
+   - Save sync settings.
+   - Queue a full sync.
+   - Disconnect a connection.
+   - Show recent event mappings.
+   - Show current sync conflicts.
+
+Notes
+-----
+- Existing Google events are imported only as personal busy blocks by default, not as real booked sessions.
+- Existing Calendra items are pushed during a full sync so a newly connected calendar becomes useful immediately.
+- Bookings are still protected: Google-side changes only move bookings if allowGoogleToModifyBookings is enabled and Calendra overlap checks pass.
+- I could not run the Maven build in this environment because the Maven wrapper still needs to download Maven from repo.maven.apache.org and network access is unavailable here.

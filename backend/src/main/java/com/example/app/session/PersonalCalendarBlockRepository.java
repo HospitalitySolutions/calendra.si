@@ -17,6 +17,16 @@ public interface PersonalCalendarBlockRepository extends JpaRepository<PersonalC
     List<PersonalCalendarBlock> findOverlappingByCompany(@Param("companyId") Long companyId,
                                                           @Param("rangeStart") LocalDateTime rangeStart, @Param("rangeEnd") LocalDateTime rangeEnd);
 
+    @Query("SELECT p FROM PersonalCalendarBlock p WHERE p.owner.id = :ownerId AND p.company.id = :companyId " +
+           "AND p.startTime >= :rangeStart AND p.startTime < :rangeEnd ORDER BY p.startTime")
+    List<PersonalCalendarBlock> findByOwnerAndDateRange(@Param("ownerId") Long ownerId, @Param("companyId") Long companyId,
+                                                        @Param("rangeStart") LocalDateTime rangeStart, @Param("rangeEnd") LocalDateTime rangeEnd);
+
+    @Query("SELECT p FROM PersonalCalendarBlock p WHERE p.company.id = :companyId " +
+           "AND p.startTime >= :rangeStart AND p.startTime < :rangeEnd ORDER BY p.startTime")
+    List<PersonalCalendarBlock> findByCompanyAndDateRange(@Param("companyId") Long companyId,
+                                                          @Param("rangeStart") LocalDateTime rangeStart, @Param("rangeEnd") LocalDateTime rangeEnd);
+
     @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM PersonalCalendarBlock p " +
            "WHERE p.owner.id = :ownerId AND p.company.id = :companyId " +
            "AND p.startTime < :end AND p.endTime > :start " +

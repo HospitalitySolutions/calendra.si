@@ -97,6 +97,8 @@ public class SecurityConfig {
                     || path.equals("/api/stripe/webhook")
                     || path.equals("/api/zoom/callback")
                     || path.equals("/api/google/callback")
+                    || path.equals("/api/google/calendar/callback")
+                    || path.equals("/api/google/calendar/webhook")
                     || path.startsWith("/oauth2/")
                     || path.startsWith("/login/oauth2/")
                     || path.equals("/error")
@@ -132,7 +134,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/guest/tenants/resolve-code").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/guest/tenants/invite/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/guest/tenants/search").permitAll();
-                    auth.requestMatchers("/api/zoom/callback", "/api/google/callback").permitAll();
+                    auth.requestMatchers("/api/zoom/callback", "/api/google/callback", "/api/google/calendar/callback", "/api/google/calendar/webhook").permitAll();
                     auth.requestMatchers("/api/stripe/webhook").permitAll();
                     auth.requestMatchers("/api/guest/paypal/**").permitAll();
 

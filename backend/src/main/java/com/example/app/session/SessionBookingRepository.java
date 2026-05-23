@@ -107,6 +107,8 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
 
     List<SessionBooking> findAllByCompanyId(Long companyId);
     List<SessionBooking> findByConsultantIdAndCompanyId(Long consultantId, Long companyId);
+    List<SessionBooking> findByConsultantIdAndCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(Long consultantId, Long companyId, LocalDateTime from, LocalDateTime to);
+    List<SessionBooking> findByCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(Long companyId, LocalDateTime from, LocalDateTime to);
     Optional<SessionBooking> findByIdAndCompanyId(Long id, Long companyId);
 
     Optional<SessionBooking> findFirstByCompanyIdAndSourceOrderId(Long companyId, String sourceOrderId);

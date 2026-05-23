@@ -52,6 +52,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || path.equals("/api/stripe/webhook")
                 || path.equals("/api/zoom/callback")
                 || path.equals("/api/google/callback")
+                || path.equals("/api/google/calendar/callback")
+                || path.equals("/api/google/calendar/webhook")
                 || path.startsWith("/oauth2/")
                 || path.startsWith("/login/oauth2/")
                 || path.equals("/error");

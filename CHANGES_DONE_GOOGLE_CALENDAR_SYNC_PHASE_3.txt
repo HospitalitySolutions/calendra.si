@@ -1,0 +1,41 @@
+Google Calendar Sync - Phase 3 hardening
+
+Implemented without SQL migrations, because the current non-production database can be recreated.
+
+Backend hardening:
+- Added Google OAuth token encryption before persistence using AES-GCM.
+  - New GOOGLE_CALENDAR_TOKEN_ENCRYPTION_SECRET env variable.
+  - Existing plaintext local/staging token rows remain readable for a smooth transition.
+  - If no token encryption secret is set, the Google Calendar state secret is used as fallback.
+- Added safer token refresh behavior.
+  - Failed refresh now moves the connection to NEEDS_RECONNECT and stores a useful lastError.
+- Added Google watch cleanup.
+  - Old webhook channels are stopped before renewal where possible.
+  - Channels are stopped best-effort on disconnect.
+- Added booking delete policy for Google-deleted Calendra bookings:
+  - MARK_CONFLICT: keep Calendra booking and require review.
+  - CANCEL_BOOKING: cancel Calendra booking when Google event is deleted.
+  - RECREATE_GOOGLE_EVENT: keep Calendra booking and recreate the Google event.
+- Added per-link lastError for sync conflicts and mapping problems.
+- Added stronger conflict statuses:
+  - CONFLICT_GOOGLE_CHANGE_BLOCKED
+  - CONFLICT_TIME_INVALID
+  - CONFLICT_CONSULTANT
+  - CONFLICT_SPACE
+  - CONFLICT_TENANT_MISMATCH
+  - CONFLICT_ENTITY_MISSING
+  - CONFLICT_GOOGLE_DELETED
+- Added duplicate protection for imported external Google events by iCalUID for non-recurring events.
+- Added pending job de-duplication so repeated booking saves/webhook pings do not create unnecessary duplicate sync jobs.
+- Sync job failures now update the related Google Calendar connection error/status.
+
+Frontend:
+- Added the booking delete policy setting to Configuration -> Google Calendar.
+- Added lastError visibility to conflict and mapping rows.
+
+Tests/support:
+- Added unit tests for GoogleCalendarTokenCrypto.
+
+Notes:
+- Maven build could not be run in this environment because the Maven wrapper attempts to download Maven from repo.maven.apache.org.
+- No SQL migration files were added by request.

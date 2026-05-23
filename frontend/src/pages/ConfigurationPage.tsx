@@ -12,13 +12,14 @@ import { ConfigurationViberSection, ConfigurationWhatsAppSection } from './Confi
 import { ConfigurationInvoiceDeliverySection } from './ConfigurationInvoiceDeliverySection'
 import { FolioLayoutEditor } from './FolioLayoutEditor'
 import { SecurityPage } from './SecurityPage'
+import { GoogleCalendarIntegrationSection } from './GoogleCalendarIntegrationSection'
 import { GuestConfigSaveIcon as GuestSaveIcon } from '../components/GuestConfigSaveIcon'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute } from '../lib/packageAccess'
 import { helpTooltip } from '../helpContent'
 
-type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'whatsapp' | 'viber' | 'modules' | 'security'
+type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
 type BookingSubtab = 'general' | 'spaces'
 type BillingSubtab = 'settings' | 'paymentMethods' | 'paypal' | 'fiscal' | 'invoiceDelivery' | 'folioLayout'
 type PersonalTaskPreset = { id: string; name: string; color: string }
@@ -108,12 +109,12 @@ const loadCompanyProfilesFromSettings = (settings: Record<string, string>): Comp
 }
 
 
-type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'whatsapp' | 'viber' | 'modules' | 'security'
+type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
 
 type ConfigNavItem = { id: Tab; icon: ConfigNavIcon }
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
 
-const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'whatsapp', 'viber', 'modules', 'security']
+const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'googleCalendar', 'whatsapp', 'viber', 'modules', 'security']
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   company: 'tabCompany',
@@ -121,6 +122,7 @@ const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   billing: 'tabBilling',
   guestApp: 'tabGuestApp',
   notifications: 'tabNotifications',
+  googleCalendar: 'tabGoogleCalendar',
   whatsapp: 'tabWhatsapp',
   viber: 'tabViber',
   modules: 'tabModules',
@@ -179,6 +181,15 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+    )
+  }
+  if (kind === 'googleCalendar') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M8 2v4M16 2v4M3 10h18" />
+        <path d="M9 15l2 2 4-5" />
       </svg>
     )
   }
@@ -2812,6 +2823,16 @@ export function ConfigurationPage() {
     }
   }, [isAdmin, query, navigate, showToast])
 
+  useEffect(() => {
+    const connected = query.get('google_calendar_connected')
+    const error = query.get('google_calendar_error')
+    if (!connected && !error) return
+    setTab('googleCalendar')
+    if (connected) showToast('success', 'Google Calendar connected. Full sync was queued.')
+    if (error) showToast('error', error)
+    navigate('/configuration?tab=googleCalendar', { replace: true })
+  }, [query, navigate, showToast])
+
   const spacesModuleEnabled = settings.SPACES_ENABLED === 'true'
 
   const modulesDraftDisplay = useMemo(() => {
@@ -2826,6 +2847,7 @@ export function ConfigurationPage() {
       { id: 'billing', icon: 'billing' },
       { id: 'guestApp', icon: 'guestApp' },
       { id: 'notifications', icon: 'notifications' },
+      { id: 'googleCalendar', icon: 'googleCalendar' },
       { id: 'whatsapp', icon: 'whatsapp' },
       { id: 'viber', icon: 'viber' },
       { id: 'modules', icon: 'modules' },
@@ -6749,6 +6771,8 @@ export function ConfigurationPage() {
           onSave={saveSettings}
           t={t}
         />
+      ) : tab === 'googleCalendar' ? (
+        <GoogleCalendarIntegrationSection me={me} />
       ) : tab === 'whatsapp' ? (
         <ConfigurationWhatsAppSection
           settings={settings}

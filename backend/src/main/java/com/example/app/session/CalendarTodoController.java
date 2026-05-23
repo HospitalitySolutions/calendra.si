@@ -1,5 +1,7 @@
 package com.example.app.session;
 
+import com.example.app.google.calendar.GoogleCalendarEntityType;
+import com.example.app.google.calendar.GoogleCalendarSyncQueueService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.User;
 import java.time.LocalDateTime;
@@ -16,9 +18,11 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/bookings/todos")
 public class CalendarTodoController {
     private final CalendarTodoRepository repo;
+    private final GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
 
-    public CalendarTodoController(CalendarTodoRepository repo) {
+    public CalendarTodoController(CalendarTodoRepository repo, GoogleCalendarSyncQueueService googleCalendarSyncQueueService) {
         this.repo = repo;
+        this.googleCalendarSyncQueueService = googleCalendarSyncQueueService;
     }
 
     public record TodoRequest(String startTime, String task, String notes) {}
@@ -39,6 +43,7 @@ public class CalendarTodoController {
         todo.setTask(req.task().trim());
         todo.setNotes(req.notes() != null ? req.notes().trim() : null);
         todo = repo.save(todo);
+        googleCalendarSyncQueueService.enqueueUpsert(todo.getCompany(), todo.getOwner().getId(), GoogleCalendarEntityType.TODO, todo.getId());
         return toResponse(todo);
     }
 
@@ -58,6 +63,7 @@ public class CalendarTodoController {
         todo.setTask(req.task().trim());
         todo.setNotes(req.notes() != null ? req.notes().trim() : null);
         todo = repo.save(todo);
+        googleCalendarSyncQueueService.enqueueUpsert(todo.getCompany(), todo.getOwner().getId(), GoogleCalendarEntityType.TODO, todo.getId());
         return toResponse(todo);
     }
 
@@ -68,6 +74,7 @@ public class CalendarTodoController {
         if (!todo.getOwner().getId().equals(me.getId()) || !todo.getCompany().getId().equals(me.getCompany().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
+        googleCalendarSyncQueueService.enqueueDelete(todo.getCompany(), GoogleCalendarEntityType.TODO, todo.getId());
         repo.delete(todo);
     }
 
