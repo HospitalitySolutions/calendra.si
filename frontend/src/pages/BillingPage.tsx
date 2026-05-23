@@ -3289,6 +3289,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         setDetailOpenBill((prev) => (prev?.id === sourceOpenBill.id ? null : prev))
         if (activeOpenBillId === sourceOpenBill.id) closeDetailOpenBill()
       }
+    } catch (error: any) {
+      showToast(
+        'error',
+        error?.response?.data?.message
+          || error?.message
+          || (locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.'),
+      )
     } finally {
       setCreatingFromOpenId(null)
     }
@@ -3410,6 +3417,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
       await load()
+    } catch (error: any) {
+      showToast(
+        'error',
+        error?.response?.data?.message
+          || error?.message
+          || (locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.'),
+      )
     } finally {
       setCreatingBill(false)
     }

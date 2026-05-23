@@ -10,7 +10,7 @@ import { ensureRegisterCatalogLoaded } from '../lib/registerCatalogBootstrap'
 import { useRegisterFooterClickOutside } from '../lib/useRegisterFooterClickOutside'
 import { storeAuthenticatedSession } from '../lib/session'
 import { registerPageStyles } from './registerPageStyles'
-import { getBillingInterval, getEstimatedUserCount, parseRegisterSelection, selectionToSearch } from './registerFlow'
+import { getBillingInterval, getEstimatedUserCount, parseRegisterSelection, selectionToSearch, type RegisterSelection } from './registerFlow'
 import { RegisterFooterChevron, RegisterFooterListIcon } from './RegisterPage'
 import {
   annualSaveBadgeText,
@@ -575,6 +575,107 @@ const registerAccountPageStyles = `
   }
 `
 
+
+const REGISTER_SELECTION_STORAGE_KEY = 'calendra.register.selectionSearch'
+const REGISTER_SELECTION_PARAM_KEYS = [
+  'plan',
+  'package',
+  'billing',
+  'interval',
+  'users',
+  'sms',
+  'voice',
+  'billingAddon',
+  'whitelabel',
+] as const
+
+type SignupSelectionPayload = {
+  returnSearch?: string | null
+  packageName?: string | null
+  billingInterval?: string | null
+}
+
+type SignupResendCodeResponse = SignupSelectionPayload & {
+  challengeId?: string
+  email?: string
+}
+
+type SignupVerifyCodeResponse = SignupSelectionPayload & {
+  token?: string
+  user?: unknown
+}
+
+function hasExplicitRegisterSelection(search?: string | null) {
+  const raw = (search || '').trim()
+  if (!raw) return false
+  const params = new URLSearchParams(raw.replace(/^\?/, ''))
+  return REGISTER_SELECTION_PARAM_KEYS.some((key) => params.has(key))
+}
+
+function normalizeRegisterSelectionSearch(search?: string | null) {
+  if (!hasExplicitRegisterSelection(search)) return ''
+  return selectionToSearch(parseRegisterSelection(search || ''))
+}
+
+function getStoredRegisterSelectionSearch() {
+  if (typeof window === 'undefined') return ''
+  try {
+    const stored = window.sessionStorage.getItem(REGISTER_SELECTION_STORAGE_KEY)
+    return normalizeRegisterSelectionSearch(stored)
+  } catch {
+    return ''
+  }
+}
+
+function storeRegisterSelectionSearch(search?: string | null) {
+  const normalized = normalizeRegisterSelectionSearch(search)
+  if (!normalized || typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(REGISTER_SELECTION_STORAGE_KEY, normalized)
+  } catch {
+    // Best-effort only. The server returnSearch still keeps the flow correct.
+  }
+}
+
+function selectionSearchFromPayload(payload?: SignupSelectionPayload | null) {
+  const direct = normalizeRegisterSelectionSearch(payload?.returnSearch)
+  if (direct) return direct
+
+  const packageName = payload?.packageName?.trim()
+  const billingInterval = payload?.billingInterval?.trim().toUpperCase()
+  if (!packageName && !billingInterval) return ''
+
+  const params = new URLSearchParams()
+  if (packageName) params.set('package', packageName)
+  params.set('billing', billingInterval === 'YEARLY' ? 'annual' : 'monthly')
+  return selectionToSearch(parseRegisterSelection(params.toString()))
+}
+
+function resolveRegisterSelectionSearch(
+  payload: SignupSelectionPayload | null | undefined,
+  currentSearch: string,
+  fallbackSelection: RegisterSelection,
+) {
+  return (
+    selectionSearchFromPayload(payload) ||
+    normalizeRegisterSelectionSearch(currentSearch) ||
+    getStoredRegisterSelectionSearch() ||
+    selectionToSearch(fallbackSelection)
+  )
+}
+
+function queryWithRegisterSelection(currentSearch: string, payload?: SignupSelectionPayload | null) {
+  const q = new URLSearchParams(currentSearch.replace(/^\?/, ''))
+  const selectionSearch = selectionSearchFromPayload(payload) || normalizeRegisterSelectionSearch(currentSearch) || getStoredRegisterSelectionSearch()
+  if (selectionSearch) {
+    REGISTER_SELECTION_PARAM_KEYS.forEach((key) => q.delete(key))
+    const selectionParams = new URLSearchParams(selectionSearch)
+    selectionParams.forEach((value, key) => q.set(key, value))
+    storeRegisterSelectionSearch(selectionSearch)
+  }
+  return q
+}
+
 type AccountPageCopy = {
   trust: string
   selectionChip: string
@@ -794,6 +895,10 @@ export function RegisterAccountPage() {
     void ensureRegisterCatalogLoaded()
   }, [])
 
+  useEffect(() => {
+    storeRegisterSelectionSearch(location.search)
+  }, [location.search])
+
   const copy = accountPageCopy[locale as 'en' | 'sl'] ?? accountPageCopy.en
   const lang: RegisterLocale = locale === 'sl' ? 'sl' : 'en'
   const registerShell = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
@@ -844,7 +949,7 @@ export function RegisterAccountPage() {
         spaceCount: null,
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
-        returnSearch: location.search || '',
+        returnSearch: resolveRegisterSelectionSearch(null, location.search, selection),
       })
     } catch (e) {
       if (opts?.rethrowOnError) throw e
@@ -897,8 +1002,8 @@ export function RegisterAccountPage() {
     }
   }, [location.search])
 
-  const navigateToFinishVerify = (addr: string, challengeId?: string) => {
-    const q = new URLSearchParams(location.search.replace(/^\?/, ''))
+  const navigateToFinishVerify = (addr: string, challengeId?: string, payload?: SignupSelectionPayload | null) => {
+    const q = queryWithRegisterSelection(location.search, payload)
     q.set('finishVerify', '1')
     q.delete('invalidVerify')
     q.delete('verifyEmail')
@@ -910,9 +1015,9 @@ export function RegisterAccountPage() {
     navigate(`/register/account?${q.toString()}`, { replace: true })
   }
 
-  const navigateToVerify = (addr: string, challengeId?: string) => {
+  const navigateToVerify = (addr: string, challengeId?: string, payload?: SignupSelectionPayload | null) => {
     setVerifyScenario('new')
-    const q = new URLSearchParams(location.search.replace(/^\?/, ''))
+    const q = queryWithRegisterSelection(location.search, payload)
     q.set('verifyEmail', '1')
     q.delete('invalidVerify')
     q.delete('finishVerify')
@@ -924,8 +1029,8 @@ export function RegisterAccountPage() {
     navigate(`/register/account?${q.toString()}`, { replace: true })
   }
 
-  const navigateToExistingAccount = (addr: string) => {
-    const q = new URLSearchParams(location.search.replace(/^\?/, ''))
+  const navigateToExistingAccount = (addr: string, payload?: SignupSelectionPayload | null) => {
+    const q = queryWithRegisterSelection(location.search, payload)
     q.set('existingAccount', '1')
     q.delete('invalidVerify')
     q.delete('verifyEmail')
@@ -936,8 +1041,8 @@ export function RegisterAccountPage() {
     navigate(`/register/account?${q.toString()}`, { replace: true })
   }
 
-  const navigateToInvalidVerify = (addr: string, challengeId?: string) => {
-    const q = new URLSearchParams(location.search.replace(/^\?/, ''))
+  const navigateToInvalidVerify = (addr: string, challengeId?: string, payload?: SignupSelectionPayload | null) => {
+    const q = queryWithRegisterSelection(location.search, payload)
     q.set('invalidVerify', '1')
     q.delete('verifyEmail')
     q.delete('finishVerify')
@@ -949,7 +1054,7 @@ export function RegisterAccountPage() {
     navigate(`/register/account?${q.toString()}`, { replace: true })
   }
 
-  const openVerify = (addr: string, challengeId?: string) => {
+  const openVerify = (addr: string, challengeId?: string, payload?: SignupSelectionPayload | null) => {
     setError('')
     setVerifyEmailAddr(addr)
     setEmail(addr)
@@ -959,10 +1064,10 @@ export function RegisterAccountPage() {
     setVerifyPassword('')
     setVerifyConfirmPassword('')
     setView('verify')
-    navigateToVerify(addr, challengeId)
+    navigateToVerify(addr, challengeId, payload)
   }
 
-  const openFinishVerify = (addr: string, challengeId?: string) => {
+  const openFinishVerify = (addr: string, challengeId?: string, payload?: SignupSelectionPayload | null) => {
     setError('')
     setVerifyEmailAddr(addr)
     setEmail(addr)
@@ -972,7 +1077,7 @@ export function RegisterAccountPage() {
     setVerifyPassword('')
     setVerifyConfirmPassword('')
     setView('verify')
-    navigateToFinishVerify(addr, challengeId)
+    navigateToFinishVerify(addr, challengeId, payload)
   }
 
   const openRegisteredAccount = (addr: string) => {
@@ -983,7 +1088,7 @@ export function RegisterAccountPage() {
     navigateToExistingAccount(addr)
   }
 
-  const openInvalidVerify = (addr: string, challengeId?: string) => {
+  const openInvalidVerify = (addr: string, challengeId?: string, payload?: SignupSelectionPayload | null) => {
     setError('')
     setVerifyEmailAddr(addr)
     setEmail(addr)
@@ -992,7 +1097,7 @@ export function RegisterAccountPage() {
     setVerifyPassword('')
     setVerifyConfirmPassword('')
     setView('invalid')
-    navigateToInvalidVerify(addr, challengeId)
+    navigateToInvalidVerify(addr, challengeId, payload)
   }
 
   const submitSignup = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1024,7 +1129,7 @@ export function RegisterAccountPage() {
       }
       if (check?.pendingVerification) {
         const pendingEmail = String(check.email || addr)
-        const { data: resend } = await api.post<{ challengeId?: string; email?: string }>('/auth/signup/resend-code', { email: pendingEmail })
+        const { data: resend } = await api.post<SignupResendCodeResponse>('/auth/signup/resend-code', { email: pendingEmail })
         const nextEmail = String(resend?.email || pendingEmail)
         const nextChallenge = String(resend?.challengeId || '')
         setVerifyEmailAddr(nextEmail)
@@ -1032,7 +1137,7 @@ export function RegisterAccountPage() {
         setVerificationCode('')
         setVerifyPassword('')
         setVerifyConfirmPassword('')
-        openFinishVerify(nextEmail, nextChallenge)
+        openFinishVerify(nextEmail, nextChallenge, resend)
         return
       }
 
@@ -1048,7 +1153,7 @@ export function RegisterAccountPage() {
         smsCount: selection.additionalSms,
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
-        returnSearch: location.search || '',
+        returnSearch: resolveRegisterSelectionSearch(null, location.search, selection),
       })
 
       if (data?.token && data?.user) {
@@ -1060,7 +1165,7 @@ export function RegisterAccountPage() {
       if (data?.pendingAccountCreation && data?.email && data?.challengeId) {
         const nextEmail = String(data.email)
         const nextChallenge = String(data.challengeId)
-        openVerify(nextEmail, nextChallenge)
+        openVerify(nextEmail, nextChallenge, data)
         showToast('success', copy.intentEmailSentToast)
         return
       }
@@ -1079,8 +1184,8 @@ export function RegisterAccountPage() {
         if (d?.pendingVerification && d?.email) {
           const pendingEmail = String(d.email)
           try {
-            const { data: resend } = await api.post<{ challengeId?: string; email?: string }>('/auth/signup/resend-code', { email: pendingEmail })
-            openFinishVerify(String(resend?.email || pendingEmail), String(resend?.challengeId || ''))
+            const { data: resend } = await api.post<SignupResendCodeResponse>('/auth/signup/resend-code', { email: pendingEmail })
+            openFinishVerify(String(resend?.email || pendingEmail), String(resend?.challengeId || ''), resend)
           } catch {
             openFinishVerify(pendingEmail)
           }
@@ -1117,7 +1222,7 @@ export function RegisterAccountPage() {
     try {
       const currentScenario = verifyScenario
       const wasInvalidView = view === 'invalid'
-      const { data } = await api.post<{ challengeId?: string; email?: string }>('/auth/signup/resend-code', {
+      const { data } = await api.post<SignupResendCodeResponse>('/auth/signup/resend-code', {
         challengeId: verifyChallengeId || undefined,
         email: verifyEmailAddr,
       })
@@ -1128,14 +1233,14 @@ export function RegisterAccountPage() {
       setVerificationCode('')
       if (wasInvalidView) {
         if (currentScenario === 'existing') {
-          openFinishVerify(nextEmail, nextChallenge)
+          openFinishVerify(nextEmail, nextChallenge, data)
         } else {
-          openVerify(nextEmail, nextChallenge)
+          openVerify(nextEmail, nextChallenge, data)
         }
       } else if (currentScenario === 'existing') {
-        navigateToFinishVerify(nextEmail, nextChallenge)
+        navigateToFinishVerify(nextEmail, nextChallenge, data)
       } else {
-        navigateToVerify(nextEmail, nextChallenge)
+        navigateToVerify(nextEmail, nextChallenge, data)
       }
       showToast('success', copy.intentEmailSentToast)
     } catch {
@@ -1165,7 +1270,7 @@ export function RegisterAccountPage() {
     setVerifying(true)
     setError('')
     try {
-      const { data } = await api.post<{ token?: string; user?: unknown }>('/auth/signup/verify-code', {
+      const { data } = await api.post<SignupVerifyCodeResponse>('/auth/signup/verify-code', {
         challengeId: verifyChallengeId,
         code: verificationCode.trim(),
         password: verifyPassword,
@@ -1173,9 +1278,11 @@ export function RegisterAccountPage() {
       // Web signup verify succeeds via auth cookie and may omit JSON token.
       if (data?.user) {
         storeAuthenticatedSession({ token: data.token, user: data.user })
-        const nextSearch = selectionToSearch(selection)
-        const nextPath = selectionRequiresBillingDetails(selection)
-          ? `/register/billing-details?${nextSearch}`
+        const nextSearch = resolveRegisterSelectionSearch(data, location.search, selection)
+        storeRegisterSelectionSearch(nextSearch)
+        const nextSelection = parseRegisterSelection(nextSearch)
+        const nextPath = selectionRequiresBillingDetails(nextSelection)
+          ? `/register/billing-details?${selectionToSearch(nextSelection)}`
           : '/calendar'
         window.location.assign(nextPath)
         return
@@ -1186,7 +1293,7 @@ export function RegisterAccountPage() {
         const message = err.response?.data?.message || t('signupFailed')
         setError(message)
         if (err.response?.data?.invalidVerificationCode || err.response?.data?.invalidVerificationLink) {
-          openInvalidVerify(verifyEmailAddr, verifyChallengeId)
+          openInvalidVerify(verifyEmailAddr, verifyChallengeId, err.response?.data as SignupSelectionPayload)
         }
       } else {
         setError(t('signupFailed'))
@@ -1238,7 +1345,7 @@ export function RegisterAccountPage() {
   }
 
   const useAnotherEmail = () => {
-    const q = new URLSearchParams(location.search.replace(/^\?/, ''))
+    const q = queryWithRegisterSelection(location.search)
     q.delete('invalidVerify')
     q.delete('verifyEmail')
     q.delete('finishVerify')

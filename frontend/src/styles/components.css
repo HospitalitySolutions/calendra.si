@@ -829,7 +829,7 @@ tr:hover td { background: rgba(22, 114, 243, 0.03); }
     position: fixed;
     bottom: 24px;
     right: 24px;
-    z-index: 10001;
+    z-index: 20050;
     display: flex;
     flex-direction: column;
     gap: 12px;

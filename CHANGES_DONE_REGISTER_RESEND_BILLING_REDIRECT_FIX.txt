@@ -1,0 +1,32 @@
+Register resend verification -> billing details redirect fix
+
+Files changed:
+- frontend/src/pages/RegisterAccountPage.tsx
+- backend/src/main/java/com/example/app/auth/SignupService.java
+
+What was fixed:
+1. Preserved the selected register package/search parameters through the expired-code and resend-code flow.
+   Previously, after an expired verification code, the resend flow could continue with a URL/state that no longer had the selected package data, so Verify code and continue could fall back to /calendar.
+
+2. The frontend now resolves the selected package for the post-verification redirect from, in priority order:
+   - backend returnSearch from the signup verification/resend response,
+   - current URL package parameters,
+   - sessionStorage backup captured during the register flow,
+   - the current parsed selection as a final fallback.
+
+3. The resend-code and invalid-code navigation now carries the selected package data forward when rebuilding the /register/account URL.
+
+4. The backend now returns returnSearch/packageName/billingInterval on:
+   - starting email signup intent,
+   - resending signup code,
+   - expired verification code response when payload is still available,
+   - successful code verification,
+   - post-provision owner verification.
+
+Expected behavior:
+- If the selected package or add-ons require billing details, clicking Verify code and continue now redirects to /register/billing-details with the selected package query intact.
+- Only a true €0/free selection should skip billing details and continue to /calendar.
+
+Validation notes:
+- Frontend TypeScript build could not be fully run in this environment because node_modules are not included in the uploaded ZIP.
+- Backend Maven build could not be fully run because the Maven wrapper attempted to download Maven from repo.maven.apache.org, which is unavailable in this environment.
