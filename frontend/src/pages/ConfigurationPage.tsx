@@ -17,7 +17,6 @@ import { GuestConfigSaveIcon as GuestSaveIcon } from '../components/GuestConfigS
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute } from '../lib/packageAccess'
-import { helpTooltip } from '../helpContent'
 
 type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
 type BookingSubtab = 'general' | 'spaces'
@@ -239,15 +238,6 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
   const _exhaustive: never = kind
   void _exhaustive
   return null
-}
-
-function HelpHint({ helpId, t }: { helpId: string; t: (key: string) => string }) {
-  const text = helpTooltip(t, helpId)
-  return (
-    <span className="config-help-hint" data-tooltip={text} role="img" aria-label={text} tabIndex={0}>
-      ?
-    </span>
-  )
 }
 
 type GuestFieldProps = { label: string; hint?: string; children: ReactNode; className?: string }
@@ -6816,7 +6806,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-spaces" t={t} />
                   <strong>{t('configModulesSpacesLabel')}</strong>
                 </div>
                 <button
@@ -6834,7 +6823,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-availability" t={t} />
                   <strong>{t('configModulesAvailabilityLabel')}</strong>
                 </div>
                 <button
@@ -6852,7 +6840,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-ai" t={t} />
                   <strong>{t('configModulesAiLabel')}</strong>
                 </div>
                 <button
@@ -6870,7 +6857,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-personal" t={t} />
                   <strong>{t('configModulesPersonalLabel')}</strong>
                 </div>
                 <button
@@ -6888,7 +6874,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-todos" t={t} />
                   <strong>{t('configModulesTodosLabel')}</strong>
                 </div>
                 <button
@@ -6906,7 +6891,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-multi-space" t={t} />
                   <strong>{t('configModulesMultipleSessionsPerSpaceLabel')}</strong>
                 </div>
                 <button
@@ -6927,7 +6911,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-multi-client" t={t} />
                   <strong>{t('configModulesMultipleClientsPerSessionLabel')}</strong>
                 </div>
                 <button
@@ -6948,7 +6931,6 @@ export function ConfigurationPage() {
               </div>
               <div className="config-module-row">
                 <div className="config-module-name">
-                  <HelpHint helpId="cfg-mod-groups" t={t} />
                   <strong>{t('configModulesGroupBookingLabel')}</strong>
                 </div>
                 <button
