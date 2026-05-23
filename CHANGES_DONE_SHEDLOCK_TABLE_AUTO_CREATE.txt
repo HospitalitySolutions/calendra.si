@@ -1,0 +1,10 @@
+Implemented automatic ShedLock table creation at backend startup.
+
+Changed:
+- backend/src/main/java/com/example/app/config/SchedulerLockConfig.java
+
+Details:
+- The LockProvider now creates the required `shedlock` PostgreSQL table with `CREATE TABLE IF NOT EXISTS` before scheduled jobs start using ShedLock.
+- This fixes backend errors like: `ERROR: relation "shedlock" does not exist`.
+- The `name` column is VARCHAR(255) instead of VARCHAR(64), because some existing @SchedulerLock names are longer than 64 characters.
+- No SQL migration was added, per request, because the database is still allowed to be cleared in non-production.

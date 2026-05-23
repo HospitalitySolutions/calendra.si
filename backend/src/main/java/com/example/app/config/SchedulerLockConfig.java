@@ -11,13 +11,30 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Configuration
 @EnableSchedulerLock(defaultLockAtMostFor = "PT10M")
 public class SchedulerLockConfig {
+    private static final String CREATE_SHEDLOCK_TABLE_SQL = """
+            CREATE TABLE IF NOT EXISTS shedlock (
+                name VARCHAR(255) NOT NULL,
+                lock_until TIMESTAMP NOT NULL,
+                locked_at TIMESTAMP NOT NULL,
+                locked_by VARCHAR(255) NOT NULL,
+                PRIMARY KEY (name)
+            )
+            """;
+
     @Bean
     public LockProvider lockProvider(DataSource dataSource) {
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        ensureShedLockTableExists(jdbcTemplate);
+
         return new JdbcTemplateLockProvider(
                 JdbcTemplateLockProvider.Configuration.builder()
-                        .withJdbcTemplate(new JdbcTemplate(dataSource))
+                        .withJdbcTemplate(jdbcTemplate)
                         .usingDbTime()
                         .build()
         );
+    }
+
+    private void ensureShedLockTableExists(JdbcTemplate jdbcTemplate) {
+        jdbcTemplate.execute(CREATE_SHEDLOCK_TABLE_SQL);
     }
 }
