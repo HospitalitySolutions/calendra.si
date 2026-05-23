@@ -8,8 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class GoogleCalendarJobRunner {
@@ -31,9 +29,8 @@ public class GoogleCalendarJobRunner {
         for (GoogleCalendarSyncJob job : due) processOne(job.getId());
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processOne(Long jobId) {
-        GoogleCalendarSyncJob job = jobs.findById(jobId).orElse(null);
+        GoogleCalendarSyncJob job = jobs.findByIdWithDetails(jobId).orElse(null);
         if (job == null || job.getStatus() != GoogleCalendarSyncJobStatus.PENDING) return;
         job.setStatus(GoogleCalendarSyncJobStatus.RUNNING);
         job.setAttempts(job.getAttempts() + 1);
@@ -53,10 +50,11 @@ public class GoogleCalendarJobRunner {
             log.warn("Google Calendar sync job {} failed: {}", jobId, message);
             String cleanMessage = message.length() > 1900 ? message.substring(0, 1900) : message;
             job.setLastError(cleanMessage);
-            if (job.getConnection() != null) {
-                GoogleCalendarConnection connection = job.getConnection();
+            GoogleCalendarConnection connection = job.getConnection();
+            if (connection != null) {
                 connection.setLastError(cleanMessage);
-                if (cleanMessage.toLowerCase().contains("reconnect") || cleanMessage.toLowerCase().contains("refresh token")) {
+                String lowerMessage = cleanMessage.toLowerCase();
+                if (lowerMessage.contains("reconnect") || lowerMessage.contains("refresh token")) {
                     connection.setStatus(GoogleCalendarConnectionStatus.NEEDS_RECONNECT);
                 } else if (job.getAttempts() >= 5) {
                     connection.setStatus(GoogleCalendarConnectionStatus.ERROR);

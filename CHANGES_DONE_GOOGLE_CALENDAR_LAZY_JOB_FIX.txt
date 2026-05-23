@@ -1,0 +1,19 @@
+Fixed Google Calendar scheduled sync LazyInitializationException.
+
+Changed files:
+- backend/src/main/java/com/example/app/google/calendar/GoogleCalendarJobRunner.java
+- backend/src/main/java/com/example/app/google/calendar/GoogleCalendarSyncJobRepository.java
+- backend/src/main/java/com/example/app/config/SchedulerLockConfig.java
+
+What changed:
+- Added a repository method that loads a sync job together with its company, Google Calendar connection, connection company and connection user using JOIN FETCH.
+- GoogleCalendarJobRunner now uses this eager-loading method before processing jobs, so scheduled jobs do not pass detached lazy proxies into the sync service.
+- The failure handler no longer triggers a second LazyInitializationException while trying to write lastError to the GoogleCalendarConnection.
+- Included the previous automatic ShedLock table creation file so this patch remains cumulative with the last ShedLock fix.
+
+Why:
+- The backend log showed: Could not initialize proxy [com.example.app.google.calendar.GoogleCalendarConnection#1] - no session.
+- This happened because the scheduler loaded GoogleCalendarSyncJob outside an open Hibernate session and then accessed job.connection later.
+
+Validation:
+- Source-level patch only. Maven build was not run here because the Maven wrapper cannot download dependencies in this sandbox.

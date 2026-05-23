@@ -18,6 +18,14 @@ public interface GoogleCalendarSyncJobRepository extends JpaRepository<GoogleCal
             "LEFT JOIN FETCH j.connection c " +
             "LEFT JOIN FETCH c.company " +
             "LEFT JOIN FETCH c.user " +
+            "WHERE j.id = :id")
+    Optional<GoogleCalendarSyncJob> findByIdWithDetails(@Param("id") Long id);
+
+    @Query("SELECT j FROM GoogleCalendarSyncJob j " +
+            "LEFT JOIN FETCH j.company " +
+            "LEFT JOIN FETCH j.connection c " +
+            "LEFT JOIN FETCH c.company " +
+            "LEFT JOIN FETCH c.user " +
             "WHERE j.status = :status AND j.nextAttemptAt <= :now " +
             "ORDER BY j.createdAt ASC")
     List<GoogleCalendarSyncJob> findDueJobs(@Param("now") Instant now, @Param("status") GoogleCalendarSyncJobStatus status, Pageable pageable);
