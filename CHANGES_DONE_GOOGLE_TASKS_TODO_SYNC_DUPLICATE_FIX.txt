@@ -1,0 +1,20 @@
+Google Calendar task duplicate booking fix
+=========================================
+
+Issue fixed
+-----------
+Google Tasks were correctly imported into Calendra ToDos, but Google's Calendar event feed can also expose a calendar-shaped mirror/placeholder for the same task. Because external Google events were configured to import as booked sessions, that task mirror could also be imported as a booked session.
+
+Changes done
+------------
+- Google Tasks are pulled before Google Calendar events during inbound sync.
+- Added an in-memory Google Task mirror index from the Tasks API response.
+- Calendar event import now skips Google task mirror events instead of importing them as booked sessions.
+- Added additional task-event detection for eventType/task-like properties/source metadata.
+- If an older sync already created a booked session from a Google Task mirror, the next sync deletes only that wrongly imported Google-origin booked session and marks its sync link as DELETED_GOOGLE_TASK_MIRROR.
+- Normal Google Calendar events still import as booked sessions according to the selected import mode.
+- Google Tasks still import as CalendarTodo / ToDo.
+
+Files changed
+-------------
+- backend/src/main/java/com/example/app/google/calendar/GoogleCalendarSyncService.java

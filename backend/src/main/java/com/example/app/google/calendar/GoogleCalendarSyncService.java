@@ -12,11 +12,15 @@ import com.example.app.session.SessionBookingStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -162,13 +166,15 @@ public class GoogleCalendarSyncService {
         GoogleCalendarConnection c = requireConnection(job);
         if (c.getStatus() != GoogleCalendarConnectionStatus.ACTIVE || c.getSyncDirection() == GoogleCalendarSyncDirection.CALENDRA_TO_GOOGLE) return;
         String token = connectionService.accessToken(c);
+        GoogleTaskPullResult taskPull = pullGoogleTasksFromGoogle(c, token);
+        GoogleTaskMirrorIndex taskMirrorIndex = taskPull.taskMirrorIndex();
         String syncToken = forceFullSync ? null : c.getSyncToken();
         String pageToken = null;
         String nextSyncToken = null;
         try {
             do {
                 var page = apiClient.listEvents(token, c.getCalendarId(), syncToken, pageToken);
-                for (JsonNode event : page.events()) consumeGoogleEvent(c, event);
+                for (JsonNode event : page.events()) consumeGoogleEvent(c, event, taskMirrorIndex);
                 pageToken = page.nextPageToken();
                 if (page.nextSyncToken() != null && !page.nextSyncToken().isBlank()) nextSyncToken = page.nextSyncToken();
             } while (pageToken != null && !pageToken.isBlank());
@@ -181,7 +187,7 @@ public class GoogleCalendarSyncService {
             }
             throw expired;
         }
-        String tasksWarning = pullGoogleTasksFromGoogle(c, token);
+        String tasksWarning = taskPull.warning();
         if (nextSyncToken != null && !nextSyncToken.isBlank()) c.setSyncToken(nextSyncToken);
         if (forceFullSync) c.setLastFullSyncAt(Instant.now()); else c.setLastIncrementalSyncAt(Instant.now());
         c.setLastError(tasksWarning);
@@ -235,11 +241,14 @@ public class GoogleCalendarSyncService {
         }
     }
 
-    private void consumeGoogleEvent(GoogleCalendarConnection c, JsonNode event) {
+    private void consumeGoogleEvent(GoogleCalendarConnection c, JsonNode event, GoogleTaskMirrorIndex taskMirrorIndex) {
         String eventId = event.path("id").asText(null);
         if (eventId == null || eventId.isBlank()) return;
-        if (isGoogleCalendarTaskEvent(event)) return;
         GoogleCalendarEventLink link = links.findByConnection_IdAndCalendarIdAndGoogleEventId(c.getId(), c.getCalendarId(), eventId).orElse(null);
+        if (isGoogleCalendarTaskEvent(event) || matchesGoogleTaskMirror(event, taskMirrorIndex)) {
+            removePreviouslyImportedTaskMirror(link);
+            return;
+        }
         if ("cancelled".equalsIgnoreCase(event.path("status").asText(null))) {
             if (link != null) handleGoogleCancelledEvent(link);
             return;
@@ -268,20 +277,24 @@ public class GoogleCalendarSyncService {
         importExternalGoogleEvent(c, event);
     }
 
-    private String pullGoogleTasksFromGoogle(GoogleCalendarConnection c, String token) throws Exception {
-        if (c.getSyncDirection() == GoogleCalendarSyncDirection.CALENDRA_TO_GOOGLE) return null;
+    private GoogleTaskPullResult pullGoogleTasksFromGoogle(GoogleCalendarConnection c, String token) throws Exception {
+        GoogleTaskMirrorIndex taskMirrorIndex = new GoogleTaskMirrorIndex();
+        if (c.getSyncDirection() == GoogleCalendarSyncDirection.CALENDRA_TO_GOOGLE) return new GoogleTaskPullResult(null, taskMirrorIndex);
         if (c.getScopes() != null && !c.getScopes().contains("https://www.googleapis.com/auth/tasks")) {
-            return "Reconnect Google Calendar to add Google Tasks permission so Google Tasks can sync with Calendra ToDos.";
+            return new GoogleTaskPullResult("Reconnect Google Calendar to add Google Tasks permission so Google Tasks can sync with Calendra ToDos.", taskMirrorIndex);
         }
         for (GoogleCalendarApiClient.TaskListSummary taskList : apiClient.listTaskLists(token)) {
             String pageToken = null;
             do {
                 GoogleCalendarApiClient.TasksPage page = apiClient.listTasks(token, taskList.id(), pageToken);
-                for (JsonNode task : page.tasks()) consumeGoogleTask(c, page.taskListId(), task);
+                for (JsonNode task : page.tasks()) {
+                    taskMirrorIndex.add(task);
+                    consumeGoogleTask(c, page.taskListId(), task);
+                }
                 pageToken = page.nextPageToken();
             } while (pageToken != null && !pageToken.isBlank());
         }
-        return null;
+        return new GoogleTaskPullResult(null, taskMirrorIndex);
     }
 
     private void consumeGoogleTask(GoogleCalendarConnection c, String taskListId, JsonNode task) {
@@ -690,7 +703,43 @@ public class GoogleCalendarSyncService {
 
     private boolean isGoogleCalendarTaskEvent(JsonNode event) {
         String eventType = event.path("eventType").asText(null);
-        return "task".equalsIgnoreCase(eventType) || "todo".equalsIgnoreCase(eventType);
+        if ("task".equalsIgnoreCase(eventType) || "todo".equalsIgnoreCase(eventType)) return true;
+        if (event.has("taskProperties") || event.has("todoProperties")) return true;
+        String sourceTitle = event.path("source").path("title").asText(null);
+        String sourceUrl = event.path("source").path("url").asText(null);
+        return containsIgnoreCase(sourceTitle, "task") || containsIgnoreCase(sourceUrl, "tasks.google");
+    }
+
+    private boolean matchesGoogleTaskMirror(JsonNode event, GoogleTaskMirrorIndex taskMirrorIndex) {
+        if (taskMirrorIndex == null || taskMirrorIndex.isEmpty()) return false;
+        String eventId = event.path("id").asText(null);
+        if (eventId != null && taskMirrorIndex.taskIds().contains(eventId)) return true;
+        String title = event.path("summary").asText(null);
+        LocalDateTime start = mapper.startFromGoogleEvent(event);
+        if (start == null || title == null || title.isBlank()) return false;
+        return looksLikeGoogleTaskMirrorEvent(event) && taskMirrorIndex.titleDateKeys().contains(taskTitleDateKey(title, start.toLocalDate()));
+    }
+
+    private boolean looksLikeGoogleTaskMirrorEvent(JsonNode event) {
+        if (event.path("attendees").isArray() && event.path("attendees").size() > 0) return false;
+        if (hasText(event.path("hangoutLink").asText(null))) return false;
+        if (hasText(event.path("location").asText(null))) return false;
+        JsonNode conferenceEntryPoints = event.path("conferenceData").path("entryPoints");
+        if (conferenceEntryPoints.isArray() && conferenceEntryPoints.size() > 0) return false;
+        String visibility = event.path("visibility").asText(null);
+        String transparency = event.path("transparency").asText(null);
+        return visibility == null || visibility.isBlank() || "private".equalsIgnoreCase(visibility) || "transparent".equalsIgnoreCase(transparency);
+    }
+
+    private void removePreviouslyImportedTaskMirror(GoogleCalendarEventLink link) {
+        if (link == null || link.getOrigin() != GoogleCalendarEventOrigin.GOOGLE) return;
+        switch (link.getAppEntityType()) {
+            case SESSION_BOOKING -> bookings.findById(link.getAppEntityId()).ifPresent(bookings::delete);
+            case GOOGLE_BUSY_BLOCK, PERSONAL_SESSION -> personalBlocks.findById(link.getAppEntityId()).ifPresent(personalBlocks::delete);
+            case TODO -> { return; }
+        }
+        markDeleted(link, "DELETED_GOOGLE_TASK_MIRROR", "Google Task calendar mirror ignored because Google Tasks sync imports it as a Calendra ToDo.");
+        links.save(link);
     }
 
     private boolean isGoogleTaskDeletedOrCompleted(JsonNode task) {
@@ -748,6 +797,26 @@ public class GoogleCalendarSyncService {
         return task != null && task.trim().regionMatches(true, 0, "Google:", 0, "Google:".length());
     }
 
+    private record GoogleTaskPullResult(String warning, GoogleTaskMirrorIndex taskMirrorIndex) {}
+
+    private static class GoogleTaskMirrorIndex {
+        private final Set<String> taskIds = new HashSet<>();
+        private final Set<String> titleDateKeys = new HashSet<>();
+
+        void add(JsonNode task) {
+            if (task == null || task.path("deleted").asBoolean(false)) return;
+            String id = task.path("id").asText(null);
+            if (id != null && !id.isBlank()) taskIds.add(id);
+            String title = task.path("title").asText(null);
+            LocalDate dueDate = localDateFromGoogleTaskDue(task.path("due").asText(null));
+            if (title != null && !title.isBlank() && dueDate != null) titleDateKeys.add(taskTitleDateKey(title, dueDate));
+        }
+
+        boolean isEmpty() { return taskIds.isEmpty() && titleDateKeys.isEmpty(); }
+        Set<String> taskIds() { return taskIds; }
+        Set<String> titleDateKeys() { return titleDateKeys; }
+    }
+
     private record CalendarPushRef(GoogleCalendarEntityType type, Long id) {}
 
     private SessionBooking loadBooking(GoogleCalendarSyncJob job) { return bookings.findById(job.getAppEntityId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found")); }
@@ -771,6 +840,26 @@ public class GoogleCalendarSyncService {
         }
     }
 
+    private static LocalDate localDateFromGoogleTaskDue(String due) {
+        if (due == null || due.isBlank()) return null;
+        try {
+            return OffsetDateTime.parse(due).toLocalDate();
+        } catch (Exception ignored) {
+            try {
+                return Instant.parse(due).atZone(ZoneId.systemDefault()).toLocalDate();
+            } catch (Exception ignoredAgain) {
+                return null;
+            }
+        }
+    }
+
+    private static String taskTitleDateKey(String title, LocalDate date) {
+        if (title == null || date == null) return null;
+        return title.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT) + "|" + date;
+    }
+
+    private static boolean hasText(String value) { return value != null && !value.isBlank(); }
+    private static boolean containsIgnoreCase(String value, String needle) { return value != null && needle != null && value.toLowerCase(Locale.ROOT).contains(needle.toLowerCase(Locale.ROOT)); }
     private static String stripPrefix(String value, String prefix) { if (value == null) return null; String t = value.trim(); return t.regionMatches(true, 0, prefix, 0, prefix.length()) ? t.substring(prefix.length()).trim() : t; }
     private static String clean(String value) { return value == null || value.isBlank() ? "Unknown error" : limit(value, 1900); }
     private static String limit(String value, int max) { return value == null || value.length() <= max ? value : value.substring(0, max); }
