@@ -73,7 +73,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     if (status?.status === 'UNPAID' || shouldSyncPerClientBillTabs) {
       const openBillId = await createOpenBillForPaymentStatus(status)
       if (openBillId || openBillIdRaw) openPaymentOpenBillEditor(status, openBillId || openBillIdRaw)
+      return
     }
+    showToast('info', locale === 'sl' ? 'Odprti račun lahko ustvarite le pri neplačanem terminu.' : 'Open invoice can only be created for unpaid sessions.')
   }
 
   const openBookedPaymentManagerTab = (_tab: 'details' | 'invoice') => {

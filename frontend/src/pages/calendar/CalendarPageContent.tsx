@@ -4606,7 +4606,9 @@ export default function CalendarPage() {
       void createOpenBillForPaymentStatus(status).then((openBillId) => {
         if (openBillId || openBillIdRaw) openBookedPaymentOpenBillEditor(status, openBillId || openBillIdRaw)
       })
+      return
     }
+    showToast('info', locale === 'sl' ? 'Odprti račun lahko ustvarite le pri neplačanem terminu.' : 'Open invoice can only be created for unpaid sessions.')
   }
 
   function openBookedPaymentAddClient() {
@@ -7231,7 +7233,9 @@ export default function CalendarPage() {
       if (!suppressToast) await loadCalendarRangeOnly(true)
       return data?.id ?? status.openBillId ?? null
     } catch (error: any) {
-      showToast('error', error?.response?.data?.message || error?.message || (locale === 'sl' ? 'Odprtega računa ni bilo mogoče ustvariti.' : 'Could not create the open invoice.'))
+      if (!suppressToast) {
+        showToast('error', error?.response?.data?.message || error?.message || (locale === 'sl' ? 'Odprtega računa ni bilo mogoče ustvariti.' : 'Could not create the open invoice.'))
+      }
       return null
     }
   }, [bookedBookingPayeeLinkedCompany?.id, bookedPaymentPayeeDrafts, bookingPayeeCompanies, isGroupedSingleInvoiceMode, loadCalendarRangeOnly, locale, paymentManagerSessionClients, paymentStatusForClient, selectedBookedClientIds, selectedBookedSession, selectedBookedStoredStatus, showToast, updateSelectedBookingPaymentStatus])
@@ -7797,9 +7801,10 @@ export default function CalendarPage() {
         return
       }
     }
+    let updatedBookingFromApi: any = null
     try {
       setSaveBookingLoading(true)
-      await api.put(`/bookings/${selectedBookedSession.id}`, {
+      const response = await api.put(`/bookings/${selectedBookedSession.id}`, {
         ...bookedPayloadClients,
         consultantId: selectedBookedSession.consultant?.id ?? null,
         startTime: selectedBookedSession.startTime,
@@ -7816,10 +7821,33 @@ export default function CalendarPage() {
         payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
         ...(allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
       })
+      updatedBookingFromApi = response?.data ?? null
     } catch (e: any) {
       showToast('error', e?.response?.data?.message || e?.message || 'Failed to update session.')
       setSaveBookingLoading(false)
       return
+    }
+    if (requestedStoredStatus === 'CHECKED_OUT') {
+      const fallbackStatuses = Array.isArray(selectedBookedSession?.paymentStatuses) ? selectedBookedSession.paymentStatuses : []
+      const paymentStatuses = Array.isArray(updatedBookingFromApi?.paymentStatuses) ? updatedBookingFromApi.paymentStatuses : fallbackStatuses
+      const targetStatus = paymentStatuses.find((status: BookingPaymentStatus) => {
+        const openBillId = Number(status?.openBillId ?? 0)
+        return status?.status === 'UNPAID'
+          && !!status?.bookingId
+          && (!Number.isInteger(openBillId) || openBillId <= 0)
+      }) ?? null
+      if (targetStatus) {
+        const createdOpenBillId = await createOpenBillForPaymentStatus(targetStatus, { suppressToast: true })
+        const resolvedOpenBillId = Number(createdOpenBillId ?? targetStatus?.openBillId ?? 0)
+        if (!Number.isInteger(resolvedOpenBillId) || resolvedOpenBillId <= 0) {
+          showToast(
+            'error',
+            locale === 'sl'
+              ? 'Termin je zaključen, odprtega računa pa ni bilo mogoče ustvariti. Poskusite ponovno v Plačilih.'
+              : 'Session is checked out, but open invoice could not be created. Please try again from Payments.',
+          )
+        }
+      }
     }
     // Create repeated future bookings if repeats is enabled
     if (selectedBookedSession.repeats) {
