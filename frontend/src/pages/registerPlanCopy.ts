@@ -305,6 +305,18 @@ export function getAddonCatalog(locale: RegisterLocale) {
   return addonMonthly(locale)
 }
 
+export function selectionRequiresBillingDetails(selection: RegisterSelection) {
+  const basePlanMonthly = planCore[selection.plan].monthly
+  const usersMonthly = getBillableAdditionalUserSlots(selection) * 9.9
+  const smsMonthly = selection.additionalSms * 0.05
+  const addonsMonthly =
+    (selection.addons.voice ? addonMonthlyAmounts.voice : 0)
+    + (selection.addons.billing ? addonMonthlyAmounts.billing : 0)
+    + (selection.addons.whitelabel ? addonMonthlyAmounts.whitelabel : 0)
+
+  return basePlanMonthly + usersMonthly + smsMonthly + addonsMonthly > 0.005
+}
+
 export function getSelectionMonthlyAmounts(selection: RegisterSelection) {
   const selectedPlan = selection.plan
   const planMonthly = selectedPlan === 'basic' && selection.billing === 'monthly' ? 0 : planCore[selectedPlan].monthly

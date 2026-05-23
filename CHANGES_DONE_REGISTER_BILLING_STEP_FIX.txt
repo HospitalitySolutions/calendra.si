@@ -1,0 +1,32 @@
+Register billing step redirect fix
+==================================
+
+Files changed:
+- frontend/src/pages/RegisterAccountPage.tsx
+- frontend/src/pages/RegisterBillingDetailsPage.tsx
+- frontend/src/pages/registerPlanCopy.ts
+- frontend/src/App.tsx
+- backend/src/main/java/com/example/app/auth/SignupService.java
+- backend/src/main/java/com/example/app/settings/SettingKey.java
+
+What changed:
+1. Fixed the post-verification redirect in the registration account step.
+   - Before: after a successful Verify code and continue, the app always stored the session and reloaded, so the authenticated router fell through to the calendar.
+   - Now: if the selected package/add-ons have a recurring price above €0, the user is sent to `/register/billing-details` with the selected package query preserved.
+   - Free/€0 selections still continue directly to the calendar.
+
+2. Added a dedicated step 3 page: Podatki za obračun / Billing details.
+   - The page uses the same registration header, language switcher, stepper and selected-package summary style.
+   - Collects first name, last name, company/business name, VAT/tax number, address, postal code, city and preferred payment method.
+   - Submits the data to the existing backend endpoint `/api/auth/signup/billing-details`.
+   - After saving, the user is sent to the calendar.
+
+3. Added shared price detection helper.
+   - `selectionRequiresBillingDetails(selection)` checks the recurring package price, users, SMS and add-ons.
+   - This also treats the Basic monthly 14-day trial correctly: even though it is €0 now, it still requires billing details when the after-trial recurring price is above €0.
+
+4. Added authenticated route handling for `/register/billing-details`.
+   - Authenticated users can now access the billing details step before the main app shell/calendar.
+
+5. Persisted the selected signup payment method.
+   - The backend now stores BANK_TRANSFER, CARD or PAYPAL under BILLING_SUBSCRIPTION_PAYMENT_METHOD when step 3 is submitted.

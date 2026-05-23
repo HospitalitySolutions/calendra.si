@@ -1,0 +1,17 @@
+Register verification resend flow fix
+====================================
+
+Updated files:
+- frontend/src/pages/RegisterAccountPage.tsx
+
+What changed:
+1. Fixed the invalid/expired verification-code screen so that clicking "Send new verification code" now moves the user back to the verification form after a fresh code is requested.
+2. The verification form now receives the refreshed challengeId and email, so the newest verification code can be submitted together with the password.
+3. Removed the stale `invalidVerify=1` URL flag when navigating away from the invalid verification screen. This was the main reason the UI stayed on the invalid-code screen even after a new code was requested.
+4. Added a reusable `openVerify(...)` helper so new-code and first-time verification flows reset the correct fields consistently.
+5. The normal "Resend verification code" action from the verification form now updates the URL challengeId while staying on the verification form.
+6. "Use another email" now also clears `invalidVerify=1`, so the user can return cleanly to the account form from an invalid verification screen.
+
+Notes:
+- No backend change was required; the existing `/auth/signup/resend-code` endpoint already returns a fresh challengeId.
+- I could not run the full frontend build because `node_modules` is not included in the provided ZIP. I did run a TypeScript syntax check attempt with the globally available `tsc`; it only reported missing dependency/type errors from absent node_modules, not syntax errors from the changed file.

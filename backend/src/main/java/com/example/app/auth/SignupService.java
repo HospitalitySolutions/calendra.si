@@ -612,10 +612,17 @@ public class SignupService {
         }
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
 
+        String paymentMethod = request.paymentMethod() == null ? "BANK_TRANSFER" : request.paymentMethod().trim().toUpperCase(Locale.ROOT);
+        if (!"BANK_TRANSFER".equals(paymentMethod) && !"CARD".equals(paymentMethod) && !"PAYPAL".equals(paymentMethod)) {
+            paymentMethod = "BANK_TRANSFER";
+        }
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, paymentMethod);
+
         return ResponseEntity.ok(Map.of(
                 "ok", true,
                 "packageType", normalizedPackageType,
-                "billingInterval", interval));
+                "billingInterval", interval,
+                "paymentMethod", paymentMethod));
     }
 
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {

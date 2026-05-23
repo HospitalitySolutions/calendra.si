@@ -20,6 +20,7 @@ import {
   getRegisterPlanPageCopy,
   getSelectionMonthlyAmounts,
   plansForLocale,
+  selectionRequiresBillingDetails,
   type RegisterLocale,
 } from './registerPlanCopy'
 
@@ -899,6 +900,7 @@ export function RegisterAccountPage() {
   const navigateToFinishVerify = (addr: string, challengeId?: string) => {
     const q = new URLSearchParams(location.search.replace(/^\?/, ''))
     q.set('finishVerify', '1')
+    q.delete('invalidVerify')
     q.delete('verifyEmail')
     q.delete('pendingAccountCreation')
     q.delete('existingAccount')
@@ -912,6 +914,7 @@ export function RegisterAccountPage() {
     setVerifyScenario('new')
     const q = new URLSearchParams(location.search.replace(/^\?/, ''))
     q.set('verifyEmail', '1')
+    q.delete('invalidVerify')
     q.delete('finishVerify')
     q.delete('existingAccount')
     q.delete('pendingAccountCreation')
@@ -924,6 +927,7 @@ export function RegisterAccountPage() {
   const navigateToExistingAccount = (addr: string) => {
     const q = new URLSearchParams(location.search.replace(/^\?/, ''))
     q.set('existingAccount', '1')
+    q.delete('invalidVerify')
     q.delete('verifyEmail')
     q.delete('finishVerify')
     q.delete('pendingAccountCreation')
@@ -943,6 +947,19 @@ export function RegisterAccountPage() {
     if (challengeId) q.set('challengeId', challengeId)
     else q.delete('challengeId')
     navigate(`/register/account?${q.toString()}`, { replace: true })
+  }
+
+  const openVerify = (addr: string, challengeId?: string) => {
+    setError('')
+    setVerifyEmailAddr(addr)
+    setEmail(addr)
+    setVerifyScenario('new')
+    setVerifyChallengeId(challengeId || '')
+    setVerificationCode('')
+    setVerifyPassword('')
+    setVerifyConfirmPassword('')
+    setView('verify')
+    navigateToVerify(addr, challengeId)
   }
 
   const openFinishVerify = (addr: string, challengeId?: string) => {
@@ -1043,14 +1060,7 @@ export function RegisterAccountPage() {
       if (data?.pendingAccountCreation && data?.email && data?.challengeId) {
         const nextEmail = String(data.email)
         const nextChallenge = String(data.challengeId)
-        setVerifyEmailAddr(nextEmail)
-        setVerifyChallengeId(nextChallenge)
-        setVerificationCode('')
-        setVerifyPassword('')
-        setVerifyConfirmPassword('')
-        setVerifyScenario('new')
-        setView('verify')
-        navigateToVerify(nextEmail, nextChallenge)
+        openVerify(nextEmail, nextChallenge)
         showToast('success', copy.intentEmailSentToast)
         return
       }
@@ -1105,14 +1115,28 @@ export function RegisterAccountPage() {
     setResending(true)
     setError('')
     try {
+      const currentScenario = verifyScenario
+      const wasInvalidView = view === 'invalid'
       const { data } = await api.post<{ challengeId?: string; email?: string }>('/auth/signup/resend-code', {
         challengeId: verifyChallengeId || undefined,
         email: verifyEmailAddr,
       })
+      const nextEmail = String(data?.email || verifyEmailAddr)
       const nextChallenge = String(data?.challengeId || verifyChallengeId || '')
+      setVerifyEmailAddr(nextEmail)
       setVerifyChallengeId(nextChallenge)
-      if (data?.email) setVerifyEmailAddr(String(data.email))
       setVerificationCode('')
+      if (wasInvalidView) {
+        if (currentScenario === 'existing') {
+          openFinishVerify(nextEmail, nextChallenge)
+        } else {
+          openVerify(nextEmail, nextChallenge)
+        }
+      } else if (currentScenario === 'existing') {
+        navigateToFinishVerify(nextEmail, nextChallenge)
+      } else {
+        navigateToVerify(nextEmail, nextChallenge)
+      }
       showToast('success', copy.intentEmailSentToast)
     } catch {
       showToast('success', copy.intentEmailSentToast)
@@ -1149,7 +1173,11 @@ export function RegisterAccountPage() {
       // Web signup verify succeeds via auth cookie and may omit JSON token.
       if (data?.user) {
         storeAuthenticatedSession({ token: data.token, user: data.user })
-        window.location.reload()
+        const nextSearch = selectionToSearch(selection)
+        const nextPath = selectionRequiresBillingDetails(selection)
+          ? `/register/billing-details?${nextSearch}`
+          : '/calendar'
+        window.location.assign(nextPath)
         return
       }
       setError(t('signupFailed'))
@@ -1211,6 +1239,7 @@ export function RegisterAccountPage() {
 
   const useAnotherEmail = () => {
     const q = new URLSearchParams(location.search.replace(/^\?/, ''))
+    q.delete('invalidVerify')
     q.delete('verifyEmail')
     q.delete('finishVerify')
     q.delete('existingAccount')

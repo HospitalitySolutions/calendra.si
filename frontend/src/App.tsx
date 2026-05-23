@@ -11,6 +11,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { RegisterPlanAddonsPage } from './pages/RegisterPlanAddonsPage'
 import { RegisterAccountPage } from './pages/RegisterAccountPage'
+import { RegisterBillingDetailsPage } from './pages/RegisterBillingDetailsPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
@@ -207,6 +208,10 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
+  }
+
+  if (location.pathname === '/register/billing-details') {
+    return <RegisterBillingDetailsPage />
   }
 
   if (user.role === 'SUPER_ADMIN') {

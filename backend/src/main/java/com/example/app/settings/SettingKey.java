@@ -78,6 +78,8 @@ public enum SettingKey {
     BILLING_SUBSCRIPTION_INTERVAL,
     /** Decimal amount string (e.g. EUR) still owed for subscription. */
     BILLING_SUBSCRIPTION_DUE_AMOUNT,
+    /** Preferred payment method selected during self-serve signup billing details. */
+    BILLING_SUBSCRIPTION_PAYMENT_METHOD,
     INVOICE_DELIVERY_EMAIL_ENABLED,
     INVOICE_DELIVERY_EMAIL_SUBJECT,
     INVOICE_DELIVERY_EMAIL_BODY,
