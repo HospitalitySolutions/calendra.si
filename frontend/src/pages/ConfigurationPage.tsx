@@ -270,6 +270,175 @@ function GuestSwitch({ checked, onChange, label = 'ON' }: { checked: boolean; on
   )
 }
 
+type ModulesDesignTone = 'blue' | 'green' | 'purple' | 'amber' | 'rose'
+type ModulesDesignIconKind =
+  | 'booking'
+  | 'billing'
+  | 'guestApp'
+  | 'communication'
+  | 'security'
+  | 'spaces'
+  | 'availability'
+  | 'spark'
+  | 'personal'
+  | 'todo'
+  | 'group'
+  | 'invoice'
+  | 'wallet'
+  | 'calendar'
+  | 'message'
+  | 'shield'
+  | 'key'
+  | 'link'
+
+type ModulesDesignLine = {
+  id: string
+  icon: ModulesDesignIconKind
+  title: string
+  subtitle?: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  children?: ModulesDesignLine[]
+}
+
+type ModulesDesignGroup = {
+  id: string
+  title: string
+  subtitle: string
+  icon: ModulesDesignIconKind
+  tone: ModulesDesignTone
+  checked: boolean
+  onChange: (checked: boolean) => void
+  rows: ModulesDesignLine[]
+}
+
+const DEFAULT_EXPANDED_MODULE_ROWS = [
+  'booking-availability',
+  'booking-group-booking',
+  'billing-billing',
+  'guest-app-main',
+  'communication-notifications',
+  'security-security',
+]
+
+function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
+  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {kind === 'booking' ? (
+        <><rect x="4" y="5" width="16" height="15" rx="3" {...common} /><path d="M8 3v4M16 3v4M4 10h16" {...common} /></>
+      ) : kind === 'billing' ? (
+        <><rect x="4" y="6" width="16" height="12" rx="3" {...common} /><path d="M7 10h10M8 14h4M16 14h1" {...common} /></>
+      ) : kind === 'guestApp' ? (
+        <><rect x="7" y="3" width="10" height="18" rx="2.5" {...common} /><path d="M11 18h2M10 6h4" {...common} /></>
+      ) : kind === 'communication' ? (
+        <><path d="M6 9a6 6 0 0 1 12 0c0 6 2 6 2 8H4c0-2 2-2 2-8Z" {...common} /><path d="M9.5 20a3 3 0 0 0 5 0" {...common} /></>
+      ) : kind === 'security' ? (
+        <><path d="M12 3 5.5 5.5v5.7c0 4.2 2.7 7.6 6.5 9.1 3.8-1.5 6.5-4.9 6.5-9.1V5.5L12 3Z" {...common} /><path d="m9.5 12 1.8 1.8 3.6-4" {...common} /></>
+      ) : kind === 'spaces' ? (
+        <><path d="M5 10.5 12 5l7 5.5" {...common} /><path d="M7 10v9h10v-9" {...common} /><path d="M10 19v-5h4v5" {...common} /></>
+      ) : kind === 'availability' || kind === 'calendar' ? (
+        <><circle cx="12" cy="12" r="8" {...common} /><path d="M12 8v4l3 2" {...common} /></>
+      ) : kind === 'spark' ? (
+        <><path d="M12 3.5 13.8 9l5.2 1.8-5.2 1.8L12 18l-1.8-5.4L5 10.8 10.2 9 12 3.5Z" {...common} /></>
+      ) : kind === 'personal' ? (
+        <><path d="M8.5 10.5a3.5 3.5 0 1 0 7 0 3.5 3.5 0 0 0-7 0Z" {...common} /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" {...common} /></>
+      ) : kind === 'todo' || kind === 'invoice' ? (
+        <><rect x="6" y="4" width="12" height="16" rx="2" {...common} /><path d="M9 9h6M9 13h6M9 17h3" {...common} /></>
+      ) : kind === 'group' ? (
+        <><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" {...common} /><path d="M3.5 20a5 5 0 0 1 9 0M11.5 20a5 5 0 0 1 9 0" {...common} /></>
+      ) : kind === 'wallet' ? (
+        <><rect x="4" y="7" width="16" height="11" rx="3" {...common} /><path d="M17 11.5h3v3h-3a1.5 1.5 0 0 1 0-3ZM7 7V5.5h9" {...common} /></>
+      ) : kind === 'message' ? (
+        <><path d="M5 6h14v10H9l-4 4V6Z" {...common} /><path d="M8 10h8M8 13h5" {...common} /></>
+      ) : kind === 'shield' ? (
+        <><path d="M12 3 5.5 5.5v5.7c0 4.2 2.7 7.6 6.5 9.1 3.8-1.5 6.5-4.9 6.5-9.1V5.5L12 3Z" {...common} /></>
+      ) : kind === 'key' ? (
+        <><circle cx="8" cy="13" r="3" {...common} /><path d="m11 13 8-8M16 8l2 2M14 10l2 2" {...common} /></>
+      ) : (
+        <><path d="M9.5 14.5 14.5 9.5" {...common} /><path d="M8 9.5 6.8 10.7a4 4 0 0 0 5.7 5.7L14 15" {...common} /><path d="m10 9 1.5-1.5a4 4 0 0 1 5.7 5.7L16 14.5" {...common} /></>
+      )}
+    </svg>
+  )
+}
+
+function ModulesDesignSettingLine({
+  line,
+  expandedRows,
+  onToggleExpanded,
+  nested = false,
+}: {
+  line: ModulesDesignLine
+  expandedRows: string[]
+  onToggleExpanded: (id: string) => void
+  nested?: boolean
+}) {
+  const hasChildren = Boolean(line.children?.length)
+  const expanded = hasChildren && expandedRows.includes(line.id)
+  return (
+    <div className={nested ? 'modules-design-subtree' : 'modules-design-tree'}>
+      <div className={nested ? 'modules-design-setting-line is-subparameter' : hasChildren ? 'modules-design-setting-line has-children' : 'modules-design-setting-line'}>
+        <span className="modules-design-setting-icon">
+          <ModulesDesignIcon kind={line.icon} />
+        </span>
+        <button
+          type="button"
+          className="modules-design-setting-copy"
+          onClick={() => hasChildren ? onToggleExpanded(line.id) : line.onChange(!line.checked)}
+        >
+          <strong>{line.title}</strong>
+          {line.subtitle ? <span>{line.subtitle}</span> : null}
+        </button>
+        <GuestSwitch checked={line.checked} onChange={line.onChange} />
+        {hasChildren ? (
+          <button
+            type="button"
+            className={expanded ? 'modules-design-row-chevron is-open' : 'modules-design-row-chevron'}
+            onClick={() => onToggleExpanded(line.id)}
+            aria-label={expanded ? 'Collapse sub settings' : 'Expand sub settings'}
+            aria-expanded={expanded}
+          >
+            <span>⌄</span>
+          </button>
+        ) : null}
+      </div>
+      {expanded ? (
+        <div className="modules-design-sub-list">
+          {line.children!.map((child) => (
+            <ModulesDesignSettingLine
+              key={child.id}
+              line={child}
+              expandedRows={expandedRows}
+              onToggleExpanded={onToggleExpanded}
+              nested
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ModulesDesignGroupCard({ group, expandedRows, onToggleExpanded }: { group: ModulesDesignGroup; expandedRows: string[]; onToggleExpanded: (id: string) => void }) {
+  return (
+    <section className={`modules-design-group-card modules-design-group-card--${group.tone}`}>
+      <div className="modules-design-group-header">
+        <span className="modules-design-group-icon"><ModulesDesignIcon kind={group.icon} /></span>
+        <span className="modules-design-group-title">
+          <strong>{group.title}</strong>
+          <span>{group.subtitle}</span>
+        </span>
+        <GuestSwitch checked={group.checked} onChange={group.onChange} />
+      </div>
+      <div className="modules-design-settings-panel">
+        {group.rows.map((line) => (
+          <ModulesDesignSettingLine key={line.id} line={line} expandedRows={expandedRows} onToggleExpanded={onToggleExpanded} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
 type NotificationChannel = 'email' | 'sms' | 'guestApp'
 type NotificationEventKind = 'newSession' | 'sessionChanged' | 'sessionCancelled' | 'beforeSession' | 'afterSession'
 
@@ -1830,6 +1999,10 @@ type GuestPaymentMethodId = 'online_card' | 'bank_transfer' | 'paypal' | 'gift_c
 
 type GuestAppSettingsForm = {
   guestAppEnabled: boolean
+  walletEnabled: boolean
+  ordersEnabled: boolean
+  buyTabEnabled: boolean
+  entitlementsEnabled: boolean
   publicDiscoverable: boolean
   publicName: string
   publicDescription: string
@@ -1937,6 +2110,10 @@ const ALL_GUEST_PRODUCT_TYPES: string[] = [...GUEST_PRODUCT_TYPES]
 
 const defaultGuestAppSettings = (): GuestAppSettingsForm => ({
   guestAppEnabled: true,
+  walletEnabled: true,
+  ordersEnabled: true,
+  buyTabEnabled: true,
+  entitlementsEnabled: false,
   publicDiscoverable: false,
   publicName: '',
   publicDescription: '',
@@ -2261,6 +2438,10 @@ const parseGuestAppSettings = (raw: string | undefined): GuestAppSettingsForm =>
     const parsed = JSON.parse(raw)
     return {
       guestAppEnabled: parsed?.guestAppEnabled !== false,
+      walletEnabled: parsed?.walletEnabled !== false,
+      ordersEnabled: parsed?.ordersEnabled !== false,
+      buyTabEnabled: parsed?.buyTabEnabled !== false,
+      entitlementsEnabled: parsed?.entitlementsEnabled === true,
       publicDiscoverable: parsed?.publicDiscoverable === true,
       publicName: normalizePublicName(parsed?.publicName),
       publicDescription: String(parsed?.publicDescription || ''),
@@ -2337,6 +2518,10 @@ const normalizeBookingRulesForPaymentLocation = (rules: GuestBookingRulesForm, p
 
 const serializeGuestAppSettings = (value: GuestAppSettingsForm) => JSON.stringify({
   guestAppEnabled: value.guestAppEnabled,
+  walletEnabled: value.walletEnabled,
+  ordersEnabled: value.ordersEnabled,
+  buyTabEnabled: value.buyTabEnabled,
+  entitlementsEnabled: value.entitlementsEnabled,
   publicDiscoverable: value.publicDiscoverable,
   publicName: normalizePublicName(value.publicName).trim(),
   publicDescription: normalizePublicDescription(value.publicDescription),
@@ -2397,7 +2582,38 @@ type ModulesDraft = {
   MULTIPLE_SESSIONS_PER_SPACE_ENABLED: string
   MULTIPLE_CLIENTS_PER_SESSION_ENABLED: string
   GROUP_BOOKING_ENABLED: string
+  BILLING_ENABLED: string
+  BILLING_INVOICES_ENABLED: string
+  BILLING_ONLINE_CARD_PAYMENTS_ENABLED: string
+  BILLING_BANK_TRANSFER_ENABLED: string
+  BILLING_PAYPAL_ENABLED: string
+  BILLING_GIFT_CARDS_ENABLED: string
+  COMMUNICATION_ENABLED: string
+  NOTIFICATIONS_ENABLED: string
+  NOTIFICATIONS_EMAIL_ALERTS_ENABLED: string
+  NOTIFICATIONS_SMS_ALERTS_ENABLED: string
+  NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: string
+  GOOGLE_CALENDAR_MODULE_ENABLED: string
+  WHATSAPP_MODULE_ENABLED: string
+  VIBER_MODULE_ENABLED: string
+  SECURITY_MODULE_ENABLED: string
+  SECURITY_SESSION_SECURITY_ENABLED: string
+  SECURITY_PASSKEYS_ENABLED: string
+  SECURITY_API_INTEGRATIONS_ENABLED: string
   guestAppEnabled: boolean
+  guestWalletEnabled: boolean
+  guestOrdersEnabled: boolean
+  guestBuyTabEnabled: boolean
+  guestEntitlementsEnabled: boolean
+}
+
+type ModulesStringKey = { [K in keyof ModulesDraft]: ModulesDraft[K] extends string ? K : never }[keyof ModulesDraft]
+type ModulesBooleanKey = { [K in keyof ModulesDraft]: ModulesDraft[K] extends boolean ? K : never }[keyof ModulesDraft]
+
+const modulesStringSetting = (s: Record<string, string>, key: string, defaultValue: boolean) => {
+  if (s[key] === 'true') return 'true'
+  if (s[key] === 'false') return 'false'
+  return defaultValue ? 'true' : 'false'
 }
 
 const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSettingsForm): ModulesDraft => ({
@@ -2409,7 +2625,29 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   MULTIPLE_SESSIONS_PER_SPACE_ENABLED: s.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'true' : 'false',
   MULTIPLE_CLIENTS_PER_SESSION_ENABLED: s.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? 'true' : 'false',
   GROUP_BOOKING_ENABLED: s.GROUP_BOOKING_ENABLED === 'true' ? 'true' : 'false',
+  BILLING_ENABLED: modulesStringSetting(s, 'BILLING_ENABLED', true),
+  BILLING_INVOICES_ENABLED: modulesStringSetting(s, 'BILLING_INVOICES_ENABLED', true),
+  BILLING_ONLINE_CARD_PAYMENTS_ENABLED: modulesStringSetting(s, 'BILLING_ONLINE_CARD_PAYMENTS_ENABLED', true),
+  BILLING_BANK_TRANSFER_ENABLED: modulesStringSetting(s, 'BILLING_BANK_TRANSFER_ENABLED', true),
+  BILLING_PAYPAL_ENABLED: modulesStringSetting(s, 'BILLING_PAYPAL_ENABLED', true),
+  BILLING_GIFT_CARDS_ENABLED: modulesStringSetting(s, 'BILLING_GIFT_CARDS_ENABLED', false),
+  COMMUNICATION_ENABLED: modulesStringSetting(s, 'COMMUNICATION_ENABLED', true),
+  NOTIFICATIONS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_ENABLED', true),
+  NOTIFICATIONS_EMAIL_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_EMAIL_ALERTS_ENABLED', true),
+  NOTIFICATIONS_SMS_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_SMS_ALERTS_ENABLED', false),
+  NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED', true),
+  GOOGLE_CALENDAR_MODULE_ENABLED: modulesStringSetting(s, 'GOOGLE_CALENDAR_MODULE_ENABLED', true),
+  WHATSAPP_MODULE_ENABLED: modulesStringSetting(s, 'WHATSAPP_MODULE_ENABLED', true),
+  VIBER_MODULE_ENABLED: modulesStringSetting(s, 'VIBER_MODULE_ENABLED', false),
+  SECURITY_MODULE_ENABLED: modulesStringSetting(s, 'SECURITY_MODULE_ENABLED', true),
+  SECURITY_SESSION_SECURITY_ENABLED: modulesStringSetting(s, 'SECURITY_SESSION_SECURITY_ENABLED', true),
+  SECURITY_PASSKEYS_ENABLED: modulesStringSetting(s, 'SECURITY_PASSKEYS_ENABLED', true),
+  SECURITY_API_INTEGRATIONS_ENABLED: modulesStringSetting(s, 'SECURITY_API_INTEGRATIONS_ENABLED', false),
   guestAppEnabled: g.guestAppEnabled,
+  guestWalletEnabled: g.walletEnabled,
+  guestOrdersEnabled: g.ordersEnabled,
+  guestBuyTabEnabled: g.buyTabEnabled,
+  guestEntitlementsEnabled: g.entitlementsEnabled,
 })
 
 export function ConfigurationPage() {
@@ -2472,6 +2710,7 @@ export function ConfigurationPage() {
   })
   const [inboxCapabilitiesLoaded, setInboxCapabilitiesLoaded] = useState(false)
   const [modulesDraft, setModulesDraft] = useState<ModulesDraft | null>(null)
+  const [expandedModuleRows, setExpandedModuleRows] = useState<string[]>(DEFAULT_EXPANDED_MODULE_ROWS)
   const prevTabRef = useRef<Tab>(tab)
   const tabRef = useRef<Tab>(tab)
   tabRef.current = tab
@@ -2888,8 +3127,33 @@ export function ConfigurationPage() {
           MULTIPLE_SESSIONS_PER_SPACE_ENABLED: modulesDraft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED,
           MULTIPLE_CLIENTS_PER_SESSION_ENABLED: modulesDraft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED,
           GROUP_BOOKING_ENABLED: modulesDraft.GROUP_BOOKING_ENABLED,
+          BILLING_ENABLED: modulesDraft.BILLING_ENABLED,
+          BILLING_INVOICES_ENABLED: modulesDraft.BILLING_INVOICES_ENABLED,
+          BILLING_ONLINE_CARD_PAYMENTS_ENABLED: modulesDraft.BILLING_ONLINE_CARD_PAYMENTS_ENABLED,
+          BILLING_BANK_TRANSFER_ENABLED: modulesDraft.BILLING_BANK_TRANSFER_ENABLED,
+          BILLING_PAYPAL_ENABLED: modulesDraft.BILLING_PAYPAL_ENABLED,
+          BILLING_GIFT_CARDS_ENABLED: modulesDraft.BILLING_GIFT_CARDS_ENABLED,
+          COMMUNICATION_ENABLED: modulesDraft.COMMUNICATION_ENABLED,
+          NOTIFICATIONS_ENABLED: modulesDraft.NOTIFICATIONS_ENABLED,
+          NOTIFICATIONS_EMAIL_ALERTS_ENABLED: modulesDraft.NOTIFICATIONS_EMAIL_ALERTS_ENABLED,
+          NOTIFICATIONS_SMS_ALERTS_ENABLED: modulesDraft.NOTIFICATIONS_SMS_ALERTS_ENABLED,
+          NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesDraft.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED,
+          GOOGLE_CALENDAR_MODULE_ENABLED: modulesDraft.GOOGLE_CALENDAR_MODULE_ENABLED,
+          WHATSAPP_MODULE_ENABLED: modulesDraft.WHATSAPP_MODULE_ENABLED,
+          VIBER_MODULE_ENABLED: modulesDraft.VIBER_MODULE_ENABLED,
+          SECURITY_MODULE_ENABLED: modulesDraft.SECURITY_MODULE_ENABLED,
+          SECURITY_SESSION_SECURITY_ENABLED: modulesDraft.SECURITY_SESSION_SECURITY_ENABLED,
+          SECURITY_PASSKEYS_ENABLED: modulesDraft.SECURITY_PASSKEYS_ENABLED,
+          SECURITY_API_INTEGRATIONS_ENABLED: modulesDraft.SECURITY_API_INTEGRATIONS_ENABLED,
         }
-        effectiveGuestApp = { ...guestAppSettings, guestAppEnabled: modulesDraft.guestAppEnabled }
+        effectiveGuestApp = {
+          ...guestAppSettings,
+          guestAppEnabled: modulesDraft.guestAppEnabled,
+          walletEnabled: modulesDraft.guestWalletEnabled,
+          ordersEnabled: modulesDraft.guestOrdersEnabled,
+          buyTabEnabled: modulesDraft.guestBuyTabEnabled,
+          entitlementsEnabled: modulesDraft.guestEntitlementsEnabled,
+        }
       }
       const payload = {
         ...effectiveSettings,
@@ -3504,6 +3768,234 @@ export function ConfigurationPage() {
     })
     load()
   }
+
+  const moduleDraftForDesign = modulesDraftDisplay ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+  const setModuleStringSetting = (key: ModulesStringKey, checked: boolean) => {
+    setModulesDraft((prev) => {
+      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+      return { ...d, [key]: checked ? 'true' : 'false' }
+    })
+  }
+  const setModuleStringSettings = (keys: ModulesStringKey[], checked: boolean) => {
+    setModulesDraft((prev) => {
+      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+      const next = { ...d }
+      keys.forEach((key) => {
+        next[key] = checked ? 'true' : 'false'
+      })
+      return next
+    })
+  }
+  const setModuleBooleanSetting = (key: ModulesBooleanKey, checked: boolean) => {
+    setModulesDraft((prev) => {
+      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+      return { ...d, [key]: checked }
+    })
+  }
+  const setModuleBooleanSettings = (keys: ModulesBooleanKey[], checked: boolean) => {
+    setModulesDraft((prev) => {
+      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+      const next = { ...d }
+      keys.forEach((key) => {
+        next[key] = checked
+      })
+      return next
+    })
+  }
+  const moduleOn = (key: ModulesStringKey) => moduleDraftForDesign[key] === 'true'
+  const moduleBool = (key: ModulesBooleanKey) => moduleDraftForDesign[key]
+  const toggleExpandedModuleRow = (id: string) => {
+    setExpandedModuleRows((prev) => prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id])
+  }
+
+  const bookingModuleKeys: ModulesStringKey[] = [
+    'SPACES_ENABLED',
+    'BOOKABLE_ENABLED',
+    'AI_BOOKING_ENABLED',
+    'PERSONAL_ENABLED',
+    'TODOS_ENABLED',
+    'GROUP_BOOKING_ENABLED',
+  ]
+  const billingModuleKeys: ModulesStringKey[] = [
+    'BILLING_ENABLED',
+    'BILLING_INVOICES_ENABLED',
+    'BILLING_ONLINE_CARD_PAYMENTS_ENABLED',
+    'BILLING_BANK_TRANSFER_ENABLED',
+    'BILLING_PAYPAL_ENABLED',
+    'BILLING_GIFT_CARDS_ENABLED',
+  ]
+  const guestModuleKeys: ModulesBooleanKey[] = [
+    'guestAppEnabled',
+    'guestWalletEnabled',
+    'guestOrdersEnabled',
+    'guestBuyTabEnabled',
+    'guestEntitlementsEnabled',
+  ]
+  const communicationModuleKeys: ModulesStringKey[] = [
+    'COMMUNICATION_ENABLED',
+    'NOTIFICATIONS_ENABLED',
+    'NOTIFICATIONS_EMAIL_ALERTS_ENABLED',
+    'NOTIFICATIONS_SMS_ALERTS_ENABLED',
+    'NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED',
+    'GOOGLE_CALENDAR_MODULE_ENABLED',
+    'WHATSAPP_MODULE_ENABLED',
+    'VIBER_MODULE_ENABLED',
+  ]
+  const securityModuleKeys: ModulesStringKey[] = [
+    'SECURITY_MODULE_ENABLED',
+    'SECURITY_SESSION_SECURITY_ENABLED',
+    'SECURITY_PASSKEYS_ENABLED',
+    'SECURITY_API_INTEGRATIONS_ENABLED',
+  ]
+
+  const modulesDesignGroups: ModulesDesignGroup[] = [
+    {
+      id: 'booking',
+      title: t('tabBooking'),
+      subtitle: 'Manage bookings, spaces and availability.',
+      icon: 'booking',
+      tone: 'blue',
+      checked: bookingModuleKeys.some(moduleOn),
+      onChange: (checked) => setModuleStringSettings(bookingModuleKeys, checked),
+      rows: [
+        {
+          id: 'booking-spaces',
+          icon: 'spaces',
+          title: t('configModulesSpacesLabel'),
+          checked: moduleOn('SPACES_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('SPACES_ENABLED', checked),
+          children: [
+            { id: 'booking-spaces-selection', icon: 'spaces', title: 'Space selection', checked: moduleOn('SPACES_ENABLED'), onChange: (checked) => setModuleStringSetting('SPACES_ENABLED', checked) },
+            { id: 'booking-space-conflict-check', icon: 'shield', title: 'Space conflict checks', checked: !moduleOn('MULTIPLE_SESSIONS_PER_SPACE_ENABLED'), onChange: (checked) => setModuleStringSetting('MULTIPLE_SESSIONS_PER_SPACE_ENABLED', !checked) },
+          ],
+        },
+        {
+          id: 'booking-availability',
+          icon: 'availability',
+          title: t('configModulesAvailabilityLabel'),
+          checked: moduleOn('BOOKABLE_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('BOOKABLE_ENABLED', checked),
+          children: [
+            { id: 'booking-working-hours', icon: 'calendar', title: 'Working hours', checked: moduleOn('BOOKABLE_ENABLED'), onChange: (checked) => setModuleStringSetting('BOOKABLE_ENABLED', checked) },
+            { id: 'booking-buffer-times', icon: 'availability', title: 'Buffer times', checked: moduleOn('BOOKABLE_ENABLED'), onChange: (checked) => setModuleStringSetting('BOOKABLE_ENABLED', checked) },
+          ],
+        },
+        { id: 'booking-ai', icon: 'spark', title: t('configModulesAiLabel'), checked: moduleOn('AI_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('AI_BOOKING_ENABLED', checked) },
+        { id: 'booking-personal', icon: 'personal', title: t('configModulesPersonalLabel'), checked: moduleOn('PERSONAL_ENABLED'), onChange: (checked) => setModuleStringSetting('PERSONAL_ENABLED', checked) },
+        { id: 'booking-todos', icon: 'todo', title: t('configModulesTodosLabel'), checked: moduleOn('TODOS_ENABLED'), onChange: (checked) => setModuleStringSetting('TODOS_ENABLED', checked) },
+        {
+          id: 'booking-group-booking',
+          icon: 'group',
+          title: t('configModulesGroupBookingLabel'),
+          checked: moduleOn('GROUP_BOOKING_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('GROUP_BOOKING_ENABLED', checked),
+          children: [
+            { id: 'booking-multiple-sessions', icon: 'spaces', title: t('configModulesMultipleSessionsPerSpaceLabel'), checked: moduleOn('MULTIPLE_SESSIONS_PER_SPACE_ENABLED'), onChange: (checked) => setModuleStringSetting('MULTIPLE_SESSIONS_PER_SPACE_ENABLED', checked) },
+            { id: 'booking-multiple-clients', icon: 'group', title: t('configModulesMultipleClientsPerSessionLabel'), checked: moduleOn('MULTIPLE_CLIENTS_PER_SESSION_ENABLED'), onChange: (checked) => setModuleStringSetting('MULTIPLE_CLIENTS_PER_SESSION_ENABLED', checked) },
+            { id: 'booking-max-participants', icon: 'group', title: 'Max participants', checked: moduleOn('GROUP_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('GROUP_BOOKING_ENABLED', checked) },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'billing',
+      title: t('tabBilling'),
+      subtitle: 'Invoices, payments and financial management.',
+      icon: 'billing',
+      tone: 'green',
+      checked: billingModuleKeys.some(moduleOn),
+      onChange: (checked) => setModuleStringSettings(billingModuleKeys, checked),
+      rows: [
+        {
+          id: 'billing-billing',
+          icon: 'invoice',
+          title: t('tabBilling'),
+          checked: moduleOn('BILLING_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('BILLING_ENABLED', checked),
+          children: [
+            { id: 'billing-invoices', icon: 'invoice', title: 'Invoices', checked: moduleOn('BILLING_INVOICES_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_INVOICES_ENABLED', checked) },
+            { id: 'billing-online-card', icon: 'billing', title: 'Online card payments', checked: moduleOn('BILLING_ONLINE_CARD_PAYMENTS_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ONLINE_CARD_PAYMENTS_ENABLED', checked) },
+            { id: 'billing-bank-transfer', icon: 'billing', title: 'Bank transfer', checked: moduleOn('BILLING_BANK_TRANSFER_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_BANK_TRANSFER_ENABLED', checked) },
+            { id: 'billing-paypal', icon: 'billing', title: 'PayPal', checked: moduleOn('BILLING_PAYPAL_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_PAYPAL_ENABLED', checked) },
+            { id: 'billing-gift-cards', icon: 'wallet', title: 'Gift cards', checked: moduleOn('BILLING_GIFT_CARDS_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_GIFT_CARDS_ENABLED', checked) },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'guest-app',
+      title: t('tabGuestApp'),
+      subtitle: 'Manage the guest experience and in-app features.',
+      icon: 'guestApp',
+      tone: 'purple',
+      checked: moduleBool('guestAppEnabled'),
+      onChange: (checked) => setModuleBooleanSettings(guestModuleKeys, checked),
+      rows: [
+        {
+          id: 'guest-app-main',
+          icon: 'guestApp',
+          title: t('tabGuestApp'),
+          checked: moduleBool('guestAppEnabled'),
+          onChange: (checked) => setModuleBooleanSetting('guestAppEnabled', checked),
+          children: [
+            { id: 'guest-app-wallet', icon: 'wallet', title: 'Wallet', checked: moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestWalletEnabled', checked) },
+            { id: 'guest-app-orders', icon: 'invoice', title: 'Orders', checked: moduleBool('guestOrdersEnabled'), onChange: (checked) => setModuleBooleanSetting('guestOrdersEnabled', checked) },
+            { id: 'guest-app-buy-tab', icon: 'billing', title: 'Buy tab', checked: moduleBool('guestBuyTabEnabled'), onChange: (checked) => setModuleBooleanSetting('guestBuyTabEnabled', checked) },
+            { id: 'guest-app-entitlements', icon: 'wallet', title: 'Entitlements', checked: moduleBool('guestEntitlementsEnabled'), onChange: (checked) => setModuleBooleanSetting('guestEntitlementsEnabled', checked) },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'communication',
+      title: 'Communication',
+      subtitle: 'Notifications and channels to keep your users informed.',
+      icon: 'communication',
+      tone: 'amber',
+      checked: communicationModuleKeys.some(moduleOn),
+      onChange: (checked) => setModuleStringSettings(communicationModuleKeys, checked),
+      rows: [
+        {
+          id: 'communication-notifications',
+          icon: 'communication',
+          title: t('tabNotifications'),
+          checked: moduleOn('NOTIFICATIONS_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_ENABLED', checked),
+          children: [
+            { id: 'communication-email-alerts', icon: 'message', title: 'Email alerts', checked: moduleOn('NOTIFICATIONS_EMAIL_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_EMAIL_ALERTS_ENABLED', checked) },
+            { id: 'communication-sms-alerts', icon: 'message', title: 'SMS alerts', checked: moduleOn('NOTIFICATIONS_SMS_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_SMS_ALERTS_ENABLED', checked) },
+            { id: 'communication-reminder-templates', icon: 'todo', title: 'Reminder templates', checked: moduleOn('NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED', checked) },
+          ],
+        },
+        { id: 'communication-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked), children: [{ id: 'communication-google-two-way', icon: 'link', title: 'Two-way sync', checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) }] },
+        { id: 'communication-whatsapp', icon: 'message', title: 'WhatsApp', checked: moduleOn('WHATSAPP_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('WHATSAPP_MODULE_ENABLED', checked), children: [{ id: 'communication-whatsapp-inbox', icon: 'message', title: 'Inbox channel', checked: moduleOn('WHATSAPP_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('WHATSAPP_MODULE_ENABLED', checked) }] },
+        { id: 'communication-viber', icon: 'message', title: 'Viber', checked: moduleOn('VIBER_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('VIBER_MODULE_ENABLED', checked), children: [{ id: 'communication-viber-inbox', icon: 'message', title: 'Inbox channel', checked: moduleOn('VIBER_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('VIBER_MODULE_ENABLED', checked) }] },
+      ],
+    },
+    {
+      id: 'security',
+      title: 'Security & Integrations',
+      subtitle: 'Security settings and third-party integrations.',
+      icon: 'security',
+      tone: 'rose',
+      checked: securityModuleKeys.some(moduleOn),
+      onChange: (checked) => setModuleStringSettings(securityModuleKeys, checked),
+      rows: [
+        {
+          id: 'security-security',
+          icon: 'shield',
+          title: t('tabSecurity'),
+          checked: moduleOn('SECURITY_MODULE_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('SECURITY_MODULE_ENABLED', checked),
+          children: [
+            { id: 'security-session-security', icon: 'shield', title: 'Session security', checked: moduleOn('SECURITY_SESSION_SECURITY_ENABLED'), onChange: (checked) => setModuleStringSetting('SECURITY_SESSION_SECURITY_ENABLED', checked) },
+            { id: 'security-passkeys', icon: 'key', title: 'Passkeys / WebAuthn', checked: moduleOn('SECURITY_PASSKEYS_ENABLED'), onChange: (checked) => setModuleStringSetting('SECURITY_PASSKEYS_ENABLED', checked) },
+            { id: 'security-api-integrations', icon: 'link', title: 'API integrations', checked: moduleOn('SECURITY_API_INTEGRATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('SECURITY_API_INTEGRATIONS_ENABLED', checked) },
+          ],
+        },
+      ],
+    },
+  ]
 
   if (!isAdmin) {
     return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />
@@ -6782,174 +7274,22 @@ export function ConfigurationPage() {
           globallyEnabled={inboxGlobalCapabilities.viberEnabled}
         />
       ) : tab === 'modules' && modulesDraftDisplay ? (
-        <Card className="settings-card">
-          <SectionTitle>{t('tabModules')}</SectionTitle>
-          <p className="muted">{t('configModulesSectionIntro')}</p>
-          <div className="config-booking-modules" style={{ marginTop: 4 }}>
-            <div className="stack gap-sm">
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>Guest App</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.guestAppEnabled ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return { ...d, guestAppEnabled: !d.guestAppEnabled }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.guestAppEnabled ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesSpacesLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.SPACES_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return { ...d, SPACES_ENABLED: d.SPACES_ENABLED === 'true' ? 'false' : 'true' }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.SPACES_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesAvailabilityLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.BOOKABLE_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return { ...d, BOOKABLE_ENABLED: d.BOOKABLE_ENABLED === 'true' ? 'false' : 'true' }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.BOOKABLE_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesAiLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.AI_BOOKING_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return { ...d, AI_BOOKING_ENABLED: d.AI_BOOKING_ENABLED === 'false' ? 'true' : 'false' }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.AI_BOOKING_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesPersonalLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.PERSONAL_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return { ...d, PERSONAL_ENABLED: d.PERSONAL_ENABLED === 'false' ? 'true' : 'false' }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.PERSONAL_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesTodosLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.TODOS_ENABLED !== 'false' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return { ...d, TODOS_ENABLED: d.TODOS_ENABLED === 'false' ? 'true' : 'false' }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.TODOS_ENABLED !== 'false' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesMultipleSessionsPerSpaceLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return {
-                        ...d,
-                        MULTIPLE_SESSIONS_PER_SPACE_ENABLED: d.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'false' : 'true',
-                      }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesMultipleClientsPerSessionLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return {
-                        ...d,
-                        MULTIPLE_CLIENTS_PER_SESSION_ENABLED: d.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? 'false' : 'true',
-                      }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-              <div className="config-module-row">
-                <div className="config-module-name">
-                  <strong>{t('configModulesGroupBookingLabel')}</strong>
-                </div>
-                <button
-                  type="button"
-                  className={modulesDraftDisplay.GROUP_BOOKING_ENABLED === 'true' ? 'small-btn' : 'secondary small-btn'}
-                  onClick={() =>
-                    setModulesDraft((prev) => {
-                      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-                      return { ...d, GROUP_BOOKING_ENABLED: d.GROUP_BOOKING_ENABLED === 'true' ? 'false' : 'true' }
-                    })
-                  }
-                >
-                  {modulesDraftDisplay.GROUP_BOOKING_ENABLED === 'true' ? t('configToggleOn') : t('configToggleOff')}
-                </button>
-              </div>
-            </div>
-            <div className="form-actions config-modules-save">
-              <button type="button" onClick={() => void saveSettings({ applyModulesDraft: true })} disabled={savingSettings}>{savingSettings ? t('formSaving') : t('configSaveConfiguration')}</button>
-            </div>
+        <Card className="settings-card modules-design-card">
+          <div className="modules-design-grid">
+            {modulesDesignGroups.map((group) => (
+              <ModulesDesignGroupCard
+                key={group.id}
+                group={group}
+                expandedRows={expandedModuleRows}
+                onToggleExpanded={toggleExpandedModuleRow}
+              />
+            ))}
+          </div>
+          <div className="gapp-savebar">
+            <button type="button" className="gapp-primary-button" onClick={() => void saveSettings({ applyModulesDraft: true })} disabled={savingSettings}>
+              <GuestSaveIcon />
+              {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+            </button>
           </div>
         </Card>
       ) : tab === 'security' ? (

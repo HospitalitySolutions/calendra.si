@@ -38,12 +38,14 @@ struct ProfileView: View {
     }
 
     @EnvironmentObject private var store: AppStore
+    @Environment(\.openURL) private var openURL
     @State private var profile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", cards: [])
     @State private var showingEditSheet = false
     @State private var showLanguagePicker = false
     @State private var showNotificationsSheet = false
     @State private var showInvoicingSheet = false
     @State private var showSubscribedTenantsSheet = false
+    @State private var showAccountDeletionConfirmation = false
     @State private var remoteError: String?
     @State private var loadingRemoteSettings = false
     @State private var savingPreference = false
@@ -56,6 +58,8 @@ struct ProfileView: View {
     @State private var uploadingAvatar = false
     @State private var tenantActionTarget: TenantActionTarget?
     @State private var tenantActionInFlightId: String?
+
+    private let accountDeletionUrl = URL(string: "https://calendra.si/account-deletion")!
 
     private var languageDisplay: String {
         profile.language.lowercased() == "sl" ? "Slovenščina" : "English"
@@ -185,26 +189,19 @@ struct ProfileView: View {
                                 showSubscribedTenantsSheet = true
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
-                            Button {
-                                store.logout()
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
-                                        .frame(width: 22, alignment: .center)
-                                    Text("Log out")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
-                                }
-                                .padding(.horizontal, 18)
-                                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                            dangerNavigationRow(
+                                title: "Delete account",
+                                systemImage: "trash"
+                            ) {
+                                showAccountDeletionConfirmation = true
                             }
-                            .buttonStyle(.plain)
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            dangerNavigationRow(
+                                title: "Log out",
+                                systemImage: "rectangle.portrait.and.arrow.right"
+                            ) {
+                                store.logout()
+                            }
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -339,6 +336,14 @@ struct ProfileView: View {
                 },
                 secondaryButton: .cancel()
             )
+        }
+        .alert("Delete account?", isPresented: $showAccountDeletionConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Open deletion page", role: .destructive) {
+                openURL(accountDeletionUrl)
+            }
+        } message: {
+            Text("This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data.")
         }
     }
 
@@ -548,6 +553,31 @@ struct ProfileView: View {
         } catch {
             remoteError = error.localizedDescription
         }
+    }
+
+    private func dangerNavigationRow(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
+                    .frame(width: 22, alignment: .center)
+                Text(title)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
+            }
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        }
+        .buttonStyle(.plain)
     }
 
     private func preferenceNavigationRow(

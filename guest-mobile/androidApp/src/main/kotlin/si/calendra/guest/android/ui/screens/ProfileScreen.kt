@@ -1,6 +1,7 @@
 package si.calendra.guest.android.ui.screens
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Language
@@ -135,6 +137,7 @@ fun ProfileScreen(
     var showNotificationsDialog by remember { mutableStateOf(false) }
     var showInvoicingDialog by remember { mutableStateOf(false) }
     var showSubscribedTenantsDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var avatarBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var uploadingAvatar by remember { mutableStateOf(false) }
     var loadingRemote by remember(activeTenantId) { mutableStateOf(false) }
@@ -148,6 +151,13 @@ fun ProfileScreen(
     var tenantActionInProgress by remember { mutableStateOf(false) }
     var tenantActionError by remember { mutableStateOf<String?>(null) }
     val subscribedTenants = session?.linkedTenants.orEmpty()
+    val accountDeletionUrl = "https://calendra.si/account-deletion"
+
+    fun openAccountDeletionPage() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(accountDeletionUrl))
+        runCatching { context.startActivity(intent) }
+            .onFailure { remoteError = "Could not open account deletion page." }
+    }
 
     fun mergeRemoteSettings(remote: GuestProfileSettings) {
         profile = profile.copy(
@@ -383,7 +393,14 @@ fun ProfileScreen(
                                 onClick = { showSubscribedTenantsDialog = true }
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
-                            PreferenceLogoutRow(
+                            PreferenceDangerRow(
+                                title = "Delete account",
+                                leadingIcon = Icons.Rounded.DeleteOutline,
+                                onClick = { showDeleteAccountDialog = true }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceDangerRow(
+                                title = "Log out",
                                 leadingIcon = Icons.AutoMirrored.Rounded.Logout,
                                 onClick = onLogout
                             )
@@ -664,6 +681,34 @@ fun ProfileScreen(
         )
     }
 
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            title = { Text("Delete account?") },
+            text = {
+                Text(
+                    "This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteAccountDialog = false
+                        openAccountDeletionPage()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Open deletion page")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (editing) {
         EditProfileDialog(
             initial = profile,
@@ -868,7 +913,11 @@ private fun PreferenceNavigationRow(
 }
 
 @Composable
-private fun PreferenceLogoutRow(leadingIcon: ImageVector, onClick: () -> Unit) {
+private fun PreferenceDangerRow(
+    title: String,
+    leadingIcon: ImageVector,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -890,7 +939,7 @@ private fun PreferenceLogoutRow(leadingIcon: ImageVector, onClick: () -> Unit) {
                 tint = Color(0xFFD6291D)
             )
             Text(
-                "Log out",
+                title,
                 style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp),
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFD6291D)
