@@ -2,7 +2,6 @@ package si.calendra.guest.android.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -181,19 +179,13 @@ fun WelcomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    Text(
-                        text = copy.eyebrow,
-                        color = Color(0xFF1273FF),
-                        fontSize = metrics.eyebrowFontSize.sp,
-                        lineHeight = (metrics.eyebrowFontSize + 3).sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.0.sp,
+                    Image(
+                        painter = painterResource(id = R.drawable.calendra_book_logo),
+                        contentDescription = "Calendra Book",
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .border(1.dp, Color(0xFF1273FF), RectangleShape)
-                            .padding(
-                                horizontal = metrics.eyebrowHorizontalPadding,
-                                vertical = metrics.eyebrowVerticalPadding
-                            )
+                            .widthIn(max = 260.dp)
+                            .height(74.dp)
                     )
 
                     Text(

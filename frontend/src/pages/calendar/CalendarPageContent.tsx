@@ -1854,6 +1854,7 @@ export default function CalendarPage() {
     calendarMode === 'bookings' && user.role === 'ADMIN' && consultantFilterId == null && !isNativeAndroid
 
   const useResourceColumns = spacesUseResourceColumns || bookingsUseResourceColumns
+  const useUnassignedDrawer = spacesUseResourceColumns || bookingsUseResourceColumns
 
   useEffect(() => {
     if (!personalModuleEnabled) {
@@ -1881,23 +1882,33 @@ export default function CalendarPage() {
 
   const calendarResources = useMemo((): { id: string; title: string }[] | undefined => {
     if (spacesUseResourceColumns) {
-      return [
+      const resources = [
         { id: SPACE_RESOURCE_UNASSIGNED_ID, title: t('spaceUnassigned') },
         ...metaSpaces.map((s: any) => ({ id: String(s.id), title: s.name })),
       ]
+      return useUnassignedDrawer
+        ? resources.filter((resource) => resource.id !== SPACE_RESOURCE_UNASSIGNED_ID)
+        : resources
     }
     if (bookingsUseResourceColumns) {
       const consultants = metaUsers.filter((u: any) => u.consultant || u.role === 'CONSULTANT')
-      return [
-        { id: CONSULTANT_RESOURCE_UNASSIGNED_ID, title: t('consultantUnassigned') },
-        ...consultants.map((u: any) => ({
+      return consultants.map((u: any) => ({
           id: String(u.id),
           title: `${u.firstName} ${u.lastName}`.trim(),
-        })),
-      ]
+        }))
     }
     return undefined
-  }, [spacesUseResourceColumns, bookingsUseResourceColumns, metaSpaces, metaUsers, t])
+  }, [spacesUseResourceColumns, bookingsUseResourceColumns, metaSpaces, metaUsers, t, useUnassignedDrawer])
+
+  const consultantHeaderToneById = useMemo(() => {
+    const map = new Map<string, number>()
+    metaUsers
+      .filter((u: any) => u.consultant || u.role === 'CONSULTANT')
+      .forEach((u: any, index: number) => {
+        map.set(String(u.id), index % 7)
+      })
+    return map
+  }, [metaUsers])
 
   /** When FC resource day view omits the date row, show the same stack as dayHeaderContent (belt-and-suspenders). */
   const resourceDayViewHeaderFallbackEl = useMemo(() => {
@@ -2962,7 +2973,7 @@ export default function CalendarPage() {
         ? filterByConsultantRole(calendarData.booked)
         : (calendarData.booked || [])
     )
-    const booked = bookedBase
+    const bookedAll = bookedBase
       .filter((b: any) => {
         if (calendarMode === 'spaces') {
           const isOnline = !!(b.meetingLink && String(b.meetingLink).trim())
@@ -3030,6 +3041,9 @@ export default function CalendarPage() {
         }
         return ev
       })
+    const booked = useUnassignedDrawer
+      ? bookedAll.filter((ev: any) => ev.resourceId !== (spacesUseResourceColumns ? SPACE_RESOURCE_UNASSIGNED_ID : CONSULTANT_RESOURCE_UNASSIGNED_ID))
+      : bookedAll
     const bookedBreakBackground = isMonthGridView
       ? []
       : booked.flatMap((ev: any) => {
@@ -4104,6 +4118,7 @@ export default function CalendarPage() {
     isViewOnly,
     spacesUseResourceColumns,
     bookingsUseResourceColumns,
+    useUnassignedDrawer,
     consultantFilterId,
     selection,
     form,
@@ -4198,6 +4213,118 @@ export default function CalendarPage() {
     if (locale === 'sl') return isTodo ? '1 opravilo' : '1 termin'
     return isTodo ? '1 task' : '1 session'
   }, [locale])
+
+  const overlapSessionAccentColor = useCallback((item: any) => {
+    if (item?.kind === 'personal') return '#f97316'
+    if (item?.kind === 'todo') return '#2563eb'
+    return item?.color || '#16a34a'
+  }, [])
+
+  const renderOverlapSessionIcon = useCallback((item: any) => {
+    if (item?.kind === 'personal') {
+      return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 6v6l4 2" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      )
+    }
+    if (item?.kind === 'todo') {
+      return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      )
+    }
+    return (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    )
+  }, [])
+
+  const unassignedDrawerOpenHint = useMemo(() => {
+    if (spacesUseResourceColumns) {
+      return locale === 'sl'
+        ? 'N/A termine lahko odprete, uredite ali jih povlečete v stolpec prostora za hitro dodelitev lokacije.'
+        : 'Open, edit, or drag N/A sessions into a space column to assign a location quickly.'
+    }
+    return locale === 'sl'
+      ? 'Nedodeljene rezervirane termine lahko odprete, uredite ali jih povlečete na stolpec zaposlenega za hitro dodelitev.'
+      : 'Open, edit, or drag unassigned booked sessions into a staff column to assign them quickly.'
+  }, [locale, spacesUseResourceColumns])
+
+  const unassignedDrawerFooterHint = useMemo(() => {
+    if (spacesUseResourceColumns) {
+      return locale === 'sl'
+        ? 'Povlecite termin na stolpec prostora za hitro dodelitev lokacije.'
+        : 'Drag a session into a space column to assign its location quickly.'
+    }
+    return locale === 'sl'
+      ? 'Povlecite termin na stolpec zaposlenega za hitro dodelitev.'
+      : 'Drag a session into a staff column to assign it quickly.'
+  }, [locale, spacesUseResourceColumns])
+
+  const unassignedDrawerSessions = useMemo(() => {
+    if (!useUnassignedDrawer) return []
+
+    const visibleStartMs = visibleRange?.start ? new Date(visibleRange.start).getTime() : Number.NEGATIVE_INFINITY
+    const visibleEndMs = visibleRange?.end ? new Date(visibleRange.end).getTime() : Number.POSITIVE_INFINITY
+
+    return filterByConsultantRole(calendarData.booked || [])
+      .filter((booking: any) => {
+        if (bookingsUseResourceColumns) {
+          const consultantId = booking?.consultant?.id ?? null
+          if (consultantId != null) return false
+          if (spaceFilterId != null && spacesEnabled && booking?.space?.id !== spaceFilterId) return false
+        }
+        if (spacesUseResourceColumns) {
+          const isOnline = !!(booking?.meetingLink && String(booking.meetingLink).trim())
+          const resolvedSpaceId = isOnline ? null : (booking?.space?.id ?? null)
+          if (resolvedSpaceId != null) return false
+        }
+        const startMs = new Date(booking?.startTime).getTime()
+        const endMs = new Date(booking?.endTime).getTime()
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return false
+        return startMs < visibleEndMs && endMs > visibleStartMs
+      })
+      .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      .map((booking: any) => {
+        const typeDurationMinutes = getTypeDurationMinutes(booking.type?.id)
+        const typeBreakMinutes = getTypeBreakMinutes(booking.type?.id)
+        return {
+          ...booking,
+          eventId: `b-${booking.id}`,
+          kind: 'booked',
+          start: booking.startTime,
+          end: booking.endTime,
+          title: formatBookingClientsLabel(booking),
+          color: '#16A34A',
+          resourceId: bookingsUseResourceColumns ? CONSULTANT_RESOURCE_UNASSIGNED_ID : SPACE_RESOURCE_UNASSIGNED_ID,
+          type: booking.type
+            ? { ...booking.type, durationMinutes: typeDurationMinutes, breakMinutes: typeBreakMinutes }
+            : booking.type,
+          clients: Array.isArray(booking.clients)
+            ? booking.clients
+            : booking.client
+              ? [booking.client]
+              : [],
+        }
+      })
+  }, [
+    useUnassignedDrawer,
+    bookingsUseResourceColumns,
+    spacesUseResourceColumns,
+    visibleRange,
+    calendarData.booked,
+    spaceFilterId,
+    spacesEnabled,
+    getTypeDurationMinutes,
+    getTypeBreakMinutes,
+  ])
 
 
   function normalizeSelectedClientIds(rawIds: any, fallbackClientId?: number | null) {
@@ -9796,7 +9923,7 @@ export default function CalendarPage() {
         <FullCalendar
           /* Remount when resource *meaning* changes (e.g. bookings-all → spaces-all). Otherwise FC can keep
              stale custom resourceLabelContent (consultant avatars) over the new space column headers. */
-          key={`fc-${calendarMode}-${bookingsUseResourceColumns}-${spacesUseResourceColumns}`}
+          key={`fc-${calendarMode}-${bookingsUseResourceColumns}-${spacesUseResourceColumns}-${useUnassignedDrawer}`}
           ref={calendarRef}
           locales={FULLCALENDAR_LOCALES}
           locale={locale === 'sl' ? 'sl' : 'en-gb'}
@@ -9852,15 +9979,23 @@ export default function CalendarPage() {
                       </span>
                     )
                   }
-                  if (!consultantResourceLabelsCompact) {
-                    return arg.resource.title
-                  }
                   const u = metaUsers.find((x: any) => String(x.id) === rid)
                   if (!u) return arg.resource.title
                   const name = fullName(u)
+                  const toneIndex = consultantHeaderToneById.get(rid) ?? 0
+                  if (!consultantResourceLabelsCompact) {
+                    return (
+                      <span className="calendar-resource-label-wrap" title={name}>
+                        <span className={`calendar-resource-label-avatar calendar-resource-label-avatar--tone-${toneIndex}`} aria-hidden="true">
+                          {personInitials(u)}
+                        </span>
+                        <span className={`calendar-resource-label-text calendar-resource-label-text--tone-${toneIndex}`}>{name}</span>
+                      </span>
+                    )
+                  }
                   return (
                     <span className="calendar-resource-label-wrap" title={name}>
-                      <span className="calendar-resource-label-avatar" aria-hidden="true">
+                      <span className={`calendar-resource-label-avatar calendar-resource-label-avatar--tone-${toneIndex}`} aria-hidden="true">
                         {personInitials(u)}
                       </span>
                       <span className="calendar-resource-label-sr">{name}</span>
@@ -9924,6 +10059,17 @@ export default function CalendarPage() {
               )
             }
           }
+          dayCellClassNames={(arg) => {
+            if (!useResourceColumns) return []
+            const isMonthView = arg.view.type === 'dayGridMonth' || arg.view.type === 'resourceDayGridMonth'
+            if (isMonthView) return []
+            const start = new Date(arg.view.currentStart)
+            start.setHours(0, 0, 0, 0)
+            const current = new Date(arg.date)
+            current.setHours(0, 0, 0, 0)
+            const diffDays = Math.round((current.getTime() - start.getTime()) / 86400000)
+            return diffDays % 2 === 1 ? ['calendar-day-column--alt'] : []
+          }}
           dayCellDidMount={(arg) => {
             if (arg.view.type !== 'dayGridMonth' && arg.view.type !== 'resourceDayGridMonth') return
             const dayNumberEl = arg.el.querySelector('.fc-daygrid-day-number') as HTMLElement | null
@@ -11232,6 +11378,145 @@ export default function CalendarPage() {
           </div>
           </>
         )}
+        {!isNativeAndroid && useUnassignedDrawer && !activeOverlapGroup && (
+          <aside className="calendar-overlap-drawer calendar-unassigned-hover-drawer" aria-label={locale === 'sl' ? 'Nedodeljeni termini' : 'Unassigned sessions'} tabIndex={0}>
+            <div className="calendar-overlap-drawer__handle" aria-hidden="true">
+              <span className="calendar-unassigned-hover-drawer__handle-label">N/A</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </div>
+            <div className="calendar-overlap-drawer__header">
+              <div>
+                <h3>{locale === 'sl' ? 'N/A termini' : 'N/A sessions'}</h3>
+                <p>
+                  {unassignedDrawerSessions.length} {locale === 'sl' ? (unassignedDrawerSessions.length === 1 ? 'nedodeljen termin' : 'nedodeljenih terminov') : `unassigned session${unassignedDrawerSessions.length === 1 ? '' : 's'}`}
+                </p>
+              </div>
+            </div>
+            <div className="calendar-overlap-drawer__hint">
+              {unassignedDrawerOpenHint}
+            </div>
+            <div className="calendar-overlap-drawer__list">
+              {unassignedDrawerSessions.length === 0 ? (
+                <div className="calendar-overlap-drawer__empty">
+                  {locale === 'sl' ? 'Trenutno ni nedodeljenih terminov v prikazanem obdobju.' : 'There are no unassigned sessions in the visible range.'}
+                </div>
+              ) : unassignedDrawerSessions.map((item: any) => {
+                const eventId = String(item.eventId || `${item.kind}-${item.id}`)
+                const editingTime = overlapInlineTimeEdit?.eventId === eventId
+                return (
+                  <div
+                    key={eventId}
+                    className={[
+                      'calendar-overlap-session-card',
+                      overlapSidebarDraggingId === eventId ? 'calendar-overlap-session-card--dragging' : '',
+                      editingTime ? 'calendar-overlap-session-card--editing-time' : '',
+                    ].filter(Boolean).join(' ')}
+                    draggable={!editingTime}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement
+                      if (target.closest('button, input, select, textarea, a, .calendar-overlap-session-card__time-editor')) return
+                      openOverlapSidebarSession(item, e.currentTarget)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return
+                      const target = e.target as HTMLElement
+                      if (target.closest('button, input, select, textarea, a, .calendar-overlap-session-card__time-editor')) return
+                      e.preventDefault()
+                      openOverlapSidebarSession(item, e.currentTarget)
+                    }}
+                    onDragStart={(e) => handleOverlapSidebarDragStart(item, e)}
+                    onDragEnd={handleOverlapSidebarDragEnd}
+                    style={{ '--calendar-overlap-accent': overlapSessionAccentColor(item) } as React.CSSProperties}
+                  >
+                    <div className="calendar-overlap-session-card__icon" aria-hidden="true">
+                      {renderOverlapSessionIcon(item)}
+                    </div>
+                    <div className="calendar-overlap-session-card__body">
+                      <div className="calendar-overlap-session-card__title">{overlapSessionDisplayTitle(item)}</div>
+                      <div className="calendar-overlap-session-card__subtitle">{overlapSessionDisplaySubtitle(item)}</div>
+                      <div className="calendar-overlap-session-card__meta">
+                        <span>{overlapSessionLocationLabel(item)}</span>
+                        <button
+                          type="button"
+                          className="calendar-overlap-session-card__time"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            beginOverlapInlineTimeEdit(item)
+                          }}
+                          title={locale === 'sl' ? 'Uredi čas' : 'Edit time'}
+                        >
+                          {formatCalendarClock(item.start)} – {formatCalendarClock(item.end)}
+                        </button>
+                      </div>
+                    </div>
+                    <span className="calendar-overlap-session-card__count">N/A</span>
+                    {editingTime && overlapInlineTimeEdit ? (
+                      <div
+                        className="calendar-overlap-session-card__time-editor"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onDragStart={(e) => e.preventDefault()}
+                      >
+                        <label>
+                          <span>{locale === 'sl' ? 'Začetek' : 'Start'}</span>
+                          <input
+                            type="datetime-local"
+                            value={overlapInlineTimeEdit.start}
+                            disabled={!!overlapInlineTimeEdit.saving}
+                            onChange={(e) => setOverlapInlineTimeEdit((prev) => prev && prev.eventId === eventId ? { ...prev, start: e.target.value, error: null } : prev)}
+                          />
+                        </label>
+                        <label>
+                          <span>{locale === 'sl' ? 'Konec' : 'End'}</span>
+                          <input
+                            type="datetime-local"
+                            value={overlapInlineTimeEdit.end}
+                            disabled={!!overlapInlineTimeEdit.saving}
+                            onChange={(e) => setOverlapInlineTimeEdit((prev) => prev && prev.eventId === eventId ? { ...prev, end: e.target.value, error: null } : prev)}
+                          />
+                        </label>
+                        {overlapInlineTimeEdit.error ? (
+                          <div className="calendar-overlap-session-card__time-error">{overlapInlineTimeEdit.error}</div>
+                        ) : null}
+                        <div className="calendar-overlap-session-card__time-actions">
+                          <button
+                            type="button"
+                            className="calendar-overlap-session-card__time-cancel"
+                            disabled={!!overlapInlineTimeEdit.saving}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOverlapInlineTimeEdit(null)
+                            }}
+                          >
+                            {locale === 'sl' ? 'Prekliči' : 'Cancel'}
+                          </button>
+                          <button
+                            type="button"
+                            className="calendar-overlap-session-card__time-save"
+                            disabled={!!overlapInlineTimeEdit.saving}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void saveOverlapInlineTimeEdit(item)
+                            }}
+                          >
+                            {overlapInlineTimeEdit.saving ? (locale === 'sl' ? 'Shranjevanje…' : 'Saving…') : (locale === 'sl' ? 'Shrani čas' : 'Save time')}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="calendar-overlap-drawer__footer">
+              {unassignedDrawerFooterHint}
+            </div>
+          </aside>
+        )}
         {!isNativeAndroid && activeOverlapGroup && (
           <aside className="calendar-overlap-drawer" aria-label={locale === 'sl' ? 'Ostali termini' : 'Other sessions'}>
             <div className="calendar-overlap-drawer__handle" aria-hidden="true">
@@ -11260,21 +11545,35 @@ export default function CalendarPage() {
                 ? 'Vsi termini potekajo hkrati. Za urejanje posameznega termina ga odprite.'
                 : 'All sessions happen at the same time. Open an individual session to manage it.'}
             </div>
-            <button
-              type="button"
-              className="calendar-overlap-main-summary"
+            <div
+              className="calendar-overlap-session-card calendar-overlap-session-card--summary"
+              role="button"
+              tabIndex={0}
               onClick={(e) => openOverlapSidebarSession(activeOverlapGroup.main, e.currentTarget)}
-              style={{ '--calendar-overlap-accent': activeOverlapGroup.main?.color || (activeOverlapGroup.main?.kind === 'personal' ? '#f97316' : activeOverlapGroup.main?.kind === 'todo' ? '#2563eb' : '#16a34a') } as React.CSSProperties}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return
+                e.preventDefault()
+                openOverlapSidebarSession(activeOverlapGroup.main, e.currentTarget)
+              }}
+              style={{ '--calendar-overlap-accent': overlapSessionAccentColor(activeOverlapGroup.main) } as React.CSSProperties}
             >
-              <span className="calendar-overlap-main-summary__bar" aria-hidden="true" />
-              <span className="calendar-overlap-main-summary__body">
-                <span className="calendar-overlap-main-summary__title">{overlapSessionDisplayTitle(activeOverlapGroup.main)}</span>
-                <span className="calendar-overlap-main-summary__time">{formatCalendarClock(activeOverlapGroup.main.start)}–{formatCalendarClock(activeOverlapGroup.main.end)}</span>
-              </span>
-              <span className="calendar-overlap-main-summary__count">
+              <div className="calendar-overlap-session-card__icon" aria-hidden="true">
+                {renderOverlapSessionIcon(activeOverlapGroup.main)}
+              </div>
+              <div className="calendar-overlap-session-card__body">
+                <div className="calendar-overlap-session-card__title">{overlapSessionDisplayTitle(activeOverlapGroup.main)}</div>
+                <div className="calendar-overlap-session-card__subtitle">{overlapSessionDisplaySubtitle(activeOverlapGroup.main)}</div>
+                <div className="calendar-overlap-session-card__meta">
+                  <span>{overlapSessionLocationLabel(activeOverlapGroup.main)}</span>
+                  <span className="calendar-overlap-session-card__time calendar-overlap-session-card__time--static">
+                    {formatCalendarClock(activeOverlapGroup.main.start)} – {formatCalendarClock(activeOverlapGroup.main.end)}
+                  </span>
+                </div>
+              </div>
+              <span className="calendar-overlap-session-card__count calendar-overlap-session-card__count--visible">
                 {activeOverlapGroup.hidden.length + 1} {locale === 'sl' ? 'termini' : 'sessions'}
               </span>
-            </button>
+            </div>
             <div className="calendar-overlap-drawer__list">
               {activeOverlapGroup.hidden.map((item: any) => {
                 const eventId = String(item.eventId || `${item.kind}-${item.id}`)
@@ -11300,22 +11599,10 @@ export default function CalendarPage() {
                     }}
                     onDragStart={(e) => handleOverlapSidebarDragStart(item, e)}
                     onDragEnd={handleOverlapSidebarDragEnd}
-                    style={{ '--calendar-overlap-accent': item.color || (item.kind === 'personal' ? '#f97316' : item.kind === 'todo' ? '#2563eb' : '#16a34a') } as React.CSSProperties}
+                    style={{ '--calendar-overlap-accent': overlapSessionAccentColor(item) } as React.CSSProperties}
                   >
                     <div className="calendar-overlap-session-card__icon" aria-hidden="true">
-                      {item.kind === 'personal' ? (
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 6v6l4 2" />
-                          <circle cx="12" cy="12" r="9" />
-                        </svg>
-                      ) : (
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                          <circle cx="9" cy="7" r="4" />
-                          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                        </svg>
-                      )}
+                      {renderOverlapSessionIcon(item)}
                     </div>
                     <div className="calendar-overlap-session-card__body">
                       <div className="calendar-overlap-session-card__title">{overlapSessionDisplayTitle(item)}</div>

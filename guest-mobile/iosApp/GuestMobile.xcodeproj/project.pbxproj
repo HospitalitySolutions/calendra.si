@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CB0A00010000000000000001 /* CalendraBookLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = CB0A00110000000000000001 /* CalendraBookLogo.png */; };
 		A9D0E1000000000000000001 /* HomeBookingBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = A9D0E1010000000000000001 /* HomeBookingBackground.png */; };
 		F3B9A2002F9A000000000002 /* SignupBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = F3B9A2012F9A000000000002 /* SignupBackground.png */; };
 		B1A1B1A1B1A1B1A1B1A1B1A1 /* SigninBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = B1C1D1E1F1A1B1C1D1E1F1A1 /* SigninBackground.png */; };
@@ -39,6 +40,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CB0A00110000000000000001 /* CalendraBookLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = CalendraBookLogo.png; sourceTree = "<group>"; };
 		A9D0E1010000000000000001 /* HomeBookingBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = HomeBookingBackground.png; sourceTree = "<group>"; };
 		F3B9A2012F9A000000000002 /* SignupBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = SignupBackground.png; sourceTree = "<group>"; };
 		B1C1D1E1F1A1B1C1D1E1F1A1 /* SigninBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = SigninBackground.png; sourceTree = "<group>"; };
@@ -105,6 +107,7 @@
 				A10000140000000000000001 /* Models.swift */,
 				A10000150000000000000001 /* PreviewStore.swift */,
 				A10000160000000000000001 /* WelcomeView.swift */,
+				CB0A00110000000000000001 /* CalendraBookLogo.png */,
 				F3B9A1012F9A000000000001 /* WelcomeBookingBackground.png */,
 				A9D0E1010000000000000001 /* HomeBookingBackground.png */,
 				F3B9A2012F9A000000000002 /* SignupBackground.png */,
@@ -195,6 +198,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CB0A00010000000000000001 /* CalendraBookLogo.png in Resources */,
 				F3B9A1002F9A000000000001 /* WelcomeBookingBackground.png in Resources */,
 				A9D0E1000000000000000001 /* HomeBookingBackground.png in Resources */,
 				F3B9A2002F9A000000000002 /* SignupBackground.png in Resources */,

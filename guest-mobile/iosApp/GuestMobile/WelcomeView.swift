@@ -134,16 +134,11 @@ struct WelcomeView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(copy.eyebrow)
-                            .font(.system(size: metrics.eyebrowFontSize, weight: .black))
-                            .kerning(1.0)
-                            .foregroundStyle(accentBlue)
-                            .padding(.horizontal, metrics.eyebrowHorizontalPadding)
-                            .padding(.vertical, metrics.eyebrowVerticalPadding)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(accentBlue, lineWidth: 1)
-                            )
+                        Image("CalendraBookLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: min(proxy.size.width * 0.64, 260), height: 74, alignment: .leading)
+                            .accessibilityLabel("Calendra Book")
                             .padding(.top, metrics.topPadding)
 
                         Text(copy.headline)
