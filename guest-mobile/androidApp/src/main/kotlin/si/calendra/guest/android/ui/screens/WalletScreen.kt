@@ -2070,7 +2070,8 @@ private fun normalizeWalletBuyMethods(rawMethods: List<String>): List<String> {
         .distinct()
     val ordered = listOf("CARD", "BANK_TRANSFER", "PAYPAL")
         .filter { normalized.contains(it) }
-    return if (ordered.isNotEmpty()) ordered else listOf("CARD", "BANK_TRANSFER", "PAYPAL")
+    // If tenant config exposes no wallet-compatible methods, default to bank transfer only.
+    return if (ordered.isNotEmpty()) ordered else listOf("BANK_TRANSFER")
 }
 
 private fun locationPlaceholder(type: String): String? = when (type) {

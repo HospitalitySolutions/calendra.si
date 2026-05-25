@@ -1,6 +1,7 @@
 package com.example.app.guest.common;
 
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,9 +18,11 @@ import org.springframework.stereotype.Service;
 public class GuestSettingsService {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final AppSettingRepository settings;
+    private final GlobalPaymentProviderService globalPaymentProviders;
 
-    public GuestSettingsService(AppSettingRepository settings) {
+    public GuestSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
         this.settings = settings;
+        this.globalPaymentProviders = globalPaymentProviders;
     }
 
     public GuestPublicSettings publicSettings(Long companyId) {
@@ -60,7 +63,8 @@ public class GuestSettingsService {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
-        return parseAcceptedPaymentMethods(root.path("acceptedPaymentMethodIds"));
+        List<String> accepted = parseAcceptedPaymentMethods(root.path("acceptedPaymentMethodIds"));
+        return applyGlobalProviderCapabilities(accepted, globalPaymentProviders.capabilities());
     }
 
     static List<String> parseAcceptedPaymentMethods(JsonNode node) {
@@ -77,6 +81,23 @@ public class GuestSettingsService {
             return List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
         }
         return new ArrayList<>(out);
+    }
+
+    static List<String> applyGlobalProviderCapabilities(
+            List<String> accepted,
+            GlobalPaymentProviderService.ProviderCapabilities capabilities
+    ) {
+        List<String> filtered = (accepted == null ? List.<String>of() : accepted).stream()
+                .filter(method -> !"CARD".equals(method) || capabilities.stripeEnabled())
+                .filter(method -> !"PAYPAL".equals(method) || capabilities.paypalEnabled())
+                .toList();
+        if (!filtered.isEmpty()) return filtered;
+        List<String> fallback = new ArrayList<>();
+        if (capabilities.stripeEnabled()) fallback.add("CARD");
+        fallback.add("BANK_TRANSFER");
+        if (capabilities.paypalEnabled()) fallback.add("PAYPAL");
+        fallback.add("GIFT_CARD");
+        return fallback;
     }
 
     private static String mapConfigIdToRuntimeType(String raw) {

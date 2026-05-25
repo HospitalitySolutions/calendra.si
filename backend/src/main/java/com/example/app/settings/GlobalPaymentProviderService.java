@@ -5,27 +5,27 @@ import com.example.app.user.UserRepository;
 import org.springframework.stereotype.Service;
 
 @Service
-public class GlobalMessagingProviderService {
+public class GlobalPaymentProviderService {
     private final AppSettingRepository settings;
     private final UserRepository users;
 
-    public record ProviderCapabilities(boolean whatsappEnabled, boolean viberEnabled) {}
+    public record ProviderCapabilities(boolean stripeEnabled, boolean paypalEnabled) {}
 
-    public GlobalMessagingProviderService(AppSettingRepository settings, UserRepository users) {
+    public GlobalPaymentProviderService(AppSettingRepository settings, UserRepository users) {
         this.settings = settings;
         this.users = users;
     }
 
-    public boolean isWhatsAppEnabled() {
-        return readGlobalBoolean(SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, false);
+    public boolean isStripeEnabled() {
+        return readGlobalBoolean(SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, true);
     }
 
-    public boolean isViberEnabled() {
-        return readGlobalBoolean(SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, false);
+    public boolean isPaypalEnabled() {
+        return readGlobalBoolean(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, false);
     }
 
     public ProviderCapabilities capabilities() {
-        return new ProviderCapabilities(isWhatsAppEnabled(), isViberEnabled());
+        return new ProviderCapabilities(isStripeEnabled(), isPaypalEnabled());
     }
 
     private boolean readGlobalBoolean(SettingKey key, boolean fallback) {

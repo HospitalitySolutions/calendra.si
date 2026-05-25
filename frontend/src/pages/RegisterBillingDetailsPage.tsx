@@ -24,6 +24,8 @@ import {
 
 const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
 const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
+type RegisterPaymentMethod = 'BANK_TRANSFER' | 'CARD' | 'PAYPAL'
+type RegisterPaymentCapabilities = { stripeEnabled: boolean; paypalEnabled: boolean }
 
 function clearPendingBillingDetailsRedirect() {
   try {
@@ -438,13 +440,49 @@ export function RegisterBillingDetailsPage() {
   const [address, setAddress] = useState('')
   const [postalCode, setPostalCode] = useState('')
   const [city, setCity] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'BANK_TRANSFER' | 'CARD' | 'PAYPAL'>('BANK_TRANSFER')
+  const [paymentMethod, setPaymentMethod] = useState<RegisterPaymentMethod>('BANK_TRANSFER')
+  const [paymentCapabilities, setPaymentCapabilities] = useState<RegisterPaymentCapabilities>({
+    stripeEnabled: true,
+    paypalEnabled: false,
+  })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     void ensureRegisterCatalogLoaded()
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void api.get<RegisterPaymentCapabilities>('/register/payment-capabilities')
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setPaymentCapabilities({
+          stripeEnabled: data.stripeEnabled !== false,
+          paypalEnabled: data.paypalEnabled === true,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPaymentCapabilities({ stripeEnabled: true, paypalEnabled: false })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const availablePaymentMethods = useMemo<RegisterPaymentMethod[]>(() => {
+    const methods: RegisterPaymentMethod[] = ['BANK_TRANSFER']
+    if (paymentCapabilities.stripeEnabled) methods.push('CARD')
+    if (paymentCapabilities.paypalEnabled) methods.push('PAYPAL')
+    return methods
+  }, [paymentCapabilities.paypalEnabled, paymentCapabilities.stripeEnabled])
+
+  useEffect(() => {
+    if (availablePaymentMethods.includes(paymentMethod)) return
+    setPaymentMethod(availablePaymentMethods[0] || 'BANK_TRANSFER')
+  }, [availablePaymentMethods, paymentMethod])
 
   useEffect(() => {
     if (!selectionRequiresBillingDetails(selection)) {
@@ -603,33 +641,23 @@ export function RegisterBillingDetailsPage() {
                   <div className="register-billing-payment-box">
                     <span className="register-billing-payment-label">{copy.paymentMethod}</span>
                     <div className="register-billing-payment-options">
-                      <label className="register-billing-payment-option">
-                        <input
-                          type="radio"
-                          name="billing-payment-method"
-                          checked={paymentMethod === 'BANK_TRANSFER'}
-                          onChange={() => setPaymentMethod('BANK_TRANSFER')}
-                        />
-                        <span>{copy.bankTransfer}</span>
-                      </label>
-                      <label className="register-billing-payment-option">
-                        <input
-                          type="radio"
-                          name="billing-payment-method"
-                          checked={paymentMethod === 'CARD'}
-                          onChange={() => setPaymentMethod('CARD')}
-                        />
-                        <span>{copy.card}</span>
-                      </label>
-                      <label className="register-billing-payment-option">
-                        <input
-                          type="radio"
-                          name="billing-payment-method"
-                          checked={paymentMethod === 'PAYPAL'}
-                          onChange={() => setPaymentMethod('PAYPAL')}
-                        />
-                        <span>{copy.paypal}</span>
-                      </label>
+                      {availablePaymentMethods.map((method) => (
+                        <label className="register-billing-payment-option" key={method}>
+                          <input
+                            type="radio"
+                            name="billing-payment-method"
+                            checked={paymentMethod === method}
+                            onChange={() => setPaymentMethod(method)}
+                          />
+                          <span>
+                            {method === 'BANK_TRANSFER'
+                              ? copy.bankTransfer
+                              : method === 'CARD'
+                                ? copy.card
+                                : copy.paypal}
+                          </span>
+                        </label>
+                      ))}
                     </div>
                     <div className="register-billing-help">{copy.paymentHelp}</div>
                   </div>

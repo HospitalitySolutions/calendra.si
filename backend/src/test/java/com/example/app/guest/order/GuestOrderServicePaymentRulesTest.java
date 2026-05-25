@@ -3,6 +3,7 @@ package com.example.app.guest.order;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,6 +24,7 @@ import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.paypal.PayPalClient;
 import com.example.app.reminder.ReminderService;
+import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
@@ -135,6 +137,9 @@ class GuestOrderServicePaymentRulesTest {
         GuestBankTransferBillingService bankTransferBillingService = mock(GuestBankTransferBillingService.class);
         GuestProductBillingService productBillingService = mock(GuestProductBillingService.class);
         PayPalClient payPalClient = mock(PayPalClient.class);
+        GlobalPaymentProviderService globalPaymentProviders = mock(GlobalPaymentProviderService.class);
+        when(globalPaymentProviders.isStripeEnabled()).thenReturn(true);
+        when(globalPaymentProviders.isPaypalEnabled()).thenReturn(true);
 
         GuestOrderService service = new GuestOrderService(
                 tenantService,
@@ -154,7 +159,9 @@ class GuestOrderServicePaymentRulesTest {
                 entitlementService,
                 bankTransferBillingService,
                 productBillingService,
-                payPalClient
+                payPalClient,
+                null,
+                globalPaymentProviders
         );
         when(orders.save(any(GuestOrder.class))).thenAnswer(invocation -> {
             GuestOrder order = invocation.getArgument(0);
@@ -189,7 +196,7 @@ class GuestOrderServicePaymentRulesTest {
         link.setClient(client);
 
         when(tenantService.requireLink(guestUser, 10L)).thenReturn(link);
-        when(catalogService.resolveProduct(10L, "product-1")).thenReturn(
+        when(catalogService.resolveProduct(eq(10L), eq("product-1"), any())).thenReturn(
                 new GuestCatalogService.ResolvedProduct(
                         null,
                         null,
@@ -217,7 +224,7 @@ class GuestOrderServicePaymentRulesTest {
                 )
         );
 
-        return new Fixture(service, orders, guestUser, companies, paymentMethods, "11|2026-06-01T10:00:00|2026-06-01T11:00:00");
+        return new Fixture(service, orders, guestUser, companies, paymentMethods, globalPaymentProviders, "11|2026-06-01T10:00:00|2026-06-01T11:00:00");
     }
 
     @Test
@@ -289,6 +296,40 @@ class GuestOrderServicePaymentRulesTest {
                     ResponseStatusException rse = (ResponseStatusException) ex;
                     org.assertj.core.api.Assertions.assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
                     org.assertj.core.api.Assertions.assertThat(rse.getReason()).isEqualTo("PayPal is not enabled for the selected booking channel.");
+                });
+    }
+
+    @Test
+    void createOrder_rejectsCardWhenPlatformStripeIsDisabled() {
+        Fixture fixture = fixtureWith(true, List.of("CARD", "BANK_TRANSFER", "PAYPAL"));
+        when(fixture.globalPaymentProviders.isStripeEnabled()).thenReturn(false);
+
+        assertThatThrownBy(() -> fixture.service.createOrder(
+                fixture.guestUser,
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name()),
+                GuestOrderService.PaymentChannel.GUEST))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies((ex) -> {
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    org.assertj.core.api.Assertions.assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    org.assertj.core.api.Assertions.assertThat(rse.getReason()).isEqualTo("Stripe is disabled in Platform Admin.");
+                });
+    }
+
+    @Test
+    void createOrder_rejectsPaypalWhenPlatformPaypalIsDisabled() {
+        Fixture fixture = fixtureWith(true, List.of("CARD", "BANK_TRANSFER", "PAYPAL"));
+        when(fixture.globalPaymentProviders.isPaypalEnabled()).thenReturn(false);
+
+        assertThatThrownBy(() -> fixture.service.createOrder(
+                fixture.guestUser,
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name()),
+                GuestOrderService.PaymentChannel.GUEST))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies((ex) -> {
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    org.assertj.core.api.Assertions.assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    org.assertj.core.api.Assertions.assertThat(rse.getReason()).isEqualTo("PayPal is disabled in Platform Admin.");
                 });
     }
 
@@ -370,6 +411,7 @@ class GuestOrderServicePaymentRulesTest {
             GuestUser guestUser,
             CompanyRepository companies,
             PaymentMethodRepository paymentMethods,
+            GlobalPaymentProviderService globalPaymentProviders,
             String slotId
     ) {}
 }

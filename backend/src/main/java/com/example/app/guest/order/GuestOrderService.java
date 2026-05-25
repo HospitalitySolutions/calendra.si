@@ -11,6 +11,7 @@ import com.example.app.guest.model.*;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.paypal.PayPalClient;
+import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.stripe.StripeGuestCheckoutService;
 import com.example.app.reminder.ReminderService;
@@ -59,6 +60,7 @@ public class GuestOrderService {
     private final GuestProductBillingService productBillingService;
     private final PayPalClient payPalClient;
     private final StripeGuestCheckoutService stripeGuestCheckoutService;
+    private final GlobalPaymentProviderService globalPaymentProviders;
 
     @Autowired
     public GuestOrderService(
@@ -80,7 +82,8 @@ public class GuestOrderService {
             GuestBankTransferBillingService bankTransferBillingService,
             GuestProductBillingService productBillingService,
             PayPalClient payPalClient,
-            StripeGuestCheckoutService stripeGuestCheckoutService
+            StripeGuestCheckoutService stripeGuestCheckoutService,
+            GlobalPaymentProviderService globalPaymentProviders
     ) {
         this.guestTenantService = guestTenantService;
         this.catalogService = catalogService;
@@ -101,6 +104,7 @@ public class GuestOrderService {
         this.productBillingService = productBillingService;
         this.payPalClient = payPalClient;
         this.stripeGuestCheckoutService = stripeGuestCheckoutService;
+        this.globalPaymentProviders = globalPaymentProviders;
     }
 
     /** Backwards-compatible constructor used by older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -126,7 +130,7 @@ public class GuestOrderService {
     ) {
         this(guestTenantService, catalogService, guestSettings, companies, orders, entitlements, entitlementUsages,
                 bookings, bookingCreationService, bookingChangePublisher, users, paymentMethods, notifications, reminders,
-                entitlementService, bankTransferBillingService, productBillingService, payPalClient, null);
+                entitlementService, bankTransferBillingService, productBillingService, payPalClient, null, null);
     }
 
     @Transactional
@@ -467,6 +471,17 @@ public class GuestOrderService {
 
         if (!rules.requireOnlinePayment() && isSessionLikeProductType(productType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use pay at venue to complete this booking without online payment.");
+        }
+
+        if (paymentMethodType == GuestPaymentMethodType.CARD
+                && globalPaymentProviders != null
+                && !globalPaymentProviders.isStripeEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe is disabled in Platform Admin.");
+        }
+        if (paymentMethodType == GuestPaymentMethodType.PAYPAL
+                && globalPaymentProviders != null
+                && !globalPaymentProviders.isPaypalEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is disabled in Platform Admin.");
         }
 
         if (paymentMethodType != GuestPaymentMethodType.ENTITLEMENT) {

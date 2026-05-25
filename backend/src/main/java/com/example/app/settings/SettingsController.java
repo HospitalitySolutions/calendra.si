@@ -20,16 +20,21 @@ public class SettingsController {
     private final AppSettingRepository repository;
     private final SettingsCryptoService crypto;
     private final TenantFileS3Service fileStorage;
+    private final GlobalPaymentProviderService globalPaymentProviders;
 
     public SettingsController(
             AppSettingRepository repository,
             SettingsCryptoService crypto,
-            TenantFileS3Service fileStorage
+            TenantFileS3Service fileStorage,
+            GlobalPaymentProviderService globalPaymentProviders
     ) {
         this.repository = repository;
         this.crypto = crypto;
         this.fileStorage = fileStorage;
+        this.globalPaymentProviders = globalPaymentProviders;
     }
+
+    public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
 
     @GetMapping
     public Map<String, String> all(@AuthenticationPrincipal User me) {
@@ -79,6 +84,12 @@ public class SettingsController {
                 .queryParam("key", stored.objectKey())
                 .toUriString();
         return new GuestAppAssetUploadResponse(settingField, stored.objectKey(), publicUrl, stored.contentType(), stored.sizeBytes());
+    }
+
+    @GetMapping("/payment-capabilities")
+    public PaymentProviderCapabilitiesResponse paymentCapabilities(@AuthenticationPrincipal User me) {
+        var caps = globalPaymentProviders.capabilities();
+        return new PaymentProviderCapabilitiesResponse(caps.stripeEnabled(), caps.paypalEnabled());
     }
 
     private String encodeForSave(SettingKey key, String value) {

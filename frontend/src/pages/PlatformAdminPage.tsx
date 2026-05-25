@@ -719,6 +719,7 @@ function PlanPricesAdminPanel() {
 }
 
 type MessagingProviderKey = 'GLOBAL_MESSAGING_WHATSAPP_ENABLED' | 'GLOBAL_MESSAGING_VIBER_ENABLED'
+type PaymentProviderKey = 'GLOBAL_PAYMENTS_STRIPE_ENABLED' | 'GLOBAL_PAYMENTS_PAYPAL_ENABLED'
 type AjpesProviderKey = 'GLOBAL_AJPES_PRS_ENABLED'
 type FiscalUrlKey =
   | 'GLOBAL_FISCAL_TEST_INVOICE_URL'
@@ -728,9 +729,9 @@ type FiscalUrlKey =
 
 type PlatformGlobalSettingsDto = Record<string, string>
 
-function parseEnabledFlag(raw: string | undefined): boolean {
+function parseEnabledFlag(raw: string | undefined, fallback = true): boolean {
   const value = String(raw || '').trim().toLowerCase()
-  if (!value) return true
+  if (!value) return fallback
   return value === 'true' || value === '1'
 }
 
@@ -915,7 +916,12 @@ function PaymentProvidersAdminPanel() {
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
+  const [activeProvider, setActiveProvider] = useState<'stripe' | 'paypal'>('stripe')
   const [activeMode, setActiveMode] = useState<'sandbox' | 'production'>('sandbox')
+  const [providerFlags, setProviderFlags] = useState<Record<PaymentProviderKey, boolean>>({
+    GLOBAL_PAYMENTS_STRIPE_ENABLED: true,
+    GLOBAL_PAYMENTS_PAYPAL_ENABLED: false,
+  })
   const [values, setValues] = useState<StripeAdminSettings>({
     sandbox: emptyStripeModeSettings(),
     production: { ...emptyStripeModeSettings(), enabled: false },
@@ -927,14 +933,23 @@ function PaymentProvidersAdminPanel() {
       setLoading(true)
       setErr(null)
       try {
-        const { data } = await api.get<StripeAdminSettings>('/platform-admin/payment-providers/stripe')
+        const [stripeRes, settingsRes] = await Promise.all([
+          api.get<StripeAdminSettings>('/platform-admin/payment-providers/stripe'),
+          api.get<PlatformGlobalSettingsDto>('/platform-admin/settings'),
+        ])
         if (cancelled) return
+        const data = stripeRes.data
         setValues({
           sandbox: normalizeStripeModeSettings(data?.sandbox, true),
           production: normalizeStripeModeSettings(data?.production, false),
         })
+        const globalSettings = settingsRes.data
+        setProviderFlags({
+          GLOBAL_PAYMENTS_STRIPE_ENABLED: parseEnabledFlag(globalSettings?.GLOBAL_PAYMENTS_STRIPE_ENABLED, true),
+          GLOBAL_PAYMENTS_PAYPAL_ENABLED: parseEnabledFlag(globalSettings?.GLOBAL_PAYMENTS_PAYPAL_ENABLED, false),
+        })
       } catch {
-        if (!cancelled) setErr('Could not load Stripe settings.')
+        if (!cancelled) setErr('Could not load payment provider settings.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -951,6 +966,10 @@ function PaymentProvidersAdminPanel() {
     setErr(null)
     setOk(null)
     try {
+      await api.put('/platform-admin/settings', {
+        GLOBAL_PAYMENTS_STRIPE_ENABLED: String(providerFlags.GLOBAL_PAYMENTS_STRIPE_ENABLED),
+        GLOBAL_PAYMENTS_PAYPAL_ENABLED: String(providerFlags.GLOBAL_PAYMENTS_PAYPAL_ENABLED),
+      })
       const payload: StripeAdminSettings = {
         sandbox: { ...values.sandbox, currency: values.sandbox.currency.toUpperCase() },
         production: { ...values.production, currency: values.production.currency.toUpperCase() },
@@ -960,9 +979,9 @@ function PaymentProvidersAdminPanel() {
         sandbox: normalizeStripeModeSettings(data?.sandbox, true),
         production: normalizeStripeModeSettings(data?.production, false),
       })
-      setOk('Stripe settings saved.')
+      setOk('Payment provider settings saved.')
     } catch (e: any) {
-      setErr(e?.response?.data?.message || 'Could not save Stripe settings.')
+      setErr(e?.response?.data?.message || 'Could not save payment provider settings.')
     } finally {
       setSaving(false)
     }
@@ -970,139 +989,208 @@ function PaymentProvidersAdminPanel() {
 
   const current = values[activeMode]
   const modeLabel = activeMode === 'sandbox' ? 'Sandbox' : 'Production'
+  const stripeGloballyEnabled = providerFlags.GLOBAL_PAYMENTS_STRIPE_ENABLED
+  const paypalGloballyEnabled = providerFlags.GLOBAL_PAYMENTS_PAYPAL_ENABLED
 
   return (
     <div className="panel panel-pad">
       <div className="plan-price-head">
         <div className="eyebrow">Payment providers</div>
-        <h2>Stripe Connect</h2>
+        <h2>{activeProvider === 'stripe' ? 'Stripe Connect' : 'PayPal'}</h2>
         <p className="muted" style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}>
-          Platform-level Stripe keys and checkout defaults. Tenants connect their own Stripe accounts from Configuration → Guest App → Payment methods.
+          Configure global provider availability. OFF is enforced as a hard platform override across tenant web and guest apps.
         </p>
       </div>
 
       <div className="top-actions" style={{ marginBottom: 12 }}>
-        <button type="button" className={activeMode === 'sandbox' ? 'button primary small' : 'button secondary small'} onClick={() => setActiveMode('sandbox')}>Sandbox</button>
-        <button type="button" className={activeMode === 'production' ? 'button primary small' : 'button secondary small'} onClick={() => setActiveMode('production')}>Production</button>
+        <button type="button" className={activeProvider === 'stripe' ? 'button primary small' : 'button secondary small'} onClick={() => setActiveProvider('stripe')}>Stripe</button>
+        <button type="button" className={activeProvider === 'paypal' ? 'button primary small' : 'button secondary small'} onClick={() => setActiveProvider('paypal')}>PayPal</button>
       </div>
 
-      {loading ? <p className="muted">Loading Stripe settings…</p> : null}
+      {loading ? <p className="muted">Loading payment provider settings…</p> : null}
       {err ? <p className="search-err">{err}</p> : null}
       {ok ? <p style={{ margin: 0, color: 'var(--success-text)', fontWeight: 800, fontSize: '0.92rem' }}>{ok}</p> : null}
 
-      {!loading ? (
+      {!loading && activeProvider === 'stripe' ? (
+        <>
+          <div className="section-card" style={{ marginTop: 12, marginBottom: 12 }}>
+            <div className="section-head">
+              <div className="section-title">
+                <strong>Stripe global status</strong>
+                <span>
+                  {stripeGloballyEnabled
+                    ? 'Stripe is currently enabled for all tenants.'
+                    : 'Stripe is currently disabled for all tenants.'}
+                </span>
+              </div>
+            </div>
+            <div className="top-actions">
+              <button
+                type="button"
+                className={stripeGloballyEnabled ? 'button primary small' : 'button secondary small'}
+                onClick={() => setProviderFlags((prev) => ({ ...prev, GLOBAL_PAYMENTS_STRIPE_ENABLED: true }))}
+              >
+                ON
+              </button>
+              <button
+                type="button"
+                className={!stripeGloballyEnabled ? 'button danger small' : 'button secondary small'}
+                onClick={() => setProviderFlags((prev) => ({ ...prev, GLOBAL_PAYMENTS_STRIPE_ENABLED: false }))}
+              >
+                OFF
+              </button>
+            </div>
+          </div>
+
+          <div className="top-actions" style={{ marginBottom: 12 }}>
+            <button type="button" className={activeMode === 'sandbox' ? 'button primary small' : 'button secondary small'} onClick={() => setActiveMode('sandbox')}>Sandbox</button>
+            <button type="button" className={activeMode === 'production' ? 'button primary small' : 'button secondary small'} onClick={() => setActiveMode('production')}>Production</button>
+          </div>
+
+          <div className="section-card" style={{ marginTop: 12 }}>
+            <div className="section-head">
+              <div className="section-title">
+                <strong>{modeLabel} configuration</strong>
+                <span>
+                  {current.enabled ? 'Enabled for tenant onboarding and checkout.' : 'Disabled; tenants cannot use this Stripe mode.'}
+                </span>
+              </div>
+            </div>
+
+            <div className="top-actions" style={{ marginBottom: 14 }}>
+              <button type="button" className={current.enabled ? 'button primary small' : 'button secondary small'} onClick={() => updateMode({ enabled: !current.enabled })}>
+                {current.enabled ? 'Enabled' : 'Disabled'}
+              </button>
+              <span className={current.secretKeyMissing ? 'pill warning' : 'pill success'}>{current.secretKeyMissing ? 'Secret key missing' : 'Secret key saved'}</span>
+              <span className={current.webhookSecretMissing ? 'pill warning' : 'pill success'}>{current.webhookSecretMissing ? 'Webhook secret missing' : 'Webhook secret saved'}</span>
+            </div>
+
+            <div className="plan-price-grid">
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-secret`}>Secret key</label>
+                <input
+                  id={`stripe-${activeMode}-secret`}
+                  type="password"
+                  autoComplete="off"
+                  placeholder={current.secretKeyMissing ? 'sk_test_… / sk_live_…' : 'Saved — leave blank to keep'}
+                  value={current.secretKey || ''}
+                  onChange={(e) => updateMode({ secretKey: e.target.value })}
+                />
+              </div>
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-publishable`}>Publishable key</label>
+                <input
+                  id={`stripe-${activeMode}-publishable`}
+                  type="text"
+                  placeholder="pk_test_… / pk_live_…"
+                  value={current.publishableKey}
+                  onChange={(e) => updateMode({ publishableKey: e.target.value })}
+                />
+              </div>
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-webhook`}>Webhook signing secret</label>
+                <input
+                  id={`stripe-${activeMode}-webhook`}
+                  type="password"
+                  autoComplete="off"
+                  placeholder={current.webhookSecretMissing ? 'whsec_…' : 'Saved — leave blank to keep'}
+                  value={current.webhookSecret || ''}
+                  onChange={(e) => updateMode({ webhookSecret: e.target.value })}
+                />
+              </div>
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-currency`}>Default currency</label>
+                <input
+                  id={`stripe-${activeMode}-currency`}
+                  type="text"
+                  maxLength={3}
+                  value={current.currency}
+                  onChange={(e) => updateMode({ currency: e.target.value.toUpperCase() })}
+                />
+              </div>
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-success`}>Checkout success URL</label>
+                <input
+                  id={`stripe-${activeMode}-success`}
+                  type="text"
+                  style={{ fontSize: '0.76rem' }}
+                  value={current.successUrl}
+                  onChange={(e) => updateMode({ successUrl: e.target.value })}
+                />
+              </div>
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-cancel`}>Checkout cancel URL</label>
+                <input
+                  id={`stripe-${activeMode}-cancel`}
+                  type="text"
+                  style={{ fontSize: '0.76rem' }}
+                  value={current.cancelUrl}
+                  onChange={(e) => updateMode({ cancelUrl: e.target.value })}
+                />
+              </div>
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-fee-percent`}>Platform fee (%)</label>
+                <input
+                  id={`stripe-${activeMode}-fee-percent`}
+                  type="text"
+                  inputMode="decimal"
+                  value={current.applicationFeePercent}
+                  onChange={(e) => updateMode({ applicationFeePercent: e.target.value.replace(',', '.') })}
+                />
+              </div>
+              <div className="plan-price-field">
+                <label htmlFor={`stripe-${activeMode}-fee-fixed`}>Fixed fee (minor units)</label>
+                <input
+                  id={`stripe-${activeMode}-fee-fixed`}
+                  type="text"
+                  inputMode="numeric"
+                  value={current.applicationFeeFixedMinor}
+                  onChange={(e) => updateMode({ applicationFeeFixedMinor: e.target.value.replace(/[^0-9]/g, '') })}
+                />
+              </div>
+            </div>
+
+            <p className="muted" style={{ margin: '14px 0 0', fontWeight: 700, lineHeight: 1.5 }}>
+              Supported URL placeholders: {'{STATUS}'}, {'{ORDER_ID}'}, {'{TENANT_ID}'}, {'{ORDER_REFERENCE}'}, {'{CHECKOUT_SESSION_ID}'}.
+            </p>
+          </div>
+        </>
+      ) : null}
+
+      {!loading && activeProvider === 'paypal' ? (
         <div className="section-card" style={{ marginTop: 12 }}>
           <div className="section-head">
             <div className="section-title">
-              <strong>{modeLabel} configuration</strong>
+              <strong>PayPal global status</strong>
               <span>
-                {current.enabled ? 'Enabled for tenant onboarding and checkout.' : 'Disabled; tenants cannot use this Stripe mode.'}
+                {paypalGloballyEnabled
+                  ? 'PayPal is currently enabled for all tenants.'
+                  : 'PayPal is currently disabled for all tenants.'}
               </span>
             </div>
           </div>
-
-          <div className="top-actions" style={{ marginBottom: 14 }}>
-            <button type="button" className={current.enabled ? 'button primary small' : 'button secondary small'} onClick={() => updateMode({ enabled: !current.enabled })}>
-              {current.enabled ? 'Enabled' : 'Disabled'}
+          <div className="top-actions">
+            <button
+              type="button"
+              className={paypalGloballyEnabled ? 'button primary small' : 'button secondary small'}
+              onClick={() => setProviderFlags((prev) => ({ ...prev, GLOBAL_PAYMENTS_PAYPAL_ENABLED: true }))}
+            >
+              ON
             </button>
-            <span className={current.secretKeyMissing ? 'pill warning' : 'pill success'}>{current.secretKeyMissing ? 'Secret key missing' : 'Secret key saved'}</span>
-            <span className={current.webhookSecretMissing ? 'pill warning' : 'pill success'}>{current.webhookSecretMissing ? 'Webhook secret missing' : 'Webhook secret saved'}</span>
+            <button
+              type="button"
+              className={!paypalGloballyEnabled ? 'button danger small' : 'button secondary small'}
+              onClick={() => setProviderFlags((prev) => ({ ...prev, GLOBAL_PAYMENTS_PAYPAL_ENABLED: false }))}
+            >
+              OFF
+            </button>
           </div>
-
-          <div className="plan-price-grid">
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-secret`}>Secret key</label>
-              <input
-                id={`stripe-${activeMode}-secret`}
-                type="password"
-                autoComplete="off"
-                placeholder={current.secretKeyMissing ? 'sk_test_… / sk_live_…' : 'Saved — leave blank to keep'}
-                value={current.secretKey || ''}
-                onChange={(e) => updateMode({ secretKey: e.target.value })}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-publishable`}>Publishable key</label>
-              <input
-                id={`stripe-${activeMode}-publishable`}
-                type="text"
-                placeholder="pk_test_… / pk_live_…"
-                value={current.publishableKey}
-                onChange={(e) => updateMode({ publishableKey: e.target.value })}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-webhook`}>Webhook signing secret</label>
-              <input
-                id={`stripe-${activeMode}-webhook`}
-                type="password"
-                autoComplete="off"
-                placeholder={current.webhookSecretMissing ? 'whsec_…' : 'Saved — leave blank to keep'}
-                value={current.webhookSecret || ''}
-                onChange={(e) => updateMode({ webhookSecret: e.target.value })}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-currency`}>Default currency</label>
-              <input
-                id={`stripe-${activeMode}-currency`}
-                type="text"
-                maxLength={3}
-                value={current.currency}
-                onChange={(e) => updateMode({ currency: e.target.value.toUpperCase() })}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-success`}>Checkout success URL</label>
-              <input
-                id={`stripe-${activeMode}-success`}
-                type="text"
-                style={{ fontSize: '0.76rem' }}
-                value={current.successUrl}
-                onChange={(e) => updateMode({ successUrl: e.target.value })}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-cancel`}>Checkout cancel URL</label>
-              <input
-                id={`stripe-${activeMode}-cancel`}
-                type="text"
-                style={{ fontSize: '0.76rem' }}
-                value={current.cancelUrl}
-                onChange={(e) => updateMode({ cancelUrl: e.target.value })}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-fee-percent`}>Platform fee (%)</label>
-              <input
-                id={`stripe-${activeMode}-fee-percent`}
-                type="text"
-                inputMode="decimal"
-                value={current.applicationFeePercent}
-                onChange={(e) => updateMode({ applicationFeePercent: e.target.value.replace(',', '.') })}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor={`stripe-${activeMode}-fee-fixed`}>Fixed fee (minor units)</label>
-              <input
-                id={`stripe-${activeMode}-fee-fixed`}
-                type="text"
-                inputMode="numeric"
-                value={current.applicationFeeFixedMinor}
-                onChange={(e) => updateMode({ applicationFeeFixedMinor: e.target.value.replace(/[^0-9]/g, '') })}
-              />
-            </div>
-          </div>
-
-          <p className="muted" style={{ margin: '14px 0 0', fontWeight: 700, lineHeight: 1.5 }}>
-            Supported URL placeholders: {'{STATUS}'}, {'{ORDER_ID}'}, {'{TENANT_ID}'}, {'{ORDER_REFERENCE}'}, {'{CHECKOUT_SESSION_ID}'}.
-          </p>
         </div>
       ) : null}
 
       <div style={{ marginTop: 18 }} className="top-actions">
         <button className="button primary" type="button" onClick={() => void save()} disabled={saving || loading}>
-          {saving ? 'Saving…' : 'Save Stripe settings'}
+          {saving ? 'Saving…' : 'Save changes'}
         </button>
       </div>
     </div>
@@ -1116,8 +1204,8 @@ function MessagingProvidersAdminPanel() {
   const [ok, setOk] = useState<string | null>(null)
   const [activeProvider, setActiveProvider] = useState<'whatsapp' | 'viber'>('whatsapp')
   const [flags, setFlags] = useState<Record<MessagingProviderKey, boolean>>({
-    GLOBAL_MESSAGING_WHATSAPP_ENABLED: true,
-    GLOBAL_MESSAGING_VIBER_ENABLED: true,
+    GLOBAL_MESSAGING_WHATSAPP_ENABLED: false,
+    GLOBAL_MESSAGING_VIBER_ENABLED: false,
   })
 
   useEffect(() => {
@@ -1129,8 +1217,8 @@ function MessagingProvidersAdminPanel() {
         const { data } = await api.get<PlatformGlobalSettingsDto>('/platform-admin/settings')
         if (cancelled || !data) return
         setFlags({
-          GLOBAL_MESSAGING_WHATSAPP_ENABLED: parseEnabledFlag(data.GLOBAL_MESSAGING_WHATSAPP_ENABLED),
-          GLOBAL_MESSAGING_VIBER_ENABLED: parseEnabledFlag(data.GLOBAL_MESSAGING_VIBER_ENABLED),
+          GLOBAL_MESSAGING_WHATSAPP_ENABLED: parseEnabledFlag(data.GLOBAL_MESSAGING_WHATSAPP_ENABLED, false),
+          GLOBAL_MESSAGING_VIBER_ENABLED: parseEnabledFlag(data.GLOBAL_MESSAGING_VIBER_ENABLED, false),
         })
       } catch {
         if (!cancelled) setErr('Could not load messaging provider settings.')
@@ -1256,7 +1344,7 @@ function AjpesAdminPanel() {
         const { data } = await api.get<PlatformGlobalSettingsDto>('/platform-admin/settings')
         if (cancelled || !data) return
         setFlags({
-          GLOBAL_AJPES_PRS_ENABLED: parseEnabledFlag(data.GLOBAL_AJPES_PRS_ENABLED),
+          GLOBAL_AJPES_PRS_ENABLED: parseEnabledFlag(data.GLOBAL_AJPES_PRS_ENABLED, false),
         })
       } catch {
         if (!cancelled) setErr('Could not load Ajpes PRS settings.')

@@ -2,8 +2,10 @@ package com.example.app.guest.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.app.settings.GlobalPaymentProviderService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class GuestSettingsServiceAcceptedMethodsTest {
@@ -46,5 +48,25 @@ class GuestSettingsServiceAcceptedMethodsTest {
         var result = GuestSettingsService.parseAcceptedPaymentMethods(node);
 
         assertThat(result).containsExactly("CARD", "PAYPAL");
+    }
+
+    @Test
+    void applyGlobalProviderCapabilities_filtersCardAndPaypalWhenDisabled() {
+        var result = GuestSettingsService.applyGlobalProviderCapabilities(
+                List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD"),
+                new GlobalPaymentProviderService.ProviderCapabilities(false, false)
+        );
+
+        assertThat(result).containsExactly("BANK_TRANSFER", "GIFT_CARD");
+    }
+
+    @Test
+    void applyGlobalProviderCapabilities_returnsSafeFallbackWhenAllConfiguredMethodsAreDisabled() {
+        var result = GuestSettingsService.applyGlobalProviderCapabilities(
+                List.of("CARD", "PAYPAL"),
+                new GlobalPaymentProviderService.ProviderCapabilities(false, false)
+        );
+
+        assertThat(result).containsExactly("BANK_TRANSFER", "GIFT_CARD");
     }
 }

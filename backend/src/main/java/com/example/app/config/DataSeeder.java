@@ -111,6 +111,10 @@ public class DataSeeder implements CommandLineRunner {
         seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL, "https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices/register");
         seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_PROD_INVOICE_URL, "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices");
         seedSetting(platformCompany, SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL, "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices/register");
+        seedSetting(platformCompany, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, "false");
+        seedSetting(platformCompany, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "false");
+        seedSetting(platformCompany, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, "true");
+        seedSetting(platformCompany, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false");
     }
 
     private void seedTenant(String tenantName, String adminEmail) {

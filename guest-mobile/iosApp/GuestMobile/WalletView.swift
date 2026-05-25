@@ -1228,7 +1228,8 @@ private func normalizeWalletBuyMethods(_ methods: [String]) -> [String] {
             .filter { allowed.contains($0) }
     )
     let ordered = ["CARD", "BANK_TRANSFER", "PAYPAL"].filter { accepted.contains($0) }
-    return ordered.isEmpty ? ["CARD", "BANK_TRANSFER", "PAYPAL"] : ordered
+    // If tenant config exposes no wallet-compatible methods, default to bank transfer only.
+    return ordered.isEmpty ? ["BANK_TRANSFER"] : ordered
 }
 
 private struct WalletTicketStyle {

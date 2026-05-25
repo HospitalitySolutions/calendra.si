@@ -23,6 +23,7 @@ import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionType;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.stripe.StripeBillingService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -63,6 +64,7 @@ class BillingControllerBatchSyncRegressionTest {
     @Mock private GuestOrderRepository guestOrders;
     @Mock private InvoiceOrderIdService invoiceOrderIdService;
     @Mock private EntityManager entityManager;
+    @Mock private GlobalPaymentProviderService globalPaymentProviders;
 
     private BillingController controller;
 
@@ -89,7 +91,8 @@ class BillingControllerBatchSyncRegressionTest {
                 events,
                 guestOrders,
                 invoiceOrderIdService,
-                entityManager
+                entityManager,
+                globalPaymentProviders
         );
     }
 

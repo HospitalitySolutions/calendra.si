@@ -12,6 +12,7 @@ import com.example.app.session.TypeTransactionService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.fiscal.FiscalizationService;
@@ -87,6 +88,7 @@ public class BillingController {
     private final GuestOrderRepository guestOrders;
     private final InvoiceOrderIdService invoiceOrderIdService;
     private final EntityManager entityManager;
+    private final GlobalPaymentProviderService globalPaymentProviders;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -97,7 +99,8 @@ public class BillingController {
                              org.springframework.context.ApplicationEventPublisher events,
                              GuestOrderRepository guestOrders,
                              InvoiceOrderIdService invoiceOrderIdService,
-                             EntityManager entityManager) {
+                             EntityManager entityManager,
+                             GlobalPaymentProviderService globalPaymentProviders) {
         this.txRepo = txRepo;
         this.paymentMethodRepo = paymentMethodRepo;
         this.billRepo = billRepo;
@@ -119,6 +122,7 @@ public class BillingController {
         this.guestOrders = guestOrders;
         this.invoiceOrderIdService = invoiceOrderIdService;
         this.entityManager = entityManager;
+        this.globalPaymentProviders = globalPaymentProviders;
     }
 
     public record BillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId) {}
@@ -368,7 +372,9 @@ public class BillingController {
     public List<PaymentMethodResponse> paymentMethods(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
         ensureAdvancePaymentMethod(companyId, me.getCompany());
+        var capabilities = globalPaymentProviders.capabilities();
         return paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(pm -> isPaymentMethodAllowedByGlobalSettings(pm, capabilities))
                 .map(pm -> new PaymentMethodResponse(
                         pm.getId(),
                         pm.getName(),
@@ -430,6 +436,7 @@ public class BillingController {
         if (req == null || req.name() == null || req.name().trim().isEmpty() || req.paymentType() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and paymentType are required.");
         }
+        validatePaymentMethodAgainstGlobalSettings(req.paymentType());
         var pm = new PaymentMethod();
         pm.setCompany(me.getCompany());
         pm.setName(req.name().trim());
@@ -457,6 +464,7 @@ public class BillingController {
         if (req == null || req.name() == null || req.name().trim().isEmpty() || req.paymentType() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and paymentType are required.");
         }
+        validatePaymentMethodAgainstGlobalSettings(req.paymentType());
         pm.setName(req.name().trim());
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req);
@@ -4028,6 +4036,28 @@ public class BillingController {
 
     private static boolean defaultStripeEnabled(PaymentType paymentType) {
         return paymentType == PaymentType.CARD;
+    }
+
+    private void validatePaymentMethodAgainstGlobalSettings(PaymentType paymentType) {
+        if (paymentType == PaymentType.CARD && !globalPaymentProviders.isStripeEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe is disabled in Platform Admin.");
+        }
+        if (paymentType == PaymentType.OTHER && !globalPaymentProviders.isPaypalEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is disabled in Platform Admin.");
+        }
+    }
+
+    private static boolean isPaymentMethodAllowedByGlobalSettings(
+            PaymentMethod paymentMethod,
+            GlobalPaymentProviderService.ProviderCapabilities capabilities
+    ) {
+        if (paymentMethod.getPaymentType() == PaymentType.CARD && !capabilities.stripeEnabled()) {
+            return false;
+        }
+        if (paymentMethod.getPaymentType() == PaymentType.OTHER && !capabilities.paypalEnabled()) {
+            return false;
+        }
+        return true;
     }
 
     private static List<String> defaultAllowedGuestProductTypes(PaymentType paymentType) {

@@ -20,7 +20,7 @@ import { getDefaultAllowedRoute } from '../lib/packageAccess'
 
 type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
 type BookingSubtab = 'general' | 'spaces'
-type BillingSubtab = 'settings' | 'paymentMethods' | 'paypal' | 'fiscal' | 'invoiceDelivery' | 'folioLayout'
+type BillingSubtab = 'settings' | 'paymentMethods' | 'stripe' | 'paypal' | 'fiscal' | 'invoiceDelivery' | 'folioLayout'
 type PersonalTaskPreset = { id: string; name: string; color: string }
 
 type CompanyProfileForm = {
@@ -112,6 +112,7 @@ type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notificat
 
 type ConfigNavItem = { id: Tab; icon: ConfigNavIcon }
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
+type PaymentGlobalCapabilities = { stripeEnabled: boolean; paypalEnabled: boolean }
 
 const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'googleCalendar', 'whatsapp', 'viber', 'modules', 'security']
 
@@ -2708,6 +2709,10 @@ export function ConfigurationPage() {
     whatsappEnabled: true,
     viberEnabled: true,
   })
+  const [paymentGlobalCapabilities, setPaymentGlobalCapabilities] = useState<PaymentGlobalCapabilities>({
+    stripeEnabled: true,
+    paypalEnabled: false,
+  })
   const [inboxCapabilitiesLoaded, setInboxCapabilitiesLoaded] = useState(false)
   const [modulesDraft, setModulesDraft] = useState<ModulesDraft | null>(null)
   const [expandedModuleRows, setExpandedModuleRows] = useState<string[]>(DEFAULT_EXPANDED_MODULE_ROWS)
@@ -2873,17 +2878,22 @@ export function ConfigurationPage() {
     if (
       subtabQuery === 'settings' ||
       subtabQuery === 'paymentMethods' ||
+      subtabQuery === 'stripe' ||
       subtabQuery === 'paypal' ||
       subtabQuery === 'fiscal' ||
       subtabQuery === 'invoiceDelivery' ||
       subtabQuery === 'folioLayout'
     ) {
-      setBillingSubtab(subtabQuery)
+      if (subtabQuery === 'paypal' && !paymentGlobalCapabilities.paypalEnabled) {
+        setBillingSubtab('paymentMethods')
+      } else {
+        setBillingSubtab(subtabQuery)
+      }
     }
     if (q === 'guestApp' && (subtabQuery === 'general' || subtabQuery === 'bookingRules' || subtabQuery === 'paymentMethods' || subtabQuery === 'qrCode')) {
       setGuestAppSubtab(subtabQuery)
     }
-  }, [query, navigate, isAdmin])
+  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -2902,6 +2912,28 @@ export function ConfigurationPage() {
         }
       } finally {
         if (!cancelled) setInboxCapabilitiesLoaded(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const { data } = await api.get<PaymentGlobalCapabilities>('/settings/payment-capabilities')
+        if (cancelled || !data) return
+        setPaymentGlobalCapabilities({
+          stripeEnabled: data.stripeEnabled !== false,
+          paypalEnabled: data.paypalEnabled === true,
+        })
+      } catch {
+        if (!cancelled) {
+          setPaymentGlobalCapabilities({ stripeEnabled: true, paypalEnabled: false })
+        }
       }
     })()
     return () => {
@@ -3008,9 +3040,9 @@ export function ConfigurationPage() {
         if (!cancelled) {
           await load()
           setTab('billing')
-          setBillingSubtab('paypal')
+          setBillingSubtab(paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'paymentMethods')
           showToast('success', merchantId ? 'PayPal seller connected.' : 'PayPal onboarding returned. Please review the merchant ID below and save if needed.')
-          navigate('/configuration?tab=billing&subtab=paypal', { replace: true })
+          navigate(`/configuration?tab=billing&subtab=${paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'paymentMethods'}`, { replace: true })
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -3022,7 +3054,7 @@ export function ConfigurationPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin, query, navigate, showToast])
+  }, [isAdmin, query, navigate, showToast, paymentGlobalCapabilities.paypalEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -3035,10 +3067,10 @@ export function ConfigurationPage() {
         const { data } = await api.post(`/stripe/connect/refresh?mode=${encodeURIComponent(stripeMode)}`)
         if (!cancelled) {
           setStripeConnectStatus(data || null)
-          setTab('guestApp')
-          setGuestAppSubtab('paymentMethods')
+          setTab('billing')
+          setBillingSubtab('stripe')
           showToast('success', 'Stripe onboarding returned. Status refreshed.')
-          navigate('/configuration?tab=guestApp&subtab=paymentMethods', { replace: true })
+          navigate('/configuration?tab=billing&subtab=stripe', { replace: true })
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -3268,7 +3300,7 @@ export function ConfigurationPage() {
     const mode = stripeConnectStatus?.activeMode || 'sandbox'
     setStartingStripeOnboarding(true)
     try {
-      const returnUrl = `${window.location.origin}/configuration?tab=guestApp&subtab=paymentMethods&stripeMode=${mode}`
+      const returnUrl = `${window.location.origin}/configuration?tab=billing&subtab=stripe&stripeMode=${mode}`
       const { data } = await api.post('/stripe/connect/onboarding-link', {
         mode,
         country: stripeConnectStatus?.country || 'SI',
@@ -3723,6 +3755,44 @@ export function ConfigurationPage() {
     }
   }
 
+  const visibleGuestPaymentMethodOptions = useMemo(() => (
+    GUEST_PAYMENT_METHOD_OPTIONS.filter((method) => {
+      if (method.id === 'online_card') return paymentGlobalCapabilities.stripeEnabled
+      if (method.id === 'paypal') return paymentGlobalCapabilities.paypalEnabled
+      return true
+    })
+  ), [paymentGlobalCapabilities.paypalEnabled, paymentGlobalCapabilities.stripeEnabled])
+
+  useEffect(() => {
+    const allowed = new Set(visibleGuestPaymentMethodOptions.map((method) => method.id))
+    setGuestAppSettings((prev) => {
+      const filteredAccepted = prev.acceptedPaymentMethodIds.filter((methodId) => allowed.has(methodId))
+      const acceptedPaymentMethodIds = filteredAccepted.length > 0
+        ? filteredAccepted
+        : [visibleGuestPaymentMethodOptions[0]?.id ?? 'bank_transfer']
+      const paymentDefaultMethodId = allowed.has(prev.paymentDefaultMethodId)
+        ? prev.paymentDefaultMethodId
+        : acceptedPaymentMethodIds[0]
+      const paymentProvider = prev.paymentProvider === 'paypal'
+        ? (paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'stripe')
+        : (paymentGlobalCapabilities.stripeEnabled ? 'stripe' : (paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'stripe'))
+      if (
+        acceptedPaymentMethodIds.length === prev.acceptedPaymentMethodIds.length
+        && acceptedPaymentMethodIds.every((id, index) => prev.acceptedPaymentMethodIds[index] === id)
+        && paymentDefaultMethodId === prev.paymentDefaultMethodId
+        && paymentProvider === prev.paymentProvider
+      ) {
+        return prev
+      }
+      return {
+        ...prev,
+        acceptedPaymentMethodIds,
+        paymentDefaultMethodId,
+        paymentProvider,
+      }
+    })
+  }, [paymentGlobalCapabilities.paypalEnabled, paymentGlobalCapabilities.stripeEnabled, visibleGuestPaymentMethodOptions])
+
   const toggleGuestPaymentMethod = (id: GuestPaymentMethodId) => {
     setGuestAppSettings((prev) => {
       const has = prev.acceptedPaymentMethodIds.includes(id)
@@ -3736,11 +3806,18 @@ export function ConfigurationPage() {
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
     { id: 'settings', label: t('configBillingSettingsTab') },
     { id: 'paymentMethods', label: t('configBillingPaymentMethodsTab') },
-    { id: 'paypal', label: 'PayPal' },
+    { id: 'stripe', label: 'Stripe' },
+    ...(paymentGlobalCapabilities.paypalEnabled ? [{ id: 'paypal', label: 'PayPal' } satisfies { id: BillingSubtab; label: string }] : []),
     { id: 'fiscal', label: t('configBillingFiscalTab') },
     { id: 'invoiceDelivery', label: t('configBillingInvoiceDeliveryTab') },
     { id: 'folioLayout', label: 'Folio layout' },
   ]
+
+  useEffect(() => {
+    if (!paymentGlobalCapabilities.paypalEnabled && billingSubtab === 'paypal') {
+      setBillingSubtab('paymentMethods')
+    }
+  }, [billingSubtab, paymentGlobalCapabilities.paypalEnabled])
 
   const resetAndOpenPaymentMethodModal = () => {
     setInlineEditingPaymentMethodId(-1)
@@ -6210,6 +6287,116 @@ export function ConfigurationPage() {
               )}
               </div>
             </>
+          ) : billingSubtab === 'stripe' ? (
+            <>
+              <div className="billing-overview-grid">
+                <div className="billing-card billing-overview-card">
+                  <span className="billing-overview-icon"><BillingLinkIcon /></span>
+                  <span>
+                    <span className="billing-overview-label">{locale === 'sl' ? 'Stripe Connect status' : 'Stripe Connect status'}</span>
+                    <span className={activeStripeAccount?.chargesEnabled ? 'billing-pill billing-pill--success' : 'billing-pill billing-pill--neutral'}>
+                      <span className="billing-status-dot" /> {stripeStatusLabel}
+                    </span>
+                  </span>
+                </div>
+                <div className="billing-card billing-overview-card">
+                  <span className="billing-overview-icon"><BillingUserBadgeIcon /></span>
+                  <span>
+                    <span className="billing-overview-label">Account ID</span>
+                    <span className="billing-overview-value">{activeStripeAccount?.accountId || '—'}</span>
+                  </span>
+                </div>
+                <div className="billing-card billing-overview-card">
+                  <span className="billing-overview-icon"><BillingTagIcon /></span>
+                  <span>
+                    <span className="billing-overview-label">{locale === 'sl' ? 'Okolje' : 'Environment'}</span>
+                    <span className="billing-overview-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="billing-card billing-form-card">
+                <div className="billing-section-heading-row">
+                  <span className="billing-section-icon"><BillingPaymentTypeIcon type="CARD" /></span>
+                  <span>
+                    <h3 className="billing-section-title">Ponudnik spletnega plačila</h3>
+                    <span className="billing-section-kicker">Tenant poveže svoj Stripe račun. Platformni ključi so v Platform Admin → Payment providers → Stripe.</span>
+                  </span>
+                </div>
+
+                <div className="billing-form-grid">
+                  <label className="billing-field">
+                    <span className="billing-label">Ponudnik</span>
+                    <select className="billing-select" value={guestAppSettings.paymentProvider} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, paymentProvider: e.target.value })}>
+                      <option value="stripe">Stripe Connect</option>
+                      <option value="paypal">PayPal</option>
+                      <option value="bankart">Bankart</option>
+                    </select>
+                  </label>
+                  <label className="billing-field">
+                    <span className="billing-label">Okolje</span>
+                    <select
+                      className="billing-select"
+                      value={stripeConnectStatus?.activeMode || 'sandbox'}
+                      onChange={(e) => void saveStripePreference({ mode: e.target.value })}
+                      disabled={guestAppSettings.paymentProvider !== 'stripe'}
+                    >
+                      <option value="sandbox">Sandbox</option>
+                      <option value="production">Production</option>
+                    </select>
+                    <span className="billing-hint">Sandbox je za testiranje. Production uporabite šele po vnosu live ključev v Platform Admin.</span>
+                  </label>
+                  <label className="billing-field">
+                    <span className="billing-label">Država računa</span>
+                    <input
+                      className="billing-input"
+                      maxLength={2}
+                      value={stripeConnectStatus?.country || 'SI'}
+                      onChange={(e) => void saveStripePreference({ country: e.target.value.toUpperCase() })}
+                      disabled={guestAppSettings.paymentProvider !== 'stripe'}
+                    />
+                    <span className="billing-hint">Stripe to uporabi pri ustvarjanju povezanega računa.</span>
+                  </label>
+                  <label className="billing-field">
+                    <span className="billing-label">Tip poslovanja</span>
+                    <select
+                      className="billing-select"
+                      value={stripeConnectStatus?.businessType || 'company'}
+                      onChange={(e) => void saveStripePreference({ businessType: e.target.value })}
+                      disabled={guestAppSettings.paymentProvider !== 'stripe'}
+                    >
+                      <option value="company">Podjetje</option>
+                      <option value="individual">Fizična oseba / samozaposlen</option>
+                      <option value="non_profit">Neprofitna organizacija</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="billing-info-note">
+                  <span className="billing-info-dot"><BillingLockIcon /></span>
+                  <span>
+                    <strong>Stripe zbira občutljive podatke</strong><br />
+                    Tenant se onboarda na Stripe hosted strani. Calendra shrani samo connected account ID in status; IBAN, KYC in dokumenti ostanejo pri Stripe.
+                    <br />
+                    Account ID: {activeStripeAccount?.accountId || '—'} · Charges: {activeStripeAccount?.chargesEnabled ? 'ON' : 'OFF'} · Payouts: {activeStripeAccount?.payoutsEnabled ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+
+                <div className="billing-actions-row">
+                  <button type="button" className="billing-primary-button" onClick={() => void startStripeOnboarding()} disabled={startingStripeOnboarding || guestAppSettings.paymentProvider !== 'stripe'}>
+                    <BillingLinkIcon />
+                    {startingStripeOnboarding ? 'Odpiram Stripe…' : activeStripeAccount?.connected ? 'Nadaljuj Stripe onboarding' : 'Poveži Stripe'}
+                  </button>
+                  <button type="button" className="billing-secondary-button" onClick={() => void refreshStripeConnectStatus()} disabled={refreshingStripeStatus || !activeStripeAccount?.connected || guestAppSettings.paymentProvider !== 'stripe'}>
+                    {refreshingStripeStatus ? 'Osvežujem…' : 'Osveži status'}
+                  </button>
+                  <button type="button" className="billing-secondary-button" onClick={saveGuestAppConfiguration} disabled={savingSettings}>
+                    <BillingSaveIcon />
+                    {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+                  </button>
+                </div>
+              </div>
+            </>
           ) : billingSubtab === 'paypal' ? (
             <>
               <div className="billing-overview-grid">
@@ -6639,7 +6826,7 @@ export function ConfigurationPage() {
               transition: transform .18s ease;
             }
             .gapp-switch.active .gapp-switch-knob { transform: translateX(34px); }
-            .gapp-payment-layout { grid-template-columns: 1.15fr .85fr; gap: 34px; }
+            .gapp-payment-layout { grid-template-columns: minmax(0, 1fr); gap: 34px; }
             .gapp-pane { min-width: 0; }
             .gapp-divider-pane { border-left: 1px solid #edf2f7; padding-left: 34px; }
             .gapp-payment-list { display: grid; gap: 10px; margin-bottom: 20px; }
@@ -7033,7 +7220,7 @@ export function ConfigurationPage() {
                       <p>Izberite, katere načine plačila želite omogočiti gostom.</p>
                     </div>
                     <div className="gapp-payment-list">
-                      {GUEST_PAYMENT_METHOD_OPTIONS.map((method) => (
+                      {visibleGuestPaymentMethodOptions.map((method) => (
                         <div className="gapp-payment-row" key={method.id}>
                           <span className="gapp-payment-icon"><GuestPaymentMethodIcon kind={method.id} /></span>
                           <strong>{method.label}</strong>
@@ -7084,88 +7271,6 @@ export function ConfigurationPage() {
                         <span className="gapp-hint">Ko je vklopljeno, gost rezervira brez spletnega plačila in poravna na lokaciji.</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="gapp-pane gapp-divider-pane gapp-provider-card">
-                    <div className="gapp-section-heading">
-                      <h3>Ponudnik spletnega plačila</h3>
-                      <p>Tenant poveže svoj Stripe račun. Platformni ključi so v Platform Admin → Payment providers → Stripe.</p>
-                    </div>
-                    <GuestField label="Ponudnik">
-                      <select className="gapp-select" value={guestAppSettings.paymentProvider} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, paymentProvider: e.target.value })}>
-                        <option value="stripe">Stripe Connect</option>
-                        <option value="paypal">PayPal</option>
-                        <option value="bankart">Bankart</option>
-                      </select>
-                    </GuestField>
-                    {guestAppSettings.paymentProvider === 'stripe' ? (
-                      <>
-                        <div className="gapp-payment-toggle-row">
-                          <GuestField label="Okolje" hint="Sandbox je za testiranje. Production uporabite šele po vnosu live ključev v Platform Admin.">
-                            <select
-                              className="gapp-select"
-                              value={stripeConnectStatus?.activeMode || 'sandbox'}
-                              onChange={(e) => void saveStripePreference({ mode: e.target.value })}
-                            >
-                              <option value="sandbox">Sandbox</option>
-                              <option value="production">Production</option>
-                            </select>
-                          </GuestField>
-                          <GuestField label="Država računa" hint="Stripe to uporabi pri ustvarjanju povezanega računa.">
-                            <input
-                              className="gapp-input"
-                              maxLength={2}
-                              value={stripeConnectStatus?.country || 'SI'}
-                              onChange={(e) => void saveStripePreference({ country: e.target.value.toUpperCase() })}
-                            />
-                          </GuestField>
-                        </div>
-                        <GuestField label="Tip poslovanja">
-                          <select
-                            className="gapp-select"
-                            value={stripeConnectStatus?.businessType || 'company'}
-                            onChange={(e) => void saveStripePreference({ businessType: e.target.value })}
-                          >
-                            <option value="company">Podjetje</option>
-                            <option value="individual">Fizična oseba / samozaposlen</option>
-                            <option value="non_profit">Neprofitna organizacija</option>
-                          </select>
-                        </GuestField>
-                        <div>
-                          <span className="gapp-label">Stripe Connect status</span>
-                          <div style={{ marginTop: 10 }}>
-                            <span className={activeStripeAccount?.chargesEnabled ? 'gapp-status-pill' : 'billing-pill billing-pill--neutral'}>
-                              {activeStripeAccount?.chargesEnabled ? '✓ ' : ''}{stripeStatusLabel}
-                            </span>
-                          </div>
-                          <span className="gapp-hint" style={{ marginTop: 10 }}>
-                            Account ID: {activeStripeAccount?.accountId || '—'} · Charges: {activeStripeAccount?.chargesEnabled ? 'ON' : 'OFF'} · Payouts: {activeStripeAccount?.payoutsEnabled ? 'ON' : 'OFF'}
-                          </span>
-                        </div>
-                        <div className="gapp-qr-actions" style={{ justifyContent: 'flex-start' }}>
-                          <button type="button" className="gapp-primary-button" onClick={() => void startStripeOnboarding()} disabled={startingStripeOnboarding}>
-                            {startingStripeOnboarding ? 'Odpiram Stripe…' : activeStripeAccount?.connected ? 'Nadaljuj Stripe onboarding' : 'Poveži Stripe'}
-                          </button>
-                          <button type="button" className="gapp-outline-button" onClick={() => void refreshStripeConnectStatus()} disabled={refreshingStripeStatus || !activeStripeAccount?.connected}>
-                            {refreshingStripeStatus ? 'Osvežujem…' : 'Osveži status'}
-                          </button>
-                        </div>
-                        <div className="gapp-security-note">
-                          <GuestShieldIcon />
-                          <div>
-                            <strong>Stripe zbira občutljive podatke</strong>
-                            <p>Tenant se onboarda na Stripe hosted strani. Calendra shrani samo connected account ID in status; IBAN, KYC in dokumenti ostanejo pri Stripe.</p>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="gapp-security-note">
-                        <GuestShieldIcon />
-                        <div>
-                          <strong>Varnost na prvem mestu</strong>
-                          <p>Vsa kartična plačila potekajo varno preko izbranega ponudnika. Podatki o karticah nikoli niso shranjeni v našem sistemu.</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
                 <div className="gapp-savebar">

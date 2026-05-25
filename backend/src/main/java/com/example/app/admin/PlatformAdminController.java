@@ -372,9 +372,13 @@ public class PlatformAdminController {
                 SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL.name(),
                 get(companyId, SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL, PROD_PREMISE_DEFAULT),
                 SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED.name(),
-                get(companyId, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, "true"),
+                get(companyId, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, "false"),
                 SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED.name(),
-                get(companyId, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "true"),
+                get(companyId, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "false"),
+                SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name(),
+                get(companyId, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, "true"),
+                SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name(),
+                get(companyId, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false"),
                 SettingKey.GLOBAL_AJPES_PRS_ENABLED.name(),
                 get(companyId, SettingKey.GLOBAL_AJPES_PRS_ENABLED, "false")
         );
@@ -389,6 +393,8 @@ public class PlatformAdminController {
         save(companyId, me, SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL, payload.get(SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL.name()));
         save(companyId, me, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, payload.get(SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, payload.get(SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED.name()));
+        save(companyId, me, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name()));
+        save(companyId, me, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_AJPES_PRS_ENABLED, payload.get(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name()));
         return settings(me);
     }
