@@ -151,7 +151,7 @@ fun InboxScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 12.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {

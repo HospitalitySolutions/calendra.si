@@ -201,7 +201,7 @@ struct WalletView: View {
         VStack(spacing: 0) {
             segmentedControl
                 .padding(.horizontal, 20)
-                .padding(.top, 8)
+                .padding(.top, 18)
                 .padding(.bottom, 6)
 
             Group {

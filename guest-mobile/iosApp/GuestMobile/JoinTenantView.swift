@@ -48,12 +48,16 @@ struct JoinTenantView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     brandHeader
-                    modeButtons
-                    searchField
-                    categoryChips
-                    tenantCarousel
+                        .padding(.horizontal, 16)
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        modeButtons
+                        searchField
+                        categoryChips
+                        tenantCarousel
+                    }
+                    .padding(.horizontal, 28)
                 }
-                .padding(.horizontal, 28)
                 .padding(.top, 0)
                 .padding(.bottom, 24)
             }

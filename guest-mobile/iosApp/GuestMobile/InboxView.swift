@@ -306,6 +306,7 @@ struct InboxView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 8)
             }
+            .padding(.top, 18)
             .padding(.bottom, 60)
         }
         .task(id: activeTenantId) {

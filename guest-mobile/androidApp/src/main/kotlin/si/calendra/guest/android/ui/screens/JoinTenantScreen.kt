@@ -168,70 +168,80 @@ fun JoinTenantScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 22.dp, end = 22.dp, top = 0.dp, bottom = 16.dp),
+                .padding(top = 0.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            BrandHeader()
-            Spacer(Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                JoinModeTile(
-                    label = if (isSl) "Vnesi kodo" else "Enter tenant code",
-                    mode = JoinMode.Code,
-                    selected = mode == JoinMode.Code,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        mode = JoinMode.Code
-                        showCodeDialog = true
-                    }
-                )
-                JoinModeTile(
-                    label = if (isSl) "Skeniraj QR" else "Scan QR",
-                    mode = JoinMode.Scan,
-                    selected = mode == JoinMode.Scan,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        mode = JoinMode.Scan
-                        showScanDialog = true
-                    }
-                )
-                JoinModeTile(
-                    label = if (isSl) "Brskaj ponudnike" else "Browse tenant",
-                    mode = JoinMode.Browse,
-                    selected = mode == JoinMode.Browse,
-                    modifier = Modifier.weight(1f),
-                    onClick = { mode = JoinMode.Browse }
-                )
-            }
-
-            Spacer(Modifier.height(18.dp))
-
-            SearchField(
-                value = tenantQuery,
-                isSl = isSl,
-                onValueChange = { incoming ->
-                    tenantQuery = if (incoming.isNotEmpty()) {
-                        incoming.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                    } else incoming
-                }
+            BrandHeader(
+                modifier = Modifier.padding(start = 12.dp, end = 4.dp)
             )
 
-            Spacer(Modifier.height(10.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 22.dp, end = 22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(Modifier.height(10.dp))
 
-            TenantTypeChips(selectedType = selectedType, isSl = isSl, onTypeSelected = { selectedType = it })
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    JoinModeTile(
+                        label = if (isSl) "Vnesi kodo" else "Enter tenant code",
+                        mode = JoinMode.Code,
+                        selected = mode == JoinMode.Code,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            mode = JoinMode.Code
+                            showCodeDialog = true
+                        }
+                    )
+                    JoinModeTile(
+                        label = if (isSl) "Skeniraj QR" else "Scan QR",
+                        mode = JoinMode.Scan,
+                        selected = mode == JoinMode.Scan,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            mode = JoinMode.Scan
+                            showScanDialog = true
+                        }
+                    )
+                    JoinModeTile(
+                        label = if (isSl) "Brskaj ponudnike" else "Browse tenant",
+                        mode = JoinMode.Browse,
+                        selected = mode == JoinMode.Browse,
+                        modifier = Modifier.weight(1f),
+                        onClick = { mode = JoinMode.Browse }
+                    )
+                }
 
-            Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(18.dp))
 
-            when {
-                loading -> LoadingTenantCard(isSl = isSl)
-                tenants.isEmpty() -> EmptyTenantCard(isSl = isSl)
-                else -> TenantCarousel(tenants = tenants, isSl = isSl, onSelectTenant = { onJoinPublicTenant(it.companyId) })
+                SearchField(
+                    value = tenantQuery,
+                    isSl = isSl,
+                    onValueChange = { incoming ->
+                        tenantQuery = if (incoming.isNotEmpty()) {
+                            incoming.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        } else incoming
+                    }
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                TenantTypeChips(selectedType = selectedType, isSl = isSl, onTypeSelected = { selectedType = it })
+
+                Spacer(Modifier.height(14.dp))
+
+                when {
+                    loading -> LoadingTenantCard(isSl = isSl)
+                    tenants.isEmpty() -> EmptyTenantCard(isSl = isSl)
+                    else -> TenantCarousel(tenants = tenants, isSl = isSl, onSelectTenant = { onJoinPublicTenant(it.companyId) })
+                }
+
+                Spacer(Modifier.height(20.dp))
             }
-
-            Spacer(Modifier.height(20.dp))
         }
 
         if (showCodeDialog) {
@@ -261,9 +271,9 @@ fun JoinTenantScreen(
 }
 
 @Composable
-private fun BrandHeader() {
+private fun BrandHeader(modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(56.dp),
         verticalAlignment = Alignment.CenterVertically

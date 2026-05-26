@@ -64,11 +64,11 @@ type GuestProductFormState = {
   transactionServiceId: string
 }
 
-const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = ['PACK', 'MEMBERSHIP', 'CLASS_TICKET', 'GIFT_CARD']
+const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = ['PACK', 'MEMBERSHIP', 'GIFT_CARD']
 
 const CARD_PRODUCT_TYPE_LABELS: Record<GuestAdminProductType, string> = {
-  CLASS_TICKET: 'Class ticket',
-  PACK: 'Pack',
+  CLASS_TICKET: 'Ticket',
+  PACK: 'Tickets',
   MEMBERSHIP: 'Membership',
   GIFT_CARD: 'Gift card',
 }
@@ -83,7 +83,7 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   active: true,
   guestVisible: true,
   bookable: false,
-  usageLimit: '',
+  usageLimit: '1',
   validityDays: '',
   autoRenews: false,
   sortOrder: '0',
@@ -102,8 +102,8 @@ const normalizeGuestProductFormForType = (
     productType: nextProductType,
     usageLimit: (nextProductType === 'CLASS_TICKET' || nextProductType === 'MEMBERSHIP' || nextProductType === 'GIFT_CARD')
       ? '1'
-      : nextProductType === 'PACK' && (currentUsage == null || currentUsage <= 1)
-        ? '2'
+      : nextProductType === 'PACK' && currentUsage == null
+        ? '1'
         : current.usageLimit,
     sessionTypeId:
       (nextProductType === 'CLASS_TICKET' || nextProductType === 'PACK')
@@ -112,7 +112,7 @@ const normalizeGuestProductFormForType = (
           ? ''
           : current.sessionTypeId,
     autoRenews: nextProductType === 'MEMBERSHIP' ? current.autoRenews : false,
-    bookable: nextProductType === 'GIFT_CARD' ? false : current.bookable,
+    bookable: false,
   }
 }
 
@@ -222,7 +222,7 @@ function CardsMembershipSortableHeader({ children }: { children: ReactNode }) {
 function guestProductWalletSubtitle(product: GuestAdminProduct): string {
   const bits: string[] = []
   if (product.autoRenews) bits.push('Auto-renew enabled')
-  bits.push(product.bookable ? 'Requires slot in checkout' : 'Wallet product')
+  bits.push('Wallet product')
   return bits.join(' · ')
 }
 
@@ -319,13 +319,13 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
           name: product.name,
           description: product.description || '',
           promoText: product.promoText || '',
-          productType: product.productType,
+          productType: product.productType === 'CLASS_TICKET' ? 'PACK' : product.productType,
           priceGross: Number(product.priceGross ?? 0).toFixed(2),
           currency: product.currency || 'EUR',
           active: product.active,
           guestVisible: product.guestVisible,
-          bookable: product.bookable,
-          usageLimit: product.usageLimit == null ? '' : String(product.usageLimit),
+          bookable: false,
+          usageLimit: product.productType === 'CLASS_TICKET' ? '1' : (product.usageLimit == null ? '' : String(product.usageLimit)),
           validityDays: product.validityDays == null ? '' : String(product.validityDays),
           autoRenews: product.autoRenews,
           sortOrder: String(product.sortOrder ?? 0),
@@ -334,7 +334,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
             ? (activeTransactionServices[0] ? String(activeTransactionServices[0].id) : '')
             : String(product.transactionServiceId),
         },
-        product.productType,
+        product.productType === 'CLASS_TICKET' ? 'PACK' : product.productType,
       ),
     )
     setShowGuestProductModal(true)
@@ -346,12 +346,12 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
     const isGiftCard = guestProductForm.productType === 'GIFT_CARD'
     if (guestProductForm.productType === 'PACK') {
       if (!guestProductForm.sessionTypeId.trim()) {
-        window.alert('Pack cards must be linked to a service type.')
+        window.alert('Tickets must be linked to a service type.')
         return
       }
-      const packUsageLimit = parsePositiveIntegerInput(guestProductForm.usageLimit)
-      if (packUsageLimit == null || packUsageLimit <= 1) {
-        window.alert('Pack cards must have a quantity greater than 1.')
+      const ticketUsageLimit = parsePositiveIntegerInput(guestProductForm.usageLimit)
+      if (ticketUsageLimit == null || ticketUsageLimit < 1) {
+        window.alert('Tickets must have a quantity of at least 1.')
         return
       }
     }
@@ -378,7 +378,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       currency: guestProductForm.currency.trim().toUpperCase() || 'EUR',
       active: guestProductForm.active,
       guestVisible: guestProductForm.guestVisible,
-      bookable: isGiftCard ? false : guestProductForm.bookable,
+      bookable: false,
       usageLimit: (isClassTicket || isMembership || isGiftCard) ? 1 : parsePositiveIntegerInput(guestProductForm.usageLimit),
       validityDays,
       autoRenews: guestProductForm.productType === 'MEMBERSHIP' ? guestProductForm.autoRenews : false,
@@ -428,13 +428,13 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
         name: product.name,
         description: product.description || '',
         promoText: product.promoText || null,
-        productType: product.productType,
+        productType: product.productType === 'CLASS_TICKET' ? 'PACK' : product.productType,
         priceGross: product.priceGross,
         currency: product.currency,
         active: nextActive,
         guestVisible: product.guestVisible,
-        bookable: product.bookable,
-        usageLimit: product.usageLimit ?? null,
+        bookable: false,
+        usageLimit: product.productType === 'CLASS_TICKET' ? 1 : (product.usageLimit ?? null),
         validityDays: product.productType === 'GIFT_CARD' ? (product.validityDays ?? 1) : (product.validityDays ?? null),
         autoRenews: product.productType === 'MEMBERSHIP' ? product.autoRenews : false,
         sortOrder: product.sortOrder ?? 0,
@@ -491,7 +491,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
   return (
     <>
       {guestProducts.length === 0 ? (
-        <EmptyState title="No cards yet" text="Create your first membership or visit pack to start selling it in the guest app wallet." />
+        <EmptyState title="No cards yet" text="Create your first membership or ticket card to start selling it in the guest app wallet." />
       ) : filteredGuestProducts.length === 0 ? (
         <EmptyState title={t('calendarFilterSearchNoResults')} text={t('sessionTypesSearchNoMatchesText')} />
       ) : (
@@ -794,7 +794,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                     : guestProductForm.productType === 'CLASS_TICKET'
                     ? 'Required. Price is derived from linked transaction services on this type.'
                     : guestProductForm.productType === 'PACK'
-                      ? 'Required. Price is derived from linked transaction services × quantity.'
+                      ? 'Required. Price is derived from linked transaction services × quantity. Quantity can be 1 for a single ticket.'
                       : 'Optional. When selected, this card can only be used for that service type.'
                 }
               >
@@ -869,13 +869,13 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
               {guestProductForm.productType === 'PACK' && (
                 <Field
                   label="Quantity *"
-                  hint="Required for packs. Price = (service type gross sum) × this number."
+                  hint="Required for tickets. Price = (service type gross sum) × this number. Use quantity 1 for a single ticket."
                 >
                   <input
                     type="number"
-                    min="2"
+                    min="1"
                     step="1"
-                    placeholder="E.g. 10"
+                    placeholder="E.g. 1 or 10"
                     required={guestProductForm.productType === 'PACK'}
                     value={guestProductForm.usageLimit}
                     onChange={(e) => setGuestProductForm({ ...guestProductForm, usageLimit: e.target.value })}
@@ -903,26 +903,6 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                 <div className="cards-product-toggle" role="group" aria-label="Visible in guest app">
                   <button type="button" className={!guestProductForm.guestVisible ? 'cards-product-toggle-btn active' : 'cards-product-toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, guestVisible: false })}>OFF</button>
                   <button type="button" className={guestProductForm.guestVisible ? 'cards-product-toggle-btn active' : 'cards-product-toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, guestVisible: true })}>ON</button>
-                </div>
-              </Field>
-              <Field label="Requires booking slot" hint="Only turn this on if the guest should choose a slot during checkout. Most memberships and packs should keep this OFF.">
-                <div className="cards-product-toggle" role="group" aria-label="Requires booking slot">
-                  <button
-                    type="button"
-                    className={!guestProductForm.bookable ? 'cards-product-toggle-btn active' : 'cards-product-toggle-btn'}
-                    onClick={() => setGuestProductForm({ ...guestProductForm, bookable: false })}
-                    disabled={guestProductForm.productType === 'GIFT_CARD'}
-                  >
-                    OFF
-                  </button>
-                  <button
-                    type="button"
-                    className={guestProductForm.bookable ? 'cards-product-toggle-btn active' : 'cards-product-toggle-btn'}
-                    onClick={() => setGuestProductForm({ ...guestProductForm, bookable: true })}
-                    disabled={guestProductForm.productType === 'GIFT_CARD'}
-                  >
-                    ON
-                  </button>
                 </div>
               </Field>
               {guestProductForm.productType === 'MEMBERSHIP' && (

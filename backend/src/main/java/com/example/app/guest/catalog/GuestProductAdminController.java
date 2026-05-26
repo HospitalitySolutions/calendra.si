@@ -110,22 +110,21 @@ public class GuestProductAdminController {
         TransactionService transactionService = productType == ProductType.GIFT_CARD
                 ? resolveTransactionService(request.transactionServiceId(), companyId)
                 : null;
-        boolean bookable = productType != ProductType.GIFT_CARD && Boolean.TRUE.equals(request.bookable());
-        if (bookable && sessionType == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bookable products must be linked to a service type.");
-        }
+        // Cards & memberships are wallet products only. Booking-slot selection is handled by
+        // session/widget products, not by purchased wallet products.
+        boolean bookable = false;
         if (productType == ProductType.CLASS_TICKET && sessionType == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class tickets must be linked to a service type.");
         }
         if (productType == ProductType.PACK && sessionType == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pack cards must be linked to a service type.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tickets must be linked to a service type.");
         }
 
         Integer usageLimit = (productType == ProductType.CLASS_TICKET || productType == ProductType.MEMBERSHIP || productType == ProductType.GIFT_CARD)
                 ? Integer.valueOf(1)
                 : normalizePositiveInteger(request.usageLimit(), "Usage limit");
-        if (productType == ProductType.PACK && (usageLimit == null || usageLimit <= 1)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pack quantity must be greater than 1.");
+        if (productType == ProductType.PACK && (usageLimit == null || usageLimit < 1)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticket quantity must be at least 1.");
         }
         validatePackOrClassPriceGross(productType, sessionType, usageLimit, priceGross);
 

@@ -248,7 +248,7 @@ fun WalletScreen(
             onSelect = { subTab = it },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp)
         )
 
         when (subTab) {
