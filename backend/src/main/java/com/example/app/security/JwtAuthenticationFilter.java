@@ -1,6 +1,7 @@
 package com.example.app.security;
 
 import com.example.app.securitycenter.SecurityCenterService;
+import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.servlet.FilterChain;
@@ -92,7 +93,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(
                                     user,
                                     null,
-                                    List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                                    authoritiesFor(user)
                             );
 
                     authentication.setDetails(
@@ -117,5 +118,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private List<SimpleGrantedAuthority> authoritiesFor(User user) {
+        if (user.getRole() == Role.SUPER_ADMIN) {
+            return List.of(
+                    new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_ADMIN")
+            );
+        }
+        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
 }

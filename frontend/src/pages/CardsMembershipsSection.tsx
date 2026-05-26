@@ -240,7 +240,7 @@ export type CardsMembershipsSectionProps = {
 export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle, CardsMembershipsSectionProps>(
   function CardsMembershipsSection({ sessionTypes, searchQuery, activeFilter, onFilteredCountChange }, ref) {
   const me = getStoredUser()
-  const isAdmin = me?.role === 'ADMIN'
+  const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
   const { t, locale } = useLocale()
   const { showToast } = useToast()
   const [guestProducts, setGuestProducts] = useState<GuestAdminProduct[]>([])

@@ -564,7 +564,7 @@ function transactionServiceGross(service: BillingService): number {
 
 export function SessionTypesPage() {
   const me = getStoredUser()!;
-  const isAdmin = me.role === "ADMIN";
+  const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
   const showCardsMemberships =

@@ -235,7 +235,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const { t, locale } = useLocale()
   const navigate = useNavigate()
   const user = getStoredUser()
-  const isAdmin = user?.role === 'ADMIN' || user?.role === ('ROLE_ADMIN' as any)
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === ('ROLE_ADMIN' as any) || user?.role === ('ROLE_SUPER_ADMIN' as any)
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [editing, setEditing] = useState<Consultant | null>(null)
   const [showFormPanel, setShowFormPanel] = useState(false)

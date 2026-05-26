@@ -626,6 +626,7 @@ export type BillingPageProps = {
 
 export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = null, onEmbeddedClose, onEmbeddedSaved }: BillingPageProps = {}) {
   const me = getStoredUser()!
+  const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const { showToast } = useToast()
   const { t, locale } = useLocale()
   const routeParams = useParams()
@@ -956,7 +957,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       api.get('/billing/unused-advances').catch(() => ({ data: [] })),
       api.get('/clients'),
       api.get('/companies'),
-      me.role === 'ADMIN' ? api.get('/users') : Promise.resolve({ data: [] }),
+      isAdmin ? api.get('/users') : Promise.resolve({ data: [] }),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
     ])
     setSettings(settingsRes.data || {})
@@ -5112,7 +5113,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
               <select value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
                 <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
-                {(me.role === 'ADMIN' ? users : [me]).map((user) => (
+                {(isAdmin ? users : [me]).map((user) => (
                   <option key={user.id} value={user.id}>{fullName(user)}</option>
                 ))}
               </select>
@@ -5229,7 +5230,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 })}
               >
                 <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
-                {(me.role === 'ADMIN' ? users : [me]).map((user) => (
+                {(isAdmin ? users : [me]).map((user) => (
                   <option key={user.id} value={user.id}>{fullName(user)}</option>
                 ))}
               </select>
@@ -5396,7 +5397,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 })}
               >
                 <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
-                {(me.role === 'ADMIN' ? users : [me]).map((user) => (
+                {(isAdmin ? users : [me]).map((user) => (
                   <option key={user.id} value={user.id}>{fullName(user)}</option>
                 ))}
               </select>

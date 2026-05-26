@@ -873,7 +873,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
     guestAppBadge: 'Guest app',
   }
   const me = getStoredUser()!
-  const isAdmin = me.role === 'ADMIN'
+  const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const [entityTab, setEntityTab] = useState<EntityTab>('clients')
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])

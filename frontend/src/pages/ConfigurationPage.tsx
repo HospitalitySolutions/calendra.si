@@ -2653,7 +2653,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
 
 export function ConfigurationPage() {
   const me = getStoredUser()!
-  const isAdmin = me.role === 'ADMIN'
+  const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const navigate = useNavigate()
   const query = useQuery()
   const { t, locale } = useLocale()

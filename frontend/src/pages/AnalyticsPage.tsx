@@ -366,6 +366,7 @@ export function AnalyticsPage() {
         } as Record<string, string>,
       }
 
+  const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const canFetch = periodPreset !== 'custom' || (!!customFrom && !!customTo)
 
   const { data: filterData } = useQuery<{
@@ -376,7 +377,7 @@ export function AnalyticsPage() {
     queryKey: ['analytics-filters-meta', me.role],
     queryFn: async () => {
       const [usersRes, spacesRes, typesRes] = await Promise.all([
-        me.role === 'ADMIN' ? api.get<ConsultantOption[]>('/users').catch(() => ({ data: [] as ConsultantOption[] })) : Promise.resolve({ data: [] as ConsultantOption[] }),
+        isAdmin ? api.get<ConsultantOption[]>('/users').catch(() => ({ data: [] as ConsultantOption[] })) : Promise.resolve({ data: [] as ConsultantOption[] }),
         api.get<SpaceOption[]>('/spaces').catch(() => ({ data: [] as SpaceOption[] })),
         api.get<TypeOption[]>('/types').catch(() => ({ data: [] as TypeOption[] })),
       ])
@@ -629,7 +630,7 @@ export function AnalyticsPage() {
             <button type="button" className={periodPreset === 'custom' ? 'active' : ''} onClick={() => setPeriodPreset('custom')}>{text.custom}</button>
           </div>
           <div className="analytics-select-filters">
-            {me.role === 'ADMIN' && (
+            {isAdmin && (
               <select value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
                 <option value="">{text.allConsultants}</option>
                 {(filterData?.consultants ?? []).map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}

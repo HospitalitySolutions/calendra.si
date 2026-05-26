@@ -1,0 +1,29 @@
+Platform admin tenant access fix
+
+Cause:
+- dmirc@calendra.si is a SUPER_ADMIN user on the Platform Admin tenancy.
+- Several frontend pages only treated role ADMIN as an admin user, even though the router/sidebar already allowed SUPER_ADMIN.
+- Backend method security annotations commonly use @PreAuthorize("hasRole('ADMIN')"), so a SUPER_ADMIN JWT only carrying ROLE_SUPER_ADMIN could receive 403 on endpoints such as settings, service types, billing services, users, fiscal settings, spaces, guest products, etc.
+
+Changes:
+1. Backend JWT authorities
+- Updated backend/src/main/java/com/example/app/security/JwtAuthenticationFilter.java
+- SUPER_ADMIN now receives both ROLE_SUPER_ADMIN and ROLE_ADMIN authorities when authenticated from the auth cookie/JWT.
+- This keeps Platform Admin pages protected by ROLE_SUPER_ADMIN, while also allowing SUPER_ADMIN to use normal tenant-admin endpoints inside the Platform Admin tenancy.
+
+2. Frontend admin checks
+- Updated admin guards so SUPER_ADMIN is treated as admin on tenant pages:
+  - frontend/src/pages/ConfigurationPage.tsx
+  - frontend/src/pages/SessionTypesPage.tsx
+  - frontend/src/pages/CardsMembershipsSection.tsx
+  - frontend/src/pages/ClientsPage.tsx
+  - frontend/src/pages/ConsultantsPage.tsx
+  - frontend/src/pages/AnalyticsPage.tsx
+  - frontend/src/pages/BillingPage.tsx
+  - frontend/src/pages/calendar/CalendarPageContent.tsx
+
+Result:
+- dmirc@calendra.si / SUPER_ADMIN can access Configuration, Service types, Cards & Memberships, Clients/Companies, Employees, Billing, Analytics, and admin calendar features inside the Platform Admin tenancy.
+
+Note:
+- I could not run a full frontend/backend build in this sandbox because dependencies/Maven wrapper artifacts are not available offline. The changes are small role-check/auth changes and are isolated to the files listed above.

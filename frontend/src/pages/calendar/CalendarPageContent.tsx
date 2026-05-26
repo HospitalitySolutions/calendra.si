@@ -156,6 +156,7 @@ export default function CalendarPage() {
   const voiceRecognitionLang = locale === 'sl' ? 'sl-SI' : 'en-US'
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
   const user = getStoredUser()!
+  const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [] })
   const [settings, setSettings] = useState<Record<string, string>>({})
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
@@ -181,7 +182,7 @@ export default function CalendarPage() {
   )
   const metaConsultants = useMemo(() => metaUsers.filter((u: any) => u.consultant), [metaUsers])
   /** Hide Zaposleni when admin has no real choice (0–1 consultants). */
-  const showBookingConsultantRow = user.role === 'ADMIN' && metaConsultants.length > 1
+  const showBookingConsultantRow = isTenantAdmin && metaConsultants.length > 1
   /** Hide Prostor when there is no real choice (0–1 spaces). */
   const showBookingSpaceRow = settings.SPACES_ENABLED !== 'false' && metaSpaces.length > 1
   /** Hide Storitev (+ bundled Online on web) when no session types exist. */
@@ -1206,7 +1207,7 @@ export default function CalendarPage() {
       const spacesOn = settings.SPACES_ENABLED === 'true'
       const wantResource =
         (calendarMode === 'spaces' && spaceFilterId == null && !isNativeAndroid && spacesOn) ||
-        (calendarMode === 'bookings' && user.role === 'ADMIN' && consultantFilterId == null && !isNativeAndroid)
+        (calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid)
       api.changeView(wantResource ? 'resourceTimeGridDay' : 'timeGridDay')
       setAndroidScheduleOpen(false)
     },
@@ -1297,7 +1298,7 @@ export default function CalendarPage() {
     const [s, clients, users, spaces, types, groups] = await Promise.all([
       api.get('/settings'),
       api.get('/clients'),
-      user.role === 'ADMIN'
+      isTenantAdmin
         ? api.get('/users').catch(() => ({ data: [] }))
         : Promise.resolve({ data: [user] }),
       api.get('/spaces'),
@@ -1313,7 +1314,7 @@ export default function CalendarPage() {
       api.get('/bookings/calendar', { params: { from: fromStr, to: toStr } }),
       api.get('/settings'),
       api.get('/clients'),
-      user.role === 'ADMIN'
+      isTenantAdmin
         ? api.get('/users').catch(() => ({ data: [] }))
         : Promise.resolve({ data: [user] }),
       api.get('/spaces'),
@@ -1851,7 +1852,7 @@ export default function CalendarPage() {
     calendarMode === 'spaces' && spaceFilterId == null && !isNativeAndroid && calendarSpacesFeatureActive
 
   const bookingsUseResourceColumns =
-    calendarMode === 'bookings' && user.role === 'ADMIN' && consultantFilterId == null && !isNativeAndroid
+    calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid
 
   const useResourceColumns = spacesUseResourceColumns || bookingsUseResourceColumns
   const useUnassignedDrawer = spacesUseResourceColumns || bookingsUseResourceColumns
@@ -2348,7 +2349,7 @@ export default function CalendarPage() {
       setAvailabilityError('End time must be after start time.')
       return
     }
-    const consultantId = user.role === 'ADMIN'
+    const consultantId = isTenantAdmin
       ? Number(availabilitySelection.consultantId)
       : user.id
     if (!consultantId) {
@@ -2539,7 +2540,7 @@ export default function CalendarPage() {
       setAvailabilityError('End time must be after start time.')
       return
     }
-    const consultantId = user.role === 'ADMIN'
+    const consultantId = isTenantAdmin
       ? Number(availabilitySelection.consultantId)
       : user.id
     if (!consultantId) {
@@ -2679,7 +2680,7 @@ export default function CalendarPage() {
           endTime: availabilitySelection.endTime,
           task: AVAILABILITY_BLOCK_TASK,
           notes: 'Availability blocked',
-          consultantId: user.role === 'ADMIN' ? consultantId : undefined,
+          consultantId: isTenantAdmin ? consultantId : undefined,
         })
       }
 
@@ -2746,7 +2747,7 @@ export default function CalendarPage() {
   }, [])
 
   const showAdminConsultantFilter = useMemo(
-    () => user.role === 'ADMIN' && calendarMode !== 'spaces' && metaUsers.length > 1,
+    () => isTenantAdmin && calendarMode !== 'spaces' && metaUsers.length > 1,
     [user.role, calendarMode, metaUsers.length],
   )
 
@@ -2777,7 +2778,7 @@ export default function CalendarPage() {
   const showWebMobileBottomPanel =
     !isNativeAndroid &&
     calendarFiltersBottomBar &&
-    ((user.role === 'ADMIN' && calendarMode !== 'spaces') ||
+    ((isTenantAdmin && calendarMode !== 'spaces') ||
       (calendarSpacesFeatureActive && calendarMode !== 'availability') ||
       aiBookingEnabled)
 
@@ -2907,14 +2908,14 @@ export default function CalendarPage() {
   const filterByConsultantRole = (list: any[] | undefined) => {
     if (!Array.isArray(list)) return []
     if (calendarMode === 'spaces') return list
-    if (user.role !== 'ADMIN') {
+    if (!isTenantAdmin) {
       return list.filter((item: any) => item.consultant?.id === user.id)
     }
     if (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION) return list
     return list.filter((item: any) => item.consultant?.id === effectiveConsultantFilterId)
   }
 
-  const adminConsultantFilterActive = user.role === 'ADMIN' && effectiveConsultantFilterId != null
+  const adminConsultantFilterActive = isTenantAdmin && effectiveConsultantFilterId != null
   const selectedConsultantLabel = effectiveConsultantFilterId == null
     ? t('calendarFilterByStaffColumns')
     : effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION
@@ -2928,8 +2929,8 @@ export default function CalendarPage() {
 
   const events = useMemo(() => {
     const selectedIsSelf = effectiveConsultantFilterId != null && effectiveConsultantFilterId === user.id
-    const adminAll = user.role === 'ADMIN' && (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION)
-    const adminSpecificOther = user.role === 'ADMIN' && effectiveConsultantFilterId != null && effectiveConsultantFilterId !== CONSULTANT_FILTER_ALL_SESSION && effectiveConsultantFilterId !== user.id
+    const adminAll = isTenantAdmin && (effectiveConsultantFilterId == null || effectiveConsultantFilterId === CONSULTANT_FILTER_ALL_SESSION)
+    const adminSpecificOther = isTenantAdmin && effectiveConsultantFilterId != null && effectiveConsultantFilterId !== CONSULTANT_FILTER_ALL_SESSION && effectiveConsultantFilterId !== user.id
     const personalOwnerId = (p: any) => p.consultant?.id ?? p.consultantId ?? p.ownerId ?? null
 
     const splitRangeByBlocks = (startMs: number, endMs: number, blocks: Array<{ startMs: number; endMs: number }>) => {
@@ -2969,7 +2970,7 @@ export default function CalendarPage() {
     }
 
     const bookedBase = (
-      user.role === 'ADMIN'
+      isTenantAdmin
         ? filterByConsultantRole(calendarData.booked)
         : (calendarData.booked || [])
     )
@@ -2989,7 +2990,7 @@ export default function CalendarPage() {
         const typeDurationMinutes = getTypeDurationMinutes(b.type?.id)
         const typeBreakMinutes = getTypeBreakMinutes(b.type?.id)
         const bookedOwnerId = b.consultant?.id ?? null
-        const maskedBooked = user.role !== 'ADMIN' && bookedOwnerId !== user.id
+        const maskedBooked = !isTenantAdmin && bookedOwnerId !== user.id
         const breakRange = getBookingBreakRange({ ...b, type: { ...b.type, breakMinutes: typeBreakMinutes } })
         const breakConflict = !!breakRange && (
           bookedBase.some((other: any) => {
@@ -3083,7 +3084,7 @@ export default function CalendarPage() {
     const consultantsForWhVisible = metaUsers.filter((u: any) => {
       if (!userHasWorkingHours(u)) return false
       if (!(u.consultant || u.role === 'CONSULTANT')) return false
-      if (user.role !== 'ADMIN') return u.id === user.id
+      if (!isTenantAdmin) return u.id === user.id
       if (effectiveConsultantFilterId != null) return u.id === effectiveConsultantFilterId
       return true
     })
@@ -3255,7 +3256,7 @@ export default function CalendarPage() {
           return out
         })
     const bookableVisibleSegments = [...bookableFromSlots, ...bookableFromWh]
-    const _bookingsResourceMode = calendarMode === 'bookings' && user.role === 'ADMIN' && consultantFilterId == null && !isNativeAndroid
+    const _bookingsResourceMode = calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid
     const bookableBookings = bookableVisibleSegments.flatMap((seg: any, idx: number) => {
       const startMs = new Date(seg.start).getTime()
       const endMs = new Date(seg.end).getTime()
@@ -3496,7 +3497,7 @@ export default function CalendarPage() {
           editable: !isViewOnly,
           extendedProps: { ...p, kind: 'personal', masked: false },
         }
-        if (calendarMode === 'bookings' && user.role === 'ADMIN' && consultantFilterId == null && !isNativeAndroid) {
+        if (calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid) {
           ev.resourceId = String(user.id)
         }
         return ev
@@ -3521,7 +3522,7 @@ export default function CalendarPage() {
           editable: !isViewOnly,
           extendedProps: { ...t, kind: 'todo', masked: false },
         }
-        if (calendarMode === 'bookings' && user.role === 'ADMIN' && consultantFilterId == null && !isNativeAndroid) {
+        if (calendarMode === 'bookings' && isTenantAdmin && consultantFilterId == null && !isNativeAndroid) {
           ev.resourceId = String(user.id)
         }
         return ev
@@ -3529,7 +3530,7 @@ export default function CalendarPage() {
 
     const hidePersonalAndTodoOnAdminBookingsOverview =
       calendarMode === 'bookings' &&
-      user.role === 'ADMIN' &&
+      isTenantAdmin &&
       (consultantFilterId == null || consultantFilterId === CONSULTANT_FILTER_ALL_SESSION)
 
     /** Bookings + staff columns (Vsi termini po osebju): blocked availability per consultant as diagonal hatch. */
@@ -3613,7 +3614,7 @@ export default function CalendarPage() {
         }
         if (
           calendarMode === 'bookings' &&
-          user.role === 'ADMIN' &&
+          isTenantAdmin &&
           consultantFilterId == null &&
           !isNativeAndroid &&
           (draftKind === 'personal' || draftKind === 'todo')
@@ -4928,7 +4929,7 @@ export default function CalendarPage() {
     if (!selection || form.todo || form.personal || availabilitySelection) return
     setForm((f: any) => {
       const updates: Record<string, unknown> = {}
-      if (user.role === 'ADMIN' && metaConsultants.length === 1) {
+      if (isTenantAdmin && metaConsultants.length === 1) {
         updates.consultantId = metaConsultants[0].id
       }
       if (settings.SPACES_ENABLED !== 'false') {
@@ -4951,7 +4952,7 @@ export default function CalendarPage() {
   }, [selection, form.todo, form.personal, availabilitySelection, user.role, metaConsultants, metaSpaces, selectableMetaTypes.length, settings.SPACES_ENABLED])
 
   useEffect(() => {
-    if (!availabilitySelection || user.role !== 'ADMIN' || metaConsultants.length !== 1) return
+    if (!availabilitySelection || !isTenantAdmin || metaConsultants.length !== 1) return
     const id = metaConsultants[0].id
     if (availabilitySelection.consultantId === id) return
     setAvailabilitySelection({ ...availabilitySelection, consultantId: id })
@@ -5006,7 +5007,7 @@ export default function CalendarPage() {
         phone: newClientForm.phone.trim() || null,
         preferredSlots: [],
       }
-      if (user.role === 'ADMIN') {
+      if (isTenantAdmin) {
         payload.assignedToId = selectedBookedSession?.consultant?.id ?? form.consultantId
       }
       const { data } = await api.post('/clients', payload)
@@ -5099,7 +5100,7 @@ export default function CalendarPage() {
       phone: null,
       preferredSlots: [],
     }
-    if (user.role === 'ADMIN') {
+    if (isTenantAdmin) {
       if (!assignedToIdForAdmin) {
         throw new Error('Choose a consultant before creating a client.')
       }
@@ -6059,7 +6060,7 @@ export default function CalendarPage() {
     const whCandidates = metaUsers.filter((u: any) => {
       if (!u?.workingHours || typeof u.workingHours !== 'object') return false
       if (!(u.consultant || u.role === 'CONSULTANT')) return false
-      if (user.role !== 'ADMIN') return u.id === user.id
+      if (!isTenantAdmin) return u.id === user.id
       if (effectiveConsultantFilterId != null) return u.id === effectiveConsultantFilterId
       return true
     })
@@ -11740,7 +11741,7 @@ export default function CalendarPage() {
         )}
         </div>
         </div>
-        {isNativeAndroid && (user.role === 'ADMIN' || spacesEnabled) && (
+        {isNativeAndroid && (isTenantAdmin || spacesEnabled) && (
           <div
             className="calendar-android-filters-footer"
             style={{ position: 'relative', zIndex: 5 }}
