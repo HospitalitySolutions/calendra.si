@@ -356,11 +356,11 @@ public class FolioLayoutConfig {
         fields.add(new FieldConfig("recipientAddress",  "recipient", "Recipient Addr",   50, 140, 200, 14, 10, false, "left"));
         fields.add(new FieldConfig("recipientPostalCode","recipient","Recipient Postal",  50, 154, 80,  14, 10, false, "left"));
         fields.add(new FieldConfig("recipientCity",     "recipient", "Recipient City",  130, 154, 120, 14, 10, false, "left"));
-        fields.add(new FieldConfig("recipientVatId",    "recipient", "Recipient VAT ID", 50, 168, 200, 14, 10, false, "left"));
+        fields.add(new FieldConfig("recipientVatId",    "recipient", "Recipient VAT ID", 50, 168, 300, 14, 10, false, "left"));
         for (var field : fields) {
             field.setLabelI18n(new LocalizedText(field.getLabel(), slFieldLabel(field.getKey(), field.getLabel())));
-            if (isDocumentMetaKey(field.getKey())) {
-                field.setPrefixI18n(defaultDocumentMetaPrefix(field.getKey()));
+            if (isPrefixFieldKey(field.getKey())) {
+                field.setPrefixI18n(defaultFieldPrefix(field.getKey()));
             }
             if ("folioDate".equals(field.getKey())) {
                 field.setDateFormat("YYYY-MM-DD HH:mm");
@@ -402,11 +402,12 @@ public class FolioLayoutConfig {
         var items = new ArrayList<FooterItem>();
         items.add(new FooterItem("payment",    "Payment",     10, false, "right", 395, 340, 150, 16));
         items.add(new FooterItem("totalGross", "Total gross", 11, true,  "right", 395, 358, 150, 16));
-        items.add(new FooterItem("notes",      "Notes",        9, false, "left",  50,  380, 300, 16));
-        items.add(new FooterItem("iban",       "IBAN",        10, false, "left",  50,  398, 300, 16));
-        items.add(new FooterItem("issuedBy",   "Issued by",   10, false, "left",  50,  416, 200, 16));
-        items.add(new FooterItem("fiscalZoi",  "ZOI",          8, false, "left",  50,  436, 300, 14));
-        items.add(new FooterItem("fiscalEor",  "EOR",          8, false, "left",  50,  450, 300, 14));
+        items.add(new FooterItem("toBePaid",   "To be paid",  11, true,  "right", 395, 376, 150, 16));
+        items.add(new FooterItem("notes",      "Notes",        9, false, "left",  50,  398, 300, 16));
+        items.add(new FooterItem("iban",       "IBAN",        10, false, "left",  50,  416, 300, 16));
+        items.add(new FooterItem("issuedBy",   "Issued by",   10, false, "left",  50,  434, 200, 16));
+        items.add(new FooterItem("fiscalZoi",  "ZOI",          8, false, "left",  50,  454, 300, 14));
+        items.add(new FooterItem("fiscalEor",  "EOR",          8, false, "left",  50,  468, 300, 14));
         for (var item : items) {
             item.setLabelI18n(new LocalizedText(item.getLabel(), slFooterLabel(item.getKey(), item.getLabel())));
         }
@@ -434,12 +435,17 @@ public class FolioLayoutConfig {
                 || "dueDate".equals(key);
     }
 
-    private static LocalizedText defaultDocumentMetaPrefix(String key) {
+    private static boolean isPrefixFieldKey(String key) {
+        return isDocumentMetaKey(key) || "recipientVatId".equals(key);
+    }
+
+    private static LocalizedText defaultFieldPrefix(String key) {
         return switch (key) {
             case "folioNumber" -> new LocalizedText("Folio Number:", "Številka računa:");
             case "folioDate" -> new LocalizedText("Issue date and time:", "Datum in ura izdaje:");
             case "dateOfService" -> new LocalizedText("Date of Service:", "Datum storitve:");
             case "dueDate" -> new LocalizedText("Due Date:", "Rok plačila:");
+            case "recipientVatId" -> new LocalizedText("Recipient VAT ID:", "Davčna številka prejemnika (ID za DDV):");
             default -> new LocalizedText("", "");
         };
     }
@@ -459,7 +465,7 @@ public class FolioLayoutConfig {
             case "recipientAddress" -> "Naslov prejemnika";
             case "recipientPostalCode" -> "Postna stevilka prejemnika";
             case "recipientCity" -> "Kraj prejemnika";
-            case "recipientVatId" -> "Davcna stevilka prejemnika";
+            case "recipientVatId" -> "Davčna številka prejemnika (ID za DDV)";
             default -> fallback;
         };
     }
@@ -481,6 +487,7 @@ public class FolioLayoutConfig {
         return switch (key) {
             case "payment" -> "Placilo";
             case "totalGross" -> "Skupaj bruto";
+            case "toBePaid" -> "Za plačilo";
             case "totalNett" -> "Skupaj neto";
             case "vat22" -> "DDV 22%";
             case "vat95" -> "DDV 9,5%";
@@ -510,8 +517,8 @@ public class FolioLayoutConfig {
                 if (field.getLabelI18n() == null) {
                     field.setLabelI18n(new LocalizedText(field.getLabel(), slFieldLabel(field.getKey(), field.getLabel())));
                 }
-                if (isDocumentMetaKey(field.getKey())) {
-                    LocalizedText def = defaultDocumentMetaPrefix(field.getKey());
+                if (isPrefixFieldKey(field.getKey())) {
+                    LocalizedText def = defaultFieldPrefix(field.getKey());
                     LocalizedText current = field.getPrefixI18n();
                     if (current == null) {
                         field.setPrefixI18n(def);
@@ -519,6 +526,8 @@ public class FolioLayoutConfig {
                         if (current.getEn() == null || current.getEn().isBlank()) current.setEn(def.getEn());
                         if (current.getSl() == null || current.getSl().isBlank()) current.setSl(def.getSl());
                     }
+                }
+                if (isDocumentMetaKey(field.getKey())) {
                     if ("folioDate".equals(field.getKey())
                             && (field.getDateFormat() == null || field.getDateFormat().isBlank() || "YYYY-MM-DD".equals(field.getDateFormat()))) {
                         field.setDateFormat("YYYY-MM-DD HH:mm");
@@ -544,6 +553,7 @@ public class FolioLayoutConfig {
             if (cfg.getFooter().getItems() == null) {
                 cfg.getFooter().setItems(defaults.getFooter().getItems());
             } else {
+                addMissingFooterItem(cfg, defaults, "toBePaid");
                 addMissingFooterItem(cfg, defaults, "fiscalZoi");
                 addMissingFooterItem(cfg, defaults, "fiscalEor");
             }

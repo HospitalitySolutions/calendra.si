@@ -119,6 +119,7 @@ public class BillFolioPdfService {
             req.setPaymentMethod(bill.getPaymentMethod().getName());
         }
         BigDecimal bankTransferDue = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
+        req.setToBePaidGross(bankTransferDue.setScale(2, RoundingMode.HALF_UP));
         if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
             ensureOwnBankTransferSettings(companyId);
             String companyIban = settingValue(companyId, SettingKey.COMPANY_IBAN);

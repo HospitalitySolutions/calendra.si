@@ -879,6 +879,27 @@ fun GuestMobileRoot() {
                                 sessionTypeName = booking.title
                             )
                             navController.navigate(RootRoute.Reschedule.route) { launchSingleTop = true }
+                        },
+                        onCall = ::dial,
+                        onSms = ::sms,
+                        onReschedule = { booking ->
+                            rescheduleContext = BookingRescheduleContext(
+                                bookingId = booking.id,
+                                companyId = booking.companyId,
+                                sessionTypeId = booking.sessionTypeId,
+                                sessionTypeName = booking.title
+                            )
+                            navController.navigate(RootRoute.Reschedule.route) { launchSingleTop = true }
+                        },
+                        onCancelBooking = { booking ->
+                            scope.launch {
+                                runCatching {
+                                    repo.cancelBooking(booking.companyId, booking.id)
+                                    refreshTenant(booking.companyId)
+                                }
+                                    .onSuccess { statusMessage = "Booking cancelled" }
+                                    .onFailure { statusMessage = it.message ?: "Booking cancellation failed" }
+                            }
                         }
                     )
                 }
@@ -1385,7 +1406,7 @@ fun GuestMobileRoot() {
                 GuestTabsScaffold(
                     current = RootRoute.Profile.route,
                     languageCode = appUiLocale,
-                    utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
+                    utilityBarVisible = true,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
                     profileAvatarBitmap = headerAvatarBitmap,

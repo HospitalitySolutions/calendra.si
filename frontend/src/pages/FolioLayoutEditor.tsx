@@ -151,19 +151,21 @@ const DEFAULT_VAT_BREAKDOWN_TABLE: VatBreakdownTableConfig = { x: 50, y: 322, wi
 const VAT_SAMPLE_ROWS = 3
 const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en' }
 const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
-const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate'])
+const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate', 'recipientVatId'])
 const DATE_FORMAT_OPTIONS: DateFormat[] = ['YYYY-MM-DD', 'DD-MM-YYYY', 'DD.MM.YYYY', 'YYYY-MM-DD HH:mm', 'DD-MM-YYYY HH:mm', 'DD.MM.YYYY HH:mm']
 const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
   folioNumber: { en: 'Folio Number:', sl: 'Številka računa:' },
   folioDate: { en: 'Issue date and time:', sl: 'Datum in ura izdaje:' },
   dateOfService: { en: 'Date of Service:', sl: 'Datum storitve:' },
   dueDate: { en: 'Due Date:', sl: 'Rok plačila:' },
+  recipientVatId: { en: 'Recipient VAT ID:', sl: 'Davčna številka prejemnika (ID za DDV):' },
 }
 const FIELD_SAMPLE_VALUES: Record<string, string> = {
   folioNumber: '0000',
   folioDate: '2026-05-26 14:30',
   dateOfService: '2026-05-26',
   dueDate: '2026-05-26',
+  recipientVatId: 'SI12345678',
 }
 
 function isDateField(field: FieldConfig) {
@@ -838,7 +840,7 @@ export function FolioLayoutEditor() {
                     ))}
                   </div>
                   {rows.map((row, r) => (
-                    <div key={r} className="fle-vat-table-row" style={{ height: vt.rowHeight * scale, top: (vt.headerHeight + vt.rowHeight * r) * scale }}>
+                    <div key={r} className={`fle-vat-table-row ${r === rows.length - 1 ? 'fle-vat-table-row--last' : ''}`} style={{ height: vt.rowHeight * scale, top: (vt.headerHeight + vt.rowHeight * r) * scale }}>
                       {row.map((value, idx) => (
                         <span key={idx} className="fle-vat-table-cell" style={{
                           left: colStyles[idx].left * scale,

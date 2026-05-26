@@ -44,6 +44,8 @@ public class FolioPdfRequest {
     private String issuedBy;
     private String iban;
     private String paymentQrPayload;
+    /** Gross amount still awaiting payment, normally the bank-transfer portion. */
+    private BigDecimal toBePaidGross;
     private String locale;
 
     public static class PaymentLine {
@@ -150,6 +152,8 @@ public class FolioPdfRequest {
     public void setIban(String iban) { this.iban = iban; }
     public String getPaymentQrPayload() { return paymentQrPayload; }
     public void setPaymentQrPayload(String paymentQrPayload) { this.paymentQrPayload = paymentQrPayload; }
+    public BigDecimal getToBePaidGross() { return toBePaidGross; }
+    public void setToBePaidGross(BigDecimal toBePaidGross) { this.toBePaidGross = toBePaidGross; }
     public String getLocale() { return locale; }
     public void setLocale(String locale) { this.locale = locale; }
 }

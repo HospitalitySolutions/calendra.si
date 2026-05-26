@@ -40,6 +40,7 @@
 		D1E2F3010000000000000001 /* WalletEmptyEntitlementsIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3110000000000000001 /* WalletEmptyEntitlementsIllustration.png */; };
 		D1E2F3020000000000000001 /* WalletEmptyBuyIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */; };
 		D1E2F3030000000000000001 /* WalletEmptyOrdersIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */; };
+		E2C0A1000000000000000001 /* CalendarEmptyIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = E2C0A1010000000000000001 /* CalendarEmptyIllustration.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -78,6 +79,7 @@
 		D1E2F3110000000000000001 /* WalletEmptyEntitlementsIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyEntitlementsIllustration.png; sourceTree = "<group>"; };
 		D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyBuyIllustration.png; sourceTree = "<group>"; };
 		D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyOrdersIllustration.png; sourceTree = "<group>"; };
+		E2C0A1010000000000000001 /* CalendarEmptyIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = CalendarEmptyIllustration.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -117,6 +119,7 @@
 				D1E2F3110000000000000001 /* WalletEmptyEntitlementsIllustration.png */,
 				D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */,
 				D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */,
+				E2C0A1010000000000000001 /* CalendarEmptyIllustration.png */,
 				F3B9A1012F9A000000000001 /* WelcomeBookingBackground.png */,
 				A9D0E1010000000000000001 /* HomeBookingBackground.png */,
 				F3B9A2012F9A000000000002 /* SignupBackground.png */,
@@ -220,6 +223,7 @@
 				D1E2F3010000000000000001 /* WalletEmptyEntitlementsIllustration.png in Resources */,
 				D1E2F3020000000000000001 /* WalletEmptyBuyIllustration.png in Resources */,
 				D1E2F3030000000000000001 /* WalletEmptyOrdersIllustration.png in Resources */,
+				E2C0A1000000000000000001 /* CalendarEmptyIllustration.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

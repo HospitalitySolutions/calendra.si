@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct CalendarView: View {
     @EnvironmentObject private var store: AppStore
@@ -6,13 +7,21 @@ struct CalendarView: View {
     @State private var selectedMode: CalendarMode = .month
     @State private var selectedDate = Date()
     @State private var visibleMonth = Date()
+    @State private var popupBooking: BookingCardModel?
+    @State private var bookingPendingCancel: BookingCardModel?
 
     let selectedTenantId: String?
     let onOpenBooking: (BookingCardModel) -> Void
+    let onCancelBooking: (BookingCardModel) -> Void
 
-    init(selectedTenantId: String? = nil, onOpenBooking: @escaping (BookingCardModel) -> Void) {
+    init(
+        selectedTenantId: String? = nil,
+        onOpenBooking: @escaping (BookingCardModel) -> Void,
+        onCancelBooking: @escaping (BookingCardModel) -> Void = { _ in }
+    ) {
         self.selectedTenantId = selectedTenantId
         self.onOpenBooking = onOpenBooking
+        self.onCancelBooking = onCancelBooking
     }
 
     private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
@@ -53,6 +62,69 @@ struct CalendarView: View {
             .padding(.bottom, 84)
         }
         .background(Color(red: 0.955, green: 0.970, blue: 0.990))
+        .sheet(item: $popupBooking) { booking in
+            bookingPopup(booking)
+                .presentationDetents([.height(720), .large])
+                .presentationDragIndicator(.visible)
+        }
+        .alert(isSl ? "Prekličem termin?" : "Cancel booking?", isPresented: Binding(
+            get: { bookingPendingCancel != nil },
+            set: { if !$0 { bookingPendingCancel = nil } }
+        )) {
+            Button(isSl ? "Obdrži termin" : "Keep booking", role: .cancel) { bookingPendingCancel = nil }
+            Button(isSl ? "Prekliči termin" : "Cancel booking", role: .destructive) {
+                if let booking = bookingPendingCancel {
+                    bookingPendingCancel = nil
+                    onCancelBooking(booking)
+                }
+            }
+        } message: {
+            if let booking = bookingPendingCancel {
+                Text(isSl ? "S tem boste preklicali \(booking.title) dne \(calendarBookingDate(booking.startsAt))." : "This will cancel \(booking.title) on \(calendarBookingDate(booking.startsAt)).")
+            }
+        }
+    }
+
+    private func bookingPopup(_ booking: BookingCardModel) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Color(red: 0.953, green: 0.957, blue: 0.973)
+                .ignoresSafeArea()
+
+            HomeBookingCard(
+                booking: booking,
+                onCall: openPhone,
+                onMessage: openMessage,
+                onReschedule: { selectedBooking in
+                    popupBooking = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        onOpenBooking(selectedBooking)
+                    }
+                },
+                onCancel: {
+                    popupBooking = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        bookingPendingCancel = booking
+                    }
+                },
+                isSl: isSl
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 18)
+
+            Button {
+                popupBooking = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(Color(red: 0.03, green: 0.12, blue: 0.24))
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.white).shadow(color: Color.black.opacity(0.12), radius: 7, x: 0, y: 3))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+            .padding(.trailing, 12)
+        }
     }
 
     private var segmentedTabs: some View {
@@ -158,9 +230,13 @@ struct CalendarView: View {
                 } label: {
                     VStack(spacing: 4) {
                         Text(shortWeekday(date))
-                            .font(.system(size: 8, weight: .semibold))
+                            .font(.system(size: 7, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
                         Text(dayNumber(date))
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                         Circle()
                             .fill(bookings(on: date).isEmpty ? Color.clear : (isSameDay(date, selectedDate) ? Color.white : brandBlue))
                             .frame(width: 3, height: 3)
@@ -367,11 +443,16 @@ struct CalendarView: View {
             visibleMonth = date
         } label: {
             VStack(spacing: 4) {
-                Text(dayNumber(date))
-                    .font(.system(size: 11, weight: selected ? .bold : .medium))
-                    .foregroundColor(selected ? .white : (inCurrentMonth ? Color.black : Color(red: 0.64, green: 0.68, blue: 0.75)))
-                    .frame(width: 23, height: 23)
-                    .background(Circle().fill(selected ? brandBlue : Color.clear))
+                ZStack {
+                    Circle()
+                        .fill(selected ? brandBlue : Color.clear)
+                        .frame(width: 23, height: 23)
+                    Text(dayNumber(date))
+                        .font(.system(size: 11, weight: selected ? .bold : .medium))
+                        .foregroundColor(selected ? .white : (inCurrentMonth ? Color.black : Color(red: 0.64, green: 0.68, blue: 0.75)))
+                        .frame(width: 23, height: 23, alignment: .center)
+                }
+                .frame(width: 23, height: 23, alignment: .center)
                 HStack(spacing: 3) {
                     ForEach(dayBookings.prefix(3), id: \.id) { booking in
                         Circle().fill(color(for: booking.tenantName)).frame(width: 3, height: 3)
@@ -385,7 +466,7 @@ struct CalendarView: View {
     }
 
     private func bookingRow(_ booking: BookingCardModel, compact: Bool) -> some View {
-        Button { onOpenBooking(booking) } label: {
+        Button { popupBooking = booking } label: {
             HStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(color(for: booking.tenantName))
@@ -470,6 +551,36 @@ struct CalendarView: View {
                 .background(Circle().fill(Color.white).overlay(Circle().stroke(Color(red: 0.86, green: 0.89, blue: 0.94), lineWidth: 1)))
         }
         .buttonStyle(.plain)
+    }
+
+    private func openPhone(_ phone: String?) {
+        guard let url = phone.flatMap(phoneURL) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private func openMessage(_ phone: String?) {
+        guard let url = phone.flatMap(smsURL) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private func phoneURL(_ phone: String) -> URL? {
+        let cleaned = phone.filter { !$0.isWhitespace }
+        guard !cleaned.isEmpty else { return nil }
+        return URL(string: "tel://\(cleaned)")
+    }
+
+    private func smsURL(_ phone: String) -> URL? {
+        let cleaned = phone.filter { !$0.isWhitespace }
+        guard !cleaned.isEmpty else { return nil }
+        return URL(string: "sms://\(cleaned)")
+    }
+
+    private func calendarBookingDate(_ raw: String) -> String {
+        guard let date = parseDate(raw) else { return raw }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: isSl ? "sl_SI" : "en_US_POSIX")
+        formatter.dateFormat = isSl ? "d. MMM yyyy" : "MMM d, yyyy"
+        return formatter.string(from: date)
     }
 
     private func parseDate(_ string: String) -> Date? {

@@ -192,9 +192,12 @@ public class FolioPdfService {
         values.put("recipientCity", req.getRecipientCity());
         values.put("recipientVatId", req.getRecipientVatId());
 
+        boolean hasToBePaid = resolveToBePaid(req).compareTo(BigDecimal.ZERO) > 0;
+
         float pageH = layout.getPageHeight();
         for (var field : layout.getFields()) {
             if (!field.isVisible()) continue;
+            if ("dueDate".equals(field.getKey()) && !hasToBePaid) continue;
             String text;
             if ("custom".equals(field.getType())) {
                 text = safe(resolveLocalized(field.getTextI18n(), field.getText(), locale));
@@ -315,6 +318,7 @@ public class FolioPdfService {
         Map<String, String> footerValues = new HashMap<>();
         footerValues.put("totalNett", fmtEur(totalNett));
         footerValues.put("totalGross", fmtEur(totalGross));
+        footerValues.put("toBePaid", fmtEur(resolveToBePaid(req)));
         List<VatBreakdownRow> vatRows = buildVatBreakdownRows(req.getServices());
         footerValues.put("vat22", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_22)));
         footerValues.put("vat95", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_9_5)));
@@ -482,17 +486,11 @@ public class FolioPdfService {
         float c1 = x;
         float c2 = c1 + descW;
         float c3 = c2 + rateW;
-        float c4 = c3 + basisW;
         float right = x + width;
 
-        drawHLine(ctx, x, right, topY, 0.5f);
+        // Match the services table style: horizontal rules around the body rows only.
         drawHLine(ctx, x, right, topY - headerH, 0.5f);
         drawHLine(ctx, x, right, bottomY, 0.5f);
-        drawVLine(ctx, x, topY, bottomY, 0.5f);
-        drawVLine(ctx, c2, topY, bottomY, 0.5f);
-        drawVLine(ctx, c3, topY, bottomY, 0.5f);
-        drawVLine(ctx, c4, topY, bottomY, 0.5f);
-        drawVLine(ctx, right, topY, bottomY, 0.5f);
 
         String[] labels = localizedVatTableColumnLabels(locale);
         float headerTextY = rowTextBaseline(topY, headerH, headerFs);
@@ -504,14 +502,20 @@ public class FolioPdfService {
         for (int i = 0; i < rows.size(); i++) {
             var row = rows.get(i);
             float rowTop = topY - headerH - rowH * i;
-            float rowBottom = rowTop - rowH;
-            drawHLine(ctx, x, right, rowBottom, 0.25f);
             float textY = rowTextBaseline(rowTop, rowH, bodyFs);
             drawText(ctx, fonts.regular(), bodyFs, c1 + 3, textY, localizedVatBreakdownLabel(row.bucket(), locale));
             drawText(ctx, fonts.regular(), bodyFs, c2 + 3, textY, vatRateLabel(row.bucket(), locale));
             drawTextRight(ctx, fonts.regular(), bodyFs, c3 + basisW - 3, textY, fmtEur(row.netBasis()));
             drawTextRight(ctx, fonts.regular(), bodyFs, right - 3, textY, fmtEur(row.vatAmount()));
         }
+    }
+
+    private static BigDecimal resolveToBePaid(FolioPdfRequest req) {
+        if (req == null || req.getToBePaidGross() == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal value = req.getToBePaidGross().setScale(2, RoundingMode.HALF_UP);
+        return value.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : value;
     }
 
     private byte[] createQrPng(String payload, int width, int height) throws IOException {

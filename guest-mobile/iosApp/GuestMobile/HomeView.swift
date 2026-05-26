@@ -309,7 +309,7 @@ struct HomeView: View {
     }
 }
 
-private struct HomeBookingCard: View {
+struct HomeBookingCard: View {
     let booking: BookingCardModel
     let onCall: (String?) -> Void
     let onMessage: (String?) -> Void

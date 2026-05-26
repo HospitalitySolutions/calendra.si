@@ -54,7 +54,7 @@ struct JoinTenantView: View {
                     tenantCarousel
                 }
                 .padding(.horizontal, 28)
-                .padding(.top, 34)
+                .padding(.top, 0)
                 .padding(.bottom, 24)
             }
         }
@@ -95,11 +95,15 @@ struct JoinTenantView: View {
     }
 
     private var brandHeader: some View {
-        Image("CalendraLogo")
-            .resizable()
-            .scaledToFit()
-            .frame(height: 36)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack {
+            Image("CalendraBookLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 128, maxHeight: 34, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .frame(height: 56)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var modeButtons: some View {

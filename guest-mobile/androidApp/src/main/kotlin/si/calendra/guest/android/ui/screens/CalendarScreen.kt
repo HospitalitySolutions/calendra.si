@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.PersonOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CardDefaults
@@ -65,6 +67,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import si.calendra.guest.android.R
 import si.calendra.guest.shared.models.TenantSummary
 import java.time.DayOfWeek
@@ -114,12 +118,18 @@ fun CalendarScreen(
     tenants: List<TenantSummary>,
     languageCode: String,
     selectedTenantId: String? = null,
-    onOpenBooking: (UpcomingBookingCard) -> Unit = {}
+    onOpenBooking: (UpcomingBookingCard) -> Unit = {},
+    onCall: (String) -> Unit = {},
+    onSms: (String) -> Unit = {},
+    onReschedule: (UpcomingBookingCard) -> Unit = onOpenBooking,
+    onCancelBooking: (UpcomingBookingCard) -> Unit = {}
 ) {
     val isSl = languageCode.lowercase().startsWith("sl")
     var selectedTab by remember { mutableStateOf(CalendarTab.Month) }
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var popupBooking by remember { mutableStateOf<UpcomingBookingCard?>(null) }
+    var bookingPendingCancel by remember { mutableStateOf<UpcomingBookingCard?>(null) }
     val tenantColorById = remember(tenants) {
         tenants.mapIndexed { index, tenant -> tenant.companyId to TenantPalette[index % TenantPalette.size] }.toMap()
     }
@@ -147,6 +157,81 @@ fun CalendarScreen(
             .sortedBy { it.start.toInstant().toEpochMilli() }
     }
     val originalById = remember(bookings) { bookings.associateBy { it.id } }
+
+    bookingPendingCancel?.let { booking ->
+        AlertDialog(
+            onDismissRequest = { bookingPendingCancel = null },
+            title = { Text(if (isSl) "Prekličem termin?" else "Cancel booking?") },
+            text = {
+                Text(
+                    if (isSl) "S tem boste preklicali ${booking.title} dne ${formatCalendarBookingDate(booking.startsAt, isSl)}."
+                    else "This will cancel ${booking.title} on ${formatCalendarBookingDate(booking.startsAt, isSl)}."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { bookingPendingCancel = null; onCancelBooking(booking) }) {
+                    Text(if (isSl) "Prekliči termin" else "Cancel booking", color = BrandBlue, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { bookingPendingCancel = null }) {
+                    Text(if (isSl) "Obdrži termin" else "Keep booking")
+                }
+            }
+        )
+    }
+
+    popupBooking?.let { booking ->
+        Dialog(
+            onDismissRequest = { popupBooking = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(448.dp)
+                ) {
+                    UpcomingBookingFocusCard(
+                        booking = booking,
+                        onCall = onCall,
+                        onSms = onSms,
+                        onReschedule = { selectedBooking ->
+                            popupBooking = null
+                            onReschedule(selectedBooking)
+                        },
+                        onCancelBooking = { selectedBooking ->
+                            popupBooking = null
+                            bookingPendingCancel = selectedBooking
+                        },
+                        isSl = isSl,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    IconButton(
+                        onClick = { popupBooking = null },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 8.dp, end = 8.dp)
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Close,
+                            contentDescription = if (isSl) "Zapri" else "Close",
+                            tint = BrandBlueDark,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -184,7 +269,7 @@ fun CalendarScreen(
                             bookings = calendarBookings,
                             originalById = originalById,
                             isSl = isSl,
-                            onOpenBooking = onOpenBooking
+                            onOpenBooking = { popupBooking = it }
                         )
                     }
                 }
@@ -212,7 +297,7 @@ fun CalendarScreen(
                             onDateSelected = { selectedDate = it },
                             onPreviousWeek = { selectedDate = selectedDate.minusWeeks(1) },
                             onNextWeek = { selectedDate = selectedDate.plusWeeks(1) },
-                            onOpenBooking = onOpenBooking
+                            onOpenBooking = { popupBooking = it }
                         )
                     }
                 }
@@ -492,37 +577,35 @@ private fun MonthDayCell(
         verticalArrangement = Arrangement.Center
     ) {
         Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(if (selected) BrandBlue else Color.Transparent),
+            modifier = Modifier.size(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text(
-                    date.dayOfMonth.toString(),
-                    fontSize = if (selected) 12.sp else 11.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    color = when {
-                        selected -> Color.White
-                        inMonth -> Color(0xFF172033)
-                        else -> Color(0xFFAAB3C1)
-                    }
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(if (selected) BrandBlue else Color.Transparent)
+            )
+            Text(
+                date.dayOfMonth.toString(),
+                fontSize = if (selected) 12.sp else 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = when {
+                    selected -> Color.White
+                    inMonth -> Color(0xFF172033)
+                    else -> Color(0xFFAAB3C1)
+                },
+                textAlign = TextAlign.Center
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.height(5.dp).padding(top = 1.dp)) {
+            bookings.take(3).forEach { booking ->
+                Box(
+                    modifier = Modifier
+                        .size(3.dp)
+                        .clip(CircleShape)
+                        .background(booking.color)
                 )
-                if (bookings.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 1.dp)) {
-                        bookings.take(3).forEach { booking ->
-                            Box(
-                                modifier = Modifier
-                                    .size(if (selected) 3.dp else 4.dp)
-                                    .clip(CircleShape)
-                                    .background(if (selected) Color.White else booking.color)
-                            )
-                        }
-                    }
-                } else {
-                    Spacer(Modifier.height(4.dp))
-                }
             }
         }
     }
@@ -617,12 +700,6 @@ private fun WeekCalendarView(
             onPreviousWeek = onPreviousWeek,
             onNextWeek = onNextWeek,
             largeSelected = true
-        )
-        WeekFilterChips(
-            tenants = tenants,
-            selectedTenantId = selectedTenantId,
-            bookings = bookings,
-            isSl = isSl
         )
         TimelineCard(bookings = dayBookings, isSl = isSl)
         ElevatedCard(
@@ -731,15 +808,17 @@ private fun WeekDayPill(
     ) {
         Text(
             shortWeekday(date, isSl).uppercase(Locale.getDefault()),
-            fontSize = 8.sp,
+            fontSize = 7.sp,
             fontWeight = FontWeight.Bold,
-            color = if (selected) Color.White else TextMuted
+            color = if (selected) Color.White else TextMuted,
+            maxLines = 1
         )
         Text(
             date.dayOfMonth.toString(),
-            fontSize = if (selected) 15.sp else 13.sp,
+            fontSize = if (selected) 12.sp else 11.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) Color.White else BrandBlueDark
+            color = if (selected) Color.White else BrandBlueDark,
+            maxLines = 1
         )
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 1.dp)) {
             if (selected) {
@@ -1085,6 +1164,15 @@ private fun EmptyCalendarCard(isSl: Boolean) {
             )
         }
     }
+}
+
+private fun formatCalendarBookingDate(value: String, isSl: Boolean): String {
+    return runCatching {
+        val date = parseBookingDateTime(value).toLocalDate()
+        val locale = if (isSl) Locale("sl", "SI") else Locale.ENGLISH
+        val pattern = if (isSl) "d. MMM yyyy" else "MMM d, yyyy"
+        date.format(DateTimeFormatter.ofPattern(pattern, locale))
+    }.getOrElse { value }
 }
 
 private fun parseBookingDateTime(value: String): OffsetDateTime = runCatching { OffsetDateTime.parse(value) }

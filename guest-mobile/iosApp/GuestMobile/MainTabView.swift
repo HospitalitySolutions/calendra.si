@@ -206,14 +206,28 @@ struct MainTabView: View {
                             }
                         )
                     case .calendar:
-                        CalendarView(selectedTenantId: calendarScopedTenantId) { booking in
-                            rescheduleContext = BookRescheduleContext(
-                                bookingId: booking.bookingId.isEmpty ? booking.id : booking.bookingId,
-                                companyId: booking.companyId,
-                                sessionTypeId: booking.sessionTypeId,
-                                sessionTypeName: booking.title
-                            )
-                        }
+                        CalendarView(
+                            selectedTenantId: calendarScopedTenantId,
+                            onOpenBooking: { booking in
+                                rescheduleContext = BookRescheduleContext(
+                                    bookingId: booking.bookingId.isEmpty ? booking.id : booking.bookingId,
+                                    companyId: booking.companyId,
+                                    sessionTypeId: booking.sessionTypeId,
+                                    sessionTypeName: booking.title
+                                )
+                            },
+                            onCancelBooking: { booking in
+                                Task {
+                                    do {
+                                        let bookingId = booking.bookingId.isEmpty ? booking.id : booking.bookingId
+                                        _ = try await store.cancelBooking(companyId: booking.companyId, bookingId: bookingId)
+                                        store.noticeMessage = "Booking cancelled."
+                                    } catch {
+                                        store.errorMessage = error.localizedDescription
+                                    }
+                                }
+                            }
+                        )
                     case .book:
                         BookView(
                             onOpenNotifications: { isNotificationsPresented = true },
@@ -963,6 +977,16 @@ private struct TenantCodeEntrySheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    Image("CalendraBookLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 128, maxHeight: 34, alignment: .leading)
+                    Spacer(minLength: 0)
+                }
+                .frame(height: 56)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 Text(isSl ? "Dodaj ponudnika s kodo" : "Add tenancy with code")
                     .font(.title2.weight(.bold))
                 Text(isSl ? "Vnesite kodo, ki ste jo prejeli od podjetja." : "Enter the tenancy code you received from the company.")
@@ -990,14 +1014,9 @@ private struct TenantCodeEntrySheet: View {
                 .buttonStyle(.borderedProminent)
                 Spacer()
             }
-            .padding(24)
-            .navigationTitle(isSl ? "Dodaj ponudnika" : "Add tenancy")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSl ? "Zapri" : "Close") { dismiss() }
-                }
-            }
+            .padding(.horizontal, 24)
+            .padding(.top, 0)
+            .padding(.bottom, 24)
         }
     }
 }

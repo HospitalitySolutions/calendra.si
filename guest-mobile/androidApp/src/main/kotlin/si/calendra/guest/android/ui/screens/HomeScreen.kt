@@ -437,7 +437,7 @@ private fun UpcomingBookingsCarousel(
 }
 
 @Composable
-private fun UpcomingBookingFocusCard(
+fun UpcomingBookingFocusCard(
     booking: UpcomingBookingCard,
     onCall: (String) -> Unit,
     onSms: (String) -> Unit,

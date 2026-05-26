@@ -168,7 +168,7 @@ fun JoinTenantScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 22.dp, end = 22.dp, top = 34.dp, bottom = 16.dp),
+                .padding(start = 22.dp, end = 22.dp, top = 0.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandHeader()
@@ -262,16 +262,23 @@ fun JoinTenantScreen(
 
 @Composable
 private fun BrandHeader() {
-    Image(
-        painter = painterResource(id = R.drawable.calendra_logo),
-        contentDescription = "Calendra",
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(36.dp)
-            .wrapContentWidth(Alignment.Start),
-        contentScale = ContentScale.Fit,
-        alignment = Alignment.CenterStart
-    )
+            .height(56.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.calendra_book_logo),
+            contentDescription = "Calendra Book",
+            modifier = Modifier
+                .height(38.dp)
+                .wrapContentWidth(Alignment.Start),
+            contentScale = ContentScale.Fit,
+            alignment = Alignment.CenterStart
+        )
+        Spacer(Modifier.weight(1f))
+    }
 }
 
 @Composable
