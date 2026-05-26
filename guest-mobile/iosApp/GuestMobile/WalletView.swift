@@ -3690,6 +3690,7 @@ private enum WalletOrderChipStatus {
     case paid
     case pending
     case refunded
+    case cancelled
 }
 
 private struct WalletOrderStatusStyle {
@@ -3705,6 +3706,7 @@ private struct WalletOrderStatusStyle {
 private func walletOrderStatus(_ order: WalletOrderCardModel) -> WalletOrderChipStatus {
     let bill = order.billPaymentStatus?.uppercased()
     let status = order.status.uppercased()
+    if status == "CANCELLED" || bill == "CANCELLED" { return .cancelled }
     if status == "REFUNDED" { return .refunded }
     if status == "PAID" && bill == "PAID" { return .paid }
     if order.paymentMethod.uppercased() == "BANK_TRANSFER" && bill == "PAYMENT_PENDING" { return .pending }
@@ -3743,6 +3745,16 @@ private func walletOrderStatusStyle(_ status: WalletOrderChipStatus, languageCod
             receiptIconName: "arrow.counterclockwise",
             receiptBackground: Color(red: 0.94, green: 0.95, blue: 0.96),
             border: walletLine
+        )
+    case .cancelled:
+        return WalletOrderStatusStyle(
+            label: walletTr(languageCode, "Cancelled", "Preklicano"),
+            foreground: Color(red: 0.54, green: 0.29, blue: 0.09),
+            background: Color(red: 1.00, green: 0.94, blue: 0.88),
+            iconName: "info.circle",
+            receiptIconName: "info.circle",
+            receiptBackground: Color(red: 1.00, green: 0.95, blue: 0.91),
+            border: walletAmber.opacity(0.42)
         )
     }
 }
@@ -3816,7 +3828,9 @@ private struct WalletOrderReceiptCard: View {
                 WalletOrderDetailLine(label: walletTr(appUiLocaleStorage, "Order ID", "ID naročila"), value: displayOrderId)
             }
 
-            if isPendingTransfer {
+            if status == .cancelled {
+                WalletCancelledOrderCallout()
+            } else if isPendingTransfer {
                 WalletPendingTransferCallout(onOpenInstructions: onPaymentInstructions)
             } else {
                 WalletViewReceiptButton(isLoading: isOpeningReceipt, onTap: onViewReceipt)
@@ -3826,6 +3840,25 @@ private struct WalletOrderReceiptCard: View {
         .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(style.border, lineWidth: 1))
         .shadow(color: Color.black.opacity(0.06), radius: 12, y: 6)
+    }
+}
+
+
+private struct WalletCancelledOrderCallout: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 15, weight: .bold))
+            Text(walletTr(appUiLocaleStorage, "Checkout was cancelled", "Plačilo je bilo preklicano"))
+                .font(.system(size: 13, weight: .bold))
+            Spacer(minLength: 0)
+        }
+        .foregroundColor(Color(red: 0.54, green: 0.29, blue: 0.09))
+        .padding(11)
+        .background(Color(red: 1.00, green: 0.95, blue: 0.88), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(walletAmber.opacity(0.18), lineWidth: 1))
     }
 }
 

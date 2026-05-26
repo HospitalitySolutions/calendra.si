@@ -83,11 +83,11 @@ public class GuestHomeController {
         try {
             GuestOrderService.PayPalCompletionResult result = orderService.handlePayPalReturn(orderId, token);
             String target = "calendra-guest://paypal/return?status=success&orderId=" + result.order().getId();
-            return ResponseEntity.ok(renderPayPalRedirectPage("PayPal payment confirmed", "Returning to the guest app…", target));
+            return ResponseEntity.ok(renderPaymentRedirectPage("PayPal payment confirmed", "Returning to the guest app…", target));
         } catch (Exception ex) {
             String target = "calendra-guest://paypal/return?status=error&orderId=" + orderId + "&message="
                     + URLEncoder.encode(ex.getMessage() == null ? "Unable to complete PayPal payment." : ex.getMessage(), StandardCharsets.UTF_8);
-            return ResponseEntity.ok(renderPayPalRedirectPage("PayPal payment failed", "We could not complete the payment. Return to the app to continue.", target));
+            return ResponseEntity.ok(renderPaymentRedirectPage("PayPal payment failed", "We could not complete the payment. Return to the app to continue.", target));
         }
     }
 
@@ -98,11 +98,40 @@ public class GuestHomeController {
         } catch (Exception ignore) {
         }
         String target = "calendra-guest://paypal/return?status=cancelled&orderId=" + orderId;
-        return ResponseEntity.ok(renderPayPalRedirectPage("PayPal checkout canceled", "Return to the guest app to pick another payment method.", target));
+        return ResponseEntity.ok(renderPaymentRedirectPage("PayPal checkout canceled", "Return to the guest app to pick another payment method.", target));
     }
 
-    private String renderPayPalRedirectPage(String title, String message, String target) {
-        String safeTarget = target == null ? "calendra-guest://paypal/return?status=error" : target;
+
+    @GetMapping(value = "/stripe/return", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> stripeReturn(
+            @RequestParam Long orderId,
+            @RequestParam(defaultValue = "success") String status,
+            @RequestParam(name = "session_id", required = false) String checkoutSessionId
+    ) {
+        String normalized = normalizeStripeReturnStatus(status);
+        String target = stripeDeepLink(normalized, orderId, checkoutSessionId, null);
+        String title = "success".equals(normalized) ? "Stripe payment completed" : "Stripe checkout status updated";
+        String message = "success".equals(normalized)
+                ? "Returning to the guest app. Your order will update as soon as Stripe confirms the payment."
+                : "Returning to the guest app.";
+        return ResponseEntity.ok(renderPaymentRedirectPage(title, message, target));
+    }
+
+    @GetMapping(value = "/stripe/cancel", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> stripeCancel(
+            @RequestParam Long orderId,
+            @RequestParam(name = "session_id", required = false) String checkoutSessionId
+    ) {
+        try {
+            orderService.onStripeCheckoutExpiredOrFailed(orderId, checkoutSessionId);
+        } catch (Exception ignore) {
+        }
+        String target = stripeDeepLink("cancelled", orderId, checkoutSessionId, null);
+        return ResponseEntity.ok(renderPaymentRedirectPage("Stripe checkout canceled", "Returning to the guest app…", target));
+    }
+
+    private String renderPaymentRedirectPage(String title, String message, String target) {
+        String safeTarget = target == null ? "calendra-guest://stripe/return?status=error" : target;
         return """
                 <!doctype html>
                 <html lang="en">
@@ -126,6 +155,29 @@ public class GuestHomeController {
                 </body>
                 </html>
                 """.formatted(escapeHtml(title), escapeHtml(title), escapeHtml(message), escapeHtml(safeTarget), toJsString(safeTarget));
+    }
+
+
+    private static String normalizeStripeReturnStatus(String status) {
+        String normalized = status == null ? "success" : status.trim().toLowerCase();
+        return switch (normalized) {
+            case "cancel", "canceled", "cancelled" -> "cancelled";
+            case "error", "failed", "failure" -> "error";
+            default -> "success";
+        };
+    }
+
+    private static String stripeDeepLink(String status, Long orderId, String checkoutSessionId, String message) {
+        StringBuilder target = new StringBuilder("calendra-guest://stripe/return?status=")
+                .append(status == null || status.isBlank() ? "success" : status)
+                .append("&orderId=").append(orderId == null ? "" : orderId);
+        if (checkoutSessionId != null && !checkoutSessionId.isBlank()) {
+            target.append("&session_id=").append(URLEncoder.encode(checkoutSessionId, StandardCharsets.UTF_8));
+        }
+        if (message != null && !message.isBlank()) {
+            target.append("&message=").append(URLEncoder.encode(message, StandardCharsets.UTF_8));
+        }
+        return target.toString();
     }
 
     private static String escapeHtml(String value) {

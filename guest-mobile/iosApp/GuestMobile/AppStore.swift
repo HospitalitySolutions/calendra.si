@@ -729,19 +729,24 @@ final class AppStore: ObservableObject {
     }
 
     func handlePaymentReturn(url: URL) {
-        guard url.scheme == "calendra-guest", url.host == "paypal" else { return }
+        guard url.scheme == "calendra-guest" else { return }
+        let provider = (url.host ?? "").lowercased()
+        guard provider == "paypal" || provider == "stripe" else { return }
+        let providerLabel = provider == "stripe" ? "Stripe" : "PayPal"
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let status = components?.queryItems?.first(where: { $0.name == "status" })?.value?.lowercased()
         let message = components?.queryItems?.first(where: { $0.name == "message" })?.value
 
         switch status {
         case "success":
-            noticeMessage = "PayPal payment confirmed."
+            noticeMessage = "\(providerLabel) payment completed."
             Task { await refreshOnAppBecameActive() }
         case "cancelled", "canceled":
-            noticeMessage = "PayPal checkout canceled."
+            noticeMessage = "\(providerLabel) checkout canceled."
+            Task { await refreshOnAppBecameActive() }
         case "error":
-            errorMessage = message ?? "PayPal payment failed."
+            errorMessage = message ?? "\(providerLabel) payment failed."
+            Task { await refreshOnAppBecameActive() }
         default:
             break
         }

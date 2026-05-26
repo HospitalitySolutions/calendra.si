@@ -3,6 +3,7 @@ package com.example.app.stripe;
 import com.example.app.guest.model.GuestOrder;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -10,15 +11,18 @@ public class StripeGuestCheckoutService {
     private final StripeConnectService connectService;
     private final StripePlatformSettingsService platformSettings;
     private final StripeCheckoutClient checkoutClient;
+    private final Environment environment;
 
     public StripeGuestCheckoutService(
             StripeConnectService connectService,
             StripePlatformSettingsService platformSettings,
-            StripeCheckoutClient checkoutClient
+            StripeCheckoutClient checkoutClient,
+            Environment environment
     ) {
         this.connectService = connectService;
         this.platformSettings = platformSettings;
         this.checkoutClient = checkoutClient;
+        this.environment = environment;
     }
 
     public StripeCheckoutSessionResult createCheckoutSession(GuestOrder order) {
@@ -34,8 +38,11 @@ public class StripeGuestCheckoutService {
         metadata.put("stripe_connect_mode", routing.mode().apiValue());
 
         long feeAmount = platformSettings.applicationFeeAmountMinor(routing.mode(), order.getTotalGross());
-        String successUrl = fillUrl(cfg.successUrl(), order, "success");
-        String cancelUrl = fillUrl(cfg.cancelUrl(), order, "cancelled");
+        // Guest mobile checkout must not reuse the Platform Admin/Billing success/cancel URLs,
+        // because those point to the web app. Route Stripe back through public backend endpoints
+        // that update the guest order when needed and then deep-link into the native app.
+        String successUrl = guestReturnUrl(order, "success");
+        String cancelUrl = guestCancelUrl(order);
 
         return checkoutClient.createOneTimeSession(new StripeCheckoutClient.StripeCheckoutSessionCreateRequest(
                 cfg.secretKey(),
@@ -53,16 +60,45 @@ public class StripeGuestCheckoutService {
         ));
     }
 
-    private String fillUrl(String template, GuestOrder order, String status) {
-        String value = template == null ? "" : template.trim();
-        if (value.isBlank()) {
-            value = "calendra-guest://stripe/return?status={STATUS}&orderId={ORDER_ID}&session_id={CHECKOUT_SESSION_ID}";
+    private String guestReturnUrl(GuestOrder order, String status) {
+        return publicBaseUrl()
+                + "/api/guest/stripe/return?status=" + status
+                + "&orderId=" + order.getId()
+                + "&session_id={CHECKOUT_SESSION_ID}";
+    }
+
+    private String guestCancelUrl(GuestOrder order) {
+        return publicBaseUrl()
+                + "/api/guest/stripe/cancel?orderId=" + order.getId()
+                + "&session_id={CHECKOUT_SESSION_ID}";
+    }
+
+    private String publicBaseUrl() {
+        String value = firstNonBlank(
+                environment.getProperty("APP_STRIPE_GUEST_PUBLIC_BASE_URL"),
+                environment.getProperty("app.stripe.guest-public-base-url"),
+                environment.getProperty("APP_PAYPAL_PUBLIC_BASE_URL"),
+                environment.getProperty("app.paypal.public-base-url"),
+                environment.getProperty("APP_AUTH_FRONTEND_URL"),
+                environment.getProperty("app.auth.frontend-url")
+        );
+        if (value == null || value.isBlank()) {
+            value = "http://localhost:4000";
         }
-        return value
-                .replace("{STATUS}", status)
-                .replace("{ORDER_ID}", String.valueOf(order.getId()))
-                .replace("{ORDER_REFERENCE}", order.getReferenceCode() == null ? "" : order.getReferenceCode())
-                .replace("{TENANT_ID}", String.valueOf(order.getCompany().getId()))
-                .replace("{CHECKOUT_SESSION_ID}", "{CHECKOUT_SESSION_ID}");
+        value = value.trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 }

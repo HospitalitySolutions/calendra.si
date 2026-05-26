@@ -4314,12 +4314,22 @@ private fun walletOrderStatusStyle(status: OrderChipStatus, languageCode: String
         iconBg = Color(0xFFF0F2F5),
         cardBorder = WalletLine
     )
+    OrderChipStatus.Cancelled -> WalletOrderStatusStyle(
+        label = walletTr(languageCode, "Cancelled", "Preklicano"),
+        fg = Color(0xFF8A4A18),
+        bg = Color(0xFFFFEFE2),
+        icon = Icons.Rounded.Info,
+        receiptIcon = Icons.Rounded.Info,
+        iconBg = Color(0xFFFFF3E8),
+        cardBorder = Color(0xFFE6892D).copy(alpha = 0.42f)
+    )
 }
 
 private fun orderStatusLabel(status: OrderChipStatus): String = when (status) {
     OrderChipStatus.Completed -> "Paid"
     OrderChipStatus.Pending -> "Pending"
     OrderChipStatus.Refunded -> "Refunded"
+    OrderChipStatus.Cancelled -> "Cancelled"
 }
 
 private fun walletStatusDisplay(status: String, languageCode: String): String = when (status) {
@@ -4439,7 +4449,9 @@ private fun WalletOrderReceiptCard(
                     WalletOrderMetric(label = walletTr(languageCode, "Payment method", "Način plačila"), value = walletOrderPaymentLabel(order.paymentMethodType, languageCode), modifier = Modifier.weight(1.15f))
                 }
 
-                if (isPendingTransfer) {
+                if (status == OrderChipStatus.Cancelled) {
+                    WalletCancelledOrderCallout(languageCode = languageCode)
+                } else if (isPendingTransfer) {
                     WalletPendingTransferCallout(languageCode = languageCode, onPaymentInstructions = onPaymentInstructions)
                 } else {
                     WalletViewReceiptRow(languageCode = languageCode, onClick = onViewReceipt)
@@ -4507,6 +4519,37 @@ private fun WalletOrderStatusPill(style: WalletOrderStatusStyle) {
                 fontSize = 12.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun WalletCancelledOrderCallout(languageCode: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFFFF2DE).copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, Color(0xFFB96800).copy(alpha = 0.18f)),
+        tonalElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Info,
+                contentDescription = null,
+                tint = Color(0xFFB96800),
+                modifier = Modifier.size(19.dp)
+            )
+            Text(
+                text = walletTr(languageCode, "Checkout was cancelled", "Plačilo je bilo preklicano"),
+                color = Color(0xFF8A4A18),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -4781,11 +4824,12 @@ private fun normalizeOrderProductType(productType: String?): String = when (prod
     else -> "ORDER"
 }
 
-private enum class OrderChipStatus { Completed, Pending, Refunded }
+private enum class OrderChipStatus { Completed, Pending, Refunded, Cancelled }
 
 private fun resolveOrderStatus(order: WalletOrder): OrderChipStatus {
     val bill = order.billPaymentStatus?.uppercase()
     val status = order.status.uppercase()
+    if (status == "CANCELLED" || bill == "CANCELLED") return OrderChipStatus.Cancelled
     if (status == "REFUNDED") return OrderChipStatus.Refunded
     if (status == "PAID" && bill == "PAID") return OrderChipStatus.Completed
     if (order.paymentMethodType.uppercase() == "BANK_TRANSFER" && bill == "PAYMENT_PENDING") return OrderChipStatus.Pending
@@ -4799,6 +4843,7 @@ private fun StatusChip(status: OrderChipStatus) {
         OrderChipStatus.Completed -> Triple("Paid", WalletGreenSoft, WalletGreen)
         OrderChipStatus.Pending -> Triple("Pending", Color(0xFFFFF3E0), WalletAmber)
         OrderChipStatus.Refunded -> Triple("Refunded", Color(0xFFEDEFF3), Color(0xFF54627A))
+        OrderChipStatus.Cancelled -> Triple("Cancelled", Color(0xFFFFEFE2), Color(0xFF8A4A18))
     }
     Surface(color = bg, shape = RoundedCornerShape(999.dp)) {
         Text(

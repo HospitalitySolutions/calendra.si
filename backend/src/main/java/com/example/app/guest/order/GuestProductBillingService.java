@@ -165,6 +165,19 @@ public class GuestProductBillingService {
         return saved;
     }
 
+
+    /** Marks a wallet-product bill as cancelled when the external checkout is cancelled/expired before payment. */
+    @Transactional
+    public void markBillCancelled(Long billId) {
+        if (billId == null) return;
+        Bill bill = bills.findById(billId).orElse(null);
+        if (bill == null || BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
+            return;
+        }
+        bill.setPaymentStatus(BillPaymentStatus.CANCELLED);
+        bills.save(bill);
+    }
+
     private PaymentMethod resolvePaymentMethod(Long companyId, String paymentMethodType) {
         List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
         String normalized = paymentMethodType == null ? "" : paymentMethodType.trim().toUpperCase(Locale.ROOT);

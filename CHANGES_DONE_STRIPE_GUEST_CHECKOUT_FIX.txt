@@ -1,0 +1,23 @@
+Stripe guest mobile Buy-tab checkout fix
+
+Changed backend guest Stripe checkout so it no longer reuses Platform Admin/Billing Stripe success/cancel URLs.
+Stripe now returns through public backend endpoints:
+- /api/guest/stripe/return
+- /api/guest/stripe/cancel
+
+The return/cancel endpoints render a tiny HTML page that deep-links back into the guest mobile app using:
+- calendra-guest://stripe/return?status=success...
+- calendra-guest://stripe/return?status=cancelled...
+
+Wallet Buy-tab CARD orders now create the tenant bill before redirecting to Stripe, so the public TenantCode-client-counter orderId exists immediately instead of falling back to the old ORD-* reference while pending/cancelled.
+
+Cancelling Stripe checkout now immediately marks the guest order CANCELLED and cancels the linked pending bill, instead of leaving it visible as pending.
+
+Guest mobile apps now accept calendra-guest://stripe/return deep links and refresh wallet data after Stripe success/cancel/error returns.
+
+Added optional environment variable:
+APP_STRIPE_GUEST_PUBLIC_BASE_URL=https://app.calendra.si
+
+In production, set APP_STRIPE_GUEST_PUBLIC_BASE_URL to the public host that routes /api to the backend. If omitted, the backend falls back to APP_PAYPAL_PUBLIC_BASE_URL, then APP_AUTH_FRONTEND_URL, then http://localhost:4000.
+
+Note: Stripe payment completion still depends on the Stripe webhook checkout.session.completed to mark the order PAID. The success return page only sends the user back into the app.

@@ -531,11 +531,13 @@ fun GuestMobileRoot() {
 
     LaunchedEffect(paymentRedirectUri) {
         val uri = paymentRedirectUri ?: return@LaunchedEffect
+        val provider = uri.host?.lowercase()
+        val providerLabel = if (provider == "stripe") "Stripe" else "PayPal"
         val status = uri.getQueryParameter("status")?.lowercase() ?: uri.lastPathSegment?.lowercase()
         val message = when (status) {
-            "success" -> "PayPal payment confirmed"
-            "cancelled", "canceled" -> "PayPal checkout canceled"
-            "error" -> uri.getQueryParameter("message") ?: "PayPal payment failed"
+            "success" -> "$providerLabel payment completed"
+            "cancelled", "canceled" -> "$providerLabel checkout canceled"
+            "error" -> uri.getQueryParameter("message") ?: "$providerLabel payment failed"
             else -> null
         }
         if (!message.isNullOrBlank()) {

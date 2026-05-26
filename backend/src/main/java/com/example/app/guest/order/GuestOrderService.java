@@ -325,6 +325,18 @@ public class GuestOrderService {
         }
 
         if (paymentMethodType == GuestPaymentMethodType.CARD) {
+            // Wallet Buy-tab purchases do not have a booking slot. Create the tenant invoice
+            // before redirecting to Stripe so Wallet > Orders immediately shows the public
+            // TenantCode-client-counter order id instead of falling back to the old ORD-* code.
+            GuestProduct walletProductForCard = loadWalletProduct(order);
+            if (walletProductForCard != null && order.getBillId() == null) {
+                var bill = productBillingService.issuePendingBill(order, walletProductForCard, paymentMethodType.name());
+                order.setBillId(bill.getId());
+                if (bill.getOrderId() != null && !bill.getOrderId().isBlank()) {
+                    order.setReferenceCode(bill.getOrderId());
+                }
+            }
+
             if (stripeGuestCheckoutService == null) {
                 order = markOrderPaid(order, paymentMethodType, null);
                 return new GuestDtos.CheckoutResponse(
@@ -650,6 +662,7 @@ public class GuestOrderService {
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         orders.save(order);
+        productBillingService.markBillCancelled(order.getBillId());
     }
 
     /**
