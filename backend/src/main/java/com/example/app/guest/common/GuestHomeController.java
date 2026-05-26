@@ -102,6 +102,17 @@ public class GuestHomeController {
     }
 
 
+
+    @PostMapping("/orders/{orderId}/checkout/cancel")
+    public GuestDtos.CheckoutResponse cancelExternalCheckout(
+            @PathVariable Long orderId,
+            @RequestParam(name = "session_id", required = false) String checkoutSessionId,
+            HttpServletRequest request
+    ) {
+        GuestUser guestUser = authContextService.requireGuest(request);
+        return orderService.cancelPendingExternalCheckout(guestUser, orderId, checkoutSessionId);
+    }
+
     @GetMapping(value = "/stripe/return", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> stripeReturn(
             @RequestParam Long orderId,

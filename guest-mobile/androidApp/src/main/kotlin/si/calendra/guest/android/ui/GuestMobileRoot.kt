@@ -66,6 +66,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -95,6 +96,13 @@ private enum class TenantPickerTarget {
     Wallet,
     Inbox
 }
+
+private data class PendingExternalCheckout(
+    val orderId: String,
+    val companyId: String,
+    val paymentMethodType: String,
+    val startedAtMs: Long = System.currentTimeMillis()
+)
 
 private sealed class RootRoute(val route: String) {
     data object Splash : RootRoute("splash")
@@ -175,6 +183,7 @@ fun GuestMobileRoot() {
     var lastWalletOffersRefreshTenantId by remember { mutableStateOf<String?>(null) }
     var lastWalletOffersRefreshAtMs by remember { mutableStateOf(0L) }
     var rescheduleContext by remember { mutableStateOf<BookingRescheduleContext?>(null) }
+    var pendingExternalCheckout by remember { mutableStateOf<PendingExternalCheckout?>(null) }
     val realtimeJobs = remember { mutableMapOf<String, Job>() }
     val realtimeRefreshMutex = remember { Mutex() }
     val qrScannerLauncher = rememberLauncherForActivityResult(contract = ScanContract()) { result ->
@@ -540,6 +549,10 @@ fun GuestMobileRoot() {
             "error" -> uri.getQueryParameter("message") ?: "$providerLabel payment failed"
             else -> null
         }
+        val returnedOrderId = uri.getQueryParameter("orderId")
+        if (returnedOrderId != null && pendingExternalCheckout?.orderId == returnedOrderId) {
+            pendingExternalCheckout = null
+        }
         if (!message.isNullOrBlank()) {
             statusMessage = message
         }
@@ -562,7 +575,33 @@ fun GuestMobileRoot() {
         }
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                scope.launch { refreshAllTenants() }
+                val pending = pendingExternalCheckout
+                if (pending != null) {
+                    scope.launch {
+                        delay(900)
+                        val stillPending = pendingExternalCheckout
+                        if (stillPending != null
+                            && stillPending.orderId == pending.orderId
+                            && System.currentTimeMillis() - stillPending.startedAtMs > 1200
+                        ) {
+                            pendingExternalCheckout = null
+                            runCatching { repo.cancelCheckout(stillPending.orderId) }
+                                .onSuccess {
+                                    statusMessage = if (stillPending.paymentMethodType == "CARD") {
+                                        "Stripe checkout canceled"
+                                    } else {
+                                        "Checkout canceled"
+                                    }
+                                }
+                                .onFailure { if (BuildConfig.DEBUG) Log.d(GUEST_API_DEBUG_TAG, "Checkout cancel sync skipped: ${it.message}") }
+                            runCatching { refreshTenant(stillPending.companyId) }
+                        } else {
+                            refreshAllTenants()
+                        }
+                    }
+                } else {
+                    scope.launch { refreshAllTenants() }
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -979,6 +1018,13 @@ fun GuestMobileRoot() {
                                 return@onCheckout
                             }
 
+                            if ((paymentMethodType == "CARD" || paymentMethodType == "PAYPAL") && !checkout.checkoutUrl.isNullOrBlank()) {
+                                pendingExternalCheckout = PendingExternalCheckout(
+                                    orderId = checkout.orderId,
+                                    companyId = service.companyId,
+                                    paymentMethodType = paymentMethodType
+                                )
+                            }
                             buildCheckoutManager()?.handle(
                                 checkout = checkout,
                                 onComplete = { statusMessage = checkout.bankTransfer?.instructions ?: "Order created" },
@@ -1168,6 +1214,13 @@ fun GuestMobileRoot() {
                                             } ?: "Bank transfer instructions issued"
                                         }
                                         else -> {
+                                            if ((paymentMethod == "CARD" || paymentMethod == "PAYPAL") && !checkout.checkoutUrl.isNullOrBlank()) {
+                                                pendingExternalCheckout = PendingExternalCheckout(
+                                                    orderId = checkout.orderId,
+                                                    companyId = offer.companyId,
+                                                    paymentMethodType = paymentMethod
+                                                )
+                                            }
                                             buildCheckoutManager()?.handle(
                                                 checkout = checkout,
                                                 onComplete = {

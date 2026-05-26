@@ -1,5 +1,6 @@
 package com.example.app.guest.order;
 
+import com.example.app.billing.InvoiceOrderIdService;
 import com.example.app.billing.PaymentMethod;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
@@ -61,6 +62,7 @@ public class GuestOrderService {
     private final PayPalClient payPalClient;
     private final StripeGuestCheckoutService stripeGuestCheckoutService;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final InvoiceOrderIdService invoiceOrderIdService;
 
     @Autowired
     public GuestOrderService(
@@ -83,7 +85,8 @@ public class GuestOrderService {
             GuestProductBillingService productBillingService,
             PayPalClient payPalClient,
             StripeGuestCheckoutService stripeGuestCheckoutService,
-            GlobalPaymentProviderService globalPaymentProviders
+            GlobalPaymentProviderService globalPaymentProviders,
+            InvoiceOrderIdService invoiceOrderIdService
     ) {
         this.guestTenantService = guestTenantService;
         this.catalogService = catalogService;
@@ -105,6 +108,7 @@ public class GuestOrderService {
         this.payPalClient = payPalClient;
         this.stripeGuestCheckoutService = stripeGuestCheckoutService;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.invoiceOrderIdService = invoiceOrderIdService;
     }
 
     /** Backwards-compatible constructor used by older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -130,7 +134,7 @@ public class GuestOrderService {
     ) {
         this(guestTenantService, catalogService, guestSettings, companies, orders, entitlements, entitlementUsages,
                 bookings, bookingCreationService, bookingChangePublisher, users, paymentMethods, notifications, reminders,
-                entitlementService, bankTransferBillingService, productBillingService, payPalClient, null, null);
+                entitlementService, bankTransferBillingService, productBillingService, payPalClient, null, null, null);
     }
 
     @Transactional
@@ -153,7 +157,7 @@ public class GuestOrderService {
         order.setSubtotalGross(orderSubtotal);
         order.setTaxAmount(BigDecimal.ZERO);
         order.setTotalGross(orderSubtotal);
-        order.setReferenceCode("ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
+        order.setReferenceCode(nextGuestOrderReferenceCode(link));
         order.setMetadataJson(buildMetadataJson(request.slotId(), product));
         order = orders.save(order);
 
@@ -325,18 +329,8 @@ public class GuestOrderService {
         }
 
         if (paymentMethodType == GuestPaymentMethodType.CARD) {
-            // Wallet Buy-tab purchases do not have a booking slot. Create the tenant invoice
-            // before redirecting to Stripe so Wallet > Orders immediately shows the public
-            // TenantCode-client-counter order id instead of falling back to the old ORD-* code.
-            GuestProduct walletProductForCard = loadWalletProduct(order);
-            if (walletProductForCard != null && order.getBillId() == null) {
-                var bill = productBillingService.issuePendingBill(order, walletProductForCard, paymentMethodType.name());
-                order.setBillId(bill.getId());
-                if (bill.getOrderId() != null && !bill.getOrderId().isBlank()) {
-                    order.setReferenceCode(bill.getOrderId());
-                }
-            }
-
+            // Do not create the tenant invoice before Stripe succeeds. The GuestOrder
+            // already has the public TenantCode-client-counter reference for Wallet > Orders.
             if (stripeGuestCheckoutService == null) {
                 order = markOrderPaid(order, paymentMethodType, null);
                 return new GuestDtos.CheckoutResponse(
@@ -436,6 +430,57 @@ public class GuestOrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal return token did not match the pending order.");
         }
         return new PayPalCompletionResult(order, false, "PayPal payment was canceled.");
+    }
+
+
+    @Transactional
+    public GuestDtos.CheckoutResponse cancelPendingExternalCheckout(GuestUser guestUser, Long orderId, String checkoutSessionId) {
+        GuestOrder order = orders.findByIdAndGuestUserId(orderId, guestUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
+            return checkoutStatusResponse(order);
+        }
+        if (checkoutSessionId != null && !checkoutSessionId.isBlank()
+                && order.getStripeCheckoutSessionId() != null && !order.getStripeCheckoutSessionId().isBlank()
+                && !checkoutSessionId.equals(order.getStripeCheckoutSessionId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Checkout session does not match guest order.");
+        }
+        Long unpaidBillId = order.getBillId();
+        order.setBillId(null);
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelledAt(Instant.now());
+        order = orders.save(order);
+        productBillingService.deleteUnpaidBill(unpaidBillId);
+        return checkoutStatusResponse(order);
+    }
+
+    private GuestDtos.CheckoutResponse checkoutStatusResponse(GuestOrder order) {
+        return new GuestDtos.CheckoutResponse(
+                String.valueOf(order.getId()),
+                order.getPaymentMethodType().name(),
+                order.getStatus().name(),
+                null,
+                null,
+                "COMPLETE",
+                null,
+                order.getGuestUser() == null ? null : order.getGuestUser().getStripeCustomerId(),
+                null,
+                order.getCompany().getName()
+        );
+    }
+
+    private String nextGuestOrderReferenceCode(GuestTenantLink link) {
+        if (invoiceOrderIdService != null) {
+            try {
+                String value = invoiceOrderIdService.nextOrderId(link.getCompany(), link.getClient());
+                if (value != null && !value.isBlank()) {
+                    return value;
+                }
+            } catch (Exception ignored) {
+                // Fall back to legacy short code instead of blocking checkout if the counter is unavailable.
+            }
+        }
+        return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
     }
 
     private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product) {
@@ -597,6 +642,9 @@ public class GuestOrderService {
                     var bill = productBillingService.issuePendingBill(order, walletProduct, paymentMethodType.name());
                     bill = productBillingService.markBillPaid(bill, java.time.OffsetDateTime.now());
                     order.setBillId(bill.getId());
+                    if (bill.getOrderId() != null && !bill.getOrderId().isBlank()) {
+                        order.setReferenceCode(bill.getOrderId());
+                    }
                     order = orders.save(order);
                 } catch (Exception ignore) {
                     // Swallowing so a bookkeeping failure can't unwind a successful payment.
@@ -659,10 +707,12 @@ public class GuestOrderService {
                 && !checkoutSessionId.equals(order.getStripeCheckoutSessionId())) {
             return;
         }
+        Long unpaidBillId = order.getBillId();
+        order.setBillId(null);
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         orders.save(order);
-        productBillingService.markBillCancelled(order.getBillId());
+        productBillingService.deleteUnpaidBill(unpaidBillId);
     }
 
     /**

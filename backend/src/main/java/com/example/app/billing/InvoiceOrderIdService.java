@@ -1,5 +1,6 @@
 package com.example.app.billing;
 
+import com.example.app.client.Client;
 import com.example.app.company.Company;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -26,13 +27,34 @@ public class InvoiceOrderIdService {
         if (company == null || company.getId() == null) {
             throw new IllegalStateException("Bill company is required before assigning orderId.");
         }
+        Long clientId = bill.getClient() == null ? null : bill.getClient().getId();
+        Long recipientCompanyId = bill.getRecipientCompanyIdSnapshot();
+        OrderIdParts parts = nextOrderIdParts(company, clientId, recipientCompanyId);
+        bill.setOrderCounter(parts.counter());
+        bill.setOrderId(parts.orderId());
+    }
+
+    /**
+     * Reserves the same public tenant/client/counter id used on invoices, without creating
+     * a Bill/invoice row. Used for external checkout orders before payment succeeds.
+     */
+    @Transactional
+    public String nextOrderId(Company company, Client client) {
+        Long clientId = client == null ? null : client.getId();
+        return nextOrderIdParts(company, clientId, null).orderId();
+    }
+
+    private OrderIdParts nextOrderIdParts(Company company, Long clientId, Long recipientCompanyId) {
+        if (company == null || company.getId() == null) {
+            throw new IllegalStateException("Company is required before assigning orderId.");
+        }
         AppSetting counter = settings.findForUpdateByCompanyIdAndKey(company.getId(), SettingKey.ORDER_COUNTER)
                 .orElseGet(() -> createCounterSetting(company));
         long next = parseCounter(counter.getValue());
-        bill.setOrderCounter(next);
-        bill.setOrderId(formatOrderId(company, bill, next));
+        String orderId = formatOrderId(company, clientId, recipientCompanyId, next);
         counter.setValue(String.valueOf(next + 1));
         settings.save(counter);
+        return new OrderIdParts(next, orderId);
     }
 
     private AppSetting createCounterSetting(Company company) {
@@ -55,7 +77,7 @@ public class InvoiceOrderIdService {
         }
     }
 
-    private String formatOrderId(Company company, Bill bill, long counter) {
+    private String formatOrderId(Company company, Long clientId, Long recipientCompanyId, long counter) {
         String tenantCode = company.getTenantCode();
         if (!hasText(tenantCode)) {
             tenantCode = String.valueOf(company.getId());
@@ -65,15 +87,17 @@ public class InvoiceOrderIdService {
             normalizedTenant = String.valueOf(company.getId());
         }
         String clientToken;
-        if (bill.getClient() != null && bill.getClient().getId() != null) {
-            clientToken = String.valueOf(bill.getClient().getId());
-        } else if (bill.getRecipientCompanyIdSnapshot() != null) {
-            clientToken = String.valueOf(bill.getRecipientCompanyIdSnapshot());
+        if (clientId != null) {
+            clientToken = String.valueOf(clientId);
+        } else if (recipientCompanyId != null) {
+            clientToken = String.valueOf(recipientCompanyId);
         } else {
             clientToken = "0";
         }
         return normalizedTenant + "-" + clientToken + "-" + counter;
     }
+
+    private record OrderIdParts(long counter, String orderId) {}
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();

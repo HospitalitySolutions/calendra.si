@@ -1,23 +1,53 @@
-Stripe guest mobile Buy-tab checkout fix
+Stripe guest checkout fixes for guest mobile Buy tab
+===================================================
 
-Changed backend guest Stripe checkout so it no longer reuses Platform Admin/Billing Stripe success/cancel URLs.
-Stripe now returns through public backend endpoints:
-- /api/guest/stripe/return
-- /api/guest/stripe/cancel
+Backend
+-------
+- Guest Stripe checkout still returns through public backend bridge URLs:
+  /api/guest/stripe/return and /api/guest/stripe/cancel.
+- Added authenticated cancellation endpoint:
+  POST /api/guest/orders/{orderId}/checkout/cancel
+  This is used by the mobile app when the user presses the phone/browser back button during Stripe checkout.
+- Guest orders now reserve the public TenantCode-clientId-counter reference immediately when the GuestOrder is created.
+  This means Wallet > Orders no longer needs a temporary ORD-* reference before the invoice exists.
+- Stripe CARD checkout no longer creates a Bill/invoice before redirecting to Stripe.
+- If Stripe is cancelled/expired/backed out before payment:
+  - GuestOrder becomes CANCELLED.
+  - Any old unpaid bill created by older code is detached and deleted.
+  - No invoice/PDF/folio should exist for the cancelled checkout.
+- If Stripe checkout completes successfully:
+  - The webhook marks the GuestOrder as PAID.
+  - Only then is the tenant Bill/invoice created.
+  - The Bill uses the already-reserved TenantCode-clientId-counter reference from the GuestOrder.
+  - Entitlement creation and paid receipt generation remain idempotent.
 
-The return/cancel endpoints render a tiny HTML page that deep-links back into the guest mobile app using:
-- calendra-guest://stripe/return?status=success...
-- calendra-guest://stripe/return?status=cancelled...
+Android guest app
+-----------------
+- Handles calendra-guest://stripe/return deep links.
+- Tracks the active external checkout when opening Stripe/PayPal checkout.
+- When the app resumes without receiving a success/cancel deep link, it calls the new cancel endpoint and refreshes Wallet.
+- Cancelled orders display as Cancelled / Preklicano.
 
-Wallet Buy-tab CARD orders now create the tenant bill before redirecting to Stripe, so the public TenantCode-client-counter orderId exists immediately instead of falling back to the old ORD-* reference while pending/cancelled.
+IOS guest app
+-------------
+- Handles calendra-guest://stripe/return deep links.
+- Tracks active Buy-tab external checkout.
+- When the app becomes active again without receiving a Stripe return deep link, it calls the new cancel endpoint and refreshes Wallet.
+- Cancelled orders display as Cancelled / Preklicano.
 
-Cancelling Stripe checkout now immediately marks the guest order CANCELLED and cancels the linked pending bill, instead of leaving it visible as pending.
-
-Guest mobile apps now accept calendra-guest://stripe/return deep links and refresh wallet data after Stripe success/cancel/error returns.
-
-Added optional environment variable:
+Environment
+-----------
+Set this in Secrets Manager / production environment:
 APP_STRIPE_GUEST_PUBLIC_BASE_URL=https://app.calendra.si
 
-In production, set APP_STRIPE_GUEST_PUBLIC_BASE_URL to the public host that routes /api to the backend. If omitted, the backend falls back to APP_PAYPAL_PUBLIC_BASE_URL, then APP_AUTH_FRONTEND_URL, then http://localhost:4000.
+Recommended Platform Admin fallback URLs
+----------------------------------------
+Checkout success URL:
+https://app.calendra.si/api/guest/stripe/return?status=success&orderId={ORDER_ID}&session_id={CHECKOUT_SESSION_ID}
 
-Note: Stripe payment completion still depends on the Stripe webhook checkout.session.completed to mark the order PAID. The success return page only sends the user back into the app.
+Checkout cancel URL:
+https://app.calendra.si/api/guest/stripe/cancel?orderId={ORDER_ID}&session_id={CHECKOUT_SESSION_ID}
+
+Build note
+----------
+I could not run a full Maven compile in the sandbox because the Maven wrapper tried to download Maven from repo.maven.apache.org, and outbound internet access is blocked here.

@@ -225,6 +225,12 @@ class RemoteGuestApi(
             setBody(request)
         })
 
+    suspend fun cancelCheckout(orderId: String, checkoutSessionId: String? = null): CheckoutResponse =
+        parse(client.post("${config.baseUrl}/api/guest/orders/$orderId/checkout/cancel") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            checkoutSessionId?.takeIf { it.isNotBlank() }?.let { parameter("session_id", it) }
+        })
+
     suspend fun downloadOrderReceiptPdf(orderId: String): ByteArray {
         val response = client.get("${config.baseUrl}/api/guest/orders/$orderId/receipt.pdf") {
             header(HttpHeaders.Accept, "*/*")

@@ -107,6 +107,20 @@ class PreviewGuestRepository : GuestRepository {
         request: CheckoutRequest
     ): CheckoutResponse = preview.checkout(orderId, request)
 
+    override suspend fun cancelCheckout(orderId: String, checkoutSessionId: String?): CheckoutResponse =
+        CheckoutResponse(
+            orderId = orderId,
+            paymentMethodType = "CARD",
+            status = "CANCELLED",
+            checkoutUrl = null,
+            bankTransfer = null,
+            nextAction = "COMPLETE",
+            paymentIntentClientSecret = null,
+            customerId = null,
+            customerEphemeralKeySecret = null,
+            merchantDisplayName = null
+        )
+
     override suspend fun downloadOrderReceiptPdf(orderId: String): ByteArray =
         "Preview receipt PDF for order $orderId".encodeToByteArray()
 

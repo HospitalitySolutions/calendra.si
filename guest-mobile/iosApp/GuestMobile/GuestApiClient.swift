@@ -365,6 +365,13 @@ final class GuestApiClient {
         )
     }
 
+    func cancelExternalCheckout(orderId: String) async throws -> CheckoutResponseModel {
+        try await post(
+            path: "api/guest/orders/\(orderId)/checkout/cancel",
+            body: EmptyPayload()
+        )
+    }
+
     private func get<T: Decodable>(path: String, query: [URLQueryItem] = []) async throws -> T {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         components.queryItems = query.isEmpty ? nil : query
@@ -432,6 +439,7 @@ final class GuestApiClient {
 }
 
 private struct EmptyResponse: Decodable {}
+private struct EmptyPayload: Encodable {}
 private struct CreateOrderEnvelope: Decodable {
     struct OrderSummary: Decodable { let orderId: String }
     let order: OrderSummary

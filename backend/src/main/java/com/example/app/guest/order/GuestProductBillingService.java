@@ -77,7 +77,7 @@ public class GuestProductBillingService {
         if (order.getBillId() != null) {
             Bill existing = bills.findById(order.getBillId()).orElse(null);
             if (existing != null) {
-                invoiceOrderIdService.assignIfMissing(existing);
+                applyOrderReferenceIfMissing(existing, order);
                 return bills.save(existing);
             }
         }
@@ -123,7 +123,7 @@ public class GuestProductBillingService {
         if ("BANK_TRANSFER".equalsIgnoreCase(paymentMethodType)) {
             bill.setBankTransferReference(BankStatementReconciliationService.bankReferenceForBill(bill));
         }
-        invoiceOrderIdService.assignIfMissing(bill);
+        applyOrderReferenceIfMissing(bill, order);
 
         Bill saved = bills.saveAndFlush(bill);
 
@@ -141,6 +141,39 @@ public class GuestProductBillingService {
         }
 
         return saved;
+    }
+
+
+    private void applyOrderReferenceIfMissing(Bill bill, GuestOrder order) {
+        if (bill == null || hasText(bill.getOrderId())) {
+            return;
+        }
+        String referenceCode = order == null ? null : order.getReferenceCode();
+        if (hasText(referenceCode) && !referenceCode.trim().toUpperCase(Locale.ROOT).startsWith("ORD-")) {
+            String clean = referenceCode.trim();
+            bill.setOrderId(clean);
+            Long counter = parseTrailingCounter(clean);
+            if (counter != null) {
+                bill.setOrderCounter(counter);
+            }
+            return;
+        }
+        invoiceOrderIdService.assignIfMissing(bill);
+    }
+
+    private static Long parseTrailingCounter(String value) {
+        if (value == null) return null;
+        int idx = value.lastIndexOf('-');
+        if (idx < 0 || idx >= value.length() - 1) return null;
+        try {
+            return Long.parseLong(value.substring(idx + 1));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     /** Flips a previously-issued wallet bill to {@code PAID} at the given time. Idempotent. */
@@ -165,6 +198,20 @@ public class GuestProductBillingService {
         return saved;
     }
 
+
+    /**
+     * Removes an unpaid wallet-product bill when external checkout is abandoned before payment.
+     * This prevents a cancelled Stripe order from consuming/keeping an invoice number row.
+     */
+    @Transactional
+    public void deleteUnpaidBill(Long billId) {
+        if (billId == null) return;
+        Bill bill = bills.findById(billId).orElse(null);
+        if (bill == null || BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
+            return;
+        }
+        bills.delete(bill);
+    }
 
     /** Marks a wallet-product bill as cancelled when the external checkout is cancelled/expired before payment. */
     @Transactional

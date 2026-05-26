@@ -28,6 +28,7 @@ interface GuestRepository {
     suspend fun rescheduleBooking(companyId: String, bookingId: String, newSlotId: String): BookingActionResult
     suspend fun cancelBooking(companyId: String, bookingId: String): BookingActionResult
     suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse
+    suspend fun cancelCheckout(orderId: String, checkoutSessionId: String? = null): CheckoutResponse
     suspend fun downloadOrderReceiptPdf(orderId: String): ByteArray
     suspend fun wallet(companyId: String): WalletPayload
     suspend fun toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Boolean): ToggleAutoRenewResponse

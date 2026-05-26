@@ -34,6 +34,13 @@ private struct WalletReceiptPreviewItem: Identifiable {
     let title: String
 }
 
+private struct PendingWalletExternalCheckout {
+    let orderId: String
+    let companyId: String
+    let paymentMethod: String
+    let openedAt: Date = Date()
+}
+
 private struct WalletReceiptPreviewController: UIViewControllerRepresentable {
     let item: WalletReceiptPreviewItem
 
@@ -177,6 +184,7 @@ struct WalletView: View {
     @EnvironmentObject private var store: AppStore
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     let onOpenNotifications: () -> Void
     let onOpenTenantPicker: () -> Void
@@ -196,6 +204,7 @@ struct WalletView: View {
     @State private var receiptPreviewItem: WalletReceiptPreviewItem? = nil
     @State private var openingReceiptOrderId: String? = nil
     @State private var paymentInstructionsOrder: WalletOrderCardModel? = nil
+    @State private var pendingExternalCheckout: PendingWalletExternalCheckout? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -281,6 +290,16 @@ struct WalletView: View {
         .onChange(of: subTab) { tab in
             if tab == .buy {
                 onOpenBuyTab()
+            }
+        }
+        .onChange(of: store.paymentReturnSequence) { _ in
+            if let pending = pendingExternalCheckout, store.lastPaymentReturnOrderId == pending.orderId {
+                pendingExternalCheckout = nil
+            }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                Task { await cancelPendingExternalCheckoutIfNeeded() }
             }
         }
     }
@@ -743,6 +762,11 @@ struct WalletView: View {
                 }
             case "CARD", "PAYPAL":
                 if let urlString = checkout.checkoutUrl, let url = URL(string: urlString) {
+                    pendingExternalCheckout = PendingWalletExternalCheckout(
+                        orderId: checkout.orderId,
+                        companyId: offer.companyId,
+                        paymentMethod: paymentMethod
+                    )
                     openURL(url)
                 } else if checkout.status.uppercased() == "PAID" {
                     statusMessage = walletTr(appUiLocaleStorage, "Purchase complete", "Nakup zaključen")
@@ -753,6 +777,33 @@ struct WalletView: View {
             subTab = paymentMethod == "BANK_TRANSFER" ? .orders : .entitlements
         } catch {
             statusMessage = walletTr(appUiLocaleStorage, "Purchase failed: \(error.localizedDescription)", "Nakup ni uspel: \(error.localizedDescription)")
+        }
+    }
+
+
+    @MainActor
+    private func cancelPendingExternalCheckoutIfNeeded() async {
+        guard let pending = pendingExternalCheckout else { return }
+        guard Date().timeIntervalSince(pending.openedAt) > 1.2 else { return }
+        try? await Task.sleep(nanoseconds: 900_000_000)
+        guard let current = pendingExternalCheckout, current.orderId == pending.orderId else { return }
+        if store.lastPaymentReturnOrderId == current.orderId {
+            pendingExternalCheckout = nil
+            return
+        }
+        pendingExternalCheckout = nil
+        do {
+            try await store.cancelExternalCheckout(companyId: current.companyId, orderId: current.orderId)
+            subTab = .orders
+            let cancelMessage: String
+            if current.paymentMethod.uppercased() == "CARD" {
+                cancelMessage = walletTr(appUiLocaleStorage, "Stripe checkout canceled", "Stripe plačilo je preklicano")
+            } else {
+                cancelMessage = walletTr(appUiLocaleStorage, "Checkout canceled", "Plačilo je preklicano")
+            }
+            statusMessage = cancelMessage
+        } catch {
+            statusMessage = walletTr(appUiLocaleStorage, "Checkout status refresh failed", "Osvežitev stanja plačila ni uspela")
         }
     }
 

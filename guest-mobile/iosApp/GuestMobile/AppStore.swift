@@ -16,6 +16,8 @@ final class AppStore: ObservableObject {
     @Published var didRequestLogout = false
     @Published var pendingInboxOpenCompanyId: String?
     @Published var signupChallenge: SignupChallengeModel?
+    @Published var lastPaymentReturnOrderId: String?
+    @Published var paymentReturnSequence: Int = 0
 
     private static let guestAppBellNotificationTypes: Set<String> = [
         "BOOKING_CONFIRMED",
@@ -736,6 +738,8 @@ final class AppStore: ObservableObject {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let status = components?.queryItems?.first(where: { $0.name == "status" })?.value?.lowercased()
         let message = components?.queryItems?.first(where: { $0.name == "message" })?.value
+        lastPaymentReturnOrderId = components?.queryItems?.first(where: { $0.name == "orderId" })?.value
+        paymentReturnSequence += 1
 
         switch status {
         case "success":
@@ -784,6 +788,15 @@ final class AppStore: ObservableObject {
         }
         try await refreshTenant(companyId: companyId)
         return response
+    }
+
+    func cancelExternalCheckout(companyId: String, orderId: String) async throws {
+        if usePreviewData {
+            try await refreshTenant(companyId: companyId)
+            return
+        }
+        _ = try await api.cancelExternalCheckout(orderId: orderId)
+        try await refreshTenant(companyId: companyId)
     }
 
 

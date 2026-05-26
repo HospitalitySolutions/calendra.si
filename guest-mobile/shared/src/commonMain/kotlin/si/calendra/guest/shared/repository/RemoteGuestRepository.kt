@@ -38,6 +38,7 @@ class RemoteGuestRepository(
     override suspend fun cancelBooking(companyId: String, bookingId: String): BookingActionResult =
         api.cancelBooking(bookingId)
     override suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse = api.checkout(orderId, request)
+    override suspend fun cancelCheckout(orderId: String, checkoutSessionId: String?): CheckoutResponse = api.cancelCheckout(orderId, checkoutSessionId)
     override suspend fun downloadOrderReceiptPdf(orderId: String): ByteArray = api.downloadOrderReceiptPdf(orderId)
     override suspend fun wallet(companyId: String): WalletPayload = api.wallet(companyId)
     override suspend fun toggleAutoRenew(companyId: String, entitlementId: String, autoRenews: Boolean): ToggleAutoRenewResponse = api.toggleAutoRenew(companyId, entitlementId, autoRenews)
