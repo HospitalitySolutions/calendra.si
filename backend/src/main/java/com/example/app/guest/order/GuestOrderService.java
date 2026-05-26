@@ -137,6 +137,35 @@ public class GuestOrderService {
                 entitlementService, bankTransferBillingService, productBillingService, payPalClient, null, null, null);
     }
 
+    /** Backwards-compatible constructor used by unit tests that mock Stripe and global payment providers. */
+    GuestOrderService(
+            GuestTenantService guestTenantService,
+            GuestCatalogService catalogService,
+            GuestSettingsService guestSettings,
+            CompanyRepository companies,
+            GuestOrderRepository orders,
+            GuestEntitlementRepository entitlements,
+            GuestEntitlementUsageRepository entitlementUsages,
+            SessionBookingRepository bookings,
+            SessionBookingCreationService bookingCreationService,
+            BookingChangePublisher bookingChangePublisher,
+            UserRepository users,
+            PaymentMethodRepository paymentMethods,
+            GuestNotificationService notifications,
+            ReminderService reminders,
+            GuestEntitlementService entitlementService,
+            GuestBankTransferBillingService bankTransferBillingService,
+            GuestProductBillingService productBillingService,
+            PayPalClient payPalClient,
+            StripeGuestCheckoutService stripeGuestCheckoutService,
+            GlobalPaymentProviderService globalPaymentProviders
+    ) {
+        this(guestTenantService, catalogService, guestSettings, companies, orders, entitlements, entitlementUsages,
+                bookings, bookingCreationService, bookingChangePublisher, users, paymentMethods, notifications, reminders,
+                entitlementService, bankTransferBillingService, productBillingService, payPalClient,
+                stripeGuestCheckoutService, globalPaymentProviders, null);
+    }
+
     @Transactional
     public GuestDtos.CreateOrderResponse createOrder(GuestUser guestUser, GuestDtos.CreateOrderRequest request, PaymentChannel channel) {
         Long companyId = parseId(request.companyId());

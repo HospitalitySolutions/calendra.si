@@ -51,3 +51,7 @@ https://app.calendra.si/api/guest/stripe/cancel?orderId={ORDER_ID}&session_id={C
 Build note
 ----------
 I could not run a full Maven compile in the sandbox because the Maven wrapper tried to download Maven from repo.maven.apache.org, and outbound internet access is blocked here.
+
+Follow-up build fix:
+- Added a backwards-compatible GuestOrderService constructor for existing unit tests that pass StripeGuestCheckoutService and GlobalPaymentProviderService but not InvoiceOrderIdService.
+- Runtime Spring wiring still uses the full @Autowired constructor with InvoiceOrderIdService.
