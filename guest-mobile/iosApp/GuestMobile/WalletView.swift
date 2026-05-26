@@ -121,7 +121,6 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
     case all
     case memberships
     case classPacks
-    case dropIns
     case giftCards
 
     var id: String { title }
@@ -130,8 +129,7 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
         switch self {
         case .all: return "All"
         case .memberships: return "Memberships"
-        case .classPacks: return "Class Packs"
-        case .dropIns: return "Day Passes"
+        case .classPacks: return "Cards"
         case .giftCards: return "Gift Cards"
         }
     }
@@ -140,34 +138,31 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
         switch self {
         case .all: return walletTr(languageCode, "All", "Vse")
         case .memberships: return walletTr(languageCode, "Memberships", "Članarine")
-        case .classPacks: return walletTr(languageCode, "Class Packs", "Paket vstopnic")
-        case .dropIns: return walletTr(languageCode, "Day Passes", "Dnevne vstopnice")
+        case .classPacks: return walletTr(languageCode, "Cards", "Karte")
         case .giftCards: return walletTr(languageCode, "Gift Cards", "Darilne kartice")
         }
     }
 
     var iconName: String {
         switch self {
-        case .all: return "sparkles"
+        case .all: return "square.grid.2x2"
         case .memberships: return "dumbbell"
         case .classPacks: return "ticket"
-        case .dropIns: return "calendar"
         case .giftCards: return "gift"
         }
     }
 
     func matches(_ offer: WalletOfferModel) -> Bool {
+        let isGift = offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT"
         switch self {
         case .all:
             return true
         case .memberships:
             return offer.productType == "MEMBERSHIP"
         case .classPacks:
-            return offer.productType == "PACK"
-        case .dropIns:
-            return offer.productType == "CLASS_TICKET"
+            return offer.productType != "MEMBERSHIP" && !isGift
         case .giftCards:
-            return offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT"
+            return isGift
         }
     }
 }
@@ -455,14 +450,23 @@ struct WalletView: View {
 
     private var buyPanel: some View {
         let allOffers = store.walletScopedOffers
-        let visibleOffers = allOffers.filter { selectedBuyCategory.matches($0) }
+        let availableCategories = WalletBuyCategory.allCases.filter { category in
+            category == .all || allOffers.contains(where: { category.matches($0) })
+        }
+        let safeSelectedCategory = availableCategories.contains(selectedBuyCategory) ? selectedBuyCategory : .all
+        let visibleOffers = allOffers
+            .filter { safeSelectedCategory.matches($0) }
+            .sorted { left, right in
+                if buyOfferSortRank(left) != buyOfferSortRank(right) { return buyOfferSortRank(left) < buyOfferSortRank(right) }
+                return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
+            }
 
         if allOffers.isEmpty {
             return AnyView(
                 showcaseEmptyState(
                     kind: .buy,
                     title: walletTr(appUiLocaleStorage, "No offers available", "Trenutno ni ponudb"),
-                    subtitle: walletTr(appUiLocaleStorage, "This tenant does not have any memberships, packs or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, paketov ali darilnih kartic za nakup."),
+                    subtitle: walletTr(appUiLocaleStorage, "This tenant does not have any memberships, cards or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, kart ali darilnih kartic za nakup."),
                     primaryButtonTitle: walletTr(appUiLocaleStorage, "Change tenant", "Zamenjaj ponudnika"),
                     footerText: "",
                     footerIcon: "building.2.fill",
@@ -478,10 +482,10 @@ struct WalletView: View {
             VStack(alignment: .leading, spacing: 14) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
-                        ForEach(WalletBuyCategory.allCases) { category in
+                        ForEach(availableCategories) { category in
                             BuyShowcaseCategoryChip(
                                 category: category,
-                                selected: selectedBuyCategory == category
+                                selected: safeSelectedCategory == category
                             ) {
                                 withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                                     selectedBuyCategory = category
@@ -492,30 +496,26 @@ struct WalletView: View {
                     .padding(.vertical, 2)
                 }
 
-                if visibleOffers.isEmpty {
-                    BuyNoResultsCard(
-                        title: walletTr(appUiLocaleStorage, "No offers in this category", "V tej kategoriji ni ponudb"),
-                        subtitle: walletTr(appUiLocaleStorage, "Try another category to browse available products.", "Izberite drugo kategorijo za pregled razpoložljivih izdelkov.")
-                    )
-                } else {
-                    LazyVStack(spacing: 14) {
-                        ForEach(Array(visibleOffers.enumerated()), id: \.element.id) { index, offer in
-                            BuyShowcaseOfferCard(
-                                offer: offer,
-                                index: index,
-                                priceLabel: offerPriceLabel(offer),
-                                onTap: { pendingOffer = offer }
-                            )
-                        }
+                LazyVStack(spacing: 14) {
+                    ForEach(Array(visibleOffers.enumerated()), id: \.element.id) { index, offer in
+                        BuyShowcaseOfferCard(
+                            offer: offer,
+                            index: index,
+                            priceLabel: offerPriceLabel(offer),
+                            onTap: { pendingOffer = offer }
+                        )
                     }
                 }
-
-                BuyShowcaseFooterStrip()
-                    .padding(.top, 4)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 18)
         })
+    }
+
+    private func buyOfferSortRank(_ offer: WalletOfferModel) -> Int {
+        if offer.productType == "MEMBERSHIP" { return 0 }
+        if offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT" { return 2 }
+        return 1
     }
 
     private func buyFeaturedOffer(from offers: [WalletOfferModel]) -> WalletOfferModel? {
@@ -567,7 +567,7 @@ struct WalletView: View {
     private func buyOfferEyebrow(for offer: WalletOfferModel, index: Int) -> String {
         if let promoText = offer.promoText, !promoText.isEmpty { return promoText }
         switch offer.productType {
-        case "PACK": return (offer.usageLimit ?? 0) >= 10 ? walletTr(appUiLocaleStorage, "Best value", "Najboljša vrednost") : walletTr(appUiLocaleStorage, "Class pack", "Paket vstopnic")
+        case "PACK": return (offer.usageLimit ?? 0) >= 10 ? walletTr(appUiLocaleStorage, "Best value", "Najboljša vrednost") : walletTr(appUiLocaleStorage, "Class pack", "Karte")
         case "MEMBERSHIP": return index == 0 ? walletTr(appUiLocaleStorage, "Most popular", "Najbolj priljubljeno") : walletTr(appUiLocaleStorage, "Membership", "Članarina")
         case "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Great for trying out", "Odlično za prvi obisk")
         default: return productTypeLabel(offer.productType)
@@ -590,7 +590,7 @@ struct WalletView: View {
     private func buyShowcaseLabel(for offer: WalletOfferModel) -> String {
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
-        case "PACK": return walletTr(appUiLocaleStorage, "CLASS PACK", "PAKET VSTOPNIC")
+        case "PACK": return walletTr(appUiLocaleStorage, "CARD", "KARTA")
         case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
         default: return walletTr(appUiLocaleStorage, "DAY PASS", "DNEVNA VSTOPNICA")
         }
@@ -2554,7 +2554,7 @@ private struct BuyShowcaseOfferCard: View {
     private var cardLabel: String {
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
-        case "PACK": return walletTr(appUiLocaleStorage, "CLASS PACK", "PAKET VSTOPNIC")
+        case "PACK": return walletTr(appUiLocaleStorage, "CARD", "KARTA")
         case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
         default: return walletTr(appUiLocaleStorage, "DAY PASS", "DNEVNA VSTOPNICA")
         }
@@ -2570,7 +2570,7 @@ private struct BuyShowcaseOfferCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(tileBackground)
                 .frame(width: 112, height: 132)
@@ -2588,67 +2588,68 @@ private struct BuyShowcaseOfferCard: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(cardLabel)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(accent)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(accent.opacity(0.12), in: Capsule(style: .continuous))
                 Text(offer.name)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(walletInk)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(descriptionText)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(walletInk.opacity(0.72))
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 14) {
-                    if let quantityLabel {
-                        BuyShowcaseMetaView(iconName: "shippingbox", text: quantityLabel)
-                    }
-                    BuyShowcaseMetaView(iconName: "calendar", text: offerValidityLabel(offer.validityDays))
-                }
+                Spacer(minLength: 0)
+                BuyShowcaseMetaView(iconName: "calendar", text: offerValidityLabel(offer.validityDays))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text(priceLabel)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(walletInk)
-                Text(priceSubLabel)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(walletInk.opacity(0.58))
-                HStack(spacing: 8) {
-                    Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : "shippingbox")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(accent)
-                    Text(offer.productType == "MEMBERSHIP" ? walletTr(appUiLocaleStorage, "Valid until cancelled", "Velja do preklica") : (quantityLabel ?? walletTr(appUiLocaleStorage, "Ready to buy", "Pripravljeno za nakup")))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(walletInk)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 8) {
+                if let quantityLabel {
+                    HStack(spacing: 6) {
+                        Image(systemName: offer.productType == "MEMBERSHIP" ? "person.2" : "shippingbox")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(accent)
+                        Text(quantityLabel)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(accent)
+                            .lineLimit(1)
+                    }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
-                .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                Spacer(minLength: 0)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(priceLabel)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(walletInk)
+                    Text(priceSubLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(walletInk.opacity(0.58))
+                }
 
                 Button(action: onTap) {
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
                         Text(walletTr(appUiLocaleStorage, "Buy now", "Kupi zdaj"))
-                            .font(.system(size: 15, weight: .bold))
-                        Image(systemName: "chevron.right")
                             .font(.system(size: 14, weight: .bold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .bold))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .frame(height: 50)
+                    .padding(.horizontal, 14)
+                    .frame(height: 46)
                     .frame(maxWidth: .infinity)
                     .background(walletBlueSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
-            .frame(width: 150, alignment: .leading)
+            .frame(width: 134, alignment: .leading)
         }
         .padding(16)
         .background(Color.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))

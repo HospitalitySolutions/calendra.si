@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -26,7 +27,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * After successful Google OAuth2 login, find or create the user, generate JWT, and redirect to frontend with token.
+ * After successful OAuth2 login, locate the existing staff user, issue a session cookie,
+ * and redirect to the frontend callback. Google signup keeps its existing dedicated flow.
  */
 @Component
 public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
@@ -59,21 +61,25 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException {
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
+        String registrationId = authentication instanceof OAuth2AuthenticationToken token
+                ? token.getAuthorizedClientRegistrationId()
+                : "oauth";
+        String providerName = providerName(registrationId);
         String email = extractEmail(oauth2User);
         String firstName = extractFirstName(oauth2User);
         String lastName = extractLastName(oauth2User);
 
-        log.info("Google OAuth success callback reached. email={}, firstName={}, lastName={}", email, firstName, lastName);
+        log.info("{} OAuth success callback reached. email={}, firstName={}, lastName={}", providerName, email, firstName, lastName);
 
         if (email == null || email.isBlank()) {
-            log.warn("Google OAuth success rejected: provider did not return email.");
-            redirectWithError(response, "Google did not provide an email address.");
+            log.warn("{} OAuth success rejected: provider did not return email.", providerName);
+            redirectWithError(response, providerName + " did not provide an email address.");
             return;
         }
 
         String normalizedEmail = email.trim().toLowerCase();
         List<User> candidates = userRepository.findAllByEmailIgnoreCase(normalizedEmail);
-        log.info("Google OAuth user lookup. normalizedEmail={}, matches={}", normalizedEmail, candidates.size());
+        log.info("{} OAuth user lookup. normalizedEmail={}, matches={}", providerName, normalizedEmail, candidates.size());
         User user = candidates.isEmpty() ? null : candidates.get(0);
 
         HttpSession session = request.getSession(false);
@@ -151,13 +157,13 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         }
 
         if (user == null) {
-            log.warn("Google OAuth success rejected: no local account for email={}", normalizedEmail);
+            log.warn("{} OAuth success rejected: no local account for email={}", providerName, normalizedEmail);
             redirectWithError(response, "No account exists for this email. Please sign up first or contact your administrator.");
             return;
         }
 
         if (!user.isActive()) {
-            log.warn("Google OAuth success rejected: user inactive for email={}", normalizedEmail);
+            log.warn("{} OAuth success rejected: user inactive for email={}", providerName, normalizedEmail);
             redirectWithError(response, "Your account is disabled.");
             return;
         }
@@ -166,14 +172,14 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         String redirectUrl;
         if (mfa.mfaRequired()) {
             redirectUrl = frontendBaseUrl() + "/oauth-callback?mfa_token=" + java.net.URLEncoder.encode(mfa.pendingToken(), java.nio.charset.StandardCharsets.UTF_8);
-            log.info("Google OAuth MFA challenge created for userId={}", user.getId());
+            log.info("{} OAuth MFA challenge created for userId={}", providerName, user.getId());
         } else {
-            String token = securityCenterService.issueSession(user, request, "Google sign-in").token();
+            String token = securityCenterService.issueSession(user, request, providerName + " sign-in").token();
             authCookieService.writeAuthCookie(request, response, token);
-            log.info("Google OAuth token generated for userId={}", user.getId());
+            log.info("{} OAuth token generated for userId={}", providerName, user.getId());
             redirectUrl = frontendBaseUrl() + "/oauth-callback";
         }
-        log.info("Google OAuth redirecting to frontend callback url={}", redirectUrl);
+        log.info("{} OAuth redirecting to frontend callback url={}", providerName, redirectUrl);
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 
@@ -203,6 +209,14 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
             return space > 0 ? name.substring(space + 1) : "";
         }
         return "";
+    }
+
+    private String providerName(String registrationId) {
+        if (registrationId == null || registrationId.isBlank()) return "OAuth";
+        if ("google".equalsIgnoreCase(registrationId)) return "Google";
+        if ("apple".equalsIgnoreCase(registrationId)) return "Apple";
+        String lower = registrationId.trim().toLowerCase();
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
     }
 
     private String frontendBaseUrl() {

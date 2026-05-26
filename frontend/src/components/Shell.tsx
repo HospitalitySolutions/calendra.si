@@ -114,6 +114,15 @@ function IconConfigGear() {
   )
 }
 
+function SidebarIconPlatformAdmin() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4Z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  )
+}
+
 export function Shell({ children }: PropsWithChildren) {
   return (
     <CalendarShellHeaderProvider>
@@ -133,7 +142,8 @@ function ShellInner({ children }: PropsWithChildren) {
     return null
   }
 
-  const isAdmin = user.role === 'ADMIN'
+  const isPlatformAdmin = user.role === 'SUPER_ADMIN'
+  const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
   const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const billingAllowed = hasBillingAccess(user.packageType)
@@ -495,6 +505,18 @@ function ShellInner({ children }: PropsWithChildren) {
         </header>
         <div className="mobile-nav-overlay-body">
           <div className="mobile-nav-overlay-body-primary">
+            {isPlatformAdmin && (
+              <NavLink
+                to="/platform-admin"
+                className={({ isActive }) => `mobile-nav-overlay-link mobile-nav-overlay-link--platform${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/platform-admin')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <SidebarIconPlatformAdmin />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('navPlatformAdmin')}</span>
+              </NavLink>
+            )}
             <NavLink
               to="/calendar"
               className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
@@ -1019,6 +1041,19 @@ function ShellInner({ children }: PropsWithChildren) {
       {avatarUploadInput}
       <div className="sidebar-shell">
         <aside className="sidebar">
+          {isPlatformAdmin && (
+            <NavLink
+              className={({ isActive }) => `sidebar-platform-admin sidebar-rail-link${isActive ? ' active' : ''}`}
+              to="/platform-admin"
+              title={t('navPlatformAdmin')}
+              aria-label={t('navPlatformAdmin')}
+            >
+              <span className="sidebar-rail-link-icon" aria-hidden>
+                <SidebarIconPlatformAdmin />
+              </span>
+              <span className="sidebar-rail-link-label">{t('navPlatformAdmin')}</span>
+            </NavLink>
+          )}
           <nav>
             <NavLink
               className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}

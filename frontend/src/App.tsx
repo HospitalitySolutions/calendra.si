@@ -231,19 +231,11 @@ export default function App() {
     return <Navigate to={pendingRegisterBillingDetailsPath} replace />
   }
 
-  if (user.role === 'SUPER_ADMIN') {
-    return (
-      <Routes>
-        <Route path="/" element={<Navigate to="/platform-admin" replace />} />
-        <Route path="/platform-admin" element={<PlatformAdminPage />} />
-        <Route path="*" element={<Navigate to="/platform-admin" replace />} />
-      </Routes>
-    )
-  }
-
+  const isPlatformAdmin = user.role === 'SUPER_ADMIN'
+  const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
   const billingAllowed = hasBillingAccess(user.packageType)
   const inboxAllowed = hasInboxAccess(user.packageType)
-  const canScanWalletEntitlements = user.role === 'ADMIN' || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
+  const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const fallbackRoute = getDefaultAllowedRoute(user.packageType)
 
   return (
@@ -262,7 +254,7 @@ export default function App() {
           />
           <Route
             path="/consultants"
-            element={user.role === 'ADMIN' ? <ConsultantsPage /> : <Navigate to={fallbackRoute} replace />}
+            element={isAdmin ? <ConsultantsPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route
             path="/my-profile"
@@ -276,14 +268,15 @@ export default function App() {
           <Route path="/configuration" element={<ConfigurationPage />} />
           <Route
             path="/session-types"
-            element={user.role === 'ADMIN' ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
+            element={isAdmin ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route path="/help" element={<HelpPage />} />
+          <Route path="/platform-admin" element={isPlatformAdmin ? <PlatformAdminPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/zoom/install" element={<ZoomInstallPage />} />
           <Route
             path="/security"
             element={
-              user.role === 'ADMIN' ? (
+              isAdmin ? (
                 <Navigate to="/configuration?tab=security" replace />
               ) : (
                 <SecurityPage />

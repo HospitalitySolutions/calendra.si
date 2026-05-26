@@ -15,6 +15,7 @@ const STORAGE_KEY = 'app-locale'
 const DICT: Record<AppLocale, Record<string, string>> = {
   en: {
     settingsGroup: 'Settings',
+    navPlatformAdmin: 'Platform admin',
     navHelp: 'Help',
     helpPageTitle: 'Help',
     helpPageSubtitle: 'The same short explanations as the question marks in the app, grouped by area.',
@@ -624,6 +625,7 @@ const DICT: Record<AppLocale, Record<string, string>> = {
   },
   sl: {
     settingsGroup: 'Nastavitve',
+    navPlatformAdmin: 'Platform admin',
     navHelp: 'Pomoč',
     helpPageTitle: 'Pomoč',
     helpPageSubtitle: 'Enaka kratka pojasnila kot pri vprašajih v aplikaciji, združena po območjih.',

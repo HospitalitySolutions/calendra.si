@@ -157,22 +157,17 @@ public class SecurityConfig {
             http.oauth2Login(oauth2 -> {
                 oauth2.successHandler(googleOAuth2SuccessHandler);
                 oauth2.failureHandler((request, response, exception) -> {
-                    String configuredRedirectUri = environment.getProperty(
-                            "spring.security.oauth2.client.registration.google.redirect-uri",
-                            "UNSET"
-                    );
                     log.warn(
-                            "Google OAuth login failed. path={}, query={}, redirectUri={}, exceptionType={}, message={}",
+                            "OAuth login failed. path={}, query={}, exceptionType={}, message={}",
                             request.getRequestURI(),
                             request.getQueryString(),
-                            configuredRedirectUri,
                             exception == null ? "n/a" : exception.getClass().getSimpleName(),
-                            exception == null ? "Google authentication failed." : exception.getMessage()
+                            exception == null ? "OAuth authentication failed." : exception.getMessage()
                     );
 
                     String message = exception != null && exception.getMessage() != null
                             ? exception.getMessage()
-                            : "Google authentication failed.";
+                            : "OAuth authentication failed.";
                     String encoded = URLEncoder.encode(message, StandardCharsets.UTF_8);
                     String frontendBaseUrl = environment.getProperty("APP_AUTH_FRONTEND_URL", "http://localhost:3000");
                     response.sendRedirect(frontendBaseUrl + "/login?oauth_error=" + encoded);

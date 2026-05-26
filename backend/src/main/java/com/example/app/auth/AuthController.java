@@ -117,15 +117,28 @@ public class AuthController {
 
         @GetMapping("/google")
         public void startGoogleLogin(HttpServletRequest request, HttpServletResponse response) throws IOException {
-                log.info("Google OAuth start requested. path={}, query={}", request.getRequestURI(), request.getQueryString());
+                startOAuthLogin("google", "Google", request, response);
+        }
+
+        @GetMapping("/apple")
+        public void startAppleLogin(HttpServletRequest request, HttpServletResponse response) throws IOException {
+                startOAuthLogin("apple", "Apple", request, response);
+        }
+
+        private void startOAuthLogin(String registrationId, String providerName, HttpServletRequest request, HttpServletResponse response) throws IOException {
+                log.info("{} OAuth start requested. path={}, query={}", providerName, request.getRequestURI(), request.getQueryString());
 
                 if (clientRegistrationRepository.isEmpty()) {
-                        log.warn("Google OAuth start blocked: ClientRegistrationRepository missing.");
-                        redirectOauthError(response, "Google login is not configured. Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET.");
+                        log.warn("{} OAuth start blocked: ClientRegistrationRepository missing.", providerName);
+                        redirectOauthError(response, providerName + " login is not configured. Check the OAuth environment variables.");
                         return;
                 }
 
                 if ("1".equals(request.getParameter("register"))) {
+                        if (!"google".equals(registrationId)) {
+                                redirectOauthError(response, providerName + " signup is not enabled yet. Use email/password or Google signup.");
+                                return;
+                        }
                         HttpSession session = request.getSession(false);
                         if (session == null || session.getAttribute("SIGNUP_PENDING") == null) {
                                 redirectOauthError(response, "Your signup session expired. Return to account setup and try again.");
@@ -136,15 +149,15 @@ public class AuthController {
 
                 OAuth2AuthorizationRequestResolver resolver =
                                 new DefaultOAuth2AuthorizationRequestResolver(clientRegistrationRepository.get(), "/oauth2/authorization");
-                OAuth2AuthorizationRequest authorizationRequest = resolver.resolve(request, "google");
+                OAuth2AuthorizationRequest authorizationRequest = resolver.resolve(request, registrationId);
                 if (authorizationRequest == null) {
-                        log.warn("Google OAuth start failed: resolver returned null authorization request.");
-                        redirectOauthError(response, "Google login configuration is invalid.");
+                        log.warn("{} OAuth start failed: resolver returned null authorization request for registrationId={}.", providerName, registrationId);
+                        redirectOauthError(response, providerName + " login configuration is invalid or missing.");
                         return;
                 }
 
                 String providerRedirectUri = extractQueryParam(authorizationRequest.getAuthorizationRequestUri(), "redirect_uri");
-                log.info("Google OAuth redirecting to provider. registrationId=google, providerRedirectUri={}", providerRedirectUri);
+                log.info("{} OAuth redirecting to provider. registrationId={}, providerRedirectUri={}", providerName, registrationId, providerRedirectUri);
                 authorizationRequestRepository.saveAuthorizationRequest(authorizationRequest, request, response);
                 response.sendRedirect(authorizationRequest.getAuthorizationRequestUri());
         }

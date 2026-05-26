@@ -240,6 +240,7 @@ export function LoginPage() {
           type="button"
           className="login-social-btn"
           onClick={() => {
+            setPostLoginRedirect(nextPath)
             window.location.assign('/api/auth/apple')
           }}
         >

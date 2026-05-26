@@ -18,8 +18,9 @@ spring:
     # Override with AWS_STAGING_SECRET_ID to force exact lookup (recommended: full ARN).
     import: optional:aws-secretsmanager:${AWS_STAGING_SECRET_ID:calendra-staging},optional:aws-secretsmanager:/${AWS_STAGING_SECRET_ID:calendra-staging}
   # Google login: put GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the calendra/staging JSON secret.
-  # Spring does not map those names to OAuth2 automatically; GoogleOAuthClientRegistrationConfig does.
-  # Optional: GOOGLE_OAUTH_REDIRECT_URI (default {baseUrl}/login/oauth2/code/{registrationId}).
+  # Apple login: put APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY or APPLE_PRIVATE_KEY_BASE64 in the secret.
+  # Spring does not map those flat names to OAuth2 automatically; GoogleOAuthClientRegistrationConfig does.
+  # Optional: GOOGLE_OAUTH_REDIRECT_URI / APPLE_OAUTH_REDIRECT_URI (default {baseUrl}/login/oauth2/code/{registrationId}).
   # Or use full Spring keys in the secret instead: spring.security.oauth2.client.registration.google.client-id, etc.
   cloud:
     aws:
