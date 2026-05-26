@@ -58,8 +58,6 @@ struct HomeView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                headerBlock
-                    .padding(.horizontal, 24)
                 bookingTabsRow
                     .padding(.horizontal, 24)
                 if filteredBookingCards.isEmpty {

@@ -257,20 +257,27 @@ private struct JoinCodePopup: View {
     let onCancel: () -> Void
     let onJoin: () -> Void
 
+    private var actionBlue: Color { Color(red: 0.09, green: 0.41, blue: 0.96) }
+    private var mutedBlue: Color { actionBlue.opacity(0.66) }
+    private var fieldLine: Color { actionBlue.opacity(0.22) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(isSl ? "Pridružitev s kodo ponudnika" : "Join with tenant code")
                 .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
+                .foregroundStyle(actionBlue)
             Text(isSl ? "Vnesite kodo, ki vam jo je posredoval ponudnik." : "Enter the code provided by the tenant.")
                 .font(.system(size: 14))
-                .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
+                .foregroundStyle(mutedBlue)
 
             HStack(spacing: 10) {
                 CodeModeGlyph()
+                    .foregroundStyle(actionBlue)
                     .frame(width: 26, height: 20)
                 TextField("e.g. TEN-7X9K", text: $tenantCode)
-                    .font(.system(size: 15))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(actionBlue)
+                    .tint(actionBlue)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
             }
@@ -281,7 +288,7 @@ private struct JoinCodePopup: View {
                     .fill(Color.white)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
+                            .stroke(fieldLine, lineWidth: 1)
                     )
             )
 
@@ -289,7 +296,7 @@ private struct JoinCodePopup: View {
                 Button(action: onCancel) {
                     Text(isSl ? "Prekliči" : "Cancel")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
+                        .foregroundStyle(actionBlue)
                         .frame(maxWidth: .infinity)
                         .frame(height: 44)
                         .background(
@@ -297,7 +304,7 @@ private struct JoinCodePopup: View {
                                 .fill(Color.white)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .stroke(Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
+                                        .stroke(fieldLine, lineWidth: 1)
                                 )
                         )
                 }
@@ -309,7 +316,7 @@ private struct JoinCodePopup: View {
                         .frame(height: 50)
                         .background(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color(red: 0.086, green: 0.408, blue: 0.957))
+                                .fill(actionBlue)
                         )
                 }
             }

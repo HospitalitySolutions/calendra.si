@@ -61,6 +61,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -737,6 +738,10 @@ private fun JoinWithCodePopup(
     isSl: Boolean,
     onJoin: () -> Unit
 ) {
+    val actionBlue = Color(0xFF1568F4)
+    val mutedBlue = actionBlue.copy(alpha = 0.66f)
+    val fieldLine = actionBlue.copy(alpha = 0.22f)
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -745,9 +750,9 @@ private fun JoinWithCodePopup(
             shadowElevation = 18.dp
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text(if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code", color = TitleText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code", color = actionBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text(if (isSl) "Vnesite kodo, ki vam jo je posredoval ponudnik." else "Enter the code provided by the tenant.", color = SoftText, fontSize = 14.sp)
+                Text(if (isSl) "Vnesite kodo, ki vam jo je posredoval ponudnik." else "Enter the code provided by the tenant.", color = mutedBlue, fontSize = 14.sp)
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = code,
@@ -756,7 +761,18 @@ private fun JoinWithCodePopup(
                     singleLine = true,
                     placeholder = { Text("e.g. TEN-7X9K", fontSize = 14.sp) },
                     leadingIcon = { CodeGlyph() },
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = actionBlue,
+                        unfocusedBorderColor = fieldLine,
+                        focusedTextColor = actionBlue,
+                        unfocusedTextColor = actionBlue,
+                        cursorColor = actionBlue,
+                        focusedLeadingIconColor = actionBlue,
+                        unfocusedLeadingIconColor = actionBlue.copy(alpha = 0.74f),
+                        focusedPlaceholderColor = actionBlue.copy(alpha = 0.58f),
+                        unfocusedPlaceholderColor = actionBlue.copy(alpha = 0.58f)
+                    )
                 )
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -764,16 +780,17 @@ private fun JoinWithCodePopup(
                         modifier = Modifier.weight(1f).height(50.dp).clickable(onClick = onDismiss),
                         shape = RoundedCornerShape(16.dp),
                         color = Color.White,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, fieldLine)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(if (isSl) "Prekliči" else "Cancel", color = CalendraBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(if (isSl) "Prekliči" else "Cancel", color = actionBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     Button(
                         onClick = onJoin,
                         modifier = Modifier.weight(1f).height(50.dp),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = actionBlue, contentColor = Color.White)
                     ) {
                         Text(if (isSl) "Pridruži se" else "Join", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }

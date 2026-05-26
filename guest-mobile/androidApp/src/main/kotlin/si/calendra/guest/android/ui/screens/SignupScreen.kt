@@ -466,8 +466,8 @@ private fun SignupTextField(
                     .padding(start = 20.dp, end = if (trailingIcon == null) 0.dp else 12.dp),
                 textStyle = TextStyle(
                     color = SignupNavy,
-                    fontSize = 13.sp,
-                    lineHeight = 17.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
                     fontWeight = FontWeight.Normal
                 ),
                 cursorBrush = SolidColor(SignupBlue),
@@ -480,8 +480,8 @@ private fun SignupTextField(
                             Text(
                                 text = placeholder,
                                 color = SignupMuted,
-                                fontSize = 13.sp,
-                                lineHeight = 17.sp,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp,
                                 fontWeight = FontWeight.Normal
                             )
                         }

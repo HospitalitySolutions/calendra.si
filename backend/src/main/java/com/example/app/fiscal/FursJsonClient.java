@@ -6,6 +6,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
@@ -43,14 +46,65 @@ public class FursJsonClient {
                         response.statusCode()
                 );
             }
-            JsonNode json = JSON.readTree(response.body());
-            String eor = firstText(json, "EOR", "eor");
-            String qr = firstText(json, "QR", "qr");
-            String messageId = firstText(json, "MessageID", "messageId", "UniqueInvoiceID", "uniqueInvoiceId");
-            return new FiscalResponse(true, null, eor, qr, messageId, null, body, response.body(), response.statusCode());
+
+            ParsedFursResponse parsed = parseFursResponseBody(response.body());
+            JsonNode responseJson = parsed.payloadJson() == null ? parsed.outerJson() : parsed.payloadJson();
+            String responseBodyForStorage = parsed.payloadText() == null || parsed.payloadText().isBlank()
+                    ? response.body()
+                    : parsed.payloadText();
+
+            String messageId = firstText(responseJson, "MessageID", "messageId");
+            String error = extractFiscalError(responseJson);
+            if (error != null && !error.isBlank()) {
+                return new FiscalResponse(false, null, null, null, messageId, error, body, responseBodyForStorage, response.statusCode());
+            }
+
+            // FURS returns invoice confirmation as a JWS token. UniqueInvoiceID is inside the decoded JWS payload.
+            // In Calendra this is stored as EOR.
+            String eor = firstText(responseJson, "UniqueInvoiceID", "uniqueInvoiceId", "EOR", "eor");
+            String qr = firstText(responseJson, "QR", "qr");
+            return new FiscalResponse(true, null, eor, qr, messageId, null, body, responseBodyForStorage, response.statusCode());
         } catch (Exception e) {
             return new FiscalResponse(false, null, null, null, null, buildErrorMessage(e), null, null, null);
         }
+    }
+
+    private ParsedFursResponse parseFursResponseBody(String rawBody) throws Exception {
+        JsonNode outerJson = JSON.readTree(rawBody);
+        String responseToken = firstText(outerJson, "token");
+        if (responseToken == null || responseToken.isBlank()) {
+            return new ParsedFursResponse(outerJson, null, null);
+        }
+
+        String payloadText = decodeJwsPayload(responseToken);
+        if (payloadText == null || payloadText.isBlank()) {
+            return new ParsedFursResponse(outerJson, null, null);
+        }
+        JsonNode payloadJson = JSON.readTree(payloadText);
+        return new ParsedFursResponse(outerJson, payloadJson, payloadText);
+    }
+
+    private String decodeJwsPayload(String compactJws) {
+        String[] parts = compactJws.split("\\.");
+        if (parts.length < 2 || parts[1].isBlank()) {
+            return null;
+        }
+        byte[] decoded = Base64.getUrlDecoder().decode(parts[1]);
+        return new String(decoded, StandardCharsets.UTF_8);
+    }
+
+    private String extractFiscalError(JsonNode json) {
+        if (json == null) return null;
+        JsonNode error = json.findValue("Error");
+        if (error == null || error.isNull()) return null;
+        String code = firstText(error, "ErrorCode", "errorCode");
+        String message = firstText(error, "ErrorMessage", "errorMessage");
+        if ((code == null || code.isBlank()) && (message == null || message.isBlank())) {
+            return error.asText(null);
+        }
+        if (code == null || code.isBlank()) return message;
+        if (message == null || message.isBlank()) return code;
+        return code + ": " + message;
     }
 
     private String firstText(JsonNode node, String... fields) {
@@ -90,4 +144,10 @@ public class FursJsonClient {
         }
         return e.getClass().getSimpleName();
     }
+
+    private record ParsedFursResponse(
+            JsonNode outerJson,
+            JsonNode payloadJson,
+            String payloadText
+    ) {}
 }

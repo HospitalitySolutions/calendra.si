@@ -74,26 +74,32 @@ public class FiscalizationService {
                     companyId,
                     settings.certificatePassword()
             );
+            boolean invoiceConfirmed = response.success() && response.eor() != null && !response.eor().isBlank();
+            String responseError = response.error();
+            if (response.success() && !invoiceConfirmed) {
+                responseError = "Invoice response did not include EOR/UniqueInvoiceID.";
+            }
             trace.add(logStep(
-                    response.success() ? "Response received from tax authority" : "Tax authority returned an error",
-                    response.success() ? "ok" : "error",
-                    response.success()
-                            ? ("Invoice confirmed." + (response.eor() == null ? "" : " EOR: " + response.eor()))
-                            : (response.error() == null ? "Fiscal validation failed." : response.error())
+                    invoiceConfirmed ? "Response received from tax authority" : "Tax authority returned an error",
+                    invoiceConfirmed ? "ok" : "error",
+                    invoiceConfirmed
+                            ? ("Invoice confirmed. EOR: " + response.eor())
+                            : (responseError == null || responseError.isBlank() ? "Fiscal validation failed." : responseError)
             ));
             bill.setFiscalZoi(protectedId);
             bill.setFiscalMessageId(response.messageId());
-            bill.setFiscalQr(response.qr());
+            bill.setFiscalQr(invoiceConfirmed ? FiscalQrPayloadBuilder.build(protectedId, settings.taxNumber(), issueDateTime) : null);
             bill.setFiscalRequestBody(response.requestBody());
             bill.setFiscalResponseBody(response.responseBody());
             bill.setFiscalSentAt(OffsetDateTime.now(ZoneOffset.UTC));
-            if (response.success()) {
+            if (invoiceConfirmed) {
                 bill.setFiscalStatus(BillFiscalStatus.SENT);
                 bill.setFiscalEor(response.eor());
                 bill.setFiscalLastError(null);
             } else {
                 bill.setFiscalStatus(BillFiscalStatus.FAILED);
-                bill.setFiscalLastError(response.error());
+                bill.setFiscalEor(null);
+                bill.setFiscalLastError(responseError);
             }
         } catch (Exception e) {
             trace.add(logStep("Fiscal sending failed", "error", e.getMessage() == null ? "Unexpected error." : e.getMessage()));
@@ -127,7 +133,7 @@ public class FiscalizationService {
         Map<String, Object> businessPremise = new LinkedHashMap<>();
         businessPremise.put("TaxNumber", parseLongOrOriginal(settings.taxNumber()));
         businessPremise.put("BusinessPremiseID", settings.businessPremiseId());
-        businessPremise.put("ValidityDate", LocalDate.now(ZoneOffset.UTC).toString());
+        businessPremise.put("ValidityDate", LocalDate.now(ZoneOffset.UTC).atStartOfDay().atOffset(ZoneOffset.UTC).toString());
 
         Map<String, Object> address = new LinkedHashMap<>();
         address.put("Street", settings.companyAddress());
@@ -151,7 +157,12 @@ public class FiscalizationService {
 
         List<Map<String, Object>> suppliers = new ArrayList<>();
         Map<String, Object> supplier = new LinkedHashMap<>();
-        supplier.put("TaxNumber", parseLongOrOriginal(settings.softwareSupplierTaxNumber()));
+        Object supplierTaxNumber = parseLongOrOriginal(settings.softwareSupplierTaxNumber());
+        if (supplierTaxNumber instanceof String value && value.isBlank()) {
+            supplier.put("TaxNumber", parseLongOrOriginal(settings.taxNumber()));
+        } else {
+            supplier.put("TaxNumber", supplierTaxNumber);
+        }
         suppliers.add(supplier);
         businessPremise.put("SoftwareSupplier", suppliers);
 

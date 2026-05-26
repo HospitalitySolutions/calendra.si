@@ -3,12 +3,18 @@ package si.calendra.guest.android.ui
 import android.util.Log
 import android.content.Intent
 import android.content.ActivityNotFoundException
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +22,9 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.NotificationsNone
@@ -25,6 +34,7 @@ import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Business
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PersonOutline
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Wallet
 import androidx.compose.material3.*
@@ -34,11 +44,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,6 +90,12 @@ import si.calendra.guest.shared.network.GuestSessionStore
 import java.time.OffsetDateTime
 import androidx.core.content.FileProvider
 
+private enum class TenantPickerTarget {
+    Calendar,
+    Wallet,
+    Inbox
+}
+
 private sealed class RootRoute(val route: String) {
     data object Splash : RootRoute("splash")
     data object Welcome : RootRoute("welcome")
@@ -86,6 +104,7 @@ private sealed class RootRoute(val route: String) {
     data object VerifyEmailCode : RootRoute("verify-email-code")
     data object JoinTenant : RootRoute("join-tenant")
     data object Home : RootRoute("home")
+    data object Calendar : RootRoute("calendar")
     data object Book : RootRoute("book")
     data object Reschedule : RootRoute("reschedule")
     data object Wallet : RootRoute("wallet")
@@ -127,6 +146,7 @@ private fun logLinkedTenantsDebug(source: String, tenants: List<TenantSummary>) 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GuestMobileRoot() {
     val container = remember { GuestAppContainer(GuestApiConfig(baseUrl = BuildConfig.API_BASE_URL)) }
@@ -137,6 +157,8 @@ fun GuestMobileRoot() {
     val context = LocalContext.current
     val preferencesStore = remember(context) { GuestPreferencesStore(context) }
     var savedCards by remember { mutableStateOf(preferencesStore.loadSavedCards()) }
+    var headerAvatarBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val headerAvatarInitials = headerProfileInitials(state.uiState.session?.guestUser)
     val activity = context as? ComponentActivity
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -148,6 +170,8 @@ fun GuestMobileRoot() {
     var appUiLocale by remember { mutableStateOf(preferencesStore.loadAppUiLocale()) }
     var showWalletTenantPicker by remember { mutableStateOf(false) }
     var walletTenantPickerDraftId by remember { mutableStateOf<String?>(null) }
+    var calendarSelectedTenantId by remember { mutableStateOf<String?>(null) }
+    var tenantPickerTarget by remember { mutableStateOf(TenantPickerTarget.Wallet) }
     var lastWalletOffersRefreshTenantId by remember { mutableStateOf<String?>(null) }
     var lastWalletOffersRefreshAtMs by remember { mutableStateOf(0L) }
     var rescheduleContext by remember { mutableStateOf<BookingRescheduleContext?>(null) }
@@ -168,6 +192,20 @@ fun GuestMobileRoot() {
                 }
                     .onFailure { statusMessage = it.message ?: "Tenant join failed" }
             }
+        }
+    }
+
+    LaunchedEffect(state.uiState.session?.guestUser?.id, state.uiState.session?.guestUser?.profilePicturePath) {
+        val path = state.uiState.session?.guestUser?.profilePicturePath?.trim().orEmpty()
+        headerAvatarBitmap = if (path.isNotBlank()) {
+            withContext(Dispatchers.IO) {
+                runCatching { repo.downloadProfilePicture() }
+                    .getOrNull()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+            }
+        } else {
+            null
         }
     }
 
@@ -336,6 +374,7 @@ fun GuestMobileRoot() {
         val currentWalletTenantId = state.uiState.walletSelectedTenantId
             ?.takeIf { selected -> tenants.any { it.companyId == selected } }
             ?: tenants.first().companyId
+        tenantPickerTarget = TenantPickerTarget.Wallet
         walletTenantPickerDraftId = currentWalletTenantId
         showWalletTenantPicker = true
     }
@@ -739,9 +778,11 @@ fun GuestMobileRoot() {
                 GuestTabsScaffold(
                     current = RootRoute.Home.route,
                     languageCode = appUiLocale,
-                    utilityBarVisible = false,
+                    utilityBarVisible = true,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                    profileAvatarBitmap = headerAvatarBitmap,
+                    profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                     onScanTenant = {
                         val options = ScanOptions().apply {
@@ -753,7 +794,8 @@ fun GuestMobileRoot() {
                         qrScannerLauncher.launch(options)
                     },
                     onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
-                    onTabSelected = ::requestTabNavigation
+                    onTabSelected = ::requestTabNavigation,
+                    leading = { ProfileTopLogo() }
                 ) { innerModifier ->
                     HomeScreen(
                         modifier = innerModifier,
@@ -784,6 +826,59 @@ fun GuestMobileRoot() {
                                     .onSuccess { statusMessage = "Booking cancelled" }
                                     .onFailure { statusMessage = it.message ?: "Booking cancellation failed" }
                             }
+                        }
+                    )
+                }
+            }
+            composable(RootRoute.Calendar.route) {
+                val calendarTenantLabel = calendarSelectedTenantId
+                    ?.let { selectedId ->
+                        state.uiState.tenantDashboards[selectedId]?.tenant?.companyName
+                            ?: state.uiState.linkedTenants.firstOrNull { it.companyId == selectedId }?.companyName
+                    }
+                    ?: if (appUiLocale.lowercase().startsWith("sl")) "Vsi ponudniki" else "All providers"
+                GuestTabsScaffold(
+                    current = RootRoute.Calendar.route,
+                    languageCode = appUiLocale,
+                    utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
+                    unreadNotificationCount = unreadBellCount(state.uiState),
+                    unreadInboxCount = unreadInboxCount(state.uiState),
+                    profileAvatarBitmap = headerAvatarBitmap,
+                    profileInitials = headerAvatarInitials,
+                    onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
+                    onScanTenant = {
+                        val options = ScanOptions().apply {
+                            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                            setPrompt("Scan tenancy QR code")
+                            setBeepEnabled(false)
+                            setOrientationLocked(true)
+                        }
+                        qrScannerLauncher.launch(options)
+                    },
+                    onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
+                    onTabSelected = ::requestTabNavigation,
+                    leading = { ProfileTopLogo() },
+                    tenantSelectorLabel = calendarTenantLabel,
+                    onTenantSelectorClick = {
+                        tenantPickerTarget = TenantPickerTarget.Calendar
+                        walletTenantPickerDraftId = calendarSelectedTenantId
+                        showWalletTenantPicker = true
+                    }
+                ) { innerModifier ->
+                    CalendarScreen(
+                        modifier = innerModifier,
+                        bookings = aggregatedCalendarBookings(state.uiState),
+                        tenants = state.uiState.linkedTenants,
+                        languageCode = appUiLocale,
+                        selectedTenantId = calendarSelectedTenantId,
+                        onOpenBooking = { booking ->
+                            rescheduleContext = BookingRescheduleContext(
+                                bookingId = booking.id,
+                                companyId = booking.companyId,
+                                sessionTypeId = booking.sessionTypeId,
+                                sessionTypeName = booking.title
+                            )
+                            navController.navigate(RootRoute.Reschedule.route) { launchSingleTop = true }
                         }
                     )
                 }
@@ -967,9 +1062,11 @@ fun GuestMobileRoot() {
                 GuestTabsScaffold(
                     current = RootRoute.Wallet.route,
                     languageCode = appUiLocale,
-                    utilityBarVisible = false,
+                    utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                    profileAvatarBitmap = headerAvatarBitmap,
+                    profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                     onScanTenant = {
                         val options = ScanOptions().apply {
@@ -981,7 +1078,18 @@ fun GuestMobileRoot() {
                         qrScannerLauncher.launch(options)
                     },
                     onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
-                    onTabSelected = ::requestTabNavigation
+                    onTabSelected = ::requestTabNavigation,
+                    leading = { ProfileTopLogo() },
+                    tenantSelectorLabel = walletTenantName
+                        ?: state.uiState.linkedTenants.firstOrNull { it.companyId == walletTenantId }?.companyName
+                        ?: state.uiState.linkedTenants.firstOrNull()?.companyName
+                        ?: if (appUiLocale.lowercase().startsWith("sl")) "Izberi ponudnika" else "Select tenant",
+                    onTenantSelectorClick = {
+                        tenantPickerTarget = TenantPickerTarget.Wallet
+                        walletTenantPickerDraftId = walletTenantId
+                            ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                        showWalletTenantPicker = true
+                    }
                 ) { innerModifier ->
                     Box(innerModifier) {
                         WalletScreen(
@@ -1087,6 +1195,8 @@ fun GuestMobileRoot() {
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                    profileAvatarBitmap = headerAvatarBitmap,
+                    profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                     onScanTenant = {
                         val options = ScanOptions().apply {
@@ -1099,16 +1209,16 @@ fun GuestMobileRoot() {
                     },
                     onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                     onTabSelected = ::requestTabNavigation,
-                    tenantPublicPhone = inboxTenantPhone,
-                    leading = {
-                        InboxTenantPickerButton(
-                            tenants = state.uiState.linkedTenants,
-                            selectedTenantId = state.uiState.selectedTenantId,
-                            displayTitle = activeDashboard?.tenant?.companyName,
-                            onSelect = { tenantId ->
-                                state.uiState = state.uiState.copy(selectedTenantId = tenantId)
-                            }
-                        )
+                    leading = { ProfileTopLogo() },
+                    tenantSelectorLabel = activeDashboard?.tenant?.companyName
+                        ?: state.uiState.linkedTenants.firstOrNull { it.companyId == activeTenantId }?.companyName
+                        ?: state.uiState.linkedTenants.firstOrNull()?.companyName
+                        ?: if (appUiLocale.lowercase().startsWith("sl")) "Izberi ponudnika" else "Select tenant",
+                    onTenantSelectorClick = {
+                        tenantPickerTarget = TenantPickerTarget.Inbox
+                        walletTenantPickerDraftId = activeTenantId
+                            ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                        showWalletTenantPicker = true
                     }
                 ) { innerModifier ->
                     LaunchedEffect(activeTenantId) {
@@ -1278,6 +1388,8 @@ fun GuestMobileRoot() {
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                    profileAvatarBitmap = headerAvatarBitmap,
+                    profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                     onScanTenant = {
                         val options = ScanOptions().apply {
@@ -1320,6 +1432,9 @@ fun GuestMobileRoot() {
                                 state.uiState = state.uiState.copy(
                                     session = state.uiState.session?.copy(guestUser = settings.guestUser)
                                 )
+                                headerAvatarBitmap = bytes
+                                    .takeIf { it.isNotEmpty() }
+                                    ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                                 settings
                             },
                             onDownloadProfilePicture = { repo.downloadProfilePicture() },
@@ -1342,71 +1457,69 @@ fun GuestMobileRoot() {
             SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(bottom = 104.dp))
         }
         if (showWalletTenantPicker) {
-            AlertDialog(
+            val selectedTenantId = when (tenantPickerTarget) {
+                TenantPickerTarget.Calendar -> walletTenantPickerDraftId ?: calendarSelectedTenantId
+                TenantPickerTarget.Wallet -> walletTenantPickerDraftId
+                    ?: state.uiState.walletSelectedTenantId
+                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                TenantPickerTarget.Inbox -> walletTenantPickerDraftId
+                    ?: state.uiState.selectedTenantId
+                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+            }
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ModalBottomSheet(
                 onDismissRequest = { showWalletTenantPicker = false },
-                title = { Text("Select tenancy") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Choose a subscribed tenant before viewing tickets or buying memberships.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        state.uiState.linkedTenants.forEach { tenant ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { walletTenantPickerDraftId = tenant.companyId }
-                                    .padding(horizontal = 6.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                RadioButton(
-                                    selected = walletTenantPickerDraftId == tenant.companyId,
-                                    onClick = { walletTenantPickerDraftId = tenant.companyId }
-                                )
-                                Column {
-                                    Text(
-                                        tenant.companyName,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    tenant.publicCity?.takeIf { it.isNotBlank() }?.let { city ->
-                                        Text(
-                                            city,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                sheetState = sheetState,
+                containerColor = Color.White,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                dragHandle = {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 10.dp, bottom = 4.dp)
+                            .width(48.dp)
+                            .height(5.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color(0xFF124C9D).copy(alpha = 0.28f))
+                    )
+                }
+            ) {
+                TenantSelectionBottomSheetContent(
+                    tenants = state.uiState.linkedTenants,
+                    selectedTenantId = selectedTenantId,
+                    languageCode = appUiLocale,
+                    allowAllTenants = tenantPickerTarget == TenantPickerTarget.Calendar,
+                    onSelect = { tenantId ->
+                        walletTenantPickerDraftId = tenantId
+                        showWalletTenantPicker = false
+                        when (tenantPickerTarget) {
+                            TenantPickerTarget.Calendar -> {
+                                calendarSelectedTenantId = tenantId
+                                navigateToTab(RootRoute.Calendar.route)
+                            }
+                            TenantPickerTarget.Wallet -> {
+                                tenantId?.let { resolvedTenantId ->
+                                    state.uiState = state.uiState.copy(walletSelectedTenantId = resolvedTenantId)
+                                    refreshWalletOffersIfNeeded(resolvedTenantId)
+                                    navigateToTab(RootRoute.Wallet.route)
+                                }
+                            }
+                            TenantPickerTarget.Inbox -> {
+                                tenantId?.let { resolvedTenantId ->
+                                    state.uiState = state.uiState.copy(selectedTenantId = resolvedTenantId)
+                                    navigateToTab(RootRoute.Inbox.route)
+                                    scope.launch { runCatching { refreshTenant(resolvedTenantId) } }
                                 }
                             }
                         }
+                    },
+                    onAddTenant = {
+                        showWalletTenantPicker = false
+                        navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true }
                     }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            val selectedTenantId = walletTenantPickerDraftId
-                                ?: state.uiState.linkedTenants.firstOrNull()?.companyId
-                            if (selectedTenantId != null) {
-                                state.uiState = state.uiState.copy(walletSelectedTenantId = selectedTenantId)
-                            }
-                            showWalletTenantPicker = false
-                            refreshWalletOffersIfNeeded(selectedTenantId)
-                            navigateToTab(RootRoute.Wallet.route)
-                        }
-                    ) {
-                        Text("Continue to Wallet")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showWalletTenantPicker = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
+                )
+            }
         }
+
         if (bootstrappingSession) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -1432,12 +1545,17 @@ private fun GuestTabsScaffold(
     utilityBarVisible: Boolean,
     unreadNotificationCount: Int,
     unreadInboxCount: Int,
+    profileAvatarBitmap: Bitmap? = null,
+    profileInitials: String = "•",
     onAddTenant: () -> Unit,
     onScanTenant: () -> Unit,
     onOpenNotifications: () -> Unit,
     onTabSelected: (String) -> Unit,
     leading: (@Composable () -> Unit)? = null,
     tenantPublicPhone: String? = null,
+    showPhoneAction: Boolean = false,
+    tenantSelectorLabel: String? = null,
+    onTenantSelectorClick: (() -> Unit)? = null,
     content: @Composable (Modifier) -> Unit
 ) {
     Scaffold(
@@ -1463,10 +1581,19 @@ private fun GuestTabsScaffold(
                     onAddTenant = onAddTenant,
                     onScanTenant = onScanTenant,
                     onOpenNotifications = onOpenNotifications,
+                    onOpenProfile = { onTabSelected(RootRoute.Profile.route) },
                     leading = leading,
                     tenantPublicPhone = tenantPublicPhone,
-                    transparentBackground = current == RootRoute.Inbox.route || current == RootRoute.Profile.route,
-                    showAddAction = current != RootRoute.Profile.route
+                    showPhoneAction = showPhoneAction,
+                    profileAvatarBitmap = profileAvatarBitmap,
+                    profileInitials = profileInitials,
+                    showProfileAction = current == RootRoute.Home.route || current == RootRoute.Calendar.route || current == RootRoute.Wallet.route || current == RootRoute.Inbox.route || current == RootRoute.Profile.route,
+                    profileSelected = current == RootRoute.Profile.route,
+                    transparentBackground = current == RootRoute.Inbox.route || current == RootRoute.Profile.route || current == RootRoute.Home.route || current == RootRoute.Wallet.route || current == RootRoute.Calendar.route,
+                    showAddAction = current != RootRoute.Profile.route && (tenantSelectorLabel != null || leading == null || current == RootRoute.Home.route),
+                    showAddLabel = current == RootRoute.Home.route || tenantSelectorLabel != null,
+                    addLabelOverride = tenantSelectorLabel,
+                    onAddLabelClickOverride = onTenantSelectorClick
                 )
             }
             content(Modifier.weight(1f))
@@ -1481,13 +1608,22 @@ private fun GuestUtilityTopBar(
     onAddTenant: () -> Unit,
     onScanTenant: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenProfile: () -> Unit,
     leading: (@Composable () -> Unit)? = null,
     tenantPublicPhone: String? = null,
+    showPhoneAction: Boolean = false,
+    profileAvatarBitmap: Bitmap? = null,
+    profileInitials: String = "•",
+    showProfileAction: Boolean = false,
+    profileSelected: Boolean = false,
     transparentBackground: Boolean = false,
-    showAddAction: Boolean = true
+    showAddAction: Boolean = true,
+    showAddLabel: Boolean = false,
+    addLabelOverride: String? = null,
+    onAddLabelClickOverride: (() -> Unit)? = null
 ) {
     val isSl = languageCode.lowercase().startsWith("sl")
-    val hasPhoneAction = leading != null
+    val hasPhoneAction = showPhoneAction && leading != null
     val context = LocalContext.current
     var addMenuExpanded by remember { mutableStateOf(false) }
     val dialable = !tenantPublicPhone.isNullOrBlank() &&
@@ -1507,7 +1643,9 @@ private fun GuestUtilityTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leading != null) {
-                Box(modifier = Modifier.widthIn(max = 170.dp)) { leading() }
+                Box(modifier = Modifier.weight(1f)) {
+                    Box(modifier = Modifier.widthIn(max = 132.dp)) { leading() }
+                }
             } else {
                 Spacer(Modifier.weight(1f))
             }
@@ -1527,34 +1665,76 @@ private fun GuestUtilityTopBar(
                         )
                     }
                 } else if (showAddAction) {
-                    Box {
-                        IconButton(
-                            onClick = { addMenuExpanded = true },
-                            modifier = Modifier.size(44.dp)
+                    if (showAddLabel) {
+                        val label = addLabelOverride?.takeIf { it.isNotBlank() }
+                            ?: if (isSl) "Dodaj ponudnika" else "Add tenant"
+                        val isTenantSelector = onAddLabelClickOverride != null && addLabelOverride != null
+                        OutlinedButton(
+                            onClick = onAddLabelClickOverride ?: onAddTenant,
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.2.dp, BottomTabAccent),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.Transparent,
+                                contentColor = BottomTabAccent
+                            ),
+                            modifier = Modifier
+                                .height(34.dp)
+                                .widthIn(max = 128.dp)
                         ) {
                             Icon(
-                                Icons.Rounded.Add,
-                                contentDescription = if (isSl) "Dodaj ponudnika" else "Add tenancy",
-                                modifier = Modifier.size(24.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
+                                Icons.Rounded.PersonOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
                             )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                label,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (isTenantSelector) {
+                                Spacer(Modifier.width(2.dp))
+                                Icon(
+                                    Icons.Rounded.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
                         }
-                        DropdownMenu(expanded = addMenuExpanded, onDismissRequest = { addMenuExpanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text(if (isSl) "Ročno dodaj kodo" else "Add code manually") },
-                                onClick = {
-                                    addMenuExpanded = false
-                                    onAddTenant()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (isSl) "QR skeniranje" else "QR scan") },
-                                leadingIcon = { Icon(Icons.Rounded.QrCodeScanner, contentDescription = null) },
-                                onClick = {
-                                    addMenuExpanded = false
-                                    onScanTenant()
-                                }
-                            )
+                    } else {
+                        Box {
+                            IconButton(
+                                onClick = { addMenuExpanded = true },
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Add,
+                                    contentDescription = if (isSl) "Dodaj ponudnika" else "Add tenancy",
+                                    modifier = Modifier.size(24.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            DropdownMenu(expanded = addMenuExpanded, onDismissRequest = { addMenuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isSl) "Ročno dodaj kodo" else "Add code manually") },
+                                    onClick = {
+                                        addMenuExpanded = false
+                                        onAddTenant()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (isSl) "QR skeniranje" else "QR scan") },
+                                    leadingIcon = { Icon(Icons.Rounded.QrCodeScanner, contentDescription = null) },
+                                    onClick = {
+                                        addMenuExpanded = false
+                                        onScanTenant()
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -1567,19 +1747,88 @@ private fun GuestUtilityTopBar(
                 ) {
                     IconButton(
                         onClick = onOpenNotifications,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             Icons.Rounded.NotificationsNone,
                             contentDescription = if (isSl) "Obvestila" else "Notifications",
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(22.dp),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
+                if (showProfileAction) {
+                    HeaderProfileButton(
+                        avatarBitmap = profileAvatarBitmap,
+                        initials = profileInitials,
+                        languageCode = languageCode,
+                        selected = profileSelected,
+                        onOpenProfile = onOpenProfile
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun HeaderProfileButton(
+    avatarBitmap: Bitmap?,
+    initials: String,
+    languageCode: String,
+    selected: Boolean,
+    onOpenProfile: () -> Unit
+) {
+    val isSl = languageCode.lowercase().startsWith("sl")
+    IconButton(
+        onClick = onOpenProfile,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 3.dp,
+            border = BorderStroke(1.2.dp, if (selected) BottomTabAccent else Color.White.copy(alpha = 0.9f)),
+            modifier = Modifier.size(34.dp)
+        ) {
+            if (avatarBitmap != null) {
+                Image(
+                    bitmap = avatarBitmap.asImageBitmap(),
+                    contentDescription = if (isSl) "Profil" else "Profile",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFFEAF3FF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        initials.take(2).ifBlank { "•" },
+                        fontSize = if (initials.length > 1) 11.sp else 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BottomTabAccent
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun headerProfileInitials(user: GuestUser?): String {
+    val first = user?.firstName.orEmpty().trim()
+    val last = user?.lastName.orEmpty().trim()
+    val combined = listOfNotNull(first.firstOrNull(), last.firstOrNull())
+        .joinToString("") { it.uppercaseChar().toString() }
+    if (combined.isNotEmpty()) return combined
+    return (first.firstOrNull() ?: user?.email.orEmpty().firstOrNull())
+        ?.uppercaseChar()
+        ?.toString()
+        ?: "•"
 }
 
 @Composable
@@ -1599,9 +1848,8 @@ private fun InboxTenantPickerButton(
     tenants: List<si.calendra.guest.shared.models.TenantSummary>,
     selectedTenantId: String?,
     displayTitle: String? = null,
-    onSelect: (String) -> Unit
+    onClick: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
     val selected = tenants.firstOrNull { it.companyId == selectedTenantId } ?: tenants.firstOrNull()
     val fallbackLabel = selected?.companyName ?: "Select tenancy"
     val primaryLabel = displayTitle
@@ -1612,75 +1860,439 @@ private fun InboxTenantPickerButton(
         else -> selected?.let { inboxTenantSubtitle(it) }
     }?.takeIf { it.isNotBlank() && !it.equals(primaryLabel, ignoreCase = true) }
 
-    Box {
-        Row(
-            modifier = Modifier
-                .clickable(enabled = tenants.isNotEmpty()) { expanded = true }
-                .heightIn(min = 52.dp)
-                .padding(start = 4.dp, end = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Row(
+        modifier = Modifier
+            .clickable(enabled = tenants.isNotEmpty(), onClick = onClick)
+            .heightIn(min = 52.dp)
+            .padding(start = 4.dp, end = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(44.dp),
+            shape = CircleShape,
+            color = BottomTabAccent,
+            shadowElevation = 6.dp
         ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
-                color = BottomTabAccent,
-                shadowElevation = 6.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = inboxTenantIcon(selected?.tenantType),
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Column(
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.widthIn(max = 210.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = primaryLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF071D3A),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 170.dp)
-                    )
-                    Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = Color(0xFF071D3A)
-                    )
-                }
-                subtitle?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF607188),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = inboxTenantIcon(selected?.tenantType),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            tenants.forEach { tenant ->
-                DropdownMenuItem(
-                    text = { Text(tenant.companyName) },
-                    onClick = {
-                        expanded = false
-                        onSelect(tenant.companyId)
-                    }
+        Column(
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.widthIn(max = 210.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = primaryLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF071D3A),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 170.dp)
+                )
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color(0xFF071D3A)
+                )
+            }
+            subtitle?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF607188),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
     }
 }
+
+@Composable
+private fun TenantSelectionBottomSheetContent(
+    tenants: List<si.calendra.guest.shared.models.TenantSummary>,
+    selectedTenantId: String?,
+    languageCode: String,
+    allowAllTenants: Boolean = false,
+    onSelect: (String?) -> Unit,
+    onAddTenant: () -> Unit
+) {
+    val isSl = languageCode.lowercase().startsWith("sl")
+    val searchState = remember { mutableStateOf("") }
+    val query = searchState.value.trim()
+    val filteredTenants = if (query.isBlank()) {
+        tenants
+    } else {
+        tenants.filter { tenant ->
+            tenant.companyName.contains(query, ignoreCase = true) ||
+                (tenant.publicCity ?: "").contains(query, ignoreCase = true) ||
+                (tenant.companyAddress ?: "").contains(query, ignoreCase = true)
+        }
+    }
+    val scrollState = rememberScrollState()
+    val brandBlue = Color(0xFF124C9D)
+    val brandBlueSoft = brandBlue
+    val brandOrange = Color(0xFFF2963B)
+    val muted = brandBlue.copy(alpha = 0.66f)
+    val line = brandBlue.copy(alpha = 0.22f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        Text(
+            text = if (isSl) "Izberi ponudnika" else "Select tenant",
+            fontSize = 23.sp,
+            fontWeight = FontWeight.Bold,
+            color = brandBlue
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = if (allowAllTenants) {
+                if (isSl) "Izberite enega ponudnika ali prikažite termine vseh ponudnikov." else "Choose one provider or show sessions from all providers."
+            } else {
+                if (isSl) "Izberite ponudnika za upravljanje rezervacij in plačil." else "Choose a tenant for bookings and payments."
+            },
+            fontSize = 13.sp,
+            color = muted
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFFBFDFF),
+                border = BorderStroke(1.dp, line)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = brandBlue
+                    )
+                    BasicTextField(
+                        value = searchState.value,
+                        onValueChange = { searchState.value = it },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = brandBlue,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { innerTextField ->
+                            if (searchState.value.isEmpty()) {
+                                Text(
+                                    text = if (isSl) "Išči ponudnika ..." else "Search tenant ...",
+                                    color = brandBlue.copy(alpha = 0.58f),
+                                    fontSize = 14.sp,
+                                    maxLines = 1
+                                )
+                            }
+                            innerTextField()
+                        }
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, line)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.Tune,
+                        contentDescription = null,
+                        tint = brandBlue,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Column(
+            modifier = Modifier
+                .heightIn(max = 292.dp)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (allowAllTenants) {
+                TenantSelectionAllSheetRow(
+                    selected = selectedTenantId == null,
+                    isSl = isSl,
+                    brandBlue = brandBlue,
+                    brandBlueSoft = brandBlueSoft,
+                    muted = muted,
+                    line = line,
+                    onClick = { onSelect(null) }
+                )
+            }
+            filteredTenants.forEachIndexed { index, tenant ->
+                TenantSelectionSheetRow(
+                    tenant = tenant,
+                    selected = tenant.companyId == selectedTenantId,
+                    index = index,
+                    brandBlue = brandBlue,
+                    brandBlueSoft = brandBlueSoft,
+                    brandOrange = brandOrange,
+                    muted = muted,
+                    line = line,
+                    onClick = { onSelect(tenant.companyId) }
+                )
+            }
+            if (filteredTenants.isEmpty()) {
+                Text(
+                    text = if (isSl) "Ni najdenih ponudnikov." else "No tenants found.",
+                    color = brandBlue.copy(alpha = 0.68f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Button(
+            onClick = onAddTenant,
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = brandBlue),
+            contentPadding = PaddingValues(vertical = 14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = if (isSl) "Dodaj ponudnika" else "Add tenant",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun TenantSelectionAllSheetRow(
+    selected: Boolean,
+    isSl: Boolean,
+    brandBlue: Color,
+    brandBlueSoft: Color,
+    muted: Color,
+    line: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(15.dp),
+        color = if (selected) Color(0xFFF5FBFF) else Color.White,
+        border = BorderStroke(if (selected) 1.6.dp else 1.dp, if (selected) brandBlueSoft else line),
+        shadowElevation = if (selected) 2.dp else 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = CircleShape,
+                color = brandBlue.copy(alpha = 0.13f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.CalendarMonth,
+                        contentDescription = null,
+                        tint = brandBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isSl) "Vsi ponudniki" else "All providers",
+                    color = brandBlue,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = if (isSl) "Prikaži termine vseh povezanih ponudnikov" else "Show sessions from every linked provider",
+                    color = brandBlue.copy(alpha = 0.62f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (selected) {
+                Surface(
+                    modifier = Modifier.size(26.dp),
+                    shape = CircleShape,
+                    color = brandBlue
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = brandBlue.copy(alpha = 0.62f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TenantSelectionSheetRow(
+    tenant: si.calendra.guest.shared.models.TenantSummary,
+    selected: Boolean,
+    index: Int,
+    brandBlue: Color,
+    brandBlueSoft: Color,
+    brandOrange: Color,
+    muted: Color,
+    line: Color,
+    onClick: () -> Unit
+) {
+    val iconTint = when (index % 4) {
+        1 -> brandBlue
+        2 -> Color(0xFF7A5C29)
+        3 -> Color.White
+        else -> brandOrange
+    }
+    val iconBg = when (index % 4) {
+        1 -> brandBlue.copy(alpha = 0.13f)
+        2 -> Color(0xFFFFEFCF)
+        3 -> Color(0xFF0E2347)
+        else -> brandOrange.copy(alpha = 0.14f)
+    }
+    val icon = when (index % 4) {
+        1 -> Icons.Rounded.Home
+        2 -> Icons.Rounded.Business
+        3 -> Icons.Rounded.Forum
+        else -> Icons.Rounded.CalendarMonth
+    }
+    val subtitle = tenant.publicCity?.takeIf { it.isNotBlank() }
+        ?: tenant.companyAddress?.takeIf { it.isNotBlank() }
+        ?: "Slovenija"
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(15.dp),
+        color = if (selected) Color(0xFFF5FBFF) else Color.White,
+        border = BorderStroke(if (selected) 1.6.dp else 1.dp, if (selected) brandBlueSoft else line),
+        shadowElevation = if (selected) 2.dp else 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = CircleShape,
+                color = iconBg
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = tenant.companyName,
+                    color = brandBlue,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    color = brandBlue.copy(alpha = 0.62f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (selected) {
+                Surface(
+                    modifier = Modifier.size(26.dp),
+                    shape = CircleShape,
+                    color = brandBlue
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = brandBlue.copy(alpha = 0.62f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
 
 private fun inboxTenantSubtitle(tenant: si.calendra.guest.shared.models.TenantSummary): String? {
     val city = tenant.publicCity?.trim().orEmpty()
@@ -1713,9 +2325,9 @@ private fun BottomNavBar(
     val isSl = languageCode.lowercase().startsWith("sl")
     val sideItems = listOf(
         Triple(RootRoute.Home.route, if (isSl) "Domov" else "Home", Icons.Rounded.Home),
+        Triple(RootRoute.Calendar.route, if (isSl) "Koledar" else "Calendar", Icons.Rounded.CalendarMonth),
         Triple(RootRoute.Wallet.route, if (isSl) "Denarnica" else "Wallet", Icons.Rounded.Wallet),
-        Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum),
-        Triple(RootRoute.Profile.route, if (isSl) "Profil" else "Profile", Icons.Rounded.Person)
+        Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum)
     )
 
     Surface(
@@ -2103,6 +2715,41 @@ private fun aggregatedBookings(state: GuestUiState): List<UpcomingBookingCard> =
         }
         (upcoming + history).distinctBy { it.id }
     }.sortedBy { runCatching { OffsetDateTime.parse(it.startsAt).toInstant().toEpochMilli() }.getOrDefault(Long.MAX_VALUE) }
+
+private fun aggregatedCalendarBookings(state: GuestUiState): List<UpcomingBookingCard> =
+    state.linkedTenants.flatMap { linkedTenant ->
+        val tenantId = linkedTenant.companyId
+        val dashboard = state.tenantDashboards[tenantId]
+        val tenant = dashboard?.home?.tenant ?: linkedTenant
+        dashboard?.home?.upcomingBookings.orEmpty().map { booking ->
+            val phone =
+                if (tenant.useEmployeeContact && !booking.employeePhone.isNullOrBlank()) {
+                    booking.employeePhone
+                } else {
+                    tenant.publicPhone
+                }
+            UpcomingBookingCard(
+                id = booking.bookingId,
+                companyId = tenantId,
+                title = booking.sessionTypeName,
+                sessionTypeId = booking.sessionTypeId,
+                startsAt = booking.startsAt,
+                endsAt = booking.endsAt,
+                status = booking.bookingStatus,
+                tenantName = tenant.companyName,
+                tenantCity = tenant.publicCity,
+                tenantAddress = tenant.companyAddress,
+                consultantName = booking.consultantName,
+                tenantPhone = phone,
+                cardImageUrl = tenant.cardImageUrl,
+                logoImageUrl = tenant.logoImageUrl,
+                iconImageUrl = tenant.iconImageUrl
+            )
+        }
+    }.filterNot { it.status.equals("CANCELLED", ignoreCase = true) }
+        .distinctBy { it.id }
+        .sortedBy { runCatching { OffsetDateTime.parse(it.startsAt).toInstant().toEpochMilli() }.getOrDefault(Long.MAX_VALUE) }
+
 
 private fun aggregatedAccesses(state: GuestUiState): List<AccessCard> =
     selectedTenantIds(state).flatMap { tenantId ->

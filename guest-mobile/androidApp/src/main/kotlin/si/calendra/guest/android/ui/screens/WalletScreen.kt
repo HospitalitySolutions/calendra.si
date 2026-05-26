@@ -242,13 +242,6 @@ fun WalletScreen(
                 )
             )
     ) {
-        WalletHeader(
-            tenantName = tenantName,
-            languageCode = languageCode,
-            onOpenTenantPicker = onOpenTenantPicker,
-            onOpenNotifications = onOpenNotifications
-        )
-
         WalletSegmentedControl(
             current = subTab,
             languageCode = languageCode,
@@ -2301,7 +2294,7 @@ private fun BuyPanel(
             title = walletTr(languageCode, "No offers available", "Ponudbe niso na voljo"),
             subtitle = walletTr(languageCode, "This tenant does not have any memberships, packs or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, paketov ali darilnih kartic za nakup."),
             primaryButtonText = walletTr(languageCode, "Change tenant", "Zamenjaj ponudnika"),
-            footerText = walletTr(languageCode, "Switch to another tenant to explore available offers.", "Preklopite na drugega ponudnika in si oglejte razpoložljive ponudbe."),
+            footerText = "",
             footerIcon = Icons.Rounded.Business,
             onPrimaryClick = onChangeTenant
         )
@@ -4296,7 +4289,7 @@ private fun OrdersPanel(
             title = walletTr(languageCode, "No orders yet", "Naročil še ni"),
             subtitle = walletTr(languageCode, "Completed purchases from the Buy tab will appear here once you place your first order.", "Zaključeni nakupi iz zavihka Nakup bodo prikazani tukaj po prvem naročilu."),
             primaryButtonText = walletTr(languageCode, "Go to Buy", "Pojdi na nakup"),
-            footerText = walletTr(languageCode, "Explore packs, tickets and memberships in the Buy tab.", "Oglejte si pakete, vstopnice in članarine v zavihku Nakup."),
+            footerText = "",
             footerIcon = Icons.Outlined.ShoppingBag,
             onPrimaryClick = onGoToBuy
         )
@@ -5012,30 +5005,32 @@ private fun WalletShowcaseEmptyState(
                 ) {
                     Text(primaryButtonText, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                 }
-                Spacer(Modifier.height(18.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Surface(
-                        modifier = Modifier.size(42.dp),
-                        shape = CircleShape,
-                        color = Color(0xFFF1F5FD),
-                        tonalElevation = 0.dp,
-                        shadowElevation = 0.dp
+                if (footerText.isNotEmpty()) {
+                    Spacer(Modifier.height(18.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(footerIcon, contentDescription = null, tint = Color(0xFF1568F4), modifier = Modifier.size(20.dp))
+                        Surface(
+                            modifier = Modifier.size(42.dp),
+                            shape = CircleShape,
+                            color = Color(0xFFF1F5FD),
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(footerIcon, contentDescription = null, tint = Color(0xFF1568F4), modifier = Modifier.size(20.dp))
+                            }
                         }
+                        Text(
+                            footerText,
+                            color = WalletMuted,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    Text(
-                        footerText,
-                        color = WalletMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        modifier = Modifier.weight(1f)
-                    )
                 }
             }
         }

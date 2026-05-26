@@ -178,16 +178,6 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            HomeHeaderBlock(
-                guestFirstName = guestFirstName,
-                hasBookings = bookings.isNotEmpty(),
-                onChooseTenant = onChooseTenant,
-                onOpenNotifications = onOpenNotifications,
-                isSl = isSl,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
-        }
-        item {
             BookingTabsRow(
                 selected = selectedBookingTab,
                 isSl = isSl,

@@ -185,7 +185,7 @@ struct SignupView: View {
                         .foregroundStyle(accentBlue)
                         .fontWeight(.black)
                 }
-                .font(.system(size: 13, weight: .regular, design: .rounded))
+                .font(.system(size: 11, weight: .regular, design: .rounded))
                 .contentShape(Rectangle())
                 .onTapGesture {
                     guard !isSendingConfirmationCode, !store.isLoading else { return }
@@ -223,7 +223,7 @@ private struct SignupTextInput: View {
                 .frame(width: 26)
 
             TextField(placeholder, text: $text)
-                .font(.system(size: 13, weight: .regular, design: .rounded))
+                .font(.system(size: 11, weight: .regular, design: .rounded))
                 .foregroundStyle(navy)
                 .tint(accentBlue)
                 .keyboardType(keyboardType)
@@ -261,7 +261,7 @@ private struct SignupPasswordInput: View {
                     SecureField(placeholder, text: $text)
                 }
             }
-            .font(.system(size: 13, weight: .regular, design: .rounded))
+            .font(.system(size: 11, weight: .regular, design: .rounded))
             .foregroundStyle(navy)
             .tint(accentBlue)
             .textContentType(.newPassword)

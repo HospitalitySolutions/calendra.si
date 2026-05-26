@@ -204,8 +204,6 @@ struct WalletView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            walletHeader
-
             segmentedControl
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -466,7 +464,7 @@ struct WalletView: View {
                     title: walletTr(appUiLocaleStorage, "No offers available", "Trenutno ni ponudb"),
                     subtitle: walletTr(appUiLocaleStorage, "This tenant does not have any memberships, packs or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, paketov ali darilnih kartic za nakup."),
                     primaryButtonTitle: walletTr(appUiLocaleStorage, "Change tenant", "Zamenjaj ponudnika"),
-                    footerText: walletTr(appUiLocaleStorage, "Switch to another tenant to explore available offers.", "Preklopite na drugega ponudnika in preglejte razpoložljive ponudbe."),
+                    footerText: "",
                     footerIcon: "building.2.fill",
                     primaryAction: { onOpenTenantPicker() }
                 )
@@ -664,7 +662,7 @@ struct WalletView: View {
                         title: walletTr(appUiLocaleStorage, "No orders yet", "Naročil še ni"),
                         subtitle: walletTr(appUiLocaleStorage, "Completed purchases from the Buy tab will appear here once you place your first order.", "Zaključeni nakupi iz zavihka Nakup bodo prikazani tukaj po prvem naročilu."),
                         primaryButtonTitle: walletTr(appUiLocaleStorage, "Go to Buy", "Pojdi na Nakup"),
-                        footerText: walletTr(appUiLocaleStorage, "Explore packs, tickets and memberships in the Buy tab.", "Prebrskajte pakete, vstopnice in članarine v zavihku Nakup."),
+                        footerText: "",
                         footerIcon: "bag.fill",
                         primaryAction: {
                             subTab = .buy
@@ -955,24 +953,26 @@ struct WalletView: View {
                 }
                 .buttonStyle(.plain)
 
-                HStack(alignment: .top, spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(red: 0.945, green: 0.961, blue: 0.992))
-                        Image(systemName: footerIcon)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(Color(red: 0.09, green: 0.41, blue: 0.96))
-                    }
-                    .frame(width: 42, height: 42)
+                if !footerText.isEmpty {
+                    HStack(alignment: .top, spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.945, green: 0.961, blue: 0.992))
+                            Image(systemName: footerIcon)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(Color(red: 0.09, green: 0.41, blue: 0.96))
+                        }
+                        .frame(width: 42, height: 42)
 
-                    Text(footerText)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(walletMuted)
-                        .multilineTextAlignment(.leading)
-                        .lineSpacing(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(footerText)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(walletMuted)
+                            .multilineTextAlignment(.leading)
+                            .lineSpacing(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 18)

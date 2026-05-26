@@ -4,7 +4,13 @@ import UIKit
 
 struct MainTabView: View {
     enum Tab: String {
-        case home, wallet, inbox, profile, book
+        case home, calendar, wallet, inbox, profile, book
+    }
+
+    private enum TenantPickerTarget {
+        case calendar
+        case wallet
+        case inbox
     }
 
     @EnvironmentObject private var store: AppStore
@@ -15,7 +21,10 @@ struct MainTabView: View {
     @State private var showScannerSheet = false
     @State private var showWalletTenantPicker = false
     @State private var walletTenantDraftId: String?
+    @State private var calendarScopedTenantId: String? = nil
+    @State private var tenantPickerTarget: TenantPickerTarget = .wallet
     @State private var isNotificationsPresented = false
+    @State private var headerAvatarImage: UIImage?
     @State private var rescheduleContext: BookRescheduleContext?
     @State private var lastWalletOffersRefreshTenantId: String?
     @State private var lastWalletOffersRefreshAt: Date = .distantPast
@@ -72,6 +81,83 @@ struct MainTabView: View {
         return nil
     }
 
+    private var topBarSelectedTenant: TenantModel? {
+        if selectedTab == .calendar {
+            guard let tenantId = calendarScopedTenantId else { return nil }
+            return store.linkedTenants.first { $0.id == tenantId }
+        }
+        if selectedTab == .wallet {
+            if let tenantId = store.walletScopedTenantId {
+                return store.linkedTenants.first { $0.id == tenantId } ?? store.linkedTenants.first
+            }
+            return store.linkedTenants.first
+        }
+        return inboxSelectedTenant
+    }
+
+    private var topBarSelectedTenantId: String? {
+        if selectedTab == .calendar {
+            return calendarScopedTenantId
+        }
+        if selectedTab == .wallet {
+            return store.walletScopedTenantId
+        }
+        return store.selectedTenantId ?? store.currentTenant.id
+    }
+
+    private var topBarPrimaryTenantName: String {
+        if selectedTab == .calendar, calendarScopedTenantId == nil {
+            return isSl ? "Vsi ponudniki" : "All providers"
+        }
+        let fallback = topBarSelectedTenant?.name ?? store.currentTenant.name
+        guard let tenantId = topBarSelectedTenant?.id else { return fallback }
+        let dashboardName = store.tenantDashboards[tenantId]?.tenant.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !dashboardName.isEmpty && dashboardName.caseInsensitiveCompare(fallback) != .orderedSame {
+            return dashboardName
+        }
+        return fallback
+    }
+
+    private var topBarTenantSubtitle: String? {
+        if selectedTab == .calendar, calendarScopedTenantId == nil { return nil }
+        let fallback = topBarSelectedTenant?.name ?? store.currentTenant.name
+        if topBarPrimaryTenantName.caseInsensitiveCompare(fallback) != .orderedSame {
+            return fallback
+        }
+        let city = topBarSelectedTenant?.city?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !city.isEmpty && city.caseInsensitiveCompare(topBarPrimaryTenantName) != .orderedSame { return city }
+        return nil
+    }
+
+    private var headerAvatarTrigger: String {
+        "\(store.user.id)-\(store.user.profilePicturePath ?? "")"
+    }
+
+    private var headerAvatarInitials: String {
+        let first = store.user.firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = store.user.lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let combined = [first.first, last.first].compactMap { $0 }.map { String($0).uppercased() }.joined()
+        if !combined.isEmpty { return combined }
+        if let fallback = first.first ?? store.user.email.first {
+            return String(fallback).uppercased()
+        }
+        return "•"
+    }
+
+    private func loadHeaderAvatarIfNeeded() async {
+        guard store.user.profilePicturePath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            await MainActor.run { headerAvatarImage = nil }
+            return
+        }
+        do {
+            let data = try await store.downloadProfilePicture()
+            let image = UIImage(data: data)
+            await MainActor.run { headerAvatarImage = image }
+        } catch {
+            await MainActor.run { headerAvatarImage = nil }
+        }
+    }
+
     private func dialInboxTenant() {
         guard let raw = inboxDialPhone, canDialInboxTenant else { return }
         let cleaned = String(raw.unicodeScalars.filter { CharacterSet(charactersIn: "+0123456789").contains($0) })
@@ -89,7 +175,7 @@ struct MainTabView: View {
             .ignoresSafeArea(.container, edges: [.top, .bottom, .horizontal])
 
             VStack(spacing: 0) {
-                if !store.linkedTenants.isEmpty, selectedTab != .book, selectedTab != .home, selectedTab != .wallet {
+                if selectedTab != .book {
                     topUtilityBar
                 }
 
@@ -119,6 +205,15 @@ struct MainTabView: View {
                                 }
                             }
                         )
+                    case .calendar:
+                        CalendarView(selectedTenantId: calendarScopedTenantId) { booking in
+                            rescheduleContext = BookRescheduleContext(
+                                bookingId: booking.bookingId.isEmpty ? booking.id : booking.bookingId,
+                                companyId: booking.companyId,
+                                sessionTypeId: booking.sessionTypeId,
+                                sessionTypeName: booking.title
+                            )
+                        }
                     case .book:
                         BookView(
                             onOpenNotifications: { isNotificationsPresented = true },
@@ -146,6 +241,9 @@ struct MainTabView: View {
             if store.tenantDashboards.isEmpty, !store.linkedTenants.isEmpty {
                 await store.refreshAllTenants()
             }
+        }
+        .task(id: headerAvatarTrigger) {
+            await loadHeaderAvatarIfNeeded()
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
@@ -185,17 +283,43 @@ struct MainTabView: View {
             }
         }
         .sheet(isPresented: $showWalletTenantPicker) {
-            WalletTenantPickerSheet(
+            TenantSelectionBottomSheet(
                 tenants: store.linkedTenants,
-                selectedTenantId: walletTenantDraftId ?? store.walletScopedTenantId,
-                onCancel: { showWalletTenantPicker = false },
-                onConfirm: { tenantId in
+                selectedTenantId: {
+                    switch tenantPickerTarget {
+                    case .calendar:
+                        return walletTenantDraftId ?? calendarScopedTenantId
+                    case .wallet:
+                        return walletTenantDraftId ?? store.walletScopedTenantId ?? store.linkedTenants.first?.id
+                    case .inbox:
+                        return walletTenantDraftId ?? store.selectedTenantId ?? store.linkedTenants.first?.id
+                    }
+                }(),
+                allowsAllTenants: tenantPickerTarget == .calendar,
+                languageCode: appUiLocaleStorage,
+                onSelect: { tenantId in
                     walletTenantDraftId = tenantId
-                    store.setWalletTenantFilter(tenantId)
                     showWalletTenantPicker = false
-                    selectedTab = .wallet
+                    switch tenantPickerTarget {
+                    case .calendar:
+                        selectedTab = .calendar
+                        calendarScopedTenantId = tenantId
+                    case .wallet:
+                        selectedTab = .wallet
+                        store.setWalletTenantFilter(tenantId)
+                        refreshWalletOffersIfNeeded(for: tenantId)
+                    case .inbox:
+                        selectedTab = .inbox
+                        store.setTenantFilter(tenantId)
+                    }
+                },
+                onAddTenant: {
+                    showWalletTenantPicker = false
+                    showManualCodeSheet = true
                 }
             )
+            .presentationDetents([.height(468), .large])
+            .presentationDragIndicator(.hidden)
         }
         .sheet(isPresented: $isNotificationsPresented) {
             NotificationsView()
@@ -218,7 +342,20 @@ struct MainTabView: View {
             return
         }
         selectedTab = .wallet
-        walletTenantDraftId = store.walletScopedTenantId
+        openTenantSelection(.wallet)
+    }
+
+    private func openTenantSelection(_ target: TenantPickerTarget) {
+        guard !store.linkedTenants.isEmpty else { return }
+        tenantPickerTarget = target
+        switch target {
+        case .calendar:
+            walletTenantDraftId = calendarScopedTenantId
+        case .wallet:
+            walletTenantDraftId = store.walletScopedTenantId ?? store.linkedTenants.first?.id
+        case .inbox:
+            walletTenantDraftId = store.selectedTenantId ?? store.currentTenant.id
+        }
         showWalletTenantPicker = true
     }
 
@@ -247,36 +384,25 @@ struct MainTabView: View {
     }
 
     @ViewBuilder
-    private var inboxTenantPicker: some View {
-        if selectedTab == .inbox, !store.linkedTenants.isEmpty {
-            Menu {
-                ForEach(store.linkedTenants, id: \.id) { tenant in
-                    Button {
-                        store.selectedTenantId = tenant.id
-                        store.currentTenant = tenant
-                    } label: {
-                        if tenant.id == (store.selectedTenantId ?? store.currentTenant.id) {
-                            Label(tenant.name, systemImage: "checkmark")
-                        } else {
-                            Text(tenant.name)
-                        }
-                    }
-                }
+    private var topTenantPicker: some View {
+        if !store.linkedTenants.isEmpty, selectedTab != .profile {
+            Button {
+                openTenantSelection(selectedTab == .wallet ? .wallet : .inbox)
             } label: {
                 HStack(spacing: 10) {
                     ZStack {
                         Circle()
                             .fill(Color(red: 0.07, green: 0.39, blue: 0.95))
                             .shadow(color: Color(red: 0.07, green: 0.39, blue: 0.95).opacity(0.28), radius: 6, y: 3)
-                        Image(systemName: "dumbbell.fill")
-                            .font(.system(size: 22, weight: .bold))
+                        Image(systemName: "building.2.fill")
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.white)
                     }
-                    .frame(width: 44, height: 44)
+                    .frame(width: 38, height: 38)
 
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 5) {
-                            Text(inboxPrimaryTenantName)
+                            Text(topBarPrimaryTenantName)
                                 .font(.system(size: 17, weight: .bold))
                                 .foregroundColor(Color(red: 0.03, green: 0.12, blue: 0.24))
                                 .lineLimit(1)
@@ -285,8 +411,8 @@ struct MainTabView: View {
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(Color(red: 0.03, green: 0.12, blue: 0.24))
                         }
-                        if let inboxTenantSubtitle {
-                            Text(inboxTenantSubtitle)
+                        if let topBarTenantSubtitle {
+                            Text(topBarTenantSubtitle)
                                 .font(.system(size: 14, weight: .regular))
                                 .foregroundColor(Color(red: 0.36, green: 0.45, blue: 0.56))
                                 .lineLimit(1)
@@ -302,43 +428,66 @@ struct MainTabView: View {
     }
 
     private var topUtilityBar: some View {
-        let isInbox = selectedTab == .inbox
         let isProfile = selectedTab == .profile
+        let isHome = selectedTab == .home
+        let usesHomeHeader = isProfile || isHome || selectedTab == .calendar || selectedTab == .wallet || selectedTab == .inbox
         return HStack(spacing: 0) {
-            if isProfile {
+            if usesHomeHeader {
                 Image("CalendraBookLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(height: 38)
+                    .frame(maxWidth: 128, maxHeight: 34, alignment: .leading)
+                    .layoutPriority(0)
             } else {
-                inboxTenantPicker
+                topTenantPicker
             }
             Spacer(minLength: 0)
-            HStack(spacing: 0) {
-                if !isProfile {
+            HStack(spacing: 5) {
+                if isHome {
                     Button {
-                        if isInbox {
-                            dialInboxTenant()
-                        } else {
-                            showAddOptions = true
-                        }
+                        showManualCodeSheet = true
                     } label: {
-                        if isInbox {
-                            Image(systemName: "phone.fill")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(canDialInboxTenant ? Color.primary : Color.primary.opacity(0.35))
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        } else {
-                            Image(systemName: "plus")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(Color.primary)
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.badge.plus")
+                                .font(.system(size: 14, weight: .medium))
+                            Text(isSl ? "Dodaj ponudnika" : "Add tenant")
+                                .font(.system(size: 10, weight: .semibold))
+                                .lineLimit(1)
                         }
+                        .foregroundColor(brandBlue)
+                        .padding(.horizontal, 9)
+                        .frame(height: 32)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                .stroke(brandBlue, lineWidth: 1.2)
+                        )
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .disabled(isInbox && !canDialInboxTenant)
+                } else if selectedTab == .calendar || selectedTab == .wallet || selectedTab == .inbox {
+                    Button {
+                        openTenantSelection(selectedTab == .calendar ? .calendar : (selectedTab == .wallet ? .wallet : .inbox))
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "person")
+                                .font(.system(size: 14, weight: .medium))
+                            Text(topBarPrimaryTenantName)
+                                .font(.system(size: 10, weight: .semibold))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundColor(brandBlue)
+                        .padding(.horizontal, 9)
+                        .frame(maxWidth: 124, minHeight: 32, maxHeight: 32)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                .stroke(brandBlue, lineWidth: 1.2)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 Button {
@@ -348,7 +497,7 @@ struct MainTabView: View {
                         Image(systemName: "bell")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(Color.primary)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 34, height: 34)
                             .contentShape(Rectangle())
                         if unreadNotifications > 0 {
                             Text("\(min(unreadNotifications, 99))")
@@ -362,12 +511,51 @@ struct MainTabView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .frame(width: 36, height: 36)
+                .layoutPriority(2)
+
+                Button {
+                    selectedTab = .profile
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 34, height: 34)
+                            .shadow(color: Color.black.opacity(0.08), radius: 5, x: 0, y: 2)
+                        if let headerAvatarImage {
+                            Image(uiImage: headerAvatarImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 34, height: 34)
+                                .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(Color(red: 0.91, green: 0.96, blue: 1.0))
+                                .frame(width: 34, height: 34)
+                            Text(headerAvatarInitials)
+                                .font(.system(size: headerAvatarInitials.count > 1 ? 12 : 14, weight: .bold))
+                                .foregroundColor(brandBlue)
+                        }
+                    }
+                    .overlay(
+                        Circle()
+                            .stroke(selectedTab == .profile ? brandBlue : Color.white.opacity(0.9), lineWidth: 1.2)
+                    )
+                    .contentShape(Circle())
+                    .frame(width: 38, height: 38)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 40, height: 40)
+                .layoutPriority(3)
+                .accessibilityLabel(isSl ? "Profil" : "Profile")
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(2)
         }
         .padding(.leading, 16)
-        .padding(.trailing, 4)
+        .padding(.trailing, 16)
         .frame(height: 56)
-        .background((selectedTab == .inbox || selectedTab == .profile) ? Color.clear : Color(.systemBackground))
+        .background((selectedTab == .inbox || selectedTab == .profile || selectedTab == .home || selectedTab == .calendar || selectedTab == .wallet) ? Color.clear : Color(.systemBackground))
     }
 
     private var bottomBar: some View {
@@ -375,10 +563,10 @@ struct MainTabView: View {
             Divider().opacity(0.25)
             HStack(alignment: .center, spacing: 4) {
                 navItem(.home, icon: "house", selectedIcon: "house.fill", title: isSl ? "Domov" : "Home")
-                navItem(.wallet, icon: "wallet.pass", selectedIcon: "wallet.pass.fill", title: isSl ? "Denarnica" : "Wallet")
+                navItem(.calendar, icon: "calendar", selectedIcon: "calendar", title: isSl ? "Koledar" : "Calendar")
                 bookTabItem
+                navItem(.wallet, icon: "wallet.pass", selectedIcon: "wallet.pass.fill", title: isSl ? "Denarnica" : "Wallet")
                 navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: isSl ? "Prejeto" : "Inbox")
-                navItem(.profile, icon: "person", selectedIcon: "person.fill", title: isSl ? "Profil" : "Profile")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -446,88 +634,320 @@ struct MainTabView: View {
     }
 }
 
-private struct WalletTenantPickerSheet: View {
-    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
-    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
+private struct TenantSelectionBottomSheet: View {
     let tenants: [TenantModel]
     let selectedTenantId: String?
-    let onCancel: () -> Void
-    let onConfirm: (String) -> Void
+    let allowsAllTenants: Bool
+    let languageCode: String
+    let onSelect: (String?) -> Void
+    let onAddTenant: () -> Void
 
-    @State private var draftTenantId: String?
+    @State private var searchText = ""
 
-    init(
-        tenants: [TenantModel],
-        selectedTenantId: String?,
-        onCancel: @escaping () -> Void,
-        onConfirm: @escaping (String) -> Void
-    ) {
-        self.tenants = tenants
-        self.selectedTenantId = selectedTenantId
-        self.onCancel = onCancel
-        self.onConfirm = onConfirm
-        _draftTenantId = State(initialValue: selectedTenantId ?? tenants.first?.id)
+    private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
+    private var brandBlue: Color { Color(red: 0.07, green: 0.30, blue: 0.62) }
+    private var brandBlueSoft: Color { brandBlue }
+    private var brandOrange: Color { Color(red: 0.95, green: 0.59, blue: 0.23) }
+    private var ink: Color { Color(red: 0.06, green: 0.10, blue: 0.18) }
+    private var muted: Color { brandBlue.opacity(0.66) }
+    private var line: Color { brandBlue.opacity(0.22) }
+
+    private var filteredTenants: [TenantModel] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return tenants }
+        return tenants.filter { tenant in
+            tenant.name.localizedCaseInsensitiveContains(query) ||
+            (tenant.city ?? "").localizedCaseInsensitiveContains(query) ||
+            (tenant.companyAddress ?? "").localizedCaseInsensitiveContains(query)
+        }
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(isSl ? "Izberi ponudnika" : "Select tenancy")
-                    .font(.title2.weight(.bold))
-                Text(isSl ? "Izberite ponudnika, preden si ogledate kartice ali kupite članstva." : "Choose a subscribed tenant before viewing tickets or buying memberships.")
-                    .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            Capsule(style: .continuous)
+                .fill(brandBlue.opacity(0.28))
+                .frame(width: 48, height: 5)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 10)
+                .padding(.bottom, 16)
 
-                ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(tenants, id: \.id) { tenant in
-                            Button {
-                                draftTenantId = tenant.id
-                            } label: {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(tenant.name)
-                                            .font(.headline)
-                                            .foregroundColor(.primary)
-                                        if let city = tenant.city, !city.isEmpty {
-                                            Text(city)
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                    Image(systemName: draftTenantId == tenant.id ? "largecircle.fill.circle" : "circle")
-                                        .foregroundColor(draftTenantId == tenant.id ? walletBlue : .secondary)
-                                }
-                                .padding(12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(.secondarySystemBackground))
+            Text(isSl ? "Izberi ponudnika" : "Select tenant")
+                .font(.system(size: 23, weight: .bold))
+                .foregroundColor(brandBlue)
+                .padding(.horizontal, 20)
+
+            Text(allowsAllTenants ? (isSl ? "Izberite enega ponudnika ali prikažite termine vseh ponudnikov." : "Choose one provider or show sessions from all providers.") : (isSl ? "Izberite ponudnika za upravljanje rezervacij in plačil." : "Choose a tenant for bookings and payments."))
+                .font(.system(size: 13, weight: .regular))
+                .foregroundColor(muted)
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 16)
+
+            HStack(spacing: 10) {
+                HStack(spacing: 9) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(brandBlue)
+                    TextField("", text: $searchText, prompt: Text(isSl ? "Išči ponudnika ..." : "Search tenant ...").foregroundColor(brandBlue.opacity(0.58)))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(brandBlue)
+                        .tint(brandBlue)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                .padding(.horizontal, 13)
+                .frame(height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(red: 0.98, green: 0.99, blue: 1.0))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(line, lineWidth: 1)
+                        )
+                )
+
+                Button {} label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(brandBlue)
+                        .frame(width: 38, height: 38)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.white)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(line, lineWidth: 1)
                                 )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                        )
                 }
-
-                Button {
-                    if let tenantId = draftTenantId ?? tenants.first?.id {
-                        onConfirm(tenantId)
-                    } else {
-                        onCancel()
-                    }
-                } label: {
-                    Text(isSl ? "Nadaljuj v denarnico" : "Continue to Wallet")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button(isSl ? "Prekliči" : "Cancel", role: .cancel) { onCancel() }
-                    .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
             }
-            .padding(20)
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+
+            ScrollView(showsIndicators: filteredTenants.count > 4) {
+                VStack(spacing: 10) {
+                    if allowsAllTenants {
+                        TenantSelectionAllBottomSheetRow(
+                            isSelected: selectedTenantId == nil,
+                            isSl: isSl,
+                            brandBlue: brandBlue,
+                            brandBlueSoft: brandBlueSoft,
+                            brandOrange: brandOrange,
+                            muted: muted,
+                            line: line,
+                            onTap: { onSelect(nil) }
+                        )
+                    }
+                    ForEach(Array(filteredTenants.enumerated()), id: \.element.id) { index, tenant in
+                        TenantSelectionBottomSheetRow(
+                            tenant: tenant,
+                            isSelected: tenant.id == selectedTenantId,
+                            index: index,
+                            brandBlue: brandBlue,
+                            brandBlueSoft: brandBlueSoft,
+                            brandOrange: brandOrange,
+                            ink: ink,
+                            muted: muted,
+                            line: line,
+                            onTap: { onSelect(tenant.id) }
+                        )
+                    }
+                    if filteredTenants.isEmpty {
+                        Text(isSl ? "Ni najdenih ponudnikov." : "No tenants found.")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(brandBlue.opacity(0.68))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 2)
+            }
+            .frame(maxHeight: 250)
+
+            Button(action: onAddTenant) {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text(isSl ? "Dodaj ponudnika" : "Add tenant")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(brandBlue)
+                        .shadow(color: brandBlue.opacity(0.28), radius: 18, x: 0, y: 8)
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 24)
+        }
+        .background(Color.white)
+    }
+}
+
+private struct TenantSelectionAllBottomSheetRow: View {
+    let isSelected: Bool
+    let isSl: Bool
+    let brandBlue: Color
+    let brandBlueSoft: Color
+    let brandOrange: Color
+    let muted: Color
+    let line: Color
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(brandBlue.opacity(0.13))
+                    Image(systemName: "square.grid.2x2.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(brandBlue)
+                }
+                .frame(width: 42, height: 42)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isSl ? "Vsi ponudniki" : "All providers")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(brandBlue)
+                        .lineLimit(1)
+                    Text(isSl ? "Prikaži termine vseh povezanih ponudnikov" : "Show sessions from every linked provider")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(brandBlue.opacity(0.62))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(brandBlue))
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(brandBlue.opacity(0.62))
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 58)
+            .background(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(isSelected ? Color(red: 0.96, green: 0.985, blue: 1.0) : Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(isSelected ? brandBlueSoft : line, lineWidth: isSelected ? 1.6 : 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TenantSelectionBottomSheetRow: View {
+    let tenant: TenantModel
+    let isSelected: Bool
+    let index: Int
+    let brandBlue: Color
+    let brandBlueSoft: Color
+    let brandOrange: Color
+    let ink: Color
+    let muted: Color
+    let line: Color
+    let onTap: () -> Void
+
+    private var subtitle: String {
+        let city = tenant.city?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !city.isEmpty { return city }
+        let address = tenant.companyAddress?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !address.isEmpty { return address }
+        return "Slovenija"
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(iconBackground)
+                    Image(systemName: iconName)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(iconForeground)
+                }
+                .frame(width: 42, height: 42)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(tenant.name)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(brandBlue)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(brandBlue.opacity(0.62))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(brandBlue))
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(brandBlue.opacity(0.62))
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 58)
+            .background(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(isSelected ? Color(red: 0.96, green: 0.985, blue: 1.0) : Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(isSelected ? brandBlueSoft : line, lineWidth: isSelected ? 1.6 : 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var iconName: String {
+        switch index % 4 {
+        case 1: return "mountain.2.fill"
+        case 2: return "leaf.fill"
+        case 3: return "water.waves"
+        default: return "calendar.badge.clock"
+        }
+    }
+
+    private var iconBackground: Color {
+        switch index % 4 {
+        case 1: return brandBlue.opacity(0.13)
+        case 2: return Color(red: 1.0, green: 0.94, blue: 0.82)
+        case 3: return Color(red: 0.05, green: 0.13, blue: 0.28)
+        default: return brandOrange.opacity(0.14)
+        }
+    }
+
+    private var iconForeground: Color {
+        switch index % 4 {
+        case 1: return brandBlue
+        case 2: return Color(red: 0.47, green: 0.36, blue: 0.16)
+        case 3: return .white
+        default: return brandOrange
         }
     }
 }
@@ -552,7 +972,7 @@ private struct TenantCodeEntrySheet: View {
                     .autocorrectionDisabled()
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(.secondarySystemBackground)))
+                    .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(Color(.secondarySystemBackground)))
                 Button {
                     Task {
                         await store.joinTenant(code: tenantCode)
