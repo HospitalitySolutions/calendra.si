@@ -1,0 +1,11 @@
+Stripe guest checkout back/cancel cleanup fix
+
+Changed behavior:
+- Returning to the mobile app with the phone back button after opening Stripe now marks the active external checkout order as CANCELLED.
+- Stripe cancel/error deep-link returns also call the authenticated cancel endpoint before refreshing Wallet.
+- Pending external checkout state is persisted on mobile, so cancellation still works if the app/activity is recreated while Stripe is open.
+- Starting a new CARD/PAYPAL guest checkout automatically cancels older unfinished CARD/PAYPAL pending orders for the same guest and tenant, preventing duplicate pending + cancelled rows from earlier abandoned checkouts.
+- Stripe card checkout still creates only a GuestOrder before payment; invoice/bill creation remains delayed until Stripe confirms payment via webhook.
+
+Important env value:
+APP_STRIPE_GUEST_PUBLIC_BASE_URL=https://app.calendra.si

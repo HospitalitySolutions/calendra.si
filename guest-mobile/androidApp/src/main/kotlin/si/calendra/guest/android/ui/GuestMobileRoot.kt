@@ -101,7 +101,8 @@ private data class PendingExternalCheckout(
     val orderId: String,
     val companyId: String,
     val paymentMethodType: String,
-    val startedAtMs: Long = System.currentTimeMillis()
+    val startedAtMs: Long = System.currentTimeMillis(),
+    val appWasBackgrounded: Boolean = false
 )
 
 private sealed class RootRoute(val route: String) {
@@ -183,7 +184,19 @@ fun GuestMobileRoot() {
     var lastWalletOffersRefreshTenantId by remember { mutableStateOf<String?>(null) }
     var lastWalletOffersRefreshAtMs by remember { mutableStateOf(0L) }
     var rescheduleContext by remember { mutableStateOf<BookingRescheduleContext?>(null) }
-    var pendingExternalCheckout by remember { mutableStateOf<PendingExternalCheckout?>(null) }
+    var pendingExternalCheckout by remember {
+        mutableStateOf(
+            preferencesStore.loadPendingExternalCheckout()?.let { stored ->
+                PendingExternalCheckout(
+                    orderId = stored.orderId,
+                    companyId = stored.companyId,
+                    paymentMethodType = stored.paymentMethodType,
+                    startedAtMs = stored.startedAtMs,
+                    appWasBackgrounded = stored.appWasBackgrounded
+                )
+            }
+        )
+    }
     val realtimeJobs = remember { mutableMapOf<String, Job>() }
     val realtimeRefreshMutex = remember { Mutex() }
     val qrScannerLauncher = rememberLauncherForActivityResult(contract = ScanContract()) { result ->
@@ -536,6 +549,23 @@ fun GuestMobileRoot() {
         }
     }
 
+    LaunchedEffect(pendingExternalCheckout) {
+        val pending = pendingExternalCheckout
+        if (pending == null) {
+            preferencesStore.clearPendingExternalCheckout()
+        } else {
+            preferencesStore.savePendingExternalCheckout(
+                StoredPendingExternalCheckoutUi(
+                    orderId = pending.orderId,
+                    companyId = pending.companyId,
+                    paymentMethodType = pending.paymentMethodType,
+                    startedAtMs = pending.startedAtMs,
+                    appWasBackgrounded = pending.appWasBackgrounded
+                )
+            )
+        }
+    }
+
     val paymentRedirectUri by PaymentRedirectBus.latest.collectAsState()
 
     LaunchedEffect(paymentRedirectUri) {
@@ -550,6 +580,11 @@ fun GuestMobileRoot() {
             else -> null
         }
         val returnedOrderId = uri.getQueryParameter("orderId")
+        val checkoutSessionId = uri.getQueryParameter("session_id")
+        if (returnedOrderId != null && (status == "cancelled" || status == "canceled" || status == "error")) {
+            runCatching { repo.cancelCheckout(returnedOrderId, checkoutSessionId) }
+                .onFailure { if (BuildConfig.DEBUG) Log.d(GUEST_API_DEBUG_TAG, "Checkout cancel sync skipped: ${it.message}") }
+        }
         if (returnedOrderId != null && pendingExternalCheckout?.orderId == returnedOrderId) {
             pendingExternalCheckout = null
         }
@@ -574,34 +609,38 @@ fun GuestMobileRoot() {
             return@DisposableEffect onDispose { }
         }
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                val pending = pendingExternalCheckout
-                if (pending != null) {
-                    scope.launch {
-                        delay(900)
-                        val stillPending = pendingExternalCheckout
-                        if (stillPending != null
-                            && stillPending.orderId == pending.orderId
-                            && System.currentTimeMillis() - stillPending.startedAtMs > 1200
-                        ) {
-                            pendingExternalCheckout = null
-                            runCatching { repo.cancelCheckout(stillPending.orderId) }
-                                .onSuccess {
-                                    statusMessage = if (stillPending.paymentMethodType == "CARD") {
-                                        "Stripe checkout canceled"
-                                    } else {
-                                        "Checkout canceled"
-                                    }
-                                }
-                                .onFailure { if (BuildConfig.DEBUG) Log.d(GUEST_API_DEBUG_TAG, "Checkout cancel sync skipped: ${it.message}") }
-                            runCatching { refreshTenant(stillPending.companyId) }
-                        } else {
-                            refreshAllTenants()
-                        }
-                    }
-                } else {
-                    scope.launch { refreshAllTenants() }
+            when (event) {
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    pendingExternalCheckout = pendingExternalCheckout?.copy(appWasBackgrounded = true)
                 }
+                Lifecycle.Event.ON_RESUME -> {
+                    val pending = pendingExternalCheckout
+                    if (pending != null && pending.appWasBackgrounded) {
+                        scope.launch {
+                            // Give the Stripe/PayPal success or cancel deep link a short moment to arrive first.
+                            delay(1200)
+                            val stillPending = pendingExternalCheckout
+                            if (stillPending != null && stillPending.orderId == pending.orderId) {
+                                pendingExternalCheckout = null
+                                runCatching { repo.cancelCheckout(stillPending.orderId) }
+                                    .onSuccess {
+                                        statusMessage = if (stillPending.paymentMethodType == "CARD") {
+                                            "Stripe checkout canceled"
+                                        } else {
+                                            "Checkout canceled"
+                                        }
+                                    }
+                                    .onFailure { if (BuildConfig.DEBUG) Log.d(GUEST_API_DEBUG_TAG, "Checkout cancel sync skipped: ${it.message}") }
+                                runCatching { refreshTenant(stillPending.companyId) }
+                            } else {
+                                refreshAllTenants()
+                            }
+                        }
+                    } else {
+                        scope.launch { refreshAllTenants() }
+                    }
+                }
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

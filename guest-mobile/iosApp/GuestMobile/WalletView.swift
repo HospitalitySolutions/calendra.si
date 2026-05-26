@@ -34,11 +34,37 @@ private struct WalletReceiptPreviewItem: Identifiable {
     let title: String
 }
 
-private struct PendingWalletExternalCheckout {
+private struct PendingWalletExternalCheckout: Codable, Equatable {
     let orderId: String
     let companyId: String
     let paymentMethod: String
-    let openedAt: Date = Date()
+    let openedAt: Date
+    var wasBackgrounded: Bool
+
+    init(orderId: String, companyId: String, paymentMethod: String, openedAt: Date = Date(), wasBackgrounded: Bool = false) {
+        self.orderId = orderId
+        self.companyId = companyId
+        self.paymentMethod = paymentMethod
+        self.openedAt = openedAt
+        self.wasBackgrounded = wasBackgrounded
+    }
+
+    private static let storageKey = "guest_pending_external_checkout"
+
+    static func load() -> PendingWalletExternalCheckout? {
+        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return nil }
+        return try? JSONDecoder().decode(PendingWalletExternalCheckout.self, from: data)
+    }
+
+    static func save(_ pending: PendingWalletExternalCheckout?) {
+        guard let pending else {
+            UserDefaults.standard.removeObject(forKey: storageKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(pending) {
+            UserDefaults.standard.set(data, forKey: storageKey)
+        }
+    }
 }
 
 private struct WalletReceiptPreviewController: UIViewControllerRepresentable {
@@ -204,7 +230,7 @@ struct WalletView: View {
     @State private var receiptPreviewItem: WalletReceiptPreviewItem? = nil
     @State private var openingReceiptOrderId: String? = nil
     @State private var paymentInstructionsOrder: WalletOrderCardModel? = nil
-    @State private var pendingExternalCheckout: PendingWalletExternalCheckout? = nil
+    @State private var pendingExternalCheckout: PendingWalletExternalCheckout? = PendingWalletExternalCheckout.load()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -293,13 +319,22 @@ struct WalletView: View {
             }
         }
         .onChange(of: store.paymentReturnSequence) { _ in
-            if let pending = pendingExternalCheckout, store.lastPaymentReturnOrderId == pending.orderId {
-                pendingExternalCheckout = nil
+            guard let pending = pendingExternalCheckout, store.lastPaymentReturnOrderId == pending.orderId else { return }
+            let status = store.lastPaymentReturnStatus?.lowercased()
+            if status == "cancelled" || status == "canceled" || status == "error" {
+                Task {
+                    try? await store.cancelExternalCheckout(companyId: pending.companyId, orderId: pending.orderId)
+                }
             }
+            setPendingExternalCheckout(nil)
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 Task { await cancelPendingExternalCheckoutIfNeeded() }
+            } else if pendingExternalCheckout != nil {
+                var pending = pendingExternalCheckout!
+                pending.wasBackgrounded = true
+                setPendingExternalCheckout(pending)
             }
         }
     }
@@ -762,11 +797,11 @@ struct WalletView: View {
                 }
             case "CARD", "PAYPAL":
                 if let urlString = checkout.checkoutUrl, let url = URL(string: urlString) {
-                    pendingExternalCheckout = PendingWalletExternalCheckout(
+                    setPendingExternalCheckout(PendingWalletExternalCheckout(
                         orderId: checkout.orderId,
                         companyId: offer.companyId,
                         paymentMethod: paymentMethod
-                    )
+                    ))
                     openURL(url)
                 } else if checkout.status.uppercased() == "PAID" {
                     statusMessage = walletTr(appUiLocaleStorage, "Purchase complete", "Nakup zaključen")
@@ -782,16 +817,22 @@ struct WalletView: View {
 
 
     @MainActor
+    private func setPendingExternalCheckout(_ pending: PendingWalletExternalCheckout?) {
+        pendingExternalCheckout = pending
+        PendingWalletExternalCheckout.save(pending)
+    }
+
+    @MainActor
     private func cancelPendingExternalCheckoutIfNeeded() async {
-        guard let pending = pendingExternalCheckout else { return }
-        guard Date().timeIntervalSince(pending.openedAt) > 1.2 else { return }
-        try? await Task.sleep(nanoseconds: 900_000_000)
+        guard let pending = pendingExternalCheckout, pending.wasBackgrounded else { return }
+        // Give the Stripe/PayPal success or cancel deep link a short moment to arrive first.
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
         guard let current = pendingExternalCheckout, current.orderId == pending.orderId else { return }
         if store.lastPaymentReturnOrderId == current.orderId {
-            pendingExternalCheckout = nil
+            setPendingExternalCheckout(nil)
             return
         }
-        pendingExternalCheckout = nil
+        setPendingExternalCheckout(nil)
         do {
             try await store.cancelExternalCheckout(companyId: current.companyId, orderId: current.orderId)
             subTab = .orders

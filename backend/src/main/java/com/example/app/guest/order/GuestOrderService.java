@@ -174,6 +174,7 @@ public class GuestOrderService {
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
         GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
         assertPaymentMethodAllowed(companyId, paymentMethodType, product.productType(), channel);
+        cancelOpenExternalCheckoutsForGuest(guestUser, companyId, paymentMethodType);
 
         GuestOrder order = new GuestOrder();
         order.setCompany(link.getCompany());
@@ -474,12 +475,8 @@ public class GuestOrderService {
                 && !checkoutSessionId.equals(order.getStripeCheckoutSessionId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Checkout session does not match guest order.");
         }
-        Long unpaidBillId = order.getBillId();
-        order.setBillId(null);
-        order.setStatus(OrderStatus.CANCELLED);
-        order.setCancelledAt(Instant.now());
-        order = orders.save(order);
-        productBillingService.deleteUnpaidBill(unpaidBillId);
+        cancelUnfinishedExternalOrder(order);
+        order = orders.findById(order.getId()).orElse(order);
         return checkoutStatusResponse(order);
     }
 
@@ -496,6 +493,28 @@ public class GuestOrderService {
                 null,
                 order.getCompany().getName()
         );
+    }
+
+    private void cancelOpenExternalCheckoutsForGuest(GuestUser guestUser, Long companyId, GuestPaymentMethodType newPaymentMethodType) {
+        if (guestUser == null || companyId == null) return;
+        if (newPaymentMethodType != GuestPaymentMethodType.CARD && newPaymentMethodType != GuestPaymentMethodType.PAYPAL) return;
+        orders.findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(guestUser.getId(), companyId, OrderStatus.PENDING)
+                .stream()
+                .filter(order -> order.getPaymentMethodType() == GuestPaymentMethodType.CARD
+                        || order.getPaymentMethodType() == GuestPaymentMethodType.PAYPAL)
+                .forEach(this::cancelUnfinishedExternalOrder);
+    }
+
+    private void cancelUnfinishedExternalOrder(GuestOrder order) {
+        if (order == null || order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) return;
+        Long unpaidBillId = order.getBillId();
+        order.setBillId(null);
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelledAt(Instant.now());
+        orders.save(order);
+        if (productBillingService != null) {
+            productBillingService.deleteUnpaidBill(unpaidBillId);
+        }
     }
 
     private String nextGuestOrderReferenceCode(GuestTenantLink link) {
@@ -736,12 +755,7 @@ public class GuestOrderService {
                 && !checkoutSessionId.equals(order.getStripeCheckoutSessionId())) {
             return;
         }
-        Long unpaidBillId = order.getBillId();
-        order.setBillId(null);
-        order.setStatus(OrderStatus.CANCELLED);
-        order.setCancelledAt(Instant.now());
-        orders.save(order);
-        productBillingService.deleteUnpaidBill(unpaidBillId);
+        cancelUnfinishedExternalOrder(order);
     }
 
     /**

@@ -17,6 +17,7 @@ final class AppStore: ObservableObject {
     @Published var pendingInboxOpenCompanyId: String?
     @Published var signupChallenge: SignupChallengeModel?
     @Published var lastPaymentReturnOrderId: String?
+    @Published var lastPaymentReturnStatus: String?
     @Published var paymentReturnSequence: Int = 0
 
     private static let guestAppBellNotificationTypes: Set<String> = [
@@ -739,6 +740,7 @@ final class AppStore: ObservableObject {
         let status = components?.queryItems?.first(where: { $0.name == "status" })?.value?.lowercased()
         let message = components?.queryItems?.first(where: { $0.name == "message" })?.value
         lastPaymentReturnOrderId = components?.queryItems?.first(where: { $0.name == "orderId" })?.value
+        lastPaymentReturnStatus = status
         paymentReturnSequence += 1
 
         switch status {

@@ -7,6 +7,15 @@ import org.json.JSONObject
 import si.calendra.guest.shared.models.GuestUser
 import java.util.UUID
 
+
+data class StoredPendingExternalCheckoutUi(
+    val orderId: String,
+    val companyId: String,
+    val paymentMethodType: String,
+    val startedAtMs: Long,
+    val appWasBackgrounded: Boolean
+)
+
 data class SavedCardUi(
     val id: String,
     val holderName: String,
@@ -115,6 +124,34 @@ class GuestPreferencesStore(context: Context) {
         prefs.edit().putString(KEY_APP_UI_LOCALE, v).apply()
     }
 
+    fun loadPendingExternalCheckout(): StoredPendingExternalCheckoutUi? {
+        val encoded = prefs.getString(KEY_PENDING_EXTERNAL_CHECKOUT, null) ?: return null
+        return runCatching {
+            val json = JSONObject(decode(encoded))
+            StoredPendingExternalCheckoutUi(
+                orderId = json.optString("orderId").takeIf { it.isNotBlank() } ?: return null,
+                companyId = json.optString("companyId").takeIf { it.isNotBlank() } ?: return null,
+                paymentMethodType = json.optString("paymentMethodType").ifBlank { "CARD" },
+                startedAtMs = json.optLong("startedAtMs", System.currentTimeMillis()),
+                appWasBackgrounded = json.optBoolean("appWasBackgrounded", false)
+            )
+        }.getOrNull()
+    }
+
+    fun savePendingExternalCheckout(checkout: StoredPendingExternalCheckoutUi) {
+        val json = JSONObject()
+            .put("orderId", checkout.orderId)
+            .put("companyId", checkout.companyId)
+            .put("paymentMethodType", checkout.paymentMethodType)
+            .put("startedAtMs", checkout.startedAtMs)
+            .put("appWasBackgrounded", checkout.appWasBackgrounded)
+        prefs.edit().putString(KEY_PENDING_EXTERNAL_CHECKOUT, encode(json.toString())).apply()
+    }
+
+    fun clearPendingExternalCheckout() {
+        prefs.edit().remove(KEY_PENDING_EXTERNAL_CHECKOUT).apply()
+    }
+
     private fun encode(raw: String): String = Base64.encodeToString(raw.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
     private fun decode(raw: String): String = String(Base64.decode(raw, Base64.DEFAULT), Charsets.UTF_8)
 
@@ -124,5 +161,6 @@ class GuestPreferencesStore(context: Context) {
         const val KEY_SAVED_CARDS = "saved_cards"
         const val KEY_AUTH_TOKEN = "auth_token"
         const val KEY_APP_UI_LOCALE = "app_ui_locale"
+        const val KEY_PENDING_EXTERNAL_CHECKOUT = "pending_external_checkout"
     }
 }

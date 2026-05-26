@@ -1589,8 +1589,8 @@ private fun WalletStackedPassCard(
                     modifier = Modifier.weight(1f).padding(start = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(walletTr(languageCode, "AUTO-RENEW", "SAMODEJNO PODALJŠANJE"), color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    if (card.type == "MEMBERSHIP") {
+                    if (type == "MEMBERSHIP") {
+                        Text(walletTr(languageCode, "AUTO-RENEW", "SAMODEJNO PODALJŠANJE"), color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         Switch(
                             checked = card.autoRenews,
                             onCheckedChange = { onToggleAutoRenew(card.id, it) },
