@@ -11,6 +11,12 @@ public interface ClientCompanyRepository extends JpaRepository<ClientCompany, Lo
 
     Optional<ClientCompany> findByIdAndOwnerCompanyId(Long id, Long ownerCompanyId);
 
+    Optional<ClientCompany> findFirstByOwnerCompanyIdAndVatId(Long ownerCompanyId, String vatId);
+
+    Optional<ClientCompany> findFirstByOwnerCompanyIdAndEmailIgnoreCase(Long ownerCompanyId, String email);
+
+    Optional<ClientCompany> findFirstByOwnerCompanyIdAndNameIgnoreCase(Long ownerCompanyId, String name);
+
     @Query("""
             SELECT c FROM ClientCompany c
             WHERE c.ownerCompany.id = :ownerCompanyId

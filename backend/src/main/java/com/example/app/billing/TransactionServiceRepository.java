@@ -7,4 +7,5 @@ import java.util.Optional;
 public interface TransactionServiceRepository extends JpaRepository<TransactionService, Long> {
     List<TransactionService> findAllByCompanyId(Long companyId);
     Optional<TransactionService> findByIdAndCompanyId(Long id, Long companyId);
+    Optional<TransactionService> findByCompanyIdAndCodeIgnoreCase(Long companyId, String code);
 }

@@ -6,6 +6,7 @@ import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.company.CompanyProvisioningService;
+import com.example.app.register.PlatformSubscriptionBillingService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.settings.AppSetting;
@@ -61,6 +62,7 @@ public class SignupService {
     private final SecurityCenterService securityCenterService;
     private final AuthCookieService authCookieService;
     private final SignupEmailIntentRepository signupEmailIntents;
+    private final PlatformSubscriptionBillingService platformSubscriptionBillingService;
     private final ObjectMapper objectMapper;
     private final JavaMailSender mailSender;
     private final String mailFrom;
@@ -77,6 +79,7 @@ public class SignupService {
             SecurityCenterService securityCenterService,
             AuthCookieService authCookieService,
             SignupEmailIntentRepository signupEmailIntents,
+            PlatformSubscriptionBillingService platformSubscriptionBillingService,
             ObjectMapper objectMapper,
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
@@ -92,6 +95,7 @@ public class SignupService {
         this.securityCenterService = securityCenterService;
         this.authCookieService = authCookieService;
         this.signupEmailIntents = signupEmailIntents;
+        this.platformSubscriptionBillingService = platformSubscriptionBillingService;
         this.objectMapper = objectMapper;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom;
@@ -531,7 +535,20 @@ public class SignupService {
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_START, subStart.toString());
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_END, subEnd.toString());
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, "");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, "0.00");
+        tryEnsurePlatformSubscriptionOpenBill(
+                company,
+                owner,
+                companyName,
+                null,
+                null,
+                null,
+                null,
+                normalizedPackageType,
+                interval,
+                null
+        );
 
         if (!passwordProvided) {
             seedSetting(company, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING, "true");
@@ -611,11 +628,56 @@ public class SignupService {
             interval = "MONTHLY";
         }
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, stringOrEmpty(request.paymentMethod()));
+        tryEnsurePlatformSubscriptionOpenBill(
+                company,
+                owner,
+                companyName,
+                request.vatId(),
+                request.address(),
+                request.postalCode(),
+                request.city(),
+                normalizedPackageType,
+                interval,
+                request.paymentMethod()
+        );
 
         return ResponseEntity.ok(Map.of(
                 "ok", true,
                 "packageType", normalizedPackageType,
                 "billingInterval", interval));
+    }
+
+    private void tryEnsurePlatformSubscriptionOpenBill(
+            Company company,
+            User owner,
+            String billingCompanyName,
+            String vatId,
+            String address,
+            String postalCode,
+            String city,
+            String packageName,
+            String billingInterval,
+            String paymentMethod
+    ) {
+        try {
+            platformSubscriptionBillingService.ensureForSignupTenant(
+                    company,
+                    owner,
+                    billingCompanyName,
+                    vatId,
+                    address,
+                    postalCode,
+                    city,
+                    packageName,
+                    billingInterval,
+                    paymentMethod
+            );
+        } catch (Exception e) {
+            log.warn("Platform subscription open bill creation skipped for signup company {}: {}",
+                    company == null ? null : company.getId(),
+                    e.getMessage());
+        }
     }
 
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {

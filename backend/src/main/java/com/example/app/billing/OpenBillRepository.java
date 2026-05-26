@@ -24,6 +24,10 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
 
     Optional<OpenBill> findBySessionBookingIdAndCompanyId(Long sessionBookingId, Long companyId);
 
+    Optional<OpenBill> findFirstByCompanyIdAndReferenceOrderByIdAsc(Long companyId, String reference);
+
+    List<OpenBill> findAllByCompanyIdAndReferenceStartingWith(Long companyId, String referencePrefix);
+
     @Query("SELECT DISTINCT o.id FROM OpenBill o LEFT JOIN o.items i " +
             "WHERE o.company.id = :companyId " +
             "AND o.batchScope = 'NONE' " +

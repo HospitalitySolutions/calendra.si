@@ -58,7 +58,7 @@ struct JoinTenantView: View {
                     }
                     .padding(.horizontal, 28)
                 }
-                .padding(.top, 0)
+                .padding(.top, 16)
                 .padding(.bottom, 24)
             }
         }

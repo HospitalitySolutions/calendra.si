@@ -1,0 +1,27 @@
+Platform subscription billing on register signup
+
+Backend changes:
+- Added PlatformSubscriptionBillingService to create/update platform-admin billing data when a tenant registers through the register flow.
+- The service resolves the main Platform Admin tenant and creates/updates a ClientCompany payee from the signup billing details, then links a platform client to that company payee.
+- Ensures the six platform subscription transaction services exist only once on the Platform Admin tenant:
+  - BASICMONTHLY: Basic Package - Monthly, no VAT, 18.90 gross/net monthly equivalent
+  - BASICANNUAL: Basic Package - Annual, no VAT, 18.90 gross/net monthly equivalent
+  - PROMONTHLY: Pro Package - Monthly, no VAT, 34.90 gross/net monthly equivalent
+  - PROANNUAL: Pro Package - Annual, no VAT, 29.67 gross/net monthly equivalent
+  - BUSINESSMONTHLY: Business Package - Monthly, no VAT, 59.90 gross/net monthly equivalent
+  - BUSINESSANNUAL: Business Package - Annual, no VAT, 50.92 gross/net monthly equivalent
+- Uses the platform register price catalog where available, while keeping the requested annual monthly-equivalent calculation for Pro/Business and the requested Basic Annual setup.
+- Creates one idempotent open bill on the Platform Admin tenant per registered tenant, with the created company as the payee (batch company target).
+- Adds one subscription bill item to that open bill. The item uses a daily net/gross amount calculated from the selected package period:
+  - monthly: monthly gross divided by days from the billable start date to the same day next month
+  - annual: annual gross (monthly-equivalent × 12) divided by days from the billable start date to the same day next year
+- Basic Monthly starts accruing after a 14-day trial; until then the open bill exists with a zero accrued quantity.
+- Added a daily scheduled refresh that updates open subscription bills so quantity/accrued due amount grows day by day.
+- Signup billing-details save now refreshes the Platform Admin payee data and open bill with the latest company name, VAT ID, address, city, selected package, billing interval, and payment method.
+- Initial tenant provisioning also creates a placeholder platform open bill from the available company/email data, then billing details can enrich it later.
+
+Repository changes:
+- Added lookup helpers for platform subscription transaction services, open bills by subscription reference, and platform ClientCompany matching by VAT/email/name.
+
+Validation:
+- Attempted backend Maven build, but the sandbox could not download the Maven wrapper distribution from repo.maven.apache.org due unavailable network access in this environment.
