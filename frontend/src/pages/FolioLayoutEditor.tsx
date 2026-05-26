@@ -11,13 +11,17 @@ type LocalizedText = {
   sl?: string
 }
 
+type DateFormat = 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'DD.MM.YYYY' | 'YYYY-MM-DD HH:mm' | 'DD-MM-YYYY HH:mm' | 'DD.MM.YYYY HH:mm'
+
 type FieldConfig = {
   key: string
   group: string
   label: string
   labelI18n?: LocalizedText
+  /** Optional localized prefix rendered inside a data block, left of the value. */
+  prefixI18n?: LocalizedText
   /** Optional display format for data fields that contain dates. */
-  dateFormat?: 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'DD.MM.YYYY'
+  dateFormat?: DateFormat
   x: number
   y: number
   width: number
@@ -44,7 +48,7 @@ type ColumnConfig = {
   label: string
   labelI18n?: LocalizedText
   /** Optional display format for table date column values. */
-  dateFormat?: 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'DD.MM.YYYY'
+  dateFormat?: DateFormat
   relX: number
   width: number
   alignment: 'left' | 'right'
@@ -117,6 +121,7 @@ type LayoutConfig = {
   logo: LogoConfig
   signature: SignatureConfig
   paymentQr: PaymentQrConfig
+  fiscalQr: PaymentQrConfig
   vatBreakdownTable: VatBreakdownTableConfig
 }
 
@@ -127,6 +132,7 @@ type Selection =
   | { type: 'logo' }
   | { type: 'signature' }
   | { type: 'paymentQr' }
+  | { type: 'fiscalQr' }
   | { type: 'vatBreakdownTable' }
   | null
 
@@ -140,13 +146,36 @@ const GROUP_COLORS: Record<string, string> = {
 const DEFAULT_LOGO: LogoConfig = { x: 400, y: 40, width: 120, height: 60, visible: true }
 const DEFAULT_SIGNATURE: SignatureConfig = { x: 50, y: 500, width: 120, height: 50, visible: true }
 const DEFAULT_PAYMENT_QR: PaymentQrConfig = { x: 395, y: 392, width: 120, height: 120, visible: true }
+const DEFAULT_FISCAL_QR: PaymentQrConfig = { x: 395, y: 520, width: 95, height: 95, visible: true }
 const DEFAULT_VAT_BREAKDOWN_TABLE: VatBreakdownTableConfig = { x: 50, y: 322, width: 300, headerHeight: 14, rowHeight: 14, headerFontSize: 7, bodyFontSize: 7, visible: true }
 const VAT_SAMPLE_ROWS = 3
 const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en' }
 const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
+const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate'])
+const DATE_FORMAT_OPTIONS: DateFormat[] = ['YYYY-MM-DD', 'DD-MM-YYYY', 'DD.MM.YYYY', 'YYYY-MM-DD HH:mm', 'DD-MM-YYYY HH:mm', 'DD.MM.YYYY HH:mm']
+const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
+  folioNumber: { en: 'Folio Number:', sl: 'Številka računa:' },
+  folioDate: { en: 'Issue date and time:', sl: 'Datum in ura izdaje:' },
+  dateOfService: { en: 'Date of Service:', sl: 'Datum storitve:' },
+  dueDate: { en: 'Due Date:', sl: 'Rok plačila:' },
+}
+const FIELD_SAMPLE_VALUES: Record<string, string> = {
+  folioNumber: '0000',
+  folioDate: '2026-05-26 14:30',
+  dateOfService: '2026-05-26',
+  dueDate: '2026-05-26',
+}
 
 function isDateField(field: FieldConfig) {
   return field.type !== 'custom' && DATE_FIELD_KEYS.has(field.key)
+}
+
+function isPrefixField(field: FieldConfig) {
+  return field.type !== 'custom' && PREFIX_FIELD_KEYS.has(field.key)
+}
+
+function defaultDateFormatForField(key: string): DateFormat {
+  return key === 'folioDate' ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD'
 }
 
 function resolveLocalizedText(i18n: LocalizedText | undefined, legacy: string | undefined, locale: AppLocale): string {
@@ -170,11 +199,26 @@ function isValidLayout(data: any): data is LayoutConfig {
   if (!data.logo) data.logo = { ...DEFAULT_LOGO }
   if (!data.signature) data.signature = { ...DEFAULT_SIGNATURE }
   if (!data.paymentQr) data.paymentQr = { ...DEFAULT_PAYMENT_QR }
+  if (!data.fiscalQr) data.fiscalQr = { ...DEFAULT_FISCAL_QR }
   if (!data.vatBreakdownTable) data.vatBreakdownTable = { ...DEFAULT_VAT_BREAKDOWN_TABLE }
   for (const field of data.fields ?? []) {
     field.labelI18n = ensureLocalizedText(field.labelI18n, field.label)
     field.label = resolveLocalizedText(field.labelI18n, field.label, 'en')
-    if (isDateField(field) && !field.dateFormat) field.dateFormat = 'YYYY-MM-DD'
+    if (isPrefixField(field)) {
+      const defaults = DOCUMENT_PREFIX_DEFAULTS[field.key] || { en: '', sl: '' }
+      field.prefixI18n = {
+        en: (field.prefixI18n?.en || '').trim() || defaults.en,
+        sl: (field.prefixI18n?.sl || '').trim() || defaults.sl,
+      }
+      if (field.key === 'folioDate' && (!field.label || field.label === 'Issue Date')) field.label = 'Issue date and time'
+      if (field.key === 'folioDate') {
+        field.labelI18n = ensureLocalizedText(field.labelI18n, field.label)
+        if (!field.labelI18n.en || field.labelI18n.en === 'Issue Date') field.labelI18n.en = 'Issue date and time'
+        if (!field.labelI18n.sl || field.labelI18n.sl === 'Datum izdaje') field.labelI18n.sl = 'Datum in ura izdaje'
+      }
+    }
+    if (isDateField(field) && !field.dateFormat) field.dateFormat = defaultDateFormatForField(field.key)
+    if (field.key === 'folioDate' && field.dateFormat === 'YYYY-MM-DD') field.dateFormat = 'YYYY-MM-DD HH:mm'
     if (field.type === 'custom') {
       field.textI18n = ensureLocalizedText(field.textI18n, field.text || field.label)
       field.text = resolveLocalizedText(field.textI18n, field.text || field.label, 'en')
@@ -453,6 +497,9 @@ export function FolioLayoutEditor() {
       } else if (sel.type === 'paymentQr') {
         const qr = layout.paymentQr
         origX = qr.x; origY = qr.y; origW = qr.width; origH = qr.height
+      } else if (sel.type === 'fiscalQr') {
+        const qr = layout.fiscalQr
+        origX = qr.x; origY = qr.y; origW = qr.width; origH = qr.height
       } else if (sel.type === 'vatBreakdownTable') {
         const vt = layout.vatBreakdownTable
         origX = vt.x; origY = vt.y; origW = vt.width; origH = vt.headerHeight + vt.rowHeight * VAT_SAMPLE_ROWS
@@ -519,6 +566,14 @@ export function FolioLayoutEditor() {
           } else {
             l.paymentQr.width = Math.max(40, snapVal(d.origW + dx, snapEnabled))
             l.paymentQr.height = Math.max(40, snapVal(d.origH + dy, snapEnabled))
+          }
+        } else if (d.sel.type === 'fiscalQr') {
+          if (d.kind === 'move') {
+            l.fiscalQr.x = snapVal(d.origX + dx, snapEnabled)
+            l.fiscalQr.y = snapVal(d.origY + dy, snapEnabled)
+          } else {
+            l.fiscalQr.width = Math.max(40, snapVal(d.origW + dx, snapEnabled))
+            l.fiscalQr.height = Math.max(40, snapVal(d.origH + dy, snapEnabled))
           }
         } else if (d.sel.type === 'vatBreakdownTable') {
           const vt = l.vatBreakdownTable
@@ -645,7 +700,8 @@ export function FolioLayoutEditor() {
               const groupColor = GROUP_COLORS[f.group] || 'var(--fle-group-default)'
               const displayLabel = f.type === 'custom'
                 ? resolveLocalizedText(f.textI18n, f.text || f.label, locale)
-                : resolveLocalizedText(f.labelI18n, f.label, locale)
+                : (FIELD_SAMPLE_VALUES[f.key] || resolveLocalizedText(f.labelI18n, f.label, locale))
+              const prefixText = isPrefixField(f) ? resolveLocalizedText(f.prefixI18n, DOCUMENT_PREFIX_DEFAULTS[f.key]?.en || '', locale) : '' 
               return (
                 <div
                   key={f.key}
@@ -663,7 +719,14 @@ export function FolioLayoutEditor() {
                   onPointerDown={(e) => onPointerDown(e, { type: 'field', index: idx }, 'move')}
                   onClick={(e) => { e.stopPropagation(); setSelection({ type: 'field', index: idx }) }}
                 >
-                  <span className="fle-field-label">{displayLabel}</span>
+                  {prefixText ? (
+                    <span className="fle-field-prefixed">
+                      <span className="fle-field-prefix">{prefixText}</span>
+                      <span className="fle-field-value">{displayLabel}</span>
+                    </span>
+                  ) : (
+                    <span className="fle-field-label">{displayLabel}</span>
+                  )}
                   {isSel && (
                     <div
                       className="fle-resize-handle"
@@ -867,6 +930,36 @@ export function FolioLayoutEditor() {
               )
             })()}
 
+            {/* Fiscal QR overlay */}
+            {layout.fiscalQr && (() => {
+              const qr = layout.fiscalQr
+              const isSel = selection?.type === 'fiscalQr'
+              return (
+                <div
+                  className={`fle-logo ${isSel ? 'fle-logo--selected' : ''} ${!qr.visible ? 'fle-field--hidden' : ''}`}
+                  style={{
+                    left: qr.x * scale,
+                    top: qr.y * scale,
+                    width: qr.width * scale,
+                    height: qr.height * scale,
+                    borderColor: 'var(--fle-group-recipient)',
+                  }}
+                  onPointerDown={(e) => onPointerDown(e, { type: 'fiscalQr' }, 'move')}
+                  onClick={(e) => { e.stopPropagation(); setSelection({ type: 'fiscalQr' }) }}
+                >
+                  <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', pointerEvents: 'none', background: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06) 6px, transparent 6px, transparent 12px)' }}>
+                    <span className="fle-logo-placeholder">Fiscal QR</span>
+                  </div>
+                  {isSel && (
+                    <div
+                      className="fle-resize-handle"
+                      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, { type: 'fiscalQr' }, 'resize') }}
+                    />
+                  )}
+                </div>
+              )
+            })()}
+
             {/* Signature overlay */}
             {layout.signature && (() => {
               const sg = layout.signature
@@ -905,7 +998,7 @@ export function FolioLayoutEditor() {
         <div className="fle-panel">
           {selection === null && (
             <div className="fle-panel-empty">
-              <p className="muted">Click a field, the services table, VAT breakdown table, logo, payment QR, signature, or a footer item to edit its properties.</p>
+              <p className="muted">Click a field, the services table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.</p>
             </div>
           )}
 
@@ -978,6 +1071,35 @@ export function FolioLayoutEditor() {
             </div>
           )}
 
+          {selection?.type === 'fiscalQr' && (
+            <div className="fle-panel-content">
+              <PageHeader title="Fiscal QR" subtitle="QR code returned from fiscalization placement" />
+              <div className="fle-panel-grid">
+                <Field label="X (pt)">
+                  <input type="number" step={1} value={Math.round(layout.fiscalQr.x)} onChange={(e) => mutateLayout((l) => { l.fiscalQr.x = Number(e.target.value) })} />
+                </Field>
+                <Field label="Y (pt)">
+                  <input type="number" step={1} value={Math.round(layout.fiscalQr.y)} onChange={(e) => mutateLayout((l) => { l.fiscalQr.y = Number(e.target.value) })} />
+                </Field>
+                <Field label="Width">
+                  <input type="number" step={1} value={Math.round(layout.fiscalQr.width)} onChange={(e) => mutateLayout((l) => { l.fiscalQr.width = Number(e.target.value) })} />
+                </Field>
+                <Field label="Height">
+                  <input type="number" step={1} value={Math.round(layout.fiscalQr.height)} onChange={(e) => mutateLayout((l) => { l.fiscalQr.height = Number(e.target.value) })} />
+                </Field>
+                <Field label="Visible">
+                  <input type="checkbox" checked={layout.fiscalQr.visible} onChange={(e) => mutateLayout((l) => { l.fiscalQr.visible = e.target.checked })} />
+                </Field>
+              </div>
+              <div className="fle-panel-coords">
+                Position: {Math.round(layout.fiscalQr.x)}, {Math.round(layout.fiscalQr.y)} pt
+              </div>
+              <p className="muted" style={{ marginTop: 12 }}>
+                This QR is generated from the QR payload returned by fiscalization and is shown only after a bill has fiscalization data.
+              </p>
+            </div>
+          )}
+
           {selectedField && selection?.type === 'field' && (
             <div className="fle-panel-content">
               <PageHeader title={resolveLocalizedText(selectedField.labelI18n, selectedField.label, locale)} subtitle={`${selectedField.group} / ${selectedField.key}`} />
@@ -1007,6 +1129,40 @@ export function FolioLayoutEditor() {
                   />
                 </Field>
               </div>
+              {isPrefixField(selectedField) && (
+                <div className="fle-panel-grid" style={{ marginBottom: 8 }}>
+                  <Field label="Prefix text (EN)">
+                    <input
+                      type="text"
+                      value={resolveLocalizedText(selectedField.prefixI18n, DOCUMENT_PREFIX_DEFAULTS[selectedField.key]?.en || '', 'en')}
+                      onChange={(e) => mutateLayout((l) => {
+                        const field = l.fields[selection.index]
+                        const defaults = DOCUMENT_PREFIX_DEFAULTS[field.key] || { en: '', sl: '' }
+                        field.prefixI18n = {
+                          en: field.prefixI18n?.en || defaults.en,
+                          sl: field.prefixI18n?.sl || defaults.sl,
+                        }
+                        field.prefixI18n.en = e.target.value
+                      })}
+                    />
+                  </Field>
+                  <Field label="Prefix text (SL)">
+                    <input
+                      type="text"
+                      value={resolveLocalizedText(selectedField.prefixI18n, DOCUMENT_PREFIX_DEFAULTS[selectedField.key]?.sl || '', 'sl')}
+                      onChange={(e) => mutateLayout((l) => {
+                        const field = l.fields[selection.index]
+                        const defaults = DOCUMENT_PREFIX_DEFAULTS[field.key] || { en: '', sl: '' }
+                        field.prefixI18n = {
+                          en: field.prefixI18n?.en || defaults.en,
+                          sl: field.prefixI18n?.sl || defaults.sl,
+                        }
+                        field.prefixI18n.sl = e.target.value
+                      })}
+                    />
+                  </Field>
+                </div>
+              )}
               {isDateField(selectedField) && (
                 <div className="fle-panel-grid" style={{ marginBottom: 8 }}>
                   <Field label="Date format">
@@ -1016,9 +1172,9 @@ export function FolioLayoutEditor() {
                         l.fields[selection.index].dateFormat = e.target.value as FieldConfig['dateFormat']
                       })}
                     >
-                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                      <option value="DD-MM-YYYY">DD-MM-YYYY</option>
-                      <option value="DD.MM.YYYY">DD.MM.YYYY</option>
+                      {DATE_FORMAT_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt.replace('HH:mm', 'HH:MM')}</option>
+                      ))}
                     </select>
                   </Field>
                 </div>
@@ -1217,7 +1373,7 @@ export function FolioLayoutEditor() {
                 Position: {Math.round(layout.vatBreakdownTable.x)}, {Math.round(layout.vatBreakdownTable.y)} pt
               </div>
               <p className="muted" style={{ marginTop: 12 }}>
-                The generated PDF always renders one row for 22%, 9.5%, and 0% VAT. Items below the services table move down automatically when invoice rows are added.
+                The generated PDF renders only VAT rows that contain invoice values. Items below the services table move down automatically when invoice rows are added.
               </p>
             </div>
           )}

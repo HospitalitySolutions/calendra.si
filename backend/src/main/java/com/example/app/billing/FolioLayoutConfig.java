@@ -21,6 +21,7 @@ public class FolioLayoutConfig {
     private LogoConfig logo = new LogoConfig();
     private SignatureConfig signature = new SignatureConfig();
     private QrCodeConfig paymentQr = new QrCodeConfig();
+    private QrCodeConfig fiscalQr;
     private VatBreakdownTableConfig vatBreakdownTable = new VatBreakdownTableConfig();
 
     public FolioLayoutConfig() {}
@@ -50,6 +51,8 @@ public class FolioLayoutConfig {
         private String group = "";
         private String label = "";
         private LocalizedText labelI18n;
+        /** Optional localized prefix rendered inside the data block, left of the value. */
+        private LocalizedText prefixI18n;
         /** Optional date output format for date-like data fields (e.g. folioDate). */
         private String dateFormat = "YYYY-MM-DD";
         private float x;
@@ -80,6 +83,8 @@ public class FolioLayoutConfig {
         public void setLabel(String label) { this.label = label; }
         public LocalizedText getLabelI18n() { return labelI18n; }
         public void setLabelI18n(LocalizedText labelI18n) { this.labelI18n = labelI18n; }
+        public LocalizedText getPrefixI18n() { return prefixI18n; }
+        public void setPrefixI18n(LocalizedText prefixI18n) { this.prefixI18n = prefixI18n; }
         public String getDateFormat() { return dateFormat; }
         public void setDateFormat(String dateFormat) { this.dateFormat = dateFormat; }
         public float getX() { return x; }
@@ -342,10 +347,10 @@ public class FolioLayoutConfig {
         fields.add(new FieldConfig("companyCity",       "header",    "City",            130, 81,  120, 14, 10, false, "left"));
         fields.add(new FieldConfig("companyTaxId",      "header",    "VAT ID",           50, 95,  200, 14, 10, false, "left"));
         // Document meta
-        fields.add(new FieldConfig("folioNumber",       "document",  "Folio Number",    395, 50,  150, 16, 12, true,  "right"));
-        fields.add(new FieldConfig("folioDate",         "document",  "Issue Date",      395, 66,  150, 14, 10, false, "right"));
-        fields.add(new FieldConfig("dateOfService",     "document",  "Date of Service", 395, 80,  150, 14, 10, false, "right"));
-        fields.add(new FieldConfig("dueDate",           "document",  "Due Date",        395, 94,  150, 14, 10, false, "right"));
+        fields.add(new FieldConfig("folioNumber",       "document",  "Folio Number",        355, 50,  190, 16, 12, true,  "right"));
+        fields.add(new FieldConfig("folioDate",         "document",  "Issue date and time", 355, 66,  190, 14, 10, false, "right"));
+        fields.add(new FieldConfig("dateOfService",     "document",  "Date of Service",     355, 80,  190, 14, 10, false, "right"));
+        fields.add(new FieldConfig("dueDate",           "document",  "Due Date",            355, 94,  190, 14, 10, false, "right"));
         // Recipient block
         fields.add(new FieldConfig("recipientName",     "recipient", "Recipient Name",   50, 125, 200, 15, 11, true,  "left"));
         fields.add(new FieldConfig("recipientAddress",  "recipient", "Recipient Addr",   50, 140, 200, 14, 10, false, "left"));
@@ -354,7 +359,12 @@ public class FolioLayoutConfig {
         fields.add(new FieldConfig("recipientVatId",    "recipient", "Recipient VAT ID", 50, 168, 200, 14, 10, false, "left"));
         for (var field : fields) {
             field.setLabelI18n(new LocalizedText(field.getLabel(), slFieldLabel(field.getKey(), field.getLabel())));
-            if ("folioDate".equals(field.getKey()) || "dateOfService".equals(field.getKey()) || "dueDate".equals(field.getKey())) {
+            if (isDocumentMetaKey(field.getKey())) {
+                field.setPrefixI18n(defaultDocumentMetaPrefix(field.getKey()));
+            }
+            if ("folioDate".equals(field.getKey())) {
+                field.setDateFormat("YYYY-MM-DD HH:mm");
+            } else if ("dateOfService".equals(field.getKey()) || "dueDate".equals(field.getKey())) {
                 field.setDateFormat("YYYY-MM-DD");
             }
         }
@@ -395,6 +405,8 @@ public class FolioLayoutConfig {
         items.add(new FooterItem("notes",      "Notes",        9, false, "left",  50,  380, 300, 16));
         items.add(new FooterItem("iban",       "IBAN",        10, false, "left",  50,  398, 300, 16));
         items.add(new FooterItem("issuedBy",   "Issued by",   10, false, "left",  50,  416, 200, 16));
+        items.add(new FooterItem("fiscalZoi",  "ZOI",          8, false, "left",  50,  436, 300, 14));
+        items.add(new FooterItem("fiscalEor",  "EOR",          8, false, "left",  50,  450, 300, 14));
         for (var item : items) {
             item.setLabelI18n(new LocalizedText(item.getLabel(), slFooterLabel(item.getKey(), item.getLabel())));
         }
@@ -403,9 +415,33 @@ public class FolioLayoutConfig {
 
         cfg.setSignature(new SignatureConfig());
         cfg.setPaymentQr(new QrCodeConfig());
+        var fiscalQr = new QrCodeConfig();
+        fiscalQr.setX(395);
+        fiscalQr.setY(520);
+        fiscalQr.setWidth(95);
+        fiscalQr.setHeight(95);
+        fiscalQr.setVisible(true);
+        cfg.setFiscalQr(fiscalQr);
         cfg.setVatBreakdownTable(new VatBreakdownTableConfig());
 
         return cfg;
+    }
+
+    private static boolean isDocumentMetaKey(String key) {
+        return "folioNumber".equals(key)
+                || "folioDate".equals(key)
+                || "dateOfService".equals(key)
+                || "dueDate".equals(key);
+    }
+
+    private static LocalizedText defaultDocumentMetaPrefix(String key) {
+        return switch (key) {
+            case "folioNumber" -> new LocalizedText("Folio Number:", "Številka računa:");
+            case "folioDate" -> new LocalizedText("Issue date and time:", "Datum in ura izdaje:");
+            case "dateOfService" -> new LocalizedText("Date of Service:", "Datum storitve:");
+            case "dueDate" -> new LocalizedText("Due Date:", "Rok plačila:");
+            default -> new LocalizedText("", "");
+        };
     }
 
     private static String slFieldLabel(String key, String fallback) {
@@ -416,7 +452,7 @@ public class FolioLayoutConfig {
             case "companyCity" -> "Kraj";
             case "companyTaxId" -> "Davcna stevilka";
             case "folioNumber" -> "Stevilka racuna";
-            case "folioDate" -> "Datum izdaje";
+            case "folioDate" -> "Datum in ura izdaje";
             case "dateOfService" -> "Datum storitve";
             case "dueDate" -> "Rok placila";
             case "recipientName" -> "Naziv prejemnika";
@@ -453,8 +489,80 @@ public class FolioLayoutConfig {
             case "notes" -> "Opombe";
             case "iban" -> "IBAN";
             case "issuedBy" -> "Izdal";
+            case "fiscalZoi" -> "ZOI";
+            case "fiscalEor" -> "EOR";
             default -> fallback;
         };
+    }
+
+    /**
+     * Adds newly introduced optional layout blocks to older saved JSON layouts
+     * without overwriting the tenant's existing coordinates or labels.
+     */
+    public static FolioLayoutConfig normalize(FolioLayoutConfig cfg) {
+        if (cfg == null) return defaultLayout();
+        FolioLayoutConfig defaults = defaultLayout();
+        if (cfg.getFields() == null) {
+            cfg.setFields(defaults.getFields());
+        } else {
+            for (FieldConfig field : cfg.getFields()) {
+                if (field == null) continue;
+                if (field.getLabelI18n() == null) {
+                    field.setLabelI18n(new LocalizedText(field.getLabel(), slFieldLabel(field.getKey(), field.getLabel())));
+                }
+                if (isDocumentMetaKey(field.getKey())) {
+                    LocalizedText def = defaultDocumentMetaPrefix(field.getKey());
+                    LocalizedText current = field.getPrefixI18n();
+                    if (current == null) {
+                        field.setPrefixI18n(def);
+                    } else {
+                        if (current.getEn() == null || current.getEn().isBlank()) current.setEn(def.getEn());
+                        if (current.getSl() == null || current.getSl().isBlank()) current.setSl(def.getSl());
+                    }
+                    if ("folioDate".equals(field.getKey())
+                            && (field.getDateFormat() == null || field.getDateFormat().isBlank() || "YYYY-MM-DD".equals(field.getDateFormat()))) {
+                        field.setDateFormat("YYYY-MM-DD HH:mm");
+                    }
+                    if ("folioDate".equals(field.getKey()) && (field.getLabel() == null || field.getLabel().isBlank() || "Issue Date".equals(field.getLabel()))) {
+                        field.setLabel("Issue date and time");
+                    }
+                    if ("folioDate".equals(field.getKey()) && field.getLabelI18n() != null) {
+                        if (field.getLabelI18n().getEn() == null || field.getLabelI18n().getEn().isBlank() || "Issue Date".equals(field.getLabelI18n().getEn())) {
+                            field.getLabelI18n().setEn("Issue date and time");
+                        }
+                        if (field.getLabelI18n().getSl() == null || field.getLabelI18n().getSl().isBlank() || "Datum izdaje".equals(field.getLabelI18n().getSl())) {
+                            field.getLabelI18n().setSl("Datum in ura izdaje");
+                        }
+                    }
+                }
+            }
+        }
+        if (cfg.getTable() == null) cfg.setTable(defaults.getTable());
+        if (cfg.getFooter() == null) {
+            cfg.setFooter(defaults.getFooter());
+        } else {
+            if (cfg.getFooter().getItems() == null) {
+                cfg.getFooter().setItems(defaults.getFooter().getItems());
+            } else {
+                addMissingFooterItem(cfg, defaults, "fiscalZoi");
+                addMissingFooterItem(cfg, defaults, "fiscalEor");
+            }
+        }
+        if (cfg.getLogo() == null) cfg.setLogo(defaults.getLogo());
+        if (cfg.getSignature() == null) cfg.setSignature(defaults.getSignature());
+        if (cfg.getPaymentQr() == null) cfg.setPaymentQr(defaults.getPaymentQr());
+        if (cfg.getFiscalQr() == null) cfg.setFiscalQr(defaults.getFiscalQr());
+        if (cfg.getVatBreakdownTable() == null) cfg.setVatBreakdownTable(defaults.getVatBreakdownTable());
+        return cfg;
+    }
+
+    private static void addMissingFooterItem(FolioLayoutConfig cfg, FolioLayoutConfig defaults, String key) {
+        boolean exists = cfg.getFooter().getItems().stream().anyMatch(item -> item != null && key.equals(item.getKey()));
+        if (exists) return;
+        defaults.getFooter().getItems().stream()
+                .filter(item -> item != null && key.equals(item.getKey()))
+                .findFirst()
+                .ifPresent(cfg.getFooter().getItems()::add);
     }
 
     /* ── root getters/setters ── */
@@ -475,6 +583,8 @@ public class FolioLayoutConfig {
     public void setSignature(SignatureConfig signature) { this.signature = signature; }
     public QrCodeConfig getPaymentQr() { return paymentQr; }
     public void setPaymentQr(QrCodeConfig paymentQr) { this.paymentQr = paymentQr; }
+    public QrCodeConfig getFiscalQr() { return fiscalQr; }
+    public void setFiscalQr(QrCodeConfig fiscalQr) { this.fiscalQr = fiscalQr; }
     public VatBreakdownTableConfig getVatBreakdownTable() { return vatBreakdownTable; }
     public void setVatBreakdownTable(VatBreakdownTableConfig vatBreakdownTable) { this.vatBreakdownTable = vatBreakdownTable; }
 }

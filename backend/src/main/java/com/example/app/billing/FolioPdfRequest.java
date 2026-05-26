@@ -22,6 +22,11 @@ public class FolioPdfRequest {
     private String dateOfService;
     private String dueDate;
 
+    /* ── fiscalization response fields ── */
+    private String fiscalZoi;
+    private String fiscalEor;
+    private String fiscalQr;
+
     /* ── header: recipient ── */
     private String recipientName;
     private String recipientAddress;
@@ -115,6 +120,12 @@ public class FolioPdfRequest {
     public void setDateOfService(String dateOfService) { this.dateOfService = dateOfService; }
     public String getDueDate() { return dueDate; }
     public void setDueDate(String dueDate) { this.dueDate = dueDate; }
+    public String getFiscalZoi() { return fiscalZoi; }
+    public void setFiscalZoi(String fiscalZoi) { this.fiscalZoi = fiscalZoi; }
+    public String getFiscalEor() { return fiscalEor; }
+    public void setFiscalEor(String fiscalEor) { this.fiscalEor = fiscalEor; }
+    public String getFiscalQr() { return fiscalQr; }
+    public void setFiscalQr(String fiscalQr) { this.fiscalQr = fiscalQr; }
     public String getRecipientName() { return recipientName; }
     public void setRecipientName(String recipientName) { this.recipientName = recipientName; }
     public String getRecipientAddress() { return recipientAddress; }

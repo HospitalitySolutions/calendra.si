@@ -221,6 +221,36 @@
   line-height: 1.2;
 }
 
+.fle-field-prefixed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  color: #333;
+  pointer-events: none;
+  line-height: 1.2;
+}
+
+.fle-field-prefix,
+.fle-field-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fle-field-prefix {
+  flex: 0 1 auto;
+  text-align: left;
+}
+
+.fle-field-value {
+  flex: 0 0 auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Resize handle ── */
 .fle-resize-handle {
   position: absolute;

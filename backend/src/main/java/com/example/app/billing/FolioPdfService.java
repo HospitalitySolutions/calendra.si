@@ -15,7 +15,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -124,6 +124,7 @@ public class FolioPdfService {
             drawVatBreakdownTable(ctx, layout, req, selectedLocale, fonts, tableFlowOffset);
             drawSignature(ctx, layout, signatureBytes, tableFlowOffset);
             drawPaymentQr(ctx, layout, req, tableFlowOffset);
+            drawFiscalQr(ctx, layout, req, tableFlowOffset);
 
             ctx.closeStream();
             doc.save(out);
@@ -183,6 +184,8 @@ public class FolioPdfService {
         values.put("folioDate", req.getFolioDate());
         values.put("dateOfService", req.getDateOfService());
         values.put("dueDate", req.getDueDate());
+        values.put("fiscalZoi", req.getFiscalZoi());
+        values.put("fiscalEor", req.getFiscalEor());
         values.put("recipientName", req.getRecipientName());
         values.put("recipientAddress", req.getRecipientAddress());
         values.put("recipientPostalCode", req.getRecipientPostalCode());
@@ -206,8 +209,17 @@ public class FolioPdfService {
 
             PDFont font = field.isBold() ? fonts.bold() : fonts.regular();
             float pdfY = pageH - field.getY() - field.getFontSize();
+            String prefix = safe(resolveLocalized(field.getPrefixI18n(), "", locale));
 
-            if ("right".equals(field.getAlignment())) {
+            if (prefix != null && !prefix.isBlank()) {
+                drawText(ctx, font, field.getFontSize(), field.getX(), pdfY, prefix);
+                if ("right".equals(field.getAlignment())) {
+                    drawTextRight(ctx, font, field.getFontSize(), field.getX() + field.getWidth(), pdfY, text);
+                } else {
+                    float prefixWidth = font.getStringWidth(prefix + " ") / 1000f * field.getFontSize();
+                    drawText(ctx, font, field.getFontSize(), field.getX() + prefixWidth, pdfY, text);
+                }
+            } else if ("right".equals(field.getAlignment())) {
                 float rightEdge = field.getX() + field.getWidth();
                 drawTextRight(ctx, font, field.getFontSize(), rightEdge, pdfY, text);
             } else if ("center".equals(field.getAlignment())) {
@@ -317,6 +329,10 @@ public class FolioPdfService {
             footerValues.put("iban", safe(req.getIban()));
         if (req.getIssuedBy() != null && !req.getIssuedBy().isBlank())
             footerValues.put("issuedBy", safe(req.getIssuedBy()));
+        if (req.getFiscalZoi() != null && !req.getFiscalZoi().isBlank())
+            footerValues.put("fiscalZoi", safe(req.getFiscalZoi()));
+        if (req.getFiscalEor() != null && !req.getFiscalEor().isBlank())
+            footerValues.put("fiscalEor", safe(req.getFiscalEor()));
 
         for (var item : ftr.getItems()) {
             if ("payment".equals(item.getKey())) {
@@ -412,6 +428,22 @@ public class FolioPdfService {
                 Math.max(64, Math.round(qrCfg.getWidth())),
                 Math.max(64, Math.round(qrCfg.getHeight())));
         PDImageXObject img = PDImageXObject.createFromByteArray(ctx.doc, png, "payment-qr");
+        float pageH = layout.getPageHeight();
+        float qrY = shiftedBelowServicesTableY(qrCfg.getY(), layout, tableFlowOffset);
+        float pdfY = pageH - qrY - qrCfg.getHeight();
+        ctx.stream.drawImage(img, qrCfg.getX(), pdfY, qrCfg.getWidth(), qrCfg.getHeight());
+    }
+
+    private void drawFiscalQr(PageContext ctx, FolioLayoutConfig layout, FolioPdfRequest req, float tableFlowOffset) throws IOException {
+        var qrCfg = layout.getFiscalQr();
+        if (qrCfg == null || !qrCfg.isVisible()) return;
+        String payload = req.getFiscalQr() == null ? "" : req.getFiscalQr().replace("\r", "");
+        if (payload.isBlank()) return;
+
+        byte[] png = createQrPng(payload,
+                Math.max(64, Math.round(qrCfg.getWidth())),
+                Math.max(64, Math.round(qrCfg.getHeight())));
+        PDImageXObject img = PDImageXObject.createFromByteArray(ctx.doc, png, "fiscal-qr");
         float pageH = layout.getPageHeight();
         float qrY = shiftedBelowServicesTableY(qrCfg.getY(), layout, tableFlowOffset);
         float pdfY = pageH - qrY - qrCfg.getHeight();
@@ -589,12 +621,12 @@ public class FolioPdfService {
                 VatBreakdownBucket.VAT_9_5,
                 VatBreakdownBucket.VAT_0
         )) {
-            rows.add(new VatBreakdownRow(
-                    bucket,
-                    netTotals.getOrDefault(bucket, BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP),
-                    vatTotals.getOrDefault(bucket, BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP),
-                    counts.getOrDefault(bucket, 0)
-            ));
+            BigDecimal net = netTotals.getOrDefault(bucket, BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal vat = vatTotals.getOrDefault(bucket, BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            int count = counts.getOrDefault(bucket, 0);
+            if (net.compareTo(BigDecimal.ZERO) != 0 || vat.compareTo(BigDecimal.ZERO) != 0) {
+                rows.add(new VatBreakdownRow(bucket, net, vat, count));
+            }
         }
         return rows;
     }
@@ -699,14 +731,74 @@ public class FolioPdfService {
 
     private static String formatDateValue(String raw, String configuredFormat) {
         if (raw == null || raw.isBlank()) return "";
+        String format = configuredFormat == null || configuredFormat.isBlank() ? "YYYY-MM-DD" : configuredFormat;
+        boolean includeTime = format.contains("HH");
+        if (includeTime) {
+            LocalDateTime parsedDateTime = parseDateTime(raw.trim());
+            if (parsedDateTime == null) {
+                LocalDate parsedDate = parseDate(raw.trim());
+                parsedDateTime = parsedDate == null ? null : parsedDate.atStartOfDay();
+            }
+            if (parsedDateTime == null) return raw;
+            return switch (format) {
+                case "DD-MM-YYYY HH:mm" -> parsedDateTime.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"));
+                case "DD.MM.YYYY HH:mm" -> parsedDateTime.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"));
+                case "YYYY-MM-DD HH:mm" -> parsedDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                default -> parsedDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+            };
+        }
+
         LocalDate parsed = parseDate(raw.trim());
         if (parsed == null) return raw;
-        return switch (configuredFormat == null ? "YYYY-MM-DD" : configuredFormat) {
+        return switch (format) {
             case "DD-MM-YYYY" -> parsed.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
             case "DD.MM.YYYY" -> parsed.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
             case "YYYY-MM-DD" -> parsed.format(DateTimeFormatter.ISO_LOCAL_DATE);
             default -> parsed.format(DateTimeFormatter.ISO_LOCAL_DATE);
         };
+    }
+
+    private static LocalDateTime parseDateTime(String value) {
+        String v = value.trim();
+        try {
+            return LocalDateTime.parse(v, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        } catch (DateTimeParseException ignored) {
+            // continue
+        }
+        try {
+            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDateTime();
+        } catch (DateTimeParseException ignored) {
+            // continue
+        }
+        try {
+            return OffsetDateTime.parse(v).toLocalDateTime();
+        } catch (DateTimeParseException ignored) {
+            // continue
+        }
+        try {
+            return ZonedDateTime.parse(v).toLocalDateTime();
+        } catch (DateTimeParseException ignored) {
+            // continue
+        }
+
+        DateTimeFormatter[] formats = new DateTimeFormatter[] {
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+                DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"),
+                DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"),
+                DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
+                DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
+                DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
+                DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")
+        };
+        for (DateTimeFormatter formatter : formats) {
+            try {
+                return LocalDateTime.parse(v, formatter);
+            } catch (DateTimeParseException ignored) {
+                // try next format
+            }
+        }
+        return null;
     }
 
     private static LocalDate parseDate(String value) {
@@ -718,7 +810,7 @@ public class FolioPdfService {
             // continue
         }
         try {
-            return Instant.parse(v).atOffset(ZoneOffset.UTC).toLocalDate();
+            return Instant.parse(v).atZone(ZoneId.systemDefault()).toLocalDate();
         } catch (DateTimeParseException ignored) {
             // continue
         }

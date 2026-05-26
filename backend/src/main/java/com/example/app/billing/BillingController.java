@@ -3819,7 +3819,14 @@ public class BillingController {
             var trimmed = json.strip();
             boolean looksValid = trimmed.startsWith("{") && trimmed.contains("\"fields\"");
             if (looksValid) {
-                return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(json);
+                try {
+                    var normalized = FolioLayoutConfig.normalize(LAYOUT_MAPPER.readValue(json, FolioLayoutConfig.class));
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(LAYOUT_MAPPER.writeValueAsString(normalized));
+                } catch (Exception e) {
+                    log.warn("Invalid folio layout JSON for company={}, returning defaults", me.getCompany().getId(), e);
+                }
             }
         }
         try {
@@ -3841,9 +3848,16 @@ public class BillingController {
             ns.setKey(SettingKey.FOLIO_TEMPLATE_LAYOUT_JSON.name());
             return ns;
         });
-        s.setValue(body);
+        String normalizedBody = body;
+        try {
+            var normalized = FolioLayoutConfig.normalize(LAYOUT_MAPPER.readValue(body, FolioLayoutConfig.class));
+            normalizedBody = LAYOUT_MAPPER.writeValueAsString(normalized);
+        } catch (Exception e) {
+            log.warn("Saving folio layout without normalization because JSON could not be parsed for company={}", companyId, e);
+        }
+        s.setValue(normalizedBody);
         settings.save(s);
-        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(body);
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(normalizedBody);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -3950,7 +3964,7 @@ public class BillingController {
             return FolioLayoutConfig.defaultLayout();
         }
         try {
-            return LAYOUT_MAPPER.readValue(json, FolioLayoutConfig.class);
+            return FolioLayoutConfig.normalize(LAYOUT_MAPPER.readValue(json, FolioLayoutConfig.class));
         } catch (Exception e) {
             log.warn("Invalid folio layout JSON for company={}, using defaults", companyId, e);
             return FolioLayoutConfig.defaultLayout();

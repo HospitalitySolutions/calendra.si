@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -19,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class BillFolioPdfService {
     private static final Logger log = LoggerFactory.getLogger(BillFolioPdfService.class);
     private static final ObjectMapper LAYOUT_MAPPER = new ObjectMapper();
+    private static final DateTimeFormatter ISSUE_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final AppSettingRepository settings;
     private final SessionBookingRepository sessionBookings;
@@ -64,7 +67,10 @@ public class BillFolioPdfService {
     private FolioPdfRequest buildFolioPdfRequest(Bill bill, Long companyId) {
         var req = new FolioPdfRequest();
         req.setFolioNumber(bill.getBillNumber());
-        req.setFolioDate(bill.getIssueDate() != null ? bill.getIssueDate().toString() : "");
+        req.setFolioDate(formatIssueDateTime(bill));
+        req.setFiscalZoi(bill.getFiscalZoi());
+        req.setFiscalEor(bill.getFiscalEor());
+        req.setFiscalQr(bill.getFiscalQr());
         req.setCompanyName(settingValue(companyId, SettingKey.COMPANY_NAME));
         req.setCompanyAddress(settingValue(companyId, SettingKey.COMPANY_ADDRESS));
         req.setCompanyPostalCode(settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE));
@@ -172,6 +178,17 @@ public class BillFolioPdfService {
         }
         req.setServices(serviceLines);
         return req;
+    }
+
+    private String formatIssueDateTime(Bill bill) {
+        if (bill == null) return "";
+        if (bill.getCreatedAt() != null) {
+            return ISSUE_DATE_TIME_FORMAT.format(bill.getCreatedAt().atZone(ZoneId.systemDefault()));
+        }
+        if (bill.getIssueDate() != null) {
+            return ISSUE_DATE_TIME_FORMAT.format(bill.getIssueDate().atStartOfDay());
+        }
+        return "";
     }
 
     private List<FolioPdfRequest.PaymentLine> buildPaymentLines(Bill bill) {
@@ -282,7 +299,7 @@ public class BillFolioPdfService {
             return FolioLayoutConfig.defaultLayout();
         }
         try {
-            return LAYOUT_MAPPER.readValue(json, FolioLayoutConfig.class);
+            return FolioLayoutConfig.normalize(LAYOUT_MAPPER.readValue(json, FolioLayoutConfig.class));
         } catch (Exception e) {
             log.warn("Invalid folio layout JSON for company={}, using defaults", companyId, e);
             return FolioLayoutConfig.defaultLayout();
