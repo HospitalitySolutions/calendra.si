@@ -137,7 +137,7 @@ struct WelcomeView: View {
                         Image("CalendraBookLogo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: min(proxy.size.width * 0.64, 260), height: 74, alignment: .leading)
+                            .frame(width: min(proxy.size.width * 0.58, 230), height: 66, alignment: .leading)
                             .accessibilityLabel("Calendra Book")
                             .padding(.top, metrics.topPadding)
 

@@ -84,6 +84,39 @@ private let walletCardLavender = Color(red: 0.965, green: 0.941, blue: 1.0)
 private let walletCardBlue = Color(red: 0.937, green: 0.973, blue: 1.0)
 private let walletCardRose = Color(red: 1.0, green: 0.948, blue: 0.925)
 
+private func walletIsSl(_ languageCode: String) -> Bool {
+    languageCode.lowercased().hasPrefix("sl")
+}
+
+private func walletTr(_ languageCode: String, _ en: String, _ sl: String) -> String {
+    walletIsSl(languageCode) ? sl : en
+}
+
+private func walletFilterTitle(_ label: String, languageCode: String) -> String {
+    switch label {
+    case "All": return walletTr(languageCode, "All", "Vse")
+    case "Tickets": return walletTr(languageCode, "Tickets", "Vstopnice")
+    case "Memberships": return walletTr(languageCode, "Memberships", "Članarine")
+    case "Paid": return walletTr(languageCode, "Paid", "Plačano")
+    case "Pending": return walletTr(languageCode, "Pending", "V čakanju")
+    case "Refunded": return walletTr(languageCode, "Refunded", "Vrnjeno")
+    case "Inactive": return walletTr(languageCode, "Inactive", "Neaktivno")
+    case "Active": return walletTr(languageCode, "Active", "Aktivno")
+    default: return label
+    }
+}
+
+private func walletProductTypeLabel(_ type: String, languageCode: String) -> String {
+    switch type.uppercased() {
+    case "PACK": return walletTr(languageCode, "Pack", "Paket")
+    case "MEMBERSHIP": return walletTr(languageCode, "Membership", "Članarina")
+    case "CLASS_TICKET": return walletTr(languageCode, "Class ticket", "Vstopnica")
+    case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(languageCode, "Gift card", "Darilna kartica")
+    case "ORDER": return walletTr(languageCode, "Order", "Naročilo")
+    default: return type.capitalized
+    }
+}
+
 private enum WalletBuyCategory: CaseIterable, Identifiable {
     case all
     case memberships
@@ -100,6 +133,16 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
         case .classPacks: return "Class Packs"
         case .dropIns: return "Day Passes"
         case .giftCards: return "Gift Cards"
+        }
+    }
+
+    func localizedTitle(languageCode: String) -> String {
+        switch self {
+        case .all: return walletTr(languageCode, "All", "Vse")
+        case .memberships: return walletTr(languageCode, "Memberships", "Članarine")
+        case .classPacks: return walletTr(languageCode, "Class Packs", "Paket vstopnic")
+        case .dropIns: return walletTr(languageCode, "Day Passes", "Dnevne vstopnice")
+        case .giftCards: return walletTr(languageCode, "Gift Cards", "Darilne kartice")
         }
     }
 
@@ -129,8 +172,15 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
     }
 }
 
+private enum WalletEmptyKind {
+    case entitlements
+    case buy
+    case orders
+}
+
 struct WalletView: View {
     @EnvironmentObject private var store: AppStore
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
     @Environment(\.openURL) private var openURL
 
     let onOpenNotifications: () -> Void
@@ -184,6 +234,7 @@ struct WalletView: View {
         .sheet(item: $pendingOffer) { offer in
             BuyPaymentSheet(
                 offer: offer,
+                languageCode: appUiLocaleStorage,
                 availableMethods: store.tenantPaymentMethods(companyId: offer.companyId),
                 onCancel: { pendingOffer = nil },
                 onConfirm: { method in
@@ -197,7 +248,7 @@ struct WalletView: View {
             WalletReceiptPreviewController(item: item)
         }
         .sheet(item: $paymentInstructionsOrder) { order in
-            WalletPaymentInstructionsSheet(order: order) {
+            WalletPaymentInstructionsSheet(order: order, languageCode: appUiLocaleStorage) {
                 paymentInstructionsOrder = nil
             }
             .presentationDetents([.medium, .large])
@@ -222,6 +273,7 @@ struct WalletView: View {
             if let selectedQRCode {
                 WalletQRCodePopup(
                     model: selectedQRCode,
+                    languageCode: appUiLocaleStorage,
                     onClose: {
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                             self.selectedQRCode = nil
@@ -242,27 +294,32 @@ struct WalletView: View {
 
     private var walletHeader: some View {
         HStack(alignment: .center, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "building.2")
-                    .font(.system(size: 15, weight: .semibold))
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(walletBlueSoft)
+                    Image(systemName: "building.2")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 34, height: 34)
+
                 Text(store.walletScopedTenantName)
-                    .font(.system(size: 16, weight: .regular))
+                    .font(.system(size: 17, weight: .semibold))
                     .lineLimit(1)
-                    .frame(maxWidth: 52, alignment: .leading)
                     .truncationMode(.tail)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(walletBlue)
             }
             .foregroundColor(walletInk)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .background(Color.white, in: Capsule(style: .continuous))
-            .overlay(Capsule(style: .continuous).stroke(walletLine.opacity(0.95), lineWidth: 1))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: Color.black.opacity(0.04), radius: 12, y: 6)
-            .contentShape(Capsule(style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .onTapGesture { onOpenTenantPicker() }
-            .frame(maxWidth: 180, alignment: .leading)
+            .frame(maxWidth: 220, alignment: .leading)
 
             Spacer(minLength: 0)
 
@@ -271,7 +328,7 @@ struct WalletView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(walletInk)
                     .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -283,30 +340,33 @@ struct WalletView: View {
     // MARK: Segmented control
 
     private var segmentedControl: some View {
-        HStack(spacing: 4) {
-            ForEach(WalletSubTab.allCases) { tab in
+        HStack(spacing: 0) {
+            ForEach([WalletSubTab.entitlements, .buy, .orders], id: \.self) { tab in
                 let selected = subTab == tab
                 Button {
                     subTab = tab
                 } label: {
-                    Text(tab.localizedTitle(languageCode: store.user.language ?? "en"))
-                        .font(.system(size: 13, weight: selected ? .bold : .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .foregroundColor(selected ? .white : walletInk.opacity(0.88))
-                        .frame(maxWidth: .infinity, minHeight: 42)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(selected ? walletBlueSoft : Color.clear)
-                                .shadow(color: selected ? walletBlue.opacity(0.20) : .clear, radius: 12, x: 0, y: 6)
-                        )
+                    VStack(spacing: 0) {
+                        Text(tab.localizedTitle(languageCode: appUiLocaleStorage))
+                            .font(.system(size: 12, weight: selected ? .bold : .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .foregroundColor(selected ? walletBlueSoft : walletMuted)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 7)
+                            .padding(.bottom, 6)
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(selected ? walletBlueSoft : .clear)
+                            .frame(width: 72, height: 3)
+                            .padding(.bottom, 4)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(2)
-        .background(Color(red: 0.91, green: 0.94, blue: 0.97), in: Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous).stroke(walletLine.opacity(0.85), lineWidth: 1))
+        .frame(height: 50)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(color: Color.black.opacity(0.045), radius: 16, y: 8)
     }
 
@@ -341,19 +401,26 @@ struct WalletView: View {
                 .padding(.vertical, 8)
 
             if cards.isEmpty {
-                emptyState(
-                    iconName: "ticket",
-                    title: "No entitlements yet",
-                    subtitle: "Purchases from the Buy tab will show up here as tickets, packs and memberships."
+                showcaseEmptyState(
+                    kind: .entitlements,
+                    title: walletTr(appUiLocaleStorage, "No entitlements yet", "Vstopnic še ni"),
+                    subtitle: walletTr(appUiLocaleStorage, "Purchases from the Buy tab will appear here as tickets, packs and memberships.", "Nakupi iz zavihka Nakup bodo tukaj prikazani kot vstopnice, paketi in članarine."),
+                    primaryButtonTitle: walletTr(appUiLocaleStorage, "Browse offers", "Prebrskaj ponudbe"),
+                    footerText: walletTr(appUiLocaleStorage, "Looking for something? Explore offers and find what’s right for you.", "Iščete nekaj zase? Prebrskajte ponudbe in izberite pravo zase."),
+                    footerIcon: "ticket.fill",
+                    primaryAction: {
+                        subTab = .buy
+                        onOpenBuyTab()
+                    }
                 )
-                .padding(.top, 64)
                 .padding(.horizontal, 20)
-                .padding(.bottom, 140)
+                .padding(.top, 12)
+                .padding(.bottom, 22)
             } else if visibleCards.isEmpty {
                 emptyState(
                     iconName: "ticket",
-                    title: showInactiveEntitlements ? "No inactive entitlements" : "No active entitlements",
-                    subtitle: "Switch filters or purchase a new pass from the Buy tab."
+                    title: showInactiveEntitlements ? walletTr(appUiLocaleStorage, "No inactive entitlements", "Ni neaktivnih vstopnic") : walletTr(appUiLocaleStorage, "No active entitlements", "Ni aktivnih vstopnic"),
+                    subtitle: walletTr(appUiLocaleStorage, "Switch filters or purchase a new pass from the Buy tab.", "Preklopite filtre ali kupite novo vstopnico v zavihku Nakup.")
                 )
                 .padding(.top, 64)
                 .padding(.horizontal, 20)
@@ -365,8 +432,8 @@ struct WalletView: View {
                     onQRCodeTap: { entitlement, code in
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
                             selectedQRCode = WalletQRCodePopupModel(
-                                title: "Scan access code",
-                                subtitle: "Show this at reception",
+                                title: walletTr(appUiLocaleStorage, "Scan access code", "Skeniraj dostopno kodo"),
+                                subtitle: walletTr(appUiLocaleStorage, "Show this at reception", "Pokažite to na recepciji"),
                                 code: code,
                                 entitlementId: entitlement.id
                             )
@@ -392,7 +459,24 @@ struct WalletView: View {
         let allOffers = store.walletScopedOffers
         let visibleOffers = allOffers.filter { selectedBuyCategory.matches($0) }
 
-        return ScrollView(showsIndicators: false) {
+        if allOffers.isEmpty {
+            return AnyView(
+                showcaseEmptyState(
+                    kind: .buy,
+                    title: walletTr(appUiLocaleStorage, "No offers available", "Trenutno ni ponudb"),
+                    subtitle: walletTr(appUiLocaleStorage, "This tenant does not have any memberships, packs or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, paketov ali darilnih kartic za nakup."),
+                    primaryButtonTitle: walletTr(appUiLocaleStorage, "Change tenant", "Zamenjaj ponudnika"),
+                    footerText: walletTr(appUiLocaleStorage, "Switch to another tenant to explore available offers.", "Preklopite na drugega ponudnika in preglejte razpoložljive ponudbe."),
+                    footerIcon: "building.2.fill",
+                    primaryAction: { onOpenTenantPicker() }
+                )
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 22)
+            )
+        }
+
+        return AnyView(ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
@@ -412,8 +496,8 @@ struct WalletView: View {
 
                 if visibleOffers.isEmpty {
                     BuyNoResultsCard(
-                        title: "No offers in this category",
-                        subtitle: "Try another category to browse available products."
+                        title: walletTr(appUiLocaleStorage, "No offers in this category", "V tej kategoriji ni ponudb"),
+                        subtitle: walletTr(appUiLocaleStorage, "Try another category to browse available products.", "Izberite drugo kategorijo za pregled razpoložljivih izdelkov.")
                     )
                 } else {
                     LazyVStack(spacing: 14) {
@@ -433,7 +517,7 @@ struct WalletView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 18)
-        }
+        })
     }
 
     private func buyFeaturedOffer(from offers: [WalletOfferModel]) -> WalletOfferModel? {
@@ -463,31 +547,31 @@ struct WalletView: View {
 
     private func buyHeroSubtitle(for offer: WalletOfferModel) -> String {
         if let promoText = offer.promoText, !promoText.isEmpty { return promoText }
-        if offer.productType == "MEMBERSHIP" { return "Unlimited access, simple checkout, saved directly to your wallet." }
-        if offer.productType == "PACK" { return "Flexible visits for your favorite classes, ready instantly after purchase." }
-        return offer.description?.isEmpty == false ? offer.description! : "Book your next session with a pass that activates instantly."
+        if offer.productType == "MEMBERSHIP" { return walletTr(appUiLocaleStorage, "Unlimited access, simple checkout, saved directly to your wallet.", "Neomejen dostop, enostavno plačilo in shranjeno neposredno v denarnico.") }
+        if offer.productType == "PACK" { return walletTr(appUiLocaleStorage, "Flexible visits for your favorite classes, ready instantly after purchase.", "Prilagodljivi obiski za vaše najljubše termine, pripravljeni takoj po nakupu.") }
+        return offer.description?.isEmpty == false ? offer.description! : walletTr(appUiLocaleStorage, "Book your next session with a pass that activates instantly.", "Rezervirajte naslednji termin z vstopnico, ki se aktivira takoj.")
     }
 
     private func buyOfferSubtitle(for offer: WalletOfferModel) -> String {
         if let description = offer.description, !description.isEmpty { return description }
         switch offer.productType {
         case "PACK":
-            return "\(offerVisitCountLabel(offer.usageLimit)) to use anytime. \(offerValidityLabel(offer.validityDays))."
+            return walletTr(appUiLocaleStorage, "\(offerVisitCountLabel(offer.usageLimit)) to use anytime. \(offerValidityLabel(offer.validityDays)).", "\(offerVisitCountLabel(offer.usageLimit)) za uporabo kadarkoli. \(offerValidityLabel(offer.validityDays)).")
         case "MEMBERSHIP":
-            return "Recurring access for your routine. Saved to Wallet after checkout."
+            return walletTr(appUiLocaleStorage, "Recurring access for your routine. Saved to Wallet after checkout.", "Ponavljajoč dostop za vašo rutino. Po plačilu shranjeno v denarnico.")
         case "CLASS_TICKET":
-            return "One class. Any time. \(offerValidityLabel(offer.validityDays))."
+            return walletTr(appUiLocaleStorage, "One class. Any time. \(offerValidityLabel(offer.validityDays)).", "En obisk. Kadarkoli. \(offerValidityLabel(offer.validityDays)).")
         default:
-            return "Secure checkout with instant activation."
+            return walletTr(appUiLocaleStorage, "Secure checkout with instant activation.", "Varno plačilo s takojšnjo aktivacijo.")
         }
     }
 
     private func buyOfferEyebrow(for offer: WalletOfferModel, index: Int) -> String {
         if let promoText = offer.promoText, !promoText.isEmpty { return promoText }
         switch offer.productType {
-        case "PACK": return (offer.usageLimit ?? 0) >= 10 ? "Best value" : "Class pack"
-        case "MEMBERSHIP": return index == 0 ? "Most popular" : "Membership"
-        case "CLASS_TICKET": return "Great for trying out"
+        case "PACK": return (offer.usageLimit ?? 0) >= 10 ? walletTr(appUiLocaleStorage, "Best value", "Najboljša vrednost") : walletTr(appUiLocaleStorage, "Class pack", "Paket vstopnic")
+        case "MEMBERSHIP": return index == 0 ? walletTr(appUiLocaleStorage, "Most popular", "Najbolj priljubljeno") : walletTr(appUiLocaleStorage, "Membership", "Članarina")
+        case "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Great for trying out", "Odlično za prvi obisk")
         default: return productTypeLabel(offer.productType)
         }
     }
@@ -497,20 +581,20 @@ struct WalletView: View {
         if let description = offer.description, !description.isEmpty { return description }
         switch offer.productType {
         case "MEMBERSHIP":
-            return "Unlimited access to your favourite services with one simple membership."
+            return walletTr(appUiLocaleStorage, "Unlimited access to your favourite services with one simple membership.", "Neomejen dostop do vaših najljubših storitev z eno članarino.")
         case "PACK":
-            return "Bundle sessions together for better value and flexible booking."
+            return walletTr(appUiLocaleStorage, "Bundle sessions together for better value and flexible booking.", "Združite obiske v paket za boljšo vrednost in prilagodljivo rezervacijo.")
         default:
-            return "A simple pass ready to use on your next visit."
+            return walletTr(appUiLocaleStorage, "A simple pass ready to use on your next visit.", "Preprosta vstopnica, pripravljena za vaš naslednji obisk.")
         }
     }
 
     private func buyShowcaseLabel(for offer: WalletOfferModel) -> String {
         switch offer.productType {
-        case "MEMBERSHIP": return "MEMBERSHIP"
-        case "PACK": return "CLASS PACK"
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return "GIFT CARD"
-        default: return "DAY PASS"
+        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
+        case "PACK": return walletTr(appUiLocaleStorage, "CLASS PACK", "PAKET VSTOPNIC")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
+        default: return walletTr(appUiLocaleStorage, "DAY PASS", "DNEVNA VSTOPNICA")
         }
     }
 
@@ -534,20 +618,20 @@ struct WalletView: View {
 
     private func buyShowcaseQuantityLabel(for offer: WalletOfferModel) -> String? {
         guard offer.productType != "MEMBERSHIP" else { return nil }
-        if let usageLimit = offer.usageLimit, usageLimit > 1 { return "\(usageLimit) Sessions" }
-        return "1 Session"
+        if let usageLimit = offer.usageLimit, usageLimit > 1 { return walletTr(appUiLocaleStorage, "\(usageLimit) Sessions", "\(usageLimit) obiskov") }
+        return walletTr(appUiLocaleStorage, "1 Session", "1 obisk")
     }
 
     private func buyShowcasePriceSubLabel(for offer: WalletOfferModel) -> String {
         switch offer.productType {
         case "MEMBERSHIP":
-            return "Billed monthly"
+            return walletTr(appUiLocaleStorage, "Billed monthly", "Mesečno obračunavanje")
         case "PACK":
             let count = max(Double(offer.usageLimit ?? 1), 1)
             let each = offer.priceGross / count
-            return "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) per session"
+            return walletTr(appUiLocaleStorage, "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) per session", "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) na obisk")
         default:
-            return "One-time payment"
+            return walletTr(appUiLocaleStorage, "One-time payment", "Enkratno plačilo")
         }
     }
 
@@ -561,11 +645,11 @@ struct WalletView: View {
         return ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Orders")
+                    Text(walletTr(appUiLocaleStorage, "Orders", "Naročila"))
                         .font(.system(size: 38, weight: .heavy))
                         .tracking(-1.1)
                         .foregroundColor(Color(red: 0.03, green: 0.11, blue: 0.30))
-                    Text("Track payments, receipts, and order references.")
+                    Text(walletTr(appUiLocaleStorage, "Track payments, receipts, and order references.", "Spremljajte plačila, račune in sklice naročil."))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(Color(red: 0.33, green: 0.38, blue: 0.49))
                 }
@@ -575,18 +659,25 @@ struct WalletView: View {
                 orderFilterRow
 
                 if store.walletScopedOrderCards.isEmpty {
-                    emptyState(
-                        iconName: "list.bullet.rectangle",
-                        title: "No orders yet",
-                        subtitle: "Purchases made on the Buy tab will appear here with their invoice status."
+                    showcaseEmptyState(
+                        kind: .orders,
+                        title: walletTr(appUiLocaleStorage, "No orders yet", "Naročil še ni"),
+                        subtitle: walletTr(appUiLocaleStorage, "Completed purchases from the Buy tab will appear here once you place your first order.", "Zaključeni nakupi iz zavihka Nakup bodo prikazani tukaj po prvem naročilu."),
+                        primaryButtonTitle: walletTr(appUiLocaleStorage, "Go to Buy", "Pojdi na Nakup"),
+                        footerText: walletTr(appUiLocaleStorage, "Explore packs, tickets and memberships in the Buy tab.", "Prebrskajte pakete, vstopnice in članarine v zavihku Nakup."),
+                        footerIcon: "bag.fill",
+                        primaryAction: {
+                            subTab = .buy
+                            onOpenBuyTab()
+                        }
                     )
-                    .padding(.top, 46)
-                    .padding(.bottom, 140)
+                    .padding(.top, 8)
+                    .padding(.bottom, 22)
                 } else if visibleOrders.isEmpty {
                     emptyState(
                         iconName: "doc.text",
-                        title: "No \(selectedOrderFilter) orders",
-                        subtitle: "Orders matching this status will appear here."
+                        title: walletTr(appUiLocaleStorage, "No \(selectedOrderFilter) orders", "Ni naročil: \(walletFilterTitle(selectedOrderFilter, languageCode: appUiLocaleStorage))"),
+                        subtitle: walletTr(appUiLocaleStorage, "Orders matching this status will appear here.", "Naročila s tem statusom bodo prikazana tukaj.")
                     )
                     .padding(.top, 46)
                     .padding(.bottom, 140)
@@ -615,7 +706,7 @@ struct WalletView: View {
                 Button {
                     selectedOrderFilter = label
                 } label: {
-                    Text(label)
+                    Text(walletFilterTitle(label, languageCode: appUiLocaleStorage))
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(selected ? Color(red: 0.0, green: 0.40, blue: 0.96) : Color(red: 0.30, green: 0.36, blue: 0.48))
                         .lineLimit(1)
@@ -650,20 +741,20 @@ struct WalletView: View {
                 if let bt = checkout.bankTransfer {
                     statusMessage = "Reference \(bt.referenceCode) • \(String(format: "%.2f", bt.amount)) \(bt.currency)"
                 } else {
-                    statusMessage = "Bank transfer instructions issued"
+                    statusMessage = walletTr(appUiLocaleStorage, "Bank transfer instructions issued", "Navodila za bančno nakazilo so izdana")
                 }
             case "CARD", "PAYPAL":
                 if let urlString = checkout.checkoutUrl, let url = URL(string: urlString) {
                     openURL(url)
                 } else if checkout.status.uppercased() == "PAID" {
-                    statusMessage = "Purchase complete"
+                    statusMessage = walletTr(appUiLocaleStorage, "Purchase complete", "Nakup zaključen")
                 }
             default:
                 break
             }
             subTab = paymentMethod == "BANK_TRANSFER" ? .orders : .entitlements
         } catch {
-            statusMessage = "Purchase failed: \(error.localizedDescription)"
+            statusMessage = walletTr(appUiLocaleStorage, "Purchase failed: \(error.localizedDescription)", "Nakup ni uspel: \(error.localizedDescription)")
         }
     }
 
@@ -679,10 +770,10 @@ struct WalletView: View {
             )
             receiptPreviewItem = WalletReceiptPreviewItem(
                 url: receiptUrl,
-                title: order.referenceCode?.isEmpty == false ? "Receipt \(order.referenceCode!)" : "Receipt"
+                title: order.referenceCode?.isEmpty == false ? walletTr(appUiLocaleStorage, "Receipt \(order.referenceCode!)", "Račun \(order.referenceCode!)") : walletTr(appUiLocaleStorage, "Receipt", "Račun")
             )
         } catch {
-            statusMessage = "Receipt download failed: \(error.localizedDescription)"
+            statusMessage = walletTr(appUiLocaleStorage, "Receipt download failed: \(error.localizedDescription)", "Prenos računa ni uspel: \(error.localizedDescription)")
         }
     }
 
@@ -700,7 +791,7 @@ struct WalletView: View {
                 Button {
                     onFilterSelected(label)
                 } label: {
-                    Text(label)
+                    Text(walletFilterTitle(label, languageCode: appUiLocaleStorage))
                         .font(.system(size: 12, weight: isSelected ? .bold : .medium))
                         .foregroundColor(isSelected ? walletBlue : walletInk.opacity(0.88))
                         .padding(.horizontal, isSelected ? 12 : 10)
@@ -720,7 +811,7 @@ struct WalletView: View {
             } label: {
                 HStack(spacing: 6) {
                     Circle().fill(showInactive ? Color.red : walletGreen).frame(width: 7, height: 7)
-                    Text(showInactive ? "\(inactiveCount) inactive" : "\(activeCount) active")
+                    Text(showInactive ? walletTr(appUiLocaleStorage, "\(inactiveCount) inactive", "\(inactiveCount) neaktivnih") : walletTr(appUiLocaleStorage, "\(activeCount) active", "\(activeCount) aktivnih"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(walletInk)
                 }
@@ -800,7 +891,7 @@ struct WalletView: View {
     private var swipeHint: some View {
         HStack(spacing: 6) {
             Text("↕").font(.caption.weight(.semibold))
-            Text("Swipe up or down").font(.caption.weight(.medium))
+            Text(walletTr(appUiLocaleStorage, "Swipe up or down", "Povlecite gor ali dol")).font(.caption.weight(.medium))
         }
         .foregroundColor(walletMuted)
         .frame(maxWidth: .infinity)
@@ -824,6 +915,119 @@ struct WalletView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
     }
+
+    private func showcaseEmptyState(
+        kind: WalletEmptyKind,
+        title: String,
+        subtitle: String,
+        primaryButtonTitle: String,
+        footerText: String,
+        footerIcon: String,
+        primaryAction: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 16) {
+                showcaseEmptyIllustration(kind: kind)
+                    .padding(.top, 8)
+
+                Text(title)
+                    .font(.system(size: 28, weight: .heavy))
+                    .tracking(-0.8)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(Color(red: 0.03, green: 0.11, blue: 0.30))
+
+                Text(subtitle)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(walletMuted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+                    .lineSpacing(2)
+
+                Button(action: primaryAction) {
+                    Text(primaryButtonTitle)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(Color(red: 0.09, green: 0.41, blue: 0.96))
+                        )
+                }
+                .buttonStyle(.plain)
+
+                HStack(alignment: .top, spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.945, green: 0.961, blue: 0.992))
+                        Image(systemName: footerIcon)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(Color(red: 0.09, green: 0.41, blue: 0.96))
+                    }
+                    .frame(width: 42, height: 42)
+
+                    Text(footerText)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(walletMuted)
+                        .multilineTextAlignment(.leading)
+                        .lineSpacing(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .shadow(color: Color.black.opacity(0.06), radius: 16, y: 8)
+    }
+
+    @ViewBuilder
+    private func showcaseEmptyIllustration(kind: WalletEmptyKind) -> some View {
+        let imageName: String = {
+            switch kind {
+            case .entitlements:
+                return "WalletEmptyEntitlementsIllustration"
+            case .buy:
+                return "WalletEmptyBuyIllustration"
+            case .orders:
+                return "WalletEmptyOrdersIllustration"
+            }
+        }()
+
+        Image(imageName)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity)
+            .frame(height: 250)
+    }
+
+    private func showcaseCard(symbol: String, label: String, width: CGFloat, height: CGFloat, color: Color) -> some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(color)
+            .frame(width: width, height: height)
+            .overlay {
+                VStack(spacing: 6) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text(label)
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundColor(.white)
+                }
+            }
+    }
+
+    private func simpleShowcaseTile(symbol: String, width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(Color(red: 0.95, green: 0.96, blue: 0.98))
+            .frame(width: width, height: height)
+            .overlay {
+                Image(systemName: symbol)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(Color(red: 0.36, green: 0.51, blue: 0.85))
+            }
+    }
 }
 
 
@@ -838,6 +1042,7 @@ private struct WalletQRCodePopupModel: Identifiable, Equatable {
 
 private struct WalletQRCodePopup: View {
     let model: WalletQRCodePopupModel
+    let languageCode: String
     let onClose: () -> Void
 
     var body: some View {
@@ -898,7 +1103,7 @@ private struct WalletQRCodePopup: View {
 
             VStack {
                 Spacer()
-                Text("Tap anywhere outside to close")
+                Text(walletTr(languageCode, "Tap anywhere outside to close", "Tapnite kjerkoli zunaj za zapiranje"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.white.opacity(0.82))
                     .padding(.bottom, 52)
@@ -908,6 +1113,8 @@ private struct WalletQRCodePopup: View {
 }
 
 private struct WalletPullOutEntitlementDeck: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     let items: [AccessCardModel]
     @Binding var focusedEntitlementId: String?
     let onQRCodeTap: (AccessCardModel, String) -> Void
@@ -1023,7 +1230,7 @@ private struct WalletPullOutEntitlementDeck: View {
         HStack(spacing: 7) {
             Image(systemName: "hand.tap")
                 .font(.system(size: 16, weight: .semibold))
-            Text("Tap a card")
+            Text(walletTr(appUiLocaleStorage, "Tap a card", "Tapnite kartico"))
                 .font(.system(size: 13, weight: .medium))
         }
         .foregroundColor(walletBlue.opacity(0.72))
@@ -1033,7 +1240,7 @@ private struct WalletPullOutEntitlementDeck: View {
         HStack(spacing: 5) {
             Image(systemName: "sparkles")
                 .font(.system(size: 11, weight: .bold))
-            Text("Pulled forward")
+            Text(walletTr(appUiLocaleStorage, "Pulled forward", "V ospredju"))
                 .font(.system(size: 12, weight: .semibold))
         }
         .foregroundColor(walletBlueSoft)
@@ -1240,6 +1447,8 @@ private struct WalletTicketStyle {
 }
 
 private struct WalletStackedPassCard: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     static let baseHeight: CGFloat = 232
 
     let entitlement: AccessCardModel
@@ -1308,7 +1517,7 @@ private struct WalletStackedPassCard: View {
                         }
                         Divider().overlay(walletLine.opacity(0.55))
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("SCAN CODE")
+                            Text(walletTr(appUiLocaleStorage, "SCAN CODE", "KODA"))
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(walletInk.opacity(0.58))
                             Text(code)
@@ -2167,14 +2376,8 @@ private func entitlementIconBadge(type: String, size: CGFloat, background: Color
     .frame(width: size, height: size)
 }
 
-private func productTypeLabel(_ type: String) -> String {
-    switch type {
-    case "PACK": return "Pack"
-    case "MEMBERSHIP": return "Membership"
-    case "CLASS_TICKET": return "Class ticket"
-    case "ORDER": return "Order"
-    default: return type.capitalized
-    }
+private func productTypeLabel(_ type: String, languageCode: String = "en") -> String {
+    walletProductTypeLabel(type, languageCode: languageCode)
 }
 
 private func normalizeOrderProductType(_ productType: String?) -> String {
@@ -2269,6 +2472,8 @@ private struct BuyCategoryChip: View {
 }
 
 private struct BuyShowcaseCategoryChip: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     let category: WalletBuyCategory
     let selected: Bool
     let onTap: () -> Void
@@ -2280,7 +2485,7 @@ private struct BuyShowcaseCategoryChip: View {
                     Image(systemName: category.iconName)
                         .font(.system(size: 14, weight: .bold))
                 }
-                Text(category.title)
+                Text(category.localizedTitle(languageCode: appUiLocaleStorage))
                     .font(.system(size: 14, weight: .bold))
                     .lineLimit(1)
             }
@@ -2302,6 +2507,8 @@ private struct BuyShowcaseCategoryChip: View {
 }
 
 private struct BuyShowcaseOfferCard: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     let offer: WalletOfferModel
     let index: Int
     let priceLabel: String
@@ -2327,38 +2534,38 @@ private struct BuyShowcaseOfferCard: View {
 
     private var quantityLabel: String? {
         guard offer.productType != "MEMBERSHIP" else { return nil }
-        if let usageLimit = offer.usageLimit, usageLimit > 1 { return "\(usageLimit) Sessions" }
-        return "1 Session"
+        if let usageLimit = offer.usageLimit, usageLimit > 1 { return walletTr(appUiLocaleStorage, "\(usageLimit) Sessions", "\(usageLimit) obiskov") }
+        return walletTr(appUiLocaleStorage, "1 Session", "1 obisk")
     }
 
     private var priceSubLabel: String {
         switch offer.productType {
         case "MEMBERSHIP":
-            return "Billed monthly"
+            return walletTr(appUiLocaleStorage, "Billed monthly", "Mesečno obračunavanje")
         case "PACK":
             let count = max(Double(offer.usageLimit ?? 1), 1)
             let each = offer.priceGross / count
-            return "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) per session"
+            return walletTr(appUiLocaleStorage, "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) per session", "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) na obisk")
         default:
-            return "One-time payment"
+            return walletTr(appUiLocaleStorage, "One-time payment", "Enkratno plačilo")
         }
     }
 
     private var cardLabel: String {
         switch offer.productType {
-        case "MEMBERSHIP": return "MEMBERSHIP"
-        case "PACK": return "CLASS PACK"
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return "GIFT CARD"
-        default: return "DAY PASS"
+        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
+        case "PACK": return walletTr(appUiLocaleStorage, "CLASS PACK", "PAKET VSTOPNIC")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
+        default: return walletTr(appUiLocaleStorage, "DAY PASS", "DNEVNA VSTOPNICA")
         }
     }
 
     private var descriptionText: String {
         if let description = offer.description, !description.isEmpty { return description }
         switch offer.productType {
-        case "MEMBERSHIP": return "Unlimited access to your favourite services with one simple membership."
-        case "PACK": return "Bundle sessions together for better value and flexible booking."
-        default: return "A simple pass ready to use on your next visit."
+        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Unlimited access to your favourite services with one simple membership.", "Neomejen dostop do vaših najljubših storitev z eno članarino.")
+        case "PACK": return walletTr(appUiLocaleStorage, "Bundle sessions together for better value and flexible booking.", "Združite obiske v paket za boljšo vrednost in prilagodljivo rezervacijo.")
+        default: return walletTr(appUiLocaleStorage, "A simple pass ready to use on your next visit.", "Preprosta vstopnica, pripravljena za vaš naslednji obisk.")
         }
     }
 
@@ -2416,7 +2623,7 @@ private struct BuyShowcaseOfferCard: View {
                     Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : "shippingbox")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(accent)
-                    Text(offer.productType == "MEMBERSHIP" ? "Valid until cancelled" : (quantityLabel ?? "Ready to buy"))
+                    Text(offer.productType == "MEMBERSHIP" ? walletTr(appUiLocaleStorage, "Valid until cancelled", "Velja do preklica") : (quantityLabel ?? walletTr(appUiLocaleStorage, "Ready to buy", "Pripravljeno za nakup")))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(walletInk)
                         .lineLimit(1)
@@ -2428,7 +2635,7 @@ private struct BuyShowcaseOfferCard: View {
                 Button(action: onTap) {
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
-                        Text("Buy now")
+                        Text(walletTr(appUiLocaleStorage, "Buy now", "Kupi zdaj"))
                             .font(.system(size: 15, weight: .bold))
                         Image(systemName: "chevron.right")
                             .font(.system(size: 14, weight: .bold))
@@ -2480,19 +2687,17 @@ private struct BuyShowcaseMetaView: View {
 }
 
 private struct BuyShowcaseFooterStrip: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     var body: some View {
         HStack(spacing: 0) {
-            BuyShowcaseFooterItem(iconName: "shield", title: "Secure
-checkout")
+            BuyShowcaseFooterItem(iconName: "shield", title: walletTr(appUiLocaleStorage, "Secure\ncheckout", "Varno\nplačilo"))
             footerDivider
-            BuyShowcaseFooterItem(iconName: "arrow.triangle.2.circlepath", title: "Cancel
-anytime")
+            BuyShowcaseFooterItem(iconName: "arrow.triangle.2.circlepath", title: walletTr(appUiLocaleStorage, "Cancel\nanytime", "Preklic\nkadarkoli"))
             footerDivider
-            BuyShowcaseFooterItem(iconName: "lock", title: "Safe & encrypted
-payments")
+            BuyShowcaseFooterItem(iconName: "lock", title: walletTr(appUiLocaleStorage, "Safe & encrypted\npayments", "Varna in šifrirana\nplačila"))
             footerDivider
-            BuyShowcaseFooterItem(iconName: "headphones", title: "Member
-support")
+            BuyShowcaseFooterItem(iconName: "headphones", title: walletTr(appUiLocaleStorage, "Member\nsupport", "Podpora\nčlanom"))
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
@@ -2529,6 +2734,8 @@ private struct BuyShowcaseFooterItem: View {
 }
 
 private struct BuyMarketplaceHeroCard: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     let offer: WalletOfferModel
     let priceLabel: String
     let subtitle: String
@@ -2565,7 +2772,7 @@ private struct BuyMarketplaceHeroCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "star.fill")
                         .font(.system(size: 11, weight: .bold))
-                    Text((offer.promoText?.isEmpty == false ? offer.promoText! : "Most popular").uppercased())
+                    Text((offer.promoText?.isEmpty == false ? offer.promoText! : walletTr(appUiLocaleStorage, "Most popular", "Najbolj priljubljeno")).uppercased())
                         .font(.system(size: 11, weight: .heavy))
                         .lineLimit(1)
                 }
@@ -2603,7 +2810,7 @@ private struct BuyMarketplaceHeroCard: View {
                 .padding(.top, 18)
 
                 Button(action: onTap) {
-                    Text("Buy now")
+                    Text(walletTr(appUiLocaleStorage, "Buy now", "Kupi zdaj"))
                         .font(.system(size: 16, weight: .heavy))
                         .foregroundColor(.white)
                         .frame(width: 118, height: 48)
@@ -3290,14 +3497,16 @@ private extension String {
 
 private struct BuyPaymentSheet: View {
     let offer: WalletOfferModel
+    let languageCode: String
     let availableMethods: [String]
     let onCancel: () -> Void
     let onConfirm: (String) -> Void
 
     @State private var selected: String
 
-    init(offer: WalletOfferModel, availableMethods: [String], onCancel: @escaping () -> Void, onConfirm: @escaping (String) -> Void) {
+    init(offer: WalletOfferModel, languageCode: String, availableMethods: [String], onCancel: @escaping () -> Void, onConfirm: @escaping (String) -> Void) {
         self.offer = offer
+        self.languageCode = languageCode
         self.availableMethods = availableMethods
         self.onCancel = onCancel
         self.onConfirm = onConfirm
@@ -3306,7 +3515,7 @@ private struct BuyPaymentSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Choose a payment method")
+            Text(walletTr(languageCode, "Choose a payment method", "Izberite način plačila"))
                 .font(.title3.weight(.bold))
             Text("\(offer.name) • \(String(format: "%.2f %@", offer.priceGross, offer.currency))")
                 .font(.subheadline)
@@ -3315,6 +3524,7 @@ private struct BuyPaymentSheet: View {
             ForEach(availableMethods, id: \.self) { method in
                 PaymentMethodRow(
                     method: method,
+                    languageCode: languageCode,
                     selected: selected == method,
                     onSelect: { selected = method }
                 )
@@ -3323,7 +3533,7 @@ private struct BuyPaymentSheet: View {
             Button {
                 onConfirm(selected)
             } label: {
-                Text("Continue")
+                Text(walletTr(languageCode, "Continue", "Nadaljuj"))
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .foregroundColor(.white)
@@ -3333,7 +3543,7 @@ private struct BuyPaymentSheet: View {
             .padding(.top, 8)
 
             Button(action: onCancel) {
-                Text("Cancel")
+                Text(walletTr(languageCode, "Cancel", "Prekliči"))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
             }
@@ -3346,6 +3556,7 @@ private struct BuyPaymentSheet: View {
 
 private struct PaymentMethodRow: View {
     let method: String
+    let languageCode: String
     let selected: Bool
     let onSelect: () -> Void
 
@@ -3381,21 +3592,11 @@ private struct PaymentMethodRow: View {
     }
 
     private var label: String {
-        switch method {
-        case "CARD": return "Credit or debit card"
-        case "PAYPAL": return "PayPal"
-        case "BANK_TRANSFER": return "Bank transfer"
-        default: return method
-        }
+        paymentMethodDisplayName(method, languageCode: languageCode)
     }
 
     private var helper: String {
-        switch method {
-        case "CARD": return "Instant confirmation"
-        case "PAYPAL": return "Redirects to PayPal"
-        case "BANK_TRANSFER": return "Pay with reference code; activated after reconciliation"
-        default: return ""
-        }
+        paymentMethodDescription(method, languageCode: languageCode)
     }
 }
 
@@ -3410,6 +3611,7 @@ private func walletBankTransferReference(for order: WalletOrderCardModel) -> Str
 
 private struct WalletPaymentInstructionsSheet: View {
     let order: WalletOrderCardModel
+    let languageCode: String
     let onDismiss: () -> Void
 
     private var companyName: String {
@@ -3417,19 +3619,19 @@ private struct WalletPaymentInstructionsSheet: View {
         if let n, !n.isEmpty { return n }
         let t = order.tenantName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !t.isEmpty { return t }
-        return "Company name unavailable"
+        return walletTr(languageCode, "Company name unavailable", "Ime podjetja ni na voljo")
     }
 
     private var companyAddress: String {
         let a = order.paymentCompanyAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let a, !a.isEmpty { return a }
-        return "Address unavailable"
+        return walletTr(languageCode, "Address unavailable", "Naslov ni na voljo")
     }
 
     private var iban: String {
         let i = order.paymentIban?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let i, !i.isEmpty { return i }
-        return "IBAN unavailable"
+        return walletTr(languageCode, "IBAN unavailable", "IBAN ni na voljo")
     }
 
     private var bankReference: String { walletBankTransferReference(for: order) }
@@ -3438,23 +3640,23 @@ private struct WalletPaymentInstructionsSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Use these details to complete your bank transfer.")
+                    Text(walletTr(languageCode, "Use these details to complete your bank transfer.", "Uporabite te podatke za bančno nakazilo."))
                         .font(.subheadline.weight(.medium))
                         .foregroundColor(Color(red: 0.33, green: 0.38, blue: 0.49))
 
-                    paymentInstructionField(label: "Company", value: companyName, copyValue: nil)
-                    paymentInstructionField(label: "Address", value: companyAddress, copyValue: nil)
+                    paymentInstructionField(label: walletTr(languageCode, "Company", "Podjetje"), value: companyName, copyValue: nil)
+                    paymentInstructionField(label: walletTr(languageCode, "Address", "Naslov"), value: companyAddress, copyValue: nil)
                     paymentInstructionField(label: "IBAN", value: iban, copyValue: iban)
-                    paymentInstructionField(label: "Reference", value: bankReference, copyValue: bankReference)
+                    paymentInstructionField(label: walletTr(languageCode, "Reference", "Sklic"), value: bankReference, copyValue: bankReference)
                 }
                 .padding(20)
             }
             .background(Color(red: 0.98, green: 0.99, blue: 1.0))
-            .navigationTitle("Payment instructions")
+            .navigationTitle(walletTr(languageCode, "Payment instructions", "Navodila za plačilo"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { onDismiss() }
+                    Button(walletTr(languageCode, "Close", "Zapri")) { onDismiss() }
                 }
             }
         }
@@ -3472,7 +3674,7 @@ private struct WalletPaymentInstructionsSheet: View {
                     .foregroundColor(Color(red: 0.03, green: 0.11, blue: 0.30))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let copyValue {
-                    Button("Copy") {
+                    Button(walletTr(languageCode, "Copy", "Kopiraj")) {
                         UIPasteboard.general.string = copyValue
                     }
                     .font(.caption.weight(.bold))
@@ -3509,11 +3711,11 @@ private func walletOrderStatus(_ order: WalletOrderCardModel) -> WalletOrderChip
     return .pending
 }
 
-private func walletOrderStatusStyle(_ status: WalletOrderChipStatus) -> WalletOrderStatusStyle {
+private func walletOrderStatusStyle(_ status: WalletOrderChipStatus, languageCode: String = "en") -> WalletOrderStatusStyle {
     switch status {
     case .paid:
         return WalletOrderStatusStyle(
-            label: "Paid",
+            label: walletTr(languageCode, "Paid", "Plačano"),
             foreground: Color(red: 0.04, green: 0.62, blue: 0.38),
             background: Color(red: 0.87, green: 0.96, blue: 0.91),
             iconName: "checkmark.circle",
@@ -3523,7 +3725,7 @@ private func walletOrderStatusStyle(_ status: WalletOrderChipStatus) -> WalletOr
         )
     case .pending:
         return WalletOrderStatusStyle(
-            label: "Pending",
+            label: walletTr(languageCode, "Pending", "V čakanju"),
             foreground: Color(red: 0.73, green: 0.41, blue: 0.00),
             background: Color(red: 1.00, green: 0.95, blue: 0.87),
             iconName: "clock",
@@ -3533,7 +3735,7 @@ private func walletOrderStatusStyle(_ status: WalletOrderChipStatus) -> WalletOr
         )
     case .refunded:
         return WalletOrderStatusStyle(
-            label: "Refunded",
+            label: walletTr(languageCode, "Refunded", "Vrnjeno"),
             foreground: Color(red: 0.36, green: 0.41, blue: 0.48),
             background: Color(red: 0.94, green: 0.95, blue: 0.96),
             iconName: "arrow.counterclockwise",
@@ -3545,13 +3747,15 @@ private func walletOrderStatusStyle(_ status: WalletOrderChipStatus) -> WalletOr
 }
 
 private struct WalletOrderReceiptCard: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     let order: WalletOrderCardModel
     let isOpeningReceipt: Bool
     let onPaymentInstructions: () -> Void
     let onViewReceipt: () -> Void
 
     private var status: WalletOrderChipStatus { walletOrderStatus(order) }
-    private var style: WalletOrderStatusStyle { walletOrderStatusStyle(status) }
+    private var style: WalletOrderStatusStyle { walletOrderStatusStyle(status, languageCode: appUiLocaleStorage) }
     private var isPendingTransfer: Bool {
         status == .pending && order.paymentMethod.uppercased() == "BANK_TRANSFER"
     }
@@ -3580,7 +3784,7 @@ private struct WalletOrderReceiptCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(order.productName ?? "Order")
+                            Text(order.productName ?? walletTr(appUiLocaleStorage, "Order", "Naročilo"))
                                 .font(.system(size: 22, weight: .heavy))
                                 .tracking(-0.35)
                                 .foregroundColor(Color(red: 0.03, green: 0.11, blue: 0.30))
@@ -3605,10 +3809,10 @@ private struct WalletOrderReceiptCard: View {
                 .frame(height: 1)
 
             VStack(spacing: 3) {
-                WalletOrderDetailLine(label: "Total", value: String(format: "%.2f %@", order.totalGross, order.currency))
-                WalletOrderDetailLine(label: "Ordered", value: order.createdAt.map(formatOrderDateShort) ?? "—")
-                WalletOrderDetailLine(label: "Payment method", value: walletOrderPaymentLabel(order.paymentMethod))
-                WalletOrderDetailLine(label: "Order ID", value: displayOrderId)
+                WalletOrderDetailLine(label: walletTr(appUiLocaleStorage, "Total", "Skupaj"), value: String(format: "%.2f %@", order.totalGross, order.currency))
+                WalletOrderDetailLine(label: walletTr(appUiLocaleStorage, "Ordered", "Naročeno"), value: order.createdAt.map(formatOrderDateShort) ?? "—")
+                WalletOrderDetailLine(label: walletTr(appUiLocaleStorage, "Payment method", "Način plačila"), value: walletOrderPaymentLabel(order.paymentMethod, languageCode: appUiLocaleStorage))
+                WalletOrderDetailLine(label: walletTr(appUiLocaleStorage, "Order ID", "ID naročila"), value: displayOrderId)
             }
 
             if isPendingTransfer {
@@ -3661,6 +3865,8 @@ private struct WalletOrderDetailLine: View {
 }
 
 private struct WalletPendingTransferCallout: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     let onOpenInstructions: () -> Void
 
     var body: some View {
@@ -3669,17 +3875,17 @@ private struct WalletPendingTransferCallout: View {
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundColor(Color(red: 0.73, green: 0.41, blue: 0.00))
             VStack(alignment: .leading, spacing: 2) {
-                Text("Awaiting transfer")
+                Text(walletTr(appUiLocaleStorage, "Awaiting transfer", "Čaka na nakazilo"))
                     .font(.system(size: 14, weight: .heavy))
                     .foregroundColor(Color(red: 0.73, green: 0.41, blue: 0.00))
-                Text("Please complete the bank transfer to process your order.")
+                Text(walletTr(appUiLocaleStorage, "Please complete the bank transfer to process your order.", "Za obdelavo naročila dokončajte bančno nakazilo."))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Color(red: 0.03, green: 0.11, blue: 0.30))
                     .lineLimit(2)
             }
             Spacer(minLength: 6)
             Button(action: onOpenInstructions) {
-                Text("Payment instructions")
+                Text(walletTr(appUiLocaleStorage, "Payment instructions", "Navodila za plačilo"))
                     .font(.system(size: 13, weight: .heavy))
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
@@ -3695,6 +3901,8 @@ private struct WalletPendingTransferCallout: View {
 }
 
 private struct WalletViewReceiptButton: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
     let isLoading: Bool
     let onTap: () -> Void
 
@@ -3703,7 +3911,7 @@ private struct WalletViewReceiptButton: View {
             HStack(spacing: 9) {
                 Image(systemName: "doc.text")
                     .font(.system(size: 20, weight: .semibold))
-                Text(isLoading ? "Loading receipt…" : "View receipt")
+                Text(isLoading ? walletTr(appUiLocaleStorage, "Loading receipt…", "Nalaganje računa…") : walletTr(appUiLocaleStorage, "View receipt", "Prikaži račun"))
                     .font(.system(size: 16, weight: .heavy))
                 Spacer()
                 if isLoading {
@@ -3734,13 +3942,13 @@ private func orderBadgeAccent(_ order: WalletOrderCardModel) -> Color {
     walletOrderStatusStyle(walletOrderStatus(order)).foreground
 }
 
-private func walletOrderPaymentLabel(_ raw: String) -> String {
+private func walletOrderPaymentLabel(_ raw: String, languageCode: String = "en") -> String {
     switch raw.uppercased() {
-    case "BANK_TRANSFER": return "Bank transfer"
-    case "CARD": return "Card"
+    case "BANK_TRANSFER": return walletTr(languageCode, "Bank transfer", "Bančno nakazilo")
+    case "CARD": return walletTr(languageCode, "Card", "Kartica")
     case "PAYPAL": return "PayPal"
-    case "OTHER": return "Other"
-    case "ENTITLEMENT": return "Entitlement"
+    case "OTHER": return walletTr(languageCode, "Other", "Drugo")
+    case "ENTITLEMENT": return walletTr(languageCode, "Entitlement", "Vstopnica")
     default:
         return raw.replacingOccurrences(of: "_", with: " ").lowercased().capitalized
     }

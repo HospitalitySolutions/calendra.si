@@ -120,6 +120,8 @@ private data class TenantLifecycleAction(
 fun ProfileScreen(
     session: GuestSession?,
     activeTenantId: String?,
+    languageCode: String,
+    onLanguageChanged: (String) -> Unit,
     onLoadProfileSettings: suspend (String?) -> GuestProfileSettings,
     onSaveProfileSettings: suspend (UpdateGuestProfileSettingsRequest) -> GuestProfileSettings,
     onUploadProfilePicture: suspend (String, String?, ByteArray) -> GuestProfileSettings,
@@ -152,11 +154,13 @@ fun ProfileScreen(
     var tenantActionError by remember { mutableStateOf<String?>(null) }
     val subscribedTenants = session?.linkedTenants.orEmpty()
     val accountDeletionUrl = "https://calendra.si/account-deletion"
+    val isSl = profile.language.ifBlank { languageCode }.lowercase().startsWith("sl")
+    fun tr(en: String, sl: String): String = if (isSl) sl else en
 
     fun openAccountDeletionPage() {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(accountDeletionUrl))
         runCatching { context.startActivity(intent) }
-            .onFailure { remoteError = "Could not open account deletion page." }
+            .onFailure { remoteError = tr("Could not open account deletion page.", "Strani za izbris računa ni bilo mogoče odpreti.") }
     }
 
     fun mergeRemoteSettings(remote: GuestProfileSettings) {
@@ -181,6 +185,10 @@ fun ProfileScreen(
             companyVatId = remote.invoiceSettings.companyVatId.orEmpty()
         )
         store.save(profile)
+        val nextLanguage = remote.guestUser.language.ifBlank { languageCode }
+        if (nextLanguage.equals("en", ignoreCase = true) || nextLanguage.equals("sl", ignoreCase = true)) {
+            onLanguageChanged(nextLanguage.lowercase())
+        }
     }
 
     suspend fun persistRemote(
@@ -218,7 +226,7 @@ fun ProfileScreen(
             remoteError = null
             mergeRemoteSettings(response)
         }.onFailure {
-            remoteError = it.message ?: "Unable to save profile settings"
+            remoteError = it.message ?: tr("Unable to save profile settings", "Nastavitev profila ni bilo mogoče shraniti")
         }.isSuccess
     }
 
@@ -228,7 +236,7 @@ fun ProfileScreen(
         remoteError = null
         runCatching { onLoadProfileSettings(activeTenantId) }
             .onSuccess { mergeRemoteSettings(it) }
-            .onFailure { remoteError = it.message ?: "Unable to load profile settings" }
+            .onFailure { remoteError = it.message ?: tr("Unable to load profile settings", "Nastavitev profila ni bilo mogoče naložiti") }
         loadingRemote = false
     }
 
@@ -254,10 +262,10 @@ fun ProfileScreen(
             remoteError = null
             runCatching {
                 val (name, mime, bytes) = readProfileImagePayload(context, uri)
-                if (bytes.isEmpty()) error("Could not read image")
+                if (bytes.isEmpty()) error(tr("Could not read image", "Slike ni bilo mogoče prebrati"))
                 val settings = onUploadProfilePicture(name, mime, bytes)
                 mergeRemoteSettings(settings)
-            }.onFailure { remoteError = it.message ?: "Could not upload profile picture" }
+            }.onFailure { remoteError = it.message ?: tr("Could not upload profile picture", "Profilne slike ni bilo mogoče naložiti") }
             uploadingAvatar = false
         }
     }
@@ -266,8 +274,8 @@ fun ProfileScreen(
         ProfileAmbientBackground()
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 104.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 ElevatedCard(
@@ -278,7 +286,7 @@ fun ProfileScreen(
                     Column(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
@@ -299,14 +307,14 @@ fun ProfileScreen(
                             ) {
                                 Text(
                                     "${profile.firstName} ${profile.lastName}".trim(),
-                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 19.sp),
+                                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = 23.sp),
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF061B3A),
                                     maxLines = 1
                                 )
                                 Text(
                                     profile.email,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 11.sp),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp),
                                     color = Color(0xFF62728A),
                                     maxLines = 1
                                 )
@@ -317,7 +325,7 @@ fun ProfileScreen(
                             onClick = { editing = true },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(42.dp),
+                                .height(46.dp),
                             shape = RoundedCornerShape(16.dp),
                             enabled = !loadingRemote && !savingProfile,
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0968F5))
@@ -325,12 +333,12 @@ fun ProfileScreen(
                             Icon(
                                 Icons.Rounded.Edit,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(22.dp),
                                 tint = Color.White
                             )
                             Text(
-                                "Edit personal data",
-                                style = MaterialTheme.typography.titleMedium.copy(fontSize = 11.sp),
+                                tr("Edit personal data", "Uredi osebne podatke"),
+                                style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp),
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 8.dp)
                             )
@@ -348,12 +356,12 @@ fun ProfileScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "PREFERENCES",
-                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 9.sp),
+                        tr("PREFERENCES", "NASTAVITVE"),
+                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 11.sp),
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 2.2.sp,
                         color = Color(0xFF5E738D),
-                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                        modifier = Modifier.padding(start = 4.dp, top = 1.dp)
                     )
                     ElevatedCard(
                         shape = RoundedCornerShape(28.dp),
@@ -362,7 +370,7 @@ fun ProfileScreen(
                     ) {
                         Column(Modifier.fillMaxWidth()) {
                             PreferenceNavigationRow(
-                                title = "Language",
+                                title = tr("Language", "Jezik"),
                                 value = languageDisplayName(profile.language),
                                 leadingIcon = Icons.Rounded.Language,
                                 iconTint = Color(0xFF0968F5),
@@ -370,23 +378,23 @@ fun ProfileScreen(
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceNavigationRow(
-                                title = "Notifications",
-                                value = notificationsSummary(notifyMessagesEnabled, notifyRemindersEnabled),
+                                title = tr("Notifications", "Obvestila"),
+                                value = notificationsSummary(notifyMessagesEnabled, notifyRemindersEnabled, isSl),
                                 leadingIcon = Icons.Rounded.Notifications,
                                 iconTint = Color(0xFFFF8A00),
                                 onClick = { showNotificationsDialog = true }
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceNavigationRow(
-                                title = "Invoicing",
-                                value = invoiceSummary(invoiceSettings),
+                                title = tr("Invoicing", "Računi"),
+                                value = invoiceSummary(invoiceSettings, isSl),
                                 leadingIcon = Icons.AutoMirrored.Rounded.ReceiptLong,
                                 iconTint = Color(0xFF0968F5),
                                 onClick = { showInvoicingDialog = true }
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceNavigationRow(
-                                title = "Subscribed tenants",
+                                title = tr("Subscribed tenants", "Naročeni ponudniki"),
                                 value = "${subscribedTenants.size}",
                                 leadingIcon = Icons.Rounded.Business,
                                 iconTint = Color(0xFFFF8A00),
@@ -394,13 +402,13 @@ fun ProfileScreen(
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceDangerRow(
-                                title = "Delete account",
+                                title = tr("Delete account", "Izbriši račun"),
                                 leadingIcon = Icons.Rounded.DeleteOutline,
                                 onClick = { showDeleteAccountDialog = true }
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceDangerRow(
-                                title = "Log out",
+                                title = tr("Log out", "Odjava"),
                                 leadingIcon = Icons.AutoMirrored.Rounded.Logout,
                                 onClick = onLogout
                             )
@@ -414,7 +422,7 @@ fun ProfileScreen(
     if (showLanguagePicker) {
         AlertDialog(
             onDismissRequest = { if (!savingPreference) showLanguagePicker = false },
-            title = { Text("Language") },
+            title = { Text(tr("Language", "Jezik")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(
@@ -447,7 +455,7 @@ fun ProfileScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showLanguagePicker = false }, enabled = !savingPreference) {
-                    Text(if (savingPreference) "Saving…" else "Cancel")
+                    Text(if (savingPreference) tr("Saving…", "Shranjevanje…") else tr("Cancel", "Prekliči"))
                 }
             }
         )
@@ -456,17 +464,17 @@ fun ProfileScreen(
     if (showNotificationsDialog) {
         AlertDialog(
             onDismissRequest = { if (!savingPreference) showNotificationsDialog = false },
-            title = { Text("Notifications") },
+            title = { Text(tr("Notifications", "Obvestila")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Choose which push notifications you want to receive on this device when the app is in the background.",
+                        tr("Choose which push notifications you want to receive on this device when the app is in the background.", "Izberite, katera potisna obvestila želite prejemati na tej napravi, ko je aplikacija v ozadju."),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     NotificationToggleRow(
-                        title = "Messages",
-                        description = "New inbox messages from your provider",
+                        title = tr("Messages", "Sporočila"),
+                        description = tr("New inbox messages from your provider", "Nova sporočila ponudnika"),
                         checked = notifyMessagesEnabled,
                         enabled = !savingPreference,
                         onCheckedChange = { nextValue ->
@@ -481,8 +489,8 @@ fun ProfileScreen(
                         }
                     )
                     NotificationToggleRow(
-                        title = "Reminders",
-                        description = "Appointment reminders and updates",
+                        title = tr("Reminders", "Opomniki"),
+                        description = tr("Appointment reminders and updates", "Opomniki in posodobitve terminov"),
                         checked = notifyRemindersEnabled,
                         enabled = !savingPreference,
                         onCheckedChange = { nextValue ->
@@ -503,7 +511,7 @@ fun ProfileScreen(
                     onClick = { showNotificationsDialog = false },
                     enabled = !savingPreference
                 ) {
-                    Text(if (savingPreference) "Saving…" else "Done")
+                    Text(if (savingPreference) tr("Saving…", "Shranjevanje…") else tr("Done", "Končano"))
                 }
             }
         )
@@ -513,10 +521,11 @@ fun ProfileScreen(
         InvoiceSettingsDialog(
             initial = invoiceSettings,
             saving = savingPreference,
+            isSl = isSl,
             onDismiss = { if (!savingPreference) showInvoicingDialog = false },
             onSave = { updated ->
                 scope.launch {
-                    val validationError = invoiceValidationError(updated)
+                    val validationError = invoiceValidationError(updated, isSl)
                     if (validationError != null) {
                         remoteError = validationError
                         return@launch
@@ -533,12 +542,12 @@ fun ProfileScreen(
     if (showSubscribedTenantsDialog) {
         AlertDialog(
             onDismissRequest = { if (!tenantActionInProgress) showSubscribedTenantsDialog = false },
-            title = { Text("Subscribed tenants") },
+            title = { Text(tr("Subscribed tenants", "Naročeni ponudniki")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (subscribedTenants.isEmpty()) {
                         Text(
-                            "No subscribed tenants yet.",
+                            tr("No subscribed tenants yet.", "Ni še naročenih ponudnikov."),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -568,14 +577,14 @@ fun ProfileScreen(
                                             enabled = !tenantActionInProgress,
                                             onClick = { tenantMenuExpanded = true }
                                         ) {
-                                            Icon(Icons.Rounded.MoreVert, contentDescription = "Tenant actions")
+                                            Icon(Icons.Rounded.MoreVert, contentDescription = tr("Tenant actions", "Dejanja ponudnika"))
                                         }
                                         DropdownMenu(
                                             expanded = tenantMenuExpanded,
                                             onDismissRequest = { tenantMenuExpanded = false }
                                         ) {
                                             DropdownMenuItem(
-                                                text = { Text("Unsubscribe") },
+                                                text = { Text(tr("Unsubscribe", "Odjavi se")) },
                                                 onClick = {
                                                     tenantMenuExpanded = false
                                                     tenantAction = TenantLifecycleAction(
@@ -588,7 +597,7 @@ fun ProfileScreen(
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
-                                                        "Anonymize",
+                                                        tr("Anonymize", "Anonimiziraj"),
                                                         color = MaterialTheme.colorScheme.error
                                                     )
                                                 },
@@ -621,7 +630,7 @@ fun ProfileScreen(
                     showSubscribedTenantsDialog = false
                     if (subscribedTenants.isEmpty()) onLogout()
                 }, enabled = !tenantActionInProgress) {
-                    Text(if (tenantActionInProgress) "Working…" else "Close")
+                    Text(if (tenantActionInProgress) tr("Working…", "Obdelava…") else tr("Close", "Zapri"))
                 }
             }
         )
@@ -629,17 +638,17 @@ fun ProfileScreen(
 
     tenantAction?.let { pendingAction ->
         val isUnsubscribe = pendingAction.type == TenantLifecycleActionType.Unsubscribe
-        val actionLabel = if (isUnsubscribe) "Unsubscribe" else "Anonymize"
+        val actionLabel = if (isUnsubscribe) tr("Unsubscribe", "Odjavi se") else tr("Anonymize", "Anonimiziraj")
         val actionDetails = if (isUnsubscribe) {
-            "You can only unsubscribe when there are no active sessions or entitlements for this tenancy."
+            tr("You can only unsubscribe when there are no active sessions or entitlements for this tenancy.", "Odjavite se lahko samo, če pri tem ponudniku nimate aktivnih terminov ali ugodnosti.")
         } else {
-            "This anonymizes your tenant data and marks the tenancy inactive. You can only do this when there are no active sessions or entitlements."
+            tr("This anonymizes your tenant data and marks the tenancy inactive. You can only do this when there are no active sessions or entitlements.", "To anonimizira vaše podatke pri ponudniku in označi povezavo kot neaktivno. To lahko naredite samo, če nimate aktivnih terminov ali ugodnosti.")
         }
         AlertDialog(
             onDismissRequest = {
                 if (!tenantActionInProgress) tenantAction = null
             },
-            title = { Text("$actionLabel from ${pendingAction.companyName}?") },
+            title = { Text(if (isSl) "$actionLabel: ${pendingAction.companyName}?" else "$actionLabel from ${pendingAction.companyName}?") },
             text = { Text(actionDetails) },
             confirmButton = {
                 TextButton(
@@ -658,7 +667,7 @@ fun ProfileScreen(
                                 tenantAction = null
                                 remoteError = null
                             }.onFailure {
-                                tenantActionError = it.message ?: "Unable to complete tenancy action"
+                                tenantActionError = it.message ?: tr("Unable to complete tenancy action", "Dejanja ni bilo mogoče dokončati")
                             }
                             tenantActionInProgress = false
                         }
@@ -669,14 +678,14 @@ fun ProfileScreen(
                         ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     }
                 ) {
-                    Text(if (tenantActionInProgress) "Working…" else actionLabel)
+                    Text(if (tenantActionInProgress) tr("Working…", "Obdelava…") else actionLabel)
                 }
             },
             dismissButton = {
                 TextButton(
                     enabled = !tenantActionInProgress,
                     onClick = { tenantAction = null }
-                ) { Text("Cancel") }
+                ) { Text(tr("Cancel", "Prekliči")) }
             }
         )
     }
@@ -684,10 +693,10 @@ fun ProfileScreen(
     if (showDeleteAccountDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAccountDialog = false },
-            title = { Text("Delete account?") },
+            title = { Text(tr("Delete account?", "Izbrišem račun?")) },
             text = {
                 Text(
-                    "This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data."
+                    tr("This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data.", "Odpre se javna stran Calendra za izbris računa, kjer lahko zahtevate izbris računa Guest App in povezanih osebnih podatkov.")
                 )
             },
             confirmButton = {
@@ -698,12 +707,12 @@ fun ProfileScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Open deletion page")
+                    Text(tr("Open deletion page", "Odpri stran za izbris"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAccountDialog = false }) {
-                    Text("Cancel")
+                    Text(tr("Cancel", "Prekliči"))
                 }
             }
         )
@@ -713,6 +722,7 @@ fun ProfileScreen(
         EditProfileDialog(
             initial = profile,
             saving = savingProfile,
+            isSl = isSl,
             onDismiss = { if (!savingProfile) editing = false },
             onSave = { updated ->
                 scope.launch {
@@ -770,14 +780,14 @@ private fun ProfileAvatar(
 ) {
     Box(
         modifier = Modifier
-            .size(76.dp)
+            .size(80.dp)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             shape = CircleShape,
             color = Color(0xFFE8F2FF),
-            modifier = Modifier.size(76.dp)
+            modifier = Modifier.size(80.dp)
         ) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 when {
@@ -796,7 +806,7 @@ private fun ProfileAvatar(
                         Icons.Rounded.PersonOutline,
                         contentDescription = "Change profile picture",
                         tint = Color(0xFF0968F5),
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(38.dp)
                     )
                 }
             }
@@ -818,29 +828,33 @@ private fun languageDisplayName(code: String): String = when (code.lowercase()) 
     else -> "English"
 }
 
-private fun notificationsSummary(messages: Boolean, reminders: Boolean): String = when {
-    messages && reminders -> "On"
-    !messages && !reminders -> "Off"
-    messages -> "Messages only"
-    else -> "Reminders only"
+private fun notificationsSummary(messages: Boolean, reminders: Boolean, isSl: Boolean): String = when {
+    messages && reminders -> if (isSl) "Vklopljeno" else "On"
+    !messages && !reminders -> if (isSl) "Izklopljeno" else "Off"
+    messages -> if (isSl) "Samo sporočila" else "Messages only"
+    else -> if (isSl) "Samo opomniki" else "Reminders only"
 }
 
-private fun invoiceSummary(invoice: LocalInvoiceSettings): String =
-    if (invoice.recipientType.equals("COMPANY", ignoreCase = true)) "Company" else "Individual"
+private fun invoiceSummary(invoice: LocalInvoiceSettings, isSl: Boolean): String =
+    if (invoice.recipientType.equals("COMPANY", ignoreCase = true)) {
+        if (isSl) "Podjetje" else "Company"
+    } else {
+        if (isSl) "Fizična oseba" else "Individual"
+    }
 
-private fun invoiceValidationError(invoice: LocalInvoiceSettings): String? {
+private fun invoiceValidationError(invoice: LocalInvoiceSettings, isSl: Boolean): String? {
     val isCompany = invoice.recipientType.equals("COMPANY", ignoreCase = true)
     if (isCompany) {
-        if (invoice.companyName.isBlank()) return "Company name is required."
-        if (invoice.companyAddressLine.isBlank()) return "Company address is required."
-        if (invoice.companyPostalCode.isBlank()) return "Company postal code is required."
-        if (invoice.companyCity.isBlank()) return "Company city is required."
-        if (invoice.companyVatId.isBlank()) return "Company VAT ID is required."
+        if (invoice.companyName.isBlank()) return if (isSl) "Naziv podjetja je obvezen." else "Company name is required."
+        if (invoice.companyAddressLine.isBlank()) return if (isSl) "Naslov podjetja je obvezen." else "Company address is required."
+        if (invoice.companyPostalCode.isBlank()) return if (isSl) "Poštna številka podjetja je obvezna." else "Company postal code is required."
+        if (invoice.companyCity.isBlank()) return if (isSl) "Kraj podjetja je obvezen." else "Company city is required."
+        if (invoice.companyVatId.isBlank()) return if (isSl) "Davčna številka podjetja je obvezna." else "Company VAT ID is required."
         return null
     }
-    if (invoice.personAddressLine.isBlank()) return "Address is required."
-    if (invoice.personPostalCode.isBlank()) return "Postal code is required."
-    if (invoice.personCity.isBlank()) return "City is required."
+    if (invoice.personAddressLine.isBlank()) return if (isSl) "Naslov je obvezen." else "Address is required."
+    if (invoice.personPostalCode.isBlank()) return if (isSl) "Poštna številka je obvezna." else "Postal code is required."
+    if (invoice.personCity.isBlank()) return if (isSl) "Kraj je obvezen." else "City is required."
     return null
 }
 
@@ -858,8 +872,8 @@ private fun NotificationToggleRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp), fontWeight = FontWeight.SemiBold)
-            Text(description, style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp), fontWeight = FontWeight.SemiBold)
+            Text(description, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
@@ -876,7 +890,7 @@ private fun PreferenceNavigationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 50.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -890,22 +904,22 @@ private fun PreferenceNavigationRow(
             Icon(
                 leadingIcon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
                 tint = iconTint
             )
             Text(
                 title,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 15.sp),
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF061B3A)
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(value, style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp), color = Color(0xFF62728A))
+            Text(value, style = MaterialTheme.typography.titleLarge.copy(fontSize = 15.sp), color = Color(0xFF62728A))
             Icon(
                 Icons.Rounded.KeyboardArrowRight,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
                 tint = Color(0xFF9BA7B7)
             )
         }
@@ -921,7 +935,7 @@ private fun PreferenceDangerRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = 50.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -935,12 +949,12 @@ private fun PreferenceDangerRow(
             Icon(
                 leadingIcon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
                 tint = Color(0xFFD6291D)
             )
             Text(
                 title,
-                style = MaterialTheme.typography.titleLarge.copy(fontSize = 12.sp),
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 15.sp),
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFD6291D)
             )
@@ -948,7 +962,7 @@ private fun PreferenceDangerRow(
         Icon(
             Icons.Rounded.KeyboardArrowRight,
             contentDescription = null,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(22.dp),
             tint = Color(0xFFD6291D)
         )
     }
@@ -958,6 +972,7 @@ private fun PreferenceDangerRow(
 private fun InvoiceSettingsDialog(
     initial: LocalInvoiceSettings,
     saving: Boolean,
+    isSl: Boolean,
     onDismiss: () -> Unit,
     onSave: (LocalInvoiceSettings) -> Unit
 ) {
@@ -971,56 +986,57 @@ private fun InvoiceSettingsDialog(
     var companyCity by remember(initial) { mutableStateOf(initial.companyCity) }
     var companyVatId by remember(initial) { mutableStateOf(initial.companyVatId) }
     val isCompany = recipientType.equals("COMPANY", ignoreCase = true)
+    fun tr(en: String, sl: String): String = if (isSl) sl else en
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text("Invoice address") },
+        title = { Text(tr("Invoice address", "Naslov za račun")) },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (isCompany) {
                             OutlinedButton(onClick = { recipientType = "PERSON" }, enabled = !saving, shape = RoundedCornerShape(12.dp)) {
-                                Text("Individual")
+                                Text(tr("Individual", "Fizična oseba"))
                             }
                             Button(onClick = { recipientType = "COMPANY" }, enabled = !saving, shape = RoundedCornerShape(12.dp)) {
-                                Text("Company")
+                                Text(tr("Company", "Podjetje"))
                             }
                         } else {
                             Button(onClick = { recipientType = "PERSON" }, enabled = !saving, shape = RoundedCornerShape(12.dp)) {
-                                Text("Individual")
+                                Text(tr("Individual", "Fizična oseba"))
                             }
                             OutlinedButton(onClick = { recipientType = "COMPANY" }, enabled = !saving, shape = RoundedCornerShape(12.dp)) {
-                                Text("Company")
+                                Text(tr("Company", "Podjetje"))
                             }
                         }
                     }
                 }
                 if (isCompany) {
                     item {
-                        OutlinedTextField(value = companyName, onValueChange = { companyName = it }, label = { Text("Company name") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = companyName, onValueChange = { companyName = it }, label = { Text(tr("Company name", "Naziv podjetja")) }, singleLine = true, enabled = !saving)
                     }
                     item {
-                        OutlinedTextField(value = companyAddressLine, onValueChange = { companyAddressLine = it }, label = { Text("Address") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = companyAddressLine, onValueChange = { companyAddressLine = it }, label = { Text(tr("Address", "Naslov")) }, singleLine = true, enabled = !saving)
                     }
                     item {
-                        OutlinedTextField(value = companyPostalCode, onValueChange = { companyPostalCode = it }, label = { Text("Postal code") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = companyPostalCode, onValueChange = { companyPostalCode = it }, label = { Text(tr("Postal code", "Poštna številka")) }, singleLine = true, enabled = !saving)
                     }
                     item {
-                        OutlinedTextField(value = companyCity, onValueChange = { companyCity = it }, label = { Text("City") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = companyCity, onValueChange = { companyCity = it }, label = { Text(tr("City", "Kraj")) }, singleLine = true, enabled = !saving)
                     }
                     item {
-                        OutlinedTextField(value = companyVatId, onValueChange = { companyVatId = it }, label = { Text("VAT ID") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = companyVatId, onValueChange = { companyVatId = it }, label = { Text(tr("VAT ID", "Davčna številka")) }, singleLine = true, enabled = !saving)
                     }
                 } else {
                     item {
-                        OutlinedTextField(value = personAddressLine, onValueChange = { personAddressLine = it }, label = { Text("Address") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = personAddressLine, onValueChange = { personAddressLine = it }, label = { Text(tr("Address", "Naslov")) }, singleLine = true, enabled = !saving)
                     }
                     item {
-                        OutlinedTextField(value = personPostalCode, onValueChange = { personPostalCode = it }, label = { Text("Postal code") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = personPostalCode, onValueChange = { personPostalCode = it }, label = { Text(tr("Postal code", "Poštna številka")) }, singleLine = true, enabled = !saving)
                     }
                     item {
-                        OutlinedTextField(value = personCity, onValueChange = { personCity = it }, label = { Text("City") }, singleLine = true, enabled = !saving)
+                        OutlinedTextField(value = personCity, onValueChange = { personCity = it }, label = { Text(tr("City", "Kraj")) }, singleLine = true, enabled = !saving)
                     }
                 }
             }
@@ -1044,12 +1060,12 @@ private fun InvoiceSettingsDialog(
                 },
                 enabled = !saving
             ) {
-                Text(if (saving) "Saving…" else "Save")
+                Text(if (saving) tr("Saving…", "Shranjevanje…") else tr("Save", "Shrani"))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !saving) {
-                Text("Cancel")
+                Text(tr("Cancel", "Prekliči"))
             }
         }
     )
@@ -1059,6 +1075,7 @@ private fun InvoiceSettingsDialog(
 private fun EditProfileDialog(
     initial: LocalGuestProfile,
     saving: Boolean,
+    isSl: Boolean,
     onDismiss: () -> Unit,
     onSave: (LocalGuestProfile) -> Unit
 ) {
@@ -1066,16 +1083,17 @@ private fun EditProfileDialog(
     var lastName by remember(initial) { mutableStateOf(initial.lastName) }
     var email by remember(initial) { mutableStateOf(initial.email) }
     var phone by remember(initial) { mutableStateOf(initial.phone) }
+    fun tr(en: String, sl: String): String = if (isSl) sl else en
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text("Edit personal data") },
+        title = { Text(tr("Edit personal data", "Uredi osebne podatke")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = firstName, onValueChange = { firstName = it }, label = { Text("First name") }, singleLine = true, enabled = !saving)
-                OutlinedTextField(value = lastName, onValueChange = { lastName = it }, label = { Text("Last name") }, singleLine = true, enabled = !saving)
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone") }, singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), leadingIcon = { Icon(Icons.Rounded.Phone, contentDescription = null) })
+                OutlinedTextField(value = firstName, onValueChange = { firstName = it }, label = { Text(tr("First name", "Ime")) }, singleLine = true, enabled = !saving)
+                OutlinedTextField(value = lastName, onValueChange = { lastName = it }, label = { Text(tr("Last name", "Priimek")) }, singleLine = true, enabled = !saving)
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text(tr("Email", "E-pošta")) }, singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text(tr("Phone", "Telefon")) }, singleLine = true, enabled = !saving, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), leadingIcon = { Icon(Icons.Rounded.Phone, contentDescription = null) })
             }
         },
         confirmButton = {
@@ -1092,12 +1110,12 @@ private fun EditProfileDialog(
                 },
                 enabled = !saving
             ) {
-                Text(if (saving) "Saving…" else "Save")
+                Text(if (saving) tr("Saving…", "Shranjevanje…") else tr("Save", "Shrani"))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !saving) {
-                Text("Cancel")
+                Text(tr("Cancel", "Prekliči"))
             }
         }
     )

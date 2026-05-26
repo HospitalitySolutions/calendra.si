@@ -12,6 +12,10 @@ struct BookRescheduleContext: Identifiable, Hashable {
 struct BookView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.openURL) private var openURL
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
+    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
 
     /// Shown in the Book tab header (utility bar is hidden on this tab).
     let onOpenNotifications: () -> Void
@@ -201,8 +205,8 @@ struct BookView: View {
     }
 
     private var primaryButtonTitle: String {
-        if rescheduleContext != nil && currentStep == .dateTime { return "Confirm reschedule" }
-        return currentStep == .paymentReview ? "Confirm booking" : "Continue"
+        if rescheduleContext != nil && currentStep == .dateTime { return tr("Confirm reschedule", "Potrdi prestavitev") }
+        return currentStep == .paymentReview ? tr("Confirm booking", "Potrdi rezervacijo") : tr("Continue", "Nadaljuj")
     }
 
     private var unreadNotifications: Int {
@@ -332,6 +336,7 @@ struct BookView: View {
         }
         .sheet(isPresented: $showingStoredCardSheet) {
             StoredCardPickerSheet(
+                languageCode: appUiLocaleStorage,
                 cards: storedProfile.cards,
                 selectedCard: $selectedStoredCard,
                 onAddNewCard: {
@@ -342,6 +347,7 @@ struct BookView: View {
         }
         .sheet(isPresented: $showingPaymentMethodsSheet) {
             PaymentMethodPickerSheet(
+                languageCode: appUiLocaleStorage,
                 options: paymentMethodPickerOptions,
                 selectedMethod: selectedPaymentMethod,
                 onSelect: { method in
@@ -354,14 +360,14 @@ struct BookView: View {
             )
         }
         .sheet(isPresented: $showingAddCardSheet) {
-            AddCardSheet { card in
+            AddCardSheet(languageCode: appUiLocaleStorage) { card in
                 storedProfile.cards.append(card)
                 LocalProfileStore.shared.save(storedProfile)
                 selectedStoredCard = card
             }
         }
-        .alert("Booking update", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
-            Button("OK", role: .cancel) { notice = nil }
+        .alert(tr("Booking update", "Posodobitev rezervacije"), isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button(tr("OK", "V redu"), role: .cancel) { notice = nil }
         } message: {
             Text(notice ?? "")
         }
@@ -483,17 +489,17 @@ struct BookView: View {
 
     private var employeeStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            straightSectionHeader("SELECT EMPLOYEE")
+            straightSectionHeader(tr("SELECT EMPLOYEE", "IZBERI ZAPOSLENEGA"))
 
             if isLoadingConsultants {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text("Loading employees…")
+                    Text(tr("Loading employees…", "Nalaganje zaposlenih…"))
                         .foregroundColor(.secondary)
                 }
                 .padding(.vertical, 12)
             } else if consultants.isEmpty {
-                emptyInlineMessage("No employees available", "This service has no bookable employees.")
+                emptyInlineMessage(tr("No employees available", "Ni razpoložljivih zaposlenih"), tr("This service has no bookable employees.", "Ta storitev nima zaposlenih, ki bi jih bilo mogoče rezervirati."))
             } else {
                 VStack(spacing: 12) {
                     ForEach(consultants) { consultant in
@@ -515,17 +521,17 @@ struct BookView: View {
 
     private var providerStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            straightSectionHeader("SELECT PROVIDER")
+            straightSectionHeader(tr("SELECT PROVIDER", "IZBERI PONUDNIKA"))
 
             if providers.isEmpty {
-                emptyInlineMessage("No subscribed providers yet", "Join a tenancy first to start booking.")
+                emptyInlineMessage(tr("No subscribed providers yet", "Ni povezanih ponudnikov"), tr("Join a tenancy first to start booking.", "Za začetek rezervacije se najprej povežite s ponudnikom."))
             } else {
                 VStack(spacing: 12) {
                     ForEach(providers) { provider in
                         let subtitle = provider.companyAddress.nilIfBlank
                             ?? provider.city.nilIfBlank
                             ?? provider.description.nilIfBlank
-                            ?? "Subscribed organization"
+                            ?? tr("Subscribed organization", "Povezana organizacija")
 
                         Button {
                             selectedProviderId = provider.id
@@ -545,12 +551,12 @@ struct BookView: View {
 
     private var serviceStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            straightSectionHeader("SELECTED SERVICE")
+            straightSectionHeader(tr("SELECTED SERVICE", "IZBERI STORITEV"))
 
             if selectedProvider == nil {
-                emptyInlineMessage("Select a provider first", "Choose a provider before selecting a service.")
+                emptyInlineMessage(tr("Select a provider first", "Najprej izberite ponudnika"), tr("Choose a provider before selecting a service.", "Pred izbiro storitve izberite ponudnika."))
             } else if servicesForSelectedProvider.isEmpty {
-                emptyInlineMessage("No services available", "This provider does not currently expose any guest-app services.")
+                emptyInlineMessage(tr("No services available", "Ni razpoložljivih storitev"), tr("This provider does not currently expose any guest-app services.", "Ta ponudnik trenutno nima storitev za goste."))
             } else {
                 VStack(spacing: 12) {
                     ForEach(servicesForSelectedProvider) { service in
@@ -570,26 +576,27 @@ struct BookView: View {
         VStack(alignment: .leading, spacing: 18) {
 
             if selectedService != nil {
-                straightSectionHeader("SELECT DATE")
+                straightSectionHeader(tr("SELECT DATE", "IZBERI DATUM"))
                 MonthCalendarView(
                     visibleMonth: $visibleMonth,
                     selectedDate: $selectedDate,
-                    compact: true
+                    compact: true,
+                    languageCode: appUiLocaleStorage
                 )
 
-                straightSectionHeader("SELECT TIME")
+                straightSectionHeader(tr("SELECT TIME", "IZBERI URO"))
                 if isLoadingSlots {
-                    ProgressView("Loading available times…")
+                    ProgressView(tr("Loading available times…", "Nalaganje prostih terminov…"))
                         .padding(.vertical, 8)
                 } else if slots.isEmpty {
-                    Text("No slots available on the selected date.")
+                    Text(tr("No slots available on the selected date.", "Na izbrani datum ni prostih terminov."))
                         .foregroundColor(.secondary)
                         .padding(.bottom, 6)
                 } else {
                     singleTimeSelector
                 }
             } else {
-                emptyInlineMessage("Select a service first", "Choose a service before selecting date and time.")
+                emptyInlineMessage(tr("Select a service first", "Najprej izberite storitev"), tr("Choose a service before selecting date and time.", "Pred izbiro datuma in ure izberite storitev."))
             }
         }
     }
@@ -729,7 +736,7 @@ struct BookView: View {
                 reviewSummary(service: service)
 
                 if skipsOnlinePaymentMethods {
-                    emptyInlineMessage("Pay at venue", "Payment is collected at the venue. Tap Confirm booking to reserve your slot.")
+                    emptyInlineMessage(tr("Pay at venue", "Plačilo na lokaciji"), tr("Payment is collected at the venue. Tap Confirm booking to reserve your slot.", "Plačilo se izvede na lokaciji. Tapnite Potrdi rezervacijo za rezervacijo termina."))
                 }
             }
         }
@@ -826,7 +833,7 @@ struct BookView: View {
                 Text(service.name)
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
-                Text(service.description.nilIfBlank ?? "Bookable service")
+                Text(service.description.nilIfBlank ?? tr("Bookable service", "Storitev za rezervacijo"))
                     .font(.system(size: 15))
                     .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
                 HStack(spacing: 7) {
@@ -955,7 +962,7 @@ struct BookView: View {
 
     private var selectedPaymentMethodCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("PAYMENT METHOD")
+            Text(tr("PAYMENT METHOD", "NAČIN PLAČILA"))
                 .font(.system(size: 11, weight: .bold))
                 .tracking(1.0)
                 .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
@@ -969,7 +976,7 @@ struct BookView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
                 Spacer(minLength: 8)
-                Button("Change") {
+                Button(tr("Change", "Spremeni")) {
                     showingPaymentMethodsSheet = true
                 }
                 .font(.system(size: 13, weight: .semibold))
@@ -983,11 +990,11 @@ struct BookView: View {
 
     private func paymentMethodTitle(_ method: GuestBookingPaymentChoice) -> String {
         switch method {
-        case .card: return "Credit card"
-        case .bankTransfer: return "Bank Transfer"
-        case .entitlement: return "Use pass or visit"
+        case .card: return tr("Credit card", "Kreditna kartica")
+        case .bankTransfer: return tr("Bank Transfer", "Bančno nakazilo")
+        case .entitlement: return tr("Use pass or visit", "Uporabi karto ali obisk")
         case .payPal: return "PayPal"
-        case .giftCard: return "Gift card"
+        case .giftCard: return tr("Gift card", "Darilna kartica")
         }
     }
 
@@ -1009,43 +1016,43 @@ struct BookView: View {
             return nil
         case .entitlement:
             return matchingEntitlements.first.map { entitlement in
-                let remaining = entitlement.remainingUses.map(String.init) ?? "Unlimited"
-                return "\(entitlement.name) • \(remaining) left"
-            } ?? "No valid pass or pack available"
+                let remaining = entitlement.remainingUses.map(String.init) ?? tr("Unlimited", "Neomejeno")
+                return tr("\(entitlement.name) • \(remaining) left", "\(entitlement.name) • \(remaining) preostalo")
+            } ?? tr("No valid pass or pack available", "Ni veljavne karte ali paketa")
         case .payPal:
-            return "Approve securely in PayPal"
+            return tr("Approve securely in PayPal", "Varno potrdite v PayPalu")
         case .giftCard:
             if let giftCard = matchingGiftCards.first {
-                let balanceText = giftCard.remainingValueGross.map { priceString($0) } ?? "available"
+                let balanceText = giftCard.remainingValueGross.map { priceString($0) } ?? tr("available", "na voljo")
                 let currencyText = giftCard.currency ?? selectedService?.currency ?? ""
                 return "\(giftCard.name) • \(balanceText) \(currencyText)".trimmingCharacters(in: .whitespaces)
             }
-            return "Use your gift card balance"
+            return tr("Use your gift card balance", "Uporabite dobroimetje darilne kartice")
         }
     }
 
     private func reviewSummary(service: ServiceOptionModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("BOOKING SUMMARY")
+            Text(tr("BOOKING SUMMARY", "POVZETEK REZERVACIJE"))
                 .font(.system(size: 14, weight: .bold))
                 .tracking(1.2)
                 .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
                 .padding(.bottom, 6)
             if let provider = selectedProvider {
-                reviewSummaryLine(icon: "building.2", label: "Provider", value: provider.name)
+                reviewSummaryLine(icon: "building.2", label: tr("Provider", "Ponudnik"), value: provider.name)
             }
-            reviewSummaryLine(icon: "dumbbell.fill", label: "Service", value: service.name)
+            reviewSummaryLine(icon: "dumbbell.fill", label: tr("Service", "Storitev"), value: service.name)
             if employeeStepEnabled, let consultant = selectedConsultant {
-                reviewSummaryLine(icon: "person", label: "Employee", value: consultant.fullName)
+                reviewSummaryLine(icon: "person", label: tr("Employee", "Zaposleni"), value: consultant.fullName)
             }
             if let durationMinutes = service.durationMinutes {
-                reviewSummaryLine(icon: "timer", label: "Duration", value: "\(durationMinutes) min")
+                reviewSummaryLine(icon: "timer", label: tr("Duration", "Trajanje"), value: "\(durationMinutes) min")
             }
             if let slot = selectedSlot {
-                reviewSummaryLine(icon: "calendar", label: "Date & time", value: DateFormatting.prettyRange(start: slot.startsAt, end: slot.endsAt))
+                reviewSummaryLine(icon: "calendar", label: tr("Date & time", "Datum in ura"), value: localizedPrettyRange(start: slot.startsAt, end: slot.endsAt))
             }
             if !skipsOnlinePaymentMethods && isDepositMode {
-                reviewSummaryLine(icon: "creditcard", label: "Deposit", value: "\(depositPercentValue)% · \(priceString(amountDueNow)) \(service.currency)")
+                reviewSummaryLine(icon: "creditcard", label: tr("Deposit", "Predplačilo"), value: "\(depositPercentValue)% · \(priceString(amountDueNow)) \(service.currency)")
             }
         }
         .padding(16)
@@ -1054,7 +1061,7 @@ struct BookView: View {
 
     private func paymentTotalRow(service: ServiceOptionModel) -> some View {
         HStack(spacing: 14) {
-            Text("TOTAL")
+            Text(tr("TOTAL", "SKUPAJ"))
                 .font(.system(size: 14, weight: .bold))
                 .tracking(1.2)
                 .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
@@ -1088,9 +1095,9 @@ struct BookView: View {
 
     private func stepDisplayTitle(_ step: BookFlowStep) -> String {
         if step == .paymentReview, skipsOnlinePaymentMethods {
-            return "Review"
+            return tr("Review", "Pregled")
         }
-        return step.shortTitle
+        return step.localizedTitle(languageCode: appUiLocaleStorage)
     }
 
     private var creditCardSubtitle: String {
@@ -1098,8 +1105,8 @@ struct BookView: View {
             return card
         }
         return storedProfile.cards.isEmpty
-            ? "Add a card to pay by credit card"
-            : "Tap to choose a stored card"
+            ? tr("Add a card to pay by credit card", "Dodajte kartico za plačilo s kreditno kartico")
+            : tr("Tap to choose a stored card", "Tapnite za izbiro shranjene kartice")
     }
 
     private var primaryActionButton: some View {
@@ -1233,7 +1240,7 @@ struct BookView: View {
             isSubmitting = true
             _ = try await store.rescheduleBooking(companyId: context.companyId, bookingId: context.bookingId, newSlotId: slot.id)
             isSubmitting = false
-            notice = "Booking rescheduled successfully."
+            notice = tr("Booking rescheduled successfully.", "Rezervacija je bila uspešno prestavljena.")
             onRescheduleCompleted()
         } catch {
             isSubmitting = false
@@ -1256,11 +1263,11 @@ struct BookView: View {
 
             if let checkoutUrl = checkout.checkoutUrl, let url = URL(string: checkoutUrl) {
                 openURL(url)
-                notice = selectedPaymentMethod == .payPal ? "PayPal opened." : "Payment page opened."
+                notice = selectedPaymentMethod == .payPal ? tr("PayPal opened.", "PayPal se je odprl.") : tr("Payment page opened.", "Stran za plačilo se je odprla.")
             } else if let bankTransfer = checkout.bankTransfer {
                 notice = bankTransfer.instructions
             } else {
-                notice = checkout.status == "PAID" ? "Booking confirmed successfully." : checkout.status
+                notice = checkout.status == "PAID" ? tr("Booking confirmed successfully.", "Rezervacija je uspešno potrjena.") : checkout.status
             }
             onBookingCompleted()
         } catch {
@@ -1276,6 +1283,21 @@ struct BookView: View {
     private func priceString(_ value: Double) -> String {
         if value.rounded() == value { return String(Int(value)) }
         return String(format: "%.2f", value)
+    }
+
+    private func localizedPrettyRange(start: String, end: String) -> String {
+        let parser = ISO8601DateFormatter()
+        guard let startDate = parser.date(from: start), let endDate = parser.date(from: end) else {
+            return start
+        }
+        let locale = Locale(identifier: isSl ? "sl_SI" : "en_US_POSIX")
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = locale
+        dateFormatter.dateFormat = isSl ? "EEE, d. MMM HH:mm" : "EEE, d MMM HH:mm"
+        let timeFormatter = DateFormatter()
+        timeFormatter.locale = locale
+        timeFormatter.dateFormat = "HH:mm"
+        return "\(dateFormatter.string(from: startDate)) – \(timeFormatter.string(from: endDate))"
     }
 
     private func selectableRowCard(
@@ -1449,13 +1471,14 @@ private enum BookFlowStep: Int, CaseIterable, Identifiable {
 
     var id: Int { rawValue }
 
-    var shortTitle: String {
+    func localizedTitle(languageCode: String) -> String {
+        let sl = languageCode.lowercased().hasPrefix("sl")
         switch self {
-        case .provider: return "Provider"
-        case .service: return "Service"
-        case .employee: return "Employee"
-        case .dateTime: return "Date & time"
-        case .paymentReview: return "Payment & review"
+        case .provider: return sl ? "Ponudnik" : "Provider"
+        case .service: return sl ? "Storitev" : "Service"
+        case .employee: return sl ? "Zaposleni" : "Employee"
+        case .dateTime: return sl ? "Datum in ura" : "Date & time"
+        case .paymentReview: return sl ? "Plačilo in pregled" : "Payment & review"
         }
     }
 }
@@ -1489,6 +1512,9 @@ private struct PaymentMethodPickerOption: Identifiable {
 
 private struct PaymentMethodPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
+    let languageCode: String
+    private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
     let options: [PaymentMethodPickerOption]
     let selectedMethod: GuestBookingPaymentChoice
     let onSelect: (GuestBookingPaymentChoice) -> Void
@@ -1526,10 +1552,10 @@ private struct PaymentMethodPickerSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-            .navigationTitle("Payment method")
+            .navigationTitle(tr("Payment method", "Način plačila"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button(tr("Done", "Končano")) { dismiss() }
                 }
             }
         }
@@ -1539,6 +1565,9 @@ private struct PaymentMethodPickerSheet: View {
 
 private struct StoredCardPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
+    let languageCode: String
+    private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
     let cards: [String]
     @Binding var selectedCard: String?
     let onAddNewCard: () -> Void
@@ -1547,7 +1576,7 @@ private struct StoredCardPickerSheet: View {
         NavigationStack {
             List {
                 if cards.isEmpty {
-                    Text("No stored cards yet.")
+                    Text(tr("No stored cards yet.", "Shranjenih kartic še ni."))
                         .foregroundColor(.secondary)
                 } else {
                     ForEach(cards, id: \.self) { card in
@@ -1559,7 +1588,7 @@ private struct StoredCardPickerSheet: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(card)
                                         .foregroundColor(.primary)
-                                    Text("Stored on this device")
+                                    Text(tr("Stored on this device", "Shranjeno na tej napravi"))
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -1579,15 +1608,15 @@ private struct StoredCardPickerSheet: View {
                         dismiss()
                         onAddNewCard()
                     } label: {
-                        Label("Add new card", systemImage: "plus")
+                        Label(tr("Add new card", "Dodaj novo kartico"), systemImage: "plus")
                     }
                 }
             }
-            .navigationTitle("Stored cards")
+            .navigationTitle(tr("Stored cards", "Shranjene kartice"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button(tr("Close", "Zapri")) { dismiss() }
                 }
             }
         }
@@ -1615,6 +1644,8 @@ private struct MonthCalendarView: View {
     @Binding var visibleMonth: Date
     @Binding var selectedDate: Date
     var compact: Bool = false
+    var languageCode: String = "en"
+    private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
     private let calendarBlue = Color(red: 0.05, green: 0.42, blue: 1.0)
 
     private var calendar: Calendar {
@@ -1625,7 +1656,7 @@ private struct MonthCalendarView: View {
 
     private var monthTitle: String {
         let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.locale = Locale(identifier: isSl ? "sl_SI" : "en_US_POSIX")
         fmt.dateFormat = "LLLL yyyy"
         return fmt.string(from: visibleMonth)
     }
@@ -1633,14 +1664,14 @@ private struct MonthCalendarView: View {
     private func monthName(_ offset: Int) -> String {
         guard let d = calendar.date(byAdding: .month, value: offset, to: visibleMonth) else { return "" }
         let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.locale = Locale(identifier: isSl ? "sl_SI" : "en_US_POSIX")
         fmt.dateFormat = "LLLL"
         return fmt.string(from: d)
     }
 
     private var weekdaySymbols: [String] {
         let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.locale = Locale(identifier: isSl ? "sl_SI" : "en_US_POSIX")
         let raw = fmt.shortWeekdaySymbols ?? []
         guard raw.count == 7 else { return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] }
         return Array(raw[1...6]) + [raw[0]]

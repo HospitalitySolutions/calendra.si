@@ -184,8 +184,8 @@ fun WelcomeScreen(
                         contentDescription = "Calendra Book",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .widthIn(max = 260.dp)
-                            .height(74.dp)
+                            .widthIn(max = 230.dp)
+                            .height(66.dp)
                     )
 
                     Text(

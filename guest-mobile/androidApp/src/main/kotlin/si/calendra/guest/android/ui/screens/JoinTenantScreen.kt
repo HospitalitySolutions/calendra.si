@@ -8,6 +8,7 @@ import com.google.zxing.BarcodeFormat
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.DisposableEffect
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,6 +21,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -54,6 +57,7 @@ import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Spa
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -69,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -119,12 +124,14 @@ private val TitleText = Color(0xFF13264A)
 @Composable
 fun JoinTenantScreen(
     repository: GuestRepository,
+    languageCode: String,
     subscribedTenantIds: Set<String> = emptySet(),
     onJoinWithCode: (String) -> Unit,
     onJoinPublicTenant: (String) -> Unit,
     onQrScanned: (String) -> Unit,
     onBack: () -> Unit
 ) {
+    val isSl = languageCode.lowercase().startsWith("sl")
     var mode by remember { mutableStateOf(JoinMode.Browse) }
     var showCodeDialog by remember { mutableStateOf(false) }
     var showScanDialog by remember { mutableStateOf(false) }
@@ -164,14 +171,14 @@ fun JoinTenantScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandHeader()
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 JoinModeTile(
-                    label = "Enter tenant code",
+                    label = if (isSl) "Vnesi kodo" else "Enter tenant code",
                     mode = JoinMode.Code,
                     selected = mode == JoinMode.Code,
                     modifier = Modifier.weight(1f),
@@ -181,7 +188,7 @@ fun JoinTenantScreen(
                     }
                 )
                 JoinModeTile(
-                    label = "Scan QR",
+                    label = if (isSl) "Skeniraj QR" else "Scan QR",
                     mode = JoinMode.Scan,
                     selected = mode == JoinMode.Scan,
                     modifier = Modifier.weight(1f),
@@ -191,7 +198,7 @@ fun JoinTenantScreen(
                     }
                 )
                 JoinModeTile(
-                    label = "Browse tenant",
+                    label = if (isSl) "Brskaj ponudnike" else "Browse tenant",
                     mode = JoinMode.Browse,
                     selected = mode == JoinMode.Browse,
                     modifier = Modifier.weight(1f),
@@ -203,6 +210,7 @@ fun JoinTenantScreen(
 
             SearchField(
                 value = tenantQuery,
+                isSl = isSl,
                 onValueChange = { incoming ->
                     tenantQuery = if (incoming.isNotEmpty()) {
                         incoming.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
@@ -210,16 +218,16 @@ fun JoinTenantScreen(
                 }
             )
 
+            Spacer(Modifier.height(10.dp))
+
+            TenantTypeChips(selectedType = selectedType, isSl = isSl, onTypeSelected = { selectedType = it })
+
             Spacer(Modifier.height(14.dp))
 
-            TenantTypeChips(selectedType = selectedType, onTypeSelected = { selectedType = it })
-
-            Spacer(Modifier.height(16.dp))
-
             when {
-                loading -> LoadingTenantCard()
-                tenants.isEmpty() -> EmptyTenantCard()
-                else -> TenantCarousel(tenants = tenants, onSelectTenant = { onJoinPublicTenant(it.companyId) })
+                loading -> LoadingTenantCard(isSl = isSl)
+                tenants.isEmpty() -> EmptyTenantCard(isSl = isSl)
+                else -> TenantCarousel(tenants = tenants, isSl = isSl, onSelectTenant = { onJoinPublicTenant(it.companyId) })
             }
 
             Spacer(Modifier.height(20.dp))
@@ -230,6 +238,7 @@ fun JoinTenantScreen(
                 code = code,
                 onCodeChange = { code = it },
                 onDismiss = { showCodeDialog = false },
+                isSl = isSl,
                 onJoin = {
                     showCodeDialog = false
                     onJoinWithCode(code)
@@ -239,6 +248,7 @@ fun JoinTenantScreen(
 
         if (showScanDialog) {
             ScanQrPopup(
+                isSl = isSl,
                 onDismiss = { showScanDialog = false },
                 onQrScanned = { raw ->
                     showScanDialog = false
@@ -379,18 +389,18 @@ private fun BrowseGlyph() {
 }
 
 @Composable
-private fun SearchField(value: String, onValueChange: (String) -> Unit) {
+private fun SearchField(value: String, isSl: Boolean, onValueChange: (String) -> Unit) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp),
-        shape = RoundedCornerShape(18.dp),
-        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, color = TitleText),
-        placeholder = { Text("Search tenant", color = SoftText.copy(alpha = 0.92f), fontSize = 15.sp) },
-        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = SoftText, modifier = Modifier.size(20.dp)) },
+            .height(56.dp),
+        shape = RoundedCornerShape(20.dp),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp, color = TitleText),
+        placeholder = { Text(if (isSl) "Poišči ponudnika" else "Search tenant", color = SoftText.copy(alpha = 0.92f), fontSize = 14.sp, lineHeight = 20.sp) },
+        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = SoftText, modifier = Modifier.size(16.dp)) },
         trailingIcon = {
             if (value.isNotBlank()) {
                 Surface(
@@ -401,7 +411,7 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit) {
                     color = Color(0xFFE9EEF8)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Clear", tint = SoftText, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Rounded.Close, contentDescription = if (isSl) "Počisti" else "Clear", tint = SoftText, modifier = Modifier.size(14.dp))
                     }
                 }
             }
@@ -411,7 +421,7 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit) {
 }
 
 @Composable
-private fun TenantTypeChips(selectedType: TenantTypeOption, onTypeSelected: (TenantTypeOption) -> Unit) {
+private fun TenantTypeChips(selectedType: TenantTypeOption, isSl: Boolean, onTypeSelected: (TenantTypeOption) -> Unit) {
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -434,7 +444,7 @@ private fun TenantTypeChips(selectedType: TenantTypeOption, onTypeSelected: (Ten
                         Icon(it, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (selected) Color.White else CalendraBlue)
                     }
                     Text(
-                        option.label,
+                        option.displayLabel(isSl),
                         color = if (selected) Color.White else CalendraBlue,
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
                         fontWeight = FontWeight.SemiBold
@@ -446,41 +456,48 @@ private fun TenantTypeChips(selectedType: TenantTypeOption, onTypeSelected: (Ten
 }
 
 @Composable
-private fun TenantCarousel(tenants: List<TenantSummary>, onSelectTenant: (TenantSummary) -> Unit) {
+private fun TenantCarousel(tenants: List<TenantSummary>, isSl: Boolean, onSelectTenant: (TenantSummary) -> Unit) {
     val pagerState = rememberPagerState(pageCount = { tenants.size })
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.fillMaxWidth().height(430.dp), contentAlignment = Alignment.Center) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.requiredWidth(screenWidth)
+    ) {
+        Box(
+            modifier = Modifier
+                .requiredWidth(screenWidth)
+                .height(396.dp),
+            contentAlignment = Alignment.Center
+        ) {
             HorizontalPager(
                 state = pagerState,
-                contentPadding = PaddingValues(horizontal = 0.dp),
+                contentPadding = PaddingValues(horizontal = screenWidth * 0.22f),
                 pageSpacing = 14.dp,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val offset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-                val scale = 1f - (offset.coerceIn(0f, 1f) * 0.10f)
-                val alpha = 1f - (offset.coerceIn(0f, 1f) * 0.32f)
+                val distance = offset.coerceIn(0f, 1f)
                 TenantCarouselCard(
                     tenant = tenants[page],
-                    modifier = Modifier
-                        .padding(horizontal = 2.dp)
-                        .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        this.alpha = alpha
+                    isSl = isSl,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = 1f - (distance * 0.38f)
+                        shadowElevation = if (distance < 0.5f) 14f else 5f
                     },
                     onSelect = { onSelectTenant(tenants[page]) }
                 )
             }
         }
 
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             tenants.forEachIndexed { index, _ ->
                 Box(
                     modifier = Modifier
-                        .size(if (index == pagerState.currentPage) 9.dp else 7.dp)
-                        .clip(CircleShape)
+                        .width(if (index == pagerState.currentPage) 28.dp else 10.dp)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
                         .background(if (index == pagerState.currentPage) CalendraBlue else Color(0xFFD7DDE8))
                 )
             }
@@ -488,8 +505,9 @@ private fun TenantCarousel(tenants: List<TenantSummary>, onSelectTenant: (Tenant
     }
 }
 
+
 @Composable
-private fun TenantCarouselCard(tenant: TenantSummary, modifier: Modifier = Modifier, onSelect: () -> Unit) {
+private fun TenantCarouselCard(tenant: TenantSummary, isSl: Boolean, modifier: Modifier = Modifier, onSelect: () -> Unit) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -497,15 +515,16 @@ private fun TenantCarouselCard(tenant: TenantSummary, modifier: Modifier = Modif
             .shadow(14.dp, RoundedCornerShape(28.dp), clip = false),
         shape = RoundedCornerShape(28.dp),
         color = Color.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.98f))
     ) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(164.dp)
-                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 26.dp, bottomEnd = 26.dp))
-                    .background(Color(0xFFF0F4FA))
+                    .padding(start = 8.dp, top = 8.dp, end = 8.dp)
+                    .height(174.dp)
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 0.dp, bottomEnd = 0.dp))
+                    .background(Color(0xFFF0F5FC))
             ) {
                 if (!tenant.cardImageUrl.isNullOrBlank()) {
                     AsyncImage(
@@ -515,102 +534,198 @@ private fun TenantCarouselCard(tenant: TenantSummary, modifier: Modifier = Modif
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(
-                            Brush.linearGradient(colors = listOf(Color(0xFFF5F7FB), Color(0xFFE6EDF9)))
-                        )
-                    )
-                    Icon(
-                        tenantTypeIcon(tenant.tenantType),
-                        contentDescription = null,
-                        tint = CalendraBlue.copy(alpha = 0.72f),
-                        modifier = Modifier.align(Alignment.Center).size(50.dp)
-                    )
+                    TenantHeroPlaceholder(tenantType = tenant.tenantType)
                 }
 
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.08f))
+                            )
+                        )
+                )
+
                 Surface(
-                    modifier = Modifier.align(Alignment.BottomCenter).offset(y = 34.dp).size(78.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .offset(y = 32.dp)
+                        .size(78.dp),
                     shape = CircleShape,
                     color = Color.White,
-                    shadowElevation = 7.dp
+                    shadowElevation = 10.dp
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         if (!tenant.logoImageUrl.isNullOrBlank()) {
                             AsyncImage(
                                 model = tenant.logoImageUrl,
-                                contentDescription = "${tenant.companyName} logo",
-                                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                contentScale = ContentScale.Crop
+                                contentDescription = tenant.companyName,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(10.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Fit
                             )
                         } else {
-                            Text(tenant.companyName.initials(), color = CalendraBlue, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(11.dp)
+                                    .clip(CircleShape)
+                                    .background(tenantAccent(tenant.tenantType)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    tenantTypeIcon(tenant.tenantType),
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(44.dp))
+            Spacer(Modifier.height(28.dp))
             Text(
-                tenant.companyName,
+                text = tenant.companyName,
                 color = TitleText,
-                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 24.sp),
+                fontSize = 18.sp,
+                lineHeight = 22.sp,
                 fontWeight = FontWeight.ExtraBold,
-                maxLines = 1,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = 22.dp)
             )
 
-            tenantTypeLabel(tenant.tenantType)?.let { typeLabel ->
-                Spacer(Modifier.height(8.dp))
+            tenantTypeLabel(tenant.tenantType, isSl)?.let { typeLabel ->
+                Spacer(Modifier.height(7.dp))
                 Surface(shape = RoundedCornerShape(999.dp), color = Color(0xFFEAF1FF)) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(tenantTypeIcon(tenant.tenantType), contentDescription = null, modifier = Modifier.size(13.dp), tint = CalendraBlue)
-                        Text(typeLabel, color = CalendraBlue, style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp), fontWeight = FontWeight.SemiBold)
+                        Icon(tenantTypeIcon(tenant.tenantType), contentDescription = null, tint = CalendraBlue, modifier = Modifier.size(13.dp))
+                        Text(typeLabel, color = CalendraBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
 
             Spacer(Modifier.height(10.dp))
-            Row(modifier = Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Icon(Icons.Rounded.LocationOn, contentDescription = null, modifier = Modifier.size(17.dp), tint = SoftText)
-                Spacer(Modifier.width(3.dp))
+            Row(
+                modifier = Modifier.padding(horizontal = 22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = CalendraBlue, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
-                    tenant.publicCity?.ifBlank { tenant.companyAddress.orEmpty() }?.ifBlank { "Location available on profile" }
-                        ?: "Location available on profile",
+                    tenant.publicCity?.ifBlank { tenant.companyAddress.orEmpty() }?.ifBlank {
+                        if (isSl) "Lokacija je na voljo v profilu" else "Location available on profile"
+                    } ?: if (isSl) "Lokacija je na voljo v profilu" else "Location available on profile",
                     color = SoftText,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
-            Text(
-                tenant.publicDescription?.ifBlank { "Discover this tenant and continue to booking." }
-                    ?: "Discover this tenant and continue to booking.",
-                color = SoftText,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 22.dp)
-            )
-
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(8.dp))
             Button(
                 onClick = onSelect,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(50.dp),
-                shape = RoundedCornerShape(17.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp).height(44.dp),
+                shape = RoundedCornerShape(17.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CalendraBlue, contentColor = Color.White)
             ) {
-                Text("Select tenancy", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(if (isSl) "Izberi ponudnika" else "Select tenant", fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(4.dp))
         }
     }
+}
+
+
+@Composable
+private fun TenantHeroPlaceholder(tenantType: String?) {
+    val colors = when (tenantType?.lowercase()) {
+        "salon" -> listOf(Color(0xFFFFF1F4), Color(0xFFF7D4DF))
+        "gym" -> listOf(Color(0xFFE4F5FF), Color(0xFFB8DDFB))
+        "spa" -> listOf(Color(0xFFEAF8E6), Color(0xFFC9E2C0))
+        "therapy" -> listOf(Color(0xFFEAF0FF), Color(0xFFC1CFF1))
+        else -> listOf(Color(0xFFF6F8FC), Color(0xFFE6EEF8))
+    }
+    val accent = tenantAccent(tenantType)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.linearGradient(colors = colors, start = Offset(0f, 0f), end = Offset(900f, 900f)))
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val cream = Color(0xFFFFFBF3)
+            val shadow = Color(0x22000000)
+            val glass = Color(0xFFB9D8F5).copy(alpha = 0.80f)
+            val awningLight = Color.White.copy(alpha = 0.92f)
+
+            drawCircle(Color.White.copy(alpha = 0.30f), radius = w * 0.26f, center = Offset(w * 0.78f, h * 0.26f))
+            drawCircle(Color.White.copy(alpha = 0.22f), radius = w * 0.18f, center = Offset(w * 0.17f, h * 0.28f))
+
+            drawRoundRect(shadow, topLeft = Offset(w * 0.20f, h * 0.72f), size = Size(w * 0.60f, h * 0.05f), cornerRadius = CornerRadius(24.dp.toPx(), 24.dp.toPx()))
+            drawRoundRect(cream, topLeft = Offset(w * 0.23f, h * 0.24f), size = Size(w * 0.54f, h * 0.47f), cornerRadius = CornerRadius(13.dp.toPx(), 13.dp.toPx()))
+            drawRoundRect(Color.White.copy(alpha = 0.72f), topLeft = Offset(w * 0.28f, h * 0.18f), size = Size(w * 0.44f, h * 0.12f), cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx()))
+
+            val awningTop = h * 0.34f
+            val stripeW = w * 0.075f
+            repeat(7) { i ->
+                val x = w * 0.22f + stripeW * i
+                drawRect(if (i % 2 == 0) accent.copy(alpha = 0.88f) else awningLight, topLeft = Offset(x, awningTop), size = Size(stripeW, h * 0.14f))
+                drawCircle(if (i % 2 == 0) accent.copy(alpha = 0.88f) else awningLight, radius = stripeW / 2f, center = Offset(x + stripeW / 2f, awningTop + h * 0.14f))
+            }
+
+            drawRoundRect(accent.copy(alpha = 0.85f), topLeft = Offset(w * 0.32f, h * 0.52f), size = Size(w * 0.13f, h * 0.18f), cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx()))
+            drawRoundRect(glass, topLeft = Offset(w * 0.50f, h * 0.53f), size = Size(w * 0.17f, h * 0.13f), cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx()))
+            drawRoundRect(Color.White.copy(alpha = 0.35f), topLeft = Offset(w * 0.53f, h * 0.55f), size = Size(w * 0.09f, h * 0.03f), cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx()))
+
+            drawRoundRect(Color(0xFFE5D6C3), topLeft = Offset(w * 0.20f, h * 0.70f), size = Size(w * 0.62f, h * 0.04f), cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx()))
+
+            // Plants / soft decorative foreground.
+            drawRoundRect(Color(0xFFEAE6DD), topLeft = Offset(w * 0.18f, h * 0.62f), size = Size(w * 0.06f, h * 0.10f), cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()))
+            drawCircle(Color(0xFF6BA35E), radius = w * 0.025f, center = Offset(w * 0.19f, h * 0.57f))
+            drawCircle(Color(0xFF7FB76E), radius = w * 0.026f, center = Offset(w * 0.22f, h * 0.54f))
+            drawCircle(Color(0xFF8DC47C), radius = w * 0.022f, center = Offset(w * 0.23f, h * 0.60f))
+
+            drawRoundRect(Color(0xFFEAE6DD), topLeft = Offset(w * 0.78f, h * 0.62f), size = Size(w * 0.06f, h * 0.10f), cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()))
+            drawCircle(Color(0xFF6BA35E), radius = w * 0.025f, center = Offset(w * 0.80f, h * 0.57f))
+            drawCircle(Color(0xFF7FB76E), radius = w * 0.026f, center = Offset(w * 0.83f, h * 0.54f))
+            drawCircle(Color(0xFF8DC47C), radius = w * 0.022f, center = Offset(w * 0.82f, h * 0.61f))
+        }
+    }
+}
+
+
+private fun tenantInitials(name: String): String =
+    name.split(" ").mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }.take(2).joinToString("").ifBlank { "C" }
+
+private fun tenantAccent(tenantType: String?): Color = when (tenantType?.lowercase()) {
+    "salon" -> Color(0xFFE66F94)
+    "gym" -> Color(0xFF1478D4)
+    "spa" -> Color(0xFF5C8C58)
+    "therapy" -> Color(0xFF6D70D9)
+    else -> CalendraBlue
+}
+
+private fun tenantAccentSoft(tenantType: String?): Color = when (tenantType?.lowercase()) {
+    "salon" -> Color(0xFFFFE8EF)
+    "gym" -> Color(0xFFE5F2FF)
+    "spa" -> Color(0xFFE7F4E3)
+    "therapy" -> Color(0xFFECEDFF)
+    else -> Color(0xFFEAF1FF)
 }
 
 
@@ -619,6 +734,7 @@ private fun JoinWithCodePopup(
     code: String,
     onCodeChange: (String) -> Unit,
     onDismiss: () -> Unit,
+    isSl: Boolean,
     onJoin: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -629,9 +745,9 @@ private fun JoinWithCodePopup(
             shadowElevation = 18.dp
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text("Join with tenant code", color = TitleText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code", color = TitleText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text("Enter the code provided by the tenant.", color = SoftText, fontSize = 14.sp)
+                Text(if (isSl) "Vnesite kodo, ki vam jo je posredoval ponudnik." else "Enter the code provided by the tenant.", color = SoftText, fontSize = 14.sp)
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = code,
@@ -651,7 +767,7 @@ private fun JoinWithCodePopup(
                         border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("Cancel", color = CalendraBlue, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Text(if (isSl) "Prekliči" else "Cancel", color = CalendraBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     Button(
@@ -659,7 +775,7 @@ private fun JoinWithCodePopup(
                         modifier = Modifier.weight(1f).height(50.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("Join", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(if (isSl) "Pridruži se" else "Join", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -668,7 +784,7 @@ private fun JoinWithCodePopup(
 }
 
 @Composable
-private fun ScanQrPopup(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
+private fun ScanQrPopup(isSl: Boolean, onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
     val context = LocalContext.current
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -693,9 +809,9 @@ private fun ScanQrPopup(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
             shadowElevation = 18.dp
         ) {
             Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Scan QR", color = TitleText, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
+                Text(if (isSl) "Skeniraj QR" else "Scan QR", color = TitleText, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(4.dp))
-                Text("Align the provider QR in the frame.", color = SoftText, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
+                Text(if (isSl) "Poravnajte QR kodo ponudnika z okvirjem." else "Align the provider QR in the frame.", color = SoftText, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(16.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth().height(220.dp),
@@ -712,7 +828,7 @@ private fun ScanQrPopup(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                             ScannerFrameOverlay(modifier = Modifier.fillMaxSize())
                         } else {
                             Text(
-                                "Camera permission is required to scan the tenant QR code.",
+                                if (isSl) "Za skeniranje QR kode ponudnika je potrebno dovoljenje za kamero." else "Camera permission is required to scan the tenant QR code.",
                                 color = SoftText,
                                 fontSize = 14.sp,
                                 textAlign = TextAlign.Center,
@@ -729,7 +845,7 @@ private fun ScanQrPopup(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                     border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("Cancel", color = CalendraBlue, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (isSl) "Prekliči" else "Cancel", color = CalendraBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -798,7 +914,7 @@ private fun ScannerFrameOverlay(modifier: Modifier = Modifier) {
 
 
 @Composable
-private fun JoinWithCodeSection(code: String, onCodeChange: (String) -> Unit, onJoin: () -> Unit) {
+private fun JoinWithCodeSection(code: String, isSl: Boolean, onCodeChange: (String) -> Unit, onJoin: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -807,10 +923,10 @@ private fun JoinWithCodeSection(code: String, onCodeChange: (String) -> Unit, on
         shadowElevation = 3.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Join with tenant code", color = TitleText, style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp), fontWeight = FontWeight.Bold)
+            Text(if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code", color = TitleText, style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
-            Text("Already have a code? Enter it below.", color = SoftText, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp))
-            Spacer(Modifier.height(12.dp))
+            Text(if (isSl) "Že imate kodo? Vnesite jo spodaj." else "Already have a code? Enter it below.", color = SoftText, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp))
+            Spacer(Modifier.height(10.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = code,
@@ -825,7 +941,7 @@ private fun JoinWithCodeSection(code: String, onCodeChange: (String) -> Unit, on
                     modifier = Modifier.wrapContentWidth().height(54.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Join", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (isSl) "Pridruži se" else "Join", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }
@@ -833,7 +949,7 @@ private fun JoinWithCodeSection(code: String, onCodeChange: (String) -> Unit, on
 }
 
 @Composable
-private fun LoadingTenantCard() {
+private fun LoadingTenantCard(isSl: Boolean) {
     Surface(
         modifier = Modifier.fillMaxWidth().height(380.dp),
         shape = RoundedCornerShape(28.dp),
@@ -841,29 +957,52 @@ private fun LoadingTenantCard() {
         border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text("Loading tenants…", color = SoftText, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp))
+            Text(if (isSl) "Nalaganje ponudnikov…" else "Loading tenants…", color = SoftText, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp))
         }
     }
 }
 
 @Composable
-private fun EmptyTenantCard() {
+private fun EmptyTenantCard(isSl: Boolean) {
     Surface(
-        modifier = Modifier.fillMaxWidth().height(380.dp),
-        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(30.dp),
         color = Color.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, SoftOutline)
+        shadowElevation = 6.dp
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Rounded.Business, contentDescription = null, tint = CalendraBlue, modifier = Modifier.size(36.dp))
-            Spacer(Modifier.height(14.dp))
-            Text("No public tenants found", color = TitleText, style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Image(
+                painter = painterResource(id = R.drawable.add_tenant_empty_illustration),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(775f / 470f),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (isSl) "Ni najdenih javnih ponudnikov" else "No public tenants found",
+                color = TitleText,
+                fontSize = 24.sp,
+                lineHeight = 29.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (isSl) "Trenutno ne najdemo javnih ponudnikov, ki bi ustrezali vašemu iskanju." else "We couldn’t find any public tenants matching your search right now.",
+                color = SoftText,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 14.dp)
+            )
             Spacer(Modifier.height(6.dp))
-            Text("Try another category or search term.", color = SoftText, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), textAlign = TextAlign.Center)
         }
     }
 }
@@ -875,11 +1014,20 @@ private fun String.initials(): String = trim()
     .joinToString("") { it.first().uppercaseChar().toString() }
     .ifBlank { "C" }
 
-private fun tenantTypeLabel(raw: String?): String? = when (raw?.trim()?.lowercase()) {
+private fun TenantTypeOption.displayLabel(isSl: Boolean): String = when (id) {
+    null -> if (isSl) "Vse" else "All"
     "salon" -> "Salon"
-    "gym" -> "Gym"
+    "gym" -> if (isSl) "Fitnes" else "Gym"
     "spa" -> "Spa"
-    "therapy" -> "Therapy"
+    "therapy" -> if (isSl) "Terapija" else "Therapy"
+    else -> label
+}
+
+private fun tenantTypeLabel(raw: String?, isSl: Boolean): String? = when (raw?.trim()?.lowercase()) {
+    "salon" -> "Salon"
+    "gym" -> if (isSl) "Fitnes" else "Gym"
+    "spa" -> "Spa"
+    "therapy" -> if (isSl) "Terapija" else "Therapy"
     null, "" -> null
     else -> raw
 }

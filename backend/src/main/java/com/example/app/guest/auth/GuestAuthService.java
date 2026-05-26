@@ -246,7 +246,9 @@ public class GuestAuthService {
     }
 
     private void hydrateFromSocial(GuestUser guestUser, String email, String firstName, String lastName, String defaultLanguage) {
-        if (guestUser.getEmail() == null) guestUser.setEmail(normalizeEmail(email));
+        String normalizedEmail = normalizeEmail(email);
+        if (guestUser.getEmail() == null) guestUser.setEmail(normalizedEmail);
+        if (normalizedEmail != null) guestUser.setEmailVerified(true);
         if (guestUser.getFirstName() == null || guestUser.getFirstName().isBlank()) guestUser.setFirstName(firstName == null || firstName.isBlank() ? "Guest" : firstName.trim());
         if (guestUser.getLastName() == null || guestUser.getLastName().isBlank()) guestUser.setLastName(lastName == null || lastName.isBlank() ? "User" : lastName.trim());
         if (guestUser.getLanguage() == null || guestUser.getLanguage().isBlank()) guestUser.setLanguage(defaultLanguage);

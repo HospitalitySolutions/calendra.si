@@ -7,26 +7,26 @@ struct ProfileView: View {
         case unsubscribe
         case anonymize
 
-        var title: String {
+        func title(isSl: Bool) -> String {
             switch self {
-            case .unsubscribe: return "Unsubscribe"
-            case .anonymize: return "Anonymize"
+            case .unsubscribe: return isSl ? "Odjavi se" : "Unsubscribe"
+            case .anonymize: return isSl ? "Anonimiziraj" : "Anonymize"
             }
         }
 
-        var confirmationTitle: String {
+        func confirmationTitle(isSl: Bool) -> String {
             switch self {
-            case .unsubscribe: return "Unsubscribe from tenant?"
-            case .anonymize: return "Anonymize tenant data?"
+            case .unsubscribe: return isSl ? "Odjava od ponudnika?" : "Unsubscribe from tenant?"
+            case .anonymize: return isSl ? "Anonimiziram podatke ponudnika?" : "Anonymize tenant data?"
             }
         }
 
-        var confirmationMessage: String {
+        func confirmationMessage(isSl: Bool) -> String {
             switch self {
             case .unsubscribe:
-                return "You can only unsubscribe when there are no active sessions or entitlements for this tenancy."
+                return isSl ? "Odjavite se lahko samo, če pri tem ponudniku nimate aktivnih terminov ali ugodnosti." : "You can only unsubscribe when there are no active sessions or entitlements for this tenancy."
             case .anonymize:
-                return "This anonymizes your tenant data and marks the tenancy inactive. You can only do this when there are no active sessions or entitlements."
+                return isSl ? "To anonimizira vaše podatke pri ponudniku in označi povezavo kot neaktivno. To lahko naredite samo, če nimate aktivnih terminov ali ugodnosti." : "This anonymizes your tenant data and marks the tenancy inactive. You can only do this when there are no active sessions or entitlements."
             }
         }
     }
@@ -58,8 +58,11 @@ struct ProfileView: View {
     @State private var uploadingAvatar = false
     @State private var tenantActionTarget: TenantActionTarget?
     @State private var tenantActionInFlightId: String?
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
     private let accountDeletionUrl = URL(string: "https://calendra.si/account-deletion")!
+    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
 
     private var languageDisplay: String {
         profile.language.lowercased() == "sl" ? "Slovenščina" : "English"
@@ -67,15 +70,15 @@ struct ProfileView: View {
 
     private var notificationsSummary: String {
         switch (notifyMessagesEnabled, notifyRemindersEnabled) {
-        case (true, true): return "On"
-        case (false, false): return "Off"
-        case (true, false): return "Messages only"
-        case (false, true): return "Reminders only"
+        case (true, true): return tr("On", "Vklopljeno")
+        case (false, false): return tr("Off", "Izklopljeno")
+        case (true, false): return tr("Messages only", "Samo sporočila")
+        case (false, true): return tr("Reminders only", "Samo opomniki")
         }
     }
 
     private var invoiceSummary: String {
-        invoiceSettings.recipientType.uppercased() == "COMPANY" ? "Company" : "Individual"
+        invoiceSettings.recipientType.uppercased() == "COMPANY" ? tr("Company", "Podjetje") : tr("Individual", "Fizična oseba")
     }
 
     private var activeTenantId: String? {
@@ -91,9 +94,9 @@ struct ProfileView: View {
             ProfileSoftBackground()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 12) {
                     GuestSurfaceCard(contentPadding: 18, cornerRadius: 28) {
-                        VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
                                 PhotosPicker(selection: $photoPickerItem, matching: .images, photoLibrary: .shared()) {
                                     ProfileAvatarButton(avatarImage: avatarImage, uploading: uploadingAvatar)
@@ -103,11 +106,11 @@ struct ProfileView: View {
 
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text("\(profile.firstName) \(profile.lastName)".trimmingCharacters(in: .whitespaces))
-                                        .font(.system(size: 19, weight: .bold))
+                                        .font(.system(size: 23, weight: .bold))
                                         .foregroundColor(Color(red: 0.024, green: 0.106, blue: 0.227))
                                         .lineLimit(1)
                                     Text(profile.email)
-                                        .font(.system(size: 11, weight: .regular))
+                                        .font(.system(size: 15, weight: .regular))
                                         .foregroundColor(Color(red: 0.384, green: 0.447, blue: 0.541))
                                         .lineLimit(1)
                                 }
@@ -118,12 +121,12 @@ struct ProfileView: View {
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: "pencil")
-                                        .font(.system(size: 12, weight: .semibold))
-                                    Text("Edit personal data")
-                                        .font(.system(size: 10, weight: .bold))
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text(tr("Edit personal data", "Uredi osebne podatke"))
+                                        .font(.system(size: 15, weight: .bold))
                                 }
                                 .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, minHeight: 42)
+                                .frame(maxWidth: .infinity, minHeight: 46)
                                 .background(
                                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                                         .fill(Color(red: 0.035, green: 0.408, blue: 0.961))
@@ -145,8 +148,8 @@ struct ProfileView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Preferences")
-                            .font(.system(size: 9, weight: .semibold))
+                        Text(tr("Preferences", "Nastavitve"))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(Color(red: 0.365, green: 0.447, blue: 0.553))
                             .tracking(2.4)
                             .textCase(.uppercase)
@@ -154,7 +157,7 @@ struct ProfileView: View {
 
                         VStack(spacing: 0) {
                             preferenceNavigationRow(
-                                title: "Language",
+                                title: tr("Language", "Jezik"),
                                 value: languageDisplay,
                                 systemImage: "globe",
                                 iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
@@ -163,7 +166,7 @@ struct ProfileView: View {
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
                             preferenceNavigationRow(
-                                title: "Notifications",
+                                title: tr("Notifications", "Obvestila"),
                                 value: notificationsSummary,
                                 systemImage: "bell",
                                 iconColor: Color(red: 1.0, green: 0.541, blue: 0.0)
@@ -172,7 +175,7 @@ struct ProfileView: View {
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
                             preferenceNavigationRow(
-                                title: "Invoicing",
+                                title: tr("Invoicing", "Računi"),
                                 value: invoiceSummary,
                                 systemImage: "doc.text",
                                 iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
@@ -181,7 +184,7 @@ struct ProfileView: View {
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
                             preferenceNavigationRow(
-                                title: "Subscribed tenants",
+                                title: tr("Subscribed tenants", "Naročeni ponudniki"),
                                 value: "\(store.linkedTenants.count)",
                                 systemImage: "building.2",
                                 iconColor: Color(red: 1.0, green: 0.541, blue: 0.0)
@@ -190,14 +193,14 @@ struct ProfileView: View {
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
                             dangerNavigationRow(
-                                title: "Delete account",
+                                title: tr("Delete account", "Izbriši račun"),
                                 systemImage: "trash"
                             ) {
                                 showAccountDeletionConfirmation = true
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
                             dangerNavigationRow(
-                                title: "Log out",
+                                title: tr("Log out", "Odjava"),
                                 systemImage: "rectangle.portrait.and.arrow.right"
                             ) {
                                 store.logout()
@@ -211,8 +214,8 @@ struct ProfileView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 100)
+                .padding(.top, 12)
+                .padding(.bottom, 96)
             }
         }
         .task(id: activeTenantId) {
@@ -225,19 +228,20 @@ struct ProfileView: View {
         .onChange(of: photoPickerItem) { newItem in
             Task { await handlePickedPhoto(newItem) }
         }
-        .confirmationDialog("Language", isPresented: $showLanguagePicker, titleVisibility: .visible) {
+        .confirmationDialog(tr("Language", "Jezik"), isPresented: $showLanguagePicker, titleVisibility: .visible) {
             Button("English") {
                 Task { await updateLanguage("en") }
             }
             Button("Slovenščina") {
                 Task { await updateLanguage("sl") }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(tr("Cancel", "Prekliči"), role: .cancel) {}
         }
         .sheet(isPresented: $showingEditSheet) {
             ProfileEditSheet(
                 profile: profile,
-                saving: savingProfile
+                saving: savingProfile,
+                isSl: isSl
             ) { updated in
                 Task {
                     await saveProfile(updated)
@@ -249,6 +253,7 @@ struct ProfileView: View {
                 messagesEnabled: $notifyMessagesEnabled,
                 remindersEnabled: $notifyRemindersEnabled,
                 saving: savingPreference,
+                isSl: isSl,
                 onChangeMessages: { newValue in
                     Task { await updateNotificationPreferences(messages: newValue, reminders: nil) }
                 },
@@ -260,7 +265,8 @@ struct ProfileView: View {
         .sheet(isPresented: $showInvoicingSheet) {
             InvoiceSettingsSheet(
                 settings: invoiceSettings,
-                saving: savingPreference
+                saving: savingPreference,
+                isSl: isSl
             ) { updated in
                 Task { await saveInvoiceSettings(updated) }
             }
@@ -269,7 +275,7 @@ struct ProfileView: View {
             NavigationStack {
                 List {
                     if store.linkedTenants.isEmpty {
-                        Text("No subscribed tenants yet.")
+                        Text(tr("No subscribed tenants yet.", "Ni še naročenih ponudnikov."))
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(store.linkedTenants, id: \.id) { tenant in
@@ -292,12 +298,12 @@ struct ProfileView: View {
                                         Button(role: .destructive) {
                                             tenantActionTarget = TenantActionTarget(tenant: tenant, action: .unsubscribe)
                                         } label: {
-                                            Text("Unsubscribe")
+                                            Text(tr("Unsubscribe", "Odjavi se"))
                                         }
                                         Button(role: .destructive) {
                                             tenantActionTarget = TenantActionTarget(tenant: tenant, action: .anonymize)
                                         } label: {
-                                            Text("Anonymize")
+                                            Text(tr("Anonymize", "Anonimiziraj"))
                                                 .foregroundColor(.red)
                                         }
                                     } label: {
@@ -313,11 +319,11 @@ struct ProfileView: View {
                         }
                     }
                 }
-                .navigationTitle("Subscribed tenants")
+                .navigationTitle(tr("Subscribed tenants", "Naročeni ponudniki"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") {
+                        Button(tr("Done", "Končano")) {
                             showSubscribedTenantsSheet = false
                             if store.linkedTenants.isEmpty {
                                 store.logout()
@@ -329,21 +335,21 @@ struct ProfileView: View {
         }
         .alert(item: $tenantActionTarget) { target in
             Alert(
-                title: Text(target.action.confirmationTitle),
-                message: Text(target.action.confirmationMessage),
-                primaryButton: .destructive(Text(target.action.title)) {
+                title: Text(target.action.confirmationTitle(isSl: isSl)),
+                message: Text(target.action.confirmationMessage(isSl: isSl)),
+                primaryButton: .destructive(Text(target.action.title(isSl: isSl))) {
                     Task { await performTenantAction(target) }
                 },
                 secondaryButton: .cancel()
             )
         }
-        .alert("Delete account?", isPresented: $showAccountDeletionConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Open deletion page", role: .destructive) {
+        .alert(tr("Delete account?", "Izbrišem račun?"), isPresented: $showAccountDeletionConfirmation) {
+            Button(tr("Cancel", "Prekliči"), role: .cancel) {}
+            Button(tr("Open deletion page", "Odpri stran za izbris"), role: .destructive) {
                 openURL(accountDeletionUrl)
             }
         } message: {
-            Text("This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data.")
+            Text(tr("This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data.", "Odpre se javna stran Calendra za izbris računa, kjer lahko zahtevate izbris računa Guest App in povezanih osebnih podatkov."))
         }
     }
 
@@ -387,6 +393,10 @@ struct ProfileView: View {
         profile.email = settings.guestUser.email
         profile.phone = settings.guestUser.phone ?? ""
         profile.language = settings.guestUser.language ?? profile.language
+        let normalizedLanguage = profile.language.lowercased()
+        if normalizedLanguage == "en" || normalizedLanguage == "sl" {
+            appUiLocaleStorage = normalizedLanguage
+        }
         notifyMessagesEnabled = settings.notifyMessagesEnabled
         notifyRemindersEnabled = settings.notifyRemindersEnabled
         invoiceSettings = settings.invoiceSettings
@@ -525,16 +535,16 @@ struct ProfileView: View {
     private func invoiceValidationError(_ invoice: GuestInvoiceSettingsModel) -> String? {
         let isCompany = invoice.recipientType.uppercased() == "COMPANY"
         if isCompany {
-            if invoice.companyName.nilIfBlank == nil { return "Company name is required." }
-            if invoice.companyAddressLine.nilIfBlank == nil { return "Company address is required." }
-            if invoice.companyPostalCode.nilIfBlank == nil { return "Company postal code is required." }
-            if invoice.companyCity.nilIfBlank == nil { return "Company city is required." }
-            if invoice.companyVatId.nilIfBlank == nil { return "Company VAT ID is required." }
+            if invoice.companyName.nilIfBlank == nil { return tr("Company name is required.", "Naziv podjetja je obvezen.") }
+            if invoice.companyAddressLine.nilIfBlank == nil { return tr("Company address is required.", "Naslov podjetja je obvezen.") }
+            if invoice.companyPostalCode.nilIfBlank == nil { return tr("Company postal code is required.", "Poštna številka podjetja je obvezna.") }
+            if invoice.companyCity.nilIfBlank == nil { return tr("Company city is required.", "Kraj podjetja je obvezen.") }
+            if invoice.companyVatId.nilIfBlank == nil { return tr("Company VAT ID is required.", "Davčna številka podjetja je obvezna.") }
             return nil
         }
-        if invoice.personAddressLine.nilIfBlank == nil { return "Address is required." }
-        if invoice.personPostalCode.nilIfBlank == nil { return "Postal code is required." }
-        if invoice.personCity.nilIfBlank == nil { return "City is required." }
+        if invoice.personAddressLine.nilIfBlank == nil { return tr("Address is required.", "Naslov je obvezen.") }
+        if invoice.personPostalCode.nilIfBlank == nil { return tr("Postal code is required.", "Poštna številka je obvezna.") }
+        if invoice.personCity.nilIfBlank == nil { return tr("City is required.", "Kraj je obvezen.") }
         return nil
     }
 
@@ -563,19 +573,19 @@ struct ProfileView: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
                     .frame(width: 22, alignment: .center)
                 Text(title)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(Color(red: 0.839, green: 0.161, blue: 0.114))
             }
             .padding(.horizontal, 18)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
         }
         .buttonStyle(.plain)
     }
@@ -590,22 +600,22 @@ struct ProfileView: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(iconColor)
                     .frame(width: 22, alignment: .center)
                 Text(title)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(Color(red: 0.024, green: 0.106, blue: 0.227))
                 Spacer()
                 Text(value)
-                    .font(.system(size: 12, weight: .regular))
+                    .font(.system(size: 15, weight: .regular))
                     .foregroundColor(Color(red: 0.384, green: 0.447, blue: 0.541))
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(Color(red: 0.604, green: 0.659, blue: 0.722))
             }
             .padding(.horizontal, 18)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
         }
         .buttonStyle(.plain)
     }
@@ -649,11 +659,11 @@ private struct ProfileAvatarButton: View {
         ZStack {
             Circle()
                 .fill(Color(red: 0.910, green: 0.957, blue: 1.0))
-                .frame(width: 76, height: 76)
+                .frame(width: 80, height: 80)
             Circle()
                 .trim(from: 0.58, to: 0.92)
                 .stroke(Color(red: 1.0, green: 0.541, blue: 0.0), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                .frame(width: 76, height: 76)
+                .frame(width: 80, height: 80)
                 .rotationEffect(.degrees(10))
             if uploading {
                 ProgressView()
@@ -661,15 +671,15 @@ private struct ProfileAvatarButton: View {
                 Image(uiImage: avatarImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 76, height: 76)
+                    .frame(width: 80, height: 80)
                     .clipShape(Circle())
             } else {
                 Image(systemName: "person")
-                    .font(.system(size: 30, weight: .medium))
+                    .font(.system(size: 34, weight: .medium))
                     .foregroundColor(Color(red: 0.035, green: 0.408, blue: 0.961))
             }
         }
-        .frame(width: 76, height: 76)
+        .frame(width: 80, height: 80)
         .contentShape(Circle())
     }
 }
@@ -681,6 +691,8 @@ private struct NotificationPreferencesSheet: View {
     @Binding var messagesEnabled: Bool
     @Binding var remindersEnabled: Bool
     let saving: Bool
+    let isSl: Bool
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
     let onChangeMessages: (Bool) -> Void
     let onChangeReminders: (Bool) -> Void
 
@@ -696,9 +708,9 @@ private struct NotificationPreferencesSheet: View {
                         }
                     )) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Messages")
+                            Text(tr("Messages", "Sporočila"))
                                 .font(.headline)
-                            Text("New inbox messages from your provider")
+                            Text(tr("New inbox messages from your provider", "Nova sporočila ponudnika"))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -713,23 +725,23 @@ private struct NotificationPreferencesSheet: View {
                         }
                     )) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Reminders")
+                            Text(tr("Reminders", "Opomniki"))
                                 .font(.headline)
-                            Text("Appointment reminders and updates")
+                            Text(tr("Appointment reminders and updates", "Opomniki in posodobitve terminov"))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
                     .disabled(saving)
                 } footer: {
-                    Text("Choose which push notifications you want to receive on this device when the app is in the background.")
+                    Text(tr("Choose which push notifications you want to receive on this device when the app is in the background.", "Izberite, katera potisna obvestila želite prejemati na tej napravi, ko je aplikacija v ozadju."))
                 }
             }
-            .navigationTitle("Notifications")
+            .navigationTitle(tr("Notifications", "Obvestila"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(saving ? "Saving…" : "Done") { dismiss() }
+                    Button(saving ? tr("Saving…", "Shranjevanje…") : tr("Done", "Končano")) { dismiss() }
                         .disabled(saving)
                 }
             }
@@ -749,9 +761,11 @@ private struct InvoiceSettingsSheet: View {
     @State private var companyCity: String
     @State private var companyVatId: String
     let saving: Bool
+    let isSl: Bool
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
     let onSave: (GuestInvoiceSettingsModel) -> Void
 
-    init(settings: GuestInvoiceSettingsModel, saving: Bool, onSave: @escaping (GuestInvoiceSettingsModel) -> Void) {
+    init(settings: GuestInvoiceSettingsModel, saving: Bool, isSl: Bool, onSave: @escaping (GuestInvoiceSettingsModel) -> Void) {
         _recipientType = State(initialValue: settings.recipientType.uppercased())
         _personAddressLine = State(initialValue: settings.personAddressLine ?? "")
         _personPostalCode = State(initialValue: settings.personPostalCode ?? "")
@@ -762,6 +776,7 @@ private struct InvoiceSettingsSheet: View {
         _companyCity = State(initialValue: settings.companyCity ?? "")
         _companyVatId = State(initialValue: settings.companyVatId ?? "")
         self.saving = saving
+        self.isSl = isSl
         self.onSave = onSave
     }
 
@@ -770,34 +785,34 @@ private struct InvoiceSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Recipient type", selection: $recipientType) {
-                    Text("Individual").tag("PERSON")
-                    Text("Company").tag("COMPANY")
+                Picker(tr("Recipient type", "Tip prejemnika"), selection: $recipientType) {
+                    Text(tr("Individual", "Fizična oseba")).tag("PERSON")
+                    Text(tr("Company", "Podjetje")).tag("COMPANY")
                 }
                 .pickerStyle(.segmented)
                 .disabled(saving)
 
                 if isCompany {
-                    TextField("Company name", text: $companyName).disabled(saving)
-                    TextField("Address", text: $companyAddressLine).disabled(saving)
-                    TextField("Postal code", text: $companyPostalCode).disabled(saving)
-                    TextField("City", text: $companyCity).disabled(saving)
-                    TextField("VAT ID", text: $companyVatId).disabled(saving)
+                    TextField(tr("Company name", "Naziv podjetja"), text: $companyName).disabled(saving)
+                    TextField(tr("Address", "Naslov"), text: $companyAddressLine).disabled(saving)
+                    TextField(tr("Postal code", "Poštna številka"), text: $companyPostalCode).disabled(saving)
+                    TextField(tr("City", "Kraj"), text: $companyCity).disabled(saving)
+                    TextField(tr("VAT ID", "Davčna številka"), text: $companyVatId).disabled(saving)
                 } else {
-                    TextField("Address", text: $personAddressLine).disabled(saving)
-                    TextField("Postal code", text: $personPostalCode).disabled(saving)
-                    TextField("City", text: $personCity).disabled(saving)
+                    TextField(tr("Address", "Naslov"), text: $personAddressLine).disabled(saving)
+                    TextField(tr("Postal code", "Poštna številka"), text: $personPostalCode).disabled(saving)
+                    TextField(tr("City", "Kraj"), text: $personCity).disabled(saving)
                 }
             }
-            .navigationTitle("Invoicing")
+            .navigationTitle(tr("Invoicing", "Računi"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(tr("Cancel", "Prekliči")) { dismiss() }
                         .disabled(saving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(saving ? "Saving…" : "Save") {
+                    Button(saving ? tr("Saving…", "Shranjevanje…") : tr("Save", "Shrani")) {
                         onSave(
                             GuestInvoiceSettingsModel(
                                 recipientType: recipientType,
@@ -823,31 +838,33 @@ private struct ProfileEditSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State var profile: StoredGuestProfile
     let saving: Bool
+    let isSl: Bool
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
     let onSave: (StoredGuestProfile) -> Void
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("First name", text: $profile.firstName)
+                TextField(tr("First name", "Ime"), text: $profile.firstName)
                     .disabled(saving)
-                TextField("Last name", text: $profile.lastName)
+                TextField(tr("Last name", "Priimek"), text: $profile.lastName)
                     .disabled(saving)
-                TextField("Email", text: $profile.email)
+                TextField(tr("Email", "E-pošta"), text: $profile.email)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .disabled(saving)
-                TextField("Phone", text: $profile.phone)
+                TextField(tr("Phone", "Telefon"), text: $profile.phone)
                     .keyboardType(.phonePad)
                     .disabled(saving)
             }
-            .navigationTitle("Edit personal data")
+            .navigationTitle(tr("Edit personal data", "Uredi osebne podatke"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(tr("Cancel", "Prekliči")) { dismiss() }
                         .disabled(saving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(saving ? "Saving…" : "Save") {
+                    Button(saving ? tr("Saving…", "Shranjevanje…") : tr("Save", "Shrani")) {
                         onSave(profile)
                     }
                     .disabled(saving)
@@ -859,6 +876,9 @@ private struct ProfileEditSheet: View {
 
 struct AddCardSheet: View {
     @Environment(\.dismiss) private var dismiss
+    var languageCode: String = "en"
+    private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
     @State private var cardholder = ""
     @State private var cardNumberDisplay = ""
     @State private var expiry = ""
@@ -895,21 +915,21 @@ struct AddCardSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Cardholder", text: $cardholder)
+                TextField(tr("Cardholder", "Imetnik kartice"), text: $cardholder)
                 Section {
-                    TextField("Card number", text: cardNumberBinding)
+                    TextField(tr("Card number", "Številka kartice"), text: cardNumberBinding)
                         .keyboardType(.numbersAndPunctuation)
                         .textContentType(.none)
                         .autocorrectionDisabled()
                 } footer: {
                     if panDigits.isEmpty {
-                        Text("Enter digits; card type is detected automatically.")
+                        Text(tr("Enter digits; card type is detected automatically.", "Vnesite številke; vrsta kartice se zazna samodejno."))
                     } else if panValid {
-                        Text("\(brand.displayName) · valid number").foregroundColor(.green)
+                        Text(tr("\(brand.displayName) · valid number", "\(brand.displayName) · veljavna številka")).foregroundColor(.green)
                     } else if panDigits.count >= 13, !GuestPaymentCard.luhnValid(panDigits) {
-                        Text("Card number is not valid").foregroundColor(.red)
+                        Text(tr("Card number is not valid", "Številka kartice ni veljavna")).foregroundColor(.red)
                     } else {
-                        Text("\(brand.displayName) · \(panDigits.count) digits")
+                        Text(tr("\(brand.displayName) · \(panDigits.count) digits", "\(brand.displayName) · \(panDigits.count) številk"))
                     }
                 }
                 Section {
@@ -919,23 +939,23 @@ struct AddCardSheet: View {
                         .autocorrectionDisabled()
                 } footer: {
                     if expiry.isEmpty {
-                        Text("Expiry in MM/YY format.")
+                        Text(tr("Expiry in MM/YY format.", "Veljavnost v obliki MM/LL."))
                     } else if !expiryFormatOk {
-                        Text("Use format MM/YY").foregroundColor(.red)
+                        Text(tr("Use format MM/YY", "Uporabite obliko MM/LL")).foregroundColor(.red)
                     } else if !expiryValid {
-                        Text("Expiry date is in the past").foregroundColor(.red)
+                        Text(tr("Expiry date is in the past", "Datum veljavnosti je v preteklosti")).foregroundColor(.red)
                     } else {
-                        Text("Looks good").foregroundColor(.green)
+                        Text(tr("Looks good", "Videti je v redu")).foregroundColor(.green)
                     }
                 }
             }
-            .navigationTitle("Add card")
+            .navigationTitle(tr("Add card", "Dodaj kartico"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(tr("Cancel", "Prekliči")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button(tr("Save", "Shrani")) {
                         let last4 = String(panDigits.suffix(4))
                         onSave("\(brand.displayName) •••• \(last4) · \(expiry)")
                         dismiss()

@@ -23,6 +23,7 @@ struct SignupView: View {
     private let muted = Color(red: 0.397, green: 0.447, blue: 0.541)
     private let border = Color(red: 0.792, green: 0.831, blue: 0.886)
 
+    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
     private var passwordsMatch: Bool { password == repeatPassword }
     private var canSubmit: Bool {
         !isSendingConfirmationCode &&
@@ -43,13 +44,26 @@ struct SignupView: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .ignoresSafeArea()
 
-                Text("CREATE ACCOUNT")
+                Text(isSl ? "USTVARI RAČUN" : "CREATE ACCOUNT")
                     .font(.system(size: 11, weight: .black, design: .rounded))
                     .kerning(2.2)
                     .foregroundStyle(accentBlue)
                     .frameRect(proxy: proxy, x: 124, y: 300, width: 520, height: 42, alignment: .leading)
 
-                Text("Start with\nyour details")
+                Menu {
+                    Button("Slovenščina") { appUiLocaleStorage = "sl" }
+                    Button("English") { appUiLocaleStorage = "en" }
+                } label: {
+                    Image(systemName: "globe")
+                        .font(.system(size: proxy.size.width * 0.054, weight: .semibold))
+                        .foregroundStyle(accentBlue)
+                        .frame(width: proxy.size.width * 76 / 941, height: proxy.size.height * 76 / 1672)
+                        .contentShape(Circle())
+                }
+                .accessibilityLabel(isSl ? "Jezik" : "Language")
+                .frameRect(proxy: proxy, x: 748, y: 283, width: 76, height: 76)
+
+                Text(isSl ? "Začnite s\nsvojimi podatki" : "Start with\nyour details")
                     .font(.system(size: titleSize(for: proxy.size.width), weight: .heavy, design: .rounded))
                     .foregroundStyle(navy)
                     .lineSpacing(1)
@@ -57,7 +71,7 @@ struct SignupView: View {
                     .frameRect(proxy: proxy, x: 124, y: 380, width: 650, height: 170, alignment: .leading)
 
                 SignupTextInput(
-                    placeholder: "First",
+                    placeholder: isSl ? "Ime" : "First",
                     systemIcon: "person",
                     text: $firstName,
                     keyboardType: .default,
@@ -71,7 +85,7 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 124, y: 624, width: 330, height: 104)
 
                 SignupTextInput(
-                    placeholder: "Last",
+                    placeholder: isSl ? "Priimek" : "Last",
                     systemIcon: "person",
                     text: $lastName,
                     keyboardType: .default,
@@ -85,7 +99,7 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 473, y: 624, width: 330, height: 104)
 
                 SignupTextInput(
-                    placeholder: "Email",
+                    placeholder: isSl ? "E-pošta" : "Email",
                     systemIcon: "envelope",
                     text: $email,
                     keyboardType: .emailAddress,
@@ -99,7 +113,7 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 124, y: 768, width: 680, height: 104)
 
                 SignupPasswordInput(
-                    placeholder: "Password",
+                    placeholder: isSl ? "Geslo" : "Password",
                     text: $password,
                     isVisible: $passwordVisible,
                     accentBlue: accentBlue,
@@ -110,7 +124,7 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 124, y: 912, width: 680, height: 104)
 
                 SignupPasswordInput(
-                    placeholder: "Repeat password",
+                    placeholder: isSl ? "Ponovite geslo" : "Repeat password",
                     text: $repeatPassword,
                     isVisible: $repeatPasswordVisible,
                     accentBlue: accentBlue,
@@ -121,7 +135,7 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 124, y: 1056, width: 680, height: 104)
 
                 SignupTextInput(
-                    placeholder: "Phone (optional)",
+                    placeholder: isSl ? "Telefon (neobvezno)" : "Phone (optional)",
                     systemIcon: "phone",
                     text: $phone,
                     keyboardType: .phonePad,
@@ -154,7 +168,7 @@ struct SignupView: View {
                 } label: {
                     ZStack {
                         LinearGradient(colors: [buttonBlueStart, buttonBlueEnd], startPoint: .leading, endPoint: .trailing)
-                        Text(isSendingConfirmationCode ? "Sending…" : "Send confirmation code")
+                        Text(isSendingConfirmationCode ? (isSl ? "Pošiljanje…" : "Sending…") : (isSl ? "Pošlji potrditveno kodo" : "Send confirmation code"))
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
                     }
@@ -164,10 +178,10 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 124, y: 1338, width: 680, height: 112)
 
                 HStack(spacing: 0) {
-                    Text("Already have an account? ")
+                    Text(isSl ? "Že imate račun? " : "Already have an account? ")
                         .foregroundStyle(muted)
                         .fontWeight(.medium)
-                    Text("Sign in")
+                    Text(isSl ? "Prijava" : "Sign in")
                         .foregroundStyle(accentBlue)
                         .fontWeight(.black)
                 }

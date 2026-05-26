@@ -77,10 +77,11 @@ fun LoginScreen(
     val passwordLabel = if (isSl) "Geslo" else "Password"
     val hidePassword = if (isSl) "Skrij geslo" else "Hide password"
     val showPassword = if (isSl) "Prikaži geslo" else "Show password"
-    val loginCta = if (isSl) "Prijava" else "Login"
+    val loginCta = if (isSl) "Prijava" else "Sign in"
     val continueWithGoogle = if (isSl) "Nadaljuj z Google" else "Continue with Google"
     val noAccount = if (isSl) "Nimate računa? " else "No account? "
     val createOne = if (isSl) "Ustvarite ga" else "Create one"
+    val orText = if (isSl) "ALI" else "OR"
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -110,7 +111,7 @@ fun LoginScreen(
 
         Box(
             modifier = Modifier
-                .offset(x = screenWidth * 0.76f, y = screenHeight * 0.17f)
+                .offset(x = screenWidth * 0.76f, y = screenHeight * 0.198f)
                 .size(screenWidth * 0.112f)
         ) {
             IconButton(
@@ -252,7 +253,7 @@ fun LoginScreen(
                     .background(Color(0xFFDDE4EE))
             )
             Text(
-                text = "OR",
+                text = orText,
                 color = Color(0xFF7D8AA4),
                 fontSize = 14.sp,
                 lineHeight = 18.sp,

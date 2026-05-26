@@ -19,6 +19,8 @@ struct MainTabView: View {
     @State private var rescheduleContext: BookRescheduleContext?
     @State private var lastWalletOffersRefreshTenantId: String?
     @State private var lastWalletOffersRefreshAt: Date = .distantPast
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
     private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
     private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
     private let walletOffersRefreshDebounceSeconds: TimeInterval = 1.5
@@ -165,10 +167,10 @@ struct MainTabView: View {
             selectedTab = .inbox
             store.consumePendingInboxOpen()
         }
-        .confirmationDialog("Add tenancy", isPresented: $showAddOptions, titleVisibility: .visible) {
-            Button("Add code manually") { showManualCodeSheet = true }
-            Button("QR scan") { showScannerSheet = true }
-            Button("Cancel", role: .cancel) { }
+        .confirmationDialog(isSl ? "Dodaj ponudnika" : "Add tenancy", isPresented: $showAddOptions, titleVisibility: .visible) {
+            Button(isSl ? "Ročno dodaj kodo" : "Add code manually") { showManualCodeSheet = true }
+            Button(isSl ? "QR skeniranje" : "QR scan") { showScannerSheet = true }
+            Button(isSl ? "Prekliči" : "Cancel", role: .cancel) { }
         }
         .sheet(isPresented: $showManualCodeSheet) {
             TenantCodeEntrySheet {
@@ -303,7 +305,14 @@ struct MainTabView: View {
         let isInbox = selectedTab == .inbox
         let isProfile = selectedTab == .profile
         return HStack(spacing: 0) {
-            inboxTenantPicker
+            if isProfile {
+                Image("CalendraBookLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 38)
+            } else {
+                inboxTenantPicker
+            }
             Spacer(minLength: 0)
             HStack(spacing: 0) {
                 if !isProfile {
@@ -365,11 +374,11 @@ struct MainTabView: View {
         VStack(spacing: 0) {
             Divider().opacity(0.25)
             HStack(alignment: .center, spacing: 4) {
-                navItem(.home, icon: "house", selectedIcon: "house.fill", title: "Home")
-                navItem(.wallet, icon: "wallet.pass", selectedIcon: "wallet.pass.fill", title: "Wallet")
+                navItem(.home, icon: "house", selectedIcon: "house.fill", title: isSl ? "Domov" : "Home")
+                navItem(.wallet, icon: "wallet.pass", selectedIcon: "wallet.pass.fill", title: isSl ? "Denarnica" : "Wallet")
                 bookTabItem
-                navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: "Inbox")
-                navItem(.profile, icon: "person", selectedIcon: "person.fill", title: "Profile")
+                navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: isSl ? "Prejeto" : "Inbox")
+                navItem(.profile, icon: "person", selectedIcon: "person.fill", title: isSl ? "Profil" : "Profile")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -395,14 +404,14 @@ struct MainTabView: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white)
                 }
-                Text("Book")
-                    .font(.caption2.weight(selectedTab == .book ? .semibold : .medium))
+                Text(isSl ? "Rezerviraj" : "Book")
+                    .font(.system(size: 10, weight: selectedTab == .book ? .semibold : .medium))
                     .foregroundColor(selectedTab == .book ? Color(red: 0.114, green: 0.400, blue: 0.957) : Color(red: 0.369, green: 0.435, blue: 0.522))
             }
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Book")
+        .accessibilityLabel(isSl ? "Rezerviraj" : "Book")
     }
 
     private func navItem(_ tab: Tab, icon: String, selectedIcon: String, title: String) -> some View {
@@ -428,7 +437,7 @@ struct MainTabView: View {
                     }
                 }
                 Text(title)
-                    .font(.caption2.weight(selectedTab == tab ? .semibold : .medium))
+                    .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .medium))
             }
             .foregroundColor(selectedTab == tab ? Color(red: 0.114, green: 0.400, blue: 0.957) : Color(red: 0.369, green: 0.435, blue: 0.522))
             .frame(maxWidth: .infinity)
@@ -438,6 +447,8 @@ struct MainTabView: View {
 }
 
 private struct WalletTenantPickerSheet: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
     let tenants: [TenantModel]
     let selectedTenantId: String?
     let onCancel: () -> Void
@@ -461,9 +472,9 @@ private struct WalletTenantPickerSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Select tenancy")
+                Text(isSl ? "Izberi ponudnika" : "Select tenancy")
                     .font(.title2.weight(.bold))
-                Text("Choose a subscribed tenant before viewing tickets or buying memberships.")
+                Text(isSl ? "Izberite ponudnika, preden si ogledate kartice ali kupite članstva." : "Choose a subscribed tenant before viewing tickets or buying memberships.")
                     .foregroundColor(.secondary)
 
                 ScrollView {
@@ -505,14 +516,14 @@ private struct WalletTenantPickerSheet: View {
                         onCancel()
                     }
                 } label: {
-                    Text("Continue to Wallet")
+                    Text(isSl ? "Nadaljuj v denarnico" : "Continue to Wallet")
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button("Cancel", role: .cancel) { onCancel() }
+                Button(isSl ? "Prekliči" : "Cancel", role: .cancel) { onCancel() }
                     .frame(maxWidth: .infinity)
             }
             .padding(20)
@@ -523,6 +534,8 @@ private struct WalletTenantPickerSheet: View {
 
 private struct TenantCodeEntrySheet: View {
     @EnvironmentObject private var store: AppStore
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
     @Environment(\.dismiss) private var dismiss
     @State private var tenantCode: String = "FIT-8K2L"
     let onJoined: () -> Void
@@ -530,11 +543,11 @@ private struct TenantCodeEntrySheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Add tenancy with code")
+                Text(isSl ? "Dodaj ponudnika s kodo" : "Add tenancy with code")
                     .font(.title2.weight(.bold))
-                Text("Enter the tenancy code you received from the company.")
+                Text(isSl ? "Vnesite kodo, ki ste jo prejeli od podjetja." : "Enter the tenancy code you received from the company.")
                     .foregroundColor(.secondary)
-                TextField("Tenant code", text: $tenantCode)
+                TextField(isSl ? "Koda ponudnika" : "Tenant code", text: $tenantCode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .padding(.horizontal, 16)
@@ -549,7 +562,7 @@ private struct TenantCodeEntrySheet: View {
                         }
                     }
                 } label: {
-                    Text("Join tenancy")
+                    Text(isSl ? "Pridruži se ponudniku" : "Join tenancy")
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -558,11 +571,11 @@ private struct TenantCodeEntrySheet: View {
                 Spacer()
             }
             .padding(24)
-            .navigationTitle("Add tenancy")
+            .navigationTitle(isSl ? "Dodaj ponudnika" : "Add tenancy")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }
+                    Button(isSl ? "Zapri" : "Close") { dismiss() }
                 }
             }
         }
@@ -571,6 +584,8 @@ private struct TenantCodeEntrySheet: View {
 
 private struct TenantQRScannerSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+    private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
     let onCodeScanned: (String) -> Void
 
     var body: some View {
@@ -582,13 +597,13 @@ private struct TenantQRScannerSheet: View {
             .ignoresSafeArea()
 
             VStack(spacing: 12) {
-                Text("Scan tenancy QR")
+                Text(isSl ? "Skeniraj QR ponudnika" : "Scan tenancy QR")
                     .font(.headline.weight(.semibold))
                     .foregroundColor(.white)
-                Text("Center the QR code inside the frame.")
+                Text(isSl ? "Postavite QR kodo na sredino okvirja." : "Center the QR code inside the frame.")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.8))
-                Button("Close") { dismiss() }
+                Button(isSl ? "Zapri" : "Close") { dismiss() }
                     .buttonStyle(.borderedProminent)
                     .tint(.white)
                     .foregroundColor(.black)

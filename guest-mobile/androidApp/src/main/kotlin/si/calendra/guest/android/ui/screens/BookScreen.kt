@@ -106,6 +106,42 @@ import java.util.Locale
 import java.util.UUID
 
 
+private fun bookIsSl(languageCode: String): Boolean = languageCode.lowercase(Locale.ROOT).startsWith("sl")
+
+private fun bookTr(languageCode: String, en: String, sl: String): String =
+    if (bookIsSl(languageCode)) sl else en
+
+private fun bookLocale(languageCode: String): Locale =
+    if (bookIsSl(languageCode)) Locale("sl", "SI") else Locale.ENGLISH
+
+private fun BookingFlowStep.localizedTitle(languageCode: String, skipsOnlinePayment: Boolean = false): String {
+    if (skipsOnlinePayment && this == BookingFlowStep.PAYMENT_REVIEW) {
+        return bookTr(languageCode, "Review", "Pregled")
+    }
+    return when (this) {
+        BookingFlowStep.PROVIDER -> bookTr(languageCode, "Provider", "Ponudnik")
+        BookingFlowStep.SERVICE -> bookTr(languageCode, "Service", "Storitev")
+        BookingFlowStep.EMPLOYEE -> bookTr(languageCode, "Employee", "Zaposleni")
+        BookingFlowStep.DATE_TIME -> bookTr(languageCode, "Date & time", "Datum in ura")
+        BookingFlowStep.PAYMENT_REVIEW -> bookTr(languageCode, "Payment & review", "Plačilo in pregled")
+    }
+}
+
+private fun PaymentMethodUi.localizedTitle(languageCode: String): String = when (this) {
+    PaymentMethodUi.CARD -> bookTr(languageCode, "Credit card", "Kreditna kartica")
+    PaymentMethodUi.BANK_TRANSFER -> bookTr(languageCode, "Bank Transfer", "Bančno nakazilo")
+    PaymentMethodUi.ENTITLEMENT -> bookTr(languageCode, "Use pass or visit", "Uporabi karto ali obisk")
+    PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Gift card", "Darilna kartica")
+    PaymentMethodUi.PAYPAL -> "PayPal"
+}
+
+private fun PaymentMethodUi.localizedHelper(languageCode: String): String? = when (this) {
+    PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Use your gift card balance", "Uporabite dobroimetje darilne kartice")
+    PaymentMethodUi.PAYPAL -> bookTr(languageCode, "Pay securely with PayPal", "Plačajte varno s PayPalom")
+    else -> null
+}
+
+
 data class ProviderOption(
     val companyId: String,
     val tenantName: String,
@@ -209,6 +245,7 @@ private enum class PaymentMethodUi(
 @Composable
 fun BookScreen(
     modifier: Modifier = Modifier,
+    languageCode: String = "en",
     providers: List<ProviderOption>,
     services: List<ServiceOption>,
     savedCards: List<SavedCardUi> = emptyList(),
@@ -336,32 +373,32 @@ fun BookScreen(
     val hasGiftCardCoverage = selectedService != null && matchingGiftCardsTotal + 0.0001 >= amountDueNow
     val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
     val cardSubtitle = activeCard?.let {
-        "Card ending in ${it.last4}"
-    } ?: "Add a card to pay by credit card"
+        bookTr(languageCode, "Card ending in ${it.last4}", "Kartica se konča z ${it.last4}")
+    } ?: bookTr(languageCode, "Add a card to pay by credit card", "Dodajte kartico za plačilo s kreditno kartico")
     val bestEntitlement = matchingEntitlements.firstOrNull()
     val entitlementSubtitle = bestEntitlement?.let {
         buildString {
             append(it.productName)
             append(" • ")
-            append(it.remainingUses?.let { remaining -> "$remaining left" } ?: "unlimited")
+            append(it.remainingUses?.let { remaining -> bookTr(languageCode, "$remaining left", "$remaining preostalo") } ?: bookTr(languageCode, "unlimited", "neomejeno"))
             if (!it.validUntil.isNullOrBlank()) {
-                append(" • valid until ")
+                append(bookTr(languageCode, " • valid until ", " • velja do "))
                 append(it.validUntil.take(10))
             }
         }
-    } ?: "No valid pass or pack available for this service"
+    } ?: bookTr(languageCode, "No valid pass or pack available for this service", "Za to storitev ni veljavne karte ali paketa")
     val bestGiftCard = matchingGiftCards.firstOrNull()
     val giftCardSubtitle = bestGiftCard?.let { giftCard ->
         buildString {
             append(giftCard.productName)
             append(" • ")
-            append(giftCard.remainingValueGross?.let { balance -> "${balance.formatPrice()} ${giftCard.currency ?: selectedService?.currency.orEmpty()}" } ?: "available")
+            append(giftCard.remainingValueGross?.let { balance -> "${balance.formatPrice()} ${giftCard.currency ?: selectedService?.currency.orEmpty()}" } ?: bookTr(languageCode, "available", "na voljo"))
             if (!giftCard.validUntil.isNullOrBlank()) {
-                append(" • valid until ")
+                append(bookTr(languageCode, " • valid until ", " • velja do "))
                 append(giftCard.validUntil.take(10))
             }
         }
-    } ?: PaymentMethodUi.GIFT_CARD.helper
+    } ?: PaymentMethodUi.GIFT_CARD.localizedHelper(languageCode)
     val availablePaymentMethods = buildList {
         if (matchingEntitlements.isNotEmpty()) add(PaymentMethodUi.ENTITLEMENT)
         if (hasGiftCardCoverage && isMethodAllowed(PaymentMethodUi.GIFT_CARD)) add(PaymentMethodUi.GIFT_CARD)
@@ -374,7 +411,7 @@ fun BookScreen(
         PaymentMethodUi.BANK_TRANSFER -> null
         PaymentMethodUi.ENTITLEMENT -> entitlementSubtitle
         PaymentMethodUi.GIFT_CARD -> giftCardSubtitle
-        PaymentMethodUi.PAYPAL -> PaymentMethodUi.PAYPAL.helper
+        PaymentMethodUi.PAYPAL -> PaymentMethodUi.PAYPAL.localizedHelper(languageCode)
     }
 
     fun moveBackStep(): Boolean {
@@ -411,7 +448,7 @@ fun BookScreen(
                 .onFailure { ex ->
                     slots = emptyList()
                     availabilityLoadError = ex.message?.takeIf { it.isNotBlank() }
-                        ?: "Could not load availability. Check API base URL and backend."
+                        ?: bookTr(languageCode, "Could not load availability. Check API base URL and backend.", "Razpoložljivosti ni bilo mogoče naložiti. Preverite API osnovni URL in zaledje.")
                     if (BuildConfig.DEBUG) {
                         Log.e(
                             GUEST_AVAILABILITY_DEBUG_TAG,
@@ -461,6 +498,7 @@ fun BookScreen(
 
     if (showAddCardDialog) {
         AddCardDialog(
+            languageCode = languageCode,
             onDismiss = { showAddCardDialog = false },
             onSave = { card ->
                 onSaveCard(card)
@@ -474,6 +512,7 @@ fun BookScreen(
     if (showCardChooserDialog) {
         CardChooserDialog(
             cards = savedCards,
+            languageCode = languageCode,
             selectedCardId = selectedSavedCardId,
             onDismiss = { showCardChooserDialog = false },
             onSelect = {
@@ -491,6 +530,7 @@ fun BookScreen(
     if (showPaymentMethodChooserDialog) {
         PaymentMethodChooserDialog(
             methods = availablePaymentMethods,
+            languageCode = languageCode,
             selectedMethod = selectedPaymentMethod,
             subtitleFor = { paymentSubtitle(it) },
             onDismiss = { showPaymentMethodChooserDialog = false },
@@ -524,6 +564,7 @@ fun BookScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             BookingHeader(
                 currentStep = currentStep,
+                languageCode = languageCode,
                 visibleSteps = visibleSteps,
                 skipsOnlinePayment = skipsOnlinePayment,
                 canNavigateTo = { step -> canNavigateTo(step) },
@@ -538,16 +579,17 @@ fun BookScreen(
             ) {
                 when (currentStep) {
                 BookingFlowStep.PROVIDER -> {
-                    item { StraightSectionHeader("SELECT PROVIDER") }
+                    item { StraightSectionHeader(bookTr(languageCode, "SELECT PROVIDER", "IZBERI PONUDNIKA")) }
 
                     if (providers.isEmpty()) {
                         item {
-                            EmptyInlineMessage("No providers available", "The guest is not subscribed to any tenancy yet.")
+                            EmptyInlineMessage(bookTr(languageCode, "No providers available", "Ni ponudnikov"), bookTr(languageCode, "The guest is not subscribed to any tenancy yet.", "Gost še ni povezan z nobenim ponudnikom."))
                         }
                     } else {
                         items(providers, key = { it.companyId }) { provider ->
                             ProviderListRow(
                                 provider = provider,
+                                languageCode = languageCode,
                                 selected = provider.companyId == selectedProviderId,
                                 onClick = {
                                     selectedProviderId = provider.companyId
@@ -560,16 +602,17 @@ fun BookScreen(
                 }
 
                 BookingFlowStep.SERVICE -> {
-                    item { StraightSectionHeader("SELECTED SERVICE") }
+                    item { StraightSectionHeader(bookTr(languageCode, "SELECTED SERVICE", "IZBERI STORITEV")) }
 
                     if (providerScopedServices.isEmpty()) {
                         item {
-                            EmptyInlineMessage("No services available", "This provider does not currently expose any guest-app services.")
+                            EmptyInlineMessage(bookTr(languageCode, "No services available", "Ni razpoložljivih storitev"), bookTr(languageCode, "This provider does not currently expose any guest-app services.", "Ta ponudnik trenutno nima storitev za goste."))
                         }
                     } else {
                         items(providerScopedServices, key = { it.id }) { service ->
                             ServiceListRow(
                                 service = service,
+                                languageCode = languageCode,
                                 selected = service.id == selectedServiceId,
                                 onClick = {
                                     selectedServiceId = service.id
@@ -581,7 +624,7 @@ fun BookScreen(
                 }
 
                 BookingFlowStep.EMPLOYEE -> {
-                    item { StraightSectionHeader("SELECT EMPLOYEE") }
+                    item { StraightSectionHeader(bookTr(languageCode, "SELECT EMPLOYEE", "IZBERI ZAPOSLENEGA")) }
 
                     if (loadingConsultants) {
                         item {
@@ -591,12 +634,12 @@ fun BookScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                Text("Loading employees…")
+                                Text(bookTr(languageCode, "Loading employees…", "Nalaganje zaposlenih…"))
                             }
                         }
                     } else if (consultants.isEmpty()) {
                         item {
-                            EmptyInlineMessage("No employees available", "This service has no bookable employees.")
+                            EmptyInlineMessage(bookTr(languageCode, "No employees available", "Ni razpoložljivih zaposlenih"), bookTr(languageCode, "This service has no bookable employees.", "Ta storitev nima zaposlenih, ki bi jih bilo mogoče rezervirati."))
                         }
                     } else {
                         items(consultants, key = { it.id }) { consultant ->
@@ -615,7 +658,7 @@ fun BookScreen(
                 BookingFlowStep.DATE_TIME -> {
 
                     if (selectedService != null) {
-                        item { StraightSectionHeader("SELECT DATE") }
+                        item { StraightSectionHeader(bookTr(languageCode, "SELECT DATE", "IZBERI DATUM")) }
                         item {
                             MonthCalendar(
                                 selectedMonth = selectedMonth,
@@ -626,10 +669,11 @@ fun BookScreen(
                                     selectedMonth = YearMonth.from(it)
                                     selectedSlotId = null
                                 },
-                                compact = true
+                                compact = true,
+                                languageCode = languageCode
                             )
                         }
-                        item { StraightSectionHeader("SELECT TIME") }
+                        item { StraightSectionHeader(bookTr(languageCode, "SELECT TIME", "IZBERI URO")) }
                         item {
                             if (loadingSlots) {
                                 Row(
@@ -637,7 +681,7 @@ fun BookScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                    Text("Loading available times…")
+                                    Text(bookTr(languageCode, "Loading available times…", "Nalaganje prostih terminov…"))
                                 }
                             } else if (slots.isEmpty()) {
                                 if (availabilityLoadError != null) {
@@ -648,13 +692,13 @@ fun BookScreen(
                                             color = MaterialTheme.colorScheme.error
                                         )
                                         Text(
-                                            "No slots were loaded. Fix the error above or verify the service and date on the server.",
+                                            bookTr(languageCode, "No slots were loaded. Fix the error above or verify the service and date on the server.", "Termini niso bili naloženi. Popravite zgornjo napako ali preverite storitev in datum na strežniku."),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 } else {
-                                    EmptyInlineMessage("No slots available", "There are no available times on this day.")
+                                    EmptyInlineMessage(bookTr(languageCode, "No slots available", "Ni prostih terminov"), bookTr(languageCode, "There are no available times on this day.", "Na ta dan ni prostih terminov."))
                                 }
                             } else {
                                 SingleTimeSelector(
@@ -665,7 +709,7 @@ fun BookScreen(
                             }
                         }
                     } else {
-                        item { EmptyInlineMessage("Select a service first", "Choose a service before selecting date and time.") }
+                        item { EmptyInlineMessage(bookTr(languageCode, "Select a service first", "Najprej izberite storitev"), bookTr(languageCode, "Choose a service before selecting date and time.", "Pred izbiro datuma in ure izberite storitev.")) }
                     }
                 }
 
@@ -673,14 +717,15 @@ fun BookScreen(
                     if (selectedService != null) {
                         item {
                             BookingReviewSummary(
+                                languageCode = languageCode,
                                 providerName = selectedProvider?.tenantName.orEmpty(),
                                 serviceName = selectedService.name,
                                 employeeName = if (employeeStepActive) selectedConsultant?.fullName else null,
-                                duration = selectedService.durationMinutes?.let { "$it min" },
-                                dateTime = selectedSlot?.startsAt?.asSummaryDateTime().orEmpty(),
+                                duration = selectedService.durationMinutes?.let { bookTr(languageCode, "$it min", "$it min") },
+                                dateTime = selectedSlot?.startsAt?.asSummaryDateTime(languageCode).orEmpty(),
                                 total = "",
                                 depositText = if (!skipsOnlinePayment && isDepositMode) {
-                                    "Pay now: $depositPercent% (${amountDueNow.formatPrice()} ${selectedService.currency})"
+                                    bookTr(languageCode, "Pay now: $depositPercent% (${amountDueNow.formatPrice()} ${selectedService.currency})", "Plačilo zdaj: $depositPercent% (${amountDueNow.formatPrice()} ${selectedService.currency})")
                                 } else null
                             )
                         }
@@ -689,8 +734,8 @@ fun BookScreen(
                     if (skipsOnlinePayment) {
                         item {
                             EmptyInlineMessage(
-                                title = "Pay at venue",
-                                description = "Payment is collected at the venue. Tap Confirm booking to reserve your slot."
+                                title = bookTr(languageCode, "Pay at venue", "Plačilo na lokaciji"),
+                                description = bookTr(languageCode, "Payment is collected at the venue. Tap Confirm booking to reserve your slot.", "Plačilo se izvede na lokaciji. Tapnite Potrdi rezervacijo za rezervacijo termina.")
                             )
                         }
                     }
@@ -713,23 +758,23 @@ fun BookScreen(
             }
             when (currentStep) {
                 BookingFlowStep.PROVIDER -> ContinueButton(
-                    label = "Continue",
+                    label = bookTr(languageCode, "Continue", "Nadaljuj"),
                     enabled = selectedProvider != null,
                     onClick = advanceStep
                 )
                 BookingFlowStep.SERVICE -> ContinueButton(
-                    label = "Continue",
+                    label = bookTr(languageCode, "Continue", "Nadaljuj"),
                     enabled = selectedService != null,
                     onClick = advanceStep
                 )
                 BookingFlowStep.EMPLOYEE -> ContinueButton(
-                    label = "Continue",
+                    label = bookTr(languageCode, "Continue", "Nadaljuj"),
                     enabled = selectedConsultantId != null,
                     onClick = advanceStep
                 )
                 BookingFlowStep.DATE_TIME -> if (rescheduleContext != null) {
                     ContinueButton(
-                        label = "Confirm reschedule",
+                        label = bookTr(languageCode, "Confirm reschedule", "Potrdi prestavitev"),
                         enabled = selectedSlot != null && !submitting,
                         loading = submitting,
                         onClick = {
@@ -743,7 +788,7 @@ fun BookScreen(
                                 }
                                     .onFailure { ex ->
                                         availabilityLoadError = ex.message?.takeIf { it.isNotBlank() }
-                                            ?: "Reschedule failed. Please try again."
+                                            ?: bookTr(languageCode, "Reschedule failed. Please try again.", "Prestavitev ni uspela. Poskusite znova.")
                                     }
                                 submitting = false
                             }
@@ -751,7 +796,7 @@ fun BookScreen(
                     )
                 } else {
                     ContinueButton(
-                        label = "Continue",
+                        label = bookTr(languageCode, "Continue", "Nadaljuj"),
                         enabled = selectedSlot != null,
                         onClick = advanceStep
                     )
@@ -761,16 +806,17 @@ fun BookScreen(
                         if (!skipsOnlinePayment) {
                             SelectedPaymentMethodCard(
                                 method = selectedPaymentMethod,
+                                languageCode = languageCode,
                                 subtitle = paymentSubtitle(selectedPaymentMethod),
                                 onChange = { showPaymentMethodChooserDialog = true }
                             )
                             Spacer(Modifier.height(7.dp))
                         }
-                        PaymentTotalRow(total = "${selectedService.priceGross.formatPrice()} ${selectedService.currency}")
+                        PaymentTotalRow(languageCode = languageCode, total = "${selectedService.priceGross.formatPrice()} ${selectedService.currency}")
                         Spacer(Modifier.height(5.dp))
                     }
                     ContinueButton(
-                        label = "Confirm booking",
+                        label = bookTr(languageCode, "Confirm booking", "Potrdi rezervacijo"),
                         enabled = selectedService != null && selectedSlot != null && !submitting && (
                             skipsOnlinePayment || (
                                 selectedPaymentMethod.enabled &&
@@ -802,6 +848,7 @@ fun BookScreen(
 @Composable
 private fun BookingHeader(
     currentStep: BookingFlowStep,
+    languageCode: String,
     visibleSteps: List<BookingFlowStep>,
     skipsOnlinePayment: Boolean,
     canNavigateTo: (BookingFlowStep) -> Boolean,
@@ -821,6 +868,7 @@ private fun BookingHeader(
         ) {
             BookingStepper(
                 currentStep = currentStep,
+                languageCode = languageCode,
                 visibleSteps = visibleSteps,
                 skipsOnlinePayment = skipsOnlinePayment,
                 canNavigateTo = canNavigateTo,
@@ -834,6 +882,7 @@ private fun BookingHeader(
 @Composable
 private fun BookingStepper(
     currentStep: BookingFlowStep,
+    languageCode: String,
     visibleSteps: List<BookingFlowStep> = BookingFlowStep.ordered,
     skipsOnlinePayment: Boolean = false,
     canNavigateTo: (BookingFlowStep) -> Boolean = { false },
@@ -928,7 +977,7 @@ private fun BookingStepper(
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    if (skipsOnlinePayment && step == BookingFlowStep.PAYMENT_REVIEW) "Review" else step.stepTitle,
+                    step.localizedTitle(languageCode, skipsOnlinePayment),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 1.dp),
@@ -1076,7 +1125,7 @@ private fun SelectionRail(selected: Boolean) {
 }
 
 @Composable
-private fun ProviderListRow(provider: ProviderOption, selected: Boolean, onClick: () -> Unit) {
+private fun ProviderListRow(provider: ProviderOption, languageCode: String, selected: Boolean, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
@@ -1096,7 +1145,7 @@ private fun ProviderListRow(provider: ProviderOption, selected: Boolean, onClick
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(provider.tenantName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
-                Text(provider.tenantAddress ?: "Subscribed organization", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
+                Text(provider.tenantAddress ?: bookTr(languageCode, "Subscribed organization", "Povezana organizacija"), style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
             }
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color(0xFF8A99AD))
         }
@@ -1104,7 +1153,7 @@ private fun ProviderListRow(provider: ProviderOption, selected: Boolean, onClick
 }
 
 @Composable
-private fun ServiceListRow(service: ServiceOption, selected: Boolean, onClick: () -> Unit) {
+private fun ServiceListRow(service: ServiceOption, languageCode: String, selected: Boolean, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
@@ -1125,13 +1174,13 @@ private fun ServiceListRow(service: ServiceOption, selected: Boolean, onClick: (
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(service.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
                 Text(
-                    service.description?.takeIf { it.isNotBlank() } ?: "Bookable service",
+                    service.description?.takeIf { it.isNotBlank() } ?: bookTr(languageCode, "Bookable service", "Storitev za rezervacijo"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF60728A)
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                     TagPillCompact(service.tenantName)
-                    service.durationMinutes?.let { TagPillCompact("$it min") }
+                    service.durationMinutes?.let { TagPillCompact(bookTr(languageCode, "$it min", "$it min")) }
                 }
             }
             Text(
@@ -1177,6 +1226,7 @@ private fun ConsultantListRow(consultant: ConsultantOption, selected: Boolean, o
 @Composable
 private fun SelectedPaymentMethodCard(
     method: PaymentMethodUi,
+    languageCode: String,
     subtitle: String?,
     onChange: () -> Unit
 ) {
@@ -1191,7 +1241,7 @@ private fun SelectedPaymentMethodCard(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                "PAYMENT METHOD",
+                bookTr(languageCode, "PAYMENT METHOD", "NAČIN PLAČILA"),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.0.sp,
@@ -1204,9 +1254,9 @@ private fun SelectedPaymentMethodCard(
             ) {
                 SelectIndicator(selected = true, enabled = true, size = 20.dp)
                 Icon(paymentMethodIcon(method), contentDescription = null, modifier = Modifier.size(22.dp), tint = Color(0xFF0F6BFF))
-                Text(method.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color(0xFF082143), modifier = Modifier.weight(1f))
+                Text(method.localizedTitle(languageCode), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color(0xFF082143), modifier = Modifier.weight(1f))
                 TextButton(onClick = onChange, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
-                    Text("Change", color = Color(0xFF0F6BFF), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                    Text(bookTr(languageCode, "Change", "Spremeni"), color = Color(0xFF0F6BFF), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -1224,6 +1274,7 @@ private fun paymentMethodIcon(method: PaymentMethodUi): ImageVector = when (meth
 @Composable
 private fun PaymentMethodChooserDialog(
     methods: List<PaymentMethodUi>,
+    languageCode: String,
     selectedMethod: PaymentMethodUi,
     subtitleFor: (PaymentMethodUi) -> String?,
     onDismiss: () -> Unit,
@@ -1231,7 +1282,7 @@ private fun PaymentMethodChooserDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Payment method") },
+        title = { Text(bookTr(languageCode, "Payment method", "Način plačila")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 methods.forEach { method ->
@@ -1249,7 +1300,7 @@ private fun PaymentMethodChooserDialog(
                         ) {
                             Icon(paymentMethodIcon(method), contentDescription = null, modifier = Modifier.size(24.dp), tint = Color(0xFF0F6BFF))
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(method.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF082143))
+                                Text(method.localizedTitle(languageCode), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF082143))
                                 subtitleFor(method)?.takeIf { it.isNotBlank() }?.let {
                                     Text(it, style = MaterialTheme.typography.bodySmall, color = Color(0xFF60728A), maxLines = 2)
                                 }
@@ -1263,7 +1314,7 @@ private fun PaymentMethodChooserDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text(bookTr(languageCode, "Done", "Končano")) }
         }
     )
 }
@@ -1317,6 +1368,7 @@ private fun PaymentMethodLine(
 
 @Composable
 private fun BookingReviewSummary(
+    languageCode: String,
     providerName: String,
     serviceName: String,
     employeeName: String?,
@@ -1333,31 +1385,31 @@ private fun BookingReviewSummary(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             Text(
-                "BOOKING SUMMARY",
+                bookTr(languageCode, "BOOKING SUMMARY", "POVZETEK REZERVACIJE"),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp,
                 color = Color(0xFF60728A)
             )
             Spacer(Modifier.height(6.dp))
-            ReviewSummaryLine(icon = Icons.Rounded.LocationOn, label = "Provider", value = providerName)
-            ReviewSummaryLine(icon = Icons.Rounded.FitnessCenter, label = "Service", value = serviceName)
-            employeeName?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.Assignment, label = "Employee", value = it) }
-            duration?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.EventAvailable, label = "Duration", value = it) }
-            ReviewSummaryLine(icon = Icons.Rounded.CalendarMonth, label = "Date & time", value = dateTime)
-            depositText?.let { ReviewSummaryLine(icon = Icons.Rounded.CreditCard, label = "Deposit", value = it) }
+            ReviewSummaryLine(icon = Icons.Rounded.LocationOn, label = bookTr(languageCode, "Provider", "Ponudnik"), value = providerName)
+            ReviewSummaryLine(icon = Icons.Rounded.FitnessCenter, label = bookTr(languageCode, "Service", "Storitev"), value = serviceName)
+            employeeName?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.Assignment, label = bookTr(languageCode, "Employee", "Zaposleni"), value = it) }
+            duration?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.EventAvailable, label = bookTr(languageCode, "Duration", "Trajanje"), value = it) }
+            ReviewSummaryLine(icon = Icons.Rounded.CalendarMonth, label = bookTr(languageCode, "Date & time", "Datum in ura"), value = dateTime)
+            depositText?.let { ReviewSummaryLine(icon = Icons.Rounded.CreditCard, label = bookTr(languageCode, "Deposit", "Predplačilo"), value = it) }
         }
     }
 }
 
 @Composable
-private fun PaymentTotalRow(total: String) {
+private fun PaymentTotalRow(languageCode: String, total: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "TOTAL",
+            bookTr(languageCode, "TOTAL", "SKUPAJ"),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF60728A),
@@ -1462,7 +1514,8 @@ private fun MonthCalendar(
     selectedDate: LocalDate,
     onMonthChange: (YearMonth) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
-    compact: Boolean = false
+    compact: Boolean = false,
+    languageCode: String = "en"
 ) {
     val today = remember { LocalDate.now() }
     val firstDay = selectedMonth.atDay(1)
@@ -1473,7 +1526,8 @@ private fun MonthCalendar(
         for (day in 1..daysInMonth) add(selectedMonth.atDay(day))
         while (size % 7 != 0) add(null)
     }
-    val shortMonthFmt = remember { DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH) }
+    val calendarLocale = remember(languageCode) { bookLocale(languageCode) }
+    val shortMonthFmt = remember(calendarLocale) { DateTimeFormatter.ofPattern("MMMM", calendarLocale) }
     val dayHeaders = remember { listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) }
 
     ElevatedCard(
@@ -1501,11 +1555,11 @@ private fun MonthCalendar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous month", modifier = Modifier.size(18.dp), tint = Color(0xFF60728A))
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = bookTr(languageCode, "Previous month", "Prejšnji mesec"), modifier = Modifier.size(18.dp), tint = Color(0xFF60728A))
                     Text(selectedMonth.minusMonths(1).format(shortMonthFmt), style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
                 }
                 Text(
-                    selectedMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)),
+                    selectedMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", calendarLocale)),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF082143)
@@ -1519,14 +1573,14 @@ private fun MonthCalendar(
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(selectedMonth.plusMonths(1).format(shortMonthFmt), style = MaterialTheme.typography.bodyMedium, color = Color(0xFF60728A))
-                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next month", modifier = Modifier.size(18.dp), tint = Color(0xFF60728A))
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = bookTr(languageCode, "Next month", "Naslednji mesec"), modifier = Modifier.size(18.dp), tint = Color(0xFF60728A))
                 }
             }
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 dayHeaders.forEach { headerDay ->
                     Text(
-                        headerDay.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(Locale.ENGLISH),
+                        headerDay.getDisplayName(TextStyle.SHORT, calendarLocale).uppercase(calendarLocale),
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.labelSmall,
@@ -1768,6 +1822,7 @@ private fun BrandPill(text: String) {
 @Composable
 private fun CardChooserDialog(
     cards: List<SavedCardUi>,
+    languageCode: String,
     selectedCardId: String?,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
@@ -1776,11 +1831,11 @@ private fun CardChooserDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Choose a card") },
+        title = { Text(bookTr(languageCode, "Choose a card", "Izberite kartico")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (cards.isEmpty()) {
-                    Text("No stored cards yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(bookTr(languageCode, "No stored cards yet.", "Shranjenih kartic še ni."), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     cards.forEach { card ->
                         val brand = PaymentCardBrand.fromDisplayName(card.brand)
@@ -1808,7 +1863,7 @@ private fun CardChooserDialog(
                                         fontWeight = FontWeight.Medium
                                     )
                                     Text(
-                                        "valid thru ${card.expiryMonth}/${card.expiryYear}",
+                                        bookTr(languageCode, "valid thru ${card.expiryMonth}/${card.expiryYear}", "velja do ${card.expiryMonth}/${card.expiryYear}"),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1819,7 +1874,7 @@ private fun CardChooserDialog(
                                 ) {
                                     Icon(
                                         Icons.Rounded.DeleteOutline,
-                                        contentDescription = "Remove card",
+                                        contentDescription = bookTr(languageCode, "Remove card", "Odstrani kartico"),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -1840,10 +1895,10 @@ private fun CardChooserDialog(
             TextButton(onClick = onAddNew) {
                 Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Add new card")
+                Text(bookTr(languageCode, "Add new card", "Dodaj novo kartico"))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(bookTr(languageCode, "Close", "Zapri")) } }
     )
 }
 
@@ -1855,7 +1910,7 @@ private fun SummaryHeader(total: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "Booking summary",
+            bookTr("en", "Booking summary", "Povzetek rezervacije"),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1977,7 +2032,7 @@ private fun TagPillCompact(text: String) {
 }
 
 @Composable
-private fun AddCardDialog(onDismiss: () -> Unit, onSave: (SavedCardUi) -> Unit) {
+private fun AddCardDialog(languageCode: String, onDismiss: () -> Unit, onSave: (SavedCardUi) -> Unit) {
     var holderName by rememberSaveable { mutableStateOf("") }
     var cardNumber by rememberSaveable { mutableStateOf("") }
     var expiryMonth by rememberSaveable { mutableStateOf("") }
@@ -1985,11 +2040,11 @@ private fun AddCardDialog(onDismiss: () -> Unit, onSave: (SavedCardUi) -> Unit) 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add card") },
+        title = { Text(bookTr(languageCode, "Add card", "Dodaj kartico")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = holderName, onValueChange = { holderName = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Cardholder name") })
-                OutlinedTextField(value = cardNumber, onValueChange = { cardNumber = it.filter(Char::isDigit).take(19) }, modifier = Modifier.fillMaxWidth(), label = { Text("Card number") })
+                OutlinedTextField(value = holderName, onValueChange = { holderName = it }, modifier = Modifier.fillMaxWidth(), label = { Text(bookTr(languageCode, "Cardholder name", "Ime imetnika kartice")) })
+                OutlinedTextField(value = cardNumber, onValueChange = { cardNumber = it.filter(Char::isDigit).take(19) }, modifier = Modifier.fillMaxWidth(), label = { Text(bookTr(languageCode, "Card number", "Številka kartice")) })
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(value = expiryMonth, onValueChange = { expiryMonth = it.filter(Char::isDigit).take(2) }, modifier = Modifier.weight(1f), label = { Text("MM") })
                     OutlinedTextField(value = expiryYear, onValueChange = { expiryYear = it.filter(Char::isDigit).take(2) }, modifier = Modifier.weight(1f), label = { Text("YY") })
@@ -2015,10 +2070,10 @@ private fun AddCardDialog(onDismiss: () -> Unit, onSave: (SavedCardUi) -> Unit) 
                     }
                 }
             ) {
-                Text("Save")
+                Text(bookTr(languageCode, "Save", "Shrani"))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(bookTr(languageCode, "Cancel", "Prekliči")) } }
     )
 }
 
@@ -2043,14 +2098,14 @@ private fun String.asSlotTime(): String = runCatching {
     }.getOrElse { this@asSlotTime }
 }
 
-private fun String.asSummaryDateTime(): String = runCatching {
+private fun String.asSummaryDateTime(languageCode: String): String = runCatching {
     OffsetDateTime.parse(this)
         .atZoneSameInstant(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("EEEE, d MMMM 'at' HH:mm", Locale.ENGLISH))
+        .format(DateTimeFormatter.ofPattern(if (bookIsSl(languageCode)) "EEEE, d MMMM 'ob' HH:mm" else "EEEE, d MMMM 'at' HH:mm", bookLocale(languageCode)))
 }.getOrElse {
     runCatching {
         LocalDateTime.parse(this@asSummaryDateTime)
             .atZone(ZoneId.systemDefault())
-            .format(DateTimeFormatter.ofPattern("EEEE, d MMMM 'at' HH:mm", Locale.ENGLISH))
+            .format(DateTimeFormatter.ofPattern(if (bookIsSl(languageCode)) "EEEE, d MMMM 'ob' HH:mm" else "EEEE, d MMMM 'at' HH:mm", bookLocale(languageCode)))
     }.getOrElse { this@asSummaryDateTime }
 }

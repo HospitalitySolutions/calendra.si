@@ -32,8 +32,11 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Message
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.Person
@@ -90,11 +93,8 @@ private val BrandText = Color(0xFF0E2558)
 private val MutedText = Color(0xFF6C7893)
 private val SoftBorder = Color(0xFFE5EAF3)
 
-private enum class BookingTab(val label: String) {
-    Future("Future"),
-    Past("Past"),
-    Cancelled("Cancelled")
-}
+private enum class BookingTab { Future, Past, Cancelled }
+private enum class BookingActionMenu { Contact, Manage }
 
 data class UpcomingBookingCard(
     val id: String,
@@ -136,6 +136,7 @@ fun HomeScreen(
     guestFirstName: String?,
     bookings: List<UpcomingBookingCard>,
     accesses: List<AccessCard>,
+    languageCode: String,
     onChooseTenant: () -> Unit,
     onOpenNotifications: () -> Unit,
     onBookNow: () -> Unit,
@@ -144,6 +145,7 @@ fun HomeScreen(
     onReschedule: (UpcomingBookingCard) -> Unit,
     onCancelBooking: (UpcomingBookingCard) -> Unit = {}
 ) {
+    val isSl = languageCode.lowercase().startsWith("sl")
     var selectedBookingTab by remember { mutableStateOf(BookingTab.Future) }
     var bookingPendingCancel by remember { mutableStateOf<UpcomingBookingCard?>(null) }
     val filteredBookings = remember(bookings, selectedBookingTab) {
@@ -153,14 +155,19 @@ fun HomeScreen(
     bookingPendingCancel?.let { booking ->
         AlertDialog(
             onDismissRequest = { bookingPendingCancel = null },
-            title = { Text("Cancel booking?") },
-            text = { Text("This will cancel ${booking.title} on ${formatBookingDate(booking.startsAt)}.") },
+            title = { Text(if (isSl) "Prekličem termin?" else "Cancel booking?") },
+            text = {
+                Text(
+                    if (isSl) "S tem boste preklicali ${booking.title} dne ${formatBookingDate(booking.startsAt, isSl)}."
+                    else "This will cancel ${booking.title} on ${formatBookingDate(booking.startsAt, isSl)}."
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { bookingPendingCancel = null; onCancelBooking(booking) }) {
-                    Text("Cancel booking", color = BrandBlue, fontWeight = FontWeight.SemiBold)
+                    Text(if (isSl) "Prekliči termin" else "Cancel booking", color = BrandBlue, fontWeight = FontWeight.SemiBold)
                 }
             },
-            dismissButton = { TextButton(onClick = { bookingPendingCancel = null }) { Text("Keep booking") } }
+            dismissButton = { TextButton(onClick = { bookingPendingCancel = null }) { Text(if (isSl) "Obdrži termin" else "Keep booking") } }
         )
     }
 
@@ -176,12 +183,14 @@ fun HomeScreen(
                 hasBookings = bookings.isNotEmpty(),
                 onChooseTenant = onChooseTenant,
                 onOpenNotifications = onOpenNotifications,
+                isSl = isSl,
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
         item {
             BookingTabsRow(
                 selected = selectedBookingTab,
+                isSl = isSl,
                 onSelected = { selectedBookingTab = it },
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
@@ -190,6 +199,7 @@ fun HomeScreen(
             when {
                 filteredBookings.isEmpty() -> EmptyBookingsCard(
                     selected = selectedBookingTab,
+                    isSl = isSl,
                     onBookNow = onBookNow,
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
@@ -197,6 +207,7 @@ fun HomeScreen(
                     bookings = filteredBookings,
                     onCall = onCall,
                     onSms = onSms,
+                    isSl = isSl,
                     onReschedule = onReschedule,
                     onCancelBooking = { bookingPendingCancel = it }
                 )
@@ -211,6 +222,7 @@ private fun HomeHeaderBlock(
     hasBookings: Boolean,
     onChooseTenant: () -> Unit,
     onOpenNotifications: () -> Unit,
+    isSl: Boolean,
     modifier: Modifier = Modifier
 ) {
     val name = guestFirstName?.takeIf { it.isNotBlank() } ?: "Alex"
@@ -221,38 +233,24 @@ private fun HomeHeaderBlock(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(id = R.drawable.calendra_logo),
-                contentDescription = "Calendra",
+                painter = painterResource(id = R.drawable.calendra_book_logo),
+                contentDescription = "Calendra Book",
                 modifier = Modifier
-                    .height(34.dp)
+                    .height(38.dp)
                     .wrapContentWidth(Alignment.Start),
                 contentScale = ContentScale.Fit
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                AddTenantButton(onClick = onChooseTenant)
-                NotificationButton(onClick = onOpenNotifications)
+                AddTenantButton(label = if (isSl) "Dodaj ponudnika" else "Add tenant", onClick = onChooseTenant)
+                NotificationButton(contentDescription = if (isSl) "Obvestila" else "Notifications", onClick = onOpenNotifications)
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Hello, $name",
-            fontSize = 28.sp,
-            lineHeight = 32.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = BrandText
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = if (hasBookings) "Here’s your upcoming booking." else "Here’s what’s next.",
-            fontSize = 14.sp,
-            lineHeight = 19.sp,
-            color = MutedText
-        )
+        Spacer(Modifier.height(2.dp))
     }
 }
 
 @Composable
-private fun AddTenantButton(onClick: () -> Unit) {
+private fun AddTenantButton(label: String, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
         shape = RoundedCornerShape(18.dp),
@@ -263,15 +261,15 @@ private fun AddTenantButton(onClick: () -> Unit) {
     ) {
         Icon(Icons.Rounded.PersonOutline, contentDescription = null, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(6.dp))
-        Text("Add tenant", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
-private fun NotificationButton(onClick: () -> Unit) {
+private fun NotificationButton(contentDescription: String, onClick: () -> Unit) {
     Box {
         IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
-            Icon(Icons.Rounded.NotificationsNone, contentDescription = "Notifications", tint = BrandText, modifier = Modifier.size(19.dp))
+            Icon(Icons.Rounded.NotificationsNone, contentDescription = contentDescription, tint = BrandText, modifier = Modifier.size(19.dp))
         }
         Box(
             modifier = Modifier
@@ -285,7 +283,7 @@ private fun NotificationButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun BookingTabsRow(selected: BookingTab, onSelected: (BookingTab) -> Unit, modifier: Modifier = Modifier) {
+private fun BookingTabsRow(selected: BookingTab, isSl: Boolean, onSelected: (BookingTab) -> Unit, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth().height(50.dp),
         shape = RoundedCornerShape(18.dp),
@@ -302,7 +300,7 @@ private fun BookingTabsRow(selected: BookingTab, onSelected: (BookingTab) -> Uni
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        tab.label,
+                        tab.label(isSl),
                         color = if (active) BrandBlue else MutedText,
                         fontSize = 12.sp,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
@@ -322,16 +320,16 @@ private fun BookingTabsRow(selected: BookingTab, onSelected: (BookingTab) -> Uni
 }
 
 @Composable
-private fun EmptyBookingsCard(selected: BookingTab, onBookNow: () -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyBookingsCard(selected: BookingTab, isSl: Boolean, onBookNow: () -> Unit, modifier: Modifier = Modifier) {
     val title = when (selected) {
-        BookingTab.Future -> "No upcoming bookings"
-        BookingTab.Past -> "No past bookings"
-        BookingTab.Cancelled -> "No cancelled bookings"
+        BookingTab.Future -> if (isSl) "Ni prihajajočih terminov" else "No upcoming bookings"
+        BookingTab.Past -> if (isSl) "Ni preteklih terminov" else "No past bookings"
+        BookingTab.Cancelled -> if (isSl) "Ni preklicanih terminov" else "No cancelled bookings"
     }
     val subtitle = when (selected) {
-        BookingTab.Future -> "You’re all set — there are no future bookings right now."
-        BookingTab.Past -> "Completed visits will appear here."
-        BookingTab.Cancelled -> "Cancelled bookings will appear here."
+        BookingTab.Future -> if (isSl) "Trenutno nimate prihodnjih terminov." else "You’re all set — there are no future bookings right now."
+        BookingTab.Past -> if (isSl) "Zaključeni obiski bodo prikazani tukaj." else "Completed visits will appear here."
+        BookingTab.Cancelled -> if (isSl) "Preklicani termini bodo prikazani tukaj." else "Cancelled bookings will appear here."
     }
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
@@ -392,7 +390,7 @@ private fun EmptyBookingsCard(selected: BookingTab, onBookNow: () -> Unit, modif
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
                 ) {
-                    Text("Book now", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(if (isSl) "Rezerviraj zdaj" else "Book now", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -400,7 +398,7 @@ private fun EmptyBookingsCard(selected: BookingTab, onBookNow: () -> Unit, modif
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Explore available sessions from the Book tab.", color = MutedText, fontSize = 12.sp)
+                Text(if (isSl) "Raziščite razpoložljive termine v zavihku Rezervacije." else "Explore available sessions from the Book tab.", color = MutedText, fontSize = 12.sp)
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -413,16 +411,17 @@ private fun UpcomingBookingsCarousel(
     bookings: List<UpcomingBookingCard>,
     onCall: (String) -> Unit,
     onSms: (String) -> Unit,
+    isSl: Boolean,
     onReschedule: (UpcomingBookingCard) -> Unit,
     onCancelBooking: (UpcomingBookingCard) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { bookings.size })
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         HorizontalPager(
             state = pagerState,
             contentPadding = PaddingValues(horizontal = 26.dp),
             pageSpacing = 12.dp,
-            modifier = Modifier.fillMaxWidth().height(760.dp)
+            modifier = Modifier.fillMaxWidth().height(448.dp)
         ) { page ->
             val booking = bookings[page]
             val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
@@ -432,6 +431,7 @@ private fun UpcomingBookingsCarousel(
                 onSms = onSms,
                 onReschedule = onReschedule,
                 onCancelBooking = onCancelBooking,
+                isSl = isSl,
                 modifier = Modifier
                     .graphicsLayer {
                         val scale = 1f - (pageOffset.coerceIn(0f, 1f) * 0.06f)
@@ -451,97 +451,358 @@ private fun UpcomingBookingFocusCard(
     booking: UpcomingBookingCard,
     onCall: (String) -> Unit,
     onSms: (String) -> Unit,
+    isSl: Boolean,
     onReschedule: (UpcomingBookingCard) -> Unit,
     onCancelBooking: (UpcomingBookingCard) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
-        modifier = modifier,
-        shape = RoundedCornerShape(30.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 7.dp)
-    ) {
-        Column(Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxWidth().height(286.dp)) {
-                if (!booking.cardImageUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = booking.cardImageUrl,
-                        contentDescription = booking.tenantName,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Image(
-                        painter = painterResource(id = R.drawable.gym_booking_background),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                Surface(
-                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp).size(68.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.White
+    var activeActionMenu by remember(booking.id) { mutableStateOf<BookingActionMenu?>(null) }
+
+    Box(modifier = modifier) {
+        ElevatedCard(
+            modifier = Modifier.fillMaxSize(),
+            shape = RoundedCornerShape(30.dp),
+            colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 7.dp)
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                BookingHeroHeader(booking = booking, isSl = isSl)
+                BookingDateTimeStrip(booking = booking, isSl = isSl)
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 13.dp, vertical = 6.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (!booking.logoImageUrl.isNullOrBlank()) {
-                            AsyncImage(model = booking.logoImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit)
-                        } else {
-                            Image(painterResource(id = R.drawable.calendra_logo), contentDescription = null, modifier = Modifier.padding(10.dp), contentScale = ContentScale.Fit)
-                        }
-                    }
+                    BookingInfoLine(
+                        icon = Icons.Rounded.Person,
+                        label = if (isSl) "ZAPOSLENI" else "EMPLOYEE",
+                        value = booking.consultantName?.takeIf { it.isNotBlank() } ?: if (isSl) "Bo potrjeno" else "To be confirmed"
+                    )
+                    HorizontalDivider(color = SoftBorder, modifier = Modifier.padding(start = 34.dp, top = 3.dp, bottom = 3.dp))
+                    BookingInfoLine(
+                        icon = Icons.Rounded.LocationOn,
+                        label = if (isSl) "LOKACIJA" else "LOCATION",
+                        value = formatTenantAddressLine(booking.tenantAddress, booking.tenantCity, isSl)
+                    )
+                    HorizontalDivider(color = SoftBorder, modifier = Modifier.padding(start = 34.dp, top = 3.dp, bottom = 3.dp))
+                    BookingInfoLine(
+                        icon = Icons.Rounded.CalendarMonth,
+                        label = if (isSl) "PONUDNIK" else "TENANT",
+                        value = booking.tenantName
+                    )
+                    Spacer(Modifier.height(4.dp))
+
+                    BookingPrimaryActionButton(
+                        label = "Contact",
+                        icon = Icons.Rounded.Call,
+                        container = BrandBlue,
+                        content = Color.White,
+                        border = BrandBlue,
+                        onClick = { activeActionMenu = BookingActionMenu.Contact }
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    BookingPrimaryActionButton(
+                        label = if (isSl) "Upravljaj rezervacijo" else "Manage reservation",
+                        icon = Icons.Rounded.NotificationsNone,
+                        container = Color.White,
+                        content = BrandBlue,
+                        border = BrandBlue,
+                        onClick = { activeActionMenu = BookingActionMenu.Manage }
+                    )
                 }
-                StatusPill(
-                    status = booking.status,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(18.dp)
-                )
             }
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
+        }
+
+        activeActionMenu?.let { menu ->
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable { activeActionMenu = null }
+            )
+            BookingActionSheet(
+                menu = menu,
+                isSl = isSl,
+                canContact = !booking.tenantPhone.isNullOrBlank(),
+                canManage = booking.canBeCancelled(),
+                onCall = { booking.tenantPhone?.let(onCall); activeActionMenu = null },
+                onSms = { booking.tenantPhone?.let(onSms); activeActionMenu = null },
+                onReschedule = { onReschedule(booking); activeActionMenu = null },
+                onCancel = { onCancelBooking(booking); activeActionMenu = null },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 10.dp, end = 10.dp, bottom = 74.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookingHeroHeader(booking: UpcomingBookingCard, isSl: Boolean) {
+    Box(modifier = Modifier.fillMaxWidth().height(154.dp)) {
+        if (!booking.cardImageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = booking.cardImageUrl,
+                contentDescription = booking.tenantName,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Image(
+                painter = painterResource(id = R.drawable.gym_booking_background),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Black.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.54f)),
+                        startY = 0f,
+                        endY = Float.POSITIVE_INFINITY
+                    )
+                )
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            BlueHeroBadge(text = if (isSl) "Naslednji termin" else "Next booking")
+            Spacer(Modifier.weight(1f))
+            StatusPill(status = booking.status, isSl = isSl)
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+            BookingLogoBubble(booking = booking)
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = booking.title,
-                    color = BrandText,
-                    fontSize = 22.sp,
-                    lineHeight = 27.sp,
+                    color = Color.White,
+                    fontSize = 19.sp,
+                    lineHeight = 23.sp,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CompactMetaItem(Icons.Rounded.CalendarMonth, formatBookingDate(booking.startsAt))
-                    CompactMetaItem(Icons.Rounded.AccessTime, formatBookingTime(booking.startsAt))
-                }
-                Spacer(Modifier.height(14.dp))
-                HorizontalDivider(color = SoftBorder)
-                Spacer(Modifier.height(14.dp))
-                DetailLine(icon = Icons.Rounded.PersonOutline, iconTint = BrandBlue, label = "Tenant", value = booking.tenantName)
-                Spacer(Modifier.height(14.dp))
-                HorizontalDivider(color = SoftBorder)
-                Spacer(Modifier.height(14.dp))
-                DetailLine(icon = Icons.Rounded.Person, iconTint = BrandOrange, label = "Consultant", value = booking.consultantName?.takeIf { it.isNotBlank() } ?: "To be confirmed")
-                Spacer(Modifier.height(14.dp))
-                HorizontalDivider(color = SoftBorder)
-                Spacer(Modifier.height(14.dp))
-                DetailLine(
-                    icon = Icons.Rounded.LocationOn,
-                    iconTint = Color(0xFF7B61FF),
-                    label = "Location",
-                    value = booking.tenantName,
-                    subvalue = formatTenantAddressLine(booking.tenantAddress, booking.tenantCity)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BookingLogoBubble(booking: UpcomingBookingCard) {
+    Surface(
+        modifier = Modifier.size(60.dp),
+        shape = CircleShape,
+        color = Color(0xFF0E2558).copy(alpha = 0.82f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.36f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (!booking.logoImageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = booking.logoImageUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().padding(10.dp),
+                    contentScale = ContentScale.Fit
                 )
-                Spacer(Modifier.height(22.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    ActionButton("Call", Icons.Rounded.Call, BrandBlue, Color.White, SoftBorder, enabled = !booking.tenantPhone.isNullOrBlank(), modifier = Modifier.weight(1f)) {
-                        booking.tenantPhone?.let(onCall)
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("FIT", color = Color.White, fontSize = 13.sp, lineHeight = 13.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("LAB", color = Color.White, fontSize = 13.sp, lineHeight = 13.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BlueHeroBadge(text: String) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(BrandBlue)
+            .padding(horizontal = 7.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+        Text(text, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun BookingDateTimeStrip(booking: UpcomingBookingCard, isSl: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .background(Color(0xFFEAF2FF))
+            .padding(horizontal = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = formatBookingDateCompact(booking.startsAt, isSl),
+                color = BrandText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Box(modifier = Modifier.width(1.dp).height(30.dp).background(Color(0xFFCBD7EA)))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).padding(start = 14.dp)) {
+            Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = formatBookingTimeRange(booking.startsAt, booking.endsAt, isSl),
+                color = BrandText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookingInfoLine(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = Color(0xFF6F7D91), modifier = Modifier.size(20.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, color = MutedText, fontSize = 8.sp, lineHeight = 10.sp, fontWeight = FontWeight.Bold)
+            Text(
+                value,
+                color = BrandText,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookingPrimaryActionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    container: Color,
+    content: Color,
+    border: Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(39.dp),
+        shape = RoundedCornerShape(9.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
+        border = BorderStroke(1.dp, border),
+        contentPadding = PaddingValues(horizontal = 12.dp)
+    ) {
+        Spacer(Modifier.weight(1f))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(6.dp))
+        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun BookingActionSheet(
+    menu: BookingActionMenu,
+    isSl: Boolean,
+    canContact: Boolean,
+    canManage: Boolean,
+    onCall: () -> Unit,
+    onSms: () -> Unit,
+    onReschedule: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White,
+        shadowElevation = 10.dp,
+        border = BorderStroke(1.dp, SoftBorder)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(38.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(0xFFD8DEE8))
+            )
+            Spacer(Modifier.height(6.dp))
+            when (menu) {
+                BookingActionMenu.Contact -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        SheetOptionButton(
+                            label = if (isSl) "Call" else "Call",
+                            icon = Icons.Rounded.Call,
+                            color = BrandBlue,
+                            enabled = canContact,
+                            modifier = Modifier.weight(1f),
+                            onClick = onCall
+                        )
+                        SheetOptionButton(
+                            label = "SMS",
+                            icon = Icons.Rounded.Message,
+                            color = BrandBlue,
+                            enabled = canContact,
+                            modifier = Modifier.weight(1f),
+                            onClick = onSms
+                        )
                     }
-                    ActionButton("SMS", Icons.Rounded.Message, BrandBlue, Color.White, SoftBorder, enabled = !booking.tenantPhone.isNullOrBlank(), modifier = Modifier.weight(1f)) {
-                        booking.tenantPhone?.let(onSms)
-                    }
-                    ActionButton("Reschedule", Icons.Rounded.Schedule, BrandOrange, Color.White, SoftBorder, enabled = booking.canBeCancelled(), modifier = Modifier.weight(1f)) {
-                        onReschedule(booking)
-                    }
-                    ActionButton("Cancel", Icons.Rounded.Close, Color(0xFFE53935), Color.White, SoftBorder, enabled = booking.canBeCancelled(), modifier = Modifier.weight(1f)) {
-                        onCancelBooking(booking)
+                }
+                BookingActionMenu.Manage -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        SheetOptionButton(
+                            label = if (isSl) "Reschedule" else "Reschedule",
+                            icon = Icons.Rounded.Schedule,
+                            color = BrandBlue,
+                            enabled = canManage,
+                            modifier = Modifier.weight(1f),
+                            onClick = onReschedule
+                        )
+                        SheetOptionButton(
+                            label = if (isSl) "Cancel booked session" else "Cancel booked session",
+                            icon = Icons.Rounded.Delete,
+                            color = Color(0xFFE53935),
+                            enabled = canManage,
+                            modifier = Modifier.weight(1f),
+                            onClick = onCancel
+                        )
                     }
                 }
             }
@@ -550,8 +811,37 @@ private fun UpcomingBookingFocusCard(
 }
 
 @Composable
+private fun SheetOptionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(32.dp),
+        shape = RoundedCornerShape(9.dp),
+        border = BorderStroke(1.dp, SoftBorder),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color.White,
+            contentColor = color,
+            disabledContentColor = MutedText.copy(alpha = 0.45f),
+            disabledContainerColor = Color.White
+        ),
+        contentPadding = PaddingValues(horizontal = 5.dp)
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
 private fun CompactMetaItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Icon(icon, contentDescription = null, tint = MutedText, modifier = Modifier.size(20.dp))
         Text(text, color = MutedText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
@@ -612,25 +902,25 @@ private fun ActionButton(
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(21.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
             Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun StatusPill(status: String, modifier: Modifier = Modifier) {
-    val pretty = status.replace('_', ' ').lowercase(Locale.ENGLISH).replaceFirstChar { it.titlecase(Locale.ENGLISH) }
+private fun StatusPill(status: String, isSl: Boolean, modifier: Modifier = Modifier) {
+    val pretty = translatedStatus(status, isSl)
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
             .background(Color(0xFFE5F8E9))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF2AA952)))
-        Text(pretty, color = Color(0xFF219653), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF219653), modifier = Modifier.size(12.dp))
+        Text(pretty, color = Color(0xFF219653), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -669,15 +959,62 @@ private fun UpcomingBookingCard.isCancelled(): Boolean =
 private fun UpcomingBookingCard.sortEpochMillis(): Long =
     parseZonedDateTime(startsAt)?.toInstant()?.toEpochMilli() ?: Long.MAX_VALUE
 
-private fun formatBookingDate(raw: String): String =
-    parseZonedDateTime(raw)?.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH)) ?: raw
+private fun BookingTab.label(isSl: Boolean): String = when (this) {
+    BookingTab.Future -> if (isSl) "Prihodnji" else "Future"
+    BookingTab.Past -> if (isSl) "Pretekli" else "Past"
+    BookingTab.Cancelled -> if (isSl) "Preklicani" else "Cancelled"
+}
 
-private fun formatBookingTime(raw: String): String =
-    parseZonedDateTime(raw)?.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)) ?: "Time to be confirmed"
+private fun formatBookingDateCompact(raw: String, isSl: Boolean): String {
+    val locale = if (isSl) Locale("sl", "SI") else Locale.ENGLISH
+    val pattern = if (isSl) "EEE, d. MMM" else "EEE, MMM d"
+    val formatted = parseZonedDateTime(raw)?.format(DateTimeFormatter.ofPattern(pattern, locale)) ?: raw
+    return formatted
+        .replace(".,", ",")
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+}
 
-private fun formatTenantAddressLine(address: String?, city: String?): String {
+private fun formatBookingTimeRange(startsAt: String, endsAt: String?, isSl: Boolean): String {
+    val locale = if (isSl) Locale("sl", "SI") else Locale.ENGLISH
+    val pattern = if (isSl) "HH:mm" else "h:mm a"
+    val start = parseZonedDateTime(startsAt)
+    val end = endsAt?.let { parseZonedDateTime(it) }
+    return when {
+        start != null && end != null -> "${start.format(DateTimeFormatter.ofPattern(pattern, locale))}–${end.format(DateTimeFormatter.ofPattern(pattern, locale))}"
+        start != null -> start.format(DateTimeFormatter.ofPattern(pattern, locale))
+        else -> if (isSl) "Ura še ni potrjena" else "Time to be confirmed"
+    }
+}
+
+private fun formatBookingDate(raw: String, isSl: Boolean): String {
+    val locale = if (isSl) Locale("sl", "SI") else Locale.ENGLISH
+    val pattern = if (isSl) "d. MMM yyyy" else "MMM d, yyyy"
+    return parseZonedDateTime(raw)?.format(DateTimeFormatter.ofPattern(pattern, locale)) ?: raw
+}
+
+private fun formatBookingTime(raw: String, isSl: Boolean): String {
+    val locale = if (isSl) Locale("sl", "SI") else Locale.ENGLISH
+    val pattern = if (isSl) "HH:mm" else "h:mm a"
+    return parseZonedDateTime(raw)?.format(DateTimeFormatter.ofPattern(pattern, locale))
+        ?: if (isSl) "Ura še ni potrjena" else "Time to be confirmed"
+}
+
+private fun formatTenantAddressLine(address: String?, city: String?, isSl: Boolean): String {
     val parts = listOfNotNull(address?.trim()?.takeIf { it.isNotEmpty() }, city?.trim()?.takeIf { it.isNotEmpty() })
-    return parts.joinToString(", ").ifBlank { "Location to be confirmed" }
+    return parts.joinToString(", ").ifBlank { if (isSl) "Lokacija še ni potrjena" else "Location to be confirmed" }
+}
+
+private fun translatedStatus(raw: String, isSl: Boolean): String {
+    val normalized = raw.trim().replace('_', ' ').lowercase(Locale.ENGLISH)
+    if (!isSl) return normalized.replaceFirstChar { it.titlecase(Locale.ENGLISH) }
+    return when {
+        normalized.contains("cancel") -> "Preklicano"
+        normalized == "no show" -> "Ni prišel"
+        normalized.contains("confirm") || normalized.contains("book") || normalized.contains("scheduled") -> "Potrjeno"
+        normalized.contains("pending") -> "V čakanju"
+        normalized.contains("complete") || normalized.contains("finished") -> "Zaključeno"
+        else -> normalized.replaceFirstChar { it.titlecase(Locale("sl", "SI")) }
+    }
 }
 
 private fun parseZonedDateTime(raw: String): ZonedDateTime? = runCatching {

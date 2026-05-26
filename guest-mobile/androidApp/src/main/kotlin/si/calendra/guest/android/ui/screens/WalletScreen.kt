@@ -68,10 +68,12 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -121,6 +123,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import si.calendra.guest.android.R
 import si.calendra.guest.shared.models.WalletOrder
 import si.calendra.guest.shared.models.EntitlementSummary
 import si.calendra.guest.shared.models.WalletPayload
@@ -154,10 +157,33 @@ enum class WalletSubTab(val icon: androidx.compose.ui.graphics.vector.ImageVecto
     Orders(Icons.AutoMirrored.Outlined.ReceiptLong);
 
     fun localizedTitle(languageCode: String): String = when (this) {
-        Entitlements -> "Entitlements"
-        Orders -> "Orders"
-        Buy -> "Buy"
+        Entitlements -> walletTr(languageCode, "Entitlements", "Vstopnice")
+        Orders -> walletTr(languageCode, "Orders", "Naročila")
+        Buy -> walletTr(languageCode, "Buy", "Nakup")
     }
+}
+
+private fun walletIsSl(languageCode: String): Boolean = languageCode.lowercase(Locale.ROOT).startsWith("sl")
+
+private fun walletTr(languageCode: String, en: String, sl: String): String =
+    if (walletIsSl(languageCode)) sl else en
+
+private fun walletFilterDisplay(label: String, languageCode: String): String = when (label) {
+    "All" -> walletTr(languageCode, "All", "Vse")
+    "Tickets" -> walletTr(languageCode, "Tickets", "Vstopnice")
+    "Memberships" -> walletTr(languageCode, "Memberships", "Članarine")
+    "Paid" -> walletTr(languageCode, "Paid", "Plačano")
+    "Pending" -> walletTr(languageCode, "Pending", "V čakanju")
+    "Refunded" -> walletTr(languageCode, "Refunded", "Vračila")
+    else -> label
+}
+
+private fun walletProductTypeLabel(type: String, languageCode: String): String = when (type.uppercase(Locale.getDefault())) {
+    "PACK" -> walletTr(languageCode, "Pack", "Paket")
+    "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
+    "CLASS_TICKET" -> walletTr(languageCode, "Class ticket", "Vstopnica")
+    "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
+    else -> type.lowercase(Locale.getDefault()).replaceFirstChar { it.uppercase() }
 }
 
 data class WalletOfferCard(
@@ -218,6 +244,7 @@ fun WalletScreen(
     ) {
         WalletHeader(
             tenantName = tenantName,
+            languageCode = languageCode,
             onOpenTenantPicker = onOpenTenantPicker,
             onOpenNotifications = onOpenNotifications
         )
@@ -234,13 +261,15 @@ fun WalletScreen(
         when (subTab) {
             WalletSubTab.Entitlements -> EntitlementsPanel(
                 entitlements = entitlements,
+                languageCode = languageCode,
                 accessCards = accessCards,
                 focusedEntitlementId = focusedEntitlementId,
                 onFocus = { focusedEntitlementId = it },
+                onBrowseOffers = { subTab = WalletSubTab.Buy },
                 onQRCodeTap = { card, code ->
                     qrPopup = WalletQRCodePopupModel(
-                        title = "Scan access code",
-                        subtitle = "Show this at reception",
+                        title = walletTr(languageCode, "Scan access code", "Skenirajte dostopno kodo"),
+                        subtitle = walletTr(languageCode, "Show this at reception", "Pokažite to na recepciji"),
                         code = code,
                         entitlementId = card.id
                     )
@@ -249,12 +278,16 @@ fun WalletScreen(
             )
             WalletSubTab.Buy -> BuyPanel(
                 offers = offers,
+                languageCode = languageCode,
                 availableMethods = tenantPaymentMethods,
+                onChangeTenant = onOpenTenantPicker,
                 onBuyClick = { pendingOffer = it }
             )
             WalletSubTab.Orders -> OrdersPanel(
                 orders = wallet.orders,
+                languageCode = languageCode,
                 tenantName = tenantName,
+                onGoToBuy = { subTab = WalletSubTab.Buy },
                 onViewReceipt = onViewReceipt
             )
         }
@@ -263,6 +296,7 @@ fun WalletScreen(
     pendingOffer?.let { offer ->
         BuyPaymentSheet(
             offer = offer,
+            languageCode = languageCode,
             availableMethods = tenantPaymentMethods,
             onDismiss = { pendingOffer = null },
             onConfirm = { paymentMethod ->
@@ -279,13 +313,14 @@ fun WalletScreen(
     }
 
     qrPopup?.let { popup ->
-        WalletQRCodePopupDialog(model = popup, onDismiss = { qrPopup = null })
+        WalletQRCodePopupDialog(model = popup, languageCode = languageCode, onDismiss = { qrPopup = null })
     }
 }
 
 @Composable
 private fun WalletHeader(
     tenantName: String?,
+    languageCode: String,
     onOpenTenantPicker: () -> Unit,
     onOpenNotifications: () -> Unit
 ) {
@@ -298,43 +333,52 @@ private fun WalletHeader(
     ) {
         Surface(
             modifier = Modifier
-                .widthIn(max = 180.dp)
+                .widthIn(max = 220.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onOpenTenantPicker
                 ),
-            shape = RoundedCornerShape(999.dp),
+            shape = RoundedCornerShape(22.dp),
             color = Color.White,
-            border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.95f)),
-            shadowElevation = 5.dp,
+            shadowElevation = 6.dp,
             tonalElevation = 0.dp
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Business,
-                    contentDescription = null,
-                    tint = WalletInk,
-                    modifier = Modifier.size(17.dp)
-                )
+                Surface(
+                    modifier = Modifier.size(34.dp),
+                    shape = CircleShape,
+                    color = WalletBlueSoft,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Business,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
                 Text(
                     text = tenantName?.takeIf { it.isNotBlank() } ?: "Calendra",
                     color = WalletInk,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Normal,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 52.dp)
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 Icon(
                     imageVector = Icons.Rounded.KeyboardArrowDown,
                     contentDescription = null,
                     tint = WalletBlueSoft,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -351,7 +395,7 @@ private fun WalletHeader(
         ) {
             Icon(
                 imageVector = Icons.Rounded.NotificationsNone,
-                contentDescription = "Notifications",
+                contentDescription = walletTr(languageCode, "Notifications", "Obvestila"),
                 tint = WalletInk,
                 modifier = Modifier.size(24.dp)
             )
@@ -367,39 +411,47 @@ private fun WalletSegmentedControl(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(999.dp),
-        color = Color(0xFFE9EEF5),
-        border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.85f)),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(50.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White,
         tonalElevation = 0.dp,
-        shadowElevation = 5.dp
+        shadowElevation = 4.dp
     ) {
-        Row(modifier = Modifier.padding(3.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             WalletSubTab.values().forEach { tab ->
                 val selected = tab == current
-                Surface(
+                Column(
                     modifier = Modifier
                         .weight(1f)
-                        .height(42.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { onSelect(tab) },
-                    color = if (selected) WalletBlueSoft else Color.Transparent,
-                    shape = RoundedCornerShape(999.dp),
-                    tonalElevation = 0.dp,
-                    shadowElevation = if (selected) 8.dp else 0.dp
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = tab.localizedTitle(languageCode),
-                            color = if (selected) Color.White else WalletInk.copy(alpha = 0.88f),
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(
+                        text = tab.localizedTitle(languageCode),
+                        color = if (selected) WalletBlueSoft else WalletMuted,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 5.dp, bottom = 5.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(72.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            .background(if (selected) WalletBlueSoft else Color.Transparent)
+                    )
                 }
             }
         }
@@ -409,6 +461,7 @@ private fun WalletSegmentedControl(
 @Composable
 private fun WalletEntitlementFilterRow(
     activeCount: Int,
+    languageCode: String,
     inactiveCount: Int,
     showInactive: Boolean,
     onToggleStatusFilter: () -> Unit,
@@ -442,7 +495,7 @@ private fun WalletEntitlementFilterRow(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = label,
+                        text = walletFilterDisplay(label, languageCode),
                         color = if (selected) Color.White else WalletInk.copy(alpha = 0.88f),
                         fontSize = 12.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -476,7 +529,7 @@ private fun WalletEntitlementFilterRow(
                         .background(if (showInactive) Color(0xFFE53935) else WalletGreen)
                 )
                 Text(
-                    text = if (showInactive) "$inactiveCount Inactive" else "$activeCount Active",
+                    text = if (showInactive) walletTr(languageCode, "$inactiveCount Inactive", "$inactiveCount neaktivnih") else walletTr(languageCode, "$activeCount Active", "$activeCount aktivnih"),
                     color = WalletInk,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -519,7 +572,7 @@ private fun WalletFilterControl(labels: List<String>, selectedIndex: Int = 0, mo
 }
 
 @Composable
-private fun WalletCommerceFilterRow(labels: List<String>, selectedIndex: Int = 0, modifier: Modifier = Modifier) {
+private fun WalletCommerceFilterRow(labels: List<String>, selectedIndex: Int = 0, languageCode: String = "en", modifier: Modifier = Modifier) {
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -541,7 +594,7 @@ private fun WalletCommerceFilterRow(labels: List<String>, selectedIndex: Int = 0
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = label,
+                        text = walletFilterDisplay(label, languageCode),
                         color = if (selected) WalletBlueSoft else WalletInk.copy(alpha = 0.88f),
                         fontSize = 12.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -738,6 +791,7 @@ private data class WalletQRCodePopupModel(
 @Composable
 private fun WalletQRCodePopupDialog(
     model: WalletQRCodePopupModel,
+    languageCode: String,
     onDismiss: () -> Unit
 ) {
     Dialog(
@@ -813,7 +867,7 @@ private fun WalletQRCodePopupDialog(
             }
 
             Text(
-                text = "Tap anywhere outside to close",
+                text = walletTr(languageCode, "Tap anywhere outside to close", "Tapnite zunaj za zapiranje"),
                 color = Color.White.copy(alpha = 0.82f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -833,9 +887,11 @@ private data class WalletTicketStyle(
 @Composable
 private fun EntitlementsPanel(
     entitlements: List<EntitlementSummary>,
+    languageCode: String,
     accessCards: List<AccessCard>,
     focusedEntitlementId: String?,
     onFocus: (String?) -> Unit,
+    onBrowseOffers: () -> Unit,
     onQRCodeTap: (WalletPassCardData, String) -> Unit,
     onToggleAutoRenew: (String, Boolean) -> Unit
 ) {
@@ -886,10 +942,14 @@ private fun EntitlementsPanel(
     }
 
     if (cards.isEmpty()) {
-        EmptyState(
-            icon = Icons.Rounded.ConfirmationNumber,
-            title = "No entitlements yet",
-            subtitle = "Purchases from the Buy tab will show up here as tickets, packs and memberships."
+        WalletShowcaseEmptyState(
+            art = WalletEmptyArt.Entitlements,
+            title = walletTr(languageCode, "No entitlements yet", "Vstopnic še ni"),
+            subtitle = walletTr(languageCode, "Purchases from the Buy tab will appear here as tickets, packs and memberships.", "Nakupi iz zavihka Nakup bodo tukaj prikazani kot vstopnice, paketi in članarine."),
+            primaryButtonText = walletTr(languageCode, "Browse offers", "Oglejte si ponudbe"),
+            footerText = walletTr(languageCode, "Looking for something? Explore offers and find what’s right for you.", "Iščete nekaj zase? Oglejte si ponudbe in izberite pravo."),
+            footerIcon = Icons.Rounded.ConfirmationNumber,
+            onPrimaryClick = onBrowseOffers
         )
         return
     }
@@ -897,6 +957,7 @@ private fun EntitlementsPanel(
     Column(modifier = Modifier.fillMaxSize()) {
         WalletEntitlementFilterRow(
             activeCount = activeCards.size,
+            languageCode = languageCode,
             inactiveCount = inactiveCards.size,
             showInactive = showInactive,
             onToggleStatusFilter = { showInactive = !showInactive },
@@ -908,13 +969,14 @@ private fun EntitlementsPanel(
         if (filteredCards.isEmpty()) {
             EmptyState(
                 icon = Icons.Rounded.ConfirmationNumber,
-                title = "No ${selectedFilter.lowercase(Locale.getDefault())} yet",
-                subtitle = "Switch filters or purchase a new pass from the Buy tab."
+                title = walletTr(languageCode, "No ${selectedFilter.lowercase(Locale.getDefault())} yet", "Ni zadetkov za ${walletFilterDisplay(selectedFilter, languageCode).lowercase(Locale.getDefault())}"),
+                subtitle = walletTr(languageCode, "Switch filters or purchase a new pass from the Buy tab.", "Spremenite filter ali kupite novo vstopnico v zavihku Nakup.")
             )
         } else {
             if (showAllCards) {
                 WalletEntitlementFullList(
                     cards = filteredCards,
+                    languageCode = languageCode,
                     onQRCodeTap = onQRCodeTap,
                     onToggleAutoRenew = onToggleAutoRenew,
                     onShowLess = { showAllCards = false },
@@ -925,6 +987,7 @@ private fun EntitlementsPanel(
             } else {
                 WalletPullOutEntitlementDeck(
                     cards = previewCards,
+                    languageCode = languageCode,
                     focusedEntitlementId = focusedEntitlementId,
                     onFocus = onFocus,
                     onQRCodeTap = onQRCodeTap,
@@ -941,6 +1004,7 @@ private fun EntitlementsPanel(
 @Composable
 private fun WalletEntitlementFullList(
     cards: List<WalletPassCardData>,
+    languageCode: String,
     onQRCodeTap: (WalletPassCardData, String) -> Unit,
     onToggleAutoRenew: (String, Boolean) -> Unit,
     onShowLess: () -> Unit,
@@ -969,7 +1033,7 @@ private fun WalletEntitlementFullList(
                     shadowElevation = 2.dp
                 ) {
                     Text(
-                        text = "Show less",
+                        text = walletTr(languageCode, "Show less", "Prikaži manj"),
                         color = WalletInk,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -981,6 +1045,7 @@ private fun WalletEntitlementFullList(
         itemsIndexed(cards, key = { _, card -> card.id }) { index, card ->
             WalletStackedPassCard(
                 card = card,
+                languageCode = languageCode,
                 index = index,
                 onTap = {},
                 onQRCodeTap = { code -> onQRCodeTap(card, code) },
@@ -994,6 +1059,7 @@ private fun WalletEntitlementFullList(
 @Composable
 private fun WalletPullOutEntitlementDeck(
     cards: List<WalletPassCardData>,
+    languageCode: String,
     focusedEntitlementId: String?,
     onFocus: (String?) -> Unit,
     onQRCodeTap: (WalletPassCardData, String) -> Unit,
@@ -1148,6 +1214,7 @@ private fun WalletPullOutEntitlementDeck(
                 ) {
                     WalletStackedPassCard(
                         card = card,
+                        languageCode = languageCode,
                         index = originalIndex,
                         onTap = cardClick,
                         onQRCodeTap = { code -> onQRCodeTap(card, code) },
@@ -1185,7 +1252,7 @@ private fun WalletPullOutEntitlementDeck(
                 shadowElevation = 6.dp
             ) {
                 Text(
-                    text = "Show all entitlements",
+                    text = walletTr(languageCode, "Show all entitlements", "Prikaži vse vstopnice"),
                     color = WalletBlueSoft,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1197,7 +1264,7 @@ private fun WalletPullOutEntitlementDeck(
 }
 
 @Composable
-private fun EntitlementSwipeHint(modifier: Modifier = Modifier) {
+private fun EntitlementSwipeHint(languageCode: String = "en", modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.shadow(6.dp, RoundedCornerShape(999.dp), clip = false),
         shape = RoundedCornerShape(999.dp),
@@ -1212,7 +1279,7 @@ private fun EntitlementSwipeHint(modifier: Modifier = Modifier) {
         ) {
             Text("⌃", color = WalletInk.copy(alpha = 0.78f), fontSize = 18.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp)
             Text(
-                text = "Swipe up to pull pass forward",
+                text = walletTr(languageCode, "Swipe up to pull pass forward", "Povlecite navzgor za prikaz vstopnice"),
                 color = WalletInk.copy(alpha = 0.72f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -1223,8 +1290,8 @@ private fun EntitlementSwipeHint(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PulledForwardBadge(modifier: Modifier = Modifier) {
-    EntitlementSwipeHint(modifier = modifier)
+private fun PulledForwardBadge(languageCode: String = "en", modifier: Modifier = Modifier) {
+    EntitlementSwipeHint(languageCode = languageCode, modifier = modifier)
 }
 
 @Composable
@@ -1386,6 +1453,7 @@ private fun EntitlementSummary.toWalletPassCardData(): WalletPassCardData = Wall
 @Composable
 private fun WalletStackedPassCard(
     card: WalletPassCardData,
+    languageCode: String,
     index: Int,
     onTap: () -> Unit,
     onQRCodeTap: (String) -> Unit,
@@ -1401,8 +1469,8 @@ private fun WalletStackedPassCard(
         ?: card.id
     val headerStatus = entitlementHeaderStatus(card)
     val statusAccent = if (headerStatus == "Inactive") Color(0xFF7C8798) else WalletGreen
-    val primary = primaryMetric(card)
-    val secondary = secondaryMetric(card)
+    val primary = primaryMetric(card, languageCode)
+    val secondary = secondaryMetric(card, languageCode)
     val textColor = if (isLightCard) WalletInk else Color.White
     val mutedColor = if (isLightCard) WalletMuted else Color.White.copy(alpha = 0.78f)
     val lineColor = if (isLightCard) WalletLine.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.22f)
@@ -1450,7 +1518,7 @@ private fun WalletStackedPassCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = entitlementHeaderTypeTag(card.type),
+                        text = entitlementHeaderTypeTag(card.type, languageCode),
                         color = if (isLightCard) style.accent else Color.White.copy(alpha = 0.82f),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -1478,7 +1546,7 @@ private fun WalletStackedPassCard(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    WalletStatusChip(status = headerStatus, accent = statusAccent)
+                    WalletStatusChip(status = walletStatusDisplay(headerStatus, languageCode), accent = statusAccent)
                     Box(
                         modifier = Modifier
                             .size(width = 86.dp, height = 94.dp)
@@ -1494,7 +1562,7 @@ private fun WalletStackedPassCard(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             WalletQRCode(content = code, modifier = Modifier.size(58.dp))
-                            Text("Show QR", color = WalletBlueSoft, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(walletTr(languageCode, "Show QR", "Prikaži QR"), color = WalletBlueSoft, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1528,7 +1596,7 @@ private fun WalletStackedPassCard(
                     modifier = Modifier.weight(1f).padding(start = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("AUTO-RENEW", color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(walletTr(languageCode, "AUTO-RENEW", "SAMODEJNO PODALJŠANJE"), color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     if (card.type == "MEMBERSHIP") {
                         Switch(
                             checked = card.autoRenews,
@@ -1536,7 +1604,7 @@ private fun WalletStackedPassCard(
                             modifier = Modifier.height(28.dp)
                         )
                     } else {
-                        Text(card.remainingUses?.let { "$it left" } ?: statusLabelForCard(card), color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(card.remainingUses?.let { walletTr(languageCode, "$it left", "$it preostalo") } ?: statusLabelForCard(card, languageCode), color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1557,10 +1625,10 @@ private fun WalletStackedPassCard(
                     Text("▦", color = if (isLightCard) style.accent else Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("YOUR ACCESS CODE", color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(walletTr(languageCode, "YOUR ACCESS CODE", "VAŠA DOSTOPNA KODA"), color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     Text(code, color = textColor, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text("Tap at check-in", color = mutedColor, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(walletTr(languageCode, "Tap at check-in", "Tapnite ob prijavi"), color = mutedColor, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -1957,34 +2025,34 @@ private fun walletTicketStyle(type: String, index: Int): WalletTicketStyle = whe
     }
 }
 
-private fun primaryMetric(card: WalletPassCardData): Pair<String, String> = when (card.type) {
-    "MEMBERSHIP" -> "Access" to "Unlimited"
-    "PACK" -> "Access" to usesSummary(card)
-    "CLASS_TICKET" -> "Access" to "1 class"
-    "GIFT_CARD" -> "Balance" to "${formatPrice(card.remainingValueGross ?: 0.0)} ${card.currency ?: ""}".trim()
+private fun primaryMetric(card: WalletPassCardData, languageCode: String = "en"): Pair<String, String> = when (card.type) {
+    "MEMBERSHIP" -> walletTr(languageCode, "Access", "Dostop") to walletTr(languageCode, "Unlimited", "Neomejeno")
+    "PACK" -> walletTr(languageCode, "Access", "Dostop") to usesSummary(card, languageCode)
+    "CLASS_TICKET" -> walletTr(languageCode, "Access", "Dostop") to walletTr(languageCode, "1 class", "1 obisk")
+    "GIFT_CARD" -> walletTr(languageCode, "Balance", "Dobroimetje") to "${formatPrice(card.remainingValueGross ?: 0.0)} ${card.currency ?: ""}".trim()
     else -> productTypeLabel(card.type) to usesSummary(card)
 }
 
-private fun secondaryMetric(card: WalletPassCardData): Pair<String, String> = when (card.type) {
-    "MEMBERSHIP" -> "Valid until" to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: "No expiry")
-    "PACK" -> "Expires" to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: "No expiry")
-    "CLASS_TICKET" -> "Date" to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: "No expiry")
-    "GIFT_CARD" -> "Valid until" to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: "No expiry")
-    else -> "Valid until" to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: "No expiry")
+private fun secondaryMetric(card: WalletPassCardData, languageCode: String = "en"): Pair<String, String> = when (card.type) {
+    "MEMBERSHIP" -> walletTr(languageCode, "Valid until", "Velja do") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
+    "PACK" -> walletTr(languageCode, "Expires", "Poteče") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
+    "CLASS_TICKET" -> walletTr(languageCode, "Date", "Datum") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
+    "GIFT_CARD" -> walletTr(languageCode, "Valid until", "Velja do") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
+    else -> walletTr(languageCode, "Valid until", "Velja do") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
 }
 
-private fun usesSummary(card: WalletPassCardData): String = when {
-    card.remainingUses != null -> "${card.remainingUses} classes"
-    card.totalUses != null -> "${card.totalUses} classes"
-    card.type == "MEMBERSHIP" -> "Unlimited"
-    else -> "1 class"
+private fun usesSummary(card: WalletPassCardData, languageCode: String = "en"): String = when {
+    card.remainingUses != null -> walletTr(languageCode, "${card.remainingUses} classes", "${card.remainingUses} obiskov")
+    card.totalUses != null -> walletTr(languageCode, "${card.totalUses} classes", "${card.totalUses} obiskov")
+    card.type == "MEMBERSHIP" -> walletTr(languageCode, "Unlimited", "Neomejeno")
+    else -> walletTr(languageCode, "1 class", "1 obisk")
 }
 
-private fun entitlementHeaderTypeTag(type: String): String = when (type.uppercase(Locale.getDefault())) {
-    "MEMBERSHIP" -> "MEMBERSHIP"
-    "PACK" -> "PACK"
-    "CLASS_TICKET" -> "CLASS"
-    "GIFT_CARD" -> "GIFT"
+private fun entitlementHeaderTypeTag(type: String, languageCode: String = "en"): String = when (type.uppercase(Locale.getDefault())) {
+    "MEMBERSHIP" -> walletTr(languageCode, "MEMBERSHIP", "ČLANARINA")
+    "PACK" -> walletTr(languageCode, "PACK", "PAKET")
+    "CLASS_TICKET" -> walletTr(languageCode, "CLASS", "VSTOPNICA")
+    "GIFT_CARD" -> walletTr(languageCode, "GIFT", "DARILO")
     else -> productTypeLabel(type).uppercase(Locale.getDefault())
 }
 
@@ -2030,17 +2098,17 @@ private fun subtitleForCard(card: WalletPassCardData): String = when (card.type)
     else -> card.tenantName?.takeIf { it.isNotBlank() } ?: "All locations"
 }
 
-private fun statusLabelForCard(card: WalletPassCardData): String {
+private fun statusLabelForCard(card: WalletPassCardData, languageCode: String = "en"): String {
     when (card.status.uppercase(Locale.getDefault()).ifBlank { "ACTIVE" }) {
-        "EXPIRED" -> return "Expired"
-        "USED_UP" -> return "Used up"
-        "CANCELLED" -> return "Cancelled"
-        "PENDING" -> return "Pending"
+        "EXPIRED" -> return walletTr(languageCode, "Expired", "Poteklo")
+        "USED_UP" -> return walletTr(languageCode, "Used up", "Porabljeno")
+        "CANCELLED" -> return walletTr(languageCode, "Cancelled", "Preklicano")
+        "PENDING" -> return walletTr(languageCode, "Pending", "V čakanju")
     }
     return when (card.type) {
-        "PACK" -> card.remainingUses?.let { "$it left" } ?: "Active"
-        "CLASS_TICKET" -> "Ready"
-        else -> "Active"
+        "PACK" -> card.remainingUses?.let { walletTr(languageCode, "$it left", "$it preostalo") } ?: walletTr(languageCode, "Active", "Aktivno")
+        "CLASS_TICKET" -> walletTr(languageCode, "Ready", "Pripravljeno")
+        else -> walletTr(languageCode, "Active", "Aktivno")
     }
 }
 
@@ -2197,13 +2265,7 @@ private fun EntitlementIconBadge(type: String, size: Dp, background: Color, tint
     }
 }
 
-private fun productTypeLabel(type: String): String = when (type) {
-    "PACK" -> "Pack"
-    "MEMBERSHIP" -> "Membership"
-    "CLASS_TICKET" -> "Class ticket"
-    "GIFT_CARD" -> "Gift card"
-    else -> type.lowercase(Locale.getDefault()).replaceFirstChar { it.uppercase() }
-}
+private fun productTypeLabel(type: String): String = walletProductTypeLabel(type, "en")
 
 @Composable
 private fun DashedSeparator() {
@@ -2228,14 +2290,20 @@ private fun DashedSeparator() {
 @Composable
 private fun BuyPanel(
     offers: List<WalletOfferCard>,
+    languageCode: String,
     availableMethods: List<String>,
+    onChangeTenant: () -> Unit,
     onBuyClick: (WalletOfferCard) -> Unit
 ) {
     if (offers.isEmpty()) {
-        EmptyState(
-            icon = Icons.Rounded.CreditCard,
-            title = "Nothing to buy yet",
-            subtitle = "Your tenant has not published any tickets, packs, or memberships."
+        WalletShowcaseEmptyState(
+            art = WalletEmptyArt.Buy,
+            title = walletTr(languageCode, "No offers available", "Ponudbe niso na voljo"),
+            subtitle = walletTr(languageCode, "This tenant does not have any memberships, packs or gift cards available to buy right now.", "Ta ponudnik trenutno nima članarin, paketov ali darilnih kartic za nakup."),
+            primaryButtonText = walletTr(languageCode, "Change tenant", "Zamenjaj ponudnika"),
+            footerText = walletTr(languageCode, "Switch to another tenant to explore available offers.", "Preklopite na drugega ponudnika in si oglejte razpoložljive ponudbe."),
+            footerIcon = Icons.Rounded.Business,
+            onPrimaryClick = onChangeTenant
         )
         return
     }
@@ -2267,6 +2335,7 @@ private fun BuyPanel(
         item {
             BuyMarketplaceCategoryRow(
                 categories = categories,
+                languageCode = languageCode,
                 selected = selectedCategory,
                 offers = offers,
                 onSelect = { selectedCategory = it },
@@ -2276,17 +2345,19 @@ private fun BuyPanel(
         item {
             BuyMarketplaceFeaturedCard(
                 offer = featuredOffer,
+                languageCode = languageCode,
                 availableMethods = availableMethods,
                 onBuyClick = { onBuyClick(featuredOffer) },
                 modifier = Modifier.fillMaxWidth()
             )
         }
         if (visibleOffers.isEmpty()) {
-            item { BuyMarketplaceEmptyFilterState() }
+            item { BuyMarketplaceEmptyFilterState(languageCode = languageCode) }
         } else {
             itemsIndexed(visibleOffers, key = { _, offer -> offer.productId }) { index, offer ->
                 BuyMarketplaceOfferCard(
                     offer = offer,
+                    languageCode = languageCode,
                     index = index,
                     onBuyClick = { onBuyClick(offer) },
                     modifier = Modifier.fillMaxWidth()
@@ -2301,7 +2372,14 @@ private enum class BuyMarketplaceCategory(val title: String) {
     Memberships("Memberships"),
     ClassPacks("Class Packs"),
     DropIns("Drop-ins"),
-    GiftCards("Gift Cards")
+    GiftCards("Gift Cards");
+
+    fun localizedTitle(languageCode: String): String = when (this) {
+        Memberships -> walletTr(languageCode, "Memberships", "Članarine")
+        ClassPacks -> walletTr(languageCode, "Class Packs", "Paketi")
+        DropIns -> walletTr(languageCode, "Drop-ins", "Posamezni obiski")
+        GiftCards -> walletTr(languageCode, "Gift Cards", "Darilne kartice")
+    }
 }
 
 private fun offerMatchesMarketplaceCategory(offer: WalletOfferCard, category: BuyMarketplaceCategory): Boolean {
@@ -2487,6 +2565,7 @@ private fun BuyMarketplaceSearchRow(
 @Composable
 private fun BuyMarketplaceCategoryRow(
     categories: List<BuyMarketplaceCategory>,
+    languageCode: String,
     selected: BuyMarketplaceCategory,
     offers: List<WalletOfferCard>,
     onSelect: (BuyMarketplaceCategory) -> Unit,
@@ -2520,7 +2599,7 @@ private fun BuyMarketplaceCategoryRow(
                 ) {
                     BuyMarketplaceCategoryIcon(category = category, selected = active)
                     Text(
-                        text = category.title,
+                        text = category.localizedTitle(languageCode),
                         color = if (active) Color.White else WalletInk,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -2546,6 +2625,7 @@ private fun BuyMarketplaceCategoryIcon(category: BuyMarketplaceCategory, selecte
 @Composable
 private fun BuyMarketplaceFeaturedCard(
     offer: WalletOfferCard,
+    languageCode: String,
     availableMethods: List<String>,
     onBuyClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -2605,14 +2685,14 @@ private fun BuyMarketplaceFeaturedCard(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = marketplaceFeaturedTag(offer).uppercase(Locale.getDefault()),
+                        text = marketplaceFeaturedTag(offer, languageCode).uppercase(Locale.getDefault()),
                         color = WalletAmber,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1
                     )
                     Text(
-                        text = offer.name.ifBlank { "Unlimited Monthly" },
+                        text = offer.name.ifBlank { walletTr(languageCode, "Unlimited Monthly", "Neomejena mesečna") },
                         color = Color.White,
                         fontSize = 23.sp,
                         lineHeight = 26.sp,
@@ -2621,7 +2701,7 @@ private fun BuyMarketplaceFeaturedCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = marketplaceFeaturedDescription(offer),
+                        text = marketplaceFeaturedDescription(offer, languageCode),
                         color = Color.White.copy(alpha = 0.88f),
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
@@ -2633,8 +2713,8 @@ private fun BuyMarketplaceFeaturedCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        BuyFeaturedInfoPill("Billed monthly")
-                        if (availableMethods.isNotEmpty()) BuyFeaturedInfoPill("Secure checkout")
+                        BuyFeaturedInfoPill(walletTr(languageCode, "Billed monthly", "Mesečno plačilo"))
+                        if (availableMethods.isNotEmpty()) BuyFeaturedInfoPill(walletTr(languageCode, "Secure checkout", "Varno plačilo"))
                     }
                 }
                 Box(
@@ -2649,9 +2729,9 @@ private fun BuyMarketplaceFeaturedCard(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.align(Alignment.CenterEnd)
                     ) {
-                        Text("From", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(walletTr(languageCode, "From", "Od"), color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         Text(price, color = Color.White, fontSize = 27.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                        Text("Billed monthly", color = Color.White.copy(alpha = 0.78f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(walletTr(languageCode, "Billed monthly", "Mesečno plačilo"), color = Color.White.copy(alpha = 0.78f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         Surface(
                             modifier = Modifier
                                 .height(44.dp)
@@ -2671,7 +2751,7 @@ private fun BuyMarketplaceFeaturedCard(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Buy now", color = Color(0xFF005DEB), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                                Text(walletTr(languageCode, "Buy now", "Kupi zdaj"), color = Color(0xFF005DEB), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
                                 Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color(0xFF005DEB), modifier = Modifier.size(19.dp))
                             }
                         }
@@ -2693,6 +2773,7 @@ private fun BuyFeaturedInfoPill(text: String) {
 @Composable
 private fun BuyMarketplaceOfferCard(
     offer: WalletOfferCard,
+    languageCode: String,
     index: Int,
     onBuyClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -2731,7 +2812,7 @@ private fun BuyMarketplaceOfferCard(
                     tonalElevation = 0.dp
                 ) {
                     Text(
-                        text = marketplaceOfferTag(offer).uppercase(Locale.getDefault()),
+                        text = marketplaceOfferTag(offer, languageCode).uppercase(Locale.getDefault()),
                         color = accent,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -2740,7 +2821,7 @@ private fun BuyMarketplaceOfferCard(
                     )
                 }
                 Text(
-                    text = offer.name.ifBlank { productTypeLabel(offer.productType) },
+                    text = offer.name.ifBlank { walletProductTypeLabel(offer.productType, languageCode) },
                     color = WalletInk,
                     fontSize = 17.sp,
                     lineHeight = 20.sp,
@@ -2749,7 +2830,7 @@ private fun BuyMarketplaceOfferCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = marketplaceOfferDescription(offer),
+                    text = marketplaceOfferDescription(offer, languageCode),
                     color = WalletMuted,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
@@ -2760,7 +2841,7 @@ private fun BuyMarketplaceOfferCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Rounded.Schedule, contentDescription = null, tint = WalletMuted, modifier = Modifier.size(12.dp))
                     Text(
-                        text = buyMarketplaceValidityLabel(offer),
+                        text = buyMarketplaceValidityLabel(offer, languageCode),
                         color = WalletMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
@@ -2802,7 +2883,7 @@ private fun BuyMarketplaceOfferCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Buy now", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(walletTr(languageCode, "Buy now", "Kupi zdaj"), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
                         Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
                     }
                 }
@@ -2811,10 +2892,10 @@ private fun BuyMarketplaceOfferCard(
     }
 }
 
-private fun buyMarketplaceValidityLabel(offer: WalletOfferCard): String {
-    val validity = offer.validityDays?.takeIf { it > 0 }?.let { "Valid for $it days" }
-    val usage = offer.usageLimit?.takeIf { it > 0 }?.let { count -> if (count == 1) "1 class" else "$count classes" }
-    return listOfNotNull(validity, usage).joinToString("  •  ").ifBlank { "Digital delivery" }
+private fun buyMarketplaceValidityLabel(offer: WalletOfferCard, languageCode: String): String {
+    val validity = offer.validityDays?.takeIf { it > 0 }?.let { walletTr(languageCode, "Valid for $it days", "Velja $it dni") }
+    val usage = offer.usageLimit?.takeIf { it > 0 }?.let { count -> if (count == 1) walletTr(languageCode, "1 class", "1 obisk") else walletTr(languageCode, "$count classes", "$count obiskov") }
+    return listOfNotNull(validity, usage).joinToString("  •  ").ifBlank { walletTr(languageCode, "Digital delivery", "Digitalna dostava") }
 }
 
 @Composable
@@ -2833,7 +2914,7 @@ private fun BuyMarketplaceOfferIcon(offer: WalletOfferCard, accent: Color) {
 }
 
 @Composable
-private fun BuyMarketplaceEmptyFilterState() {
+private fun BuyMarketplaceEmptyFilterState(languageCode: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -2848,9 +2929,9 @@ private fun BuyMarketplaceEmptyFilterState() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(Icons.Outlined.ShoppingBag, contentDescription = null, tint = WalletMuted, modifier = Modifier.size(32.dp))
-            Text("No matching offers", color = WalletInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(walletTr(languageCode, "No matching offers", "Ni ustreznih ponudb"), color = WalletInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text(
-                text = "Try another category or search term.",
+                text = walletTr(languageCode, "Try another category or search term.", "Poskusite drugo kategorijo ali iskalni izraz."),
                 color = WalletMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center
@@ -2859,33 +2940,33 @@ private fun BuyMarketplaceEmptyFilterState() {
     }
 }
 
-private fun marketplaceFeaturedTag(offer: WalletOfferCard): String = when {
+private fun marketplaceFeaturedTag(offer: WalletOfferCard, languageCode: String): String = when {
     offer.promoText?.isNotBlank() == true -> offer.promoText
-    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> "Most popular"
-    else -> "Featured"
+    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> walletTr(languageCode, "Most popular", "Najbolj priljubljeno")
+    else -> walletTr(languageCode, "Featured", "Izpostavljeno")
 }
 
-private fun marketplaceFeaturedDescription(offer: WalletOfferCard): String = when {
+private fun marketplaceFeaturedDescription(offer: WalletOfferCard, languageCode: String = "en"): String = when {
     offer.description?.isNotBlank() == true -> offer.description
-    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> "Unlimited classes, all locations. Cancel anytime."
+    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> walletTr(languageCode, "Unlimited classes, all locations. Cancel anytime.", "Neomejeni obiski na vseh lokacijah. Preklic kadarkoli.")
     else -> buyOfferSubtitle(offer)
 }
 
-private fun marketplaceOfferTag(offer: WalletOfferCard): String = when {
+private fun marketplaceOfferTag(offer: WalletOfferCard, languageCode: String): String = when {
     offer.promoText?.isNotBlank() == true -> offer.promoText
-    isGiftOffer(offer) -> "Gift-ready"
-    offer.name.contains("training", ignoreCase = true) -> "New member offer"
-    offer.productType.uppercase(Locale.getDefault()) == "PACK" && (offer.usageLimit ?: 0) >= 5 -> "Best value"
-    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> "Most popular"
-    else -> "Great for trying out"
+    isGiftOffer(offer) -> walletTr(languageCode, "Gift-ready", "Primerno za darilo")
+    offer.name.contains("training", ignoreCase = true) -> walletTr(languageCode, "New member offer", "Ponudba za nove člane")
+    offer.productType.uppercase(Locale.getDefault()) == "PACK" && (offer.usageLimit ?: 0) >= 5 -> walletTr(languageCode, "Best value", "Najboljša vrednost")
+    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> walletTr(languageCode, "Most popular", "Najbolj priljubljeno")
+    else -> walletTr(languageCode, "Great for trying out", "Odlično za prvi obisk")
 }
 
-private fun marketplaceOfferDescription(offer: WalletOfferCard): String = when {
+private fun marketplaceOfferDescription(offer: WalletOfferCard, languageCode: String): String = when {
     offer.description?.isNotBlank() == true -> offer.description
-    offer.name.contains("training", ignoreCase = true) -> "One session with a certified coach."
-    offer.productType.uppercase(Locale.getDefault()) == "PACK" -> "${offerVisitCountShortLabel(offer.usageLimit)} to use anytime, any location."
-    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> "Unlimited classes, all locations."
-    else -> "One class. Any time, any location."
+    offer.name.contains("training", ignoreCase = true) -> walletTr(languageCode, "One session with a certified coach.", "En obisk s certificiranim trenerjem.")
+    offer.productType.uppercase(Locale.getDefault()) == "PACK" -> walletTr(languageCode, "${offerVisitCountShortLabel(offer.usageLimit)} to use anytime, any location.", "${offerVisitCountShortLabel(offer.usageLimit, languageCode)} za uporabo kadarkoli in kjerkoli.")
+    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> walletTr(languageCode, "Unlimited classes, all locations.", "Neomejeni obiski na vseh lokacijah.")
+    else -> walletTr(languageCode, "One class. Any time, any location.", "En obisk. Kadarkoli, kjerkoli.")
 }
 
 private fun marketplaceOfferAccent(offer: WalletOfferCard, index: Int): Color = when {
@@ -2899,7 +2980,13 @@ private fun marketplaceOfferAccent(offer: WalletOfferCard, index: Int): Color = 
 private enum class BuyCategory(val title: String) {
     Packs("Packs"),
     Memberships("Memberships"),
-    GiftCards("Gift Cards")
+    GiftCards("Gift Cards");
+
+    fun localizedTitle(languageCode: String): String = when (this) {
+        Packs -> walletTr(languageCode, "Packs", "Paketi")
+        Memberships -> walletTr(languageCode, "Memberships", "Članarine")
+        GiftCards -> walletTr(languageCode, "Gift Cards", "Darilne kartice")
+    }
 }
 
 private fun buyCategoriesForOffers(offers: List<WalletOfferCard>): List<BuyCategory> {
@@ -3081,10 +3168,10 @@ private fun paymentMethodsSentence(methods: List<String>): String {
     }
 }
 
-private fun paymentMethodDisplayName(method: String): String = when (method) {
-    "CARD" -> "Card"
+private fun paymentMethodDisplayName(method: String, languageCode: String = "en"): String = when (method) {
+    "CARD" -> walletTr(languageCode, "Card", "Kartica")
     "PAYPAL" -> "PayPal"
-    "BANK_TRANSFER" -> "Bank transfer"
+    "BANK_TRANSFER" -> walletTr(languageCode, "Bank transfer", "Bančno nakazilo")
     else -> method.replace('_', ' ').lowercase(Locale.getDefault()).replaceFirstChar { it.uppercase() }
 }
 
@@ -3094,6 +3181,7 @@ private fun BuyCategoryFilterRow(
     selected: BuyCategory,
     offers: List<WalletOfferCard>,
     onSelect: (BuyCategory) -> Unit,
+    languageCode: String = "en",
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -3123,7 +3211,7 @@ private fun BuyCategoryFilterRow(
                 ) {
                     BuyCategoryIcon(category = category, active = active)
                     Text(
-                        text = category.title,
+                        text = category.localizedTitle(languageCode),
                         color = if (active) Color.White else WalletInk,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
@@ -3189,7 +3277,8 @@ private fun buyOfferStyle(offer: WalletOfferCard): BuyOfferStyle = when {
 private fun BuyShopOfferCard(
     offer: WalletOfferCard,
     index: Int,
-    onBuyClick: () -> Unit
+    onBuyClick: () -> Unit,
+    languageCode: String = "en"
 ) {
     val style = buyOfferStyle(offer)
     val type = offer.productType.uppercase(Locale.getDefault())
@@ -3257,7 +3346,7 @@ private fun BuyShopOfferCard(
                             }
                         }
                         Text(
-                            text = offer.name.ifBlank { productTypeLabel(offer.productType) },
+                            text = offer.name.ifBlank { walletProductTypeLabel(offer.productType, languageCode) },
                             color = WalletInk,
                             fontSize = 21.sp,
                             lineHeight = 24.sp,
@@ -3484,9 +3573,9 @@ private fun buyOfferMetrics(offer: WalletOfferCard): List<Pair<String, String>> 
     )
 }
 
-private fun offerVisitCountShortLabel(limit: Int?): String = when {
-    limit == null || limit <= 1 -> "1 class"
-    else -> "$limit classes"
+private fun offerVisitCountShortLabel(limit: Int?, languageCode: String = "en"): String = when {
+    limit == null || limit <= 1 -> walletTr(languageCode, "1 class", "1 obisk")
+    else -> walletTr(languageCode, "$limit classes", "$limit obiskov")
 }
 
 private fun offerValidityShortLabel(days: Int?): String = when {
@@ -4095,6 +4184,7 @@ private fun PromoChip(text: String) {
 @Composable
 private fun BuyPaymentSheet(
     offer: WalletOfferCard,
+    languageCode: String,
     availableMethods: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
@@ -4114,7 +4204,7 @@ private fun BuyPaymentSheet(
                 .padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Choose a payment method", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(walletTr(languageCode, "Choose a payment method", "Izberite način plačila"), fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text(
                 text = "${offer.name} • ${formatPrice(offer.priceGross)} ${offer.currency}",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -4122,6 +4212,7 @@ private fun BuyPaymentSheet(
             methods.forEach { method ->
                 PaymentMethodRow(
                     method = method,
+                    languageCode = languageCode,
                     selected = selected == method,
                     onSelect = { selected = method }
                 )
@@ -4132,15 +4223,15 @@ private fun BuyPaymentSheet(
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = WalletBlue, contentColor = Color.White)
             ) {
-                Text("Continue", fontWeight = FontWeight.SemiBold)
+                Text(walletTr(languageCode, "Continue", "Nadaljuj"), fontWeight = FontWeight.SemiBold)
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(walletTr(languageCode, "Cancel", "Prekliči")) }
         }
     }
 }
 
 @Composable
-private fun PaymentMethodRow(method: String, selected: Boolean, onSelect: () -> Unit) {
+private fun PaymentMethodRow(method: String, languageCode: String, selected: Boolean, onSelect: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -4157,24 +4248,24 @@ private fun PaymentMethodRow(method: String, selected: Boolean, onSelect: () -> 
             RadioButton(selected = selected, onClick = onSelect)
             Spacer(Modifier.width(4.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = paymentMethodLabel(method), fontWeight = FontWeight.SemiBold)
-                Text(text = paymentMethodHelper(method), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = paymentMethodLabel(method, languageCode), fontWeight = FontWeight.SemiBold)
+                Text(text = paymentMethodHelper(method, languageCode), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
 }
 
-private fun paymentMethodLabel(method: String): String = when (method) {
-    "CARD" -> "Credit or debit card"
+private fun paymentMethodLabel(method: String, languageCode: String = "en"): String = when (method) {
+    "CARD" -> walletTr(languageCode, "Credit or debit card", "Kreditna ali debetna kartica")
     "PAYPAL" -> "PayPal"
-    "BANK_TRANSFER" -> "Bank transfer"
+    "BANK_TRANSFER" -> walletTr(languageCode, "Bank transfer", "Bančno nakazilo")
     else -> method
 }
 
-private fun paymentMethodHelper(method: String): String = when (method) {
-    "CARD" -> "Instant confirmation"
-    "PAYPAL" -> "Redirects to PayPal"
-    "BANK_TRANSFER" -> "Pay with reference code; activated after reconciliation"
+private fun paymentMethodHelper(method: String, languageCode: String = "en"): String = when (method) {
+    "CARD" -> walletTr(languageCode, "Instant confirmation", "Takojšnja potrditev")
+    "PAYPAL" -> walletTr(languageCode, "Redirects to PayPal", "Preusmeritev na PayPal")
+    "BANK_TRANSFER" -> walletTr(languageCode, "Pay with reference code; activated after reconciliation", "Plačajte s sklicem; aktivacija po uskladitvi")
     else -> ""
 }
 
@@ -4184,7 +4275,9 @@ private fun paymentMethodHelper(method: String): String = when (method) {
 @Composable
 private fun OrdersPanel(
     orders: List<WalletOrder>,
+    languageCode: String,
     tenantName: String?,
+    onGoToBuy: () -> Unit,
     onViewReceipt: (WalletOrder) -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
@@ -4198,10 +4291,14 @@ private fun OrdersPanel(
     }
 
     if (orders.isEmpty()) {
-        EmptyState(
-            icon = Icons.AutoMirrored.Outlined.ReceiptLong,
-            title = "No orders yet",
-            subtitle = "Purchases made on the Buy tab will appear here with their invoice status."
+        WalletShowcaseEmptyState(
+            art = WalletEmptyArt.Orders,
+            title = walletTr(languageCode, "No orders yet", "Naročil še ni"),
+            subtitle = walletTr(languageCode, "Completed purchases from the Buy tab will appear here once you place your first order.", "Zaključeni nakupi iz zavihka Nakup bodo prikazani tukaj po prvem naročilu."),
+            primaryButtonText = walletTr(languageCode, "Go to Buy", "Pojdi na nakup"),
+            footerText = walletTr(languageCode, "Explore packs, tickets and memberships in the Buy tab.", "Oglejte si pakete, vstopnice in članarine v zavihku Nakup."),
+            footerIcon = Icons.Outlined.ShoppingBag,
+            onPrimaryClick = onGoToBuy
         )
         return
     }
@@ -4214,6 +4311,7 @@ private fun OrdersPanel(
         item {
             WalletOrderFilterRow(
                 selected = selectedFilter,
+                languageCode = languageCode,
                 onSelected = { selectedFilter = it },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -4239,9 +4337,9 @@ private fun OrdersPanel(
                             tint = WalletBlueSoft,
                             modifier = Modifier.size(40.dp)
                         )
-                        Text("No $selectedFilter orders", color = Color(0xFF071C4D), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(walletTr(languageCode, "No $selectedFilter orders", "Ni naročil: ${walletFilterDisplay(selectedFilter, languageCode)}"), color = Color(0xFF071C4D), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text(
-                            "Orders matching this status will appear here.",
+                            walletTr(languageCode, "Orders matching this status will appear here.", "Tukaj bodo prikazana naročila s tem statusom."),
                             color = Color(0xFF53617C),
                             textAlign = TextAlign.Center,
                             fontSize = 14.sp
@@ -4253,6 +4351,7 @@ private fun OrdersPanel(
             items(visibleOrders, key = { order -> order.orderId }) { order ->
                 WalletOrderReceiptCard(
                     order = order,
+                    languageCode = languageCode,
                     tenantName = tenantName,
                     onPaymentInstructions = { paymentInstructionsOrder = order },
                     onViewReceipt = { onViewReceipt(order) }
@@ -4263,6 +4362,7 @@ private fun OrdersPanel(
     paymentInstructionsOrder?.let { selectedOrder ->
         WalletPaymentInstructionsDialog(
             order = selectedOrder,
+            languageCode = languageCode,
             tenantName = tenantName,
             onDismiss = { paymentInstructionsOrder = null }
         )
@@ -4272,6 +4372,7 @@ private fun OrdersPanel(
 @Composable
 private fun WalletOrderFilterRow(
     selected: String,
+    languageCode: String,
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -4323,9 +4424,9 @@ private data class WalletOrderStatusStyle(
     val cardBorder: Color
 )
 
-private fun walletOrderStatusStyle(status: OrderChipStatus): WalletOrderStatusStyle = when (status) {
+private fun walletOrderStatusStyle(status: OrderChipStatus, languageCode: String = "en"): WalletOrderStatusStyle = when (status) {
     OrderChipStatus.Completed -> WalletOrderStatusStyle(
-        label = "Paid",
+        label = walletTr(languageCode, "Paid", "Plačano"),
         fg = Color(0xFF0B9E61),
         bg = Color(0xFFDFF4E9),
         icon = Icons.Rounded.CheckCircle,
@@ -4334,7 +4435,7 @@ private fun walletOrderStatusStyle(status: OrderChipStatus): WalletOrderStatusSt
         cardBorder = WalletLine
     )
     OrderChipStatus.Pending -> WalletOrderStatusStyle(
-        label = "Pending",
+        label = walletTr(languageCode, "Pending", "V čakanju"),
         fg = Color(0xFFB96800),
         bg = Color(0xFFFFF2DE),
         icon = Icons.Rounded.Schedule,
@@ -4343,7 +4444,7 @@ private fun walletOrderStatusStyle(status: OrderChipStatus): WalletOrderStatusSt
         cardBorder = Color(0xFFE6892D).copy(alpha = 0.62f)
     )
     OrderChipStatus.Refunded -> WalletOrderStatusStyle(
-        label = "Refunded",
+        label = walletTr(languageCode, "Refunded", "Vračilo"),
         fg = Color(0xFF5D687A),
         bg = Color(0xFFEFF1F4),
         icon = Icons.Rounded.Replay,
@@ -4353,17 +4454,33 @@ private fun walletOrderStatusStyle(status: OrderChipStatus): WalletOrderStatusSt
     )
 }
 
-private fun orderStatusLabel(status: OrderChipStatus): String = walletOrderStatusStyle(status).label
+private fun orderStatusLabel(status: OrderChipStatus): String = when (status) {
+    OrderChipStatus.Completed -> "Paid"
+    OrderChipStatus.Pending -> "Pending"
+    OrderChipStatus.Refunded -> "Refunded"
+}
+
+private fun walletStatusDisplay(status: String, languageCode: String): String = when (status) {
+    "Active" -> walletTr(languageCode, "Active", "Aktivno")
+    "Inactive" -> walletTr(languageCode, "Inactive", "Neaktivno")
+    "Expired" -> walletTr(languageCode, "Expired", "Poteklo")
+    "Used up" -> walletTr(languageCode, "Used up", "Porabljeno")
+    "Cancelled" -> walletTr(languageCode, "Cancelled", "Preklicano")
+    "Pending" -> walletTr(languageCode, "Pending", "V čakanju")
+    "Ready" -> walletTr(languageCode, "Ready", "Pripravljeno")
+    else -> status
+}
 
 @Composable
 private fun WalletOrderReceiptCard(
     order: WalletOrder,
+    languageCode: String,
     tenantName: String?,
     onPaymentInstructions: () -> Unit,
     onViewReceipt: () -> Unit
 ) {
     val status = resolveOrderStatus(order)
-    val style = walletOrderStatusStyle(status)
+    val style = walletOrderStatusStyle(status, languageCode)
     val isPendingTransfer = status == OrderChipStatus.Pending && order.paymentMethodType.equals("BANK_TRANSFER", ignoreCase = true)
     val reference = order.referenceCode?.takeIf { it.isNotBlank() } ?: "ORD-${order.orderId.takeLast(8)}"
     val displayOrderId = order.invoiceOrderId?.takeIf { it.isNotBlank() } ?: reference
@@ -4410,7 +4527,7 @@ private fun WalletOrderReceiptCard(
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = order.productName?.takeIf { it.isNotBlank() } ?: "Order",
+                            text = order.productName?.takeIf { it.isNotBlank() } ?: walletTr(languageCode, "Order", "Naročilo"),
                             color = WalletInk,
                             fontSize = 18.sp,
                             lineHeight = 21.sp,
@@ -4433,7 +4550,7 @@ private fun WalletOrderReceiptCard(
                         modifier = Modifier.widthIn(min = 92.dp)
                     ) {
                         WalletOrderStatusPill(style = style)
-                        Text("Total", color = WalletMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text(walletTr(languageCode, "Total", "Skupaj"), color = WalletMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                         Text(
                             amount,
                             color = WalletInk,
@@ -4453,17 +4570,17 @@ private fun WalletOrderReceiptCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    WalletOrderMetric(label = "Order ID", value = displayOrderId, modifier = Modifier.weight(1.0f))
+                    WalletOrderMetric(label = walletTr(languageCode, "Order ID", "ID naročila"), value = displayOrderId, modifier = Modifier.weight(1.0f))
                     Box(Modifier.width(1.dp).height(36.dp).background(WalletLine.copy(alpha = 0.72f)))
-                    WalletOrderMetric(label = "Ordered on", value = formatOrderDateShort(order.createdAt).ifBlank { "—" }, modifier = Modifier.weight(1.0f))
+                    WalletOrderMetric(label = walletTr(languageCode, "Ordered on", "Datum naročila"), value = formatOrderDateShort(order.createdAt).ifBlank { "—" }, modifier = Modifier.weight(1.0f))
                     Box(Modifier.width(1.dp).height(36.dp).background(WalletLine.copy(alpha = 0.72f)))
-                    WalletOrderMetric(label = "Payment method", value = walletOrderPaymentLabel(order.paymentMethodType), modifier = Modifier.weight(1.15f))
+                    WalletOrderMetric(label = walletTr(languageCode, "Payment method", "Način plačila"), value = walletOrderPaymentLabel(order.paymentMethodType, languageCode), modifier = Modifier.weight(1.15f))
                 }
 
                 if (isPendingTransfer) {
-                    WalletPendingTransferCallout(onPaymentInstructions = onPaymentInstructions)
+                    WalletPendingTransferCallout(languageCode = languageCode, onPaymentInstructions = onPaymentInstructions)
                 } else {
-                    WalletViewReceiptRow(onClick = onViewReceipt)
+                    WalletViewReceiptRow(languageCode = languageCode, onClick = onViewReceipt)
                 }
             }
         }
@@ -4534,7 +4651,7 @@ private fun WalletOrderStatusPill(style: WalletOrderStatusStyle) {
 }
 
 @Composable
-private fun WalletPendingTransferCallout(onPaymentInstructions: () -> Unit) {
+private fun WalletPendingTransferCallout(languageCode: String, onPaymentInstructions: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -4555,7 +4672,7 @@ private fun WalletPendingTransferCallout(onPaymentInstructions: () -> Unit) {
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Awaiting transfer",
+                    text = walletTr(languageCode, "Awaiting transfer", "Čakamo nakazilo"),
                     color = Color(0xFFB96800),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold
@@ -4573,7 +4690,7 @@ private fun WalletPendingTransferCallout(onPaymentInstructions: () -> Unit) {
                 shadowElevation = 0.dp
             ) {
                 Text(
-                    text = "Payment instructions",
+                    text = walletTr(languageCode, "Payment instructions", "Navodila za plačilo"),
                     color = Color.White,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -4588,6 +4705,7 @@ private fun WalletPendingTransferCallout(onPaymentInstructions: () -> Unit) {
 @Composable
 private fun WalletPaymentInstructionsDialog(
     order: WalletOrder,
+    languageCode: String,
     tenantName: String?,
     onDismiss: () -> Unit
 ) {
@@ -4597,9 +4715,9 @@ private fun WalletPaymentInstructionsDialog(
         ?: "ORD-${order.orderId.takeLast(8)}"
     val companyName = order.paymentCompanyName?.takeIf { it.isNotBlank() }
         ?: tenantName?.takeIf { it.isNotBlank() }
-        ?: "Company name unavailable"
-    val companyAddress = order.paymentCompanyAddress?.takeIf { it.isNotBlank() } ?: "Address unavailable"
-    val iban = order.paymentIban?.takeIf { it.isNotBlank() } ?: "IBAN unavailable"
+        ?: walletTr(languageCode, "Company name unavailable", "Ime podjetja ni na voljo")
+    val companyAddress = order.paymentCompanyAddress?.takeIf { it.isNotBlank() } ?: walletTr(languageCode, "Address unavailable", "Naslov ni na voljo")
+    val iban = order.paymentIban?.takeIf { it.isNotBlank() } ?: walletTr(languageCode, "IBAN unavailable", "IBAN ni na voljo")
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -4617,28 +4735,30 @@ private fun WalletPaymentInstructionsDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Payment instructions",
+                    text = walletTr(languageCode, "Payment instructions", "Navodila za plačilo"),
                     color = Color(0xFF071C4D),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    text = "Use these details to complete your bank transfer.",
+                    text = walletTr(languageCode, "Use these details to complete your bank transfer.", "Uporabite te podatke za izvedbo bančnega nakazila."),
                     color = Color(0xFF53617C),
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
                     fontWeight = FontWeight.Medium
                 )
 
-                WalletInstructionRow(label = "Company", value = companyName)
-                WalletInstructionRow(label = "Address", value = companyAddress)
+                WalletInstructionRow(label = walletTr(languageCode, "Company", "Podjetje"), value = companyName)
+                WalletInstructionRow(label = walletTr(languageCode, "Address", "Naslov"), value = companyAddress)
                 WalletInstructionRowWithCopy(
                     label = "IBAN",
+                    languageCode = languageCode,
                     value = iban,
                     onCopy = { clipboardManager.setText(AnnotatedString(iban)) }
                 )
                 WalletInstructionRowWithCopy(
-                    label = "Reference",
+                    label = walletTr(languageCode, "Reference", "Sklic"),
+                    languageCode = languageCode,
                     value = reference,
                     onCopy = { clipboardManager.setText(AnnotatedString(reference)) }
                 )
@@ -4647,7 +4767,7 @@ private fun WalletPaymentInstructionsDialog(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Close", fontWeight = FontWeight.SemiBold)
+                    Text(walletTr(languageCode, "Close", "Zapri"), fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -4676,6 +4796,7 @@ private fun WalletInstructionRow(label: String, value: String) {
 @Composable
 private fun WalletInstructionRowWithCopy(
     label: String,
+    languageCode: String,
     value: String,
     onCopy: () -> Unit
 ) {
@@ -4725,7 +4846,7 @@ private fun WalletInstructionRowWithCopy(
                     modifier = Modifier.size(15.dp)
                 )
                 Text(
-                    text = "Copy",
+                    text = walletTr(languageCode, "Copy", "Kopiraj"),
                     color = Color(0xFF0067F5),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -4736,7 +4857,7 @@ private fun WalletInstructionRowWithCopy(
 }
 
 @Composable
-private fun WalletViewReceiptRow(onClick: () -> Unit) {
+private fun WalletViewReceiptRow(languageCode: String, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -4759,7 +4880,7 @@ private fun WalletViewReceiptRow(onClick: () -> Unit) {
             )
             Spacer(Modifier.width(9.dp))
             Text(
-                text = "View receipt",
+                text = walletTr(languageCode, "View receipt", "Ogled računa"),
                 color = Color(0xFF0067F5),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -4775,13 +4896,13 @@ private fun WalletViewReceiptRow(onClick: () -> Unit) {
     }
 }
 
-private fun walletOrderPaymentLabel(raw: String?): String = when (raw?.uppercase(Locale.getDefault())) {
-    "BANK_TRANSFER" -> "Bank transfer"
-    "CARD" -> "Card"
+private fun walletOrderPaymentLabel(raw: String?, languageCode: String = "en"): String = when (raw?.uppercase(Locale.getDefault())) {
+    "BANK_TRANSFER" -> walletTr(languageCode, "Bank transfer", "Bančno nakazilo")
+    "CARD" -> walletTr(languageCode, "Card", "Kartica")
     "PAYPAL" -> "PayPal"
-    "OTHER" -> "Other"
-    "ENTITLEMENT" -> "Entitlement"
-    "GIFT_CARD" -> "Gift card"
+    "OTHER" -> walletTr(languageCode, "Other", "Drugo")
+    "ENTITLEMENT" -> walletTr(languageCode, "Entitlement", "Vstopnica")
+    "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
     else -> raw?.replace('_', ' ')?.lowercase(Locale.getDefault())?.replaceFirstChar { it.titlecase(Locale.getDefault()) } ?: "—"
 }
 
@@ -4829,6 +4950,115 @@ private fun StatusChip(status: OrderChipStatus) {
 }
 
 // ---------- Utilities ----------
+
+private enum class WalletEmptyArt { Entitlements, Buy, Orders }
+
+@Composable
+private fun WalletShowcaseEmptyState(
+    art: WalletEmptyArt,
+    title: String,
+    subtitle: String,
+    primaryButtonText: String,
+    footerText: String,
+    footerIcon: ImageVector,
+    onPrimaryClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(30.dp),
+            color = Color.White,
+            tonalElevation = 0.dp,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                WalletShowcaseIllustration(art = art)
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    title,
+                    color = Color(0xFF0E2558),
+                    fontSize = 28.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    subtitle,
+                    color = WalletMuted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                Spacer(Modifier.height(22.dp))
+                Button(
+                    onClick = onPrimaryClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1568F4), contentColor = Color.White)
+                ) {
+                    Text(primaryButtonText, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Surface(
+                        modifier = Modifier.size(42.dp),
+                        shape = CircleShape,
+                        color = Color(0xFFF1F5FD),
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(footerIcon, contentDescription = null, tint = Color(0xFF1568F4), modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Text(
+                        footerText,
+                        color = WalletMuted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WalletShowcaseIllustration(art: WalletEmptyArt) {
+    val illustrationRes = when (art) {
+        WalletEmptyArt.Entitlements -> R.drawable.wallet_empty_entitlements_illustration
+        WalletEmptyArt.Buy -> R.drawable.wallet_empty_buy_illustration
+        WalletEmptyArt.Orders -> R.drawable.wallet_empty_orders_illustration
+    }
+
+    Image(
+        painter = painterResource(id = illustrationRes),
+        contentDescription = null,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(250.dp),
+        contentScale = ContentScale.Fit
+    )
+}
 
 @Composable
 private fun EmptyState(icon: ImageVector, title: String, subtitle: String) {

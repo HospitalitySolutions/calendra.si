@@ -137,7 +137,7 @@ struct LoginView: View {
                         .contentShape(Circle())
                 }
                 .accessibilityLabel(isSl ? "Jezik" : "Language")
-                .position(x: width * 0.76 + (width * 0.112 / 2), y: height * 0.17 + (width * 0.112 / 2))
+                .position(x: width * 0.76 + (width * 0.112 / 2), y: height * 0.198 + (width * 0.112 / 2))
 
                 Text(isSl ? "DOBRODOŠLI NAZAJ" : "WELCOME BACK")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -184,7 +184,7 @@ struct LoginView: View {
                         if store.linkedTenants.isEmpty { onRequireJoin() } else { onLoginSuccess() }
                     }
                 } label: {
-                    Text(isSl ? "Prijava" : "Login")
+                    Text(isSl ? "Prijava" : "Sign in")
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -197,7 +197,7 @@ struct LoginView: View {
 
                 HStack(spacing: 22) {
                     Rectangle().fill(Color(red: 0.87, green: 0.90, blue: 0.94)).frame(height: 1)
-                    Text("OR")
+                    Text(isSl ? "ALI" : "OR")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color(red: 0.49, green: 0.54, blue: 0.64))
                     Rectangle().fill(Color(red: 0.87, green: 0.90, blue: 0.94)).frame(height: 1)

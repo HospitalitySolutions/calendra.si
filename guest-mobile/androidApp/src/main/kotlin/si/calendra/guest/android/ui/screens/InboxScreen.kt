@@ -69,6 +69,11 @@ data class AttachmentSource(
     val sizeBytes: Long
 )
 
+private fun inboxIsSl(languageCode: String): Boolean = languageCode.lowercase(Locale.ROOT).startsWith("sl")
+
+private fun inboxTr(languageCode: String, en: String, sl: String): String =
+    if (inboxIsSl(languageCode)) sl else en
+
 @Composable
 fun InboxScreen(
     tenantName: String?,
@@ -77,7 +82,8 @@ fun InboxScreen(
     onOpenAttachment: (GuestInboxAttachment) -> Unit = {},
     loadAttachmentPreview: suspend (GuestInboxAttachment) -> Bitmap? = { null },
     uploadAttachment: suspend (AttachmentSource) -> GuestInboxUploadedAttachment = { error("Upload is not wired") },
-    discardAttachment: suspend (Long) -> Unit = {}
+    discardAttachment: suspend (Long) -> Unit = {},
+    languageCode: String = "en"
 ) {
     var draft by remember { mutableStateOf("") }
     val pendingAttachments = remember { mutableStateListOf<PendingInboxAttachment>() }
@@ -112,7 +118,7 @@ fun InboxScreen(
                     )
                 },
                 onFailure = { throwable ->
-                    current.copy(isUploading = false, errorMessage = throwable.message ?: "Upload failed")
+                    current.copy(isUploading = false, errorMessage = throwable.message ?: inboxTr(languageCode, "Upload failed", "Nalaganje ni uspelo"))
                 }
             )
         }
@@ -150,9 +156,9 @@ fun InboxScreen(
         ) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (messages.isEmpty()) {
-                    EmptyInboxState(modifier = Modifier.align(Alignment.Center))
+                    EmptyInboxState(languageCode = languageCode, modifier = Modifier.align(Alignment.Center))
                 } else {
-                    val entries = remember(messages) { buildChatEntries(messages) }
+                    val entries = remember(messages, languageCode) { buildChatEntries(messages, languageCode) }
                     val reversedEntries = remember(entries) { entries.asReversed() }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -166,7 +172,8 @@ fun InboxScreen(
                                 is ChatEntry.Msg -> MessageBubble(
                                     message = entry.message,
                                     onOpenAttachment = onOpenAttachment,
-                                    loadAttachmentPreview = loadAttachmentPreview
+                                    loadAttachmentPreview = loadAttachmentPreview,
+                                    languageCode = languageCode
                                 )
                             }
                         }
@@ -193,6 +200,7 @@ fun InboxScreen(
                         scope.launch { runCatching { discardAttachment(uploadedId) } }
                     }
                 },
+                languageCode = languageCode,
                 onSendClick = {
                     val body = draft.trim()
                     val ids = pendingAttachments.mapNotNull { it.uploadedId }
@@ -220,7 +228,7 @@ private fun InboxSubtleBackground(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun EmptyInboxState(modifier: Modifier = Modifier) {
+private fun EmptyInboxState(languageCode: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -276,14 +284,14 @@ private fun EmptyInboxState(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Your inbox is empty",
+                text = inboxTr(languageCode, "Your inbox is empty", "Vaš nabiralnik je prazen"),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color(0xFF071D3A),
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "No messages yet. Start the conversation\nfrom the web app or send the first\nreply here.",
+                text = inboxTr(languageCode, "No messages yet. Start the conversation\nfrom the web app or send the first\nreply here.", "Sporočil še ni. Začnite pogovor\nv spletni aplikaciji ali pošljite\nprvi odgovor tukaj."),
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color(0xFF62738A),
                 textAlign = TextAlign.Center
@@ -294,6 +302,7 @@ private fun EmptyInboxState(modifier: Modifier = Modifier) {
 
 @Composable
 private fun InboxComposerBar(
+    languageCode: String,
     draft: String,
     onDraftChange: (String) -> Unit,
     pendingAttachments: List<PendingInboxAttachment>,
@@ -328,6 +337,7 @@ private fun InboxComposerBar(
                         items(pendingAttachments, key = { it.localId }) { pending ->
                             PendingAttachmentChip(
                                 pending = pending,
+                                languageCode = languageCode,
                                 onRemove = { onRemovePending(pending) }
                             )
                         }
@@ -356,7 +366,7 @@ private fun InboxComposerBar(
                             decorationBox = { innerTextField ->
                                 if (draft.isEmpty()) {
                                     Text(
-                                        "Message",
+                                        inboxTr(languageCode, "Message", "Sporočilo"),
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = Color(0xFF607188)
                                     )
@@ -372,7 +382,7 @@ private fun InboxComposerBar(
                     ) {
                         Icon(
                             Icons.Outlined.AttachFile,
-                            contentDescription = "Attach file",
+                            contentDescription = inboxTr(languageCode, "Attach file", "Priloži datoteko"),
                             tint = Color(0xFF4E627A)
                         )
                     }
@@ -383,7 +393,7 @@ private fun InboxComposerBar(
                     ) {
                         Icon(
                             Icons.Outlined.PhotoLibrary,
-                            contentDescription = "Attach photo",
+                            contentDescription = inboxTr(languageCode, "Attach photo", "Priloži fotografijo"),
                             tint = Color(0xFF4E627A)
                         )
                     }
@@ -404,7 +414,7 @@ private fun InboxComposerBar(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Send,
-                contentDescription = "Send",
+                contentDescription = inboxTr(languageCode, "Send", "Pošlji"),
                 modifier = Modifier.size(26.dp)
             )
         }
@@ -414,6 +424,7 @@ private fun InboxComposerBar(
 @Composable
 private fun PendingAttachmentChip(
     pending: PendingInboxAttachment,
+    languageCode: String,
     onRemove: () -> Unit
 ) {
     val background = when {
@@ -462,7 +473,7 @@ private fun PendingAttachmentChip(
                 )
                 val subtitle = when {
                     pending.errorMessage != null -> pending.errorMessage
-                    pending.isUploading -> "Uploading…"
+                    pending.isUploading -> inboxTr(languageCode, "Uploading…", "Nalaganje…")
                     else -> pending.sizeBytes.takeIf { it > 0 }?.let { humanSize(it) }
                 }
                 if (!subtitle.isNullOrBlank()) {
@@ -476,7 +487,7 @@ private fun PendingAttachmentChip(
                 }
             }
             IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Outlined.Close, contentDescription = "Remove", tint = foreground)
+                Icon(Icons.Outlined.Close, contentDescription = inboxTr(languageCode, "Remove", "Odstrani"), tint = foreground)
             }
         }
     }
@@ -516,7 +527,8 @@ private fun resolveAttachmentSource(context: android.content.Context, uri: Uri):
 private fun InboxAttachmentCard(
     attachment: GuestInboxAttachment,
     onOpen: () -> Unit,
-    loadAttachmentPreview: suspend (GuestInboxAttachment) -> Bitmap?
+    loadAttachmentPreview: suspend (GuestInboxAttachment) -> Bitmap?,
+    languageCode: String
 ) {
     val previewState by produceState<Bitmap?>(initialValue = null, key1 = attachment.id, key2 = attachment.updatedPreviewKey()) {
         value = if (attachment.isImageAttachment()) loadAttachmentPreview(attachment) else null
@@ -539,7 +551,7 @@ private fun InboxAttachmentCard(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    AttachmentPlaceholder(label = "IMAGE", icon = { Icon(Icons.Outlined.Image, contentDescription = null) })
+                    AttachmentPlaceholder(label = inboxTr(languageCode, "IMAGE", "SLIKA"), icon = { Icon(Icons.Outlined.Image, contentDescription = null) })
                 }
             }
             Row(
@@ -581,7 +593,7 @@ private fun InboxAttachmentCard(
                     }
                 }
                 Text(
-                    text = if (isImage) "Preview" else "Open",
+                    text = if (isImage) inboxTr(languageCode, "Preview", "Predogled") else inboxTr(languageCode, "Open", "Odpri"),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -673,13 +685,13 @@ private fun formatMessageClock(message: GuestInboxMessage): String {
     return String.format(Locale.US, "%02d:%02d", local.hour, local.minute)
 }
 
-private fun formatDateHeader(date: java.time.LocalDate, today: java.time.LocalDate): String = when {
-    date == today -> "Today"
-    date == today.minusDays(1) -> "Yesterday"
+private fun formatDateHeader(date: java.time.LocalDate, today: java.time.LocalDate, languageCode: String): String = when {
+    date == today -> inboxTr(languageCode, "Today", "Danes")
+    date == today.minusDays(1) -> inboxTr(languageCode, "Yesterday", "Včeraj")
     else -> date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
 }
 
-private fun buildChatEntries(messages: List<GuestInboxMessage>): List<ChatEntry> {
+private fun buildChatEntries(messages: List<GuestInboxMessage>, languageCode: String): List<ChatEntry> {
     if (messages.isEmpty()) return emptyList()
     val today = java.time.LocalDate.now()
     val result = mutableListOf<ChatEntry>()
@@ -687,7 +699,7 @@ private fun buildChatEntries(messages: List<GuestInboxMessage>): List<ChatEntry>
     for (m in messages) {
         val date = messageLocalDate(m)
         if (date != null && date != lastDate) {
-            result += ChatEntry.DateHeader(date, formatDateHeader(date, today))
+            result += ChatEntry.DateHeader(date, formatDateHeader(date, today, languageCode))
             lastDate = date
         }
         result += ChatEntry.Msg(m)
@@ -720,7 +732,8 @@ private fun DateSeparator(label: String) {
 private fun MessageBubble(
     message: GuestInboxMessage,
     onOpenAttachment: (GuestInboxAttachment) -> Unit,
-    loadAttachmentPreview: suspend (GuestInboxAttachment) -> Bitmap?
+    loadAttachmentPreview: suspend (GuestInboxAttachment) -> Bitmap?,
+    languageCode: String
 ) {
     val isStaff = message.direction == "OUTBOUND"
     val bubbleColor = if (isStaff) Color.White.copy(alpha = 0.96f) else Color(0xFFEAF3FF)
@@ -755,7 +768,8 @@ private fun MessageBubble(
                         InboxAttachmentCard(
                             attachment = attachment,
                             onOpen = { onOpenAttachment(attachment) },
-                            loadAttachmentPreview = loadAttachmentPreview
+                            loadAttachmentPreview = loadAttachmentPreview,
+                            languageCode = languageCode
                         )
                     }
                 }

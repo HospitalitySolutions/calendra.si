@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,11 +35,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -55,6 +59,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import si.calendra.guest.android.BuildConfig
+import si.calendra.guest.android.R
 import si.calendra.guest.android.auth.GoogleSignInManager
 import si.calendra.guest.android.files.GuestAttachmentManager
 import si.calendra.guest.android.payments.NativeCheckoutManager
@@ -612,6 +617,29 @@ fun GuestMobileRoot() {
                             }
                         }
                     },
+                    onGoogleSignup = {
+                        if (!signupSubmitting) {
+                            scope.launch {
+                                socialSignInOverlay = true
+                                try {
+                                    val manager = buildGoogleManager()
+                                    if (manager == null) {
+                                        statusMessage = "Google Sign-Up is unavailable in this context."
+                                        return@launch
+                                    }
+                                    manager.signInWithGoogleButton()
+                                        .onSuccess { idToken ->
+                                            runCatching { repo.loginWithGoogle(idToken) }
+                                                .onSuccess { session -> completeAuth(session) }
+                                                .onFailure { statusMessage = it.message ?: "Google sign-up failed" }
+                                        }
+                                        .onFailure { statusMessage = it.message ?: "Google Sign-Up failed" }
+                                } finally {
+                                    socialSignInOverlay = false
+                                }
+                            }
+                        }
+                    },
                     onBackToLogin = { navController.navigate(RootRoute.Login.route) }
                 )
             }
@@ -646,6 +674,7 @@ fun GuestMobileRoot() {
             composable(RootRoute.JoinTenant.route) {
                 JoinTenantScreen(
                     repository = repo,
+                    languageCode = appUiLocale,
                     subscribedTenantIds = state.uiState.linkedTenants.map { it.companyId }.toSet(),
                     onJoinWithCode = { code ->
                         scope.launch {
@@ -709,6 +738,7 @@ fun GuestMobileRoot() {
             composable(RootRoute.Home.route) {
                 GuestTabsScaffold(
                     current = RootRoute.Home.route,
+                    languageCode = appUiLocale,
                     utilityBarVisible = false,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
@@ -730,6 +760,7 @@ fun GuestMobileRoot() {
                         guestFirstName = state.uiState.session?.guestUser?.firstName,
                         bookings = aggregatedBookings(state.uiState),
                         accesses = aggregatedAccesses(state.uiState),
+                        languageCode = appUiLocale,
                         onChooseTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                         onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                         onBookNow = { requestTabNavigation(RootRoute.Book.route) },
@@ -760,6 +791,7 @@ fun GuestMobileRoot() {
             composable(RootRoute.Book.route) {
                 GuestTabsScaffold(
                     current = RootRoute.Book.route,
+                    languageCode = appUiLocale,
                     utilityBarVisible = false,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
@@ -778,6 +810,7 @@ fun GuestMobileRoot() {
                 ) { innerModifier ->
                     BookScreen(
                         modifier = innerModifier,
+                        languageCode = appUiLocale,
                         providers = state.uiState.linkedTenants.map { provider ->
                             ProviderOption(
                                 companyId = provider.companyId,
@@ -849,6 +882,7 @@ fun GuestMobileRoot() {
                 } else {
                     GuestTabsScaffold(
                         current = RootRoute.Home.route,
+                        languageCode = appUiLocale,
                         utilityBarVisible = false,
                         unreadNotificationCount = unreadBellCount(state.uiState),
                         unreadInboxCount = unreadInboxCount(state.uiState),
@@ -867,6 +901,7 @@ fun GuestMobileRoot() {
                     ) { innerModifier ->
                         BookScreen(
                             modifier = innerModifier,
+                            languageCode = appUiLocale,
                             providers = state.uiState.linkedTenants.map { provider ->
                                 ProviderOption(
                                     companyId = provider.companyId,
@@ -931,6 +966,7 @@ fun GuestMobileRoot() {
                 }
                 GuestTabsScaffold(
                     current = RootRoute.Wallet.route,
+                    languageCode = appUiLocale,
                     utilityBarVisible = false,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
@@ -953,8 +989,7 @@ fun GuestMobileRoot() {
                             accessCards = walletTenantId?.let { walletAccessesForTenant(state.uiState, it) }.orEmpty(),
                             offers = walletTenantId?.let { walletOffersForTenant(state.uiState, it) }.orEmpty(),
                             tenantPaymentMethods = walletTenantPaymentMethods,
-                            languageCode = state.uiState.session?.guestUser?.language?.takeIf { it.isNotBlank() }
-                                ?: "en",
+                            languageCode = appUiLocale,
                             tenantName = walletTenantName,
                             onOpenTenantPicker = { openWalletTabWithTenantSelection() },
                             onSubTabChanged = { nextSubTab ->
@@ -1048,6 +1083,7 @@ fun GuestMobileRoot() {
                         ?.publicPhone
                 GuestTabsScaffold(
                     current = RootRoute.Inbox.route,
+                    languageCode = appUiLocale,
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
@@ -1099,6 +1135,7 @@ fun GuestMobileRoot() {
                         InboxScreen(
                             tenantName = activeDashboard?.tenant?.companyName,
                             messages = activeDashboard?.inboxMessages.orEmpty(),
+                            languageCode = appUiLocale,
                             onSend = { body, attachmentFileIds ->
                                 val tenantId = activeTenantId
                                 if (tenantId == null) {
@@ -1237,6 +1274,7 @@ fun GuestMobileRoot() {
             composable(RootRoute.Profile.route) {
                 GuestTabsScaffold(
                     current = RootRoute.Profile.route,
+                    languageCode = appUiLocale,
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
@@ -1251,12 +1289,18 @@ fun GuestMobileRoot() {
                         qrScannerLauncher.launch(options)
                     },
                     onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
-                    onTabSelected = ::requestTabNavigation
+                    onTabSelected = ::requestTabNavigation,
+                    leading = { ProfileTopLogo() }
                 ) { innerModifier ->
                     Box(innerModifier) {
                         ProfileScreen(
                             session = state.uiState.session,
                             activeTenantId = state.uiState.selectedTenantId ?: state.uiState.linkedTenants.firstOrNull()?.companyId,
+                            languageCode = appUiLocale,
+                            onLanguageChanged = { code ->
+                                appUiLocale = code
+                                preferencesStore.saveAppUiLocale(code)
+                            },
                             onLoadProfileSettings = { companyId ->
                                 val settings = repo.profileSettings(companyId)
                                 state.uiState = state.uiState.copy(
@@ -1384,6 +1428,7 @@ fun GuestMobileRoot() {
 @Composable
 private fun GuestTabsScaffold(
     current: String,
+    languageCode: String,
     utilityBarVisible: Boolean,
     unreadNotificationCount: Int,
     unreadInboxCount: Int,
@@ -1400,6 +1445,7 @@ private fun GuestTabsScaffold(
         bottomBar = {
             BottomNavBar(
                 current = current,
+                languageCode = languageCode,
                 unreadInboxCount = unreadInboxCount,
                 onTabSelected = onTabSelected
             )
@@ -1413,6 +1459,7 @@ private fun GuestTabsScaffold(
             if (utilityBarVisible) {
                 GuestUtilityTopBar(
                     unreadNotificationCount = unreadNotificationCount,
+                    languageCode = languageCode,
                     onAddTenant = onAddTenant,
                     onScanTenant = onScanTenant,
                     onOpenNotifications = onOpenNotifications,
@@ -1430,6 +1477,7 @@ private fun GuestTabsScaffold(
 @Composable
 private fun GuestUtilityTopBar(
     unreadNotificationCount: Int,
+    languageCode: String,
     onAddTenant: () -> Unit,
     onScanTenant: () -> Unit,
     onOpenNotifications: () -> Unit,
@@ -1438,6 +1486,7 @@ private fun GuestUtilityTopBar(
     transparentBackground: Boolean = false,
     showAddAction: Boolean = true
 ) {
+    val isSl = languageCode.lowercase().startsWith("sl")
     val hasPhoneAction = leading != null
     val context = LocalContext.current
     var addMenuExpanded by remember { mutableStateOf(false) }
@@ -1471,7 +1520,7 @@ private fun GuestUtilityTopBar(
                     ) {
                         Icon(
                             Icons.Rounded.Phone,
-                            contentDescription = "Call tenancy",
+                            contentDescription = if (isSl) "Pokliči ponudnika" else "Call tenancy",
                             modifier = Modifier.size(24.dp),
                             tint = if (dialable) MaterialTheme.colorScheme.onSurface
                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -1485,21 +1534,21 @@ private fun GuestUtilityTopBar(
                         ) {
                             Icon(
                                 Icons.Rounded.Add,
-                                contentDescription = "Add tenancy",
+                                contentDescription = if (isSl) "Dodaj ponudnika" else "Add tenancy",
                                 modifier = Modifier.size(24.dp),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         DropdownMenu(expanded = addMenuExpanded, onDismissRequest = { addMenuExpanded = false }) {
                             DropdownMenuItem(
-                                text = { Text("Add code manually") },
+                                text = { Text(if (isSl) "Ročno dodaj kodo" else "Add code manually") },
                                 onClick = {
                                     addMenuExpanded = false
                                     onAddTenant()
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("QR scan") },
+                                text = { Text(if (isSl) "QR skeniranje" else "QR scan") },
                                 leadingIcon = { Icon(Icons.Rounded.QrCodeScanner, contentDescription = null) },
                                 onClick = {
                                     addMenuExpanded = false
@@ -1522,7 +1571,7 @@ private fun GuestUtilityTopBar(
                     ) {
                         Icon(
                             Icons.Rounded.NotificationsNone,
-                            contentDescription = "Notifications",
+                            contentDescription = if (isSl) "Obvestila" else "Notifications",
                             modifier = Modifier.size(24.dp),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
@@ -1531,6 +1580,18 @@ private fun GuestUtilityTopBar(
             }
         }
     }
+}
+
+@Composable
+private fun ProfileTopLogo() {
+    Image(
+        painter = painterResource(id = R.drawable.calendra_book_logo),
+        contentDescription = "Calendra Book",
+        modifier = Modifier
+            .height(38.dp)
+            .wrapContentWidth(Alignment.Start),
+        contentScale = ContentScale.Fit
+    )
 }
 
 @Composable
@@ -1645,14 +1706,16 @@ private val BottomTabBackground = Color.White
 @Composable
 private fun BottomNavBar(
     current: String,
+    languageCode: String,
     unreadInboxCount: Int,
     onTabSelected: (String) -> Unit
 ) {
+    val isSl = languageCode.lowercase().startsWith("sl")
     val sideItems = listOf(
-        Triple(RootRoute.Home.route, "Home", Icons.Rounded.Home),
-        Triple(RootRoute.Wallet.route, "Wallet", Icons.Rounded.Wallet),
-        Triple(RootRoute.Inbox.route, "Inbox", Icons.Rounded.Forum),
-        Triple(RootRoute.Profile.route, "Profile", Icons.Rounded.Person)
+        Triple(RootRoute.Home.route, if (isSl) "Domov" else "Home", Icons.Rounded.Home),
+        Triple(RootRoute.Wallet.route, if (isSl) "Denarnica" else "Wallet", Icons.Rounded.Wallet),
+        Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum),
+        Triple(RootRoute.Profile.route, if (isSl) "Profil" else "Profile", Icons.Rounded.Person)
     )
 
     Surface(
@@ -1688,6 +1751,7 @@ private fun BottomNavBar(
                 }
                 BookCenterItem(
                     selected = current == RootRoute.Book.route,
+                    label = if (isSl) "Rezerviraj" else "Book",
                     onClick = { onTabSelected(RootRoute.Book.route) },
                     modifier = Modifier.width(76.dp)
                 )
@@ -1707,7 +1771,7 @@ private fun BottomNavBar(
 }
 
 @Composable
-private fun BookCenterItem(selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun BookCenterItem(selected: Boolean, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clickable(onClick = onClick),
@@ -1724,15 +1788,15 @@ private fun BookCenterItem(selected: Boolean, onClick: () -> Unit, modifier: Mod
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     Icons.Rounded.Add,
-                    contentDescription = "Book",
+                    contentDescription = label,
                     modifier = Modifier.size(26.dp),
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
         Text(
-            "Book",
-            style = MaterialTheme.typography.labelMedium,
+            label,
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 10.sp),
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             color = if (selected) BottomTabAccent else BottomTabInactive
         )
@@ -1768,7 +1832,7 @@ private fun BottomItem(
             }
             Text(
                 label,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 10.sp),
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                 color = if (selected) BottomTabAccent else BottomTabInactive
             )

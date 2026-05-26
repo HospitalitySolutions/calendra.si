@@ -10,6 +10,14 @@ private let inboxDarkText = Color(red: 0.03, green: 0.12, blue: 0.24)
 private let inboxMutedText = Color(red: 0.36, green: 0.45, blue: 0.56)
 private let inboxBrandOrange = Color(red: 1.0, green: 0.58, blue: 0.00)
 
+private func inboxIsSl(_ languageCode: String) -> Bool {
+    languageCode.lowercased().hasPrefix("sl")
+}
+
+private func inboxTr(_ languageCode: String, _ en: String, _ sl: String) -> String {
+    inboxIsSl(languageCode) ? sl : en
+}
+
 private struct InboxSubtleBackground: View {
     var body: some View {
         GeometryReader { geo in
@@ -41,6 +49,8 @@ private struct InboxSubtleBackground: View {
 }
 
 private struct EmptyInboxStateView: View {
+    let languageCode: String
+
     var body: some View {
         VStack(spacing: 18) {
             ZStack {
@@ -66,11 +76,11 @@ private struct EmptyInboxStateView: View {
             .frame(width: 172, height: 172)
 
             VStack(spacing: 10) {
-                Text("Your inbox is empty")
+                Text(inboxTr(languageCode, "Your inbox is empty", "Vaš nabiralnik je prazen"))
                     .font(.system(size: 26, weight: .bold))
                     .foregroundColor(inboxDarkText)
                     .multilineTextAlignment(.center)
-                Text("No messages yet. Start the conversation\nfrom the web app or send the first\nreply here.")
+                Text(inboxTr(languageCode, "No messages yet. Start the conversation\nfrom the web app or send the first\nreply here.", "Sporočil še ni. Začnite pogovor\nv spletni aplikaciji ali pošljite\nprvi odgovor tukaj."))
                     .font(.system(size: 17, weight: .regular))
                     .lineSpacing(5)
                     .foregroundColor(inboxMutedText)
@@ -115,6 +125,7 @@ private struct AttachmentPreviewController: UIViewControllerRepresentable {
 
 private struct InboxAttachmentCard: View {
     @EnvironmentObject private var store: AppStore
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
     let companyId: String
     let attachment: GuestInboxAttachmentModel
@@ -154,7 +165,7 @@ private struct InboxAttachmentCard: View {
                             VStack(spacing: 8) {
                                 Image(systemName: "photo")
                                     .font(.system(size: 28, weight: .semibold))
-                                Text(isLoadingThumbnail ? "Loading preview…" : "Image preview")
+                                Text(isLoadingThumbnail ? inboxTr(appUiLocaleStorage, "Loading preview…", "Nalaganje predogleda…") : inboxTr(appUiLocaleStorage, "Image preview", "Predogled slike"))
                                     .font(.caption.weight(.semibold))
                             }
                             .foregroundColor(.secondary)
@@ -198,7 +209,7 @@ private struct InboxAttachmentCard: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Text(attachment.isImageAttachment ? "Preview" : "Open")
+                        Text(attachment.isImageAttachment ? inboxTr(appUiLocaleStorage, "Preview", "Predogled") : inboxTr(appUiLocaleStorage, "Open", "Odpri"))
                             .font(.caption.weight(.semibold))
                             .foregroundColor(.blue)
                     }
@@ -253,6 +264,7 @@ private struct PendingInboxAttachment: Identifiable {
 
 struct InboxView: View {
     @EnvironmentObject private var store: AppStore
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
     @State private var draft = ""
     @State private var previewItem: InboxAttachmentPreviewItem?
     @State private var openingAttachmentId: Int64?
@@ -331,7 +343,7 @@ struct InboxView: View {
         } else {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                EmptyInboxStateView()
+                EmptyInboxStateView(languageCode: appUiLocaleStorage)
                 Spacer(minLength: 28)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -464,7 +476,7 @@ struct InboxView: View {
                     }
                 }
                 HStack(alignment: .center, spacing: 4) {
-                    TextField("", text: $draft, prompt: Text("Message").foregroundColor(inboxMutedText))
+                    TextField("", text: $draft, prompt: Text(inboxTr(appUiLocaleStorage, "Message", "Sporočilo")).foregroundColor(inboxMutedText))
                         .textFieldStyle(.plain)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -537,7 +549,7 @@ struct InboxView: View {
         }()
         let subtitle: String? = {
             if let error = pending.errorMessage { return error }
-            if pending.isUploading { return "Uploading…" }
+            if pending.isUploading { return inboxTr(appUiLocaleStorage, "Uploading…", "Nalaganje…") }
             if pending.sizeBytes > 0 { return formattedSize(pending.sizeBytes) }
             return nil
         }()
@@ -605,7 +617,7 @@ struct InboxView: View {
         Task {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self) else {
-                    failPending(pendingId, message: "Unable to load selected media.")
+                    failPending(pendingId, message: inboxTr(appUiLocaleStorage, "Unable to load selected media.", "Izbranega medija ni mogoče naložiti."))
                     return
                 }
                 let (name, mime) = inferPhotoMetadata(from: item)
@@ -758,8 +770,8 @@ struct InboxView: View {
 
     private func formatDateHeaderLabel(_ date: Date) -> String {
         let cal = Calendar.current
-        if cal.isDateInToday(date) { return "Today" }
-        if cal.isDateInYesterday(date) { return "Yesterday" }
+        if cal.isDateInToday(date) { return inboxTr(appUiLocaleStorage, "Today", "Danes") }
+        if cal.isDateInYesterday(date) { return inboxTr(appUiLocaleStorage, "Yesterday", "Včeraj") }
         return Self.dateHeaderFormatter.string(from: date)
     }
 
