@@ -9,6 +9,21 @@ struct BookRescheduleContext: Identifiable, Hashable {
     var id: String { "\(companyId)-\(bookingId)" }
 }
 
+struct BookLaunchRequest: Identifiable, Hashable {
+    let id = UUID()
+    let companyId: String
+    let sessionTypeId: String?
+    let entitlementName: String
+    let preferredPaymentMethod: GuestBookingPaymentChoice
+
+    init(companyId: String, sessionTypeId: String?, entitlementName: String, preferredPaymentMethod: GuestBookingPaymentChoice = .entitlement) {
+        self.companyId = companyId
+        self.sessionTypeId = sessionTypeId
+        self.entitlementName = entitlementName
+        self.preferredPaymentMethod = preferredPaymentMethod
+    }
+}
+
 struct BookView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.openURL) private var openURL
@@ -20,6 +35,8 @@ struct BookView: View {
     /// Shown in the Book tab header (utility bar is hidden on this tab).
     let onOpenNotifications: () -> Void
     let rescheduleContext: BookRescheduleContext?
+    let launchRequest: BookLaunchRequest?
+    let onLaunchRequestConsumed: () -> Void
     let onRescheduleCompleted: () -> Void
     let onBookingCompleted: () -> Void
     let onExit: () -> Void
@@ -217,12 +234,16 @@ struct BookView: View {
     init(
         onOpenNotifications: @escaping () -> Void = {},
         rescheduleContext: BookRescheduleContext? = nil,
+        launchRequest: BookLaunchRequest? = nil,
+        onLaunchRequestConsumed: @escaping () -> Void = {},
         onRescheduleCompleted: @escaping () -> Void = {},
         onBookingCompleted: @escaping () -> Void = {},
         onExit: @escaping () -> Void = {}
     ) {
         self.onOpenNotifications = onOpenNotifications
         self.rescheduleContext = rescheduleContext
+        self.launchRequest = launchRequest
+        self.onLaunchRequestConsumed = onLaunchRequestConsumed
         self.onRescheduleCompleted = onRescheduleCompleted
         self.onBookingCompleted = onBookingCompleted
         self.onExit = onExit
@@ -270,6 +291,7 @@ struct BookView: View {
                 selectedProviderId = store.selectedTenantId ?? providers.first?.id
             }
             applyRescheduleContextIfNeeded()
+            applyLaunchRequestIfNeeded()
             ensurePaymentMethodAllowed()
         }
         .onChange(of: store.user.id) { _ in
@@ -288,6 +310,9 @@ struct BookView: View {
                 slots = []
             }
             applyRescheduleContextIfNeeded()
+        }
+        .onChange(of: launchRequest?.id) { _ in
+            applyLaunchRequestIfNeeded()
         }
         .onChange(of: providers.map(\.id)) { ids in
             if ids.contains(selectedProviderId ?? "") == false {
@@ -1197,6 +1222,51 @@ struct BookView: View {
             selectedSlotId = nil
             currentStep = employeeStepEnabled ? .employee : .dateTime
         }
+    }
+
+    private func applyLaunchRequestIfNeeded() {
+        guard rescheduleContext == nil, let request = launchRequest else { return }
+        guard providers.contains(where: { $0.id == request.companyId }) else {
+            onLaunchRequestConsumed()
+            return
+        }
+
+        selectedProviderId = request.companyId
+        selectedConsultantId = nil
+        selectedSlotId = nil
+        consultants = []
+        slots = []
+        selectedPaymentMethod = request.preferredPaymentMethod
+
+        if let service = matchedService(for: request) {
+            selectedServiceId = service.id
+            currentStep = (selectedProvider?.employeeSelectionStep ?? false) ? .employee : .dateTime
+            if (selectedProvider?.employeeSelectionStep ?? false) {
+                Task { await loadConsultants(for: service) }
+            }
+        } else {
+            selectedServiceId = nil
+            currentStep = .service
+            notice = tr("Choose a service to continue.", "Za nadaljevanje izberite storitev.")
+        }
+
+        ensurePaymentMethodAllowed()
+        onLaunchRequestConsumed()
+    }
+
+    private func matchedService(for request: BookLaunchRequest) -> ServiceOptionModel? {
+        let providerServices = store.serviceOptions.filter { $0.companyId == request.companyId }
+        if let sessionTypeId = request.sessionTypeId,
+           let service = providerServices.first(where: { $0.sessionTypeId == sessionTypeId }) {
+            return service
+        }
+        if providerServices.count == 1 {
+            return providerServices.first
+        }
+        if let exactName = providerServices.first(where: { $0.name.caseInsensitiveCompare(request.entitlementName) == .orderedSame }) {
+            return exactName
+        }
+        return providerServices.first(where: { $0.name.localizedCaseInsensitiveContains(request.entitlementName) || request.entitlementName.localizedCaseInsensitiveContains($0.name) })
     }
 
     private func loadAvailability(for service: ServiceOptionModel) async {

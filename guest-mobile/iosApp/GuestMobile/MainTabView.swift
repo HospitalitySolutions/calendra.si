@@ -26,6 +26,7 @@ struct MainTabView: View {
     @State private var isNotificationsPresented = false
     @State private var headerAvatarImage: UIImage?
     @State private var rescheduleContext: BookRescheduleContext?
+    @State private var bookLaunchRequest: BookLaunchRequest?
     @State private var lastWalletOffersRefreshTenantId: String?
     @State private var lastWalletOffersRefreshAt: Date = .distantPast
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
@@ -231,13 +232,31 @@ struct MainTabView: View {
                     case .book:
                         BookView(
                             onOpenNotifications: { isNotificationsPresented = true },
-                            onBookingCompleted: { selectedTab = .home }
+                            rescheduleContext: rescheduleContext,
+                            launchRequest: bookLaunchRequest,
+                            onLaunchRequestConsumed: { bookLaunchRequest = nil },
+                            onRescheduleCompleted: {
+                                rescheduleContext = nil
+                                selectedTab = .home
+                            },
+                            onBookingCompleted: {
+                                bookLaunchRequest = nil
+                                selectedTab = .home
+                            },
+                            onExit: {
+                                bookLaunchRequest = nil
+                                rescheduleContext = nil
+                                selectedTab = .home
+                            }
                         )
                     case .wallet:
                         WalletView(
                             onOpenNotifications: { isNotificationsPresented = true },
                             onOpenTenantPicker: { openWalletWithTenantSelection() },
-                            onOpenBuyTab: { refreshWalletOffersIfNeeded() }
+                            onOpenBuyTab: { refreshWalletOffersIfNeeded() },
+                            onBookWithEntitlement: { entitlement in
+                                openBookWithEntitlement(entitlement)
+                            }
                         )
                     case .inbox:
                         InboxView()
@@ -593,6 +612,7 @@ struct MainTabView: View {
         Button {
             // Explicit "Book" entry must always start fresh flow.
             rescheduleContext = nil
+            bookLaunchRequest = nil
             refreshBookTenantIfNeeded()
             selectedTab = .book
         } label: {
@@ -614,6 +634,18 @@ struct MainTabView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isSl ? "Rezerviraj" : "Book")
+    }
+
+    private func openBookWithEntitlement(_ entitlement: AccessCardModel) {
+        rescheduleContext = nil
+        store.setTenantFilter(entitlement.companyId)
+        bookLaunchRequest = BookLaunchRequest(
+            companyId: entitlement.companyId,
+            sessionTypeId: entitlement.sessionTypeId,
+            entitlementName: entitlement.name,
+            preferredPaymentMethod: .entitlement
+        )
+        selectedTab = .book
     }
 
     private func navItem(_ tab: Tab, icon: String, selectedIcon: String, title: String) -> some View {

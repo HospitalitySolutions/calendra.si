@@ -212,6 +212,7 @@ fun WalletScreen(
     tenantName: String? = null,
     onOpenTenantPicker: () -> Unit = {},
     onBuyOffer: (WalletOfferCard, String) -> Unit = { _, _ -> },
+    onBookWithEntitlement: (WalletPassCardData) -> Unit = {},
     onViewReceipt: (WalletOrder) -> Unit = {},
     onToggleAutoRenew: (String, Boolean) -> Unit = { _, _ -> },
     onSwitchToOrders: () -> Unit = {},
@@ -267,7 +268,8 @@ fun WalletScreen(
                         entitlementId = card.id
                     )
                 },
-                onToggleAutoRenew = onToggleAutoRenew
+                onToggleAutoRenew = onToggleAutoRenew,
+                onBookWithEntitlement = onBookWithEntitlement
             )
             WalletSubTab.Buy -> BuyPanel(
                 offers = offers,
@@ -755,11 +757,12 @@ private fun <T> WalletVerticalCarousel(
 
 // ---------- Entitlements ----------
 
-private data class WalletPassCardData(
+data class WalletPassCardData(
     val id: String,
     val title: String,
     val type: String,
     val tenantName: String?,
+    val sessionTypeId: String?,
     val entitlementCode: String?,
     val remainingUses: Int?,
     val totalUses: Int?,
@@ -886,7 +889,8 @@ private fun EntitlementsPanel(
     onFocus: (String?) -> Unit,
     onBrowseOffers: () -> Unit,
     onQRCodeTap: (WalletPassCardData, String) -> Unit,
-    onToggleAutoRenew: (String, Boolean) -> Unit
+    onToggleAutoRenew: (String, Boolean) -> Unit,
+    onBookWithEntitlement: (WalletPassCardData) -> Unit
 ) {
     val cards = remember(entitlements, accessCards) {
         val fromEntitlements = entitlements.map { it.toWalletPassCardData() }
@@ -972,6 +976,7 @@ private fun EntitlementsPanel(
                     languageCode = languageCode,
                     onQRCodeTap = onQRCodeTap,
                     onToggleAutoRenew = onToggleAutoRenew,
+                    onBookWithEntitlement = onBookWithEntitlement,
                     onShowLess = { showAllCards = false },
                     modifier = Modifier
                         .fillMaxSize()
@@ -985,6 +990,7 @@ private fun EntitlementsPanel(
                     onFocus = onFocus,
                     onQRCodeTap = onQRCodeTap,
                     onToggleAutoRenew = onToggleAutoRenew,
+                    onBookWithEntitlement = onBookWithEntitlement,
                     showAllEnabled = hasMoreThanFive,
                     onShowAll = { showAllCards = true },
                     modifier = Modifier.fillMaxSize().padding(start = 20.dp, top = 2.dp, end = 20.dp, bottom = 8.dp)
@@ -1000,6 +1006,7 @@ private fun WalletEntitlementFullList(
     languageCode: String,
     onQRCodeTap: (WalletPassCardData, String) -> Unit,
     onToggleAutoRenew: (String, Boolean) -> Unit,
+    onBookWithEntitlement: (WalletPassCardData) -> Unit,
     onShowLess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1043,6 +1050,7 @@ private fun WalletEntitlementFullList(
                 onTap = {},
                 onQRCodeTap = { code -> onQRCodeTap(card, code) },
                 onToggleAutoRenew = onToggleAutoRenew,
+                onBookWithEntitlement = { onBookWithEntitlement(card) },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -1057,6 +1065,7 @@ private fun WalletPullOutEntitlementDeck(
     onFocus: (String?) -> Unit,
     onQRCodeTap: (WalletPassCardData, String) -> Unit,
     onToggleAutoRenew: (String, Boolean) -> Unit,
+    onBookWithEntitlement: (WalletPassCardData) -> Unit,
     showAllEnabled: Boolean,
     onShowAll: () -> Unit,
     modifier: Modifier = Modifier
@@ -1212,6 +1221,7 @@ private fun WalletPullOutEntitlementDeck(
                         onTap = cardClick,
                         onQRCodeTap = { code -> onQRCodeTap(card, code) },
                         onToggleAutoRenew = onToggleAutoRenew,
+                        onBookWithEntitlement = { onBookWithEntitlement(card) },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1412,6 +1422,7 @@ private fun AccessCard.toWalletPassCardData(): WalletPassCardData = WalletPassCa
     title = name,
     type = type,
     tenantName = tenantName,
+    sessionTypeId = null,
     entitlementCode = entitlementCode,
     remainingUses = remainingUses,
     totalUses = totalUses,
@@ -1430,6 +1441,7 @@ private fun EntitlementSummary.toWalletPassCardData(): WalletPassCardData = Wall
     title = productName,
     type = entitlementType,
     tenantName = sessionTypeName,
+    sessionTypeId = sessionTypeId,
     entitlementCode = entitlementCode,
     remainingUses = remainingUses,
     totalUses = totalUses,
@@ -1451,6 +1463,7 @@ private fun WalletStackedPassCard(
     onTap: () -> Unit,
     onQRCodeTap: (String) -> Unit,
     onToggleAutoRenew: (String, Boolean) -> Unit,
+    onBookWithEntitlement: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val type = card.type.uppercase(Locale.getDefault())
@@ -1467,6 +1480,7 @@ private fun WalletStackedPassCard(
     val textColor = if (isLightCard) WalletInk else Color.White
     val mutedColor = if (isLightCard) WalletMuted else Color.White.copy(alpha = 0.78f)
     val lineColor = if (isLightCard) WalletLine.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.22f)
+    val bookableWithEntitlement = (type == "PACK" || type == "CLASS_TICKET") && !isInactiveWalletCard(card)
 
     Box(
         modifier = modifier
@@ -1558,6 +1572,41 @@ private fun WalletStackedPassCard(
                             Text(walletTr(languageCode, "Show QR", "Prikaži QR"), color = WalletBlueSoft, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            if (bookableWithEntitlement) {
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = onBookWithEntitlement,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF082552), contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 22.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Schedule,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = walletTr(languageCode, "Choose slot", "Izberi termin"),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
 

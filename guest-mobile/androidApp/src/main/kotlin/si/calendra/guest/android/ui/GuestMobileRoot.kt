@@ -184,6 +184,7 @@ fun GuestMobileRoot() {
     var lastWalletOffersRefreshTenantId by remember { mutableStateOf<String?>(null) }
     var lastWalletOffersRefreshAtMs by remember { mutableStateOf(0L) }
     var rescheduleContext by remember { mutableStateOf<BookingRescheduleContext?>(null) }
+    var bookLaunchRequest by remember { mutableStateOf<BookLaunchRequest?>(null) }
     var pendingExternalCheckout by remember {
         mutableStateOf(
             preferencesStore.loadPendingExternalCheckout()?.let { stored ->
@@ -1041,6 +1042,8 @@ fun GuestMobileRoot() {
                         employeeSelectionStepEnabled = { companyId ->
                             state.uiState.linkedTenants.firstOrNull { it.companyId == companyId }?.employeeSelectionStep == true
                         },
+                        launchRequest = bookLaunchRequest,
+                        onLaunchRequestConsumed = { bookLaunchRequest = null },
                         onCheckout = onCheckout@{ service, slotId, paymentMethodType, consultantId ->
                             val checkout = runCatching {
                                 val order = repo.createOrder(
@@ -1214,6 +1217,19 @@ fun GuestMobileRoot() {
                             onSubTabChanged = { nextSubTab ->
                                 if (nextSubTab == WalletSubTab.Buy) {
                                     refreshWalletOffersIfNeeded(walletTenantId)
+                                }
+                            },
+                            onBookWithEntitlement = { card ->
+                                val tenantId = walletTenantId
+                                if (tenantId != null) {
+                                    state.uiState = state.uiState.copy(selectedTenantId = tenantId)
+                                    bookLaunchRequest = BookLaunchRequest(
+                                        companyId = tenantId,
+                                        sessionTypeId = card.sessionTypeId,
+                                        entitlementName = card.title,
+                                        preferredPaymentMethodType = "ENTITLEMENT"
+                                    )
+                                    navController.navigate(RootRoute.Book.route) { launchSingleTop = true }
                                 }
                             },
                             onViewReceipt = { order ->

@@ -215,6 +215,7 @@ struct WalletView: View {
     let onOpenNotifications: () -> Void
     let onOpenTenantPicker: () -> Void
     let onOpenBuyTab: () -> Void
+    let onBookWithEntitlement: (AccessCardModel) -> Void
 
     @State private var subTab: WalletSubTab = .entitlements
     @State private var focusedEntitlementId: String? = nil
@@ -494,6 +495,9 @@ struct WalletView: View {
                                 autoRenews: newValue
                             )
                         }
+                    },
+                    onBookWithEntitlement: { entitlement in
+                        onBookWithEntitlement(entitlement)
                     }
                 )
             }
@@ -1215,6 +1219,7 @@ private struct WalletPullOutEntitlementDeck: View {
     @Binding var focusedEntitlementId: String?
     let onQRCodeTap: (AccessCardModel, String) -> Void
     let onToggleAutoRenew: (AccessCardModel, Bool) -> Void
+    let onBookWithEntitlement: (AccessCardModel) -> Void
 
     private let focusedPocketDrop: CGFloat = 124
     private let focusedLowerStackDrop: CGFloat = 204
@@ -1284,7 +1289,8 @@ private struct WalletPullOutEntitlementDeck: View {
                     }
                 },
                 onQRCodeTap: { code in onQRCodeTap(item, code) },
-                onToggleAutoRenew: { newValue in onToggleAutoRenew(item, newValue) }
+                onToggleAutoRenew: { newValue in onToggleAutoRenew(item, newValue) },
+                onBookWithEntitlement: { onBookWithEntitlement(item) }
             )
             .scaleEffect(isFocused ? 1.0 : restingSlot.scale, anchor: .top)
             .rotationEffect(.degrees(isFocused ? 0 : restingSlot.rotation))
@@ -1545,7 +1551,7 @@ private struct WalletTicketStyle {
 private struct WalletStackedPassCard: View {
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
-    static let baseHeight: CGFloat = 232
+    static let baseHeight: CGFloat = 260
 
     let entitlement: AccessCardModel
     let index: Int
@@ -1553,6 +1559,7 @@ private struct WalletStackedPassCard: View {
     let onTap: () -> Void
     let onQRCodeTap: (String) -> Void
     let onToggleAutoRenew: (Bool) -> Void
+    let onBookWithEntitlement: () -> Void
 
     private var style: WalletTicketStyle { walletTicketStyle(type: entitlement.type, index: index) }
     private var shape: CompactTicketShape { CompactTicketShape(cornerRadius: 20, notchRadius: 10, notchFractionY: 0.48) }
@@ -1563,6 +1570,19 @@ private struct WalletStackedPassCard: View {
     }
 
     var body: some View {
+        Group {
+            if isBookableTicket {
+                modernBookingCard
+            } else {
+                defaultCard
+            }
+        }
+        .frame(height: cardHeight)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+    }
+
+    private var defaultCard: some View {
         ZStack(alignment: .bottomTrailing) {
             WalletPassWave(accent: style.accent)
                 .frame(height: 92)
@@ -1650,7 +1670,6 @@ private struct WalletStackedPassCard: View {
                 .padding(.bottom, 18)
             }
         }
-        .frame(height: cardHeight)
         .background(
             shape.fill(
                 LinearGradient(
@@ -1664,8 +1683,189 @@ private struct WalletStackedPassCard: View {
         .overlay(shape.stroke(style.border, lineWidth: 1.25))
         .shadow(color: style.accent.opacity(0.12), radius: 12, x: 0, y: 7)
         .shadow(color: Color.black.opacity(0.045), radius: 7, x: 0, y: 3)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
+    }
+
+    private var modernBookingCard: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [Color(red: 1.0, green: 0.66, blue: 0.12), Color(red: 1.0, green: 0.55, blue: 0.05)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                ZStack(alignment: .topTrailing) {
+                    Circle()
+                        .fill(Color.white.opacity(0.09))
+                        .frame(width: 180, height: 180)
+                        .offset(x: 70, y: 52)
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .top, spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white.opacity(0.92))
+                                    .frame(width: 66, height: 66)
+                                Image(systemName: entitlement.type == "PACK" ? "ticket" : "ticket.fill")
+                                    .font(.system(size: 26, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.93, green: 0.55, blue: 0.10))
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(typeLabel.uppercased())
+                                    .font(.system(size: 12, weight: .bold))
+                                    .tracking(0.9)
+                                    .foregroundColor(Color.white.opacity(0.92))
+                                Text(entitlement.name)
+                                    .font(.system(size: 26, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.76)
+                                Text(subtitle)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(Color.white.opacity(0.88))
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 10)
+                            VStack(alignment: .trailing, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(Color.green)
+                                        .frame(width: 8, height: 8)
+                                    Text(statusLabel)
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(Color.white)
+                                }
+                                .padding(.horizontal, 14)
+                                .frame(height: 34)
+                                .background(Color.white.opacity(0.18), in: Capsule(style: .continuous))
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                                )
+
+                                Button {
+                                    onQRCodeTap(code)
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        WalletQRCodeView(content: code)
+                                            .frame(width: 42, height: 42)
+                                        Text(walletTr(appUiLocaleStorage, "Show QR", "Prikaži QR"))
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundColor(Color.white)
+                                    }
+                                    .frame(width: 84, height: 86)
+                                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+
+                        Spacer(minLength: 16)
+
+                        Button {
+                            onBookWithEntitlement()
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 20, weight: .semibold))
+                                Text(walletTr(appUiLocaleStorage, "Choose slot", "Izberi termin"))
+                                    .font(.system(size: 18, weight: .bold))
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 18, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 22)
+                            .frame(height: 58)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(red: 0.03, green: 0.19, blue: 0.44), Color(red: 0.07, green: 0.30, blue: 0.62)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                in: Capsule(style: .continuous)
+                            )
+                            .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 8)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 20)
+
+                        HStack(spacing: 0) {
+                            bookingMetricColumn(
+                                title: walletTr(appUiLocaleStorage, "EXPIRES", "POTEČE"),
+                                value: validUntilLabel,
+                                caption: expiryCaption
+                            )
+                            bookingMetricDivider
+                            bookingMetricColumn(
+                                title: walletTr(appUiLocaleStorage, "ACCESS", "DOSTOP"),
+                                value: accessMetricValue,
+                                caption: accessMetricCaption
+                            )
+                            bookingMetricDivider
+                            bookingMetricColumn(
+                                title: walletTr(appUiLocaleStorage, "REMAINING", "PREOSTALO"),
+                                value: remainingMetricValue,
+                                caption: remainingMetricCaption
+                            )
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 18)
+                    }
+                }
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.10), radius: 18, x: 0, y: 10)
+    }
+
+    private var bookingMetricDivider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.25))
+            .frame(width: 1, height: 58)
+            .padding(.horizontal, 12)
+    }
+
+    private func bookingMetricColumn(title: String, value: String, caption: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color.white.opacity(0.82))
+            Text(value)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.76)
+            Text(caption)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Color.white.opacity(0.82))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var isBookableTicket: Bool {
+        (entitlement.type == "PACK" || entitlement.type == "CLASS_TICKET") && !isInactiveStatus
+    }
+
+    private var isInactiveStatus: Bool {
+        switch entitlement.status.uppercased() {
+        case "EXPIRED", "USED_UP", "CANCELLED", "INACTIVE":
+            return true
+        default:
+            return false
+        }
     }
 
     private var typeLabel: String {
@@ -1740,7 +1940,44 @@ private struct WalletStackedPassCard: View {
 
     private var validUntilLabel: String {
         let formatted = formatLongDate(entitlement.validUntil)
-        return formatted == "—" ? "No expiry" : formatted
+        return formatted == "—" ? walletTr(appUiLocaleStorage, "No expiry", "Brez poteka") : formatted
+    }
+
+    private var expiryCaption: String {
+        validUntilLabel == walletTr(appUiLocaleStorage, "No expiry", "Brez poteka")
+            ? walletTr(appUiLocaleStorage, "Valid", "Veljavno")
+            : walletTr(appUiLocaleStorage, "Until date", "Do datuma")
+    }
+
+    private var accessMetricValue: String {
+        if let total = entitlement.totalUses, total > 0 {
+            return walletTr(appUiLocaleStorage, "\(total) visits", "\(total) obisk\(total == 1 ? "" : "i")")
+        }
+        if entitlement.type == "CLASS_TICKET" {
+            return walletTr(appUiLocaleStorage, "1 visit", "1 obisk")
+        }
+        if let remaining = entitlement.remainingUses, remaining > 0 {
+            return walletTr(appUiLocaleStorage, "\(remaining) visits", "\(remaining) obisk\(remaining == 1 ? "" : "i")")
+        }
+        return walletTr(appUiLocaleStorage, "Flexible", "Prilagodljivo")
+    }
+
+    private var accessMetricCaption: String {
+        walletTr(appUiLocaleStorage, "Ready to use", "Pripravljeno za uporabo")
+    }
+
+    private var remainingMetricValue: String {
+        if let remaining = entitlement.remainingUses {
+            return walletTr(appUiLocaleStorage, "\(remaining) left", "\(remaining) preostalo")
+        }
+        if let visits = entitlement.visitCount, visits > 0 {
+            return walletTr(appUiLocaleStorage, "\(visits) visits", "\(visits) obiskov")
+        }
+        return walletTr(appUiLocaleStorage, "Available", "Na voljo")
+    }
+
+    private var remainingMetricCaption: String {
+        walletTr(appUiLocaleStorage, "Use on next booking", "Za naslednjo rezervacijo")
     }
 
     private func dashedDivider(color: Color) -> some View {

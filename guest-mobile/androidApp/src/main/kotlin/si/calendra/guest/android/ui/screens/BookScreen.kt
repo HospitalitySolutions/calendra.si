@@ -228,6 +228,14 @@ data class BookingRescheduleContext(
     val sessionTypeName: String
 )
 
+data class BookLaunchRequest(
+    val id: String = UUID.randomUUID().toString(),
+    val companyId: String,
+    val sessionTypeId: String?,
+    val entitlementName: String,
+    val preferredPaymentMethodType: String = "ENTITLEMENT"
+)
+
 private const val GUEST_AVAILABILITY_DEBUG_TAG = "GuestAvailability"
 
 private enum class PaymentMethodUi(
@@ -259,6 +267,8 @@ fun BookScreen(
     employeeSelectionStepEnabled: (String) -> Boolean = { false },
     onCheckout: suspend (ServiceOption, String, String, String?) -> Unit,
     rescheduleContext: BookingRescheduleContext? = null,
+    launchRequest: BookLaunchRequest? = null,
+    onLaunchRequestConsumed: () -> Unit = {},
     onReschedule: suspend (BookingRescheduleContext, String, String?) -> Unit = { _, _, _ -> },
     onExit: () -> Unit = {}
 ) {
@@ -294,6 +304,7 @@ fun BookScreen(
         }
     }
     var rescheduleInitialized by remember(rescheduleContext?.bookingId) { mutableStateOf(false) }
+    var launchRequestInitialized by remember(launchRequest?.id) { mutableStateOf(false) }
 
     val providerScopedServices = remember(services, selectedProviderId) {
         services.filter { it.companyId == selectedProviderId }.sortedBy { it.name }
@@ -338,6 +349,44 @@ fun BookScreen(
             currentStep = if (employeeStepActive) BookingFlowStep.EMPLOYEE else BookingFlowStep.DATE_TIME
         }
         rescheduleInitialized = true
+    }
+
+    LaunchedEffect(launchRequest, services, providers) {
+        if (launchRequestInitialized || rescheduleContext != null) return@LaunchedEffect
+        val request = launchRequest ?: return@LaunchedEffect
+        val providerExists = providers.any { it.companyId == request.companyId }
+        if (!providerExists) {
+            onLaunchRequestConsumed()
+            launchRequestInitialized = true
+            return@LaunchedEffect
+        }
+
+        selectedProviderId = request.companyId
+        selectedConsultantId = null
+        selectedSlotId = null
+        selectedPaymentMethod = PaymentMethodUi.values().firstOrNull { it.apiValue == request.preferredPaymentMethodType }
+            ?: PaymentMethodUi.ENTITLEMENT
+
+        val providerServices = services.filter { it.companyId == request.companyId }
+        val candidate = request.sessionTypeId?.let { sessionTypeId ->
+            providerServices.firstOrNull { it.sessionTypeId == sessionTypeId }
+        } ?: providerServices.firstOrNull { it.name.equals(request.entitlementName, ignoreCase = true) }
+            ?: providerServices.firstOrNull { service ->
+                service.name.contains(request.entitlementName, ignoreCase = true) ||
+                    request.entitlementName.contains(service.name, ignoreCase = true)
+            }
+            ?: providerServices.singleOrNull()
+
+        if (candidate != null) {
+            selectedServiceId = candidate.id
+            currentStep = if (employeeSelectionStepEnabled(request.companyId)) BookingFlowStep.EMPLOYEE else BookingFlowStep.DATE_TIME
+        } else {
+            selectedServiceId = null
+            currentStep = BookingFlowStep.SERVICE
+        }
+
+        onLaunchRequestConsumed()
+        launchRequestInitialized = true
     }
 
     val selectedProvider = providers.firstOrNull { it.companyId == selectedProviderId }
