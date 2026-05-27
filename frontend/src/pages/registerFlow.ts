@@ -8,11 +8,8 @@ export type RegisterSelection = {
   billing: RegisterBillingCycle
   additionalUsers: number
   additionalSms: number
-  addons: {
-    voice: boolean
-    billing: boolean
-    whitelabel: boolean
-  }
+  /** Selected feature add-ons by catalog key. Dynamic keys are allowed because platform admin can edit the public add-on catalog. */
+  addons: Record<string, boolean>
 }
 
 export const registerPlanToPackage = {
@@ -45,6 +42,10 @@ function parseBool(value: string | null) {
   return value === '1' || value === 'true' || value === 'yes'
 }
 
+function normalizeAddonKey(raw: string | null | undefined) {
+  return String(raw ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 export function parseRegisterSelection(search: string): RegisterSelection {
   const params = new URLSearchParams(search)
   const rawPlan = params.get('plan')?.trim().toLowerCase()
@@ -59,16 +60,21 @@ export function parseRegisterSelection(search: string): RegisterSelection {
   const rawSms = clampInt(params.get('sms'), 0, 1000, 0)
   const additionalSms = Math.min(1000, Math.max(0, Math.round(rawSms / 50) * 50))
 
+  const addons: Record<string, boolean> = {}
+  params.getAll('addon').forEach((key) => {
+    const normalized = normalizeAddonKey(key)
+    if (normalized) addons[normalized] = true
+  })
+  if (parseBool(params.get('voice'))) addons.voice = true
+  if (parseBool(params.get('billingAddon'))) addons.billing = true
+  if (parseBool(params.get('whitelabel'))) addons.whitelabel = true
+
   return {
     plan,
     billing,
     additionalUsers: clampInt(params.get('users'), 1, 10, 1),
     additionalSms,
-    addons: {
-      voice: parseBool(params.get('voice')),
-      billing: parseBool(params.get('billingAddon')),
-      whitelabel: parseBool(params.get('whitelabel')),
-    },
+    addons,
   }
 }
 
@@ -80,6 +86,12 @@ export function selectionToSearch(selection: RegisterSelection) {
   params.set('interval', selection.billing === 'annual' ? 'YEARLY' : 'MONTHLY')
   params.set('users', String(selection.additionalUsers))
   params.set('sms', String(selection.additionalSms))
+  Object.entries(selection.addons || {})
+    .filter(([, selected]) => selected)
+    .map(([key]) => normalizeAddonKey(key))
+    .filter(Boolean)
+    .sort()
+    .forEach((key) => params.append('addon', key))
   if (selection.addons.voice) params.set('voice', '1')
   if (selection.addons.billing) params.set('billingAddon', '1')
   if (selection.addons.whitelabel) params.set('whitelabel', '1')

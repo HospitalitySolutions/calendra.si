@@ -1,0 +1,27 @@
+Changes done
+============
+
+Platform Admin > Plan & add-ons
+- Added editable Annual discount (%) field.
+- Added annual total previews for Basic, Pro and Business based on the configured discount.
+- Added add-on catalog management:
+  - Add new add-ons.
+  - Remove add-ons.
+  - Activate/deactivate add-ons shown on the public register flow.
+  - Edit add-on key, English/Slovenian name, English/Slovenian description and monthly price.
+- Save now persists plan prices, annual discount, active add-ons and add-on prices through /api/platform-admin/register-prices.
+
+Register Plan selection page
+- Public register catalog now hydrates plan prices, annual discount %, and dynamic add-ons from /api/register/catalog.
+- Annual pricing text, annual save badge and annual totals now use the configured discount instead of hard-coded 15%.
+- Feature add-ons shown on Plan selection now come from the admin-configured catalog instead of the previous fixed three add-ons.
+- Selected add-ons are preserved in the register query string with dynamic addon=<key> parameters, while legacy parameters still work.
+
+Backend catalog
+- RegisterPriceCatalog now supports annualDiscountPercent and a full addonItems list.
+- RegisterCatalogService validates, normalizes and stores the dynamic catalog while keeping compatibility with the old addons map.
+- PlatformSubscriptionBillingService now uses the configured annual discount for annual package monthly-equivalent billing lines.
+
+Validation note
+- Frontend targeted TypeScript check was run after installing node modules. Only existing standalone-check limitations remained (Vite env/image declarations when compiling selected files outside the full Vite project).
+- Full backend Maven compile could not be completed because Maven wrapper dependency download from repo.maven.apache.org failed in the sandbox.

@@ -5,8 +5,8 @@ import { hydrateRegisterCatalogFromApi } from '../pages/registerPlanCopy'
 let registerCatalogLoadAttempted = false
 
 /** Loads public register price catalog once (defaults apply until this succeeds). */
-export async function ensureRegisterCatalogLoaded(): Promise<void> {
-  if (registerCatalogLoadAttempted) return
+export async function ensureRegisterCatalogLoaded(): Promise<boolean> {
+  if (registerCatalogLoadAttempted) return false
   registerCatalogLoadAttempted = true
   try {
     const { data } = await axios.get(`${getApiBaseURL()}/register/catalog`, {
@@ -14,7 +14,9 @@ export async function ensureRegisterCatalogLoaded(): Promise<void> {
       timeout: 15_000,
     })
     hydrateRegisterCatalogFromApi(data)
+    return true
   } catch {
     // Keep built-in defaults; avoid blocking register if API is down.
+    return false
   }
 }

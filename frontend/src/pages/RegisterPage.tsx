@@ -26,10 +26,13 @@ import {
 } from './registerFlow'
 import {
   annualSaveBadgeText,
+  annualSaveBannerText,
   buildRegisterFooterPill,
   buildSummary,
   formatEuro,
   getAddonCatalog,
+  getActiveAddonKeys,
+  getAnnualDiscountFactor,
   getFeatureItems,
   getPlanCardPriceNote,
   getPlanDisplay,
@@ -78,6 +81,7 @@ export function RegisterPlanAddonSections({
   addonsModalPresentation = false,
 }: RegisterPlanAddonSectionsProps) {
   const addonCatalog = getAddonCatalog(locale)
+  const activeAddonKeys = getActiveAddonKeys()
   const pm = locale === 'sl' ? '/mes.' : '/mo'
 
   return (
@@ -176,14 +180,14 @@ export function RegisterPlanAddonSections({
         <div className="addons-divider"><span>{pageCopy.featureAddonsDivider}</span></div>
 
         <div className="feature-addons-list">
-          {(['voice', 'billing', 'whitelabel'] as const).map((addonKey) => {
+          {activeAddonKeys.map((addonKey) => {
             const addon = addonCatalog[addonKey]
             return (
               <div key={addonKey} className="feature-addon-card">
                 <label className="feature-addon-card-label">
                   <input
                     type="checkbox"
-                    checked={selection.addons[addonKey]}
+                    checked={Boolean(selection.addons[addonKey])}
                     onChange={(event) => setSelection((current) => ({
                       ...current,
                       addons: {
@@ -263,8 +267,16 @@ export function RegisterPage() {
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches,
   )
 
+  const [, setRegisterCatalogRevision] = useState(0)
+
   useEffect(() => {
-    void ensureRegisterCatalogLoaded()
+    let alive = true
+    void ensureRegisterCatalogLoaded().then((changed) => {
+      if (alive && changed) setRegisterCatalogRevision((value) => value + 1)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   useEffect(() => {
@@ -329,7 +341,7 @@ export function RegisterPage() {
   const peekAddonMonthly = useMemo(() => {
     const m = monthlyAmounts
     if (selection.billing === 'annual') {
-      return (m.usersMonthly + m.addonsMonthly) * 0.85 + m.smsMonthly
+      return (m.usersMonthly + m.addonsMonthly) * getAnnualDiscountFactor() + m.smsMonthly
     }
     return m.usersMonthly + m.smsMonthly + m.addonsMonthly
   }, [monthlyAmounts, selection.billing])
@@ -338,9 +350,7 @@ export function RegisterPage() {
     let n = 0
     if (getBillableAdditionalUserSlots(selection) > 0) n++
     if (selection.additionalSms > 0) n++
-    if (selection.addons.voice) n++
-    if (selection.addons.billing) n++
-    if (selection.addons.whitelabel) n++
+    n += getActiveAddonKeys().reduce((count, key) => count + (selection.addons[key] ? 1 : 0), 0)
     return n
   }, [selection])
 
@@ -455,7 +465,7 @@ export function RegisterPage() {
                     </button>
                   </div>
                 </div>
-                <div className="annual-save">{pc.annualSaveBanner}</div>
+                <div className="annual-save">{annualSaveBannerText(lang)}</div>
               </div>
 
               <div className="plans-grid">

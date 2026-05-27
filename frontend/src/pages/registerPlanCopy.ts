@@ -14,7 +14,17 @@ export type RegisterPlanFeatureKey =
   | 'reporting'
   | 'multilocation'
 
-export type RegisterPlanAddonKey = 'voice' | 'billing' | 'whitelabel'
+export type RegisterPlanAddonKey = string
+
+export type RegisterAddonCatalogItem = {
+  key: RegisterPlanAddonKey
+  name: string
+  nameSl?: string
+  monthly: number
+  description: string
+  descriptionSl?: string
+  active?: boolean
+}
 
 export type PlanConfig = {
   name: string
@@ -47,18 +57,85 @@ const planCore: Record<RegisterPlanKey, { monthly: number; features: RegisterPla
   },
 }
 
-const addonMonthlyAmounts: Record<RegisterPlanAddonKey, number> = {
-  voice: 12,
-  billing: 8,
-  whitelabel: 10,
-}
+const DEFAULT_ADDON_ITEMS: RegisterAddonCatalogItem[] = [
+  {
+    key: 'voice',
+    name: 'AI voice booking',
+    nameSl: 'AI glasovne rezervacije',
+    monthly: 12,
+    description: 'Hands-free assistant for faster scheduling.',
+    descriptionSl: 'Pomočnik brez rok za hitrejše naročanje terminov.',
+    active: true,
+  },
+  {
+    key: 'billing',
+    name: 'Billing & invoices',
+    nameSl: 'Obračun in računi',
+    monthly: 8,
+    description: 'Invoices, payment records, and exports.',
+    descriptionSl: 'Računi, evidence plačil in izvozi.',
+    active: true,
+  },
+  {
+    key: 'whitelabel',
+    name: 'Branded booking experience',
+    nameSl: 'Blagovna znamka pri rezervacijah',
+    monthly: 10,
+    description: 'Custom colors, domain, and branded notifications.',
+    descriptionSl: 'Barve, domena in obvestila v vaši blagovni znamki.',
+    active: true,
+  },
+]
+
+let addonCatalogItems: RegisterAddonCatalogItem[] = DEFAULT_ADDON_ITEMS.map((item) => ({ ...item }))
+let annualDiscountPercent = 15
 
 function clampCatalogMoney(n: number): boolean {
   return Number.isFinite(n) && n >= 0 && n <= 100_000
 }
 
-/** Apply server catalog (public register + platform admin). Unknown keys ignored. */
-export function hydrateRegisterCatalogFromApi(data: { plans?: Record<string, unknown>; addons?: Record<string, unknown> } | null | undefined) {
+function clampAnnualDiscount(n: number): boolean {
+  return Number.isFinite(n) && n >= 0 && n <= 100
+}
+
+function normalizeAddonKey(raw: unknown) {
+  return String(raw ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function cleanText(raw: unknown, fallback: string) {
+  const value = String(raw ?? '').trim()
+  return value || fallback
+}
+
+function defaultAddonForKey(key: string): RegisterAddonCatalogItem | undefined {
+  return DEFAULT_ADDON_ITEMS.find((item) => item.key === key)
+}
+
+function addonItemFromApi(raw: unknown): RegisterAddonCatalogItem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const key = normalizeAddonKey(obj.key)
+  const monthly = typeof obj.monthly === 'number' ? obj.monthly : Number.NaN
+  if (!key || !clampCatalogMoney(monthly)) return null
+  const fallback = defaultAddonForKey(key)
+  return {
+    key,
+    name: cleanText(obj.name, fallback?.name ?? key.replace(/-/g, ' ')),
+    nameSl: cleanText(obj.nameSl, fallback?.nameSl ?? cleanText(obj.name, fallback?.name ?? key.replace(/-/g, ' '))),
+    description: cleanText(obj.description, fallback?.description ?? 'Optional platform add-on.'),
+    descriptionSl: cleanText(obj.descriptionSl, fallback?.descriptionSl ?? cleanText(obj.description, 'Dodatek za platformo.')),
+    monthly: Math.round(monthly * 100) / 100,
+    active: obj.active !== false,
+  }
+}
+
+/** Apply server catalog (public register + platform admin). Unknown plan keys ignored; add-on keys are dynamic. */
+export function hydrateRegisterCatalogFromApi(data: {
+  plans?: Record<string, unknown>
+  addons?: Record<string, unknown>
+  annualDiscountPercent?: unknown
+  addonItems?: unknown[]
+} | null | undefined) {
   if (!data) return
   if (data.plans) {
     for (const k of ['basic', 'pro', 'business'] as const) {
@@ -68,14 +145,35 @@ export function hydrateRegisterCatalogFromApi(data: { plans?: Record<string, unk
       }
     }
   }
-  if (data.addons) {
-    for (const k of ['voice', 'billing', 'whitelabel'] as const) {
-      const v = data.addons[k]
-      if (typeof v === 'number' && clampCatalogMoney(v)) {
-        addonMonthlyAmounts[k] = Math.round(v * 100) / 100
-      }
-    }
+  if (typeof data.annualDiscountPercent === 'number' && clampAnnualDiscount(data.annualDiscountPercent)) {
+    annualDiscountPercent = Math.round(data.annualDiscountPercent * 100) / 100
   }
+  if (Array.isArray(data.addonItems)) {
+    const next = data.addonItems.map(addonItemFromApi).filter((item): item is RegisterAddonCatalogItem => Boolean(item))
+    addonCatalogItems = next
+  } else if (data.addons) {
+    const next = DEFAULT_ADDON_ITEMS.map((item) => ({ ...item }))
+    Object.entries(data.addons).forEach(([keyRaw, value]) => {
+      const key = normalizeAddonKey(keyRaw)
+      if (typeof value !== 'number' || !clampCatalogMoney(value) || !key) return
+      const existing = next.find((item) => item.key === key)
+      if (existing) existing.monthly = Math.round(value * 100) / 100
+      else next.push({ key, name: key.replace(/-/g, ' '), monthly: Math.round(value * 100) / 100, description: 'Optional platform add-on.', active: true })
+    })
+    addonCatalogItems = next
+  }
+}
+
+export function getAnnualDiscountPercent() {
+  return annualDiscountPercent
+}
+
+export function getAnnualDiscountFactor() {
+  return Math.max(0, Math.min(1, (100 - annualDiscountPercent) / 100))
+}
+
+function annualDiscountFactor() {
+  return getAnnualDiscountFactor()
 }
 
 const planNamesDesc: Record<RegisterLocale, Record<RegisterPlanKey, { name: string; description: string }>> = {
@@ -130,7 +228,7 @@ export function formatEuro(value: number) {
 }
 
 function annualPrice(monthly: number) {
-  return Number((monthly * 12 * 0.85).toFixed(2))
+  return Number((monthly * 12 * annualDiscountFactor()).toFixed(2))
 }
 
 const perMo: Record<RegisterLocale, string> = { en: '/mo', sl: '/mes.' }
@@ -138,7 +236,7 @@ const perMo: Record<RegisterLocale, string> = { en: '/mo', sl: '/mes.' }
 const cardStrings: Record<
   RegisterLocale,
   {
-    planCardAnnualNote: (yr: string) => string
+    planCardAnnualNote: (yr: string, discountPercent: string) => string
     planCardAnnualNoteShort: (yr: string) => string
     planCardNotePro: string
     planCardNoteBusiness: string
@@ -147,7 +245,7 @@ const cardStrings: Record<
   }
 > = {
   en: {
-    planCardAnnualNote: (yr: string) => `Billed annually at ${yr}/yr (15% off).`,
+    planCardAnnualNote: (yr: string, discountPercent: string) => `Billed annually at ${yr}/yr (${discountPercent}% off).`,
     planCardAnnualNoteShort: (yr: string) => `Billed annually at ${yr}/yr.`,
     planCardNotePro: 'Best for growing businesses with up to 5 team members.',
     planCardNoteBusiness: 'Built for larger operations and multi-location teams.',
@@ -155,7 +253,7 @@ const cardStrings: Record<
     trialUnlessCancelled: (priceWithSuffix: string) => `, then ${priceWithSuffix} unless cancelled.`,
   },
   sl: {
-    planCardAnnualNote: (yr: string) => `Letno obračunavanje: ${yr}/leto (popust 15 %).`,
+    planCardAnnualNote: (yr: string, discountPercent: string) => `Letno obračunavanje: ${yr}/leto (popust ${discountPercent} %).`,
     planCardAnnualNoteShort: (yr: string) => `Letno obračunavanje: ${yr}/leto.`,
     planCardNotePro: 'Za rastoča podjetja z do 5 člani ekipe.',
     planCardNoteBusiness: 'Za večje operacije in ekipe na več lokacijah.',
@@ -228,7 +326,7 @@ export function getPlanCardPriceNote(planKey: RegisterPlanKey, billing: Register
       per: pm,
       oldPriceVisible: false,
       oldPrice: '',
-      note: loc.planCardAnnualNote(formatEuro(annual)),
+      note: loc.planCardAnnualNote(formatEuro(annual), formatDiscountPercent(annualDiscountPercent)),
       noteIsTrial: false,
       trialHighlight: '',
       trialUnlessCancelled: '',
@@ -264,51 +362,36 @@ export function getPlanCardPriceNote(planKey: RegisterPlanKey, billing: Register
 }
 
 function addonMonthly(locale: RegisterLocale): Record<RegisterPlanAddonKey, { name: string; monthly: number; description: string }> {
-  const en = {
-    voice: {
-      name: 'AI voice booking',
-      monthly: addonMonthlyAmounts.voice,
-      description: 'Hands-free assistant for faster scheduling.',
-    },
-    billing: {
-      name: 'Billing & invoices',
-      monthly: addonMonthlyAmounts.billing,
-      description: 'Invoices, payment records, and exports.',
-    },
-    whitelabel: {
-      name: 'Branded booking experience',
-      monthly: addonMonthlyAmounts.whitelabel,
-      description: 'Custom colors, domain, and branded notifications.',
-    },
-  }
-  const sl = {
-    voice: {
-      name: 'AI glasovne rezervacije',
-      monthly: addonMonthlyAmounts.voice,
-      description: 'Pomočnik brez rok za hitrejše naročanje terminov.',
-    },
-    billing: {
-      name: 'Obračun in računi',
-      monthly: addonMonthlyAmounts.billing,
-      description: 'Računi, evidence plačil in izvozi.',
-    },
-    whitelabel: {
-      name: 'Blagovna znamka pri rezervacijah',
-      monthly: addonMonthlyAmounts.whitelabel,
-      description: 'Barve, domena in obvestila v vaši blagovni znamki.',
-    },
-  }
-  return locale === 'sl' ? sl : en
+  const out: Record<string, { name: string; monthly: number; description: string }> = {}
+  addonCatalogItems
+    .filter((item) => item.active !== false)
+    .forEach((item) => {
+      out[item.key] = {
+        name: locale === 'sl' ? item.nameSl || item.name : item.name,
+        monthly: item.monthly,
+        description: locale === 'sl' ? item.descriptionSl || item.description : item.description,
+      }
+    })
+  return out
 }
 
 export function getAddonCatalog(locale: RegisterLocale) {
   return addonMonthly(locale)
 }
 
+export function getActiveAddonKeys() {
+  return addonCatalogItems.filter((item) => item.active !== false).map((item) => item.key)
+}
+
+export function countSelectedAddons(selection: RegisterSelection) {
+  const active = getActiveAddonKeys()
+  return active.reduce((count, key) => count + (selection.addons?.[key] ? 1 : 0), 0)
+}
+
 export function selectionRequiresBillingDetails(selection: RegisterSelection) {
   const monthly = getSelectionMonthlyAmounts(selection)
   const estimatedMonthlyPayable = selection.billing === 'annual'
-    ? (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * 0.85 + monthly.smsMonthly
+    ? (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * annualDiscountFactor() + monthly.smsMonthly
     : monthly.totalMonthly
 
   return estimatedMonthlyPayable > 0.005
@@ -320,10 +403,10 @@ export function getSelectionMonthlyAmounts(selection: RegisterSelection) {
   const usersMonthly = getBillableAdditionalUserSlots(selection) * 9.9
   const smsMonthly = selection.additionalSms * 0.05
   const addons = addonMonthly('en')
-  const addonsMonthly =
-    (selection.addons.voice ? addons.voice.monthly : 0)
-    + (selection.addons.billing ? addons.billing.monthly : 0)
-    + (selection.addons.whitelabel ? addons.whitelabel.monthly : 0)
+  const addonsMonthly = Object.entries(selection.addons || {}).reduce((sum, [addonKey, selected]) => {
+    if (!selected) return sum
+    return sum + (addons[addonKey]?.monthly ?? 0)
+  }, 0)
 
   return {
     planMonthly,
@@ -363,7 +446,7 @@ export function buildSummary(selection: RegisterSelection, locale: RegisterLocal
   } else if (selection.billing === 'annual') {
     rows.push({
       label: planLabel(selection.plan),
-      value: `${formatEuro(monthly.planMonthly * 0.85)}${pm}`,
+      value: `${formatEuro(monthly.planMonthly * annualDiscountFactor())}${pm}`,
     })
   } else {
     rows.push({
@@ -375,7 +458,7 @@ export function buildSummary(selection: RegisterSelection, locale: RegisterLocal
   if (getBillableAdditionalUserSlots(selection) > 0) {
     const usersValue =
       selection.billing === 'annual'
-        ? `${formatEuro(monthly.usersMonthly * 0.85)}${pm}`
+        ? `${formatEuro(monthly.usersMonthly * annualDiscountFactor())}${pm}`
         : `${formatEuro(monthly.usersMonthly)}${pm}`
     rows.push({
       label:
@@ -396,11 +479,12 @@ export function buildSummary(selection: RegisterSelection, locale: RegisterLocal
     })
   }
 
-  ;(['voice', 'billing', 'whitelabel'] as const).forEach((addonKey) => {
-    if (!selection.addons[addonKey]) return
+  Object.entries(selection.addons || {}).forEach(([addonKey, selected]) => {
+    if (!selected) return
     const addon = addons[addonKey]
+    if (!addon) return
     const displayValue =
-      selection.billing === 'annual' ? `${formatEuro(addon.monthly * 0.85)}${pm}` : `${formatEuro(addon.monthly)}${pm}`
+      selection.billing === 'annual' ? `${formatEuro(addon.monthly * annualDiscountFactor())}${pm}` : `${formatEuro(addon.monthly)}${pm}`
     rows.push({ label: addon.name, value: displayValue })
   })
 
@@ -421,7 +505,7 @@ export function buildSummary(selection: RegisterSelection, locale: RegisterLocal
   }
 
   if (selection.billing === 'annual') {
-    const totalAnnual = (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * 10.2 + monthly.smsMonthly * 12
+    const totalAnnual = (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * 12 * annualDiscountFactor() + monthly.smsMonthly * 12
     const undiscountedAnnual = (monthly.planMonthly + monthly.usersMonthly + monthly.addonsMonthly) * 12 + monthly.smsMonthly * 12
     const annualSavingsYr = Math.max(0, undiscountedAnnual - totalAnnual)
     return {
@@ -569,7 +653,7 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     billingCycleAria: 'Billing cycle selector',
     monthly: 'Monthly',
     annual: 'Annual',
-    annualSaveBanner: 'Save 15% with annual billing',
+    annualSaveBanner: 'Save with annual billing',
     badgeRecommended: 'Recommended',
     badgePremium: 'Premium',
     badgeTrial14: '14-day free trial',
@@ -646,7 +730,7 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     billingCycleAria: 'Izbor obračunskega obdobja',
     monthly: 'Mesečno',
     annual: 'Letno',
-    annualSaveBanner: 'Pri letnem obračunu prihranite 15 %',
+    annualSaveBanner: 'Pri letnem obračunu prihranite',
     badgeRecommended: 'Priporočeno',
     badgePremium: 'Premium',
     badgeTrial14: '14-dnevni brezplačni preizkus',
@@ -738,6 +822,16 @@ export function buildRegisterFooterPill(
   return { title, sub: detailParts.join(' · ') }
 }
 
+function formatDiscountPercent(value: number) {
+  return Math.round(value * 100) / 100 % 1 === 0 ? String(Math.round(value)) : (Math.round(value * 100) / 100).toFixed(2)
+}
+
+export function annualSaveBannerText(locale: RegisterLocale) {
+  const pct = formatDiscountPercent(annualDiscountPercent)
+  return locale === 'sl' ? `Pri letnem obračunu prihranite ${pct} %` : `Save ${pct}% with annual billing`
+}
+
 export function annualSaveBadgeText(amount: string, locale: RegisterLocale) {
-  return locale === 'sl' ? `Prihranek ${amount}/leto (15 %)` : `You save ${amount}/yr (15%)`
+  const pct = formatDiscountPercent(annualDiscountPercent)
+  return locale === 'sl' ? `Prihranek ${amount}/leto (${pct} %)` : `You save ${amount}/yr (${pct}%)`
 }

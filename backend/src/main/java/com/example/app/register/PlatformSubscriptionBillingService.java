@@ -248,15 +248,15 @@ public class PlatformSubscriptionBillingService {
         BigDecimal basic = money(catalogPlans.getOrDefault("basic", 18.90));
         BigDecimal pro = money(catalogPlans.getOrDefault("pro", 34.90));
         BigDecimal business = money(catalogPlans.getOrDefault("business", 59.90));
+        BigDecimal annualDiscountPercent = percent(catalog == null ? null : catalog.getAnnualDiscountPercent());
 
         Map<String, PlatformPlan> out = new LinkedHashMap<>();
         out.put("BASIC:MONTHLY", new PlatformPlan("BASICMONTHLY", "Basic Package - Monthly", basic, BillingInterval.MONTHLY));
-        // Matches the requested service setup screenshot: Basic annual keeps the same monthly-equivalent amount.
-        out.put("BASIC:YEARLY", new PlatformPlan("BASICANNUAL", "Basic Package - Annual", basic, BillingInterval.YEARLY));
+        out.put("BASIC:YEARLY", new PlatformPlan("BASICANNUAL", "Basic Package - Annual", annualMonthlyEquivalent(basic, annualDiscountPercent), BillingInterval.YEARLY));
         out.put("PROFESSIONAL:MONTHLY", new PlatformPlan("PROMONTHLY", "Pro Package - Monthly", pro, BillingInterval.MONTHLY));
-        out.put("PROFESSIONAL:YEARLY", new PlatformPlan("PROANNUAL", "Pro Package - Annual", annualMonthlyEquivalent(pro), BillingInterval.YEARLY));
+        out.put("PROFESSIONAL:YEARLY", new PlatformPlan("PROANNUAL", "Pro Package - Annual", annualMonthlyEquivalent(pro, annualDiscountPercent), BillingInterval.YEARLY));
         out.put("PREMIUM:MONTHLY", new PlatformPlan("BUSINESSMONTHLY", "Business Package - Monthly", business, BillingInterval.MONTHLY));
-        out.put("PREMIUM:YEARLY", new PlatformPlan("BUSINESSANNUAL", "Business Package - Annual", annualMonthlyEquivalent(business), BillingInterval.YEARLY));
+        out.put("PREMIUM:YEARLY", new PlatformPlan("BUSINESSANNUAL", "Business Package - Annual", annualMonthlyEquivalent(business, annualDiscountPercent), BillingInterval.YEARLY));
         return out;
     }
 
@@ -491,8 +491,16 @@ public class PlatformSubscriptionBillingService {
         return BigDecimal.valueOf(value == null ? 0.0 : value).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal annualMonthlyEquivalent(BigDecimal monthly) {
-        return monthly.multiply(new BigDecimal("0.85")).setScale(2, RoundingMode.HALF_UP);
+    private static BigDecimal annualMonthlyEquivalent(BigDecimal monthly, BigDecimal annualDiscountPercent) {
+        BigDecimal factor = BigDecimal.ONE.subtract(annualDiscountPercent.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
+        return monthly.multiply(factor).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal percent(Double value) {
+        if (value == null || value.isNaN() || value.isInfinite() || value < 0 || value > 100) {
+            return new BigDecimal("15.00");
+        }
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String normalizePackageType(String rawValue) {

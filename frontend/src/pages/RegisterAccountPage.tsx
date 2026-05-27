@@ -17,6 +17,8 @@ import {
   buildRegisterFooterPill,
   buildSummary,
   formatEuro,
+  getActiveAddonKeys,
+  getAnnualDiscountFactor,
   getRegisterPlanPageCopy,
   getSelectionMonthlyAmounts,
   plansForLocale,
@@ -905,8 +907,16 @@ export function RegisterAccountPage() {
   const [contactMessage, setContactMessage] = useState('')
   const [contactError, setContactError] = useState('')
 
+  const [, setRegisterCatalogRevision] = useState(0)
+
   useEffect(() => {
-    void ensureRegisterCatalogLoaded()
+    let alive = true
+    void ensureRegisterCatalogLoaded().then((changed) => {
+      if (alive && changed) setRegisterCatalogRevision((value) => value + 1)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   useEffect(() => {
@@ -928,7 +938,7 @@ export function RegisterAccountPage() {
 
   const peekAddonMonthly = useMemo(() => {
     if (selection.billing === 'annual') {
-      return (monthlyAmounts.usersMonthly + monthlyAmounts.addonsMonthly) * 0.85 + monthlyAmounts.smsMonthly
+      return (monthlyAmounts.usersMonthly + monthlyAmounts.addonsMonthly) * getAnnualDiscountFactor() + monthlyAmounts.smsMonthly
     }
     return monthlyAmounts.usersMonthly + monthlyAmounts.smsMonthly + monthlyAmounts.addonsMonthly
   }, [monthlyAmounts, selection.billing])
@@ -937,9 +947,7 @@ export function RegisterAccountPage() {
     let n = 0
     if (selection.additionalUsers > 1) n++
     if (selection.additionalSms > 0) n++
-    if (selection.addons.voice) n++
-    if (selection.addons.billing) n++
-    if (selection.addons.whitelabel) n++
+    n += getActiveAddonKeys().reduce((count, key) => count + (selection.addons[key] ? 1 : 0), 0)
     return n
   }, [selection])
 

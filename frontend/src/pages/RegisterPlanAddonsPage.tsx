@@ -23,6 +23,8 @@ import {
   buildRegisterFooterPill,
   buildSummary,
   formatEuro,
+  getActiveAddonKeys,
+  getAnnualDiscountFactor,
   getRegisterPlanPageCopy,
   getSelectionMonthlyAmounts,
   plansForLocale,
@@ -57,8 +59,16 @@ export function RegisterPlanAddonsPage() {
     setFeatureAddonsFullySeen(false)
   }, [location.key])
 
+  const [, setRegisterCatalogRevision] = useState(0)
+
   useEffect(() => {
-    void ensureRegisterCatalogLoaded()
+    let alive = true
+    void ensureRegisterCatalogLoaded().then((changed) => {
+      if (alive && changed) setRegisterCatalogRevision((value) => value + 1)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   useEffect(() => {
@@ -95,7 +105,7 @@ export function RegisterPlanAddonsPage() {
   const peekAddonMonthly = useMemo(() => {
     const m = monthlyAmounts
     if (selection.billing === 'annual') {
-      return (m.usersMonthly + m.addonsMonthly) * 0.85 + m.smsMonthly
+      return (m.usersMonthly + m.addonsMonthly) * getAnnualDiscountFactor() + m.smsMonthly
     }
     return m.usersMonthly + m.smsMonthly + m.addonsMonthly
   }, [monthlyAmounts, selection.billing])
@@ -104,9 +114,7 @@ export function RegisterPlanAddonsPage() {
     let n = 0
     if (getBillableAdditionalUserSlots(selection) > 0) n++
     if (selection.additionalSms > 0) n++
-    if (selection.addons.voice) n++
-    if (selection.addons.billing) n++
-    if (selection.addons.whitelabel) n++
+    n += getActiveAddonKeys().reduce((count, key) => count + (selection.addons[key] ? 1 : 0), 0)
     return n
   }, [selection])
 

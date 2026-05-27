@@ -371,9 +371,21 @@ function isPlaceholderHit(h: TenancySearchHit): boolean {
   return h.packageType === '—' && h.subscriptionInterval === '—' && h.contactEmail === ''
 }
 
+type RegisterCatalogAddonItemDto = {
+  key: string
+  name: string
+  nameSl?: string
+  description?: string
+  descriptionSl?: string
+  monthly: number
+  active?: boolean
+}
+
 type RegisterPriceCatalogDto = {
   plans: Record<string, number>
   addons: Record<string, number>
+  annualDiscountPercent?: number
+  addonItems?: RegisterCatalogAddonItemDto[]
 }
 
 function coerceMoneyInput(raw: string, fallback: number): number {
@@ -382,9 +394,90 @@ function coerceMoneyInput(raw: string, fallback: number): number {
   return Math.round(n * 100) / 100
 }
 
+function coercePercentInput(raw: string, fallback: number): number {
+  const n = Number.parseFloat(raw.replace(',', '.'))
+  if (!Number.isFinite(n) || n < 0 || n > 100) return fallback
+  return Math.round(n * 100) / 100
+}
+
+function normalizeAddonKey(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64)
+}
+
+function addonMapFromItems(items: RegisterCatalogAddonItemDto[]): Record<string, number> {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    if (item.active !== false && item.key) acc[item.key] = item.monthly
+    return acc
+  }, {})
+}
+
+function normalizeAddonItemsFromCatalog(data: RegisterPriceCatalogDto | null | undefined): RegisterCatalogAddonItemDto[] {
+  if (Array.isArray(data?.addonItems)) {
+    const normalized: RegisterCatalogAddonItemDto[] = []
+    data.addonItems.forEach((item) => {
+      const key = normalizeAddonKey(item.key || item.name || '')
+      if (!key) return
+      const fallback = DEFAULT_ADDON_ITEMS.find((defaultItem) => defaultItem.key === key)
+      normalized.push({
+        key,
+        name: (item.name || fallback?.name || key.replace(/-/g, ' ')).trim(),
+        nameSl: (item.nameSl || fallback?.nameSl || item.name || fallback?.name || key.replace(/-/g, ' ')).trim(),
+        description: (item.description || fallback?.description || 'Optional platform add-on.').trim(),
+        descriptionSl: (item.descriptionSl || fallback?.descriptionSl || item.description || 'Dodatek za platformo.').trim(),
+        monthly: typeof item.monthly === 'number' && Number.isFinite(item.monthly) ? roundMoney2(item.monthly) : fallback?.monthly ?? 0,
+        active: item.active !== false,
+      })
+    })
+    return normalized
+  }
+  const byKey: RegisterCatalogAddonItemDto[] = DEFAULT_ADDON_ITEMS.map((item) => ({ ...item }))
+  if (data?.addons) {
+    Object.entries(data.addons).forEach(([rawKey, value]) => {
+      const key = normalizeAddonKey(rawKey)
+      if (!key || typeof value !== 'number' || !Number.isFinite(value)) return
+      const found = byKey.find((item) => item.key === key)
+      if (found) found.monthly = roundMoney2(value)
+      else byKey.push({ key, name: key.replace(/-/g, ' '), nameSl: key.replace(/-/g, ' '), description: 'Optional platform add-on.', descriptionSl: 'Dodatek za platformo.', monthly: roundMoney2(value), active: true })
+    })
+  }
+  return byKey
+}
+
+const DEFAULT_ADDON_ITEMS: RegisterCatalogAddonItemDto[] = [
+  {
+    key: 'voice',
+    name: 'AI voice booking',
+    nameSl: 'AI glasovne rezervacije',
+    description: 'Hands-free assistant for faster scheduling.',
+    descriptionSl: 'Pomočnik brez rok za hitrejše naročanje terminov.',
+    monthly: 12,
+    active: true,
+  },
+  {
+    key: 'billing',
+    name: 'Billing & invoices',
+    nameSl: 'Obračun in računi',
+    description: 'Invoices, payment records, and exports.',
+    descriptionSl: 'Računi, evidence plačil in izvozi.',
+    monthly: 8,
+    active: true,
+  },
+  {
+    key: 'whitelabel',
+    name: 'Branded booking experience',
+    nameSl: 'Blagovna znamka pri rezervacijah',
+    description: 'Custom colors, domain, and branded notifications.',
+    descriptionSl: 'Barve, domena in obvestila v vaši blagovni znamki.',
+    monthly: 10,
+    active: true,
+  },
+]
+
 const DEFAULT_REGISTER_CATALOG: RegisterPriceCatalogDto = {
   plans: { basic: 18.9, pro: 34.9, business: 59.9 },
   addons: { voice: 12, billing: 8, whitelabel: 10 },
+  annualDiscountPercent: 15,
+  addonItems: DEFAULT_ADDON_ITEMS,
 }
 
 function packageToCatalogPlanKey(pkg: string): 'basic' | 'pro' | 'business' {
@@ -420,10 +513,14 @@ function formatMoneyEUR(n: number): string {
 
 function mergeRegisterCatalog(fetched: RegisterPriceCatalogDto | null | undefined): RegisterPriceCatalogDto {
   const plans = { ...DEFAULT_REGISTER_CATALOG.plans }
-  const addons = { ...DEFAULT_REGISTER_CATALOG.addons }
   if (fetched?.plans) Object.assign(plans, fetched.plans)
-  if (fetched?.addons) Object.assign(addons, fetched.addons)
-  return { plans, addons }
+  const addonItems = normalizeAddonItemsFromCatalog(fetched || DEFAULT_REGISTER_CATALOG)
+  const addons = addonMapFromItems(addonItems)
+  const annualDiscountPercent =
+    typeof fetched?.annualDiscountPercent === 'number' && Number.isFinite(fetched.annualDiscountPercent)
+      ? Math.max(0, Math.min(100, roundMoney2(fetched.annualDiscountPercent)))
+      : DEFAULT_REGISTER_CATALOG.annualDiscountPercent
+  return { plans, addons, annualDiscountPercent, addonItems }
 }
 
 function planAmountsForTenant(selected: TenancyDetails, catalog: RegisterPriceCatalogDto) {
@@ -433,7 +530,8 @@ function planAmountsForTenant(selected: TenancyDetails, catalog: RegisterPriceCa
     typeof monthlyRaw === 'number' && Number.isFinite(monthlyRaw)
       ? monthlyRaw
       : DEFAULT_REGISTER_CATALOG.plans[planKey]
-  const yearly = roundMoney2(monthly * 12)
+  const annualDiscountPercent = catalog.annualDiscountPercent ?? DEFAULT_REGISTER_CATALOG.annualDiscountPercent ?? 15
+  const yearly = roundMoney2(monthly * 12 * (1 - annualDiscountPercent / 100))
   const billingLabel = isYearlyBillingInterval(selected.subscriptionInterval) ? ('Annual' as const) : ('Monthly' as const)
   const currentAmount = billingLabel === 'Annual' ? yearly : monthly
   return { planKey, monthly, yearly, billingLabel, currentAmount }
@@ -530,7 +628,8 @@ function PlanPricesAdminPanel() {
   const [err, setErr] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
   const [plans, setPlans] = useState({ basic: 18.9, pro: 34.9, business: 59.9 })
-  const [addons, setAddons] = useState({ voice: 12, billing: 8, whitelabel: 10 })
+  const [annualDiscountPercent, setAnnualDiscountPercent] = useState(15)
+  const [addonItems, setAddonItems] = useState<RegisterCatalogAddonItemDto[]>(() => DEFAULT_ADDON_ITEMS.map((item) => ({ ...item })))
 
   useEffect(() => {
     let cancelled = false
@@ -539,21 +638,15 @@ function PlanPricesAdminPanel() {
       setErr(null)
       try {
         const { data } = await api.get<RegisterPriceCatalogDto>('/platform-admin/register-prices')
-        if (cancelled || !data) return
-        if (data.plans) {
-          setPlans((prev) => ({
-            basic: typeof data.plans.basic === 'number' ? data.plans.basic : prev.basic,
-            pro: typeof data.plans.pro === 'number' ? data.plans.pro : prev.pro,
-            business: typeof data.plans.business === 'number' ? data.plans.business : prev.business,
-          }))
-        }
-        if (data.addons) {
-          setAddons((prev) => ({
-            voice: typeof data.addons.voice === 'number' ? data.addons.voice : prev.voice,
-            billing: typeof data.addons.billing === 'number' ? data.addons.billing : prev.billing,
-            whitelabel: typeof data.addons.whitelabel === 'number' ? data.addons.whitelabel : prev.whitelabel,
-          }))
-        }
+        if (cancelled) return
+        const catalog = mergeRegisterCatalog(data)
+        setPlans({
+          basic: typeof catalog.plans.basic === 'number' ? catalog.plans.basic : 18.9,
+          pro: typeof catalog.plans.pro === 'number' ? catalog.plans.pro : 34.9,
+          business: typeof catalog.plans.business === 'number' ? catalog.plans.business : 59.9,
+        })
+        setAnnualDiscountPercent(catalog.annualDiscountPercent ?? 15)
+        setAddonItems((catalog.addonItems || DEFAULT_ADDON_ITEMS).map((item) => ({ ...item })))
       } catch {
         setErr('Could not load register catalog.')
       } finally {
@@ -565,13 +658,72 @@ function PlanPricesAdminPanel() {
     }
   }, [])
 
+  const updateAddon = (index: number, patch: Partial<RegisterCatalogAddonItemDto>) => {
+    setAddonItems((items) => items.map((item, i) => (i === index ? { ...item, ...patch } : item)))
+  }
+
+  const addAddon = () => {
+    const stamp = Date.now().toString(36)
+    setAddonItems((items) => [
+      ...items,
+      {
+        key: `custom-addon-${stamp}`,
+        name: 'New add-on',
+        nameSl: 'Nov dodatek',
+        description: 'Optional platform add-on.',
+        descriptionSl: 'Dodatek za platformo.',
+        monthly: 0,
+        active: true,
+      },
+    ])
+  }
+
+  const removeAddon = (index: number) => {
+    setAddonItems((items) => items.filter((_, i) => i !== index))
+  }
+
+  const cleanAddonItems = (): RegisterCatalogAddonItemDto[] => {
+    const seen = new Set<string>()
+    const cleaned: RegisterCatalogAddonItemDto[] = []
+    addonItems.forEach((item) => {
+      const key = normalizeAddonKey(item.key || item.name || '')
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      cleaned.push({
+        key,
+        name: (item.name || key.replace(/-/g, ' ')).trim(),
+        nameSl: (item.nameSl || item.name || key.replace(/-/g, ' ')).trim(),
+        description: (item.description || 'Optional platform add-on.').trim(),
+        descriptionSl: (item.descriptionSl || item.description || 'Dodatek za platformo.').trim(),
+        monthly: roundMoney2(item.monthly),
+        active: item.active !== false,
+      })
+    })
+    return cleaned
+  }
+
   const save = async () => {
     setSaving(true)
     setErr(null)
     setOk(null)
     try {
-      await api.put('/platform-admin/register-prices', { plans, addons })
-      setOk('Saved. Visitors will see new amounts after they reload the register pages.')
+      const cleanedAddons = cleanAddonItems()
+      const payload: RegisterPriceCatalogDto = {
+        plans,
+        annualDiscountPercent,
+        addonItems: cleanedAddons,
+        addons: addonMapFromItems(cleanedAddons),
+      }
+      const { data } = await api.put<RegisterPriceCatalogDto>('/platform-admin/register-prices', payload)
+      const catalog = mergeRegisterCatalog(data || payload)
+      setPlans({
+        basic: typeof catalog.plans.basic === 'number' ? catalog.plans.basic : plans.basic,
+        pro: typeof catalog.plans.pro === 'number' ? catalog.plans.pro : plans.pro,
+        business: typeof catalog.plans.business === 'number' ? catalog.plans.business : plans.business,
+      })
+      setAnnualDiscountPercent(catalog.annualDiscountPercent ?? annualDiscountPercent)
+      setAddonItems((catalog.addonItems || cleanedAddons).map((item) => ({ ...item })))
+      setOk('Saved. Visitors will see updated plan prices, annual discount, and add-ons after they reload the register pages.')
     } catch {
       setErr('Could not save catalog.')
     } finally {
@@ -579,14 +731,21 @@ function PlanPricesAdminPanel() {
     }
   }
 
+  const annualFactor = Math.max(0, Math.min(1, 1 - annualDiscountPercent / 100))
+  const planPreviews = [
+    { key: 'basic' as const, label: 'Basic', monthly: plans.basic },
+    { key: 'pro' as const, label: 'Pro', monthly: plans.pro },
+    { key: 'business' as const, label: 'Business', monthly: plans.business },
+  ]
+  const activeAddonCount = addonItems.filter((item) => item.active !== false).length
+
   return (
     <div>
       <div className="plan-price-head">
         <div className="eyebrow">Signup catalog</div>
         <h2>Plan &amp; add-on prices</h2>
         <p className="muted" style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}>
-          Monthly amounts in EUR for the public register flow (Basic, Pro, Business and the three optional add-ons).
-          Annual billing still shows the 15% discount in the UI.
+          Monthly amounts in EUR for the public register flow. Annual discount and the active add-on list are read by the register Plan selection page.
         </p>
       </div>
 
@@ -601,29 +760,19 @@ function PlanPricesAdminPanel() {
           <div className="catalog-ladder-step catalog-ladder-step--low">
             <span className="catalog-ladder-rung">Lowest</span>
             <span className="catalog-ladder-name">Basic</span>
-            <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-              Entry paid tier
-            </span>
+            <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Entry paid tier</span>
           </div>
-          <span className="catalog-ladder-arrow" aria-hidden>
-            →
-          </span>
+          <span className="catalog-ladder-arrow" aria-hidden>→</span>
           <div className="catalog-ladder-step catalog-ladder-step--mid">
             <span className="catalog-ladder-rung">Mid</span>
             <span className="catalog-ladder-name">Professional</span>
-            <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-              Pro feature set
-            </span>
+            <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Pro feature set</span>
           </div>
-          <span className="catalog-ladder-arrow" aria-hidden>
-            →
-          </span>
+          <span className="catalog-ladder-arrow" aria-hidden>→</span>
           <div className="catalog-ladder-step catalog-ladder-step--high">
             <span className="catalog-ladder-rung">Highest</span>
             <span className="catalog-ladder-name">Premium</span>
-            <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-              Business / largest tier
-            </span>
+            <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 700 }}>Business / largest tier</span>
           </div>
         </div>
       </div>
@@ -631,10 +780,9 @@ function PlanPricesAdminPanel() {
       {loading ? <p className="muted">Loading catalog…</p> : null}
       {err ? <p className="search-err">{err}</p> : null}
       {ok ? (
-        <p style={{ margin: 0, color: 'var(--success-text)', fontWeight: 800, fontSize: '0.92rem' }}>
-          {ok}
-        </p>
+        <p style={{ margin: 0, color: 'var(--success-text)', fontWeight: 800, fontSize: '0.92rem' }}>{ok}</p>
       ) : null}
+
       {!loading ? (
         <>
           <h3 className="muted" style={{ margin: '18px 0 10px', fontSize: '0.95rem', fontWeight: 950 }}>
@@ -643,70 +791,95 @@ function PlanPricesAdminPanel() {
           <div className="plan-price-grid">
             <div className="plan-price-field">
               <label htmlFor="pa-plan-basic">Basic</label>
-              <input
-                id="pa-plan-basic"
-                type="text"
-                inputMode="decimal"
-                value={String(plans.basic)}
-                onChange={(e) => setPlans((p) => ({ ...p, basic: coerceMoneyInput(e.target.value, p.basic) }))}
-              />
+              <input id="pa-plan-basic" type="text" inputMode="decimal" value={String(plans.basic)} onChange={(e) => setPlans((p) => ({ ...p, basic: coerceMoneyInput(e.target.value, p.basic) }))} />
             </div>
             <div className="plan-price-field">
               <label htmlFor="pa-plan-pro">Pro</label>
-              <input
-                id="pa-plan-pro"
-                type="text"
-                inputMode="decimal"
-                value={String(plans.pro)}
-                onChange={(e) => setPlans((p) => ({ ...p, pro: coerceMoneyInput(e.target.value, p.pro) }))}
-              />
+              <input id="pa-plan-pro" type="text" inputMode="decimal" value={String(plans.pro)} onChange={(e) => setPlans((p) => ({ ...p, pro: coerceMoneyInput(e.target.value, p.pro) }))} />
             </div>
             <div className="plan-price-field">
               <label htmlFor="pa-plan-business">Business</label>
-              <input
-                id="pa-plan-business"
-                type="text"
-                inputMode="decimal"
-                value={String(plans.business)}
-                onChange={(e) => setPlans((p) => ({ ...p, business: coerceMoneyInput(e.target.value, p.business) }))}
-              />
+              <input id="pa-plan-business" type="text" inputMode="decimal" value={String(plans.business)} onChange={(e) => setPlans((p) => ({ ...p, business: coerceMoneyInput(e.target.value, p.business) }))} />
             </div>
           </div>
+
           <h3 className="muted" style={{ margin: '22px 0 10px', fontSize: '0.95rem', fontWeight: 950 }}>
-            Add-ons (€ / month)
+            Annual discount
           </h3>
-          <div className="plan-price-grid">
+          <div className="plan-price-grid" style={{ alignItems: 'end' }}>
             <div className="plan-price-field">
-              <label htmlFor="pa-addon-voice">AI voice booking</label>
-              <input
-                id="pa-addon-voice"
-                type="text"
-                inputMode="decimal"
-                value={String(addons.voice)}
-                onChange={(e) => setAddons((a) => ({ ...a, voice: coerceMoneyInput(e.target.value, a.voice) }))}
-              />
+              <label htmlFor="pa-annual-discount">Annual discount (%)</label>
+              <input id="pa-annual-discount" type="text" inputMode="decimal" value={String(annualDiscountPercent)} onChange={(e) => setAnnualDiscountPercent((current) => coercePercentInput(e.target.value, current))} />
             </div>
-            <div className="plan-price-field">
-              <label htmlFor="pa-addon-billing">Billing &amp; invoices</label>
-              <input
-                id="pa-addon-billing"
-                type="text"
-                inputMode="decimal"
-                value={String(addons.billing)}
-                onChange={(e) => setAddons((a) => ({ ...a, billing: coerceMoneyInput(e.target.value, a.billing) }))}
-              />
-            </div>
-            <div className="plan-price-field">
-              <label htmlFor="pa-addon-whitelabel">Branded booking</label>
-              <input
-                id="pa-addon-whitelabel"
-                type="text"
-                inputMode="decimal"
-                value={String(addons.whitelabel)}
-                onChange={(e) => setAddons((a) => ({ ...a, whitelabel: coerceMoneyInput(e.target.value, a.whitelabel) }))}
-              />
-            </div>
+            {planPreviews.map((plan) => {
+              const annualTotal = roundMoney2(plan.monthly * 12 * annualFactor)
+              return (
+                <div key={plan.key} className="field-card" style={{ minHeight: 74, justifyContent: 'center' }}>
+                  <div className="field-label">
+                    <strong>{plan.label} annual total</strong>
+                    <span>€{formatMoneyEUR(annualTotal)} / year</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 24, flexWrap: 'wrap' }}>
+            <h3 className="muted" style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950 }}>
+              Add-ons ({activeAddonCount} active)
+            </h3>
+            <button className="button secondary small" type="button" onClick={addAddon}>+ Add add-on</button>
+          </div>
+
+          <div style={{ display: 'grid', gap: 12, marginTop: 10 }}>
+            {addonItems.length === 0 ? (
+              <div className="empty-hint">No add-ons are active in the register flow. Add a new add-on to show it on Plan selection.</div>
+            ) : null}
+            {addonItems.map((item, index) => (
+              <div key={`${item.key}-${index}`} className="section-card" style={{ padding: 14 }}>
+                <div className="section-head">
+                  <div className="section-title">
+                    <strong>{item.name || 'Add-on'}</strong>
+                    <span>{item.active !== false ? 'Visible on register Plan selection' : 'Hidden from register Plan selection'}</span>
+                  </div>
+                  <div className="top-actions">
+                    <label className="pill" style={{ cursor: 'pointer' }}>
+                      <input type="checkbox" checked={item.active !== false} onChange={(e) => updateAddon(index, { active: e.target.checked })} />
+                      Active
+                    </label>
+                    <button className="button danger small" type="button" onClick={() => removeAddon(index)}>Remove</button>
+                  </div>
+                </div>
+                <div className="plan-price-grid">
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-addon-key-${index}`}>Key</label>
+                    <input id={`pa-addon-key-${index}`} type="text" value={item.key} onChange={(e) => updateAddon(index, { key: normalizeAddonKey(e.target.value) })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-addon-name-${index}`}>Name EN</label>
+                    <input id={`pa-addon-name-${index}`} type="text" value={item.name} onChange={(e) => updateAddon(index, { name: e.target.value })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-addon-name-sl-${index}`}>Name SL</label>
+                    <input id={`pa-addon-name-sl-${index}`} type="text" value={item.nameSl || ''} onChange={(e) => updateAddon(index, { nameSl: e.target.value })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-addon-monthly-${index}`}>Price (€ / month)</label>
+                    <input id={`pa-addon-monthly-${index}`} type="text" inputMode="decimal" value={String(item.monthly)} onChange={(e) => updateAddon(index, { monthly: coerceMoneyInput(e.target.value, item.monthly) })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-addon-desc-${index}`}>Description EN</label>
+                    <input id={`pa-addon-desc-${index}`} type="text" value={item.description || ''} onChange={(e) => updateAddon(index, { description: e.target.value })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-addon-desc-sl-${index}`}>Description SL</label>
+                    <input id={`pa-addon-desc-sl-${index}`} type="text" value={item.descriptionSl || ''} onChange={(e) => updateAddon(index, { descriptionSl: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div style={{ marginTop: 22 }} className="top-actions">
             <button className="button primary" type="button" onClick={() => void save()} disabled={saving}>
               {saving ? 'Saving…' : 'Save changes'}

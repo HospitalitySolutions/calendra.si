@@ -862,8 +862,16 @@ export function RegisterBillingDetailsPage() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const [, setRegisterCatalogRevision] = useState(0)
+
   useEffect(() => {
-    void ensureRegisterCatalogLoaded()
+    let alive = true
+    void ensureRegisterCatalogLoaded().then((changed) => {
+      if (alive && changed) setRegisterCatalogRevision((value) => value + 1)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
   useEffect(() => {
