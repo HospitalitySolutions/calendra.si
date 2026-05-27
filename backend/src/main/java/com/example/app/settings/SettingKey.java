@@ -30,6 +30,8 @@ public enum SettingKey {
     SECURITY_SESSION_SECURITY_ENABLED,
     SECURITY_PASSKEYS_ENABLED,
     SECURITY_API_INTEGRATIONS_ENABLED,
+    /** Tenant/module preset type selected during signup billing details and adjustable on Modules page. */
+    MODULE_CONFIG_TYPE,
     SESSION_LENGTH_MINUTES,
     WORKING_HOURS_START,
     WORKING_HOURS_END,

@@ -659,7 +659,7 @@ private fun TenantCarouselCard(tenant: TenantSummary, isSl: Boolean, modifier: M
             Button(
                 onClick = onSelect,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp).height(44.dp),
-                shape = RoundedCornerShape(17.dp),
+                shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = CalendraBlue, contentColor = Color.White)
             ) {
                 Text(if (isSl) "Izberi ponudnika" else "Select tenant", fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -757,64 +757,121 @@ private fun JoinWithCodePopup(
     isSl: Boolean,
     onJoin: () -> Unit
 ) {
-    val actionBlue = Color(0xFF1568F4)
-    val mutedBlue = actionBlue.copy(alpha = 0.66f)
-    val fieldLine = actionBlue.copy(alpha = 0.22f)
+    val titleColor = Color(0xFF101C33)
+    val bodyColor = Color(0xFF7A8497)
+    val inputTextColor = Color(0xFF2C3445)
+    val placeholderColor = Color(0xFF8B94A6)
+    val fieldLine = Color(0xFFD7DEEA)
+    val fieldLineFocused = Color(0xFF9EB8E6)
+    val primaryBlue = Color(0xFF1568F4)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(30.dp),
             color = Color.White,
-            shadowElevation = 18.dp
+            shadowElevation = 22.dp
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code", color = actionBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text(if (isSl) "Vnesite kodo, ki vam jo je posredoval ponudnik." else "Enter the code provided by the tenant.", color = mutedBlue, fontSize = 14.sp)
+            Column(modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp)) {
+                Text(
+                    text = if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code",
+                    color = titleColor,
+                    fontSize = 22.sp,
+                    lineHeight = 27.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = if (isSl) "Vnesite kodo, ki vam jo je posredoval ponudnik." else "Enter the code provided by the tenant.",
+                    color = bodyColor,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = code,
                     onValueChange = onCodeChange,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
                     singleLine = true,
-                    placeholder = { Text("e.g. TEN-7X9K", fontSize = 14.sp) },
-                    leadingIcon = { CodeGlyph() },
-                    shape = RoundedCornerShape(16.dp),
+                    placeholder = { Text("e.g. TEN-7X9K", color = placeholderColor, fontSize = 13.sp) },
+                    leadingIcon = { PopupCodeGlyph() },
+                    shape = RoundedCornerShape(18.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = inputTextColor,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = actionBlue,
+                        focusedBorderColor = fieldLineFocused,
                         unfocusedBorderColor = fieldLine,
-                        focusedTextColor = actionBlue,
-                        unfocusedTextColor = actionBlue,
-                        cursorColor = actionBlue,
-                        focusedLeadingIconColor = actionBlue,
-                        unfocusedLeadingIconColor = actionBlue.copy(alpha = 0.74f),
-                        focusedPlaceholderColor = actionBlue.copy(alpha = 0.58f),
-                        unfocusedPlaceholderColor = actionBlue.copy(alpha = 0.58f)
+                        focusedTextColor = inputTextColor,
+                        unfocusedTextColor = inputTextColor,
+                        cursorColor = primaryBlue,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedLeadingIconColor = primaryBlue,
+                        unfocusedLeadingIconColor = Color(0xFF8EA0C2),
+                        focusedPlaceholderColor = placeholderColor,
+                        unfocusedPlaceholderColor = placeholderColor
                     )
                 )
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     Surface(
-                        modifier = Modifier.weight(1f).height(50.dp).clickable(onClick = onDismiss),
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .clickable(onClick = onDismiss),
+                        shape = RoundedCornerShape(15.dp),
                         color = Color.White,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, fieldLine)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, fieldLine),
+                        shadowElevation = 0.dp
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(if (isSl) "Prekliči" else "Cancel", color = actionBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = if (isSl) "Prekliči" else "Cancel",
+                                color = Color(0xFF364154),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                     Button(
                         onClick = onJoin,
-                        modifier = Modifier.weight(1f).height(50.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = actionBlue, contentColor = Color.White)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .shadow(5.dp, RoundedCornerShape(17.dp), clip = false),
+                        shape = RoundedCornerShape(15.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryBlue, contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                     ) {
-                        Text(if (isSl) "Pridruži se" else "Join", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (isSl) "Pridruži se" else "Join",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PopupCodeGlyph() {
+    Surface(
+        modifier = Modifier.size(width = 32.dp, height = 27.dp),
+        shape = RoundedCornerShape(9.dp),
+        color = Color.White,
+        border = androidx.compose.foundation.BorderStroke(1.4.dp, Color(0xFF9EB0D2))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text("</>", color = CalendraOrange, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }

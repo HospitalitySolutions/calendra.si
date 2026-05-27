@@ -2026,7 +2026,7 @@ type GuestAppSettingsForm = {
   publicName: string
   publicDescription: string
   publicCity: string
-  tenantType: 'salon' | 'gym' | 'spa' | 'therapy'
+  tenantType: TenantConfigType
   cardImageUrl: string
   logoImageUrl: string
   iconImageUrl: string
@@ -2109,6 +2109,22 @@ const GUEST_PAYMENT_METHOD_OPTIONS: { id: GuestPaymentMethodId; label: string }[
 ]
 
 const DEFAULT_GUEST_PAYMENT_METHOD_IDS: GuestPaymentMethodId[] = ['online_card', 'bank_transfer', 'paypal', 'gift_card']
+
+type TenantConfigType = 'salon' | 'gym' | 'therapy' | 'spa' | 'personal_training'
+
+const TENANT_CONFIG_TYPE_OPTIONS: Array<{ id: TenantConfigType; labelEn: string; labelSl: string }> = [
+  { id: 'salon', labelEn: 'Salon', labelSl: 'Salon' },
+  { id: 'gym', labelEn: 'Gym', labelSl: 'Fitnes' },
+  { id: 'therapy', labelEn: 'Therapy', labelSl: 'Terapija' },
+  { id: 'spa', labelEn: 'Spa', labelSl: 'Spa' },
+  { id: 'personal_training', labelEn: 'Personal Training', labelSl: 'Osebni trening' },
+]
+
+const normalizeTenantConfigType = (raw: any): TenantConfigType => {
+  const value = String(raw || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+  return TENANT_CONFIG_TYPE_OPTIONS.some((option) => option.id === value) ? value as TenantConfigType : 'salon'
+}
+
 const isGuestPaymentMethodId = (value: string): value is GuestPaymentMethodId => GUEST_PAYMENT_METHOD_OPTIONS.some((option) => option.id === value)
 const normalizeGuestPaymentMethods = (value: any): GuestPaymentMethodId[] => {
   if (!Array.isArray(value)) return DEFAULT_GUEST_PAYMENT_METHOD_IDS
@@ -2465,7 +2481,7 @@ const parseGuestAppSettings = (raw: string | undefined): GuestAppSettingsForm =>
       publicName: normalizePublicName(parsed?.publicName),
       publicDescription: String(parsed?.publicDescription || ''),
       publicCity: normalizePublicCity(parsed?.publicCity),
-      tenantType: (['salon', 'gym', 'spa', 'therapy'].includes(parsed?.tenantType) ? parsed.tenantType : 'salon') as GuestAppSettingsForm['tenantType'],
+      tenantType: normalizeTenantConfigType(parsed?.tenantType),
       cardImageUrl: String(parsed?.cardImageUrl || ''),
       logoImageUrl: String(parsed?.logoImageUrl || ''),
       iconImageUrl: String(parsed?.iconImageUrl || ''),
@@ -2545,7 +2561,7 @@ const serializeGuestAppSettings = (value: GuestAppSettingsForm) => JSON.stringif
   publicName: normalizePublicName(value.publicName).trim(),
   publicDescription: normalizePublicDescription(value.publicDescription),
   publicCity: normalizePublicCity(value.publicCity).trim(),
-  tenantType: value.tenantType,
+  tenantType: normalizeTenantConfigType(value.tenantType),
   cardImageUrl: value.cardImageUrl.trim(),
   logoImageUrl: value.logoImageUrl.trim(),
   iconImageUrl: value.iconImageUrl.trim(),
@@ -2593,6 +2609,7 @@ const serializeGuestBookingRules = (value: GuestBookingRulesForm) => JSON.string
 })
 
 type ModulesDraft = {
+  MODULE_CONFIG_TYPE: TenantConfigType
   SPACES_ENABLED: string
   BOOKABLE_ENABLED: string
   AI_BOOKING_ENABLED: string
@@ -2626,7 +2643,7 @@ type ModulesDraft = {
   guestEntitlementsEnabled: boolean
 }
 
-type ModulesStringKey = { [K in keyof ModulesDraft]: ModulesDraft[K] extends string ? K : never }[keyof ModulesDraft]
+type ModulesStringKey = { [K in keyof ModulesDraft]: ModulesDraft[K] extends string ? (K extends 'MODULE_CONFIG_TYPE' ? never : K) : never }[keyof ModulesDraft]
 type ModulesBooleanKey = { [K in keyof ModulesDraft]: ModulesDraft[K] extends boolean ? K : never }[keyof ModulesDraft]
 
 const modulesStringSetting = (s: Record<string, string>, key: string, defaultValue: boolean) => {
@@ -2636,6 +2653,7 @@ const modulesStringSetting = (s: Record<string, string>, key: string, defaultVal
 }
 
 const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSettingsForm): ModulesDraft => ({
+  MODULE_CONFIG_TYPE: normalizeTenantConfigType(s.MODULE_CONFIG_TYPE || g.tenantType),
   SPACES_ENABLED: s.SPACES_ENABLED === 'true' ? 'true' : 'false',
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === 'true' ? 'true' : 'false',
   AI_BOOKING_ENABLED: s.AI_BOOKING_ENABLED === 'true' ? 'true' : 'false',
@@ -3176,6 +3194,7 @@ export function ConfigurationPage() {
       if (opts?.applyModulesDraft && modulesDraft) {
         const modulesDraftForSave: ModulesDraft = {
           ...modulesDraft,
+          MODULE_CONFIG_TYPE: normalizeTenantConfigType(modulesDraft.MODULE_CONFIG_TYPE),
           AI_BOOKING_ENABLED: 'false',
           MULTIPLE_SESSIONS_PER_SPACE_ENABLED: modulesDraft.SPACES_ENABLED === 'true' && modulesDraft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'true' : 'false',
         }
@@ -3188,6 +3207,7 @@ export function ConfigurationPage() {
         }
         effectiveSettings = {
           ...settings,
+          MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           AI_BOOKING_ENABLED: modulesDraftForSave.AI_BOOKING_ENABLED,
@@ -3952,6 +3972,12 @@ export function ConfigurationPage() {
   }
   const moduleOn = (key: ModulesStringKey) => moduleDraftForDesign[key] === 'true'
   const moduleBool = (key: ModulesBooleanKey) => moduleDraftForDesign[key]
+  const setModuleConfigType = (value: TenantConfigType) => {
+    setModulesDraft((prev) => {
+      const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+      return { ...d, MODULE_CONFIG_TYPE: normalizeTenantConfigType(value) }
+    })
+  }
   const toggleExpandedModuleRow = (id: string) => {
     setExpandedModuleRows((prev) => prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id])
   }
@@ -7129,11 +7155,10 @@ export function ConfigurationPage() {
                       label={locale === 'sl' ? 'Vrsta podjetja' : 'Tenant type'}
                       hint={locale === 'sl' ? 'Določa, v katerem karuselu brskanja v mobilni aplikaciji za goste se to podjetje prikaže.' : 'Controls which guest-mobile browse carousel this tenant appears in.'}
                     >
-                      <select className="gapp-select" value={guestAppSettings.tenantType} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, tenantType: e.target.value as GuestAppSettingsForm['tenantType'] })}>
-                        <option value="salon">{locale === 'sl' ? 'Salon' : 'Salon'}</option>
-                        <option value="gym">{locale === 'sl' ? 'Fitnes' : 'Gym'}</option>
-                        <option value="spa">{locale === 'sl' ? 'Spa' : 'Spa'}</option>
-                        <option value="therapy">{locale === 'sl' ? 'Terapija' : 'Therapy'}</option>
+                      <select className="gapp-select" value={guestAppSettings.tenantType} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, tenantType: normalizeTenantConfigType(e.target.value) })}>
+                        {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>{locale === 'sl' ? option.labelSl : option.labelEn}</option>
+                        ))}
                       </select>
                     </GuestField>
                     <GuestField
@@ -7449,6 +7474,21 @@ export function ConfigurationPage() {
         />
       ) : tab === 'modules' && modulesDraftDisplay ? (
         <Card className="settings-card modules-design-card">
+          <div className="modules-design-toolbar">
+            <div className="modules-design-toolbar-copy">
+              <span>{locale === 'sl' ? 'Predloge modulov' : 'Module presets'}</span>
+              <strong>{locale === 'sl' ? 'Vrsta konfiguracije' : 'Config type'}</strong>
+              <p>{locale === 'sl' ? 'Izbrana vrsta iz strani za obračun. Kasneje bo lahko samodejno vklopila ali izklopila priporočene module.' : 'Selected from the billing page. Later this can automatically enable or disable recommended modules.'}</p>
+            </div>
+            <label className="modules-design-config-select" htmlFor="modules-config-type">
+              <span>{locale === 'sl' ? 'Config type' : 'Config type'}</span>
+              <select id="modules-config-type" value={moduleDraftForDesign.MODULE_CONFIG_TYPE} onChange={(event) => setModuleConfigType(normalizeTenantConfigType(event.target.value))}>
+                {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>{locale === 'sl' ? option.labelSl : option.labelEn}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div className="modules-design-grid">
             {modulesDesignGroups.map((group) => (
               <ModulesDesignGroupCard

@@ -112,7 +112,7 @@ public class GuestSettingsService {
 
     private static String mapConfigIdToRuntimeType(String raw) {
         if (raw == null) return null;
-        String value = raw.trim().toLowerCase(Locale.ROOT);
+        String value = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (value) {
             case "online_card", "card" -> "CARD";
             case "bank_transfer" -> "BANK_TRANSFER";
@@ -217,9 +217,9 @@ public class GuestSettingsService {
 
     private static String normalizeTenantType(String raw) {
         if (raw == null) return null;
-        String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        String value = raw.trim().toLowerCase(java.util.Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (value) {
-            case "salon", "gym", "spa", "therapy" -> value;
+            case "salon", "gym", "spa", "therapy", "personal_training" -> value;
             default -> null;
         };
     }
@@ -236,7 +236,7 @@ public class GuestSettingsService {
         if (raw == null || raw.isBlank()) {
             return requireOnlinePayment ? "full" : "none";
         }
-        String value = raw.trim().toLowerCase(Locale.ROOT);
+        String value = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (value) {
             case "deposit", "full", "none" -> value;
             default -> requireOnlinePayment ? "full" : "none";

@@ -232,9 +232,9 @@ public class GuestTenantService {
 
     private static String normalizeTenantType(String raw) {
         if (raw == null || raw.isBlank()) return null;
-        String value = raw.trim().toLowerCase(Locale.ROOT);
+        String value = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (value) {
-            case "salon", "gym", "spa", "therapy" -> value;
+            case "salon", "gym", "spa", "therapy", "personal_training" -> value;
             default -> null;
         };
     }

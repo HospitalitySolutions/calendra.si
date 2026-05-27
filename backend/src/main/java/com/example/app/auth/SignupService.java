@@ -619,7 +619,7 @@ public class SignupService {
         seedSetting(company, SettingKey.COMPANY_ADDRESS, stringOrEmpty(request.address()));
         seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, stringOrEmpty(request.postalCode()));
         seedSetting(company, SettingKey.COMPANY_CITY, stringOrEmpty(request.city()));
-        seedSignupGuestAppTenantType(company, request.tenantType());
+        seedTenantTypeSettings(company, request.tenantType());
 
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
@@ -646,7 +646,8 @@ public class SignupService {
         return ResponseEntity.ok(Map.of(
                 "ok", true,
                 "packageType", normalizedPackageType,
-                "billingInterval", interval));
+                "billingInterval", interval,
+                "tenantType", normalizeTenantType(request.tenantType())));
     }
 
     private void tryEnsurePlatformSubscriptionOpenBill(
@@ -679,6 +680,41 @@ public class SignupService {
                     company == null ? null : company.getId(),
                     e.getMessage());
         }
+    }
+
+    private void seedTenantTypeSettings(Company company, String rawTenantType) {
+        String tenantType = normalizeTenantType(rawTenantType);
+        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, tenantType);
+
+        Map<String, Object> guestSettings = new LinkedHashMap<>();
+        settings.findByCompanyIdAndKey(company.getId(), SettingKey.GUEST_APP_SETTINGS_JSON)
+                .map(AppSetting::getValue)
+                .filter(value -> value != null && !value.isBlank())
+                .ifPresent(existingJson -> {
+                    try {
+                        Map<String, Object> existing = objectMapper.readValue(existingJson, new TypeReference<Map<String, Object>>() {});
+                        if (existing != null) {
+                            guestSettings.putAll(existing);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed parsing guest app settings while saving signup tenant type for company {}: {}", company.getId(), e.getMessage());
+                    }
+                });
+        guestSettings.put("tenantType", tenantType);
+        try {
+            seedSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, objectMapper.writeValueAsString(guestSettings));
+        } catch (Exception e) {
+            log.warn("Failed serializing guest app tenant type for company {}: {}", company.getId(), e.getMessage());
+        }
+    }
+
+    private String normalizeTenantType(String rawTenantType) {
+        if (rawTenantType == null || rawTenantType.isBlank()) return "salon";
+        String normalized = rawTenantType.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return switch (normalized) {
+            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
+            default -> "salon";
+        };
     }
 
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {
@@ -773,7 +809,7 @@ public class SignupService {
         try {
             List<SignupEmailIntent> all = signupEmailIntents.findAllByEmailIgnoreCaseOrderByCreatedAtDesc(normalizedEmail);
             if (!all.isEmpty()) {
-                Map<String, Object> map = objectMapper.readValue(all.get(0).getPayloadJson(), new TypeReference<Map<String, Object>>() {
+                Map<String, Object> map = objectMapper.readValue(all.get(0).getPayloadJson(), new TypeReference<>() {
                 });
                 Long oid = longVal(map.get(POST_PROVISION_OWNER_USER_ID));
                 if (oid != null && oid.equals(owner.getId())) {
@@ -1162,44 +1198,6 @@ public class SignupService {
         tx.setTaxRate(TaxRate.VAT_22);
         tx.setNetPrice(new BigDecimal("50.00"));
         txServices.save(tx);
-    }
-
-    private void seedSignupGuestAppTenantType(Company company, String rawTenantType) {
-        String tenantType = normalizeSignupTenantType(rawTenantType);
-        if (company == null || company.getId() == null || tenantType == null) return;
-
-        Map<String, Object> root = new LinkedHashMap<>();
-        String existingJson = settings.findByCompanyIdAndKey(company.getId(), SettingKey.GUEST_APP_SETTINGS_JSON)
-                .map(AppSetting::getValue)
-                .orElse(null);
-        if (existingJson != null && !existingJson.isBlank()) {
-            try {
-                Map<String, Object> parsed = objectMapper.readValue(existingJson, new TypeReference<Map<String, Object>>() {
-                });
-                if (parsed != null) root.putAll(parsed);
-            } catch (Exception e) {
-                log.warn("Could not parse guest app settings while saving signup tenant type for company {}: {}", company.getId(), e.getMessage());
-            }
-        }
-        root.put("tenantType", tenantType);
-        if (!root.containsKey("publicName") && company.getName() != null && !company.getName().isBlank()) {
-            root.put("publicName", company.getName());
-        }
-        try {
-            seedSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, objectMapper.writeValueAsString(root));
-        } catch (Exception e) {
-            log.warn("Could not save signup tenant type for company {}: {}", company.getId(), e.getMessage());
-        }
-    }
-
-    private String normalizeSignupTenantType(String rawTenantType) {
-        if (rawTenantType == null || rawTenantType.isBlank()) return null;
-        String value = rawTenantType.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
-        return switch (value) {
-            case "salon", "gym", "spa", "therapy" -> value;
-            case "personal_training", "fitness", "fitness_studio" -> "gym";
-            default -> null;
-        };
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {
