@@ -2061,11 +2061,20 @@ private fun TenantSelectionBottomSheetContent(
         }
     }
     val scrollState = rememberScrollState()
-    val brandBlue = Color(0xFF124C9D)
+    val brandBlue = Color(0xFF1568F4)
     val brandBlueSoft = brandBlue
     val brandOrange = Color(0xFFF2963B)
-    val muted = brandBlue.copy(alpha = 0.66f)
-    val line = brandBlue.copy(alpha = 0.22f)
+    val muted = Color(0xFF667085)
+    val line = Color(0xFFD6DDE8)
+    val confirmSelectionTenantId = selectedTenantId ?: filteredTenants.firstOrNull()?.companyId
+    val canConfirmSelection = allowAllTenants || confirmSelectionTenantId != null
+    val confirmSelection = {
+        if (allowAllTenants && selectedTenantId == null) {
+            onSelect(null)
+        } else {
+            confirmSelectionTenantId?.let { onSelect(it) }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -2077,7 +2086,7 @@ private fun TenantSelectionBottomSheetContent(
             text = if (isSl) "Izberi ponudnika" else "Select tenant",
             fontSize = 23.sp,
             fontWeight = FontWeight.Bold,
-            color = brandBlue
+            color = Color(0xFF0F172A)
         )
         Spacer(Modifier.height(6.dp))
         Text(
@@ -2100,7 +2109,7 @@ private fun TenantSelectionBottomSheetContent(
                     .weight(1f)
                     .height(44.dp),
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFFFBFDFF),
+                color = Color.White,
                 border = BorderStroke(1.dp, line)
             ) {
                 Row(
@@ -2119,7 +2128,7 @@ private fun TenantSelectionBottomSheetContent(
                         onValueChange = { searchState.value = it },
                         singleLine = true,
                         textStyle = TextStyle(
-                            color = brandBlue,
+                            color = Color(0xFF0F172A),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         ),
@@ -2128,7 +2137,7 @@ private fun TenantSelectionBottomSheetContent(
                             if (searchState.value.isEmpty()) {
                                 Text(
                                     text = if (isSl) "Išči ponudnika ..." else "Search tenant ...",
-                                    color = brandBlue.copy(alpha = 0.58f),
+                                    color = muted,
                                     fontSize = 14.sp,
                                     maxLines = 1
                                 )
@@ -2200,25 +2209,47 @@ private fun TenantSelectionBottomSheetContent(
         }
         Spacer(Modifier.height(14.dp))
         Button(
-            onClick = onAddTenant,
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = brandBlue),
-            contentPadding = PaddingValues(vertical = 14.dp),
+            onClick = { confirmSelection() },
+            enabled = canConfirmSelection,
+            shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent
+            ),
+            contentPadding = PaddingValues(0.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(60.dp)
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Add,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = if (isSl) "Dodaj ponudnika" else "Add tenant",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                brandBlue.copy(alpha = if (canConfirmSelection) 0.96f else 0.48f),
+                                brandBlue.copy(alpha = if (canConfirmSelection) 1f else 0.48f)
+                            )
+                        )
+                    ),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color.White
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = if (isSl) "Izberi ponudnika" else "Select tenant",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
     }
 }
@@ -2265,7 +2296,7 @@ private fun TenantSelectionAllSheetRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (isSl) "Vsi ponudniki" else "All providers",
-                    color = brandBlue,
+                    color = Color(0xFF0F172A),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -2273,7 +2304,7 @@ private fun TenantSelectionAllSheetRow(
                 )
                 Text(
                     text = if (isSl) "Prikaži termine vseh povezanih ponudnikov" else "Show sessions from every linked provider",
-                    color = brandBlue.copy(alpha = 0.62f),
+                    color = muted,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -2381,7 +2412,7 @@ private fun TenantSelectionSheetRow(
                 )
                 Text(
                     text = subtitle,
-                    color = brandBlue.copy(alpha = 0.62f),
+                    color = muted,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,

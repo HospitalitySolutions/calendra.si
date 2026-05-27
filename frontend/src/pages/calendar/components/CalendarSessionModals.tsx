@@ -10,6 +10,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [noShowClientPickerOpen, setNoShowClientPickerOpen] = useState(false)
   const [noShowSelectedClientIds, setNoShowSelectedClientIds] = useState<number[]>([])
   const [noShowSubmitting, setNoShowSubmitting] = useState(false)
+  const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
 
   const openBookedSessionClientDetail = (clientOrId?: any) => {
     const id = Number(typeof clientOrId === 'object' ? clientOrId?.id : clientOrId)
@@ -1076,37 +1077,39 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-row form-row-infield calendar-booking-service-with-online calendar-booking-field--service">
                   <div className="calendar-booking-service-infield-head">
                     <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
-                    <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
-                      <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
-                        <input
-                          type="checkbox"
-                          checked={!!selectedBookedSession.online}
-                          aria-labelledby={bookedSessionOnlineCaptionId}
-                          onChange={(e) => {
-                            const on = e.target.checked
-                            if (on) {
-                              setSelectedBookedSession({
-                                ...selectedBookedSession,
-                                online: true,
-                                meetingProvider: selectedBookedSession.meetingProvider || 'zoom',
-                              })
-                              setMeetingPickerCancelUnchecksOnline(true)
-                              setMeetingProviderPickerTarget('edit')
-                              setMeetingProviderPickerOpen(true)
-                            } else {
-                              setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })
-                              setMeetingProviderPickerOpen(false)
-                              setMeetingProviderPickerTarget(null)
-                              setMeetingPickerCancelUnchecksOnline(false)
-                            }
-                          }}
-                        />
-                        <span className="repeats-toggle-slider" />
-                      </label>
-                      <span id={bookedSessionOnlineCaptionId} className="calendar-booking-service-online-caption">
-                        {t('formSessionOnlineShort')}
-                      </span>
-                    </div>
+                    {onlineSessionBookingEnabled ? (
+                      <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
+                        <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
+                          <input
+                            type="checkbox"
+                            checked={!!selectedBookedSession.online}
+                            aria-labelledby={bookedSessionOnlineCaptionId}
+                            onChange={(e) => {
+                              const on = e.target.checked
+                              if (on) {
+                                setSelectedBookedSession({
+                                  ...selectedBookedSession,
+                                  online: true,
+                                  meetingProvider: selectedBookedSession.meetingProvider || 'zoom',
+                                })
+                                setMeetingPickerCancelUnchecksOnline(true)
+                                setMeetingProviderPickerTarget('edit')
+                                setMeetingProviderPickerOpen(true)
+                              } else {
+                                setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })
+                                setMeetingProviderPickerOpen(false)
+                                setMeetingProviderPickerTarget(null)
+                                setMeetingPickerCancelUnchecksOnline(false)
+                              }
+                            }}
+                          />
+                          <span className="repeats-toggle-slider" />
+                        </label>
+                        <span id={bookedSessionOnlineCaptionId} className="calendar-booking-service-online-caption">
+                          {t('formSessionOnlineShort')}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="form-field-inline-control calendar-booking-service-select-only" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <select
@@ -3168,38 +3171,40 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
               )}
               {!form.todo && !form.personal && !availabilitySelection && showBookingTypeRow && (
-                <div className={`form-row form-row-infield calendar-booking-field--service${!isNativeAndroid ? ' calendar-booking-service-with-online' : ''}`}>
+                <div className={`form-row form-row-infield calendar-booking-field--service${!isNativeAndroid && onlineSessionBookingEnabled ? ' calendar-booking-service-with-online' : ''}`}>
                   {!isNativeAndroid ? (
                     <>
                       <div className="calendar-booking-service-infield-head">
                         <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
-                        <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
-                          <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
-                            <input
-                              type="checkbox"
-                              checked={!!form.online}
-                              aria-labelledby={addBookingOnlineCaptionId}
-                              onChange={(e) => {
-                                const on = e.target.checked
-                                if (on) {
-                                  setForm({ ...form, online: true })
-                                  setMeetingPickerCancelUnchecksOnline(true)
-                                  setMeetingProviderPickerTarget('create')
-                                  setMeetingProviderPickerOpen(true)
-                                } else {
-                                  setForm({ ...form, online: false })
-                                  setMeetingProviderPickerOpen(false)
-                                  setMeetingProviderPickerTarget(null)
-                                  setMeetingPickerCancelUnchecksOnline(false)
-                                }
-                              }}
-                            />
-                            <span className="repeats-toggle-slider" />
-                          </label>
-                          <span id={addBookingOnlineCaptionId} className="calendar-booking-service-online-caption">
-                            {t('formSessionOnlineShort')}
-                          </span>
-                        </div>
+                        {onlineSessionBookingEnabled ? (
+                          <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
+                            <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
+                              <input
+                                type="checkbox"
+                                checked={!!form.online}
+                                aria-labelledby={addBookingOnlineCaptionId}
+                                onChange={(e) => {
+                                  const on = e.target.checked
+                                  if (on) {
+                                    setForm({ ...form, online: true })
+                                    setMeetingPickerCancelUnchecksOnline(true)
+                                    setMeetingProviderPickerTarget('create')
+                                    setMeetingProviderPickerOpen(true)
+                                  } else {
+                                    setForm({ ...form, online: false })
+                                    setMeetingProviderPickerOpen(false)
+                                    setMeetingProviderPickerTarget(null)
+                                    setMeetingPickerCancelUnchecksOnline(false)
+                                  }
+                                }}
+                              />
+                              <span className="repeats-toggle-slider" />
+                            </label>
+                            <span id={addBookingOnlineCaptionId} className="calendar-booking-service-online-caption">
+                              {t('formSessionOnlineShort')}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="form-field-inline-control calendar-booking-service-select-only">
                         <select
@@ -3413,7 +3418,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <div className="checkbox-row book-session-checkbox-row">
                       {todosModuleEnabled && <label><input type="checkbox" checked={!!form.todo} onChange={(e) => setForm({ ...form, todo: e.target.checked, personal: false, online: false, consultantId: e.target.checked ? user.id : form.consultantId })} /> {t('formTodo')}</label>}
                       {personalModuleEnabled && <label><input type="checkbox" checked={!!form.personal} onChange={(e) => setForm({ ...form, personal: e.target.checked, todo: false, consultantId: e.target.checked ? user.id : form.consultantId })} disabled={!!form.todo} /> {t('formPersonal')}</label>}
-                      <label><input type="checkbox" checked={!!form.online} onChange={(e) => { const on = e.target.checked; if (on) { setForm({ ...form, online: true }); setMeetingPickerCancelUnchecksOnline(true); setMeetingProviderPickerTarget('create'); setMeetingProviderPickerOpen(true) } else { setForm({ ...form, online: false }); setMeetingProviderPickerOpen(false); setMeetingProviderPickerTarget(null); setMeetingPickerCancelUnchecksOnline(false) } }} disabled={!!form.personal || !!form.todo} /> {t('formOnline')}</label>
+                      {onlineSessionBookingEnabled && <label><input type="checkbox" checked={!!form.online} onChange={(e) => { const on = e.target.checked; if (on) { setForm({ ...form, online: true }); setMeetingPickerCancelUnchecksOnline(true); setMeetingProviderPickerTarget('create'); setMeetingProviderPickerOpen(true) } else { setForm({ ...form, online: false }); setMeetingProviderPickerOpen(false); setMeetingProviderPickerTarget(null); setMeetingPickerCancelUnchecksOnline(false) } }} disabled={!!form.personal || !!form.todo} /> {t('formOnline')}</label>}
                     </div>
                     </div>
                   </div>

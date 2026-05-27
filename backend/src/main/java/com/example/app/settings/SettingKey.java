@@ -4,6 +4,8 @@ public enum SettingKey {
     SPACES_ENABLED,
     TYPES_ENABLED,
     BOOKABLE_ENABLED,
+    ONLINE_SESSION_BOOKING_ENABLED,
+    MODULE_CONFIG_TYPE,
     AI_BOOKING_ENABLED,
     /** Personal time blocks on the calendar (and personal-task presets tab). */
     PERSONAL_ENABLED,
@@ -30,8 +32,6 @@ public enum SettingKey {
     SECURITY_SESSION_SECURITY_ENABLED,
     SECURITY_PASSKEYS_ENABLED,
     SECURITY_API_INTEGRATIONS_ENABLED,
-    /** Tenant/module preset type selected during signup billing details and adjustable on Modules page. */
-    MODULE_CONFIG_TYPE,
     SESSION_LENGTH_MINUTES,
     WORKING_HOURS_START,
     WORKING_HOURS_END,

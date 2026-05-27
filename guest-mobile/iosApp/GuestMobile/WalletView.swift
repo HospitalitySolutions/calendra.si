@@ -906,7 +906,7 @@ struct WalletView: View {
                 HStack(spacing: 6) {
                     Circle().fill(showInactive ? Color.red : walletGreen).frame(width: 7, height: 7)
                     Text(showInactive ? walletTr(appUiLocaleStorage, "\(inactiveCount) inactive", "\(inactiveCount) neaktivnih") : walletTr(appUiLocaleStorage, "\(activeCount) active", "\(activeCount) aktivnih"))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(walletInk)
                 }
                 .padding(.horizontal, 11)
@@ -1061,7 +1061,7 @@ struct WalletView: View {
                         .frame(width: 42, height: 42)
 
                         Text(footerText)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(walletMuted)
                             .multilineTextAlignment(.leading)
                             .lineSpacing(2)
@@ -1105,7 +1105,7 @@ struct WalletView: View {
             .overlay {
                 VStack(spacing: 6) {
                     Image(systemName: symbol)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundColor(.white)
                     Text(label)
                         .font(.system(size: 10, weight: .heavy))
@@ -1608,7 +1608,7 @@ private struct WalletStackedPassCard: View {
                             WalletDetailBlock(label: primaryMetric.label.uppercased(), value: primaryMetric.value, accent: style.accent)
                             Rectangle()
                                 .fill(walletLine.opacity(0.95))
-                                .frame(width: 1, height: 42)
+                                .frame(width: 1, height: 36)
                             WalletDetailBlock(label: secondaryMetric.label.uppercased(), value: secondaryMetric.value, accent: style.accent)
                         }
                         Divider().overlay(walletLine.opacity(0.55))
@@ -1827,7 +1827,7 @@ private struct WalletCommercePassCard: View {
                             WalletDetailBlock(label: primary.label.uppercased(), value: primary.value, accent: style.accent)
                             Rectangle()
                                 .fill(walletLine.opacity(0.95))
-                                .frame(width: 1, height: 42)
+                                .frame(width: 1, height: 36)
                             WalletDetailBlock(label: secondary.label.uppercased(), value: secondary.value, accent: style.accent)
                         }
                         Divider().overlay(walletLine.opacity(0.55))
@@ -2097,7 +2097,7 @@ private struct EntitlementTicketCard: View {
     private var ticketBody: some View {
         let shape = TicketShape(cornerRadius: 28, notchRadius: 14, notchFractionX: notchFractionX)
         HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 9) {
                 entitlementIconBadge(type: entitlement.type, size: 52, background: Color.white.opacity(0.18), tint: .white)
                 Text(entitlement.name)
                     .font(.title2.weight(.bold))
@@ -2822,7 +2822,7 @@ private struct BuyShowcaseFooterItem: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(walletBlueSoft)
             Text(title)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(walletInk.opacity(0.86))
                 .multilineTextAlignment(.center)
         }
@@ -2917,7 +2917,7 @@ private struct BuyMarketplaceHeroCard: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
-                            in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                         )
                         .shadow(color: Color(red: 1.0, green: 0.42, blue: 0.29).opacity(0.25), radius: 12, y: 7)
                 }
@@ -3029,7 +3029,7 @@ private struct BuyMarketplaceOfferRow: View {
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
-                            in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                         )
                         .shadow(color: walletBlueSoft.opacity(0.20), radius: 10, y: 5)
                 }
@@ -3148,7 +3148,7 @@ private struct ClassTicketOfferCard: View {
     var body: some View {
         let shape = CompactTicketShape(cornerRadius: 20, notchRadius: 11)
         HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 9) {
                 Text("CLASS TICKET")
                     .font(.caption.weight(.bold))
                     .tracking(1.2)
@@ -3244,7 +3244,7 @@ private struct PackOfferCard: View {
 
             ZStack(alignment: .topTrailing) {
                 HStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 9) {
                         Text("PACK")
                             .font(.caption.weight(.bold))
                             .tracking(1.2)
@@ -3601,6 +3601,12 @@ private struct BuyPaymentSheet: View {
 
     @State private var selected: String
 
+    private let actionBlue = Color(red: 0.082, green: 0.408, blue: 0.957)
+    private let ink = Color(red: 0.06, green: 0.10, blue: 0.18)
+    private let muted = Color(red: 0.40, green: 0.44, blue: 0.52)
+    private let line = Color(red: 0.88, green: 0.91, blue: 0.95)
+    private let summaryBg = Color(red: 0.95, green: 0.975, blue: 1.0)
+
     init(offer: WalletOfferModel, languageCode: String, availableMethods: [String], onCancel: @escaping () -> Void, onConfirm: @escaping (String) -> Void) {
         self.offer = offer
         self.languageCode = languageCode
@@ -3611,18 +3617,67 @@ private struct BuyPaymentSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 9) {
+            Capsule(style: .continuous)
+                .fill(actionBlue)
+                .frame(width: 46, height: 4)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 2)
+                .padding(.bottom, 4)
+
             Text(walletTr(languageCode, "Choose a payment method", "Izberite način plačila"))
-                .font(.title3.weight(.bold))
-            Text("\(offer.name) • \(String(format: "%.2f %@", offer.priceGross, offer.currency))")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(.system(size: 19, weight: .regular))
+                .foregroundColor(ink)
+                .tracking(0.1)
+
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                    Image(systemName: "ticket.fill")
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundColor(actionBlue)
+                }
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(offer.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(ink)
+                        .lineLimit(1)
+                    Text(walletTr(languageCode, "Service", "Storitev"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Rectangle()
+                    .fill(line)
+                    .frame(width: 1, height: 36)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(String(format: "%.2f", offer.priceGross).replacingOccurrences(of: ".", with: ",")) \(offer.currency)")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(ink)
+                        .lineLimit(1)
+                    Text(walletTr(languageCode, "Amount", "Znesek"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(muted)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .background(summaryBg, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             ForEach(availableMethods, id: \.self) { method in
                 PaymentMethodRow(
                     method: method,
                     languageCode: languageCode,
                     selected: selected == method,
+                    actionBlue: actionBlue,
+                    ink: ink,
+                    muted: muted,
+                    line: line,
                     onSelect: { selected = method }
                 )
             }
@@ -3631,23 +3686,30 @@ private struct BuyPaymentSheet: View {
                 onConfirm(selected)
             } label: {
                 Text(walletTr(languageCode, "Continue", "Nadaljuj"))
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
-                    .background(walletBlue, in: RoundedRectangle(cornerRadius: 14))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+                    .background(
+                        LinearGradient(colors: [actionBlue.opacity(0.96), actionBlue], startPoint: .leading, endPoint: .trailing),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
             }
             .buttonStyle(.plain)
-            .padding(.top, 8)
+            .padding(.top, 2)
 
             Button(action: onCancel) {
                 Text(walletTr(languageCode, "Cancel", "Prekliči"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(actionBlue)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 4)
             }
             .buttonStyle(.plain)
-            .foregroundColor(walletBlue)
         }
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 18)
+        .background(Color.white)
     }
 }
 
@@ -3655,45 +3717,74 @@ private struct PaymentMethodRow: View {
     let method: String
     let languageCode: String
     let selected: Bool
+    let actionBlue: Color
+    let ink: Color
+    let muted: Color
+    let line: Color
     let onSelect: () -> Void
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 12) {
+            HStack(spacing: 11) {
                 ZStack {
                     Circle()
-                        .stroke(selected ? walletBlue : Color(.separator), lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
+                        .stroke(selected ? actionBlue : muted, lineWidth: 2)
+                        .frame(width: 20, height: 20)
                     if selected {
-                        Circle().fill(walletBlue).frame(width: 12, height: 12)
+                        Circle()
+                            .fill(actionBlue)
+                            .frame(width: 10, height: 10)
                     }
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(label).font(.subheadline.weight(.semibold))
-                    Text(helper).font(.footnote).foregroundColor(.secondary)
+                .frame(width: 24, height: 24)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(Color.white)
+                        .shadow(color: Color.black.opacity(selected ? 0.12 : 0.06), radius: selected ? 8 : 5, x: 0, y: selected ? 4 : 2)
+                    Image(systemName: iconName)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(actionBlue)
                 }
-                Spacer()
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(ink)
+                        .lineLimit(1)
+                    Text(helper)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(muted)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
             .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(selected ? walletBlue.opacity(0.08) : walletSurfaceTint)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(selected ? Color(red: 0.95, green: 0.975, blue: 1.0) : Color.white)
+                    .shadow(color: Color.black.opacity(selected ? 0.08 : 0.04), radius: selected ? 8 : 5, x: 0, y: selected ? 4 : 2)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(selected ? walletBlue : .clear, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(selected ? actionBlue : line, lineWidth: selected ? 1.5 : 1)
             )
         }
         .buttonStyle(.plain)
     }
 
-    private var label: String {
-        paymentMethodDisplayName(method, languageCode: languageCode)
-    }
+    private var label: String { paymentMethodDisplayName(method, languageCode: languageCode) }
+    private var helper: String { paymentMethodDescription(method, languageCode: languageCode) }
 
-    private var helper: String {
-        paymentMethodDescription(method, languageCode: languageCode)
+    private var iconName: String {
+        switch method {
+        case "BANK_TRANSFER": return "building.columns"
+        case "PAYPAL": return "creditcard"
+        default: return "creditcard"
+        }
     }
 }
 
@@ -3879,7 +3970,7 @@ private struct WalletOrderReceiptCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -4002,7 +4093,7 @@ private struct WalletPendingTransferCallout: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "info.circle")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: 21, weight: .semibold))
                 .foregroundColor(Color(red: 0.73, green: 0.41, blue: 0.00))
             VStack(alignment: .leading, spacing: 2) {
                 Text(walletTr(appUiLocaleStorage, "Awaiting transfer", "Čaka na nakazilo"))

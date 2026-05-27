@@ -16,7 +16,7 @@ import { GoogleCalendarIntegrationSection } from './GoogleCalendarIntegrationSec
 import { GuestConfigSaveIcon as GuestSaveIcon } from '../components/GuestConfigSaveIcon'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useLocale } from '../locale'
-import { getDefaultAllowedRoute } from '../lib/packageAccess'
+import { getDefaultAllowedRoute, normalizePackageType } from '../lib/packageAccess'
 
 type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
 type BookingSubtab = 'general' | 'spaces'
@@ -2612,6 +2612,7 @@ type ModulesDraft = {
   MODULE_CONFIG_TYPE: TenantConfigType
   SPACES_ENABLED: string
   BOOKABLE_ENABLED: string
+  ONLINE_SESSION_BOOKING_ENABLED: string
   AI_BOOKING_ENABLED: string
   PERSONAL_ENABLED: string
   TODOS_ENABLED: string
@@ -2656,6 +2657,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(s.MODULE_CONFIG_TYPE || g.tenantType),
   SPACES_ENABLED: s.SPACES_ENABLED === 'true' ? 'true' : 'false',
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === 'true' ? 'true' : 'false',
+  ONLINE_SESSION_BOOKING_ENABLED: modulesStringSetting(s, 'ONLINE_SESSION_BOOKING_ENABLED', true),
   AI_BOOKING_ENABLED: s.AI_BOOKING_ENABLED === 'true' ? 'true' : 'false',
   PERSONAL_ENABLED: s.PERSONAL_ENABLED === 'false' ? 'false' : 'true',
   TODOS_ENABLED: s.TODOS_ENABLED === 'false' ? 'false' : 'true',
@@ -2686,6 +2688,119 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   guestBuyTabEnabled: g.buyTabEnabled,
   guestEntitlementsEnabled: g.entitlementsEnabled,
 })
+
+type ModulesPresetPackage = 'BASIC' | 'PROFESSIONAL' | 'PREMIUM'
+type ModulesPresetValue = 'on' | 'off' | 'coming_soon'
+
+const modulePackageRank = (raw?: string | null) => {
+  switch (normalizePackageType(raw)) {
+    case 'PREMIUM':
+    case 'CUSTOM':
+      return 3
+    case 'PROFESSIONAL':
+    case 'TRIAL':
+      return 2
+    case 'BASIC':
+    default:
+      return 1
+  }
+}
+
+const moduleMinPackageAllowed = (currentPackage: string | null | undefined, minPackage: ModulesPresetPackage) => {
+  return modulePackageRank(currentPackage) >= modulePackageRank(minPackage)
+}
+
+type ModulesPresetRule = {
+  key: ModulesStringKey
+  minPackage: ModulesPresetPackage
+  values: Record<TenantConfigType, ModulesPresetValue>
+}
+
+const MODULE_CONFIG_PRESET_RULES: ModulesPresetRule[] = [
+  {
+    key: 'ONLINE_SESSION_BOOKING_ENABLED',
+    minPackage: 'BASIC',
+    values: {
+      therapy: 'on',
+      gym: 'off',
+      salon: 'off',
+      spa: 'off',
+      personal_training: 'on',
+    },
+  },
+  {
+    key: 'SPACES_ENABLED',
+    minPackage: 'PROFESSIONAL',
+    values: {
+      therapy: 'on',
+      gym: 'on',
+      salon: 'on',
+      spa: 'on',
+      personal_training: 'on',
+    },
+  },
+  {
+    key: 'MULTIPLE_SESSIONS_PER_SPACE_ENABLED',
+    minPackage: 'PROFESSIONAL',
+    values: {
+      therapy: 'off',
+      gym: 'on',
+      salon: 'off',
+      spa: 'off',
+      personal_training: 'on',
+    },
+  },
+  {
+    key: 'GROUP_BOOKING_ENABLED',
+    minPackage: 'PROFESSIONAL',
+    values: {
+      therapy: 'off',
+      gym: 'on',
+      salon: 'off',
+      spa: 'off',
+      personal_training: 'on',
+    },
+  },
+  {
+    key: 'MULTIPLE_CLIENTS_PER_SESSION_ENABLED',
+    minPackage: 'PROFESSIONAL',
+    values: {
+      therapy: 'off',
+      gym: 'on',
+      salon: 'off',
+      spa: 'off',
+      personal_training: 'on',
+    },
+  },
+  {
+    key: 'AI_BOOKING_ENABLED',
+    minPackage: 'PREMIUM',
+    values: {
+      therapy: 'coming_soon',
+      gym: 'coming_soon',
+      salon: 'coming_soon',
+      spa: 'coming_soon',
+      personal_training: 'coming_soon',
+    },
+  },
+]
+
+const normalizeModulesDraftDependencies = (draft: ModulesDraft): ModulesDraft => ({
+  ...draft,
+  AI_BOOKING_ENABLED: 'false',
+  MULTIPLE_SESSIONS_PER_SPACE_ENABLED: draft.SPACES_ENABLED === 'true' && draft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'true' : 'false',
+  MULTIPLE_CLIENTS_PER_SESSION_ENABLED: draft.GROUP_BOOKING_ENABLED === 'true' && draft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? 'true' : 'false',
+})
+
+const applyModuleConfigPreset = (draft: ModulesDraft, rawConfigType: TenantConfigType, currentPackage: string | null | undefined): ModulesDraft => {
+  const configType = normalizeTenantConfigType(rawConfigType)
+  const next: ModulesDraft = { ...draft, MODULE_CONFIG_TYPE: configType }
+  MODULE_CONFIG_PRESET_RULES.forEach((rule) => {
+    const presetValue = rule.values[configType] || 'off'
+    next[rule.key] = presetValue === 'on' && moduleMinPackageAllowed(currentPackage, rule.minPackage) ? 'true' : 'false'
+  })
+  return normalizeModulesDraftDependencies(next)
+}
 
 export function ConfigurationPage() {
   const me = getStoredUser()!
@@ -3197,6 +3312,7 @@ export function ConfigurationPage() {
           MODULE_CONFIG_TYPE: normalizeTenantConfigType(modulesDraft.MODULE_CONFIG_TYPE),
           AI_BOOKING_ENABLED: 'false',
           MULTIPLE_SESSIONS_PER_SPACE_ENABLED: modulesDraft.SPACES_ENABLED === 'true' && modulesDraft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'true' : 'false',
+          MULTIPLE_CLIENTS_PER_SESSION_ENABLED: modulesDraft.GROUP_BOOKING_ENABLED === 'true' && modulesDraft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? 'true' : 'false',
         }
         if (modulesDraftForSave.BILLING_ENABLED !== 'true') {
           modulesDraftForSave.BILLING_INVOICES_ENABLED = 'false'
@@ -3210,6 +3326,7 @@ export function ConfigurationPage() {
           MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
+          ONLINE_SESSION_BOOKING_ENABLED: modulesDraftForSave.ONLINE_SESSION_BOOKING_ENABLED,
           AI_BOOKING_ENABLED: modulesDraftForSave.AI_BOOKING_ENABLED,
           PERSONAL_ENABLED: modulesDraftForSave.PERSONAL_ENABLED,
           TODOS_ENABLED: modulesDraftForSave.TODOS_ENABLED,
@@ -3920,6 +4037,16 @@ export function ConfigurationPage() {
       if (key === 'MULTIPLE_SESSIONS_PER_SPACE_ENABLED' && d.SPACES_ENABLED !== 'true') {
         return { ...d, MULTIPLE_SESSIONS_PER_SPACE_ENABLED: 'false' }
       }
+      if (key === 'GROUP_BOOKING_ENABLED') {
+        return {
+          ...d,
+          GROUP_BOOKING_ENABLED: checked ? 'true' : 'false',
+          MULTIPLE_CLIENTS_PER_SESSION_ENABLED: checked ? d.MULTIPLE_CLIENTS_PER_SESSION_ENABLED : 'false',
+        }
+      }
+      if (key === 'MULTIPLE_CLIENTS_PER_SESSION_ENABLED' && d.GROUP_BOOKING_ENABLED !== 'true') {
+        return { ...d, MULTIPLE_CLIENTS_PER_SESSION_ENABLED: 'false' }
+      }
       if (key === 'BILLING_ENABLED' && !checked) {
         return {
           ...d,
@@ -3943,6 +4070,9 @@ export function ConfigurationPage() {
       })
       if (next.SPACES_ENABLED !== 'true') {
         next.MULTIPLE_SESSIONS_PER_SPACE_ENABLED = 'false'
+      }
+      if (next.GROUP_BOOKING_ENABLED !== 'true') {
+        next.MULTIPLE_CLIENTS_PER_SESSION_ENABLED = 'false'
       }
       if (next.BILLING_ENABLED !== 'true') {
         next.BILLING_INVOICES_ENABLED = 'false'
@@ -3975,7 +4105,7 @@ export function ConfigurationPage() {
   const setModuleConfigType = (value: TenantConfigType) => {
     setModulesDraft((prev) => {
       const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
-      return { ...d, MODULE_CONFIG_TYPE: normalizeTenantConfigType(value) }
+      return applyModuleConfigPreset(d, value, settings.SIGNUP_PACKAGE_NAME || me.packageType)
     })
   }
   const toggleExpandedModuleRow = (id: string) => {
@@ -4043,15 +4173,12 @@ export function ConfigurationPage() {
           ],
         },
         {
-          id: 'booking-online-booking',
+          id: 'booking-online-session-booking',
           icon: 'calendar',
-          title: 'Online Booking',
-          checked: moduleOn('BOOKABLE_ENABLED'),
-          onChange: (checked) => setModuleStringSetting('BOOKABLE_ENABLED', checked),
-          children: [
-            { id: 'booking-working-hours', icon: 'calendar', title: 'Working hours', checked: moduleOn('BOOKABLE_ENABLED'), disabled: !moduleOn('BOOKABLE_ENABLED'), onChange: (checked) => setModuleStringSetting('BOOKABLE_ENABLED', checked) },
-            { id: 'booking-buffer-times', icon: 'availability', title: 'Buffer times', checked: moduleOn('BOOKABLE_ENABLED'), disabled: !moduleOn('BOOKABLE_ENABLED'), onChange: (checked) => setModuleStringSetting('BOOKABLE_ENABLED', checked) },
-          ],
+          title: 'Online Session Booking',
+          subtitle: 'Allow option to book guest to an online session.',
+          checked: moduleOn('ONLINE_SESSION_BOOKING_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('ONLINE_SESSION_BOOKING_ENABLED', checked),
         },
         { id: 'booking-ai', icon: 'spark', title: `${t('configModulesAiLabel')} (Prihaja kmalu)`, checked: false, disabled: true, onChange: () => setModuleStringSetting('AI_BOOKING_ENABLED', false) },
         { id: 'booking-personal', icon: 'personal', title: t('configModulesPersonalLabel'), checked: moduleOn('PERSONAL_ENABLED'), onChange: (checked) => setModuleStringSetting('PERSONAL_ENABLED', checked) },
@@ -4063,8 +4190,8 @@ export function ConfigurationPage() {
           checked: moduleOn('GROUP_BOOKING_ENABLED'),
           onChange: (checked) => setModuleStringSetting('GROUP_BOOKING_ENABLED', checked),
           children: [
-            { id: 'booking-multiple-clients', icon: 'group', title: t('configModulesMultipleClientsPerSessionLabel'), checked: moduleOn('MULTIPLE_CLIENTS_PER_SESSION_ENABLED'), onChange: (checked) => setModuleStringSetting('MULTIPLE_CLIENTS_PER_SESSION_ENABLED', checked) },
-            { id: 'booking-max-participants', icon: 'group', title: 'Max participants', checked: moduleOn('GROUP_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('GROUP_BOOKING_ENABLED', checked) },
+            { id: 'booking-multiple-clients', icon: 'group', title: t('configModulesMultipleClientsPerSessionLabel'), checked: moduleOn('GROUP_BOOKING_ENABLED') && moduleOn('MULTIPLE_CLIENTS_PER_SESSION_ENABLED'), disabled: !moduleOn('GROUP_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('MULTIPLE_CLIENTS_PER_SESSION_ENABLED', checked) },
+            { id: 'booking-max-participants', icon: 'group', title: 'Max participants', checked: moduleOn('GROUP_BOOKING_ENABLED'), disabled: !moduleOn('GROUP_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('GROUP_BOOKING_ENABLED', checked) },
           ],
         },
       ],
@@ -7478,7 +7605,7 @@ export function ConfigurationPage() {
             <div className="modules-design-toolbar-copy">
               <span>{locale === 'sl' ? 'Predloge modulov' : 'Module presets'}</span>
               <strong>{locale === 'sl' ? 'Vrsta konfiguracije' : 'Config type'}</strong>
-              <p>{locale === 'sl' ? 'Izbrana vrsta iz strani za obračun. Kasneje bo lahko samodejno vklopila ali izklopila priporočene module.' : 'Selected from the billing page. Later this can automatically enable or disable recommended modules.'}</p>
+              <p>{locale === 'sl' ? 'Izbrana vrsta iz strani za obračun. Sprememba uporabi priporočene vklopljene module za trenutni paket.' : 'Selected from the billing page. Changing it applies the recommended module switches for your current package.'}</p>
             </div>
             <label className="modules-design-config-select" htmlFor="modules-config-type">
               <span>{locale === 'sl' ? 'Config type' : 'Config type'}</span>

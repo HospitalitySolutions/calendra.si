@@ -619,10 +619,14 @@ public class SignupService {
         seedSetting(company, SettingKey.COMPANY_ADDRESS, stringOrEmpty(request.address()));
         seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, stringOrEmpty(request.postalCode()));
         seedSetting(company, SettingKey.COMPANY_CITY, stringOrEmpty(request.city()));
-        seedTenantTypeSettings(company, request.tenantType());
 
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
+
+        String normalizedTenantType = normalizeTenantConfigType(request.tenantType());
+        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, normalizedTenantType);
+        seedGuestAppTenantType(company, normalizedTenantType);
+        applyModuleConfigPreset(company, normalizedTenantType, normalizedPackageType);
 
         String interval = request.billingInterval() == null ? "MONTHLY" : request.billingInterval().trim().toUpperCase(Locale.ROOT);
         if (!"MONTHLY".equals(interval) && !"YEARLY".equals(interval)) {
@@ -646,8 +650,7 @@ public class SignupService {
         return ResponseEntity.ok(Map.of(
                 "ok", true,
                 "packageType", normalizedPackageType,
-                "billingInterval", interval,
-                "tenantType", normalizeTenantType(request.tenantType())));
+                "billingInterval", interval));
     }
 
     private void tryEnsurePlatformSubscriptionOpenBill(
@@ -680,41 +683,6 @@ public class SignupService {
                     company == null ? null : company.getId(),
                     e.getMessage());
         }
-    }
-
-    private void seedTenantTypeSettings(Company company, String rawTenantType) {
-        String tenantType = normalizeTenantType(rawTenantType);
-        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, tenantType);
-
-        Map<String, Object> guestSettings = new LinkedHashMap<>();
-        settings.findByCompanyIdAndKey(company.getId(), SettingKey.GUEST_APP_SETTINGS_JSON)
-                .map(AppSetting::getValue)
-                .filter(value -> value != null && !value.isBlank())
-                .ifPresent(existingJson -> {
-                    try {
-                        Map<String, Object> existing = objectMapper.readValue(existingJson, new TypeReference<Map<String, Object>>() {});
-                        if (existing != null) {
-                            guestSettings.putAll(existing);
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed parsing guest app settings while saving signup tenant type for company {}: {}", company.getId(), e.getMessage());
-                    }
-                });
-        guestSettings.put("tenantType", tenantType);
-        try {
-            seedSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, objectMapper.writeValueAsString(guestSettings));
-        } catch (Exception e) {
-            log.warn("Failed serializing guest app tenant type for company {}: {}", company.getId(), e.getMessage());
-        }
-    }
-
-    private String normalizeTenantType(String rawTenantType) {
-        if (rawTenantType == null || rawTenantType.isBlank()) return "salon";
-        String normalized = rawTenantType.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
-        return switch (normalized) {
-            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
-            default -> "salon";
-        };
     }
 
     private void deactivateSignupIntentsForEmail(String normalizedEmail) {
@@ -1168,10 +1136,70 @@ public class SignupService {
                 .orElse("CUSTOM");
     }
 
+    private String normalizeTenantConfigType(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) return "salon";
+        String normalized = rawValue.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return switch (normalized) {
+            case "gym", "therapy", "spa", "personal_training" -> normalized;
+            default -> "salon";
+        };
+    }
+
+    private int packageRank(String packageType) {
+        return switch (normalizePackageType(packageType, "BASIC")) {
+            case "CUSTOM", "PREMIUM" -> 3;
+            case "PROFESSIONAL", "TRIAL" -> 2;
+            default -> 1;
+        };
+    }
+
+    private boolean hasMinPackage(String packageType, String minPackage) {
+        return packageRank(packageType) >= packageRank(minPackage);
+    }
+
+    private void applyModuleConfigPreset(Company company, String tenantType, String packageType) {
+        String normalizedTenantType = normalizeTenantConfigType(tenantType);
+        boolean basicAllowed = hasMinPackage(packageType, "BASIC");
+        boolean proAllowed = hasMinPackage(packageType, "PROFESSIONAL");
+        boolean supportsOnlineSessions = "therapy".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
+        boolean supportsGroupBookings = "gym".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
+
+        seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, Boolean.toString(basicAllowed && supportsOnlineSessions));
+        seedSetting(company, SettingKey.SPACES_ENABLED, Boolean.toString(proAllowed));
+        seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
+        seedSetting(company, SettingKey.GROUP_BOOKING_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
+        seedSetting(company, SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED, Boolean.toString(proAllowed && supportsGroupBookings));
+        seedSetting(company, SettingKey.AI_BOOKING_ENABLED, "false");
+    }
+
+    private void seedGuestAppTenantType(Company company, String tenantType) {
+        String normalizedTenantType = normalizeTenantConfigType(tenantType);
+        Map<String, Object> guestSettings = new LinkedHashMap<>();
+        settings.findByCompanyIdAndKey(company.getId(), SettingKey.GUEST_APP_SETTINGS_JSON)
+                .map(AppSetting::getValue)
+                .filter(value -> value != null && !value.isBlank())
+                .ifPresent(value -> {
+                    try {
+                        Map<String, Object> parsed = objectMapper.readValue(value, new TypeReference<Map<String, Object>>() {});
+                        if (parsed != null) guestSettings.putAll(parsed);
+                    } catch (Exception ignored) {
+                        // Keep the new tenant type even if an older malformed JSON value exists.
+                    }
+                });
+        guestSettings.put("tenantType", normalizedTenantType);
+        try {
+            seedSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, objectMapper.writeValueAsString(guestSettings));
+        } catch (Exception e) {
+            log.warn("Could not save guest app tenant type for company {}: {}", company == null ? null : company.getId(), e.getMessage());
+        }
+    }
+
     private void seedTenantDefaults(Company company, String companyName) {
         seedSetting(company, SettingKey.SPACES_ENABLED, "true");
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
         seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
+        seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, "true");
+        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "salon");
         seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
         seedSetting(company, SettingKey.TODOS_ENABLED, "true");
         seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, "false");

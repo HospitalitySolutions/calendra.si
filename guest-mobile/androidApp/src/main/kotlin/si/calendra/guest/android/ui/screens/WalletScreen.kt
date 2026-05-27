@@ -1702,7 +1702,7 @@ private fun WalletCommercePassCard(
                 verticalAlignment = Alignment.Top
             ) {
                 WalletPassIconBadge(type = type, accent = style.accent)
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = productTypeLabel(type).uppercase(Locale.getDefault()),
@@ -1783,7 +1783,7 @@ private fun WalletCommercePassCard(
                         )
                     }
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(12.dp))
                 WalletQRCode(content = code, modifier = Modifier.size(74.dp))
             }
         }
@@ -4054,67 +4054,252 @@ private fun BuyPaymentSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val methods = remember(availableMethods) { normalizeWalletBuyMethods(availableMethods) }
     var selected by remember { mutableStateOf(methods.firstOrNull() ?: "CARD") }
+    val actionBlue = Color(0xFF1568F4)
+    val ink = Color(0xFF0F172A)
+    val muted = Color(0xFF667085)
+    val line = Color(0xFFE2E8F0)
+    val summaryBg = Color(0xFFF2F7FF)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White
+        containerColor = Color.White,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 8.dp, bottom = 10.dp)
+                    .width(46.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(actionBlue)
+            )
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Text(walletTr(languageCode, "Choose a payment method", "Izberite način plačila"), fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text(
-                text = "${offer.name} • ${formatPrice(offer.priceGross)} ${offer.currency}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = walletTr(languageCode, "Choose a payment method", "Izberite način plačila"),
+                color = ink,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Normal,
+                letterSpacing = 0.1.sp
             )
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = summaryBg,
+                tonalElevation = 0.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = CircleShape,
+                        color = Color.White
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.ConfirmationNumber,
+                                contentDescription = null,
+                                tint = actionBlue,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = offer.name,
+                            color = ink,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = walletTr(languageCode, "Service", "Storitev"),
+                            color = muted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(36.dp)
+                            .background(line)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "${formatPrice(offer.priceGross)} ${offer.currency}",
+                            color = ink,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = walletTr(languageCode, "Amount", "Znesek"),
+                            color = muted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
             methods.forEach { method ->
                 PaymentMethodRow(
                     method = method,
                     languageCode = languageCode,
                     selected = selected == method,
+                    actionBlue = actionBlue,
+                    ink = ink,
+                    muted = muted,
+                    line = line,
                     onSelect = { selected = method }
                 )
             }
+
             Button(
                 onClick = { onConfirm(selected) },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WalletBlue, contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White),
+                contentPadding = PaddingValues(0.dp)
             ) {
-                Text(walletTr(languageCode, "Continue", "Nadaljuj"), fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Brush.horizontalGradient(listOf(actionBlue.copy(alpha = 0.96f), actionBlue))),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = walletTr(languageCode, "Continue", "Nadaljuj"),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(walletTr(languageCode, "Cancel", "Prekliči")) }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = walletTr(languageCode, "Cancel", "Prekliči"),
+                    color = actionBlue,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun PaymentMethodRow(method: String, languageCode: String, selected: Boolean, onSelect: () -> Unit) {
+private fun PaymentMethodRow(
+    method: String,
+    languageCode: String,
+    selected: Boolean,
+    actionBlue: Color,
+    ink: Color,
+    muted: Color,
+    line: Color,
+    onSelect: () -> Unit
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onSelect() },
         shape = RoundedCornerShape(14.dp),
-        color = if (selected) WalletBlue.copy(alpha = 0.08f) else WalletSurfaceTint,
-        border = if (selected) androidx.compose.foundation.BorderStroke(1.5.dp, WalletBlue) else null,
+        color = if (selected) Color(0xFFF2F7FF) else Color.White,
+        border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) actionBlue else line),
+        shadowElevation = if (selected) 2.dp else 0.dp,
         tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RadioButton(selected = selected, onClick = onSelect)
-            Spacer(Modifier.width(4.dp))
+            Box(
+                modifier = Modifier.size(22.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, if (selected) actionBlue else muted, CircleShape)
+                )
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(actionBlue)
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(13.dp),
+                color = Color.White,
+                shadowElevation = if (selected) 5.dp else 2.dp,
+                tonalElevation = 0.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = paymentMethodIcon(method),
+                        contentDescription = null,
+                        tint = actionBlue,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = paymentMethodLabel(method, languageCode), fontWeight = FontWeight.SemiBold)
-                Text(text = paymentMethodHelper(method, languageCode), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = paymentMethodLabel(method, languageCode),
+                    color = ink,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = paymentMethodHelper(method, languageCode),
+                    color = muted,
+                    fontSize = 13.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
+}
+
+private fun paymentMethodIcon(method: String): ImageVector = when (method) {
+    "BANK_TRANSFER" -> Icons.Rounded.Business
+    "PAYPAL" -> Icons.Rounded.CreditCard
+    else -> Icons.Rounded.CreditCard
 }
 
 private fun paymentMethodLabel(method: String, languageCode: String = "en"): String = when (method) {

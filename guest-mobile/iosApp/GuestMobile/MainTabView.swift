@@ -659,12 +659,12 @@ private struct TenantSelectionBottomSheet: View {
     @State private var searchText = ""
 
     private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
-    private var brandBlue: Color { Color(red: 0.07, green: 0.30, blue: 0.62) }
+    private var brandBlue: Color { Color(red: 0.082, green: 0.408, blue: 0.957) }
     private var brandBlueSoft: Color { brandBlue }
     private var brandOrange: Color { Color(red: 0.95, green: 0.59, blue: 0.23) }
     private var ink: Color { Color(red: 0.06, green: 0.10, blue: 0.18) }
-    private var muted: Color { brandBlue.opacity(0.66) }
-    private var line: Color { brandBlue.opacity(0.22) }
+    private var muted: Color { Color(red: 0.40, green: 0.44, blue: 0.52) }
+    private var line: Color { Color(red: 0.84, green: 0.87, blue: 0.92) }
 
     private var filteredTenants: [TenantModel] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -673,6 +673,22 @@ private struct TenantSelectionBottomSheet: View {
             tenant.name.localizedCaseInsensitiveContains(query) ||
             (tenant.city ?? "").localizedCaseInsensitiveContains(query) ||
             (tenant.companyAddress ?? "").localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var confirmSelectionTenantId: String? {
+        selectedTenantId ?? filteredTenants.first?.id
+    }
+
+    private var canConfirmSelection: Bool {
+        allowsAllTenants || confirmSelectionTenantId != nil
+    }
+
+    private func confirmSelection() {
+        if allowsAllTenants && selectedTenantId == nil {
+            onSelect(nil)
+        } else if let tenantId = confirmSelectionTenantId {
+            onSelect(tenantId)
         }
     }
 
@@ -687,7 +703,7 @@ private struct TenantSelectionBottomSheet: View {
 
             Text(isSl ? "Izberi ponudnika" : "Select tenant")
                 .font(.system(size: 23, weight: .bold))
-                .foregroundColor(brandBlue)
+                .foregroundColor(ink)
                 .padding(.horizontal, 20)
 
             Text(allowsAllTenants ? (isSl ? "Izberite enega ponudnika ali prikažite termine vseh ponudnikov." : "Choose one provider or show sessions from all providers.") : (isSl ? "Izberite ponudnika za upravljanje rezervacij in plačil." : "Choose a tenant for bookings and payments."))
@@ -702,9 +718,9 @@ private struct TenantSelectionBottomSheet: View {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(brandBlue)
-                    TextField("", text: $searchText, prompt: Text(isSl ? "Išči ponudnika ..." : "Search tenant ...").foregroundColor(brandBlue.opacity(0.58)))
+                    TextField("", text: $searchText, prompt: Text(isSl ? "Išči ponudnika ..." : "Search tenant ...").foregroundColor(muted))
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(brandBlue)
+                        .foregroundColor(ink)
                         .tint(brandBlue)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -713,7 +729,7 @@ private struct TenantSelectionBottomSheet: View {
                 .frame(height: 44)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(red: 0.98, green: 0.99, blue: 1.0))
+                        .fill(Color.white)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(line, lineWidth: 1)
@@ -778,24 +794,32 @@ private struct TenantSelectionBottomSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 2)
             }
-            .frame(maxHeight: 250)
+            .frame(maxHeight: 292)
 
-            Button(action: onAddTenant) {
+            Button(action: confirmSelection) {
                 HStack(spacing: 10) {
-                    Image(systemName: "plus")
+                    Image(systemName: "checkmark")
                         .font(.system(size: 18, weight: .semibold))
-                    Text(isSl ? "Dodaj ponudnika" : "Add tenant")
+                    Text(isSl ? "Izberi ponudnika" : "Select tenant")
                         .font(.system(size: 16, weight: .bold))
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 52)
+                .frame(height: 58)
                 .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(brandBlue)
-                        .shadow(color: brandBlue.opacity(0.28), radius: 18, x: 0, y: 8)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [brandBlue.opacity(0.96), brandBlue],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(color: brandBlue.opacity(0.22), radius: 14, x: 0, y: 6)
                 )
+                .opacity(canConfirmSelection ? 1 : 0.48)
             }
+            .disabled(!canConfirmSelection)
             .buttonStyle(.plain)
             .padding(.horizontal, 20)
             .padding(.top, 14)
@@ -830,11 +854,11 @@ private struct TenantSelectionAllBottomSheetRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(isSl ? "Vsi ponudniki" : "All providers")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(brandBlue)
+                        .foregroundColor(ink)
                         .lineLimit(1)
                     Text(isSl ? "Prikaži termine vseh povezanih ponudnikov" : "Show sessions from every linked provider")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(brandBlue.opacity(0.62))
+                        .foregroundColor(muted)
                         .lineLimit(1)
                 }
 
@@ -906,7 +930,7 @@ private struct TenantSelectionBottomSheetRow: View {
                         .lineLimit(1)
                     Text(subtitle)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(brandBlue.opacity(0.62))
+                        .foregroundColor(muted)
                         .lineLimit(1)
                 }
 
