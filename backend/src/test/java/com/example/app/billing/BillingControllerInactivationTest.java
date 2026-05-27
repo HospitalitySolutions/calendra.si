@@ -15,6 +15,7 @@ import com.example.app.guest.model.GuestOrderRepository;
 import jakarta.persistence.EntityManager;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.stripe.StripeBillingService;
 import com.example.app.user.User;
@@ -55,6 +56,7 @@ class BillingControllerInactivationTest {
     @Mock private InvoiceOrderIdService invoiceOrderIdService;
     @Mock private EntityManager entityManager;
     @Mock private GlobalPaymentProviderService globalPaymentProviders;
+    @Mock private BillingModuleAccessService billingModuleAccess;
 
     private BillingController controller;
     private User me;
@@ -84,7 +86,8 @@ class BillingControllerInactivationTest {
                 guestOrders,
                 invoiceOrderIdService,
                 entityManager,
-                globalPaymentProviders
+                globalPaymentProviders,
+                billingModuleAccess
         );
 
         Company company = new Company();

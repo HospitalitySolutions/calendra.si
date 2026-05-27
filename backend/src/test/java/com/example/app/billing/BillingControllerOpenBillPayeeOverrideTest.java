@@ -20,6 +20,7 @@ import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.stripe.StripeBillingService;
 import com.example.app.user.User;
@@ -61,6 +62,7 @@ class BillingControllerOpenBillPayeeOverrideTest {
     @Mock private InvoiceOrderIdService invoiceOrderIdService;
     @Mock private EntityManager entityManager;
     @Mock private GlobalPaymentProviderService globalPaymentProviders;
+    @Mock private BillingModuleAccessService billingModuleAccess;
 
     private BillingController controller;
     private Company ownerCompany;
@@ -93,7 +95,8 @@ class BillingControllerOpenBillPayeeOverrideTest {
                 guestOrders,
                 invoiceOrderIdService,
                 entityManager,
-                globalPaymentProviders
+                globalPaymentProviders,
+                billingModuleAccess
         );
 
         ownerCompany = new Company();

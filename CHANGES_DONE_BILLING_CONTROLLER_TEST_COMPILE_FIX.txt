@@ -1,0 +1,11 @@
+Fixed backend test compilation after adding BillingModuleAccessService to BillingController.
+
+Changes:
+- Added BillingModuleAccessService mock to BillingControllerBatchSyncRegressionTest.
+- Added BillingModuleAccessService mock to BillingControllerInactivationTest.
+- Added BillingModuleAccessService mock to BillingControllerOpenBillPayeeOverrideTest.
+- Updated all direct BillingController constructor calls in those tests to pass the new dependency.
+
+Reason:
+- BillingController constructor now requires BillingModuleAccessService as the final argument.
+- These tests manually instantiate BillingController, so they must be updated whenever constructor dependencies change.
