@@ -25,8 +25,8 @@ android {
         applicationId = "si.calendra.guest.mobile"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         // Switch API target by setting API_BASE_HOST (or full API_BASE_URL) before building.
         // Android emulator default: 10.0.2.2 → host machine.
         buildConfigField("String", "API_BASE_URL", quoted(apiBaseUrl()))
