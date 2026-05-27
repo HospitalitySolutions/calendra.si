@@ -91,7 +91,7 @@ final class GuestApiClient {
         body.append(data)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
-        let (responseData, response) = try await session.data(for: request)
+        let (responseData, response) = try await performDataRequest(request)
         try validate(response: response, data: responseData)
         return try JSONDecoder().decode(GuestProfileSettingsModel.self, from: responseData)
     }
@@ -104,7 +104,7 @@ final class GuestApiClient {
         if let authToken {
             request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         return data
     }
@@ -117,7 +117,7 @@ final class GuestApiClient {
         if let authToken {
             request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         let rawName = suggestedFileName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallback = "receipt-\(orderId)"
@@ -247,7 +247,7 @@ final class GuestApiClient {
         body.append(data)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         request.httpBody = body
-        let (responseData, response) = try await session.data(for: request)
+        let (responseData, response) = try await performDataRequest(request)
         try validate(response: response, data: responseData)
         return try JSONDecoder().decode(GuestInboxUploadedAttachmentModel.self, from: responseData)
     }
@@ -269,7 +269,7 @@ final class GuestApiClient {
         if let authToken {
             request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         let fileName = suggestedFileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "attachment-\(attachmentId)" : suggestedFileName
         let safeName = fileName.replacingOccurrences(of: "/", with: "-")
@@ -378,7 +378,7 @@ final class GuestApiClient {
         var request = URLRequest(url: components.url!)
         request.httpMethod = "GET"
         applyHeaders(to: &request)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode(T.self, from: data)
     }
@@ -394,7 +394,7 @@ final class GuestApiClient {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(body)
         applyHeaders(to: &request)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode(T.self, from: data)
     }
@@ -406,7 +406,7 @@ final class GuestApiClient {
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
         applyHeaders(to: &request)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         return data
     }
@@ -416,7 +416,7 @@ final class GuestApiClient {
         request.httpMethod = "PUT"
         request.httpBody = try JSONEncoder().encode(body)
         applyHeaders(to: &request)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode(T.self, from: data)
     }
@@ -430,12 +430,80 @@ final class GuestApiClient {
         }
     }
 
-    private func validate(response: URLResponse, data: Data) throws {
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "Request failed"
-            throw NSError(domain: "GuestApiClient", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: message])
+    private func performDataRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(for: request)
+        } catch let error as URLError {
+            if isConnectivityError(error) {
+                throw guestApiError(code: error.errorCode, message: backendUnavailableMessage())
+            }
+            throw error
+        } catch {
+            throw error
         }
     }
+
+    private func validate(response: URLResponse, data: Data) throws {
+        guard let http = response as? HTTPURLResponse else {
+            throw guestApiError(code: -1, message: backendUnavailableMessage())
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw guestApiError(code: http.statusCode, message: errorMessage(for: http.statusCode, data: data))
+        }
+    }
+
+    private func errorMessage(for statusCode: Int, data: Data) -> String {
+        if isBackendUnavailableStatus(statusCode) {
+            return backendUnavailableMessage(statusCode: statusCode)
+        }
+
+        if
+            let apiError = try? JSONDecoder().decode(ApiErrorResponse.self, from: data),
+            !apiError.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return apiError.message
+        }
+
+        let payload = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !payload.isEmpty { return payload }
+        return "Request failed with status \(statusCode)"
+    }
+
+    private func isBackendUnavailableStatus(_ statusCode: Int) -> Bool {
+        statusCode == 502 || statusCode == 503 || statusCode == 504 || statusCode == 522 || statusCode == 523 || statusCode == 524
+    }
+
+    private func isConnectivityError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .notConnectedToInternet,
+             .timedOut,
+             .cannotFindHost,
+             .cannotConnectToHost,
+             .networkConnectionLost,
+             .dnsLookupFailed,
+             .internationalRoamingOff,
+             .callIsActive,
+             .dataNotAllowed,
+             .secureConnectionFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func backendUnavailableMessage(statusCode: Int? = nil) -> String {
+        let message = "Calendra service is temporarily unavailable. Please check your internet connection and try again in a moment."
+        if let statusCode { return "\(message) (HTTP \(statusCode))" }
+        return message
+    }
+
+    private func guestApiError(code: Int, message: String) -> NSError {
+        NSError(domain: "GuestApiClient", code: code, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+}
+
+private struct ApiErrorResponse: Decodable {
+    let message: String
 }
 
 private struct EmptyResponse: Decodable {}

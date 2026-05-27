@@ -1,0 +1,13 @@
+Guest backend unavailable message compile fix
+
+What changed:
+- Fixed shared Android Ktor HttpSend usage in HttpClientFactory.android.kt.
+- Fixed shared iOS Ktor HttpSend usage in HttpClientFactory.ios.kt.
+- The previous version attempted to call intercept/execute inside install(HttpSend) configuration.
+  With Ktor 3.x, intercept is accessed through client.plugin(HttpSend).intercept { ... } after the client is created.
+- Kept the same behavior: network/backend connectivity failures are converted to the clearer backend-unavailable message instead of showing a generic low-level request failure.
+- CancellationException is still rethrown unchanged so coroutine cancellation is not converted into a user-facing backend error.
+
+Files changed:
+- guest-mobile/shared/src/androidMain/kotlin/si/calendra/guest/shared/network/HttpClientFactory.android.kt
+- guest-mobile/shared/src/iosMain/kotlin/si/calendra/guest/shared/network/HttpClientFactory.ios.kt

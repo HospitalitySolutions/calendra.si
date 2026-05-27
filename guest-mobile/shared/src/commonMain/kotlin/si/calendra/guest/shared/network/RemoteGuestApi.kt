@@ -39,13 +39,20 @@ class RemoteGuestApi(
     private suspend inline fun <reified T> parse(response: HttpResponse): T {
         val payload = response.bodyAsText()
         if (!response.status.isSuccess()) {
-            val apiMessage = runCatching { json.decodeFromString<ApiErrorResponse>(payload).message }.getOrNull()
-            val message = apiMessage?.takeIf { it.isNotBlank() }
-                ?: payload.takeIf { it.isNotBlank() }
-                ?: "Request failed with status ${response.status.value}"
-            throw IllegalStateException(message)
+            throw IllegalStateException(errorMessageFor(response.status.value, payload))
         }
         return json.decodeFromString(payload)
+    }
+
+    private fun errorMessageFor(statusCode: Int, payload: String): String {
+        if (GuestApiErrorMessages.isBackendUnavailableStatus(statusCode)) {
+            return GuestApiErrorMessages.backendUnavailable(statusCode)
+        }
+
+        val apiMessage = runCatching { json.decodeFromString<ApiErrorResponse>(payload).message }.getOrNull()
+        return apiMessage?.takeIf { it.isNotBlank() }
+            ?: payload.takeIf { it.isNotBlank() }
+            ?: "Request failed with status $statusCode"
     }
 
     suspend fun login(request: LoginRequest): GuestSession =
@@ -125,9 +132,7 @@ class RemoteGuestApi(
         }
         if (!response.status.isSuccess()) {
             val payload = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
-            val message = payload.takeIf { it.isNotBlank() }
-                ?: "Request failed with status ${response.status.value}"
-            throw IllegalStateException(message)
+            throw IllegalStateException(errorMessageFor(response.status.value, payload))
         }
         return response.bodyAsBytes()
     }
@@ -237,9 +242,7 @@ class RemoteGuestApi(
         }
         if (!response.status.isSuccess()) {
             val payload = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
-            val message = payload.takeIf { it.isNotBlank() }
-                ?: "Request failed with status ${response.status.value}"
-            throw IllegalStateException(message)
+            throw IllegalStateException(errorMessageFor(response.status.value, payload))
         }
         return response.bodyAsBytes()
     }

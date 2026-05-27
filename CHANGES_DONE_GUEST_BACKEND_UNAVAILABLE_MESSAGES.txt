@@ -1,0 +1,27 @@
+Changes done
+============
+
+1. Guest mobile API errors now show a clearer backend-unavailable message instead of the generic:
+   "Request failed with status 502".
+
+2. Android / shared Kotlin API client:
+   - Added GuestApiErrorMessages with a shared user-friendly backend outage message.
+   - Maps backend/proxy unavailable HTTP statuses 502, 503, 504, 522, 523 and 524 to:
+     "Calendra service is temporarily unavailable. Please check your internet connection and try again in a moment. (HTTP xxx)"
+   - Applies the same mapping for JSON API calls and PDF/profile downloads.
+   - Added Ktor transport error handling so no-response connection failures also show the clearer message.
+
+3. iOS Swift API client:
+   - Added a central request wrapper around URLSession.data calls.
+   - Maps connectivity errors such as no internet, timeout, DNS failure, cannot connect to host and secure connection failure to the clearer backend-unavailable message.
+   - Maps HTTP 502/503/504/522/523/524 to the clearer backend-unavailable message instead of showing raw proxy/body text.
+   - Keeps backend-provided JSON error messages for normal validation/business errors.
+
+Files changed
+=============
+
+- guest-mobile/shared/src/commonMain/kotlin/si/calendra/guest/shared/network/GuestApiErrorMessages.kt
+- guest-mobile/shared/src/commonMain/kotlin/si/calendra/guest/shared/network/RemoteGuestApi.kt
+- guest-mobile/shared/src/androidMain/kotlin/si/calendra/guest/shared/network/HttpClientFactory.android.kt
+- guest-mobile/shared/src/iosMain/kotlin/si/calendra/guest/shared/network/HttpClientFactory.ios.kt
+- guest-mobile/iosApp/GuestMobile/GuestApiClient.swift
