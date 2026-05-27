@@ -174,7 +174,8 @@ private fun walletFilterDisplay(label: String, languageCode: String): String = w
     "Memberships" -> walletTr(languageCode, "Memberships", "Članarine")
     "Paid" -> walletTr(languageCode, "Paid", "Plačano")
     "Pending" -> walletTr(languageCode, "Pending", "V čakanju")
-    "Refunded" -> walletTr(languageCode, "Refunded", "Vračila")
+    "Refunded" -> walletTr(languageCode, "Refunded", "Vrnjeno")
+    "Cancelled" -> walletTr(languageCode, "Cancelled", "Preklicano")
     else -> label
 }
 
@@ -4557,12 +4558,12 @@ private fun WalletOrderFilterRow(
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    LazyRow(
         modifier = modifier.padding(top = 2.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        listOf("All", "Paid", "Pending", "Refunded").forEach { label ->
+        items(listOf("All", "Paid", "Pending", "Refunded", "Cancelled")) { label ->
             val selectedChip = selected == label
             Surface(
                 modifier = Modifier
@@ -4583,7 +4584,7 @@ private fun WalletOrderFilterRow(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = label,
+                        text = walletFilterDisplay(label, languageCode),
                         color = if (selectedChip) Color.White else WalletInk.copy(alpha = 0.88f),
                         fontSize = 12.sp,
                         fontWeight = if (selectedChip) FontWeight.Bold else FontWeight.Medium,

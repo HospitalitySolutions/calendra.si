@@ -1,0 +1,21 @@
+Wallet Orders cancelled filter and Slovenian filter labels
+
+Changed files:
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/screens/WalletScreen.kt
+- guest-mobile/iosApp/GuestMobile/WalletView.swift
+
+What changed:
+1. Added a Cancelled / Preklicano filter tab on Wallet -> Orders in the guest mobile app.
+2. Cancelled orders are now shown when the Cancelled filter is selected.
+3. Order filter tab labels now use the selected app language:
+   - All -> Vse
+   - Paid -> Plačano
+   - Pending -> V čakanju
+   - Refunded -> Vrnjeno
+   - Cancelled -> Preklicano
+4. Android Orders filters were changed to a horizontal LazyRow so the extra Cancelled tab does not overflow on smaller phones.
+5. iOS Orders filters were changed to a horizontally scrollable row with fixed minimum chip width so Slovenian labels stay readable.
+
+Notes:
+- This zip is based on the latest working set and keeps the previous entitlement booking payment fix files as well.
+- Android/iOS compile was not run in this sandbox because project builds typically require local Gradle/Xcode tooling and dependency/network access.

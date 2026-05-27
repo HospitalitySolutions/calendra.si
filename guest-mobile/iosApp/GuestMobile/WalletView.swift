@@ -133,6 +133,7 @@ private func walletFilterTitle(_ label: String, languageCode: String) -> String 
     case "Paid": return walletTr(languageCode, "Paid", "Plačano")
     case "Pending": return walletTr(languageCode, "Pending", "V čakanju")
     case "Refunded": return walletTr(languageCode, "Refunded", "Vrnjeno")
+    case "Cancelled": return walletTr(languageCode, "Cancelled", "Preklicano")
     case "Inactive": return walletTr(languageCode, "Inactive", "Neaktivno")
     case "Active": return walletTr(languageCode, "Active", "Aktivno")
     default: return label
@@ -756,29 +757,31 @@ struct WalletView: View {
     }
 
     private var orderFilterRow: some View {
-        HStack(spacing: 10) {
-            ForEach(["All", "Paid", "Pending", "Refunded"], id: \.self) { label in
-                let selected = selectedOrderFilter == label
-                Button {
-                    selectedOrderFilter = label
-                } label: {
-                    Text(walletFilterTitle(label, languageCode: appUiLocaleStorage))
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(selected ? Color(red: 0.0, green: 0.40, blue: 0.96) : Color(red: 0.30, green: 0.36, blue: 0.48))
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(selected ? Color(red: 0.0, green: 0.40, blue: 0.96) : walletLine, lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(selected ? 0.08 : 0.035), radius: selected ? 8 : 5, y: selected ? 4 : 2)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(["All", "Paid", "Pending", "Refunded", "Cancelled"], id: \.self) { label in
+                    let selected = selectedOrderFilter == label
+                    Button {
+                        selectedOrderFilter = label
+                    } label: {
+                        Text(walletFilterTitle(label, languageCode: appUiLocaleStorage))
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(selected ? Color(red: 0.0, green: 0.40, blue: 0.96) : Color(red: 0.30, green: 0.36, blue: 0.48))
+                            .lineLimit(1)
+                            .frame(minWidth: 86)
+                            .frame(height: 48)
+                            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(selected ? Color(red: 0.0, green: 0.40, blue: 0.96) : walletLine, lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(selected ? 0.08 : 0.035), radius: selected ? 8 : 5, y: selected ? 4 : 2)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
     }
 
     // MARK: Purchase

@@ -14,12 +14,14 @@ struct BookLaunchRequest: Identifiable, Hashable {
     let companyId: String
     let sessionTypeId: String?
     let entitlementName: String
+    let entitlementId: String?
     let preferredPaymentMethod: GuestBookingPaymentChoice
 
-    init(companyId: String, sessionTypeId: String?, entitlementName: String, preferredPaymentMethod: GuestBookingPaymentChoice = .entitlement) {
+    init(companyId: String, sessionTypeId: String?, entitlementName: String, entitlementId: String? = nil, preferredPaymentMethod: GuestBookingPaymentChoice = .entitlement) {
         self.companyId = companyId
         self.sessionTypeId = sessionTypeId
         self.entitlementName = entitlementName
+        self.entitlementId = entitlementId
         self.preferredPaymentMethod = preferredPaymentMethod
     }
 }
@@ -156,7 +158,7 @@ struct BookView: View {
 
     private var selectedEntitlement: AccessCardModel? {
         guard let selectedEntitlementId else { return matchingEntitlements.first }
-        return matchingEntitlements.first(where: { $0.entitlementId == selectedEntitlementId }) ?? matchingEntitlements.first
+        return matchingEntitlements.first(where: { $0.entitlementId == selectedEntitlementId })
     }
 
     /// Gift cards (entitlementType = GIFT_CARD) matching the selected service's company and currency.
@@ -200,13 +202,13 @@ struct BookView: View {
     /// Resets the selected payment method when the active provider's allowlist or matching gift cards make it unavailable.
     private func ensurePaymentMethodAllowed() {
         if matchingEntitlements.isEmpty {
-            selectedEntitlementId = nil
+            if !entitlementLaunchMode { selectedEntitlementId = nil }
         } else if let currentEntitlementId = selectedEntitlementId, matchingEntitlements.contains(where: { $0.entitlementId == currentEntitlementId }) {
             // Keep current selection.
-        } else {
+        } else if !entitlementLaunchMode || selectedEntitlementId == nil {
             selectedEntitlementId = matchingEntitlements.first?.entitlementId
         }
-        if selectedPaymentMethod == .entitlement, matchingEntitlements.isEmpty {
+        if selectedPaymentMethod == .entitlement, matchingEntitlements.isEmpty, !entitlementLaunchMode {
             selectedPaymentMethod = .card
         }
         if selectedPaymentMethod == .giftCard, !hasGiftCardCoverage {
@@ -1282,6 +1284,7 @@ struct BookView: View {
         consultants = []
         slots = []
         selectedPaymentMethod = request.preferredPaymentMethod
+        selectedEntitlementId = request.entitlementId
 
         if let service = matchedService(for: request) {
             entitlementLaunchMode = true

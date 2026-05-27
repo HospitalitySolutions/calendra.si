@@ -1,0 +1,27 @@
+Entitlement booking payment selection fix
+
+Changed files:
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/screens/BookScreen.kt
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/GuestMobileRoot.kt
+- guest-mobile/iosApp/GuestMobile/BookView.swift
+- guest-mobile/iosApp/GuestMobile/MainTabView.swift
+
+What changed:
+1. Android guest app
+   - BookLaunchRequest now carries the clicked entitlementId from Wallet → Entitlements → Izberi termin.
+   - GuestMobileRoot passes the exact wallet card entitlement id when opening the Book tab.
+   - BookScreen preselects payment method ENTITLEMENT and the exact clicked entitlement id during the launch flow.
+   - In entitlement launch mode, the flow no longer silently falls back to card payment or another entitlement when the clicked entitlement is temporarily not matched.
+
+2. iOS guest app
+   - BookLaunchRequest now carries the clicked entitlementId.
+   - MainTabView passes entitlement.entitlementId when opening booking from Wallet → Entitlements.
+   - BookView preselects the exact clicked entitlement and keeps ENTITLEMENT as the active payment method for that launch flow.
+   - The selected entitlement no longer falls back to a different first matching card when a specific clicked entitlement id was provided.
+
+Result:
+- When the user taps Izberi termin on a specific entitlement/card/visit, the Payment & review step opens with "Uporabi karto ali obisk" selected and bound to that exact entitlement.
+- If that exact entitlement is not valid for the resolved service, the app will not silently switch to another payment method or a different card.
+
+Validation:
+- I could not run the Android Gradle compile in this sandbox because the Gradle wrapper tried to download Gradle from services.gradle.org and outbound network access is unavailable here.

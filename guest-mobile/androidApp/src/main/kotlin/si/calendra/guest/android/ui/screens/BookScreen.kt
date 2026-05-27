@@ -236,6 +236,7 @@ data class BookLaunchRequest(
     val companyId: String,
     val sessionTypeId: String?,
     val entitlementName: String,
+    val entitlementId: String? = null,
     val preferredPaymentMethodType: String = "ENTITLEMENT"
 )
 
@@ -374,6 +375,7 @@ fun BookScreen(
         selectedSlotId = null
         selectedPaymentMethod = PaymentMethodUi.values().firstOrNull { it.apiValue == request.preferredPaymentMethodType }
             ?: PaymentMethodUi.ENTITLEMENT
+        selectedEntitlementId = request.entitlementId
 
         val providerServices = services.filter { it.companyId == request.companyId }
         val candidate = request.sessionTypeId?.let { sessionTypeId ->
@@ -425,8 +427,11 @@ fun BookScreen(
                 && !entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
                 && (entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == selectedService.sessionTypeId)
     }
-    val selectedEntitlement = matchingEntitlements.firstOrNull { it.entitlementId == selectedEntitlementId }
-        ?: matchingEntitlements.firstOrNull()
+    val selectedEntitlement = if (selectedEntitlementId != null) {
+        matchingEntitlements.firstOrNull { it.entitlementId == selectedEntitlementId }
+    } else {
+        matchingEntitlements.firstOrNull()
+    }
     val matchingGiftCards = redeemableEntitlements.filter { entitlement ->
         selectedService != null && entitlement.companyId == selectedService.companyId
                 && entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
@@ -546,16 +551,18 @@ fun BookScreen(
         }
     }
 
-    LaunchedEffect(selectedService?.id, matchingEntitlements.joinToString("|") { it.entitlementId }) {
+    LaunchedEffect(selectedService?.id, matchingEntitlements.joinToString("|") { it.entitlementId }, entitlementLaunchMode) {
         if (matchingEntitlements.isEmpty()) {
-            selectedEntitlementId = null
-        } else if (matchingEntitlements.none { it.entitlementId == selectedEntitlementId }) {
+            if (!entitlementLaunchMode) selectedEntitlementId = null
+        } else if (selectedEntitlementId == null) {
+            selectedEntitlementId = matchingEntitlements.first().entitlementId
+        } else if (matchingEntitlements.none { it.entitlementId == selectedEntitlementId } && !entitlementLaunchMode) {
             selectedEntitlementId = matchingEntitlements.first().entitlementId
         }
     }
 
-    LaunchedEffect(selectedService?.id, matchingEntitlements.size, matchingGiftCards.size, hasGiftCardCoverage, acceptedPaymentApiValues) {
-        if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT && matchingEntitlements.isEmpty()) {
+    LaunchedEffect(selectedService?.id, matchingEntitlements.size, matchingGiftCards.size, hasGiftCardCoverage, acceptedPaymentApiValues, entitlementLaunchMode) {
+        if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT && matchingEntitlements.isEmpty() && !entitlementLaunchMode) {
             selectedPaymentMethod = PaymentMethodUi.CARD
         }
         if (selectedPaymentMethod == PaymentMethodUi.GIFT_CARD && !hasGiftCardCoverage) {

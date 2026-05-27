@@ -652,6 +652,7 @@ struct MainTabView: View {
             companyId: entitlement.companyId,
             sessionTypeId: entitlement.sessionTypeId,
             entitlementName: entitlement.name,
+            entitlementId: entitlement.entitlementId,
             preferredPaymentMethod: .entitlement
         )
         selectedTab = .book

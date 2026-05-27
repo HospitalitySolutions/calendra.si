@@ -1282,6 +1282,7 @@ fun GuestMobileRoot() {
                                         companyId = tenantId,
                                         sessionTypeId = card.sessionTypeId,
                                         entitlementName = card.title,
+                                        entitlementId = card.id,
                                         preferredPaymentMethodType = "ENTITLEMENT"
                                     )
                                     navController.navigate(RootRoute.Book.route) {
