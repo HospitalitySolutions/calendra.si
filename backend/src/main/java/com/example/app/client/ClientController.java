@@ -313,6 +313,24 @@ public class ClientController {
         return new ClientWalletResponse(activeEntitlements, inactiveEntitlements, usageHistory);
     }
 
+    @DeleteMapping("/{id}/wallet/entitlements/{entitlementId}")
+    @Transactional
+    public void deleteWalletEntitlement(
+            @PathVariable Long id,
+            @PathVariable Long entitlementId,
+            @AuthenticationPrincipal User me
+    ) {
+        var client = loadClientForDetailAccess(id, me);
+        var entitlement = guestEntitlements.findById(entitlementId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!entitlement.getCompany().getId().equals(me.getCompany().getId())
+                || !entitlement.getClient().getId().equals(client.getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        entitlement.setStatus(EntitlementStatus.CANCELLED);
+        guestEntitlements.save(entitlement);
+    }
+
     @GetMapping("/{id}/files")
     @Transactional(readOnly = true)
     public List<StoredFileResponse> listFiles(@PathVariable Long id, @AuthenticationPrincipal User me) {

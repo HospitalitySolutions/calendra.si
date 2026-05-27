@@ -679,6 +679,10 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
     walletStatus: 'Status',
     walletBooking: 'Rezervacija',
     walletUsedUnits: 'Porabljene enote',
+    walletDeleteEntitlement: 'Izbriši ugodnost',
+    walletDeletingEntitlement: 'Brišem...',
+    walletDeleteEntitlementConfirm: 'Ali želite izbrisati to ugodnost iz denarnice gosta?',
+    walletDeleteEntitlementError: 'Ugodnosti ni bilo mogoče izbrisati.',
     companyDetailMainTabsAria: 'Zavihki podrobnosti podjetja',
     companyDatotekeSubTabsAria: 'Podzavihki datotek in računov',
     companySubTabInvoices: 'Računi',
@@ -836,6 +840,10 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
     walletStatus: 'Status',
     walletBooking: 'Booking',
     walletUsedUnits: 'Units used',
+    walletDeleteEntitlement: 'Delete entitlement',
+    walletDeletingEntitlement: 'Deleting...',
+    walletDeleteEntitlementConfirm: 'Delete this entitlement from the guest wallet?',
+    walletDeleteEntitlementError: 'Could not delete the entitlement.',
     companyDetailMainTabsAria: 'Company detail tabs',
     companyDatotekeSubTabsAria: 'Files and invoices sections',
     companySubTabInvoices: 'Invoices',
@@ -962,6 +970,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
   const [selectedWalletProductId, setSelectedWalletProductId] = useState<number | null>(null)
   const [walletPurchaseError, setWalletPurchaseError] = useState('')
   const [creatingWalletOpenBill, setCreatingWalletOpenBill] = useState(false)
+  const [deletingWalletEntitlementId, setDeletingWalletEntitlementId] = useState<number | null>(null)
   const clientFilesDropDepth = useRef(0)
   const companyFilesDropDepth = useRef(0)
   const [isClientsMobile, setIsClientsMobile] = useState(() =>
@@ -1459,6 +1468,29 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
       setCreatingWalletOpenBill(false)
     }
   }, [detailClient, selectedWalletProduct, navigate, locale])
+
+  const deleteWalletEntitlement = useCallback(async (entitlement: ClientWalletEntitlement) => {
+    if (!detailClient || deletingWalletEntitlementId != null) return
+    if (!window.confirm(clientsCopy.walletDeleteEntitlementConfirm)) return
+    setDeletingWalletEntitlementId(entitlement.id)
+    setDetailWalletError('')
+    try {
+      await api.delete(`/clients/${detailClient.id}/wallet/entitlements/${entitlement.id}`)
+      setDetailWallet((current) => current ? {
+        activeEntitlements: current.activeEntitlements.filter((row) => row.id !== entitlement.id),
+        inactiveEntitlements: [
+          { ...entitlement, status: 'CANCELLED' },
+          ...current.inactiveEntitlements.filter((row) => row.id !== entitlement.id),
+        ],
+        usageHistory: current.usageHistory,
+      } : current)
+      void loadDetailWallet(detailClient.id, { silent: true })
+    } catch (err: any) {
+      setDetailWalletError(err?.response?.data?.message || clientsCopy.walletDeleteEntitlementError)
+    } finally {
+      setDeletingWalletEntitlementId(null)
+    }
+  }, [clientsCopy.walletDeleteEntitlementConfirm, clientsCopy.walletDeleteEntitlementError, deletingWalletEntitlementId, detailClient, loadDetailWallet])
 
   const filteredClients = useMemo(() => {
     const byStatus = clients.filter((c) => activeFilter === 'inactive' ? c.active === false : c.active !== false)
@@ -3177,19 +3209,6 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                               </svg>
                               {locale === 'sl' ? 'Kupi ugodnost' : 'Buy entitlement'}
                             </button>
-                            <button
-                              type="button"
-                              className="clients-wallet-refresh-button"
-                              onClick={() => detailClient && void loadDetailWallet(detailClient.id, { silent: true })}
-                            >
-                              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                <path d="M21 12a9 9 0 0 1-15.2 6.5" />
-                                <path d="M3 12A9 9 0 0 1 18.2 5.5" />
-                                <path d="M3 4v5h5" />
-                                <path d="M21 20v-5h-5" />
-                              </svg>
-                              {locale === 'sl' ? 'Osveži' : 'Refresh'}
-                            </button>
                           </div>
 
                           <div className="clients-wallet-toolbar clients-wallet-toolbar--with-actions">
@@ -3261,6 +3280,23 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                                           ? `${clientsCopy.walletVisitCount}: ${entitlement.visitCount ?? 0}`
                                           : `${entitlement.remainingUses == null ? clientsCopy.walletUnlimited : entitlement.remainingUses} ${clientsCopy.walletRemainingUses.toLowerCase()}`}
                                       </strong>
+                                      <button
+                                        type="button"
+                                        className="clients-wallet-entitlement-delete-button"
+                                        onClick={() => void deleteWalletEntitlement(entitlement)}
+                                        disabled={deletingWalletEntitlementId === entitlement.id}
+                                        aria-label={clientsCopy.walletDeleteEntitlement}
+                                        title={clientsCopy.walletDeleteEntitlement}
+                                      >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                          <path d="M3 6h18" />
+                                          <path d="M8 6V4h8v2" />
+                                          <path d="M19 6l-1 14H6L5 6" />
+                                          <path d="M10 11v5" />
+                                          <path d="M14 11v5" />
+                                        </svg>
+                                        {deletingWalletEntitlementId === entitlement.id ? clientsCopy.walletDeletingEntitlement : clientsCopy.walletDeleteEntitlement}
+                                      </button>
                                     </div>
                                   </article>
                                 )

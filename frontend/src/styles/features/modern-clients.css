@@ -1702,6 +1702,46 @@
     background: currentColor;
 }
 
+.clients-wallet-entitlement-delete-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    background: #fff7f7;
+    color: #dc2626;
+    font-size: 0.74rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.clients-wallet-entitlement-delete-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: #fca5a5;
+    background: #fee2e2;
+}
+
+.clients-wallet-entitlement-delete-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.clients-wallet-entitlement-card--membership .clients-wallet-entitlement-delete-button {
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+}
+
+.clients-wallet-entitlement-card--membership .clients-wallet-entitlement-delete-button:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.24);
+}
+
 .clients-wallet-entitlement-card--membership .clients-wallet-status-pill {
     color: #dcfce7;
     background: rgba(255, 255, 255, 0.16);

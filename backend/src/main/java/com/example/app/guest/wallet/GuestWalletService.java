@@ -45,7 +45,10 @@ public class GuestWalletService {
     public GuestDtos.WalletResponse wallet(GuestUser guestUser, Long companyId) {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         return new GuestDtos.WalletResponse(
-                entitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(link.getClient().getId(), companyId).stream().map(GuestMapper::toEntitlement).toList(),
+                entitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(link.getClient().getId(), companyId).stream()
+                        .filter(entitlement -> entitlement.getStatus() != EntitlementStatus.CANCELLED)
+                        .map(GuestMapper::toEntitlement)
+                        .toList(),
                 orders.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(guestUser.getId(), companyId).stream()
                         .map(this::toWalletOrder)
                         .toList()
