@@ -298,6 +298,7 @@ type ModulesDesignIconKind =
   | 'shield'
   | 'key'
   | 'link'
+  | 'sliders'
 
 type ModulesDesignLine = {
   id: string
@@ -366,6 +367,8 @@ function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
         <><path d="M12 3 5.5 5.5v5.7c0 4.2 2.7 7.6 6.5 9.1 3.8-1.5 6.5-4.9 6.5-9.1V5.5L12 3Z" {...common} /></>
       ) : kind === 'key' ? (
         <><circle cx="8" cy="13" r="3" {...common} /><path d="m11 13 8-8M16 8l2 2M14 10l2 2" {...common} /></>
+      ) : kind === 'sliders' ? (
+        <><path d="M5 7h14M5 17h14M9 7a2 2 0 1 0 0 .01M15 17a2 2 0 1 0 0 .01M14 12H5M19 12h-4M15 12a2 2 0 1 0 0 .01" {...common} /></>
       ) : (
         <><path d="M9.5 14.5 14.5 9.5" {...common} /><path d="M8 9.5 6.8 10.7a4 4 0 0 0 5.7 5.7L14 15" {...common} /><path d="m10 9 1.5-1.5a4 4 0 0 1 5.7 5.7L16 14.5" {...common} /></>
       )}
@@ -7601,36 +7604,45 @@ export function ConfigurationPage() {
         />
       ) : tab === 'modules' && modulesDraftDisplay ? (
         <Card className="settings-card modules-design-card">
-          <div className="modules-design-toolbar">
-            <div className="modules-design-toolbar-copy">
-              <span>{locale === 'sl' ? 'Predloge modulov' : 'Module presets'}</span>
-              <strong>{locale === 'sl' ? 'Vrsta konfiguracije' : 'Config type'}</strong>
-              <p>{locale === 'sl' ? 'Izbrana vrsta iz strani za obračun. Sprememba uporabi priporočene vklopljene module za trenutni paket.' : 'Selected from the billing page. Changing it applies the recommended module switches for your current package.'}</p>
+          <div className="modules-design-shell">
+            <div className="modules-design-page-header">
+              <h2>{locale === 'sl' ? 'Moduli' : 'Modules'}</h2>
+              <p>{locale === 'sl' ? 'Konfigurirajte in prilagodite module, vključene v vaš trenutni paket.' : 'Configure and customize the modules included in your current package.'}</p>
             </div>
-            <label className="modules-design-config-select" htmlFor="modules-config-type">
-              <span>{locale === 'sl' ? 'Config type' : 'Config type'}</span>
-              <select id="modules-config-type" value={moduleDraftForDesign.MODULE_CONFIG_TYPE} onChange={(event) => setModuleConfigType(normalizeTenantConfigType(event.target.value))}>
-                {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>{locale === 'sl' ? option.labelSl : option.labelEn}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="modules-design-grid">
-            {modulesDesignGroups.map((group) => (
-              <ModulesDesignGroupCard
-                key={group.id}
-                group={group}
-                expandedRows={expandedModuleRows}
-                onToggleExpanded={toggleExpandedModuleRow}
-              />
-            ))}
-          </div>
-          <div className="gapp-savebar">
-            <button type="button" className="gapp-primary-button" onClick={() => void saveSettings({ applyModulesDraft: true })} disabled={savingSettings}>
-              <GuestSaveIcon />
-              {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
-            </button>
+            <div className="modules-design-toolbar">
+              <div className="modules-design-toolbar-copy">
+                <span className="modules-design-preset-icon"><ModulesDesignIcon kind="sliders" /></span>
+                <div className="modules-design-preset-copy">
+                  <span>{locale === 'sl' ? 'Predloge modulov' : 'Module presets'}</span>
+                  <strong>{locale === 'sl' ? 'Config type' : 'Config type'}</strong>
+                  <p>{locale === 'sl' ? 'Izbrana vrsta iz strani za obračun. Sprememba uporabi priporočene vklopljene module za trenutni paket.' : 'Selected from the billing page. Changing it applies the recommended module switches for your current package.'}</p>
+                </div>
+              </div>
+              <label className="modules-design-config-select" htmlFor="modules-config-type">
+                <span>{locale === 'sl' ? 'Config type' : 'Config type'}</span>
+                <select id="modules-config-type" value={moduleDraftForDesign.MODULE_CONFIG_TYPE} onChange={(event) => setModuleConfigType(normalizeTenantConfigType(event.target.value))}>
+                  {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>{locale === 'sl' ? option.labelSl : option.labelEn}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="modules-design-grid">
+              {modulesDesignGroups.map((group) => (
+                <ModulesDesignGroupCard
+                  key={group.id}
+                  group={group}
+                  expandedRows={expandedModuleRows}
+                  onToggleExpanded={toggleExpandedModuleRow}
+                />
+              ))}
+            </div>
+            <div className="gapp-savebar">
+              <button type="button" className="gapp-primary-button" onClick={() => void saveSettings({ applyModulesDraft: true })} disabled={savingSettings}>
+                <GuestSaveIcon />
+                {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+              </button>
+            </div>
           </div>
         </Card>
       ) : tab === 'security' ? (

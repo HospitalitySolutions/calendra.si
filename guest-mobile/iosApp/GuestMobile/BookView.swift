@@ -56,6 +56,7 @@ struct BookView: View {
     @State private var isLoadingSlots = false
     @State private var isSubmitting = false
     @State private var notice: String?
+    @State private var entitlementLaunchMode = false
     @State private var storedProfile = StoredGuestProfile(firstName: "", lastName: "", email: "", phone: "", language: "en", cards: [])
     @State private var selectedStoredCard: String?
     @State private var showingStoredCardSheet = false
@@ -123,6 +124,9 @@ struct BookView: View {
     }
 
     private var visibleSteps: [BookFlowStep] {
+        if entitlementLaunchMode && rescheduleContext == nil {
+            return [.dateTime, .paymentReview]
+        }
         if rescheduleContext != nil {
             return buildRescheduleSteps(employeeStepEnabled: employeeStepEnabled)
         }
@@ -302,6 +306,7 @@ struct BookView: View {
         }
         .onChange(of: rescheduleContext?.bookingId) { _ in
             if rescheduleContext == nil {
+                entitlementLaunchMode = false
                 currentStep = .provider
                 selectedServiceId = nil
                 selectedConsultantId = nil
@@ -1172,7 +1177,8 @@ struct BookView: View {
             currentStep = steps[idx - 1]
             return
         }
-        if rescheduleContext != nil {
+        if rescheduleContext != nil || entitlementLaunchMode {
+            entitlementLaunchMode = false
             onExit()
         }
     }
@@ -1186,7 +1192,7 @@ struct BookView: View {
         case .employee:
             return selectedService != nil
         case .dateTime:
-            return selectedService != nil && (!employeeStepEnabled || selectedConsultant != nil)
+            return selectedService != nil && (entitlementLaunchMode || !employeeStepEnabled || selectedConsultant != nil)
         case .paymentReview:
             return selectedSlot != nil
         }
@@ -1239,15 +1245,14 @@ struct BookView: View {
         selectedPaymentMethod = request.preferredPaymentMethod
 
         if let service = matchedService(for: request) {
+            entitlementLaunchMode = true
             selectedServiceId = service.id
-            currentStep = (selectedProvider?.employeeSelectionStep ?? false) ? .employee : .dateTime
-            if (selectedProvider?.employeeSelectionStep ?? false) {
-                Task { await loadConsultants(for: service) }
-            }
+            currentStep = .dateTime
         } else {
+            entitlementLaunchMode = false
             selectedServiceId = nil
             currentStep = .service
-            notice = tr("Choose a service to continue.", "Za nadaljevanje izberite storitev.")
+            notice = tr("No matching service is available for this card.", "Za to karto ni na voljo ustrezne storitve.")
         }
 
         ensurePaymentMethodAllowed()
@@ -1280,7 +1285,7 @@ struct BookView: View {
                 companyId: service.companyId,
                 sessionTypeId: service.sessionTypeId,
                 date: selectedDate,
-                consultantId: employeeStepEnabled ? selectedConsultantId : nil
+                consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil
             )
             if slots.contains(where: { $0.id == selectedSlotId }) == false {
                 selectedSlotId = slots.first?.id
@@ -1328,7 +1333,7 @@ struct BookView: View {
                 productId: service.productId,
                 slotId: slot.id,
                 paymentMethod: paymentApi,
-                consultantId: employeeStepEnabled ? selectedConsultantId : nil
+                consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil
             )
             isSubmitting = false
 

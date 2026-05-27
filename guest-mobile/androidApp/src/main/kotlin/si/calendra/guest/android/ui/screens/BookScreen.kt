@@ -288,13 +288,16 @@ fun BookScreen(
     var selectedSavedCardId by remember { mutableStateOf<String?>(savedCards.firstOrNull()?.id) }
     var loadingSlots by remember { mutableStateOf(false) }
     var availabilityLoadError by remember { mutableStateOf<String?>(null) }
+    var entitlementLaunchMode by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var showAddCardDialog by remember { mutableStateOf(false) }
     var showCardChooserDialog by remember { mutableStateOf(false) }
     var showPaymentMethodChooserDialog by rememberSaveable { mutableStateOf(false) }
 
     val employeeStepActive = selectedProviderId?.let(employeeSelectionStepEnabled) == true
-    val visibleSteps = if (rescheduleContext == null) {
+    val visibleSteps = if (entitlementLaunchMode && rescheduleContext == null) {
+        listOf(BookingFlowStep.DATE_TIME, BookingFlowStep.PAYMENT_REVIEW)
+    } else if (rescheduleContext == null) {
         visibleBookingSteps(employeeStepActive)
     } else {
         if (employeeStepActive) {
@@ -378,11 +381,14 @@ fun BookScreen(
             ?: providerServices.singleOrNull()
 
         if (candidate != null) {
+            entitlementLaunchMode = true
             selectedServiceId = candidate.id
-            currentStep = if (employeeSelectionStepEnabled(request.companyId)) BookingFlowStep.EMPLOYEE else BookingFlowStep.DATE_TIME
+            currentStep = BookingFlowStep.DATE_TIME
         } else {
+            entitlementLaunchMode = false
             selectedServiceId = null
-            currentStep = BookingFlowStep.SERVICE
+            availabilityLoadError = bookTr(languageCode, "No matching service is available for this card.", "Za to karto ni na voljo ustrezne storitve.")
+            currentStep = BookingFlowStep.DATE_TIME
         }
 
         onLaunchRequestConsumed()
@@ -474,8 +480,12 @@ fun BookScreen(
         return false
     }
 
-    BackHandler(enabled = currentStep != BookingFlowStep.PROVIDER || rescheduleContext != null) {
-        if (!moveBackStep()) onExit()
+    BackHandler(enabled = currentStep != BookingFlowStep.PROVIDER || rescheduleContext != null || entitlementLaunchMode) {
+        if (entitlementLaunchMode && currentStep == BookingFlowStep.DATE_TIME) {
+            onExit()
+        } else if (!moveBackStep()) {
+            onExit()
+        }
     }
 
     fun refreshSlots() {
@@ -484,7 +494,7 @@ fun BookScreen(
             loadingSlots = true
             selectedSlotId = null
             availabilityLoadError = null
-            val consultantIdForLoad = if (employeeStepActive) selectedConsultantId else null
+            val consultantIdForLoad = if (employeeStepActive && !entitlementLaunchMode) selectedConsultantId else null
             runCatching { onLoadAvailability(service, selectedDate, consultantIdForLoad) }
                 .onSuccess { list ->
                     slots = list
@@ -760,7 +770,12 @@ fun BookScreen(
                             }
                         }
                     } else {
-                        item { EmptyInlineMessage(bookTr(languageCode, "Select a service first", "Najprej izberite storitev"), bookTr(languageCode, "Choose a service before selecting date and time.", "Pred izbiro datuma in ure izberite storitev.")) }
+                        item {
+                            EmptyInlineMessage(
+                                availabilityLoadError ?: bookTr(languageCode, "Select a service first", "Najprej izberite storitev"),
+                                if (availabilityLoadError != null) bookTr(languageCode, "Please choose another card or contact the provider.", "Izberite drugo karto ali kontaktirajte ponudnika.") else bookTr(languageCode, "Choose a service before selecting date and time.", "Pred izbiro datuma in ure izberite storitev.")
+                            )
+                        }
                     }
                 }
 
@@ -834,7 +849,7 @@ fun BookScreen(
                             scope.launch {
                                 submitting = true
                                 runCatching {
-                                    val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null
+                                    val consultantIdForOrder = if (employeeStepActive && !entitlementLaunchMode) selectedConsultantId else null
                                     onReschedule(context, slot.slotId, consultantIdForOrder)
                                 }
                                     .onFailure { ex ->

@@ -27,6 +27,7 @@ struct MainTabView: View {
     @State private var headerAvatarImage: UIImage?
     @State private var rescheduleContext: BookRescheduleContext?
     @State private var bookLaunchRequest: BookLaunchRequest?
+    @State private var bookReturnTab: Tab? = nil
     @State private var lastWalletOffersRefreshTenantId: String?
     @State private var lastWalletOffersRefreshAt: Date = .distantPast
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
@@ -237,16 +238,21 @@ struct MainTabView: View {
                             onLaunchRequestConsumed: { bookLaunchRequest = nil },
                             onRescheduleCompleted: {
                                 rescheduleContext = nil
+                                bookLaunchRequest = nil
+                                bookReturnTab = nil
                                 selectedTab = .home
                             },
                             onBookingCompleted: {
                                 bookLaunchRequest = nil
+                                bookReturnTab = nil
                                 selectedTab = .home
                             },
                             onExit: {
+                                let returnTab = bookReturnTab ?? .home
                                 bookLaunchRequest = nil
+                                bookReturnTab = nil
                                 rescheduleContext = nil
-                                selectedTab = .home
+                                selectedTab = returnTab
                             }
                         )
                     case .wallet:
@@ -613,6 +619,7 @@ struct MainTabView: View {
             // Explicit "Book" entry must always start fresh flow.
             rescheduleContext = nil
             bookLaunchRequest = nil
+            bookReturnTab = nil
             refreshBookTenantIfNeeded()
             selectedTab = .book
         } label: {
@@ -638,7 +645,9 @@ struct MainTabView: View {
 
     private func openBookWithEntitlement(_ entitlement: AccessCardModel) {
         rescheduleContext = nil
+        bookReturnTab = .wallet
         store.setTenantFilter(entitlement.companyId)
+        store.setWalletTenantFilter(entitlement.companyId)
         bookLaunchRequest = BookLaunchRequest(
             companyId: entitlement.companyId,
             sessionTypeId: entitlement.sessionTypeId,
@@ -650,8 +659,12 @@ struct MainTabView: View {
 
     private func navItem(_ tab: Tab, icon: String, selectedIcon: String, title: String) -> some View {
         Button {
+            bookLaunchRequest = nil
+            bookReturnTab = nil
             if tab == .wallet {
-                openWalletWithTenantSelection()
+                rescheduleContext = nil
+                selectedTab = .wallet
+                refreshWalletOffersIfNeeded()
             } else {
                 selectedTab = tab
             }

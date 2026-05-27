@@ -908,13 +908,13 @@ struct WalletView: View {
                 onToggleStatusFilter()
             } label: {
                 HStack(spacing: 6) {
-                    Circle().fill(showInactive ? Color.red : walletGreen).frame(width: 7, height: 7)
+                    Circle().fill(showInactive ? Color.red : walletGreen).frame(width: 6, height: 6)
                     Text(showInactive ? walletTr(appUiLocaleStorage, "\(inactiveCount) inactive", "\(inactiveCount) neaktivnih") : walletTr(appUiLocaleStorage, "\(activeCount) active", "\(activeCount) aktivnih"))
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundColor(walletInk)
                 }
-                .padding(.horizontal, 11)
-                .frame(height: 34)
+                .padding(.horizontal, 9)
+                .frame(height: 32)
                 .background(Color.white, in: Capsule(style: .continuous))
                 .overlay(
                     Capsule(style: .continuous)
@@ -1059,7 +1059,7 @@ struct WalletView: View {
                             Circle()
                                 .fill(Color(red: 0.945, green: 0.961, blue: 0.992))
                             Image(systemName: footerIcon)
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(Color(red: 0.09, green: 0.41, blue: 0.96))
                         }
                         .frame(width: 42, height: 42)
@@ -1594,7 +1594,7 @@ private struct WalletStackedPassCard: View {
                 HStack(alignment: .top, spacing: 14) {
                     WalletPassIconBadge(type: entitlement.type, accent: style.accent)
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(typeLabel.uppercased())
+                        Text(subtitle.uppercased())
                             .font(.system(size: 11, weight: .bold))
                             .tracking(0.8)
                             .foregroundColor(style.accent)
@@ -1700,32 +1700,63 @@ private struct WalletStackedPassCard: View {
                         .fill(Color.white.opacity(0.09))
                         .frame(width: 180, height: 180)
                         .offset(x: 70, y: 52)
+
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(alignment: .top, spacing: 14) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white.opacity(0.92))
-                                    .frame(width: 66, height: 66)
-                                Image(systemName: entitlement.type == "PACK" ? "ticket" : "ticket.fill")
-                                    .font(.system(size: 26, weight: .semibold))
-                                    .foregroundColor(Color(red: 0.93, green: 0.55, blue: 0.10))
-                            }
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(typeLabel.uppercased())
-                                    .font(.system(size: 12, weight: .bold))
-                                    .tracking(0.9)
-                                    .foregroundColor(Color.white.opacity(0.92))
-                                Text(entitlement.name)
-                                    .font(.system(size: 26, weight: .bold))
+                        HStack(alignment: .top, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack(alignment: .top, spacing: 14) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.white.opacity(0.92))
+                                            .frame(width: 56, height: 56)
+                                        Image(systemName: entitlement.type == "PACK" ? "ticket" : "ticket.fill")
+                                            .font(.system(size: 22, weight: .semibold))
+                                            .foregroundColor(Color(red: 0.93, green: 0.55, blue: 0.10))
+                                    }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("VSTOPNICE")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .tracking(0.9)
+                                            .foregroundColor(Color.white.opacity(0.92))
+                                        Text(entitlement.name)
+                                            .font(.system(size: 26, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.76)
+                                    }
+                                }
+
+                                Button {
+                                    onBookWithEntitlement()
+                                } label: {
+                                    HStack(spacing: 14) {
+                                        Image(systemName: "calendar")
+                                            .font(.system(size: 18, weight: .semibold))
+                                        Text(walletTr(appUiLocaleStorage, "Choose slot", "Izberi termin"))
+                                            .font(.system(size: 15, weight: .bold))
+                                            .lineLimit(1)
+                                        Spacer(minLength: 8)
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 15, weight: .bold))
+                                    }
                                     .foregroundColor(.white)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.76)
-                                Text(subtitle)
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundColor(Color.white.opacity(0.88))
-                                    .lineLimit(1)
+                                    .padding(.horizontal, 16)
+                                    .frame(height: 44)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [Color(red: 0.03, green: 0.19, blue: 0.44), Color(red: 0.07, green: 0.30, blue: 0.62)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        ),
+                                        in: Capsule(style: .continuous)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 8)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            Spacer(minLength: 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
                             VStack(alignment: .trailing, spacing: 12) {
                                 HStack(spacing: 8) {
                                     Circle()
@@ -1748,17 +1779,12 @@ private struct WalletStackedPassCard: View {
                                 } label: {
                                     VStack(spacing: 6) {
                                         WalletQRCodeView(content: code)
-                                            .frame(width: 42, height: 42)
+                                            .frame(width: 44, height: 44)
                                         Text(walletTr(appUiLocaleStorage, "Show QR", "Prikaži QR"))
                                             .font(.system(size: 11, weight: .semibold))
                                             .foregroundColor(Color.white)
                                     }
-                                    .frame(width: 84, height: 86)
-                                    .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .stroke(Color.white.opacity(0.25), lineWidth: 1)
-                                    )
+                                    .frame(width: 72)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -1767,35 +1793,6 @@ private struct WalletStackedPassCard: View {
                         .padding(.top, 20)
 
                         Spacer(minLength: 16)
-
-                        Button {
-                            onBookWithEntitlement()
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: "calendar")
-                                    .font(.system(size: 20, weight: .semibold))
-                                Text(walletTr(appUiLocaleStorage, "Choose slot", "Izberi termin"))
-                                    .font(.system(size: 18, weight: .bold))
-                                Spacer(minLength: 8)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 18, weight: .bold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 22)
-                            .frame(height: 58)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                LinearGradient(
-                                    colors: [Color(red: 0.03, green: 0.19, blue: 0.44), Color(red: 0.07, green: 0.30, blue: 0.62)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ),
-                                in: Capsule(style: .continuous)
-                            )
-                            .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 8)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 20)
 
                         HStack(spacing: 0) {
                             bookingMetricColumn(
@@ -1842,12 +1839,12 @@ private struct WalletStackedPassCard: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color.white.opacity(0.82))
             Text(value)
-                .font(.system(size: 17, weight: .bold))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundColor(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.76)
             Text(caption)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 8, weight: .medium))
                 .foregroundColor(Color.white.opacity(0.82))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -2124,10 +2121,10 @@ private struct WalletPassIconBadge: View {
                 .fill(Color(.systemBackground).opacity(0.74))
                 .overlay(Circle().stroke(accent.opacity(0.18), lineWidth: 1))
             Image(systemName: iconName)
-                .font(.system(size: 25, weight: .semibold))
+                .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(accent)
         }
-        .frame(width: 58, height: 58)
+        .frame(width: 50, height: 50)
         .shadow(color: Color.black.opacity(0.035), radius: 8, y: 4)
     }
 
@@ -2813,27 +2810,18 @@ private struct BuyShowcaseCategoryChip: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 8) {
-                if category != .all {
-                    Image(systemName: category.iconName)
-                        .font(.system(size: 14, weight: .bold))
-                }
-                Text(category.localizedTitle(languageCode: appUiLocaleStorage))
-                    .font(.system(size: 14, weight: .bold))
-                    .lineLimit(1)
-            }
-            .foregroundColor(selected ? .white : walletInk)
-            .padding(.horizontal, 16)
-            .frame(height: 44)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(selected ? walletBlueSoft : .white)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(selected ? Color.clear : walletLine.opacity(0.95), lineWidth: 1)
-            )
-            .shadow(color: selected ? walletBlueSoft.opacity(0.20) : Color.black.opacity(0.035), radius: selected ? 12 : 7, y: selected ? 6 : 3)
+            Text(category.localizedTitle(languageCode: appUiLocaleStorage))
+                .font(.system(size: 12, weight: selected ? .bold : .medium))
+                .lineLimit(1)
+                .foregroundColor(selected ? walletBlue : walletInk.opacity(0.88))
+                .padding(.horizontal, selected ? 12 : 10)
+                .frame(height: 34)
+                .background(Capsule(style: .continuous).fill(Color.white))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(selected ? walletBlue.opacity(0.45) : walletLine.opacity(0.95), lineWidth: 1)
+                )
+                .shadow(color: selected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: selected ? 7 : 7, y: selected ? 3 : 3)
         }
         .buttonStyle(.plain)
     }

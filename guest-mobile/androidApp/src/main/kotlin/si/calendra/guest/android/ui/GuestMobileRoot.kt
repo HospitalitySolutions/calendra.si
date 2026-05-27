@@ -185,6 +185,7 @@ fun GuestMobileRoot() {
     var lastWalletOffersRefreshAtMs by remember { mutableStateOf(0L) }
     var rescheduleContext by remember { mutableStateOf<BookingRescheduleContext?>(null) }
     var bookLaunchRequest by remember { mutableStateOf<BookLaunchRequest?>(null) }
+    var bookReturnRoute by remember { mutableStateOf<String?>(null) }
     var pendingExternalCheckout by remember {
         mutableStateOf(
             preferencesStore.loadPendingExternalCheckout()?.let { stored ->
@@ -378,10 +379,36 @@ fun GuestMobileRoot() {
     }
 
     fun navigateToTab(route: String) {
+        if (route != RootRoute.Book.route) {
+            bookLaunchRequest = null
+            bookReturnRoute = null
+            rescheduleContext = null
+        }
+
+        if (route == RootRoute.Home.route) {
+            val poppedToHome = navController.popBackStack(RootRoute.Home.route, false)
+            if (!poppedToHome) {
+                navController.navigate(RootRoute.Home.route) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                    launchSingleTop = true
+                    restoreState = false
+                }
+            }
+            return
+        }
+
         navController.navigate(route) {
-            popUpTo(RootRoute.Home.route) { saveState = true }
+            popUpTo(RootRoute.Home.route) { saveState = route != RootRoute.Book.route }
             launchSingleTop = true
-            restoreState = true
+            restoreState = route != RootRoute.Book.route
+        }
+    }
+
+    fun navigateToWalletWithoutRestoringBook() {
+        navController.navigate(RootRoute.Wallet.route) {
+            popUpTo(RootRoute.Home.route) { saveState = false }
+            launchSingleTop = true
+            restoreState = false
         }
     }
 
@@ -390,10 +417,10 @@ fun GuestMobileRoot() {
         if (tenants.size <= 1) {
             val onlyTenantId = tenants.firstOrNull()?.companyId
             state.uiState = state.uiState.copy(walletSelectedTenantId = onlyTenantId)
-            navigateToTab(RootRoute.Wallet.route)
+            navigateToWalletWithoutRestoringBook()
             return
         }
-        navigateToTab(RootRoute.Wallet.route)
+        navigateToWalletWithoutRestoringBook()
         val currentWalletTenantId = state.uiState.walletSelectedTenantId
             ?.takeIf { selected -> tenants.any { it.companyId == selected } }
             ?: tenants.first().companyId
@@ -418,25 +445,36 @@ fun GuestMobileRoot() {
 
     fun requestTabNavigation(route: String) {
         if (route == RootRoute.Wallet.route) {
+            bookLaunchRequest = null
+            bookReturnRoute = null
+            rescheduleContext = null
             openWalletTabWithTenantSelection()
-        } else {
-            if (route == RootRoute.Book.route) {
-                val selectedTenantId = state.uiState.selectedTenantId
-                    ?.takeIf { selected -> state.uiState.linkedTenants.any { it.companyId == selected } }
-                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
-                if (selectedTenantId != null) {
-                    scope.launch {
-                        runCatching { refreshTenant(selectedTenantId) }
-                            .onFailure {
-                                if (BuildConfig.DEBUG) {
-                                    Log.d(GUEST_API_DEBUG_TAG, "Book tab tenant refresh skipped: ${it.message}")
-                                }
+            return
+        }
+
+        if (route == RootRoute.Book.route) {
+            bookLaunchRequest = null
+            bookReturnRoute = null
+            val selectedTenantId = state.uiState.selectedTenantId
+                ?.takeIf { selected -> state.uiState.linkedTenants.any { it.companyId == selected } }
+                ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+            if (selectedTenantId != null) {
+                scope.launch {
+                    runCatching { refreshTenant(selectedTenantId) }
+                        .onFailure {
+                            if (BuildConfig.DEBUG) {
+                                Log.d(GUEST_API_DEBUG_TAG, "Book tab tenant refresh skipped: ${it.message}")
                             }
-                    }
+                        }
                 }
             }
-            navigateToTab(route)
+        } else {
+            bookLaunchRequest = null
+            bookReturnRoute = null
+            rescheduleContext = null
         }
+
+        navigateToTab(route)
     }
 
     fun exitRescheduleToHome() {
@@ -1076,9 +1114,24 @@ fun GuestMobileRoot() {
                                 statusMessage = checkout.bankTransfer?.instructions ?: checkout.status
                             }
                             refreshTenant(service.companyId)
+                            bookLaunchRequest = null
+                            bookReturnRoute = null
                             navigateToTab(RootRoute.Home.route)
                         },
-                        onExit = { navigateToTab(RootRoute.Home.route) }
+                        onExit = {
+                            val returnRoute = bookReturnRoute ?: RootRoute.Home.route
+                            bookLaunchRequest = null
+                            bookReturnRoute = null
+                            rescheduleContext = null
+                            if (returnRoute == RootRoute.Wallet.route) {
+                                val poppedToWallet = navController.popBackStack(RootRoute.Wallet.route, false)
+                                if (!poppedToWallet) {
+                                    navigateToWalletWithoutRestoringBook()
+                                }
+                            } else {
+                                navigateToTab(returnRoute)
+                            }
+                        }
                     )
                 }
             }
@@ -1223,13 +1276,17 @@ fun GuestMobileRoot() {
                                 val tenantId = walletTenantId
                                 if (tenantId != null) {
                                     state.uiState = state.uiState.copy(selectedTenantId = tenantId)
+                                    bookReturnRoute = RootRoute.Wallet.route
                                     bookLaunchRequest = BookLaunchRequest(
                                         companyId = tenantId,
                                         sessionTypeId = card.sessionTypeId,
                                         entitlementName = card.title,
                                         preferredPaymentMethodType = "ENTITLEMENT"
                                     )
-                                    navController.navigate(RootRoute.Book.route) { launchSingleTop = true }
+                                    navController.navigate(RootRoute.Book.route) {
+                                        launchSingleTop = true
+                                        restoreState = false
+                                    }
                                 }
                             },
                             onViewReceipt = { order ->
