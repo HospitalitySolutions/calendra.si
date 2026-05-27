@@ -2,19 +2,24 @@ import { getBillableAdditionalUserSlots, type RegisterBillingCycle, type Registe
 
 export type RegisterLocale = 'en' | 'sl'
 
-export type RegisterPlanFeatureKey =
-  | 'appointments'
-  | 'staff'
-  | 'group'
-  | 'resources'
-  | 'payments'
-  | 'reminders'
-  | 'ai'
-  | 'integrations'
-  | 'reporting'
-  | 'multilocation'
+export type RegisterPlanFeatureKey = string
 
 export type RegisterPlanAddonKey = string
+
+export type RegisterCatalogFeatureItem = {
+  key: RegisterPlanFeatureKey
+  name: string
+  nameSl?: string
+  description: string
+  descriptionSl?: string
+  minPlan: RegisterPlanKey
+  active?: boolean
+}
+
+export type RegisterUsagePriceCatalog = {
+  additionalUserMonthly: number
+  smsPerMessage: number
+}
 
 export type RegisterAddonCatalogItem = {
   key: RegisterPlanAddonKey
@@ -87,7 +92,30 @@ const DEFAULT_ADDON_ITEMS: RegisterAddonCatalogItem[] = [
   },
 ]
 
+
+const DEFAULT_FEATURE_ITEMS: RegisterCatalogFeatureItem[] = [
+  { key: 'appointments', name: 'Unlimited appointments', nameSl: 'Neomejeno terminov', description: 'Accept bookings without monthly caps.', descriptionSl: 'Sprejemajte rezervacije brez mesečne omejitve.', minPlan: 'basic', active: true },
+  { key: 'staff', name: 'Team members', nameSl: 'Člani ekipe', description: 'Manage staff schedules and availability.', descriptionSl: 'Upravljajte urnike in razpoložljivost osebja.', minPlan: 'basic', active: true },
+  { key: 'group', name: 'Group bookings', nameSl: 'Skupinske rezervacije', description: 'Classes, sessions, workshops, and shared slots.', descriptionSl: 'Tečaji, delavnice in deljene kapacitete.', minPlan: 'pro', active: true },
+  { key: 'resources', name: 'Resource scheduling', nameSl: 'Razporeditev virov', description: 'Rooms, chairs, courts, equipment, and assets.', descriptionSl: 'Sobe, stoli, igrišča, oprema in drugi viri.', minPlan: 'pro', active: true },
+  { key: 'payments', name: 'Online payments', nameSl: 'Spletna plačila', description: 'Deposits and prepayments during booking.', descriptionSl: 'Akontacije in predplačila med rezervacijo.', minPlan: 'pro', active: true },
+  { key: 'reminders', name: 'SMS & email reminders', nameSl: 'SMS in e-poštni opomniki', description: 'Reduce no-shows automatically.', descriptionSl: 'Manj neprihodov z avtomatskimi opomniki.', minPlan: 'pro', active: true },
+  { key: 'ai', name: 'AI booking assistant', nameSl: 'AI pomočnik za rezervacije', description: 'Voice booking and intelligent scheduling help.', descriptionSl: 'Glasovne rezervacije in pametna pomoč pri urniku.', minPlan: 'pro', active: true },
+  { key: 'integrations', name: 'Integrations', nameSl: 'Integracije', description: 'Google, Outlook, Zoom, payments, automation.', descriptionSl: 'Google, Outlook, Zoom, plačila, avtomatizacija.', minPlan: 'pro', active: true },
+  { key: 'reporting', name: 'Advanced reporting', nameSl: 'Napredno poročanje', description: 'Revenue, utilization, and booking analytics.', descriptionSl: 'Prihodki, izkoriščenost in analitika rezervacij.', minPlan: 'business', active: true },
+  { key: 'multilocation', name: 'Multi-location support', nameSl: 'Več lokacij', description: 'Manage multiple branches in one account.', descriptionSl: 'Več podružnic v enem računu.', minPlan: 'business', active: true },
+]
+
+const DEFAULT_USAGE_PRICES: RegisterUsagePriceCatalog = {
+  additionalUserMonthly: 9.9,
+  smsPerMessage: 0.05,
+}
+
+const PLAN_ORDER: Record<RegisterPlanKey, number> = { basic: 0, pro: 1, business: 2 }
+
 let addonCatalogItems: RegisterAddonCatalogItem[] = DEFAULT_ADDON_ITEMS.map((item) => ({ ...item }))
+let featureCatalogItems: RegisterCatalogFeatureItem[] = DEFAULT_FEATURE_ITEMS.map((item) => ({ ...item }))
+let usagePrices: RegisterUsagePriceCatalog = { ...DEFAULT_USAGE_PRICES }
 let annualDiscountPercent = 15
 
 function clampCatalogMoney(n: number): boolean {
@@ -100,6 +128,19 @@ function clampAnnualDiscount(n: number): boolean {
 
 function normalizeAddonKey(raw: unknown) {
   return String(raw ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function normalizeFeatureKey(raw: unknown) {
+  return String(raw ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function normalizePlanKey(raw: unknown, fallback: RegisterPlanKey = 'pro'): RegisterPlanKey {
+  const value = String(raw ?? '').trim().toLowerCase()
+  return value === 'basic' || value === 'pro' || value === 'business' ? value : fallback
+}
+
+function planHasFeature(plan: RegisterPlanKey, minPlan: RegisterPlanKey) {
+  return PLAN_ORDER[plan] >= PLAN_ORDER[minPlan]
 }
 
 function cleanText(raw: unknown, fallback: string) {
@@ -129,12 +170,38 @@ function addonItemFromApi(raw: unknown): RegisterAddonCatalogItem | null {
   }
 }
 
-/** Apply server catalog (public register + platform admin). Unknown plan keys ignored; add-on keys are dynamic. */
+function defaultFeatureForKey(key: string): RegisterCatalogFeatureItem | undefined {
+  return DEFAULT_FEATURE_ITEMS.find((item) => item.key === key)
+}
+
+function featureItemFromApi(raw: unknown): RegisterCatalogFeatureItem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const key = normalizeFeatureKey(obj.key)
+  if (!key) return null
+  const fallback = defaultFeatureForKey(key)
+  const nameFallback = fallback?.name ?? key.replace(/-/g, ' ')
+  return {
+    key,
+    name: cleanText(obj.name, nameFallback),
+    nameSl: cleanText(obj.nameSl, fallback?.nameSl ?? cleanText(obj.name, nameFallback)),
+    description: cleanText(obj.description, fallback?.description ?? 'Plan feature.'),
+    descriptionSl: cleanText(obj.descriptionSl, fallback?.descriptionSl ?? cleanText(obj.description, 'Funkcija paketa.')),
+    minPlan: normalizePlanKey(obj.minPlan, fallback?.minPlan ?? 'pro'),
+    active: obj.active !== false,
+  }
+}
+
+/** Apply server catalog (public register + platform admin). Unknown plan keys ignored; add-on and feature keys are dynamic. */
 export function hydrateRegisterCatalogFromApi(data: {
   plans?: Record<string, unknown>
   addons?: Record<string, unknown>
   annualDiscountPercent?: unknown
   addonItems?: unknown[]
+  featureItems?: unknown[]
+  additionalUserMonthly?: unknown
+  smsPerMessage?: unknown
+  usagePrices?: { additionalUserMonthly?: unknown; smsPerMessage?: unknown }
 } | null | undefined) {
   if (!data) return
   if (data.plans) {
@@ -147,6 +214,14 @@ export function hydrateRegisterCatalogFromApi(data: {
   }
   if (typeof data.annualDiscountPercent === 'number' && clampAnnualDiscount(data.annualDiscountPercent)) {
     annualDiscountPercent = Math.round(data.annualDiscountPercent * 100) / 100
+  }
+  const additionalUserMonthly = typeof data.additionalUserMonthly === 'number' ? data.additionalUserMonthly : data.usagePrices?.additionalUserMonthly
+  if (typeof additionalUserMonthly === 'number' && clampCatalogMoney(additionalUserMonthly)) {
+    usagePrices.additionalUserMonthly = Math.round(additionalUserMonthly * 100) / 100
+  }
+  const smsPerMessage = typeof data.smsPerMessage === 'number' ? data.smsPerMessage : data.usagePrices?.smsPerMessage
+  if (typeof smsPerMessage === 'number' && clampCatalogMoney(smsPerMessage)) {
+    usagePrices.smsPerMessage = Math.round(smsPerMessage * 10000) / 10000
   }
   if (Array.isArray(data.addonItems)) {
     const next = data.addonItems.map(addonItemFromApi).filter((item): item is RegisterAddonCatalogItem => Boolean(item))
@@ -162,6 +237,10 @@ export function hydrateRegisterCatalogFromApi(data: {
     })
     addonCatalogItems = next
   }
+  if (Array.isArray(data.featureItems)) {
+    const next = data.featureItems.map(featureItemFromApi).filter((item): item is RegisterCatalogFeatureItem => Boolean(item))
+    featureCatalogItems = next
+  }
 }
 
 export function getAnnualDiscountPercent() {
@@ -170,6 +249,14 @@ export function getAnnualDiscountPercent() {
 
 export function getAnnualDiscountFactor() {
   return Math.max(0, Math.min(1, (100 - annualDiscountPercent) / 100))
+}
+
+export function getAdditionalUserMonthlyPrice() {
+  return usagePrices.additionalUserMonthly
+}
+
+export function getSmsPerMessagePrice() {
+  return usagePrices.smsPerMessage
 }
 
 function annualDiscountFactor() {
@@ -210,12 +297,18 @@ const planNamesDesc: Record<RegisterLocale, Record<RegisterPlanKey, { name: stri
   },
 }
 
+function featureKeysForPlan(plan: RegisterPlanKey): RegisterPlanFeatureKey[] {
+  return featureCatalogItems
+    .filter((item) => item.active !== false && planHasFeature(plan, item.minPlan))
+    .map((item) => item.key)
+}
+
 export function plansForLocale(locale: RegisterLocale): Record<RegisterPlanKey, PlanConfig> {
   const names = planNamesDesc[locale]
   return {
-    basic: { ...planCore.basic, ...names.basic },
-    pro: { ...planCore.pro, ...names.pro },
-    business: { ...planCore.business, ...names.business },
+    basic: { ...planCore.basic, features: featureKeysForPlan('basic'), ...names.basic },
+    pro: { ...planCore.pro, features: featureKeysForPlan('pro'), ...names.pro },
+    business: { ...planCore.business, features: featureKeysForPlan('business'), ...names.business },
   }
 }
 
@@ -400,8 +493,8 @@ export function selectionRequiresBillingDetails(selection: RegisterSelection) {
 export function getSelectionMonthlyAmounts(selection: RegisterSelection) {
   const selectedPlan = selection.plan
   const planMonthly = selectedPlan === 'basic' && selection.billing === 'monthly' ? 0 : planCore[selectedPlan].monthly
-  const usersMonthly = getBillableAdditionalUserSlots(selection) * 9.9
-  const smsMonthly = selection.additionalSms * 0.05
+  const usersMonthly = getBillableAdditionalUserSlots(selection) * usagePrices.additionalUserMonthly
+  const smsMonthly = selection.additionalSms * usagePrices.smsPerMessage
   const addons = addonMonthly('en')
   const addonsMonthly = Object.entries(selection.addons || {}).reduce((sum, [addonKey, selected]) => {
     if (!selected) return sum
@@ -528,32 +621,17 @@ export function getFeatureItems(locale: RegisterLocale): Array<{
   index: number
   name: string
   description: string
+  minPlan: RegisterPlanKey
 }> {
-  const en: Array<{ key: RegisterPlanFeatureKey; index: number; name: string; description: string }> = [
-    { key: 'appointments', index: 1, name: 'Unlimited appointments', description: 'Accept bookings without monthly caps.' },
-    { key: 'staff', index: 2, name: 'Team members', description: 'Manage staff schedules and availability.' },
-    { key: 'group', index: 3, name: 'Group bookings', description: 'Classes, sessions, workshops, and shared slots.' },
-    { key: 'resources', index: 4, name: 'Resource scheduling', description: 'Rooms, chairs, courts, equipment, and assets.' },
-    { key: 'payments', index: 5, name: 'Online payments', description: 'Deposits and prepayments during booking.' },
-    { key: 'reminders', index: 6, name: 'SMS & email reminders', description: 'Reduce no-shows automatically.' },
-    { key: 'ai', index: 7, name: 'AI booking assistant', description: 'Voice booking and intelligent scheduling help.' },
-    { key: 'integrations', index: 8, name: 'Integrations', description: 'Google, Outlook, Zoom, payments, automation.' },
-    { key: 'reporting', index: 9, name: 'Advanced reporting', description: 'Revenue, utilization, and booking analytics.' },
-    { key: 'multilocation', index: 10, name: 'Multi-location support', description: 'Manage multiple branches in one account.' },
-  ]
-  const sl: typeof en = [
-    { key: 'appointments', index: 1, name: 'Neomejeno terminov', description: 'Sprejemajte rezervacije brez mesečne omejitve.' },
-    { key: 'staff', index: 2, name: 'Člani ekipe', description: 'Upravljajte urnike in razpoložljivost osebja.' },
-    { key: 'group', index: 3, name: 'Skupinske rezervacije', description: 'Tečaji, delavnice in deljene kapacitete.' },
-    { key: 'resources', index: 4, name: 'Razporeditev virov', description: 'Sobe, stoli, igrišča, oprema in drugi viri.' },
-    { key: 'payments', index: 5, name: 'Spletna plačila', description: 'Akontacije in predplačila med rezervacijo.' },
-    { key: 'reminders', index: 6, name: 'SMS in e-poštni opomniki', description: 'Manj neprihodov z avtomatskimi opomniki.' },
-    { key: 'ai', index: 7, name: 'AI pomočnik za rezervacije', description: 'Glasovne rezervacije in pametna pomoč pri urniku.' },
-    { key: 'integrations', index: 8, name: 'Integracije', description: 'Google, Outlook, Zoom, plačila, avtomatizacija.' },
-    { key: 'reporting', index: 9, name: 'Napredno poročanje', description: 'Prihodki, izkoriščenost in analitika rezervacij.' },
-    { key: 'multilocation', index: 10, name: 'Več lokacij', description: 'Več podružnic v enem računu.' },
-  ]
-  return locale === 'sl' ? sl : en
+  return featureCatalogItems
+    .filter((item) => item.active !== false)
+    .map((item, index) => ({
+      key: item.key,
+      index: index + 1,
+      name: locale === 'sl' ? item.nameSl || item.name : item.name,
+      description: locale === 'sl' ? item.descriptionSl || item.description : item.description,
+      minPlan: item.minPlan,
+    }))
 }
 
 function estimateLinesSl(n: number): string {

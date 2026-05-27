@@ -9,6 +9,14 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BillRepository extends JpaRepository<Bill, Long> {
+    boolean existsByCompanyIdAndOrderId(Long companyId, String orderId);
+
+    @Query("select coalesce(max(b.orderCounter), 0) from Bill b where b.company.id = :companyId")
+    Long findMaxOrderCounterByCompanyId(@Param("companyId") Long companyId);
+
+    @Query("select b.orderId from Bill b where b.company.id = :companyId and b.orderId is not null")
+    List<String> findAllOrderIdsByCompanyId(@Param("companyId") Long companyId);
+
     @Override
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAll();

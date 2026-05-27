@@ -36,8 +36,9 @@ export function RegisterPlanAddonsPage() {
   const location = useLocation()
   const { locale, setLocale, t } = useLocale()
   const lang: RegisterLocale = locale === 'sl' ? 'sl' : 'en'
+  const [registerCatalogRevision, setRegisterCatalogRevision] = useState(0)
   const pc = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
-  const plansLoc = useMemo(() => plansForLocale(lang), [lang])
+  const plansLoc = useMemo(() => plansForLocale(lang), [lang, registerCatalogRevision])
   const pm = lang === 'sl' ? '/mes.' : '/mo'
   const { showToast } = useToast()
   const [selection, setSelection] = useState<RegisterSelection>(() => parseRegisterSelection(location.search))
@@ -59,7 +60,6 @@ export function RegisterPlanAddonsPage() {
     setFeatureAddonsFullySeen(false)
   }, [location.key])
 
-  const [, setRegisterCatalogRevision] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -96,8 +96,8 @@ export function RegisterPlanAddonsPage() {
     setSelection((prev) => (selectionToSearch(prev) === selectionToSearch(parsed) ? prev : parsed))
   }, [location.search])
 
-  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang])
-  const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection])
+  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang, registerCatalogRevision])
+  const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection, registerCatalogRevision])
   const websiteUrl = (import.meta.env.VITE_WEBSITE_URL as string | undefined)?.trim() || 'https://calendra.si'
 
   const footerPill = useMemo(() => buildRegisterFooterPill(selection, summary, lang), [selection, summary, lang])

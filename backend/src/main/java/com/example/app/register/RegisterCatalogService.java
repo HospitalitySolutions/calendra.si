@@ -5,14 +5,15 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 @Service
 public class RegisterCatalogService {
@@ -92,23 +93,40 @@ public class RegisterCatalogService {
             }
         }
 
-        double annualDiscount = firstValidPercent(
-                patch.getAnnualDiscountPercent(),
-                base.getAnnualDiscountPercent() == null
-                        ? RegisterPriceCatalog.DEFAULT_ANNUAL_DISCOUNT_PERCENT
-                        : base.getAnnualDiscountPercent());
+        List<RegisterPriceCatalog.AddonItem> addonItems = patch.getAddonItems() != null
+                ? normalizeAddonItems(patch.getAddonItems(), base.getAddonItems())
+                : normalizeLegacyAddonMap(base.getAddonItems(), patch.getAddons());
+        Map<String, Double> addons = RegisterPriceCatalog.addonMapFromItems(addonItems);
 
-        List<RegisterPriceCatalog.AddonItem> addonItems;
-        if (patch.getAddonItems() != null) {
-            addonItems = normalizeAddonItems(patch.getAddonItems());
-        } else {
-            addonItems = normalizeAddonItems(base.getAddonItems());
-            if (patch.getAddons() != null) {
-                addonItems = applyLegacyAddonPricePatch(addonItems, patch.getAddons());
-            }
-        }
-        Map<String, Double> addons = RegisterPriceCatalog.activeAddonMap(addonItems);
-        return new RegisterPriceCatalog(plans, addons, roundMoney(annualDiscount), addonItems);
+        List<RegisterPriceCatalog.FeatureItem> featureItems = patch.getFeatureItems() != null
+                ? normalizeFeatureItems(patch.getFeatureItems(), base.getFeatureItems())
+                : copyFeatureItems(base.getFeatureItems());
+
+        double annualDiscountPercent = isValidPercent(patch.getAnnualDiscountPercent())
+                ? roundMoney(patch.getAnnualDiscountPercent())
+                : nullSafe(base.getAnnualDiscountPercent(), 15.0);
+
+        double additionalUserMonthly = firstValidAmount(
+                patch.getAdditionalUserMonthly(),
+                patch.getUsagePrices() == null ? null : patch.getUsagePrices().getAdditionalUserMonthly(),
+                base.getAdditionalUserMonthly(),
+                9.9
+        );
+        double smsPerMessage = firstValidAmount(
+                patch.getSmsPerMessage(),
+                patch.getUsagePrices() == null ? null : patch.getUsagePrices().getSmsPerMessage(),
+                base.getSmsPerMessage(),
+                0.05
+        );
+
+        RegisterPriceCatalog out = new RegisterPriceCatalog(plans, addons);
+        out.setAnnualDiscountPercent(annualDiscountPercent);
+        out.setAddonItems(addonItems);
+        out.setFeatureItems(featureItems);
+        out.setAdditionalUserMonthly(roundMoney(additionalUserMonthly));
+        out.setSmsPerMessage(roundFour(smsPerMessage));
+        out.setUsagePrices(new RegisterPriceCatalog.UsagePrices(out.getAdditionalUserMonthly(), out.getSmsPerMessage()));
+        return out;
     }
 
     private static RegisterPriceCatalog validateAndMerge(RegisterPriceCatalog base, RegisterPriceCatalog incoming) {
@@ -118,82 +136,98 @@ public class RegisterCatalogService {
         return merge(base, incoming);
     }
 
-    private static List<RegisterPriceCatalog.AddonItem> normalizeAddonItems(List<RegisterPriceCatalog.AddonItem> incoming) {
-        Map<String, RegisterPriceCatalog.AddonItem> out = new LinkedHashMap<>();
-        if (incoming == null) return List.of();
-        for (RegisterPriceCatalog.AddonItem item : incoming) {
-            if (item == null || !isValidAmount(item.getMonthly())) continue;
-            String key = normalizeAddonKey(item.getKey(), item.getName());
-            if (key.isBlank()) continue;
-            String fallbackName = titleFromKey(key);
-            out.put(key, new RegisterPriceCatalog.AddonItem(
-                    key,
-                    cleanText(item.getName(), fallbackName),
-                    cleanText(item.getNameSl(), cleanText(item.getName(), fallbackName)),
-                    cleanText(item.getDescription(), "Optional platform add-on."),
-                    cleanText(item.getDescriptionSl(), cleanText(item.getDescription(), "Dodatek za platformo.")),
-                    roundMoney(item.getMonthly()),
-                    item.getActive() == null || Boolean.TRUE.equals(item.getActive())));
-        }
-        return List.copyOf(out.values());
-    }
-
-    private static List<RegisterPriceCatalog.AddonItem> applyLegacyAddonPricePatch(
-            List<RegisterPriceCatalog.AddonItem> baseItems,
+    private static List<RegisterPriceCatalog.AddonItem> normalizeLegacyAddonMap(
+            List<RegisterPriceCatalog.AddonItem> defaults,
             Map<String, Double> patch
     ) {
-        Map<String, RegisterPriceCatalog.AddonItem> out = new LinkedHashMap<>();
-        for (RegisterPriceCatalog.AddonItem item : baseItems) {
-            String key = normalizeAddonKey(item.getKey(), item.getName());
-            Double patched = patch.get(key);
-            out.put(key, new RegisterPriceCatalog.AddonItem(
-                    key,
-                    item.getName(),
-                    item.getNameSl(),
-                    item.getDescription(),
-                    item.getDescriptionSl(),
-                    isValidAmount(patched) ? roundMoney(patched) : item.getMonthly(),
-                    item.getActive() == null || Boolean.TRUE.equals(item.getActive())));
+        List<RegisterPriceCatalog.AddonItem> items = copyAddonItems(defaults);
+        if (patch == null) {
+            return items;
         }
         for (Map.Entry<String, Double> entry : patch.entrySet()) {
-            String key = normalizeAddonKey(entry.getKey(), entry.getKey());
-            if (out.containsKey(key) || !isValidAmount(entry.getValue())) continue;
+            String key = normalizeKey(entry.getKey());
+            if (key.isBlank() || !isValidAmount(entry.getValue())) {
+                continue;
+            }
+            RegisterPriceCatalog.AddonItem existing = items.stream()
+                    .filter(item -> key.equals(item.getKey()))
+                    .findFirst()
+                    .orElse(null);
+            if (existing == null) {
+                existing = new RegisterPriceCatalog.AddonItem(key, titleFromKey(key), titleFromKey(key), "Optional platform add-on.", "Dodatek za platformo.", roundMoney(entry.getValue()), true);
+                items.add(existing);
+            } else {
+                existing.setMonthly(roundMoney(entry.getValue()));
+            }
+        }
+        return items;
+    }
+
+    private static List<RegisterPriceCatalog.AddonItem> normalizeAddonItems(
+            List<RegisterPriceCatalog.AddonItem> raw,
+            List<RegisterPriceCatalog.AddonItem> defaults
+    ) {
+        Map<String, RegisterPriceCatalog.AddonItem> fallback = new LinkedHashMap<>();
+        if (defaults != null) {
+            for (RegisterPriceCatalog.AddonItem item : defaults) {
+                if (item != null && item.getKey() != null) fallback.put(item.getKey(), item);
+            }
+        }
+        Map<String, RegisterPriceCatalog.AddonItem> out = new LinkedHashMap<>();
+        for (RegisterPriceCatalog.AddonItem item : raw) {
+            if (item == null) continue;
+            String key = normalizeKey(item.getKey() == null ? item.getName() : item.getKey());
+            if (key.isBlank()) continue;
+            RegisterPriceCatalog.AddonItem fb = fallback.get(key);
+            double monthly = isValidAmount(item.getMonthly()) ? item.getMonthly() : nullSafe(fb == null ? null : fb.getMonthly(), 0.0);
             out.put(key, new RegisterPriceCatalog.AddonItem(
                     key,
-                    titleFromKey(key),
-                    titleFromKey(key),
-                    "Optional platform add-on.",
-                    "Dodatek za platformo.",
-                    roundMoney(entry.getValue()),
-                    true));
+                    text(item.getName(), fb == null ? titleFromKey(key) : fb.getName()),
+                    text(item.getNameSl(), fb == null ? titleFromKey(key) : fb.getNameSl()),
+                    text(item.getDescription(), fb == null ? "Optional platform add-on." : fb.getDescription()),
+                    text(item.getDescriptionSl(), fb == null ? "Dodatek za platformo." : fb.getDescriptionSl()),
+                    roundMoney(monthly),
+                    Boolean.FALSE != item.getActive()
+            ));
         }
-        return List.copyOf(out.values());
+        return new ArrayList<>(out.values());
     }
 
-    private static String cleanText(String raw, String fallback) {
-        String v = raw == null ? "" : raw.trim();
-        if (v.isBlank()) return fallback;
-        return v.length() > 180 ? v.substring(0, 180).trim() : v;
+    private static List<RegisterPriceCatalog.FeatureItem> copyFeatureItems(List<RegisterPriceCatalog.FeatureItem> raw) {
+        return normalizeFeatureItems(raw == null ? List.of() : raw, List.of());
     }
 
-    private static String normalizeAddonKey(String rawKey, String fallbackName) {
-        String source = rawKey == null || rawKey.isBlank() ? fallbackName : rawKey;
-        if (source == null) return "";
-        String slug = source.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
-        return slug.length() > 64 ? slug.substring(0, 64).replaceAll("-$", "") : slug;
-    }
-
-    private static String titleFromKey(String key) {
-        if (key == null || key.isBlank()) return "Add-on";
-        String[] parts = key.replace('-', ' ').split("\\s+");
-        StringBuilder out = new StringBuilder();
-        for (String part : parts) {
-            if (part.isBlank()) continue;
-            if (out.length() > 0) out.append(' ');
-            out.append(part.substring(0, 1).toUpperCase(Locale.ROOT));
-            if (part.length() > 1) out.append(part.substring(1));
+    private static List<RegisterPriceCatalog.FeatureItem> normalizeFeatureItems(
+            List<RegisterPriceCatalog.FeatureItem> raw,
+            List<RegisterPriceCatalog.FeatureItem> defaults
+    ) {
+        Map<String, RegisterPriceCatalog.FeatureItem> fallback = new LinkedHashMap<>();
+        if (defaults != null) {
+            for (RegisterPriceCatalog.FeatureItem item : defaults) {
+                if (item != null && item.getKey() != null) fallback.put(item.getKey(), item);
+            }
         }
-        return out.length() == 0 ? "Add-on" : out.toString();
+        Map<String, RegisterPriceCatalog.FeatureItem> out = new LinkedHashMap<>();
+        for (RegisterPriceCatalog.FeatureItem item : raw) {
+            if (item == null) continue;
+            String key = normalizeKey(item.getKey() == null ? item.getName() : item.getKey());
+            if (key.isBlank()) continue;
+            RegisterPriceCatalog.FeatureItem fb = fallback.get(key);
+            out.put(key, new RegisterPriceCatalog.FeatureItem(
+                    key,
+                    text(item.getName(), fb == null ? titleFromKey(key) : fb.getName()),
+                    text(item.getNameSl(), fb == null ? titleFromKey(key) : fb.getNameSl()),
+                    text(item.getDescription(), fb == null ? "Plan feature." : fb.getDescription()),
+                    text(item.getDescriptionSl(), fb == null ? "Funkcija paketa." : fb.getDescriptionSl()),
+                    normalizePlanKey(item.getMinPlan(), fb == null ? "pro" : fb.getMinPlan()),
+                    Boolean.FALSE != item.getActive()
+            ));
+        }
+        return new ArrayList<>(out.values());
+    }
+
+    private static List<RegisterPriceCatalog.AddonItem> copyAddonItems(List<RegisterPriceCatalog.AddonItem> raw) {
+        return normalizeAddonItems(raw == null ? List.of() : raw, List.of());
     }
 
     private static boolean isValidAmount(Double v) {
@@ -203,14 +237,53 @@ public class RegisterCatalogService {
         return v >= 0 && v <= MAX_PRICE;
     }
 
-    private static double firstValidPercent(Double requested, double fallback) {
-        if (requested == null || requested.isNaN() || requested.isInfinite() || requested < 0 || requested > 100) {
-            return fallback;
+    private static boolean isValidPercent(Double v) {
+        if (v == null || v.isNaN() || v.isInfinite()) {
+            return false;
         }
-        return requested;
+        return v >= 0 && v <= 100.0;
+    }
+
+    private static double firstValidAmount(Double first, Double second, Double third, double fallback) {
+        if (isValidAmount(first)) return first;
+        if (isValidAmount(second)) return second;
+        if (isValidAmount(third)) return third;
+        return fallback;
+    }
+
+    private static double nullSafe(Double v, double fallback) {
+        return v == null ? fallback : v;
     }
 
     private static double roundMoney(double v) {
         return Math.round(v * 100.0) / 100.0;
+    }
+
+    private static double roundFour(double v) {
+        return Math.round(v * 10000.0) / 10000.0;
+    }
+
+    private static String normalizeKey(String raw) {
+        if (raw == null) return "";
+        return raw.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+    }
+
+    private static String normalizePlanKey(String raw, String fallback) {
+        if (raw == null) return normalizePlanKey(fallback, "pro");
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if ("basic".equals(value) || "pro".equals(value) || "business".equals(value)) {
+            return value;
+        }
+        return "basic".equals(fallback) || "business".equals(fallback) ? fallback : "pro";
+    }
+
+    private static String titleFromKey(String key) {
+        if (key == null || key.isBlank()) return "Custom item";
+        String cleaned = key.replace('-', ' ');
+        return Character.toUpperCase(cleaned.charAt(0)) + cleaned.substring(1);
+    }
+
+    private static String text(String value, String fallback) {
+        return value == null || value.trim().isBlank() ? fallback : value.trim();
     }
 }

@@ -5,6 +5,11 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface GuestOrderRepository extends JpaRepository<GuestOrder, Long> {
+    boolean existsByReferenceCode(String referenceCode);
+
+    @org.springframework.data.jpa.repository.Query("select o.referenceCode from GuestOrder o where o.company.id = :companyId and o.referenceCode is not null")
+    List<String> findAllReferenceCodesByCompanyId(@org.springframework.data.repository.query.Param("companyId") Long companyId);
+
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(Long guestUserId, Long companyId);
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(Long guestUserId, Long companyId, OrderStatus status);
     Optional<GuestOrder> findByIdAndGuestUserId(Long id, Long guestUserId);

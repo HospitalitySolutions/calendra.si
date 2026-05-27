@@ -1,0 +1,36 @@
+Changes done
+============
+
+Platform Admin > Plan & add-ons
+- Added editable usage prices:
+  - Additional user price (€ / user / month).
+  - SMS message price (€ / SMS) with a 50 SMS block preview.
+- Added a full editor for the “What’s included in this plan” register preview list:
+  - Add new included-feature rows.
+  - Edit key, EN/SL title, EN/SL description.
+  - Select the minimum plan where each item becomes active: Basic, Pro, or Business.
+  - Activate/deactivate or delete rows.
+- Save now persists plan prices, annual discount, usage prices, feature add-ons, and included-feature text through /api/platform-admin/register-prices.
+
+Register Plan selection page
+- The Users slider now uses the configured additional user monthly price instead of the hard-coded €9.90.
+- The SMS slider now uses the configured SMS price instead of the hard-coded €0.05.
+- The helper text under Users and SMS is generated from the configured prices.
+- The “What’s included in this plan” panel is now hydrated from /api/register/catalog.
+- Each included item is enabled/disabled based on its configured minimum plan, so lower plans show the item as unavailable until that plan level.
+- Register pages re-render plan prices, usage prices, add-ons, and included-feature text after the catalog load completes.
+
+Backend catalog
+- RegisterPriceCatalog now supports:
+  - annualDiscountPercent
+  - addonItems
+  - featureItems
+  - additionalUserMonthly
+  - smsPerMessage
+  - usagePrices
+- RegisterCatalogService validates, normalizes, merges, and stores dynamic add-ons, usage prices, and included-feature rows while keeping compatibility with the older addons map.
+- PlatformSubscriptionBillingService now uses the configured annual discount for annual package monthly-equivalent billing lines.
+
+Validation note
+- A frontend TypeScript check was attempted against an overlaid copy of the app, but the sandbox copy has no node_modules, so it reports missing React/Axios typings before a meaningful full check can complete.
+- Backend Maven compile was attempted, but Maven wrapper dependency download from repo.maven.apache.org failed in the sandbox.

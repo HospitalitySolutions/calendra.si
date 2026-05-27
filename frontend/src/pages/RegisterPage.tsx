@@ -32,7 +32,9 @@ import {
   formatEuro,
   getAddonCatalog,
   getActiveAddonKeys,
+  getAdditionalUserMonthlyPrice,
   getAnnualDiscountFactor,
+  getSmsPerMessagePrice,
   getFeatureItems,
   getPlanCardPriceNote,
   getPlanDisplay,
@@ -82,7 +84,15 @@ export function RegisterPlanAddonSections({
 }: RegisterPlanAddonSectionsProps) {
   const addonCatalog = getAddonCatalog(locale)
   const activeAddonKeys = getActiveAddonKeys()
+  const additionalUserMonthly = getAdditionalUserMonthlyPrice()
+  const smsPerMessage = getSmsPerMessagePrice()
   const pm = locale === 'sl' ? '/mes.' : '/mo'
+  const firstUserFreeNote = locale === 'sl'
+    ? `Prvi dodatni uporabnik brezplačno; nato ${formatEuro(additionalUserMonthly)} / uporabnik / mesec`
+    : `First additional user free; then ${formatEuro(additionalUserMonthly)} / user / month`
+  const smsPriceNote = locale === 'sl'
+    ? `${formatEuro(smsPerMessage)} na SMS (${formatEuro(smsPerMessage * 50)} na 50)`
+    : `${formatEuro(smsPerMessage)} per SMS (${formatEuro(smsPerMessage * 50)} per 50)`
 
   return (
     <>
@@ -123,9 +133,9 @@ export function RegisterPlanAddonSections({
 
             <div className="slider-price-note">
               {!addonsModalPresentation ? (
-                <span>{pageCopy.firstUserFreeNote}</span>
+                <span>{firstUserFreeNote}</span>
               ) : null}
-              <strong>{`${formatEuro(getBillableAdditionalUserSlots(selection) * 9.9)}${pm}`}</strong>
+              <strong>{`${formatEuro(getBillableAdditionalUserSlots(selection) * additionalUserMonthly)}${pm}`}</strong>
             </div>
           </div>
 
@@ -162,9 +172,9 @@ export function RegisterPlanAddonSections({
             </div>
 
             <div className="slider-price-note">
-              <span>{pageCopy.smsPriceNote}</span>
+              <span>{smsPriceNote}</span>
               <strong>
-                {selection.additionalSms > 0 ? `${formatEuro(selection.additionalSms * 0.05)}${pm}` : pageCopy.smsZeroPerMo}
+                {selection.additionalSms > 0 ? `${formatEuro(selection.additionalSms * smsPerMessage)}${pm}` : pageCopy.smsZeroPerMo}
               </strong>
             </div>
           </div>
@@ -243,9 +253,10 @@ export function RegisterPage() {
   const navigate = useNavigate()
   const { locale, setLocale, t } = useLocale()
   const lang: RegisterLocale = locale === 'sl' ? 'sl' : 'en'
+  const [registerCatalogRevision, setRegisterCatalogRevision] = useState(0)
   const pc = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
-  const plansLoc = useMemo(() => plansForLocale(lang), [lang])
-  const featureItems = useMemo(() => getFeatureItems(lang), [lang])
+  const plansLoc = useMemo(() => plansForLocale(lang), [lang, registerCatalogRevision])
+  const featureItems = useMemo(() => getFeatureItems(lang), [lang, registerCatalogRevision])
   const pm = lang === 'sl' ? '/mes.' : '/mo'
   const { showToast } = useToast()
   const [selection, setSelection] = useState<RegisterSelection>(() => parseRegisterSelection(window.location.search))
@@ -267,7 +278,6 @@ export function RegisterPage() {
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches,
   )
 
-  const [, setRegisterCatalogRevision] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -332,8 +342,8 @@ export function RegisterPage() {
   }, [navigate, selection])
 
   const planDisplay = useMemo(() => getPlanDisplay(previewPlan, selection.billing, lang), [previewPlan, selection.billing, lang])
-  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang])
-  const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection])
+  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang, registerCatalogRevision])
+  const monthlyAmounts = useMemo(() => getSelectionMonthlyAmounts(selection), [selection, registerCatalogRevision])
   const websiteUrl = (import.meta.env.VITE_WEBSITE_URL as string | undefined)?.trim() || 'https://calendra.si'
 
   const footerPill = useMemo(() => buildRegisterFooterPill(selection, summary, lang), [selection, summary, lang])

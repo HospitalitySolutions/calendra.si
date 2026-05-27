@@ -526,14 +526,20 @@ public class GuestOrderService {
         if (invoiceOrderIdService != null) {
             try {
                 String value = invoiceOrderIdService.nextOrderId(link.getCompany(), link.getClient());
-                if (value != null && !value.isBlank()) {
+                if (value != null && !value.isBlank() && !orders.existsByReferenceCode(value)) {
                     return value;
                 }
             } catch (Exception ignored) {
-                // Fall back to legacy short code instead of blocking checkout if the counter is unavailable.
+                // Fall back to a random code instead of blocking checkout if the counter is unavailable.
             }
         }
-        return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        for (int attempt = 0; attempt < 20; attempt++) {
+            String fallback = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+            if (!orders.existsByReferenceCode(fallback)) {
+                return fallback;
+            }
+        }
+        return "ORD-" + UUID.randomUUID().toString().toUpperCase(Locale.ROOT);
     }
 
     private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product, String entitlementId) {

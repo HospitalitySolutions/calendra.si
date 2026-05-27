@@ -371,6 +371,8 @@ function isPlaceholderHit(h: TenancySearchHit): boolean {
   return h.packageType === '—' && h.subscriptionInterval === '—' && h.contactEmail === ''
 }
 
+type RegisterPlanKeyDto = 'basic' | 'pro' | 'business'
+
 type RegisterCatalogAddonItemDto = {
   key: string
   name: string
@@ -381,11 +383,30 @@ type RegisterCatalogAddonItemDto = {
   active?: boolean
 }
 
+type RegisterCatalogFeatureItemDto = {
+  key: string
+  name: string
+  nameSl?: string
+  description?: string
+  descriptionSl?: string
+  minPlan: RegisterPlanKeyDto
+  active?: boolean
+}
+
+type RegisterUsagePriceCatalogDto = {
+  additionalUserMonthly: number
+  smsPerMessage: number
+}
+
 type RegisterPriceCatalogDto = {
   plans: Record<string, number>
   addons: Record<string, number>
   annualDiscountPercent?: number
   addonItems?: RegisterCatalogAddonItemDto[]
+  featureItems?: RegisterCatalogFeatureItemDto[]
+  additionalUserMonthly?: number
+  smsPerMessage?: number
+  usagePrices?: RegisterUsagePriceCatalogDto
 }
 
 function coerceMoneyInput(raw: string, fallback: number): number {
@@ -402,6 +423,15 @@ function coercePercentInput(raw: string, fallback: number): number {
 
 function normalizeAddonKey(raw: string): string {
   return raw.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64)
+}
+
+function normalizeFeatureKey(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64)
+}
+
+function normalizeCatalogPlanKey(raw: string | undefined | null, fallback: RegisterPlanKeyDto = 'pro'): RegisterPlanKeyDto {
+  const value = String(raw || '').trim().toLowerCase()
+  return value === 'basic' || value === 'pro' || value === 'business' ? value : fallback
 }
 
 function addonMapFromItems(items: RegisterCatalogAddonItemDto[]): Record<string, number> {
@@ -443,6 +473,28 @@ function normalizeAddonItemsFromCatalog(data: RegisterPriceCatalogDto | null | u
   return byKey
 }
 
+function normalizeFeatureItemsFromCatalog(data: RegisterPriceCatalogDto | null | undefined): RegisterCatalogFeatureItemDto[] {
+  if (Array.isArray(data?.featureItems)) {
+    const normalized: RegisterCatalogFeatureItemDto[] = []
+    data.featureItems.forEach((item) => {
+      const key = normalizeFeatureKey(item.key || item.name || '')
+      if (!key) return
+      const fallback = DEFAULT_FEATURE_ITEMS.find((defaultItem) => defaultItem.key === key)
+      normalized.push({
+        key,
+        name: (item.name || fallback?.name || key.replace(/-/g, ' ')).trim(),
+        nameSl: (item.nameSl || fallback?.nameSl || item.name || fallback?.name || key.replace(/-/g, ' ')).trim(),
+        description: (item.description || fallback?.description || 'Plan feature.').trim(),
+        descriptionSl: (item.descriptionSl || fallback?.descriptionSl || item.description || 'Funkcija paketa.').trim(),
+        minPlan: normalizeCatalogPlanKey(item.minPlan, fallback?.minPlan || 'pro'),
+        active: item.active !== false,
+      })
+    })
+    return normalized
+  }
+  return DEFAULT_FEATURE_ITEMS.map((item) => ({ ...item }))
+}
+
 const DEFAULT_ADDON_ITEMS: RegisterCatalogAddonItemDto[] = [
   {
     key: 'voice',
@@ -473,11 +525,33 @@ const DEFAULT_ADDON_ITEMS: RegisterCatalogAddonItemDto[] = [
   },
 ]
 
+const DEFAULT_FEATURE_ITEMS: RegisterCatalogFeatureItemDto[] = [
+  { key: 'appointments', name: 'Unlimited appointments', nameSl: 'Neomejeno terminov', description: 'Accept bookings without monthly caps.', descriptionSl: 'Sprejemajte rezervacije brez mesečne omejitve.', minPlan: 'basic', active: true },
+  { key: 'staff', name: 'Team members', nameSl: 'Člani ekipe', description: 'Manage staff schedules and availability.', descriptionSl: 'Upravljajte urnike in razpoložljivost osebja.', minPlan: 'basic', active: true },
+  { key: 'group', name: 'Group bookings', nameSl: 'Skupinske rezervacije', description: 'Classes, sessions, workshops, and shared slots.', descriptionSl: 'Tečaji, delavnice in deljene kapacitete.', minPlan: 'pro', active: true },
+  { key: 'resources', name: 'Resource scheduling', nameSl: 'Razporeditev virov', description: 'Rooms, chairs, courts, equipment, and assets.', descriptionSl: 'Sobe, stoli, igrišča, oprema in drugi viri.', minPlan: 'pro', active: true },
+  { key: 'payments', name: 'Online payments', nameSl: 'Spletna plačila', description: 'Deposits and prepayments during booking.', descriptionSl: 'Akontacije in predplačila med rezervacijo.', minPlan: 'pro', active: true },
+  { key: 'reminders', name: 'SMS & email reminders', nameSl: 'SMS in e-poštni opomniki', description: 'Reduce no-shows automatically.', descriptionSl: 'Manj neprihodov z avtomatskimi opomniki.', minPlan: 'pro', active: true },
+  { key: 'ai', name: 'AI booking assistant', nameSl: 'AI pomočnik za rezervacije', description: 'Voice booking and intelligent scheduling help.', descriptionSl: 'Glasovne rezervacije in pametna pomoč pri urniku.', minPlan: 'pro', active: true },
+  { key: 'integrations', name: 'Integrations', nameSl: 'Integracije', description: 'Google, Outlook, Zoom, payments, automation.', descriptionSl: 'Google, Outlook, Zoom, plačila, avtomatizacija.', minPlan: 'pro', active: true },
+  { key: 'reporting', name: 'Advanced reporting', nameSl: 'Napredno poročanje', description: 'Revenue, utilization, and booking analytics.', descriptionSl: 'Prihodki, izkoriščenost in analitika rezervacij.', minPlan: 'business', active: true },
+  { key: 'multilocation', name: 'Multi-location support', nameSl: 'Več lokacij', description: 'Manage multiple branches in one account.', descriptionSl: 'Več podružnic v enem računu.', minPlan: 'business', active: true },
+]
+
+const DEFAULT_USAGE_PRICES: RegisterUsagePriceCatalogDto = {
+  additionalUserMonthly: 9.9,
+  smsPerMessage: 0.05,
+}
+
 const DEFAULT_REGISTER_CATALOG: RegisterPriceCatalogDto = {
   plans: { basic: 18.9, pro: 34.9, business: 59.9 },
   addons: { voice: 12, billing: 8, whitelabel: 10 },
   annualDiscountPercent: 15,
   addonItems: DEFAULT_ADDON_ITEMS,
+  featureItems: DEFAULT_FEATURE_ITEMS,
+  additionalUserMonthly: DEFAULT_USAGE_PRICES.additionalUserMonthly,
+  smsPerMessage: DEFAULT_USAGE_PRICES.smsPerMessage,
+  usagePrices: DEFAULT_USAGE_PRICES,
 }
 
 function packageToCatalogPlanKey(pkg: string): 'basic' | 'pro' | 'business' {
@@ -515,12 +589,28 @@ function mergeRegisterCatalog(fetched: RegisterPriceCatalogDto | null | undefine
   const plans = { ...DEFAULT_REGISTER_CATALOG.plans }
   if (fetched?.plans) Object.assign(plans, fetched.plans)
   const addonItems = normalizeAddonItemsFromCatalog(fetched || DEFAULT_REGISTER_CATALOG)
+  const featureItems = normalizeFeatureItemsFromCatalog(fetched || DEFAULT_REGISTER_CATALOG)
   const addons = addonMapFromItems(addonItems)
   const annualDiscountPercent =
     typeof fetched?.annualDiscountPercent === 'number' && Number.isFinite(fetched.annualDiscountPercent)
       ? Math.max(0, Math.min(100, roundMoney2(fetched.annualDiscountPercent)))
       : DEFAULT_REGISTER_CATALOG.annualDiscountPercent
-  return { plans, addons, annualDiscountPercent, addonItems }
+  const additionalUserRaw = typeof fetched?.additionalUserMonthly === 'number'
+    ? fetched.additionalUserMonthly
+    : fetched?.usagePrices?.additionalUserMonthly
+  const smsRaw = typeof fetched?.smsPerMessage === 'number'
+    ? fetched.smsPerMessage
+    : fetched?.usagePrices?.smsPerMessage
+  const additionalUserMonthly =
+    typeof additionalUserRaw === 'number' && Number.isFinite(additionalUserRaw)
+      ? Math.max(0, roundMoney2(additionalUserRaw))
+      : DEFAULT_USAGE_PRICES.additionalUserMonthly
+  const smsPerMessage =
+    typeof smsRaw === 'number' && Number.isFinite(smsRaw)
+      ? Math.max(0, Math.round(smsRaw * 10000) / 10000)
+      : DEFAULT_USAGE_PRICES.smsPerMessage
+  const usagePrices = { additionalUserMonthly, smsPerMessage }
+  return { plans, addons, annualDiscountPercent, addonItems, featureItems, additionalUserMonthly, smsPerMessage, usagePrices }
 }
 
 function planAmountsForTenant(selected: TenancyDetails, catalog: RegisterPriceCatalogDto) {
@@ -629,7 +719,10 @@ function PlanPricesAdminPanel() {
   const [ok, setOk] = useState<string | null>(null)
   const [plans, setPlans] = useState({ basic: 18.9, pro: 34.9, business: 59.9 })
   const [annualDiscountPercent, setAnnualDiscountPercent] = useState(15)
+  const [additionalUserMonthly, setAdditionalUserMonthly] = useState(DEFAULT_USAGE_PRICES.additionalUserMonthly)
+  const [smsPerMessage, setSmsPerMessage] = useState(DEFAULT_USAGE_PRICES.smsPerMessage)
   const [addonItems, setAddonItems] = useState<RegisterCatalogAddonItemDto[]>(() => DEFAULT_ADDON_ITEMS.map((item) => ({ ...item })))
+  const [featureItems, setFeatureItems] = useState<RegisterCatalogFeatureItemDto[]>(() => DEFAULT_FEATURE_ITEMS.map((item) => ({ ...item })))
 
   useEffect(() => {
     let cancelled = false
@@ -646,7 +739,10 @@ function PlanPricesAdminPanel() {
           business: typeof catalog.plans.business === 'number' ? catalog.plans.business : 59.9,
         })
         setAnnualDiscountPercent(catalog.annualDiscountPercent ?? 15)
+        setAdditionalUserMonthly(catalog.additionalUserMonthly ?? DEFAULT_USAGE_PRICES.additionalUserMonthly)
+        setSmsPerMessage(catalog.smsPerMessage ?? DEFAULT_USAGE_PRICES.smsPerMessage)
         setAddonItems((catalog.addonItems || DEFAULT_ADDON_ITEMS).map((item) => ({ ...item })))
+        setFeatureItems((catalog.featureItems || DEFAULT_FEATURE_ITEMS).map((item) => ({ ...item })))
       } catch {
         setErr('Could not load register catalog.')
       } finally {
@@ -702,17 +798,70 @@ function PlanPricesAdminPanel() {
     return cleaned
   }
 
+  const updateFeature = (index: number, patch: Partial<RegisterCatalogFeatureItemDto>) => {
+    setFeatureItems((items) => items.map((item, i) => (i === index ? { ...item, ...patch } : item)))
+  }
+
+  const addFeature = () => {
+    const stamp = Date.now().toString(36)
+    setFeatureItems((items) => [
+      ...items,
+      {
+        key: `custom-feature-${stamp}`,
+        name: 'New feature',
+        nameSl: 'Nova funkcija',
+        description: 'Describe what is included.',
+        descriptionSl: 'Opišite, kaj je vključeno.',
+        minPlan: 'pro',
+        active: true,
+      },
+    ])
+  }
+
+  const removeFeature = (index: number) => {
+    setFeatureItems((items) => items.filter((_, i) => i !== index))
+  }
+
+  const cleanFeatureItems = (): RegisterCatalogFeatureItemDto[] => {
+    const seen = new Set<string>()
+    const cleaned: RegisterCatalogFeatureItemDto[] = []
+    featureItems.forEach((item) => {
+      const key = normalizeFeatureKey(item.key || item.name || '')
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      cleaned.push({
+        key,
+        name: (item.name || key.replace(/-/g, ' ')).trim(),
+        nameSl: (item.nameSl || item.name || key.replace(/-/g, ' ')).trim(),
+        description: (item.description || 'Plan feature.').trim(),
+        descriptionSl: (item.descriptionSl || item.description || 'Funkcija paketa.').trim(),
+        minPlan: normalizeCatalogPlanKey(item.minPlan),
+        active: item.active !== false,
+      })
+    })
+    return cleaned
+  }
+
   const save = async () => {
     setSaving(true)
     setErr(null)
     setOk(null)
     try {
       const cleanedAddons = cleanAddonItems()
+      const cleanedFeatures = cleanFeatureItems()
+      const usagePrices = {
+        additionalUserMonthly: roundMoney2(additionalUserMonthly),
+        smsPerMessage: Math.round(smsPerMessage * 10000) / 10000,
+      }
       const payload: RegisterPriceCatalogDto = {
         plans,
         annualDiscountPercent,
         addonItems: cleanedAddons,
         addons: addonMapFromItems(cleanedAddons),
+        featureItems: cleanedFeatures,
+        additionalUserMonthly: usagePrices.additionalUserMonthly,
+        smsPerMessage: usagePrices.smsPerMessage,
+        usagePrices,
       }
       const { data } = await api.put<RegisterPriceCatalogDto>('/platform-admin/register-prices', payload)
       const catalog = mergeRegisterCatalog(data || payload)
@@ -722,8 +871,11 @@ function PlanPricesAdminPanel() {
         business: typeof catalog.plans.business === 'number' ? catalog.plans.business : plans.business,
       })
       setAnnualDiscountPercent(catalog.annualDiscountPercent ?? annualDiscountPercent)
+      setAdditionalUserMonthly(catalog.additionalUserMonthly ?? usagePrices.additionalUserMonthly)
+      setSmsPerMessage(catalog.smsPerMessage ?? usagePrices.smsPerMessage)
       setAddonItems((catalog.addonItems || cleanedAddons).map((item) => ({ ...item })))
-      setOk('Saved. Visitors will see updated plan prices, annual discount, and add-ons after they reload the register pages.')
+      setFeatureItems((catalog.featureItems || cleanedFeatures).map((item) => ({ ...item })))
+      setOk('Saved. Visitors will see updated plan prices, usage prices, annual discount, add-ons, and included feature text after they reload the register pages.')
     } catch {
       setErr('Could not save catalog.')
     } finally {
@@ -822,6 +974,86 @@ function PlanPricesAdminPanel() {
                 </div>
               )
             })}
+          </div>
+
+          <h3 className="muted" style={{ margin: '22px 0 10px', fontSize: '0.95rem', fontWeight: 950 }}>
+            Usage prices
+          </h3>
+          <div className="plan-price-grid">
+            <div className="plan-price-field">
+              <label htmlFor="pa-additional-user-price">Additional user (€ / user / month)</label>
+              <input id="pa-additional-user-price" type="text" inputMode="decimal" value={String(additionalUserMonthly)} onChange={(e) => setAdditionalUserMonthly((current) => coerceMoneyInput(e.target.value, current))} />
+            </div>
+            <div className="plan-price-field">
+              <label htmlFor="pa-sms-price">SMS message (€ / SMS)</label>
+              <input id="pa-sms-price" type="text" inputMode="decimal" value={String(smsPerMessage)} onChange={(e) => setSmsPerMessage((current) => coerceMoneyInput(e.target.value, current))} />
+            </div>
+            <div className="field-card" style={{ minHeight: 74, justifyContent: 'center' }}>
+              <div className="field-label">
+                <strong>50 SMS block preview</strong>
+                <span>€{formatMoneyEUR(smsPerMessage * 50)} / 50 SMS</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 24, flexWrap: 'wrap' }}>
+            <h3 className="muted" style={{ margin: 0, fontSize: '0.95rem', fontWeight: 950 }}>
+              What's included in this plan ({featureItems.filter((item) => item.active !== false).length} active)
+            </h3>
+            <button className="button secondary small" type="button" onClick={addFeature}>+ Add included text</button>
+          </div>
+
+          <div style={{ display: 'grid', gap: 12, marginTop: 10 }}>
+            {featureItems.length === 0 ? (
+              <div className="empty-hint">No included text is configured for the register plan preview.</div>
+            ) : null}
+            {featureItems.map((item, index) => (
+              <div key={`${item.key}-${index}`} className="section-card" style={{ padding: 14 }}>
+                <div className="section-head">
+                  <div className="section-title">
+                    <strong>{item.name || 'Included text'}</strong>
+                    <span>Shown from {item.minPlan === 'basic' ? 'Basic' : item.minPlan === 'pro' ? 'Pro' : 'Business'} and higher</span>
+                  </div>
+                  <div className="top-actions">
+                    <label className="pill" style={{ cursor: 'pointer' }}>
+                      <input type="checkbox" checked={item.active !== false} onChange={(e) => updateFeature(index, { active: e.target.checked })} />
+                      Active
+                    </label>
+                    <button className="button danger small" type="button" onClick={() => removeFeature(index)}>Delete</button>
+                  </div>
+                </div>
+                <div className="plan-price-grid">
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-feature-key-${index}`}>Key</label>
+                    <input id={`pa-feature-key-${index}`} type="text" value={item.key} onChange={(e) => updateFeature(index, { key: normalizeFeatureKey(e.target.value) })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-feature-min-${index}`}>Minimum plan</label>
+                    <select id={`pa-feature-min-${index}`} value={item.minPlan} onChange={(e) => updateFeature(index, { minPlan: normalizeCatalogPlanKey(e.target.value) })} style={{ height: 44, borderRadius: 14, border: '1px solid var(--border)', padding: '0 12px', font: 'inherit', fontWeight: 800, background: '#fff' }}>
+                      <option value="basic">Basic</option>
+                      <option value="pro">Pro</option>
+                      <option value="business">Business</option>
+                    </select>
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-feature-name-${index}`}>Title EN</label>
+                    <input id={`pa-feature-name-${index}`} type="text" value={item.name} onChange={(e) => updateFeature(index, { name: e.target.value })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-feature-name-sl-${index}`}>Title SL</label>
+                    <input id={`pa-feature-name-sl-${index}`} type="text" value={item.nameSl || ''} onChange={(e) => updateFeature(index, { nameSl: e.target.value })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-feature-desc-${index}`}>Description EN</label>
+                    <input id={`pa-feature-desc-${index}`} type="text" value={item.description || ''} onChange={(e) => updateFeature(index, { description: e.target.value })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-feature-desc-sl-${index}`}>Description SL</label>
+                    <input id={`pa-feature-desc-sl-${index}`} type="text" value={item.descriptionSl || ''} onChange={(e) => updateFeature(index, { descriptionSl: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 24, flexWrap: 'wrap' }}>

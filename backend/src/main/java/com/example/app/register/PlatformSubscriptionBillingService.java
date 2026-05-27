@@ -248,7 +248,7 @@ public class PlatformSubscriptionBillingService {
         BigDecimal basic = money(catalogPlans.getOrDefault("basic", 18.90));
         BigDecimal pro = money(catalogPlans.getOrDefault("pro", 34.90));
         BigDecimal business = money(catalogPlans.getOrDefault("business", 59.90));
-        BigDecimal annualDiscountPercent = percent(catalog == null ? null : catalog.getAnnualDiscountPercent());
+        double annualDiscountPercent = catalog == null || catalog.getAnnualDiscountPercent() == null ? 15.0 : catalog.getAnnualDiscountPercent();
 
         Map<String, PlatformPlan> out = new LinkedHashMap<>();
         out.put("BASIC:MONTHLY", new PlatformPlan("BASICMONTHLY", "Basic Package - Monthly", basic, BillingInterval.MONTHLY));
@@ -491,16 +491,10 @@ public class PlatformSubscriptionBillingService {
         return BigDecimal.valueOf(value == null ? 0.0 : value).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal annualMonthlyEquivalent(BigDecimal monthly, BigDecimal annualDiscountPercent) {
-        BigDecimal factor = BigDecimal.ONE.subtract(annualDiscountPercent.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
+    private static BigDecimal annualMonthlyEquivalent(BigDecimal monthly, double annualDiscountPercent) {
+        double clampedDiscount = Math.max(0.0, Math.min(100.0, annualDiscountPercent));
+        BigDecimal factor = BigDecimal.valueOf(1.0 - (clampedDiscount / 100.0));
         return monthly.multiply(factor).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private static BigDecimal percent(Double value) {
-        if (value == null || value.isNaN() || value.isInfinite() || value < 0 || value > 100) {
-            return new BigDecimal("15.00");
-        }
-        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String normalizePackageType(String rawValue) {

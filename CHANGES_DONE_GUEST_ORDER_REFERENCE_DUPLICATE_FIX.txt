@@ -1,0 +1,32 @@
+Guest order reference duplicate fix
+
+Problem fixed:
+- Guest order creation could fail with PostgreSQL unique constraint guest_orders_reference_code_key when the public order counter was missing or stale.
+- Example failing reference: 2TEN-2-1 already existed, but the backend tried to reuse it for a new booking/card purchase.
+
+Changes done:
+1. backend/src/main/java/com/example/app/billing/InvoiceOrderIdService.java
+   - Reworked order id reservation so it checks existing guest_orders.reference_code and bills.order_id before returning a public order id.
+   - If ORDER_COUNTER is stale, it now resyncs forward from existing stored public ids and uses the next free counter.
+   - Keeps the existing public format: TENANTCODE-clientId-counter.
+   - Preserves the shared counter behavior for guest orders and invoices.
+   - Adds a conflict loop so even malformed/stale data cannot reuse an already-used public id.
+
+2. backend/src/main/java/com/example/app/billing/BillRepository.java
+   - Added helpers to check whether an order id already exists for a tenant.
+   - Added helpers to read the highest stored bill order counter and existing bill order ids.
+
+3. backend/src/main/java/com/example/app/guest/model/GuestOrderRepository.java
+   - Added existsByReferenceCode(...).
+   - Added helper to read existing guest order reference codes for a tenant.
+
+4. backend/src/main/java/com/example/app/guest/order/GuestOrderService.java
+   - Added a safety check so the order service does not accept a generated public reference if it already exists.
+   - Made the fallback ORD-* reference generation check uniqueness before returning the fallback.
+
+Operational note:
+- No manual DB cleanup should be required for stale ORDER_COUNTER values. On the next created order, the code moves the counter forward past existing references.
+- Existing paid, pending, or cancelled order references are not reused.
+
+Validation note:
+- Backend compile could not be completed in the sandbox because the Maven wrapper could not download Maven from Maven Central: apache-maven-3.9.14-bin.zip.
