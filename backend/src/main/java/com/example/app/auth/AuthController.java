@@ -380,6 +380,7 @@ public class AuthController {
             String address,
             String postalCode,
             String city,
+            String tenantType,
             String packageName,
             /** MONTHLY or YEARLY */
             String billingInterval,
