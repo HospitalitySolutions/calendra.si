@@ -563,6 +563,13 @@ public class GuestOrderService {
 
     private void assertPaymentMethodAllowed(Long companyId, GuestPaymentMethodType paymentMethodType, String productType, PaymentChannel channel) {
         GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
+        boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
+
+        if (!billingEnabled) {
+            if (paymentMethodType != GuestPaymentMethodType.PAY_AT_VENUE || !isSessionLikeProductType(productType)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Billing is disabled for this tenant.");
+            }
+        }
 
         if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE) {
             if (!isSessionLikeProductType(productType)) {

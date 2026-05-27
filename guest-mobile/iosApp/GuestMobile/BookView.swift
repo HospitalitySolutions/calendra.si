@@ -84,7 +84,7 @@ struct BookView: View {
 
     /// When false, book flow uses pay-at-venue (no payment method UI) for session bookings.
     private var skipsOnlinePaymentMethods: Bool {
-        !(selectedProvider?.requireOnlinePayment ?? true)
+        selectedProvider?.billingEnabled == false || !(selectedProvider?.requireOnlinePayment ?? true)
     }
 
     private var isDepositMode: Bool {
@@ -163,6 +163,7 @@ struct BookView: View {
     }
 
     private func isPaymentMethodAllowed(_ method: GuestBookingPaymentChoice) -> Bool {
+        if selectedProvider?.billingEnabled == false { return false }
         if method == .entitlement { return true }
         if acceptedPaymentApiValues.isEmpty { return true }
         return acceptedPaymentApiValues.contains(method.apiValue)

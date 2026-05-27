@@ -175,6 +175,7 @@ final class AppStore: ObservableObject {
     var walletScopedOffers: [WalletOfferModel] {
         guard let tenantId = walletScopedTenantId else { return [] }
         guard let dashboard = tenantDashboards[tenantId] else { return [] }
+        guard dashboard.tenant.billingEnabled != false else { return [] }
         return dashboard.products
             .filter { !$0.bookable || $0.productType == "PACK" || $0.productType == "MEMBERSHIP" || $0.productType == "CLASS_TICKET" }
             .map {
@@ -229,6 +230,7 @@ final class AppStore: ObservableObject {
     var walletOffers: [WalletOfferModel] {
         activeTenantIds.flatMap { tenantId -> [WalletOfferModel] in
             guard let dashboard = tenantDashboards[tenantId] else { return [] }
+            guard dashboard.tenant.billingEnabled != false else { return [] }
             return dashboard.products
                 .filter { !$0.bookable || $0.productType == "PACK" || $0.productType == "MEMBERSHIP" || $0.productType == "CLASS_TICKET" }
                 .map {

@@ -1012,6 +1012,7 @@ fun GuestMobileRoot() {
                                 companyId = provider.companyId,
                                 tenantName = provider.companyName,
                                 tenantAddress = provider.companyAddress ?: provider.publicCity,
+                                billingEnabled = provider.billingEnabled,
                                 requireOnlinePayment = provider.requireOnlinePayment,
                                 paymentRequirement = provider.paymentRequirement,
                                 depositPercent = provider.depositPercent,
@@ -1160,10 +1161,12 @@ fun GuestMobileRoot() {
                 val walletTenantName = state.uiState.linkedTenants
                     .firstOrNull { it.companyId == walletTenantId }
                     ?.companyName
-                val walletTenantPaymentMethods = state.uiState.linkedTenants
+                val walletTenant = state.uiState.linkedTenants
                     .firstOrNull { it.companyId == walletTenantId }
+                val walletBillingEnabled = walletTenant?.billingEnabled != false
+                val walletTenantPaymentMethods = if (walletBillingEnabled) walletTenant
                     ?.acceptedPaymentMethods
-                    .orEmpty()
+                    .orEmpty() else emptyList()
                 LaunchedEffect(walletTenantId) {
                     refreshWalletOffersIfNeeded(walletTenantId)
                 }
@@ -1203,7 +1206,7 @@ fun GuestMobileRoot() {
                         WalletScreen(
                             wallet = walletTenantId?.let { state.uiState.tenantDashboards[it]?.wallet },
                             accessCards = walletTenantId?.let { walletAccessesForTenant(state.uiState, it) }.orEmpty(),
-                            offers = walletTenantId?.let { walletOffersForTenant(state.uiState, it) }.orEmpty(),
+                            offers = if (walletBillingEnabled) walletTenantId?.let { walletOffersForTenant(state.uiState, it) }.orEmpty() else emptyList(),
                             tenantPaymentMethods = walletTenantPaymentMethods,
                             languageCode = appUiLocale,
                             tenantName = walletTenantName,
@@ -1226,6 +1229,10 @@ fun GuestMobileRoot() {
                             },
                             onBuyOffer = { offer, paymentMethod ->
                                 scope.launch {
+                                    if (!walletBillingEnabled) {
+                                        statusMessage = if (appUiLocale.lowercase().startsWith("sl")) "Nakupi pri tem ponudniku trenutno niso omogočeni" else "Purchases are currently disabled for this tenant"
+                                        return@launch
+                                    }
                                     val checkout = runCatching {
                                         val order = repo.createOrder(
                                             CreateOrderRequest(

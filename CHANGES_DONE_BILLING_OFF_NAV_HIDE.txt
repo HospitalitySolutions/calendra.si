@@ -1,0 +1,21 @@
+Implemented Billing OFF navigation/configuration hiding.
+
+Frontend:
+- Main app routes now treat Billing access as package access AND the tenant BILLING_ENABLED module flag.
+- /billing and open bill edit routes redirect away when BILLING_ENABLED is false.
+- Main left sidebar billing entry (Zaračunavanje) is hidden when BILLING_ENABLED is false.
+- Native Android/mobile navigation billing entry is hidden when BILLING_ENABLED is false.
+- Configuration sidebar hides the Obračun settings item when BILLING_ENABLED is false.
+- Direct /configuration?tab=billing links now redirect to Modules so the tenant can re-enable Billing there.
+- PayPal/Stripe return handling does not reopen the Billing settings tab while Billing is disabled.
+
+Backend:
+- Added BillingModuleAccessService to centralize reading the BILLING_ENABLED tenant setting.
+- /api/billing endpoints now reject access with 403 when Billing is disabled.
+- /api/fiscal endpoints now reject access with 403 when Billing is disabled.
+- /api/stripe/connect endpoints now reject access with 403 when Billing is disabled.
+- /api/paypal/onboarding endpoints now reject access with 403 when Billing is disabled.
+
+Existing module behavior remains:
+- The Billing switch inside Configuration -> Modules remains visible so Billing can be re-enabled.
+- Guest mobile buy/payment behavior remains disabled when Billing is OFF.

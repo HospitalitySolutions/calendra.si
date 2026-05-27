@@ -3,6 +3,7 @@ package com.example.app.fiscal;
 import com.example.app.billing.BillFiscalStatus;
 import com.example.app.billing.BillRepository;
 import com.example.app.user.User;
+import com.example.app.settings.BillingModuleAccessService;
 import java.io.ByteArrayInputStream;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
@@ -13,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,17 +30,25 @@ public class FiscalController {
     private final FiscalSettingsService fiscalSettingsService;
     private final BillRepository bills;
     private final FiscalCertificateRepository certificates;
+    private final BillingModuleAccessService billingModuleAccess;
 
     public FiscalController(
             FiscalizationService fiscalizationService,
             FiscalSettingsService fiscalSettingsService,
             BillRepository bills,
-            FiscalCertificateRepository certificates
+            FiscalCertificateRepository certificates,
+            BillingModuleAccessService billingModuleAccess
     ) {
         this.fiscalizationService = fiscalizationService;
         this.fiscalSettingsService = fiscalSettingsService;
         this.bills = bills;
         this.certificates = certificates;
+        this.billingModuleAccess = billingModuleAccess;
+    }
+
+    @ModelAttribute
+    public void ensureBillingModuleEnabled(@AuthenticationPrincipal User me) {
+        billingModuleAccess.assertBillingEnabled(me);
     }
 
     public record FiscalInvoiceStatusResponse(

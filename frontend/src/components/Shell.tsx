@@ -146,7 +146,8 @@ function ShellInner({ children }: PropsWithChildren) {
   const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
   const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
-  const billingAllowed = hasBillingAccess(user.packageType)
+  const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
+  const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
   const inboxAllowed = hasInboxAccess(user.packageType)
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
@@ -237,6 +238,7 @@ function ShellInner({ children }: PropsWithChildren) {
         setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED !== 'false')
         setTodosModuleEnabled(settingsData.TODOS_ENABLED !== 'false')
         setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
+        setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
       })
       .catch(() => {})
   }

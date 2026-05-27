@@ -1,6 +1,7 @@
 package com.example.app.stripe;
 
 import com.example.app.user.User;
+import com.example.app.settings.BillingModuleAccessService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -16,9 +18,16 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class StripeConnectController {
     private final StripeConnectService connectService;
+    private final BillingModuleAccessService billingModuleAccess;
 
-    public StripeConnectController(StripeConnectService connectService) {
+    public StripeConnectController(StripeConnectService connectService, BillingModuleAccessService billingModuleAccess) {
         this.connectService = connectService;
+        this.billingModuleAccess = billingModuleAccess;
+    }
+
+    @ModelAttribute
+    public void ensureBillingModuleEnabled(@AuthenticationPrincipal User me) {
+        billingModuleAccess.assertBillingEnabled(me);
     }
 
     @GetMapping("/config")

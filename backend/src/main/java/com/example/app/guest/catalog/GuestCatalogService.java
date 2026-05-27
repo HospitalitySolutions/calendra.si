@@ -78,6 +78,7 @@ public class GuestCatalogService {
     @Transactional(readOnly = true)
     public List<GuestDtos.ProductResponse> products(Long companyId, GuestUser guestUser) {
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
+        boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
             BigDecimal price = type.getLinkedServices() == null ? null : type.getLinkedServices().stream()
@@ -103,6 +104,7 @@ public class GuestCatalogService {
             ));
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
+            if (!billingEnabled && !product.isBookable()) continue;
             if (product.getSessionType() != null && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) continue;
             out.add(new GuestDtos.ProductResponse(
                     String.valueOf(product.getId()),
@@ -202,6 +204,9 @@ public class GuestCatalogService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
         if (!product.isActive() || !product.isGuestVisible()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This product is not available in the guest app.");
+        }
+        if (Boolean.FALSE.equals(guestSettings.billingEnabled(companyId)) && !product.isBookable()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Purchases are disabled for this tenant.");
         }
         if (product.getSessionType() != null && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");

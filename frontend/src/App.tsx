@@ -94,6 +94,8 @@ export default function App() {
     loading: 'Loading…',
   }
   const handledRef = useRef(false)
+  const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
+
 
   useEffect(() => {
     registerConflict409Handler((msg) => showToast('error', msg))
@@ -107,6 +109,31 @@ export default function App() {
   useEffect(() => {
     void ensureCsrfToken().catch(() => undefined)
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setBillingModuleEnabled(true)
+      return
+    }
+
+    let cancelled = false
+    const loadBillingModuleState = () => {
+      api.get('/settings')
+        .then((res) => {
+          if (!cancelled) setBillingModuleEnabled(res.data?.BILLING_ENABLED !== 'false')
+        })
+        .catch(() => {
+          if (!cancelled) setBillingModuleEnabled(true)
+        })
+    }
+
+    loadBillingModuleState()
+    window.addEventListener('settings-updated', loadBillingModuleState)
+    return () => {
+      cancelled = true
+      window.removeEventListener('settings-updated', loadBillingModuleState)
+    }
+  }, [user])
 
   useEffect(() => {
     let cancelled = false
@@ -233,7 +260,7 @@ export default function App() {
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
-  const billingAllowed = hasBillingAccess(user.packageType)
+  const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
   const inboxAllowed = hasInboxAccess(user.packageType)
   const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const fallbackRoute = getDefaultAllowedRoute(user.packageType)

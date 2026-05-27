@@ -1,0 +1,32 @@
+Changes done for Configuration -> Modules -> Rezervacije
+
+Files changed:
+- frontend/src/pages/ConfigurationPage.tsx
+- frontend/src/styles/features/configuration.css
+
+Summary:
+1. Removed the top-level Rezervacije ON/OFF switch in the Modules design card.
+   - The Rezervacije card remains visible/active, but can no longer be disabled globally from the header.
+
+2. Moved "Več terminov na prostor" under "Prostori".
+   - The setting is now a child switch inside Prostori.
+   - Prostori is expanded by default so this child setting is visible.
+
+3. Added dependency logic for "Več terminov na prostor".
+   - If Prostori is OFF, "Več terminov na prostor" is disabled, gray, and forced OFF.
+   - If Prostori is turned ON, "Več terminov na prostor" stays OFF until manually activated.
+   - Saving modules also normalizes the setting so it cannot be persisted ON while Prostori is OFF.
+
+4. Removed the old "Space selection" and "Space conflict checks" child switches.
+
+5. Updated AI rezervacije.
+   - It is OFF by default.
+   - It is disabled/grayed out in the UI.
+   - It displays "(Prihaja kmalu)" next to the label.
+   - Saving modules forces AI_BOOKING_ENABLED to false while it is unavailable.
+
+6. Added disabled switch styling for upcoming/blocked module settings.
+
+Validation:
+- Ran frontend build with: npm run build
+- Build completed successfully.

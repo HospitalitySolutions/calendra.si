@@ -146,6 +146,7 @@ data class ProviderOption(
     val companyId: String,
     val tenantName: String,
     val tenantAddress: String?,
+    val billingEnabled: Boolean = true,
     val requireOnlinePayment: Boolean = true,
     val paymentRequirement: String? = null,
     val depositPercent: Int? = null,
@@ -340,7 +341,7 @@ fun BookScreen(
     }
 
     val selectedProvider = providers.firstOrNull { it.companyId == selectedProviderId }
-    val skipsOnlinePayment = selectedProvider?.requireOnlinePayment == false
+    val skipsOnlinePayment = selectedProvider?.billingEnabled == false || selectedProvider?.requireOnlinePayment == false
     val selectedService = providerScopedServices.firstOrNull { it.id == selectedServiceId }
     val depositPercent = (selectedProvider?.depositPercent ?: 0).coerceIn(1, 100)
     val isDepositMode = !skipsOnlinePayment && selectedProvider?.paymentRequirement.equals("deposit", ignoreCase = true)
@@ -351,6 +352,7 @@ fun BookScreen(
     }
     val acceptedPaymentApiValues = selectedProvider?.acceptedPaymentMethods?.map { it.uppercase(Locale.ROOT) }.orEmpty()
     fun isMethodAllowed(method: PaymentMethodUi): Boolean {
+        if (selectedProvider?.billingEnabled == false) return false
         if (method == PaymentMethodUi.ENTITLEMENT) return true
         val apiValue = method.apiValue ?: return true
         if (acceptedPaymentApiValues.isEmpty()) return true

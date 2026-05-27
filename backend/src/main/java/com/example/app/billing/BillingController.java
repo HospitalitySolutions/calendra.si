@@ -13,6 +13,7 @@ import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.example.app.settings.GlobalPaymentProviderService;
+import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.fiscal.FiscalizationService;
@@ -89,6 +90,7 @@ public class BillingController {
     private final InvoiceOrderIdService invoiceOrderIdService;
     private final EntityManager entityManager;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final BillingModuleAccessService billingModuleAccess;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -100,7 +102,8 @@ public class BillingController {
                              GuestOrderRepository guestOrders,
                              InvoiceOrderIdService invoiceOrderIdService,
                              EntityManager entityManager,
-                             GlobalPaymentProviderService globalPaymentProviders) {
+                             GlobalPaymentProviderService globalPaymentProviders,
+                             BillingModuleAccessService billingModuleAccess) {
         this.txRepo = txRepo;
         this.paymentMethodRepo = paymentMethodRepo;
         this.billRepo = billRepo;
@@ -123,6 +126,12 @@ public class BillingController {
         this.invoiceOrderIdService = invoiceOrderIdService;
         this.entityManager = entityManager;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.billingModuleAccess = billingModuleAccess;
+    }
+
+    @ModelAttribute
+    public void ensureBillingModuleEnabled(@AuthenticationPrincipal User me) {
+        billingModuleAccess.assertBillingEnabled(me);
     }
 
     public record BillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId) {}

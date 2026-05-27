@@ -30,6 +30,7 @@ public class GuestSettingsService {
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
         boolean enabled = root.path("guestAppEnabled").asBoolean(true);
+        boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
         boolean discoverable = root.path("publicDiscoverable").asBoolean(false);
         String name = textOrNull(root.path("publicName"));
         String description = textOrNull(root.path("publicDescription"));
@@ -50,7 +51,13 @@ public class GuestSettingsService {
         String defaultLanguage = root.path("defaultLanguage").asText("sl");
         boolean employeeSelectionStep = root.path("employeeSelectionStep").asBoolean(false);
         boolean useEmployeeContact = root.path("useEmployeeContact").asBoolean(false);
-        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, tenantType, cardImageUrl, logoImageUrl, iconImageUrl);
+        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl);
+    }
+
+    public Boolean billingEnabled(Long companyId) {
+        Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
+                .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
+        return settingEnabled(values, SettingKey.BILLING_ENABLED, true);
     }
 
     /**
@@ -62,6 +69,9 @@ public class GuestSettingsService {
     public List<String> acceptedPaymentMethods(Long companyId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
+        if (!settingEnabled(values, SettingKey.BILLING_ENABLED, true)) {
+            return List.of();
+        }
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
         List<String> accepted = parseAcceptedPaymentMethods(root.path("acceptedPaymentMethodIds"));
         return applyGlobalProviderCapabilities(accepted, globalPaymentProviders.capabilities());
@@ -117,6 +127,22 @@ public class GuestSettingsService {
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name()));
         JsonNode guestAppRoot = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
+        if (!settingEnabled(values, SettingKey.BILLING_ENABLED, true)) {
+            return new GuestBookingRules(
+                    root.path("cancelUntilHours").asInt(24),
+                    root.path("rescheduleUntilHours").asInt(12),
+                    root.path("lateCancelConsumesCredit").asBoolean(true),
+                    root.path("noShowConsumesCredit").asBoolean(true),
+                    false,
+                    false,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    false,
+                    "none",
+                    normalizeDepositPercent(root.path("depositPercent").asInt(20))
+            );
+        }
         boolean requireOnlinePayment;
         if (root.has("requireOnlinePayment")) {
             requireOnlinePayment = root.path("requireOnlinePayment").asBoolean(true);
@@ -141,6 +167,14 @@ public class GuestSettingsService {
                 paymentRequirement,
                 depositPercent
         );
+    }
+
+    private static boolean settingEnabled(Map<String, String> values, SettingKey key, boolean defaultValue) {
+        String raw = values == null ? null : values.get(key.name());
+        if (raw == null || raw.isBlank()) return defaultValue;
+        if ("true".equalsIgnoreCase(raw.trim())) return true;
+        if ("false".equalsIgnoreCase(raw.trim())) return false;
+        return defaultValue;
     }
 
     private static JsonNode parse(String raw) {
@@ -214,7 +248,7 @@ public class GuestSettingsService {
         return Math.min(value, 100);
     }
 
-    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl) {}
+    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl) {}
     public record GuestBookingRules(
             int cancelUntilHours,
             int rescheduleUntilHours,

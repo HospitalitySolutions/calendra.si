@@ -833,6 +833,17 @@ a.config-nav-item {
 .gapp-switch:hover {
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
+.gapp-switch:disabled,
+.gapp-switch.is-disabled {
+    cursor: not-allowed;
+    opacity: .72;
+    box-shadow: none;
+    transform: none;
+}
+.gapp-switch:disabled:hover,
+.gapp-switch.is-disabled:hover {
+    box-shadow: none;
+}
 .gapp-switch.active {
     justify-content: flex-start;
     padding: 0 34px 0 9px;
@@ -902,6 +913,9 @@ a.config-nav-item {
     gap: 14px;
     margin-bottom: 18px;
 }
+.modules-design-group-header.no-group-switch {
+    grid-template-columns: 54px minmax(0, 1fr);
+}
 .modules-design-group-icon {
     display: grid;
     place-items: center;
@@ -965,6 +979,17 @@ a.config-nav-item {
     padding-left: 20px;
     background: rgba(248, 250, 252, 0.62);
 }
+.modules-design-setting-line.is-disabled {
+    color: #94a3b8;
+    background: rgba(248, 250, 252, 0.78);
+}
+.modules-design-setting-line.is-disabled .modules-design-setting-icon,
+.modules-design-setting-line.is-disabled .modules-design-setting-copy {
+    opacity: .62;
+}
+.modules-design-setting-line.is-disabled .modules-design-setting-copy {
+    cursor: not-allowed;
+}
 .modules-design-setting-line.is-subparameter .modules-design-row-chevron { display: none; }
 .modules-design-setting-icon {
     display: grid;
@@ -1013,6 +1038,9 @@ a.config-nav-item {
     white-space: nowrap;
     font-size: 12px;
     color: #64748b;
+}
+.modules-design-setting-copy:disabled {
+    cursor: not-allowed;
 }
 .modules-design-row-chevron {
     display: grid;

@@ -1,0 +1,36 @@
+Changes done
+============
+
+Configuration -> Modules
+------------------------
+- Added the Online Booking switch back under Rezervacije.
+- Removed the old Dostopnost row in the module layout and moved its Working hours / Buffer times rows under Online Booking.
+- Kept Rezervacije as always active with no top-level switch.
+- When Obračun is turned OFF, the billing child switches are forced OFF and disabled in the modules UI:
+  - Invoices
+  - Online card payments
+  - Bank transfer
+  - PayPal
+  - Gift cards
+- When Obračun is OFF, the Guest aplikacija -> Buy tab switch is shown OFF and disabled, because buying requires billing.
+
+Backend guest-app enforcement
+-----------------------------
+- Added billingEnabled to guest tenant summary responses.
+- Guest tenant payment methods now return an empty list when BILLING_ENABLED=false.
+- Guest booking rules now resolve to paymentRequirement=none and requireOnlinePayment=false when billing is OFF.
+- Guest wallet purchase-only products are hidden when billing is OFF.
+- Server-side order creation/checkout now blocks new financial payment methods when billing is OFF.
+- Pay-at-venue session booking remains allowed for session-like products so guests can still reserve unpaid appointments.
+
+Guest mobile apps
+-----------------
+- Android and iOS guest models now read billingEnabled from the backend.
+- Booking flow skips online payment methods when billingEnabled=false.
+- Wallet Buy offers are hidden when billingEnabled=false.
+- Purchase actions are guarded client-side with a disabled-purchases message.
+
+Validation
+----------
+- Frontend build could not be run in this sandbox because npm/node is not installed here.
+- Backend Maven build could not be run here because the sandbox has Java 17, while this project requires Java 21.

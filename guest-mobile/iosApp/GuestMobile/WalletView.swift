@@ -781,6 +781,10 @@ struct WalletView: View {
 
     @MainActor
     private func performPurchase(offer: WalletOfferModel, paymentMethod: String) async {
+        guard store.tenantDashboards[offer.companyId]?.tenant.billingEnabled != false else {
+            statusMessage = walletTr(appUiLocaleStorage, "Purchases are currently disabled for this tenant", "Nakupi pri tem ponudniku trenutno niso omogočeni")
+            return
+        }
         do {
             let checkout = try await store.createOrder(
                 companyId: offer.companyId,

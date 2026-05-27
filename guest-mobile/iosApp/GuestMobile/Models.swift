@@ -21,6 +21,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let companyAddress: String?
     let employeeSelectionStep: Bool?
     let useEmployeeContact: Bool?
+    let billingEnabled: Bool?
     let cardImageUrl: String?
     let logoImageUrl: String?
     let iconImageUrl: String?
@@ -43,6 +44,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case companyAddress
         case employeeSelectionStep
         case useEmployeeContact
+        case billingEnabled
         case cardImageUrl
         case logoImageUrl
         case iconImageUrl
@@ -62,6 +64,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         companyAddress: String?,
         employeeSelectionStep: Bool? = nil,
         useEmployeeContact: Bool? = nil,
+        billingEnabled: Bool? = nil,
         cardImageUrl: String? = nil,
         logoImageUrl: String? = nil,
         iconImageUrl: String? = nil,
@@ -79,6 +82,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.companyAddress = companyAddress
         self.employeeSelectionStep = employeeSelectionStep
         self.useEmployeeContact = useEmployeeContact
+        self.billingEnabled = billingEnabled
         self.cardImageUrl = cardImageUrl
         self.logoImageUrl = logoImageUrl
         self.iconImageUrl = iconImageUrl
@@ -99,6 +103,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.companyAddress = try c.decodeIfPresent(String.self, forKey: .companyAddress)
         self.employeeSelectionStep = try c.decodeIfPresent(Bool.self, forKey: .employeeSelectionStep)
         self.useEmployeeContact = try c.decodeIfPresent(Bool.self, forKey: .useEmployeeContact)
+        self.billingEnabled = try c.decodeIfPresent(Bool.self, forKey: .billingEnabled)
         self.cardImageUrl = try c.decodeIfPresent(String.self, forKey: .cardImageUrl)
         self.logoImageUrl = try c.decodeIfPresent(String.self, forKey: .logoImageUrl)
         self.iconImageUrl = try c.decodeIfPresent(String.self, forKey: .iconImageUrl)

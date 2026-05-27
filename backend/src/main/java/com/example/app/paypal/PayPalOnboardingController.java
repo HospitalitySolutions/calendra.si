@@ -1,6 +1,7 @@
 package com.example.app.paypal;
 
 import com.example.app.user.User;
+import com.example.app.settings.BillingModuleAccessService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,15 +10,23 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ModelAttribute;
 
 @RestController
 @RequestMapping("/api/paypal/onboarding")
 @PreAuthorize("hasRole('ADMIN')")
 public class PayPalOnboardingController {
     private final PayPalOnboardingService onboardingService;
+    private final BillingModuleAccessService billingModuleAccess;
 
-    public PayPalOnboardingController(PayPalOnboardingService onboardingService) {
+    public PayPalOnboardingController(PayPalOnboardingService onboardingService, BillingModuleAccessService billingModuleAccess) {
         this.onboardingService = onboardingService;
+        this.billingModuleAccess = billingModuleAccess;
+    }
+
+    @ModelAttribute
+    public void ensureBillingModuleEnabled(@AuthenticationPrincipal User me) {
+        billingModuleAccess.assertBillingEnabled(me);
     }
 
     @GetMapping("/config")
