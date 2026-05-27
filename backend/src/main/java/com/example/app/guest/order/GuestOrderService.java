@@ -188,7 +188,7 @@ public class GuestOrderService {
         order.setTaxAmount(BigDecimal.ZERO);
         order.setTotalGross(orderSubtotal);
         order.setReferenceCode(nextGuestOrderReferenceCode(link));
-        order.setMetadataJson(buildMetadataJson(request.slotId(), product));
+        order.setMetadataJson(buildMetadataJson(request.slotId(), product, request.entitlementId()));
         order = orders.save(order);
 
         GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null ? null : new GuestDtos.BookingSummaryResponse(String.valueOf(order.getId()), "PENDING_PAYMENT");
@@ -245,7 +245,12 @@ public class GuestOrderService {
             if (slotContext == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Entitlement checkout requires a valid service.");
             }
-            entitlementService.consumeBestMatchingEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), booking);
+            Long selectedEntitlementId = extractSelectedEntitlementId(order);
+            if (selectedEntitlementId != null) {
+                entitlementService.consumeSelectedEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), selectedEntitlementId, booking);
+            } else {
+                entitlementService.consumeBestMatchingEntitlement(order.getClient(), order.getCompany().getId(), slotContext.sessionTypeId(), booking);
+            }
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),
@@ -531,10 +536,11 @@ public class GuestOrderService {
         return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
     }
 
-    private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product) {
+    private String buildMetadataJson(String slotId, GuestCatalogService.ResolvedProduct product, String entitlementId) {
         try {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("slotId", slotId);
+            map.put("entitlementId", entitlementId == null || entitlementId.isBlank() ? null : entitlementId);
             map.put("productType", product.productType());
             map.put("productName", product.name());
             map.put("guestProductId", product.persistedProduct() == null ? null : product.persistedProduct().getId());
@@ -544,6 +550,19 @@ public class GuestOrderService {
             return JSON.writeValueAsString(map);
         } catch (Exception ex) {
             return "{}";
+        }
+    }
+
+    private Long extractSelectedEntitlementId(GuestOrder order) {
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object raw = map.get("entitlementId");
+            if (raw == null) return null;
+            String text = String.valueOf(raw).trim();
+            if (text.isBlank() || "null".equalsIgnoreCase(text)) return null;
+            return Long.parseLong(text);
+        } catch (Exception ex) {
+            return null;
         }
     }
 

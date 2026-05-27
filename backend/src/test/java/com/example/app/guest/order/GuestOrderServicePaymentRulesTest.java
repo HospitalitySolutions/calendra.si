@@ -45,7 +45,7 @@ class GuestOrderServicePaymentRulesTest {
 
         assertThatThrownBy(() -> fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAY_AT_VENUE.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAY_AT_VENUE.name(), null),
                 GuestOrderService.PaymentChannel.GUEST))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies((ex) -> {
@@ -61,7 +61,7 @@ class GuestOrderServicePaymentRulesTest {
 
         assertThatThrownBy(() -> fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name(), null),
                 GuestOrderService.PaymentChannel.GUEST))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies((ex) -> {
@@ -82,7 +82,7 @@ class GuestOrderServicePaymentRulesTest {
 
         fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAY_AT_VENUE.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAY_AT_VENUE.name(), null),
                 GuestOrderService.PaymentChannel.GUEST
         );
 
@@ -233,7 +233,7 @@ class GuestOrderServicePaymentRulesTest {
 
         assertThatThrownBy(() -> fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name(), null),
                 GuestOrderService.PaymentChannel.GUEST))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies((ex) -> {
@@ -254,7 +254,7 @@ class GuestOrderServicePaymentRulesTest {
 
         fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.GIFT_CARD.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.GIFT_CARD.name(), null),
                 GuestOrderService.PaymentChannel.GUEST
         );
 
@@ -272,7 +272,7 @@ class GuestOrderServicePaymentRulesTest {
 
         fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name(), null),
                 GuestOrderService.PaymentChannel.GUEST
         );
 
@@ -289,7 +289,7 @@ class GuestOrderServicePaymentRulesTest {
 
         assertThatThrownBy(() -> fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name(), null),
                 GuestOrderService.PaymentChannel.WEBSITE))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies((ex) -> {
@@ -306,7 +306,7 @@ class GuestOrderServicePaymentRulesTest {
 
         assertThatThrownBy(() -> fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name(), null),
                 GuestOrderService.PaymentChannel.GUEST))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies((ex) -> {
@@ -323,7 +323,7 @@ class GuestOrderServicePaymentRulesTest {
 
         assertThatThrownBy(() -> fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name(), null),
                 GuestOrderService.PaymentChannel.GUEST))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies((ex) -> {
@@ -350,7 +350,7 @@ class GuestOrderServicePaymentRulesTest {
 
         var response = fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name(), null),
                 GuestOrderService.PaymentChannel.GUEST
         );
 
@@ -374,7 +374,7 @@ class GuestOrderServicePaymentRulesTest {
 
         var response = fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name(), null),
                 GuestOrderService.PaymentChannel.GUEST
         );
 
@@ -398,7 +398,7 @@ class GuestOrderServicePaymentRulesTest {
 
         var response = fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name()),
+                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.CARD.name(), null),
                 GuestOrderService.PaymentChannel.GUEST
         );
 

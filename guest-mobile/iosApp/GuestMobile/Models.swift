@@ -776,13 +776,15 @@ struct CreateOrderPayload: Codable {
     let slotId: String?
     let paymentMethodType: String
     let consultantId: String?
+    let entitlementId: String?
 
-    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil) {
+    init(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil) {
         self.companyId = companyId
         self.productId = productId
         self.slotId = slotId
         self.paymentMethodType = paymentMethodType
         self.consultantId = consultantId
+        self.entitlementId = entitlementId
     }
 }
 

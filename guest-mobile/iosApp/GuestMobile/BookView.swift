@@ -53,6 +53,7 @@ struct BookView: View {
     @State private var selectedSlotId: String?
     @State private var timePageIndex = 0
     @State private var selectedPaymentMethod: GuestBookingPaymentChoice = .card
+    @State private var selectedEntitlementId: String?
     @State private var isLoadingSlots = false
     @State private var isSubmitting = false
     @State private var notice: String?
@@ -61,6 +62,7 @@ struct BookView: View {
     @State private var selectedStoredCard: String?
     @State private var showingStoredCardSheet = false
     @State private var showingPaymentMethodsSheet = false
+    @State private var showingEntitlementPickerSheet = false
     @State private var showingAddCardSheet = false
     private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
     private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
@@ -152,6 +154,11 @@ struct BookView: View {
             .filter { $0.type.uppercased() != "GIFT_CARD" }
     }
 
+    private var selectedEntitlement: AccessCardModel? {
+        guard let selectedEntitlementId else { return matchingEntitlements.first }
+        return matchingEntitlements.first(where: { $0.entitlementId == selectedEntitlementId }) ?? matchingEntitlements.first
+    }
+
     /// Gift cards (entitlementType = GIFT_CARD) matching the selected service's company and currency.
     private var matchingGiftCards: [AccessCardModel] {
         guard let selectedService else { return [] }
@@ -192,6 +199,13 @@ struct BookView: View {
 
     /// Resets the selected payment method when the active provider's allowlist or matching gift cards make it unavailable.
     private func ensurePaymentMethodAllowed() {
+        if matchingEntitlements.isEmpty {
+            selectedEntitlementId = nil
+        } else if let currentEntitlementId = selectedEntitlementId, matchingEntitlements.contains(where: { $0.entitlementId == currentEntitlementId }) {
+            // Keep current selection.
+        } else {
+            selectedEntitlementId = matchingEntitlements.first?.entitlementId
+        }
         if selectedPaymentMethod == .entitlement, matchingEntitlements.isEmpty {
             selectedPaymentMethod = .card
         }
@@ -220,7 +234,7 @@ struct BookView: View {
             if isSubmitting { return true }
             if skipsOnlinePaymentMethods { return false }
             if selectedPaymentMethod == .card { return selectedStoredCard == nil }
-            if selectedPaymentMethod == .entitlement { return matchingEntitlements.isEmpty }
+            if selectedPaymentMethod == .entitlement { return selectedEntitlement == nil }
             if selectedPaymentMethod == .giftCard { return !hasGiftCardCoverage }
             return false
         }
@@ -384,9 +398,26 @@ struct BookView: View {
                 onSelect: { method in
                     selectedPaymentMethod = method
                     showingPaymentMethodsSheet = false
-                    if method == .card && storedProfile.cards.isEmpty {
+                    if method == .entitlement, !matchingEntitlements.isEmpty {
+                        if selectedEntitlementId == nil { selectedEntitlementId = matchingEntitlements.first?.entitlementId }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            showingEntitlementPickerSheet = true
+                        }
+                    } else if method == .card && storedProfile.cards.isEmpty {
                         showingAddCardSheet = true
                     }
+                }
+            )
+        }
+        .sheet(isPresented: $showingEntitlementPickerSheet) {
+            EntitlementBenefitPickerSheet(
+                languageCode: appUiLocaleStorage,
+                entitlements: matchingEntitlements,
+                selectedEntitlementId: selectedEntitlement?.entitlementId,
+                onConfirm: { entitlementId in
+                    selectedEntitlementId = entitlementId
+                    selectedPaymentMethod = .entitlement
+                    showingEntitlementPickerSheet = false
                 }
             )
         }
@@ -1013,6 +1044,14 @@ struct BookView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
             }
+            if let subtitle = paymentMethodSubtitle(selectedPaymentMethod), !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                    .lineLimit(2)
+                    .padding(.leading, 57)
+                    .padding(.trailing, 8)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -1046,7 +1085,7 @@ struct BookView: View {
         case .bankTransfer:
             return nil
         case .entitlement:
-            return matchingEntitlements.first.map { entitlement in
+            return selectedEntitlement.map { entitlement in
                 let remaining = entitlement.remainingUses.map(String.init) ?? tr("Unlimited", "Neomejeno")
                 return tr("\(entitlement.name) • \(remaining) left", "\(entitlement.name) • \(remaining) preostalo")
             } ?? tr("No valid pass or pack available", "Ni veljavne karte ali paketa")
@@ -1333,7 +1372,8 @@ struct BookView: View {
                 productId: service.productId,
                 slotId: slot.id,
                 paymentMethod: paymentApi,
-                consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil
+                consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil,
+                entitlementId: selectedPaymentMethod == .entitlement ? selectedEntitlement?.entitlementId : nil
             )
             isSubmitting = false
 
@@ -1574,6 +1614,204 @@ private enum GuestBookingPaymentChoice: String {
         case .payPal: return "PAYPAL"
         case .giftCard: return "GIFT_CARD"
         }
+    }
+}
+
+
+private struct EntitlementBenefitPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let languageCode: String
+    private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
+    let entitlements: [AccessCardModel]
+    let selectedEntitlementId: String?
+    let onConfirm: (String) -> Void
+    @State private var draftEntitlementId: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Capsule()
+                .fill(Color(red: 0.82, green: 0.85, blue: 0.89))
+                .frame(width: 48, height: 5)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 10)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(tr("Choose benefit", "Izberi ugodnost"))
+                    .font(.system(size: 30, weight: .heavy))
+                    .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
+                Text(tr("Available passes and visits for this appointment", "Razpoložljive karte in obiski za ta termin"))
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+            }
+            .padding(.top, 4)
+
+            VStack(spacing: 10) {
+                ForEach(entitlements) { entitlement in
+                    EntitlementBenefitRow(
+                        entitlement: entitlement,
+                        isSelected: draftEntitlementId.map { $0 == entitlement.entitlementId } ?? false,
+                        languageCode: languageCode
+                    ) {
+                        draftEntitlementId = entitlement.entitlementId
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(Color(red: 0.34, green: 0.42, blue: 0.52))
+                Text(tr("Using a pass will reduce the remaining visits.", "Uporaba karte bo zmanjšala število preostalih obiskov."))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Color(red: 0.92, green: 0.96, blue: 1.0))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            Button {
+                if let draftEntitlementId {
+                    onConfirm(draftEntitlementId)
+                    dismiss()
+                }
+            } label: {
+                Text(tr("Use", "Uporabi"))
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .foregroundColor(.white)
+                    .background(Color(red: 0.05, green: 0.42, blue: 1.0))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(draftEntitlementId == nil)
+            .opacity(draftEntitlementId == nil ? 0.55 : 1.0)
+
+            Button {
+                dismiss()
+            } label: {
+                Text(tr("Close", "Zapri"))
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 20)
+        .background(Color(.systemBackground))
+        .onAppear {
+            if draftEntitlementId == nil {
+                draftEntitlementId = selectedEntitlementId ?? entitlements.first?.entitlementId
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.hidden)
+    }
+}
+
+private struct EntitlementBenefitRow: View {
+    let entitlement: AccessCardModel
+    let isSelected: Bool
+    let languageCode: String
+    let onSelect: () -> Void
+
+    private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
+    private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 13) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(red: 0.92, green: 0.96, blue: 1.0))
+                    Image(systemName: iconName)
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                }
+                .frame(width: 54, height: 54)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(entitlement.name)
+                        .font(.system(size: 17, weight: .heavy))
+                        .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
+                        .lineLimit(1)
+                    HStack(spacing: 7) {
+                        Text(remainingText)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Color(red: 0.05, green: 0.42, blue: 1.0))
+                        if let validUntil = entitlement.validUntil, !validUntil.isEmpty {
+                            Text("•")
+                                .foregroundColor(Color(red: 0.55, green: 0.61, blue: 0.69))
+                            Image(systemName: "calendar")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                            Text(tr("Valid until \(Self.formattedDate(validUntil, isSl: isSl))", "Velja do \(Self.formattedDate(validUntil, isSl: isSl))"))
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                                .lineLimit(1)
+                        }
+                    }
+                    Text(typeCaption)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundColor(isSelected ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.72, green: 0.76, blue: 0.82))
+            }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 12)
+            .background(isSelected ? Color(red: 0.95, green: 0.98, blue: 1.0) : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(isSelected ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.88, green: 0.91, blue: 0.95), lineWidth: isSelected ? 1.6 : 1.0)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var iconName: String {
+        switch entitlement.type.uppercased() {
+        case "MEMBERSHIP": return "crown"
+        case "PACK", "TICKET", "CLASS_TICKET": return "ticket"
+        default: return "calendar.badge.checkmark"
+        }
+    }
+
+    private var remainingText: String {
+        guard let remaining = entitlement.remainingUses else { return tr("Unlimited", "Neomejeno") }
+        if remaining == 1 { return tr("1 left", "1 preostalo") }
+        return tr("\(remaining) left", "\(remaining) preostali")
+    }
+
+    private var typeCaption: String {
+        switch entitlement.type.uppercased() {
+        case "MEMBERSHIP": return tr("Active membership", "Aktivna članarina")
+        case "PACK": return tr("Pack", "Karta")
+        case "TICKET", "CLASS_TICKET": return tr("Ticket", "Obisk")
+        default: return tr("Valid for this service", "Velja za storitev")
+        }
+    }
+
+    private static func formattedDate(_ value: String, isSl: Bool) -> String {
+        let prefix = String(value.prefix(10))
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: prefix) else { return prefix }
+        let out = DateFormatter()
+        out.locale = isSl ? Locale(identifier: "sl_SI") : Locale(identifier: "en_US")
+        out.dateFormat = isSl ? "d. M. yyyy" : "MMM d, yyyy"
+        return out.string(from: date)
     }
 }
 

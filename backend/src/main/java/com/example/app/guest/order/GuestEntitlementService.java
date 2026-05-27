@@ -43,6 +43,30 @@ public class GuestEntitlementService {
     public GuestEntitlementSelection consumeBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId, SessionBooking booking) {
         GuestEntitlement entitlement = findBestMatchingEntitlement(client, companyId, sessionTypeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active membership or visit pack is available for this booking."));
+        return consumeEntitlement(entitlement, booking);
+    }
+
+    @Transactional
+    public GuestEntitlementSelection consumeSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId, SessionBooking booking) {
+        GuestEntitlement entitlement = entitlements.findById(entitlementId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available."));
+        Instant now = Instant.now();
+        boolean matchesClient = entitlement.getClient() != null && Objects.equals(entitlement.getClient().getId(), client.getId());
+        boolean matchesCompany = entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId);
+        boolean active = entitlement.getStatus() == EntitlementStatus.ACTIVE;
+        boolean validFrom = entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now);
+        boolean validUntil = entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now);
+        boolean hasUses = entitlement.getRemainingUses() == null || entitlement.getRemainingUses() > 0;
+        boolean notGiftCard = entitlement.getEntitlementType() != EntitlementType.GIFT_CARD;
+        boolean matchesService = entitlement.getProduct() != null
+                && (entitlement.getProduct().getSessionType() == null || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId));
+        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !notGiftCard || !matchesService) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available for this booking.");
+        }
+        return consumeEntitlement(entitlement, booking);
+    }
+
+    private GuestEntitlementSelection consumeEntitlement(GuestEntitlement entitlement, SessionBooking booking) {
         List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
         if (!existingUsages.isEmpty()) {
             GuestEntitlementUsage existingUsage = existingUsages.get(0);

@@ -1082,7 +1082,7 @@ fun GuestMobileRoot() {
                         },
                         launchRequest = bookLaunchRequest,
                         onLaunchRequestConsumed = { bookLaunchRequest = null },
-                        onCheckout = onCheckout@{ service, slotId, paymentMethodType, consultantId ->
+                        onCheckout = onCheckout@{ service, slotId, paymentMethodType, consultantId, entitlementId ->
                             val checkout = runCatching {
                                 val order = repo.createOrder(
                                     CreateOrderRequest(
@@ -1090,7 +1090,8 @@ fun GuestMobileRoot() {
                                         productId = service.productId,
                                         slotId = slotId,
                                         paymentMethodType = paymentMethodType,
-                                        consultantId = consultantId
+                                        consultantId = consultantId,
+                                        entitlementId = if (paymentMethodType == "ENTITLEMENT") entitlementId else null
                                     )
                                 )
                                 repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = paymentMethodType == "CARD"))
@@ -1195,7 +1196,7 @@ fun GuestMobileRoot() {
                             employeeSelectionStepEnabled = { companyId ->
                                 state.uiState.linkedTenants.firstOrNull { it.companyId == companyId }?.employeeSelectionStep == true
                             },
-                            onCheckout = { _, _, _, _ -> },
+                            onCheckout = { _, _, _, _, _ -> },
                             rescheduleContext = context,
                             onReschedule = { ctx, slotId, _ ->
                                 repo.rescheduleBooking(ctx.companyId, ctx.bookingId, slotId)

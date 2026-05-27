@@ -8,7 +8,8 @@ data class CreateOrderRequest(
     val productId: String,
     val slotId: String? = null,
     val paymentMethodType: String,
-    val consultantId: String? = null
+    val consultantId: String? = null,
+    val entitlementId: String? = null
 )
 
 @Serializable

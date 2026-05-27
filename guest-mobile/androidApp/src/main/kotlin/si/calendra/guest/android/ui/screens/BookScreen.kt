@@ -59,12 +59,15 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -265,7 +268,7 @@ fun BookScreen(
     onLoadAvailability: suspend (ServiceOption, LocalDate, String?) -> List<AvailabilitySlot>,
     onLoadConsultants: suspend (ServiceOption) -> List<ConsultantOption> = { _ -> emptyList() },
     employeeSelectionStepEnabled: (String) -> Boolean = { false },
-    onCheckout: suspend (ServiceOption, String, String, String?) -> Unit,
+    onCheckout: suspend (ServiceOption, String, String, String?, String?) -> Unit,
     rescheduleContext: BookingRescheduleContext? = null,
     launchRequest: BookLaunchRequest? = null,
     onLaunchRequestConsumed: () -> Unit = {},
@@ -293,6 +296,8 @@ fun BookScreen(
     var showAddCardDialog by remember { mutableStateOf(false) }
     var showCardChooserDialog by remember { mutableStateOf(false) }
     var showPaymentMethodChooserDialog by rememberSaveable { mutableStateOf(false) }
+    var showEntitlementChooserSheet by rememberSaveable { mutableStateOf(false) }
+    var selectedEntitlementId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val employeeStepActive = selectedProviderId?.let(employeeSelectionStepEnabled) == true
     val visibleSteps = if (entitlementLaunchMode && rescheduleContext == null) {
@@ -420,6 +425,8 @@ fun BookScreen(
                 && !entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
                 && (entitlement.sessionTypeId.isNullOrBlank() || entitlement.sessionTypeId == selectedService.sessionTypeId)
     }
+    val selectedEntitlement = matchingEntitlements.firstOrNull { it.entitlementId == selectedEntitlementId }
+        ?: matchingEntitlements.firstOrNull()
     val matchingGiftCards = redeemableEntitlements.filter { entitlement ->
         selectedService != null && entitlement.companyId == selectedService.companyId
                 && entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
@@ -432,8 +439,7 @@ fun BookScreen(
     val cardSubtitle = activeCard?.let {
         bookTr(languageCode, "Card ending in ${it.last4}", "Kartica se konča z ${it.last4}")
     } ?: bookTr(languageCode, "Add a card to pay by credit card", "Dodajte kartico za plačilo s kreditno kartico")
-    val bestEntitlement = matchingEntitlements.firstOrNull()
-    val entitlementSubtitle = bestEntitlement?.let {
+    val entitlementSubtitle = selectedEntitlement?.let {
         buildString {
             append(it.productName)
             append(" • ")
@@ -540,6 +546,14 @@ fun BookScreen(
         }
     }
 
+    LaunchedEffect(selectedService?.id, matchingEntitlements.joinToString("|") { it.entitlementId }) {
+        if (matchingEntitlements.isEmpty()) {
+            selectedEntitlementId = null
+        } else if (matchingEntitlements.none { it.entitlementId == selectedEntitlementId }) {
+            selectedEntitlementId = matchingEntitlements.first().entitlementId
+        }
+    }
+
     LaunchedEffect(selectedService?.id, matchingEntitlements.size, matchingGiftCards.size, hasGiftCardCoverage, acceptedPaymentApiValues) {
         if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT && matchingEntitlements.isEmpty()) {
             selectedPaymentMethod = PaymentMethodUi.CARD
@@ -598,9 +612,29 @@ fun BookScreen(
             onSelect = { method ->
                 selectedPaymentMethod = method
                 showPaymentMethodChooserDialog = false
-                if (method == PaymentMethodUi.CARD && savedCards.isEmpty()) {
-                    showAddCardDialog = true
+                when {
+                    method == PaymentMethodUi.ENTITLEMENT && matchingEntitlements.isNotEmpty() -> {
+                        if (selectedEntitlementId == null) {
+                            selectedEntitlementId = matchingEntitlements.first().entitlementId
+                        }
+                        showEntitlementChooserSheet = true
+                    }
+                    method == PaymentMethodUi.CARD && savedCards.isEmpty() -> showAddCardDialog = true
                 }
+            }
+        )
+    }
+
+    if (showEntitlementChooserSheet) {
+        EntitlementChooserSheet(
+            entitlements = matchingEntitlements,
+            languageCode = languageCode,
+            selectedEntitlementId = selectedEntitlement?.entitlementId,
+            onDismiss = { showEntitlementChooserSheet = false },
+            onConfirm = { entitlementId ->
+                selectedEntitlementId = entitlementId
+                selectedPaymentMethod = PaymentMethodUi.ENTITLEMENT
+                showEntitlementChooserSheet = false
             }
         )
     }
@@ -899,7 +933,8 @@ fun BookScreen(
                             scope.launch {
                                 submitting = true
                                 val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null
-                                runCatching { onCheckout(service, slot.slotId, method, consultantIdForOrder) }
+                                val entitlementIdForOrder = if (selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT) selectedEntitlement?.entitlementId else null
+                                runCatching { onCheckout(service, slot.slotId, method, consultantIdForOrder, entitlementIdForOrder) }
                                 submitting = false
                             }
                         }
@@ -1325,6 +1360,14 @@ private fun SelectedPaymentMethodCard(
                     Text(bookTr(languageCode, "Change", "Spremeni"), color = Color(0xFF0F6BFF), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
                 }
             }
+            subtitle?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF60728A),
+                    modifier = Modifier.padding(start = 51.dp, end = 8.dp)
+                )
+            }
         }
     }
 }
@@ -1335,6 +1378,229 @@ private fun paymentMethodIcon(method: PaymentMethodUi): ImageVector = when (meth
     PaymentMethodUi.ENTITLEMENT -> Icons.Rounded.EventAvailable
     PaymentMethodUi.GIFT_CARD -> Icons.Rounded.ReceiptLong
     PaymentMethodUi.PAYPAL -> Icons.Rounded.CreditCard
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EntitlementChooserSheet(
+    entitlements: List<RedeemableEntitlementOption>,
+    languageCode: String,
+    selectedEntitlementId: String?,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var pendingSelection by remember(entitlements, selectedEntitlementId) {
+        mutableStateOf(selectedEntitlementId ?: entitlements.firstOrNull()?.entitlementId)
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 12.dp, bottom = 4.dp)
+                    .size(width = 46.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color(0xFFD2D8E2))
+            )
+        },
+        containerColor = Color(0xFFFDFBFF),
+        shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    bookTr(languageCode, "Choose benefit", "Izberi ugodnost"),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF082143)
+                )
+                Text(
+                    bookTr(languageCode, "Available passes and visits for this appointment", "Razpoložljive karte in obiski za ta termin"),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color(0xFF60728A)
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                entitlements.forEach { entitlement ->
+                    EntitlementChooserRow(
+                        entitlement = entitlement,
+                        languageCode = languageCode,
+                        selected = entitlement.entitlementId == pendingSelection,
+                        onClick = { pendingSelection = entitlement.entitlementId }
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFEAF3FF))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.88f), modifier = Modifier.size(28.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("i", color = Color(0xFF60728A), fontWeight = FontWeight.Bold)
+                    }
+                }
+                Text(
+                    bookTr(languageCode, "Using a pass will reduce the remaining visits.", "Uporaba karte bo zmanjšala število preostalih obiskov."),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF60728A),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Button(
+                onClick = { pendingSelection?.let(onConfirm) },
+                enabled = pendingSelection != null,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F6BFF)),
+                shape = RoundedCornerShape(20.dp),
+                contentPadding = PaddingValues(vertical = 15.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    bookTr(languageCode, "Use", "Uporabi"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                Text(
+                    bookTr(languageCode, "Close", "Zapri"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F6BFF)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EntitlementChooserRow(
+    entitlement: RedeemableEntitlementOption,
+    languageCode: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val borderColor = if (selected) Color(0xFF0F6BFF) else Color(0xFFE0E5EF)
+    val backgroundColor = if (selected) Color(0xFFF3F8FF) else Color.White
+    OutlinedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(if (selected) 1.6.dp else 1.dp, borderColor),
+        colors = CardDefaults.outlinedCardColors(containerColor = backgroundColor),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 13.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFFEAF3FF)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    entitlementIcon(entitlement.entitlementType),
+                    contentDescription = null,
+                    modifier = Modifier.size(30.dp),
+                    tint = Color(0xFF0F6BFF)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    entitlement.productName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF082143)
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Text(
+                        entitlementRemainingLabel(entitlement, languageCode),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF0F6BFF),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    entitlement.validUntil?.takeIf { it.isNotBlank() }?.let { validUntil ->
+                        Text("•", color = Color(0xFF8A99AD), style = MaterialTheme.typography.bodyMedium)
+                        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF60728A))
+                        Text(
+                            bookTr(languageCode, "Valid until ${formatEntitlementDate(validUntil, languageCode)}", "Velja do ${formatEntitlementDate(validUntil, languageCode)}"),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF60728A)
+                        )
+                    }
+                }
+                Text(
+                    entitlementTypeCaption(entitlement.entitlementType, languageCode),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF60728A)
+                )
+            }
+
+            SelectIndicator(selected = selected, enabled = true, size = 34.dp)
+        }
+    }
+}
+
+private fun entitlementIcon(type: String): ImageVector = when (type.uppercase(Locale.ROOT)) {
+    "PACK", "TICKET", "CLASS_TICKET" -> Icons.Rounded.ReceiptLong
+    "MEMBERSHIP" -> Icons.Rounded.Security
+    else -> Icons.Rounded.EventAvailable
+}
+
+private fun entitlementTypeCaption(type: String, languageCode: String): String = when (type.uppercase(Locale.ROOT)) {
+    "PACK" -> bookTr(languageCode, "Pack", "Karta")
+    "TICKET", "CLASS_TICKET" -> bookTr(languageCode, "Ticket", "Obisk")
+    "MEMBERSHIP" -> bookTr(languageCode, "Active membership", "Aktivna članarina")
+    else -> bookTr(languageCode, "Valid for this service", "Velja za storitev")
+}
+
+private fun entitlementRemainingLabel(entitlement: RedeemableEntitlementOption, languageCode: String): String {
+    val remaining = entitlement.remainingUses
+    return if (remaining == null) {
+        bookTr(languageCode, "Unlimited", "Neomejeno")
+    } else if (remaining == 1) {
+        bookTr(languageCode, "1 left", "1 preostalo")
+    } else {
+        bookTr(languageCode, "$remaining left", "$remaining preostali")
+    }
+}
+
+private fun formatEntitlementDate(value: String, languageCode: String): String {
+    return runCatching {
+        val date = LocalDate.parse(value.take(10))
+        val pattern = if (bookIsSl(languageCode)) "d. M. yyyy" else "MMM d, yyyy"
+        date.format(DateTimeFormatter.ofPattern(pattern, bookLocale(languageCode)))
+    }.getOrElse { value.take(10) }
 }
 
 @Composable

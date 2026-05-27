@@ -146,7 +146,8 @@ public class PublicWidgetOrderService {
                 String.valueOf(company.getId()),
                 request.productId(),
                 request.slotId(),
-                request.paymentMethodType()
+                request.paymentMethodType(),
+                request.entitlementId()
         );
         return guestOrderService.createOrder(guestUser, normalized, GuestOrderService.PaymentChannel.WEBSITE);
     }

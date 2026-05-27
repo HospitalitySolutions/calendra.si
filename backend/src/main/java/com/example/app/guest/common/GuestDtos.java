@@ -161,7 +161,7 @@ public final class GuestDtos {
     public record AvailabilityResponse(String sessionTypeId, String date, List<AvailabilitySlotResponse> slots) {}
     public record ConsultantResponse(String id, String firstName, String lastName, String email) {}
 
-    public record CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType) {}
+    public record CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {}
     public record OrderSummaryResponse(String orderId, String status, String paymentMethodType, double subtotalGross, double taxAmount, double totalGross, String currency) {}
     public record BookingSummaryResponse(String bookingId, String bookingStatus) {}
     public record CreateOrderResponse(OrderSummaryResponse order, BookingSummaryResponse booking, String nextAction) {}

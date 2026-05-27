@@ -771,7 +771,7 @@ final class AppStore: ObservableObject {
         return try await api.consultants(companyId: companyId, sessionTypeId: sessionTypeId)
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil) async throws -> CheckoutResponseModel {
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethod: String, consultantId: String? = nil, entitlementId: String? = nil) async throws -> CheckoutResponseModel {
         let response: CheckoutResponseModel
         if usePreviewData {
             let completeImmediately = paymentMethod == "ENTITLEMENT" || paymentMethod == "PAY_AT_VENUE"
@@ -788,7 +788,7 @@ final class AppStore: ObservableObject {
                 merchantDisplayName: nil
             )
         } else {
-            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId)
+            response = try await api.createOrder(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethod, consultantId: consultantId, entitlementId: entitlementId)
         }
         try await refreshTenant(companyId: companyId)
         return response

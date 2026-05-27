@@ -354,10 +354,10 @@ final class GuestApiClient {
         )
     }
 
-    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil) async throws -> CheckoutResponseModel {
+    func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil) async throws -> CheckoutResponseModel {
         let order: CreateOrderEnvelope = try await post(
             path: "api/guest/orders",
-            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId)
+            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId, entitlementId: entitlementId)
         )
         return try await post(
             path: "api/guest/orders/\(order.order.orderId)/checkout",
