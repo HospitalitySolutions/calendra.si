@@ -146,6 +146,51 @@ type IntegrationGoogleCalendarConnection = {
   lastIncrementalSyncAt?: string | null
 }
 
+type AccountSubscriptionInterval = 'MONTHLY' | 'YEARLY'
+type AccountPlanPackageKey = 'BASIC' | 'PROFESSIONAL' | 'PREMIUM'
+type AccountRegisterCatalog = {
+  plans?: Record<string, number>
+  annualDiscountPercent?: number | null
+  additionalUserMonthly?: number | null
+  smsPerMessage?: number | null
+  usagePrices?: {
+    additionalUserMonthly?: number | null
+    smsPerMessage?: number | null
+  } | null
+}
+type AccountUserResponse = { id: number; active?: boolean }
+
+const DEFAULT_ACCOUNT_REGISTER_CATALOG: Required<Pick<AccountRegisterCatalog, 'plans'>> & AccountRegisterCatalog = {
+  plans: { basic: 18.9, pro: 34.9, business: 59.9 },
+  annualDiscountPercent: 15,
+  additionalUserMonthly: 9.9,
+  smsPerMessage: 0.05,
+  usagePrices: { additionalUserMonthly: 9.9, smsPerMessage: 0.05 },
+}
+
+const roundAccountMoney = (value: number) => Math.round(value * 100) / 100
+const positiveAccountNumber = (value: unknown, fallback: number) => {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) && n >= 0 ? n : fallback
+}
+const positiveAccountInteger = (value: unknown, fallback: number) => {
+  const n = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
+  return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : fallback
+}
+const normalizeAccountRegisterCatalog = (catalog: AccountRegisterCatalog | null | undefined): AccountRegisterCatalog => ({
+  ...DEFAULT_ACCOUNT_REGISTER_CATALOG,
+  ...(catalog || {}),
+  plans: {
+    ...DEFAULT_ACCOUNT_REGISTER_CATALOG.plans,
+    ...(catalog?.plans || {}),
+  },
+  usagePrices: {
+    ...(DEFAULT_ACCOUNT_REGISTER_CATALOG.usagePrices || {}),
+    ...(catalog?.usagePrices || {}),
+  },
+})
+const accountUsagePercent = (current: number, max: number) => max > 0 ? Math.min(100, (current / max) * 100) : 0
+
 const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'integrations', 'whatsapp', 'viber', 'modules']
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
@@ -2860,11 +2905,14 @@ export function ConfigurationPage() {
   const [accountSubtab, setAccountSubtab] = useState<'company' | 'receivedInvoices' | 'subscription' | 'security'>('company')
   const [accountReceivedInvoices, setAccountReceivedInvoices] = useState<AccountReceivedInvoice[]>([])
   const [accountReceivedInvoicesLoading, setAccountReceivedInvoicesLoading] = useState(false)
-  const [subscriptionPackage, setSubscriptionPackage] = useState<'BASIC' | 'PROFESSIONAL' | 'PREMIUM'>('PROFESSIONAL')
+  const [subscriptionPackage, setSubscriptionPackage] = useState<AccountPlanPackageKey>('PROFESSIONAL')
+  const [subscriptionBillingInterval, setSubscriptionBillingInterval] = useState<AccountSubscriptionInterval>('MONTHLY')
+  const [accountRegisterCatalog, setAccountRegisterCatalog] = useState<AccountRegisterCatalog>(DEFAULT_ACCOUNT_REGISTER_CATALOG)
+  const [tenantUsersCount, setTenantUsersCount] = useState(1)
   const [extraUsersAddonEnabled, setExtraUsersAddonEnabled] = useState(true)
   const [smsAddonEnabled, setSmsAddonEnabled] = useState(true)
   const [extraUsersCount, setExtraUsersCount] = useState(5)
-  const [smsPackCount, setSmsPackCount] = useState(2)
+  const [smsPackCount, setSmsPackCount] = useState(0)
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
   const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
@@ -2935,7 +2983,7 @@ export function ConfigurationPage() {
 
   const selectedCompanyProfile = companyProfiles.find((profile) => profile.id === selectedCompanyProfileId) || companyProfiles[0]
 
-  const activeSubscriptionPackage = useMemo<'BASIC' | 'PROFESSIONAL' | 'PREMIUM'>(() => {
+  const activeSubscriptionPackage = useMemo<AccountPlanPackageKey>(() => {
     const configured = normalizePackageType(settings.SIGNUP_PACKAGE_NAME || me.packageType || subscriptionPackage)
     if (configured === 'BASIC' || configured === 'PROFESSIONAL' || configured === 'PREMIUM') return configured
     return 'PROFESSIONAL'
@@ -2945,32 +2993,41 @@ export function ConfigurationPage() {
     setSubscriptionPackage(activeSubscriptionPackage)
   }, [activeSubscriptionPackage])
 
-  const accountPlanCatalog = useMemo(() => ({
-    BASIC: {
-      label: 'Basic',
-      subtitle: 'Za manjše nastanitve',
-      monthly: 19,
-      annual: 228,
-      icon: 'leaf',
-      features: ['Do 2 nastanitvi', 'Osnovni moduli', 'Email podpora'],
-    },
-    PROFESSIONAL: {
-      label: 'Professional',
-      subtitle: 'Za rastoča podjetja',
-      monthly: 49,
-      annual: 588,
-      icon: 'star',
-      features: ['Do 10 nastanitev', 'Napredni moduli', 'Prednostna podpora', 'Poročila in analitika'],
-    },
-    PREMIUM: {
-      label: 'Premium',
-      subtitle: 'Za večje verige',
-      monthly: 89,
-      annual: 1068,
-      icon: 'crown',
-      features: ['Neomejeno nastanitev', 'Vsi moduli', 'Prioritetna podpora 24/7', 'Namenski skrbnik'],
-    },
-  }), [])
+  const accountCatalogAnnualDiscount = positiveAccountNumber(accountRegisterCatalog.annualDiscountPercent, DEFAULT_ACCOUNT_REGISTER_CATALOG.annualDiscountPercent || 0)
+  const accountCatalogAnnualFactor = Math.max(0, 1 - (accountCatalogAnnualDiscount / 100))
+  const accountPlanCatalog = useMemo(() => {
+    const plans = accountRegisterCatalog.plans || DEFAULT_ACCOUNT_REGISTER_CATALOG.plans
+    const basicMonthly = roundAccountMoney(positiveAccountNumber(plans.basic, DEFAULT_ACCOUNT_REGISTER_CATALOG.plans.basic))
+    const professionalMonthly = roundAccountMoney(positiveAccountNumber(plans.pro, DEFAULT_ACCOUNT_REGISTER_CATALOG.plans.pro))
+    const premiumMonthly = roundAccountMoney(positiveAccountNumber(plans.business, DEFAULT_ACCOUNT_REGISTER_CATALOG.plans.business))
+    const annual = (monthly: number) => roundAccountMoney(monthly * 12 * accountCatalogAnnualFactor)
+    return {
+      BASIC: {
+        label: 'Basic',
+        subtitle: 'Za manjše nastanitve',
+        monthly: basicMonthly,
+        annual: annual(basicMonthly),
+        icon: 'leaf',
+        features: ['Do 2 nastanitvi', 'Osnovni moduli', 'Email podpora'],
+      },
+      PROFESSIONAL: {
+        label: 'Professional',
+        subtitle: 'Za rastoča podjetja',
+        monthly: professionalMonthly,
+        annual: annual(professionalMonthly),
+        icon: 'star',
+        features: ['Do 10 nastanitev', 'Napredni moduli', 'Prednostna podpora', 'Poročila in analitika'],
+      },
+      PREMIUM: {
+        label: 'Premium',
+        subtitle: 'Za večje verige',
+        monthly: premiumMonthly,
+        annual: annual(premiumMonthly),
+        icon: 'crown',
+        features: ['Neomejeno nastanitev', 'Vsi moduli', 'Prioritetna podpora 24/7', 'Namenski skrbnik'],
+      },
+    }
+  }, [accountCatalogAnnualFactor, accountRegisterCatalog.plans])
 
   const accountReceivedInvoiceMetrics = useMemo(() => {
     const now = new Date()
@@ -3023,20 +3080,35 @@ export function ConfigurationPage() {
   }
 
   const activePlanDetails = accountPlanCatalog[subscriptionPackage] || accountPlanCatalog.PROFESSIONAL
-  const subscriptionInterval = (settings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY'
-  const planMonthlyAmount = activePlanDetails.monthly
-  const usersAddonAmount = extraUsersAddonEnabled ? extraUsersCount * 3 : 0
-  const smsAddonAmount = smsAddonEnabled ? smsPackCount * 2 : 0
-  const subscriptionSubtotal = planMonthlyAmount + usersAddonAmount + smsAddonAmount
-  const subscriptionVat = Math.round(subscriptionSubtotal * 0.22 * 100) / 100
-  const estimatedNextInvoice = subscriptionSubtotal + subscriptionVat
-  const usageCaps = {
-    BASIC: { properties: 2, users: 5, reservations: 100, sms: 50 },
-    PROFESSIONAL: { properties: 10, users: 15, reservations: 500, sms: 200 },
-    PREMIUM: { properties: 999, users: 50, reservations: 2500, sms: 1000 },
-  } as const
-  const currentUsage = { properties: 7, users: 8, reservations: 128, sms: 46 }
-  const activeUsageCap = usageCaps[subscriptionPackage] || usageCaps.PROFESSIONAL
+  const subscriptionInterval = subscriptionBillingInterval
+  const subscriptionPeriodLabel = subscriptionInterval === 'YEARLY' ? 'leto' : 'mesec'
+  const subscriptionPeriodSummaryLabel = subscriptionInterval === 'YEARLY' ? 'Skupaj letno' : 'Skupaj mesečno'
+  const planPeriodAmount = subscriptionInterval === 'YEARLY' ? activePlanDetails.annual : activePlanDetails.monthly
+  const additionalUserUnitMonthly = roundAccountMoney(positiveAccountNumber(
+    accountRegisterCatalog.additionalUserMonthly ?? accountRegisterCatalog.usagePrices?.additionalUserMonthly,
+    DEFAULT_ACCOUNT_REGISTER_CATALOG.additionalUserMonthly || 0,
+  ))
+  const smsUnitPrice = positiveAccountNumber(
+    accountRegisterCatalog.smsPerMessage ?? accountRegisterCatalog.usagePrices?.smsPerMessage,
+    DEFAULT_ACCOUNT_REGISTER_CATALOG.smsPerMessage || 0,
+  )
+  const selectedExtraUsersCount = extraUsersAddonEnabled ? Math.max(0, extraUsersCount) : 0
+  const selectedSmsCount = smsAddonEnabled ? Math.max(0, smsPackCount) : 0
+  const usersAddonUnitPrice = subscriptionInterval === 'YEARLY'
+    ? roundAccountMoney(additionalUserUnitMonthly * 12 * accountCatalogAnnualFactor)
+    : additionalUserUnitMonthly
+  const smsAddonUnitPrice = subscriptionInterval === 'YEARLY'
+    ? roundAccountMoney(smsUnitPrice * 12)
+    : smsUnitPrice
+  const usersAddonAmount = roundAccountMoney(selectedExtraUsersCount * usersAddonUnitPrice)
+  const smsAddonAmount = roundAccountMoney(selectedSmsCount * smsAddonUnitPrice)
+  const subscriptionSubtotal = roundAccountMoney(planPeriodAmount + usersAddonAmount + smsAddonAmount)
+  const subscriptionVat = roundAccountMoney(subscriptionSubtotal * 0.22)
+  const estimatedNextInvoice = roundAccountMoney(subscriptionSubtotal + subscriptionVat)
+  const currentUserCount = Math.max(1, tenantUsersCount)
+  const accountUserLimit = Math.max(1, selectedExtraUsersCount)
+  const currentSmsUsage = positiveAccountInteger(settings.TENANCY_SMS_SENT_COUNT, 0)
+  const accountSmsLimit = selectedSmsCount
   const companyOverviewCreatedAt = me.createdAt || '2024-03-15T00:00:00Z'
   const companyOverviewUpdatedAt = '2024-05-24T00:00:00Z'
   const companyOwnerName = [me.firstName, me.lastName].filter(Boolean).join(' ').trim() || 'Sašo Admin'
@@ -3367,7 +3439,7 @@ export function ConfigurationPage() {
 
   const load = async () => {
     setAccountReceivedInvoicesLoading(true)
-    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes, paypalConfigRes, stripeConnectRes, receivedInvoicesRes] = await Promise.all([
+    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes, paypalConfigRes, stripeConnectRes, receivedInvoicesRes, catalogRes, tenantUsersRes] = await Promise.all([
       api.get('/settings'),
       api.get('/spaces').catch(() => ({ data: [] })),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
@@ -3375,6 +3447,8 @@ export function ConfigurationPage() {
       api.get('/paypal/onboarding/config').catch(() => ({ data: null })),
       api.get('/stripe/connect/config').catch(() => ({ data: null })),
       api.get('/account-management/received-invoices').catch(() => ({ data: [] })),
+      api.get<AccountRegisterCatalog>('/register/catalog').catch(() => ({ data: DEFAULT_ACCOUNT_REGISTER_CATALOG })),
+      api.get<AccountUserResponse[]>('/users').catch(() => ({ data: [] })),
     ])
     const paypalData = paypalConfigRes.data || {}
     const settingsData = {
@@ -3394,6 +3468,11 @@ export function ConfigurationPage() {
     }
     const nextGuestBookingRules = normalizeBookingRulesForPaymentLocation(parsedGuestBookingRules, nextGuestApp.paymentOnLocation)
     setSettings(nextSettings)
+    setSubscriptionBillingInterval(String(nextSettings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY')
+    setExtraUsersCount(positiveAccountInteger(nextSettings.SIGNUP_USER_COUNT, 1))
+    setSmsPackCount(Math.ceil(positiveAccountInteger(nextSettings.SIGNUP_SMS_COUNT, 0) / 50) * 50)
+    setAccountRegisterCatalog(normalizeAccountRegisterCatalog(catalogRes.data))
+    setTenantUsersCount(Math.max(1, Array.isArray(tenantUsersRes.data) ? tenantUsersRes.data.length : 1))
     setGuestAppSettings(nextGuestApp)
     if (tabRef.current === 'modules') {
       setModulesDraft(buildModulesDraftFromCommitted(nextSettings, nextGuestApp))
@@ -5173,6 +5252,31 @@ export function ConfigurationPage() {
               color: var(--account-muted);
               font-size: 14px;
             }
+            .account-plan-interval-toggle {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              padding: 4px;
+              margin-top: 16px;
+              border: 1px solid #dce6f5;
+              border-radius: 14px;
+              background: #f7faff;
+            }
+            .account-plan-interval-toggle button {
+              min-height: 34px;
+              padding: 0 16px;
+              border: 0;
+              border-radius: 10px;
+              background: transparent;
+              color: var(--account-muted);
+              font-weight: 800;
+              cursor: pointer;
+            }
+            .account-plan-interval-toggle button.active {
+              background: #fff;
+              color: var(--account-blue);
+              box-shadow: 0 6px 14px rgba(15, 35, 80, 0.08);
+            }
             .account-plan-grid {
               display: grid;
               grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5667,8 +5771,12 @@ export function ConfigurationPage() {
                         <div className="account-plan-muted">{subscriptionInterval === 'YEARLY' ? 'Letno obračunavanje' : 'Mesečno obračunavanje'}</div>
                       </div>
                       <div>
-                        <div className="account-price-main">{formatAccountEuro(accountPlanCatalog[subscriptionPackage].monthly)} <span className="account-plan-muted">/ mesec</span></div>
-                        <div className="account-plan-muted">{formatAccountEuro(accountPlanCatalog[subscriptionPackage].annual)} z DDV / leto</div>
+                        <div className="account-price-main">{formatAccountEuro(planPeriodAmount)} <span className="account-plan-muted">/ {subscriptionPeriodLabel}</span></div>
+                        <div className="account-plan-muted">
+                          {subscriptionInterval === 'YEARLY'
+                            ? `${formatAccountEuro(accountPlanCatalog[subscriptionPackage].monthly)} / mesec`
+                            : `${formatAccountEuro(accountPlanCatalog[subscriptionPackage].annual)} z DDV / leto`}
+                        </div>
                       </div>
                     </div>
                     <div className="account-current-plan-details">
@@ -5691,6 +5799,10 @@ export function ConfigurationPage() {
                     <h3>Izberi paket</h3>
                   </div>
                   <p className="account-plan-chooser-copy">Spremeni paket kadarkoli. Spremembe se uporabijo ob naslednjem obračunskem obdobju.</p>
+                  <div className="account-plan-interval-toggle" role="group" aria-label="Obračunsko obdobje">
+                    <button type="button" className={subscriptionInterval === 'MONTHLY' ? 'active' : ''} onClick={() => setSubscriptionBillingInterval('MONTHLY')}>Mesečno</button>
+                    <button type="button" className={subscriptionInterval === 'YEARLY' ? 'active' : ''} onClick={() => setSubscriptionBillingInterval('YEARLY')}>Letno</button>
+                  </div>
                   <div className="account-plan-grid">
                     {(Object.keys(accountPlanCatalog) as Array<keyof typeof accountPlanCatalog>).map((planKey) => {
                       const plan = accountPlanCatalog[planKey]
@@ -5706,8 +5818,10 @@ export function ConfigurationPage() {
                             <div className="account-plan-muted">{plan.subtitle}</div>
                           </div>
                           <div>
-                            <div className="account-price-main">{formatAccountEuro(plan.monthly)} <span className="account-plan-muted">/ mesec</span></div>
-                            <div className="account-plan-muted">{formatAccountEuro(plan.annual)} z DDV / leto</div>
+                            <div className="account-price-main">{formatAccountEuro(subscriptionInterval === 'YEARLY' ? plan.annual : plan.monthly)} <span className="account-plan-muted">/ {subscriptionPeriodLabel}</span></div>
+                            <div className="account-plan-muted">
+                              {subscriptionInterval === 'YEARLY' ? `${formatAccountEuro(plan.monthly)} / mesec` : `${formatAccountEuro(plan.annual)} z DDV / leto`}
+                            </div>
                           </div>
                           <ul>
                             {plan.features.map((feature) => <li key={feature}><span className="account-check">✓</span><span>{feature}</span></li>)}
@@ -5731,15 +5845,15 @@ export function ConfigurationPage() {
                       </span>
                       <div className="account-addon-copy"><strong>Dodatni uporabniki</strong><small>Upravljajte večje ekipe z dodatnimi uporabniškimi dostopi.</small></div>
                       <div className="account-stepper"><button type="button" onClick={() => setExtraUsersCount((current) => Math.max(0, current - 1))}>−</button><span>{extraUsersCount}</span><button type="button" onClick={() => setExtraUsersCount((current) => current + 1)}>＋</button></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(usersAddonAmount)} / mesec</strong><button type="button" className={extraUsersAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setExtraUsersAddonEnabled((prev) => !prev)} aria-label="Toggle extra users add-on" /></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(usersAddonAmount)} / {subscriptionPeriodLabel}</strong><button type="button" className={extraUsersAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setExtraUsersAddonEnabled((prev) => !prev)} aria-label="Toggle extra users add-on" /></div>
                     </div>
                     <div className="account-addon-row">
                       <span className="account-addon-icon" aria-hidden>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                       </span>
-                      <div className="account-addon-copy"><strong>SMS paketi</strong><small>Paketi SMS sporočil za obveščanje gostov.</small></div>
-                      <div className="account-stepper"><button type="button" onClick={() => setSmsPackCount((current) => Math.max(0, current - 1))}>−</button><span>{smsPackCount}</span><button type="button" onClick={() => setSmsPackCount((current) => current + 1)}>＋</button></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(smsAddonAmount)} / mesec</strong><button type="button" className={smsAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setSmsAddonEnabled((prev) => !prev)} aria-label="Toggle sms add-on" /></div>
+                      <div className="account-addon-copy"><strong>Dodatni SMSi</strong><small>Dodatna SMS sporočila za obveščanje gostov.</small></div>
+                      <div className="account-stepper"><button type="button" onClick={() => setSmsPackCount((current) => Math.max(0, current - 50))}>−</button><span>{smsPackCount}</span><button type="button" onClick={() => setSmsPackCount((current) => current + 50)}>＋</button></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(smsAddonAmount)} / {subscriptionPeriodLabel}</strong><button type="button" className={smsAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setSmsAddonEnabled((prev) => !prev)} aria-label="Toggle sms add-on" /></div>
                     </div>
                   </div>
                   <div className="account-subscription-actions" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
@@ -5750,10 +5864,8 @@ export function ConfigurationPage() {
                 <section className="account-card account-subscription-card">
                   <div className="account-plan-header"><h3>Poraba in uporaba</h3></div>
                   <div className="account-usage-list">
-                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>Nastanitve</strong><span>{`${currentUsage.properties} / ${activeUsageCap.properties === 999 ? '∞' : activeUsageCap.properties}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.properties / (activeUsageCap.properties === 999 ? currentUsage.properties : activeUsageCap.properties)) * 100)}%` }} /></div></div>
-                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>Uporabniki</strong><span>{`${currentUsage.users} / ${activeUsageCap.users}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.users / activeUsageCap.users) * 100)}%` }} /></div></div>
-                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>Rezervacije (ta mesec)</strong><span>{`${currentUsage.reservations} / ${activeUsageCap.reservations}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.reservations / activeUsageCap.reservations) * 100)}%` }} /></div></div>
-                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>SMS sporočila</strong><span>{`${currentUsage.sms} / ${activeUsageCap.sms}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.sms / activeUsageCap.sms) * 100)}%` }} /></div></div>
+                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>Uporabniki</strong><span>{`${currentUserCount} / ${accountUserLimit}`}</span></div><div className="account-usage-bar"><span style={{ width: `${accountUsagePercent(currentUserCount, accountUserLimit)}%` }} /></div></div>
+                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>SMS sporočila</strong><span>{`${currentSmsUsage} / ${accountSmsLimit}`}</span></div><div className="account-usage-bar"><span style={{ width: `${accountUsagePercent(currentSmsUsage, accountSmsLimit)}%` }} /></div></div>
                   </div>
                   <div className="account-subscription-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
                     <button type="button" className="account-inline-link">Poglej podrobno poročilo</button>
@@ -5764,10 +5876,10 @@ export function ConfigurationPage() {
                 <section className="account-card account-subscription-card">
                   <div className="account-plan-header"><h3>Povzetek obračuna</h3></div>
                   <div className="account-summary-list">
-                    <div className="account-summary-row"><span>Paket ({activePlanDetails.label})</span><strong>{formatAccountEuro(planMonthlyAmount)}</strong></div>
-                    <div className="account-summary-row"><span>Dodatni uporabniki ({extraUsersAddonEnabled ? extraUsersCount : 0})</span><strong>{formatAccountEuro(usersAddonAmount)}</strong></div>
-                    <div className="account-summary-row"><span>SMS paketi ({smsAddonEnabled ? smsPackCount : 0})</span><strong>{formatAccountEuro(smsAddonAmount)}</strong></div>
-                    <div className="account-summary-row total"><span>Skupaj mesečno</span><strong>{formatAccountEuro(subscriptionSubtotal)}</strong></div>
+                    <div className="account-summary-row"><span>Paket ({activePlanDetails.label})</span><strong>{formatAccountEuro(planPeriodAmount)}</strong></div>
+                    <div className="account-summary-row"><span>Dodatni uporabniki ({selectedExtraUsersCount})</span><strong>{formatAccountEuro(usersAddonAmount)}</strong></div>
+                    <div className="account-summary-row"><span>Dodatni SMSi ({selectedSmsCount})</span><strong>{formatAccountEuro(smsAddonAmount)}</strong></div>
+                    <div className="account-summary-row total"><span>{subscriptionPeriodSummaryLabel}</span><strong>{formatAccountEuro(subscriptionSubtotal)}</strong></div>
                     <div className="account-summary-row"><span>DDV (22%)</span><strong>{formatAccountEuro(subscriptionVat)}</strong></div>
                   </div>
                   <div className="account-next-invoice">

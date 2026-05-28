@@ -1,0 +1,40 @@
+Account Management -> Subscription tab updates
+
+Changed files:
+- frontend/src/pages/ConfigurationPage.tsx
+
+Changes done:
+1. Subscription pricing now loads the Platform Admin register catalog from /api/register/catalog.
+   - Basic, Professional, and Premium prices are mapped from Platform Admin -> Plan & Addons prices:
+     - BASIC -> catalog plan basic
+     - PROFESSIONAL -> catalog plan pro
+     - PREMIUM -> catalog plan business
+   - Annual prices are calculated from the catalog monthly price and the catalog annual discount.
+
+2. Added a monthly/annual selector inside the "Izberi paket" block.
+   - The current package block and package cards switch between monthly and annual pricing.
+   - The billing text switches between "Mesečno obračunavanje" and "Letno obračunavanje".
+
+3. Updated add-on prices to use Platform Admin -> Plan & Addons usage prices.
+   - Dodatni uporabniki uses catalog additionalUserMonthly.
+   - SMS pricing uses catalog smsPerMessage.
+
+4. Renamed "SMS paketi" to "Dodatni SMSi".
+   - The SMS counter now increases/decreases by 50 instead of 1.
+   - The displayed SMS amount is the selected SMS quantity.
+
+5. Updated "Poraba in uporaba".
+   - Removed "Nastanitve".
+   - Removed "Rezervacije (ta mesec)".
+   - Users current usage is loaded from the tenant's /api/users count.
+   - Users max is based on the selected Dodatni uporabniki amount, with minimum 1.
+   - SMS usage uses TENANCY_SMS_SENT_COUNT and the selected Dodatni SMSi quantity.
+
+6. Updated the billing summary.
+   - Uses the selected monthly/annual interval.
+   - Shows "Dodatni SMSi" instead of "SMS paketi".
+   - Calculates totals from catalog package/add-on pricing.
+
+Validation:
+- TypeScript TSX transpile check passed for frontend/src/pages/ConfigurationPage.tsx.
+- Full frontend build was not run because node_modules are not included in the uploaded archive.
