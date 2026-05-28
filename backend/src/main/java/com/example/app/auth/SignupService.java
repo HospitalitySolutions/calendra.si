@@ -564,10 +564,14 @@ public class SignupService {
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, "0");
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, "");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
         List<String> selectedAddonKeys = resolveSelectedAddonKeys(request);
         seedSetting(company, SettingKey.SIGNUP_ADDON_KEYS, String.join(",", selectedAddonKeys));
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS, String.join(",", selectedAddonKeys));
         seedSetting(company, SettingKey.SIGNUP_FISCALIZATION_REQUIRED, String.valueOf(Boolean.TRUE.equals(request.fiscalizationNeeded())));
         int spaceQuota = Math.max(1, request.spaceCount() == null ? 5 : request.spaceCount());
         seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, String.valueOf(spaceQuota));
@@ -678,9 +682,13 @@ public class SignupService {
         List<String> selectedAddonKeys = request.addonKeys() == null ? parseAddonKeyCsv(settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse("")) : sanitizeAddonKeys(request.addonKeys());
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(selectedUserCount));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(selectedSmsCount));
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, "0");
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, "");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(selectedUserCount));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(selectedSmsCount));
         seedSetting(company, SettingKey.SIGNUP_ADDON_KEYS, String.join(",", selectedAddonKeys));
+        seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS, String.join(",", selectedAddonKeys));
 
         String normalizedTenantType = normalizeTenantConfigType(request.tenantType());
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, normalizedTenantType);

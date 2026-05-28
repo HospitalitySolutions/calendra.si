@@ -57,7 +57,9 @@ public class PackageAccessService {
     }
 
     public int userQuota(Long companyId) {
-        int explicit = parseIntSetting(companyId, SettingKey.SIGNUP_USER_COUNT, 1);
+        int paidBase = parseIntSetting(companyId, SettingKey.SIGNUP_USER_COUNT, 1);
+        int currentCycleAdditions = parseIntSetting(companyId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, 0);
+        int explicit = paidBase == Integer.MAX_VALUE ? Integer.MAX_VALUE : paidBase + Math.max(0, currentCycleAdditions);
         String pkg = packageType(companyId);
         int packageMinimum = switch (pkg) {
             case "CUSTOM" -> Integer.MAX_VALUE;

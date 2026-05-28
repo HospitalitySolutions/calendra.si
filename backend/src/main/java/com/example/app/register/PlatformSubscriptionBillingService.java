@@ -181,8 +181,12 @@ public class PlatformSubscriptionBillingService {
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, plan.interval().settingValue());
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, settingValueOrDefault(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0"));
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, settingValueOrDefault(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, "0"));
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, settingValueOrDefault(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, ""));
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(Math.max(1, userCount == null ? 1 : userCount)));
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(Math.max(0, smsCount == null ? 0 : smsCount)));
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS, joinAddonKeys(addonKeys));
 
         OpenBill open = openBills.findFirstByCompanyIdAndReferenceOrderByIdAsc(platformCompany.getId(), referenceForTenant(tenantCompany.getId()))
                 .orElseGet(() -> {
@@ -200,7 +204,7 @@ public class PlatformSubscriptionBillingService {
         open.setSessionBooking(null);
         open.setBookingGroupKey(null);
         open.setBillType(BillType.INVOICE);
-        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys);
+        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys, 0, 0, List.of());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
 
         openBills.save(open);
@@ -291,15 +295,21 @@ public class PlatformSubscriptionBillingService {
             if (plan == null) {
                 continue;
             }
-            Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1));
-            Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0));
-            List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
+            Integer baseUserCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
+            Integer baseSmsCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0);
+            Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, baseUserCount);
+            Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, baseSmsCount);
+            Integer currentUserAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, 0);
+            Integer currentSmsAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, 0);
+            List<String> signupAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
+            List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS).map(AppSetting::getValue).orElse(joinAddonKeys(signupAddonKeys)));
+            List<String> currentAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
             LocalDate billingStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
                     .map(AppSetting::getValue)
                     .map(this::parseDateOrNull)
                     .orElseGet(() -> resolveInitialBillingStart(plan, tenantId, today));
             LocalDate billingEnd = periodEnd(billingStart, plan.interval());
-            BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys);
+            BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys, currentUserAddCount, currentSmsAddCount, currentAddonKeys);
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
@@ -391,7 +401,10 @@ public class PlatformSubscriptionBillingService {
             PlatformPlan plan,
             Integer selectedUserCount,
             Integer selectedSmsCount,
-            List<String> selectedAddonKeys
+            List<String> selectedAddonKeys,
+            Integer currentUserAddCount,
+            Integer currentSmsAddCount,
+            List<String> currentAddonKeys
     ) {
         if (open.getItems() != null) {
             open.getItems().clear();
@@ -402,20 +415,41 @@ public class PlatformSubscriptionBillingService {
             totalGross = totalGross.add(addOpenLine(open, plan.transactionService(), 1, planGross));
         }
 
+        BigDecimal userUnitGross = plan.interval() == BillingInterval.YEARLY
+                ? annualGross(catalog.additionalUserMonthly(), catalog.annualDiscountPercent())
+                : catalog.additionalUserMonthly();
+        int billableCurrentUsers = Math.max(0, currentUserAddCount == null ? 0 : currentUserAddCount);
+        if (billableCurrentUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableCurrentUsers, userUnitGross));
+        }
+
         int billableUsers = Math.max(0, (selectedUserCount == null ? 1 : selectedUserCount) - 1);
         if (billableUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
-                    ? annualGross(catalog.additionalUserMonthly(), catalog.annualDiscountPercent())
-                    : catalog.additionalUserMonthly();
-            totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableUsers, unitGross));
+            totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableUsers, userUnitGross));
+        }
+
+        BigDecimal smsUnitGross = plan.interval() == BillingInterval.YEARLY
+                ? catalog.smsPerMessage().multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP)
+                : catalog.smsPerMessage();
+        int currentSmsCount = Math.max(0, currentSmsAddCount == null ? 0 : currentSmsAddCount);
+        if (currentSmsCount > 0 && catalog.smsService() != null && catalog.smsPerMessage().compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), currentSmsCount, smsUnitGross));
         }
 
         int smsCount = Math.max(0, selectedSmsCount == null ? 0 : selectedSmsCount);
         if (smsCount > 0 && catalog.smsService() != null && catalog.smsPerMessage().compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), smsCount, smsUnitGross));
+        }
+
+        for (String key : currentAddonKeys == null ? List.<String>of() : currentAddonKeys) {
+            PlatformAddon addon = catalog.addons().get(normalizeAddonKey(key));
+            if (addon == null || addon.monthlyGross().compareTo(BigDecimal.ZERO) <= 0 || addon.transactionService() == null) {
+                continue;
+            }
             BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
-                    ? catalog.smsPerMessage().multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP)
-                    : catalog.smsPerMessage();
-            totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), smsCount, unitGross));
+                    ? annualGross(addon.monthlyGross(), catalog.annualDiscountPercent())
+                    : addon.monthlyGross();
+            totalGross = totalGross.add(addOpenLine(open, addon.transactionService(), 1, unitGross));
         }
 
         for (String key : selectedAddonKeys == null ? List.<String>of() : selectedAddonKeys) {
@@ -560,6 +594,20 @@ public class PlatformSubscriptionBillingService {
             tx = txServices.save(tx);
         }
         return tx;
+    }
+
+    private String settingValueOrDefault(Long companyId, SettingKey key, String fallback) {
+        if (companyId == null || key == null) {
+            return fallback;
+        }
+        return settings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(fallback);
+    }
+
+    private static String joinAddonKeys(List<String> keys) {
+        return String.join(",", keys == null ? List.<String>of() : keys);
     }
 
     private LocalDate resolveInitialBillingStart(PlatformPlan plan, Long tenantId, LocalDate today) {

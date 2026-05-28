@@ -1,0 +1,33 @@
+Subscription capacity/add-on current-cycle update
+================================================
+
+Frontend
+--------
+- Updated Account management -> Subscription -> Dodatki in razširitve so current-period capacity can be reduced again after it was increased.
+- User current-cycle additions can now be decreased down to the safe minimum, never below the current active employee count.
+- SMS current-cycle additions can now be decreased down to the safe minimum, never below SMS already used in the current billing period.
+- Added add-on controls beside additional users and SMS:
+  - add-ons selected during registration are shown as active/checked for the current period,
+  - each add-on has separate current-period and next-period checkboxes,
+  - activating an add-on for the current period also selects it for the next period by default,
+  - unchecking it for the next period removes it from the next projected invoice.
+- Updated the projected billing summary so it includes:
+  - current-period user additions,
+  - next-period user quota,
+  - current-period SMS additions,
+  - next-period SMS quota,
+  - current-period add-on charges,
+  - next-period add-on charges.
+
+Backend
+-------
+- Added persistent settings for current-period user additions, SMS additions, current-period add-on keys and next-period add-on keys.
+- Signup now seeds selected registration add-ons into both the signup settings and next-period add-on settings.
+- Platform subscription open bill generation now supports current-period additions and next-period recurring configuration separately.
+- Current-period add-ons are added to the next open bill as one-time current-period charges; next-period add-ons are added as recurring next-period charges.
+- User quota checks now include current-period user additions so newly purchased extra users can be used immediately.
+
+Validation
+----------
+- Ran a TypeScript parse/typecheck command against ConfigurationPage.tsx. It reached normal dependency/type errors because node_modules are not included in the uploaded ZIP, but no syntax errors were reported for the changed JSX/TS.
+- Backend Maven compile could not be completed in the sandbox because the Maven wrapper must download Maven from repo.maven.apache.org and network access is unavailable.

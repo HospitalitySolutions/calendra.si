@@ -103,10 +103,18 @@ public enum SettingKey {
     BILLING_SUBSCRIPTION_END,
     /** MONTHLY or YEARLY */
     BILLING_SUBSCRIPTION_INTERVAL,
+    /** User-seat additions activated inside the already-paid current subscription period. */
+    BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT,
+    /** SMS additions activated inside the already-paid current subscription period. */
+    BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT,
+    /** Add-ons activated inside the already-paid current subscription period; billed on the next invoice. */
+    BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS,
     /** User-seat quota planned for the next subscription billing period. */
     BILLING_SUBSCRIPTION_NEXT_USER_COUNT,
     /** SMS quota planned for the next subscription billing period. */
     BILLING_SUBSCRIPTION_NEXT_SMS_COUNT,
+    /** Add-ons planned for the next subscription billing period. */
+    BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS,
     /** Decimal amount string (e.g. EUR) still owed for subscription. */
     BILLING_SUBSCRIPTION_DUE_AMOUNT,
     /** Preferred payment method selected during self-serve signup billing details. */

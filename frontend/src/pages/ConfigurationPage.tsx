@@ -148,8 +148,20 @@ type IntegrationGoogleCalendarConnection = {
 
 type AccountSubscriptionInterval = 'MONTHLY' | 'YEARLY'
 type AccountPlanPackageKey = 'BASIC' | 'PROFESSIONAL' | 'PREMIUM'
+type AccountRegisterCatalogAddonItem = {
+  key?: string | null
+  name?: string | null
+  nameSl?: string | null
+  description?: string | null
+  descriptionSl?: string | null
+  monthly?: number | null
+  active?: boolean | null
+}
+
 type AccountRegisterCatalog = {
   plans?: Record<string, number>
+  addons?: Record<string, number>
+  addonItems?: AccountRegisterCatalogAddonItem[] | null
   annualDiscountPercent?: number | null
   additionalUserMonthly?: number | null
   smsPerMessage?: number | null
@@ -166,6 +178,11 @@ const DEFAULT_ACCOUNT_REGISTER_CATALOG: Required<Pick<AccountRegisterCatalog, 'p
   additionalUserMonthly: 9.9,
   smsPerMessage: 0.05,
   usagePrices: { additionalUserMonthly: 9.9, smsPerMessage: 0.05 },
+  addonItems: [
+    { key: 'voice', name: 'AI voice booking', nameSl: 'AI glasovne rezervacije', description: 'Hands-free assistant for faster scheduling.', descriptionSl: 'Pomočnik brez rok za hitrejše naročanje terminov.', monthly: 12, active: true },
+    { key: 'billing', name: 'Billing & invoices', nameSl: 'Obračun in računi', description: 'Invoices, payment records, and exports.', descriptionSl: 'Računi, evidence plačil in izvozi.', monthly: 8, active: true },
+    { key: 'whitelabel', name: 'Branded booking experience', nameSl: 'Blagovna znamka pri rezervacijah', description: 'Custom colors, domain, and branded notifications.', descriptionSl: 'Barve, domena in obvestila v vaši blagovni znamki.', monthly: 10, active: true },
+  ],
 }
 
 const roundAccountMoney = (value: number) => Math.round(value * 100) / 100
@@ -177,6 +194,18 @@ const positiveAccountInteger = (value: unknown, fallback: number) => {
   const n = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
   return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : fallback
 }
+const normalizeAccountAddonKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+const parseAccountAddonKeyCsv = (value: unknown) => {
+  const raw = String(value ?? '').trim()
+  if (!raw) return [] as string[]
+  const out: string[] = []
+  raw.split(',').forEach((part) => {
+    const key = normalizeAccountAddonKey(part)
+    if (key && !out.includes(key)) out.push(key)
+  })
+  return out
+}
+const accountAddonKeysToCsv = (keys: string[]) => keys.map(normalizeAccountAddonKey).filter(Boolean).filter((key, index, all) => all.indexOf(key) === index).join(',')
 const normalizeAccountRegisterCatalog = (catalog: AccountRegisterCatalog | null | undefined): AccountRegisterCatalog => ({
   ...DEFAULT_ACCOUNT_REGISTER_CATALOG,
   ...(catalog || {}),
@@ -187,6 +216,11 @@ const normalizeAccountRegisterCatalog = (catalog: AccountRegisterCatalog | null 
   usagePrices: {
     ...(DEFAULT_ACCOUNT_REGISTER_CATALOG.usagePrices || {}),
     ...(catalog?.usagePrices || {}),
+  },
+  addonItems: Array.isArray(catalog?.addonItems) ? catalog?.addonItems : DEFAULT_ACCOUNT_REGISTER_CATALOG.addonItems,
+  addons: {
+    ...(DEFAULT_ACCOUNT_REGISTER_CATALOG.addons || {}),
+    ...(catalog?.addons || {}),
   },
 })
 const accountUsagePercent = (current: number, max: number) => max > 0 ? Math.min(100, (current / max) * 100) : 0
@@ -2917,6 +2951,8 @@ export function ConfigurationPage() {
   const [nextCycleUserLimit, setNextCycleUserLimit] = useState(1)
   const [currentCycleSmsAddCount, setCurrentCycleSmsAddCount] = useState(0)
   const [nextCycleSmsCount, setNextCycleSmsCount] = useState(0)
+  const [currentCycleAddonKeys, setCurrentCycleAddonKeys] = useState<string[]>([])
+  const [nextCycleAddonKeys, setNextCycleAddonKeys] = useState<string[]>([])
   const [savingSubscriptionAddons, setSavingSubscriptionAddons] = useState(false)
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
@@ -3103,28 +3139,67 @@ export function ConfigurationPage() {
   const smsAddonUnitPrice = subscriptionInterval === 'YEARLY'
     ? roundAccountMoney(smsUnitPrice * 12)
     : smsUnitPrice
+  const activeAccountAddonItems = useMemo(() => {
+    const fromItems = Array.isArray(accountRegisterCatalog.addonItems)
+      ? accountRegisterCatalog.addonItems
+      : []
+    const catalogItems = fromItems
+      .filter((item) => item && item.active !== false)
+      .map((item) => {
+        const key = normalizeAccountAddonKey(item.key)
+        if (!key) return null
+        return {
+          key,
+          name: locale === 'sl' ? (item.nameSl || item.name || key) : (item.name || item.nameSl || key),
+          description: locale === 'sl' ? (item.descriptionSl || item.description || '') : (item.description || item.descriptionSl || ''),
+          monthly: roundAccountMoney(positiveAccountNumber(item.monthly, accountRegisterCatalog.addons?.[key] ?? 0)),
+        }
+      })
+      .filter(Boolean) as Array<{ key: string; name: string; description: string; monthly: number }>
+    if (catalogItems.length > 0) return catalogItems
+    return Object.entries(accountRegisterCatalog.addons || {})
+      .map(([rawKey, amount]) => {
+        const key = normalizeAccountAddonKey(rawKey)
+        return key ? { key, name: key.replace(/-/g, ' '), description: '', monthly: roundAccountMoney(positiveAccountNumber(amount, 0)) } : null
+      })
+      .filter(Boolean) as Array<{ key: string; name: string; description: string; monthly: number }>
+  }, [accountRegisterCatalog.addonItems, accountRegisterCatalog.addons, locale])
+  const addonUnitPeriodPrice = (addon: { monthly: number }) => subscriptionInterval === 'YEARLY'
+    ? roundAccountMoney(addon.monthly * 12 * accountCatalogAnnualFactor)
+    : roundAccountMoney(addon.monthly)
+  const currentBaseAddonKeys = parseAccountAddonKeyCsv(settings.SIGNUP_ADDON_KEYS)
+  const currentEffectiveAddonKeys = Array.from(new Set([...currentBaseAddonKeys, ...currentCycleAddonKeys]))
+  const nextInvoiceAddonKeys = nextCycleAddonKeys
+  const currentCycleAddonAmount = roundAccountMoney(activeAccountAddonItems
+    .filter((addon) => currentCycleAddonKeys.includes(addon.key))
+    .reduce((sum, addon) => sum + addonUnitPeriodPrice(addon), 0))
+  const nextCycleAddonAmount = roundAccountMoney(activeAccountAddonItems
+    .filter((addon) => nextInvoiceAddonKeys.includes(addon.key))
+    .reduce((sum, addon) => sum + addonUnitPeriodPrice(addon), 0))
   const currentUserCount = Math.max(1, tenantUsersCount)
   const currentPaidUserLimit = Math.max(1, extraUsersCount, currentUserCount)
-  const currentBillingCycleUserAdd = Math.max(0, currentCycleUserAddCount)
+  const minimumCurrentCycleUserAdd = Math.max(0, currentUserCount - currentPaidUserLimit)
+  const currentBillingCycleUserAdd = Math.max(minimumCurrentCycleUserAdd, currentCycleUserAddCount)
   const currentEffectiveUserLimit = Math.max(currentUserCount, currentPaidUserLimit + currentBillingCycleUserAdd)
   const nextInvoiceUserLimit = Math.max(1, currentUserCount, nextCycleUserLimit)
   const currentPaidSmsLimit = Math.max(0, smsPackCount)
-  const currentBillingCycleSmsAdd = Math.max(0, currentCycleSmsAddCount)
-  const currentEffectiveSmsLimit = Math.max(0, currentPaidSmsLimit + currentBillingCycleSmsAdd)
+  const currentSmsUsage = positiveAccountInteger(settings.TENANCY_SMS_SENT_COUNT, 0)
+  const minimumCurrentCycleSmsAdd = Math.max(0, currentSmsUsage - currentPaidSmsLimit)
+  const currentBillingCycleSmsAdd = Math.max(minimumCurrentCycleSmsAdd, currentCycleSmsAddCount)
+  const currentEffectiveSmsLimit = Math.max(currentSmsUsage, currentPaidSmsLimit + currentBillingCycleSmsAdd)
   const nextInvoiceSmsCount = Math.max(0, nextCycleSmsCount)
   const selectedExtraUsersCount = nextInvoiceUserLimit
   const billableNextInvoiceUsers = Math.max(0, selectedExtraUsersCount - 1)
   const selectedSmsCount = nextInvoiceSmsCount
   const usersAddonAmount = roundAccountMoney(billableNextInvoiceUsers * usersAddonUnitPrice)
   const smsAddonAmount = roundAccountMoney(selectedSmsCount * smsAddonUnitPrice)
-  const subscriptionSubtotal = roundAccountMoney(planPeriodAmount + usersAddonAmount + smsAddonAmount)
+  const currentCycleUserAddonAmount = roundAccountMoney(currentBillingCycleUserAdd * usersAddonUnitPrice)
+  const currentCycleSmsAddonAmount = roundAccountMoney(currentBillingCycleSmsAdd * smsAddonUnitPrice)
+  const subscriptionSubtotal = roundAccountMoney(planPeriodAmount + usersAddonAmount + smsAddonAmount + currentCycleUserAddonAmount + currentCycleSmsAddonAmount + nextCycleAddonAmount + currentCycleAddonAmount)
   const subscriptionVat = roundAccountMoney(subscriptionSubtotal * 0.22)
   const estimatedNextInvoice = roundAccountMoney(subscriptionSubtotal + subscriptionVat)
   const accountUserLimit = currentEffectiveUserLimit
-  const currentSmsUsage = positiveAccountInteger(settings.TENANCY_SMS_SENT_COUNT, 0)
   const accountSmsLimit = currentEffectiveSmsLimit
-  const currentCycleUserAddonAmount = roundAccountMoney(currentBillingCycleUserAdd * usersAddonUnitPrice)
-  const currentCycleSmsAddonAmount = roundAccountMoney(currentBillingCycleSmsAdd * smsAddonUnitPrice)
   const companyOverviewCreatedAt = me.createdAt || '2024-03-15T00:00:00Z'
   const companyOverviewUpdatedAt = '2024-05-24T00:00:00Z'
   const companyOwnerName = [me.firstName, me.lastName].filter(Boolean).join(' ').trim() || 'Sašo Admin'
@@ -3143,7 +3218,7 @@ export function ConfigurationPage() {
   const formatAccountEuro = (value: number) => new Intl.NumberFormat(locale === 'sl' ? 'sl-SI' : 'en-US', { style: 'currency', currency: 'EUR' }).format(value)
 
   const changeCurrentCycleUserAdd = (delta: number) => {
-    const next = Math.max(0, currentBillingCycleUserAdd + delta)
+    const next = Math.max(minimumCurrentCycleUserAdd, currentBillingCycleUserAdd + delta)
     setCurrentCycleUserAddCount(next)
     setNextCycleUserLimit((limit) => Math.max(currentUserCount, limit, currentPaidUserLimit + next))
   }
@@ -3153,39 +3228,67 @@ export function ConfigurationPage() {
   }
 
   const changeCurrentCycleSmsAdd = (delta: number) => {
-    const next = Math.max(0, currentBillingCycleSmsAdd + delta)
-    setCurrentCycleSmsAddCount(next)
-    setNextCycleSmsCount((limit) => Math.max(0, limit, currentPaidSmsLimit + next))
+    const next = Math.max(minimumCurrentCycleSmsAdd, currentBillingCycleSmsAdd + delta)
+    const rounded = Math.ceil(next / 50) * 50
+    setCurrentCycleSmsAddCount(rounded)
+    setNextCycleSmsCount((limit) => Math.max(0, limit, currentPaidSmsLimit + rounded))
   }
 
   const changeNextCycleSmsCount = (delta: number) => {
     setNextCycleSmsCount((current) => Math.max(0, current + delta))
   }
 
+  const toggleCurrentCycleAddon = (key: string, checked: boolean) => {
+    const normalized = normalizeAccountAddonKey(key)
+    if (!normalized || currentBaseAddonKeys.includes(normalized)) return
+    setCurrentCycleAddonKeys((current) => checked
+      ? (current.includes(normalized) ? current : [...current, normalized])
+      : current.filter((item) => item !== normalized))
+    if (checked) {
+      setNextCycleAddonKeys((current) => current.includes(normalized) ? current : [...current, normalized])
+    }
+  }
+
+  const toggleNextCycleAddon = (key: string, checked: boolean) => {
+    const normalized = normalizeAccountAddonKey(key)
+    if (!normalized) return
+    setNextCycleAddonKeys((current) => checked
+      ? (current.includes(normalized) ? current : [...current, normalized])
+      : current.filter((item) => item !== normalized))
+  }
+
   const saveSubscriptionCapacity = async () => {
     if (!isAdmin) return
-    const normalizedCurrentUserLimit = Math.max(1, currentUserCount, currentEffectiveUserLimit)
-    const normalizedCurrentSmsLimit = Math.max(0, currentEffectiveSmsLimit)
+    const normalizedCurrentUserAdd = Math.max(minimumCurrentCycleUserAdd, currentBillingCycleUserAdd)
+    const normalizedCurrentSmsAdd = Math.max(minimumCurrentCycleSmsAdd, currentBillingCycleSmsAdd)
     const normalizedNextUserLimit = Math.max(1, currentUserCount, nextInvoiceUserLimit)
     const normalizedNextSmsLimit = Math.max(0, nextInvoiceSmsCount)
+    const normalizedCurrentAddonKeys = currentCycleAddonKeys.filter((key) => !currentBaseAddonKeys.includes(key))
+    const normalizedNextAddonKeys = nextCycleAddonKeys
     setSavingSubscriptionAddons(true)
     try {
       const payload = {
         ...settings,
-        SIGNUP_USER_COUNT: String(normalizedCurrentUserLimit),
-        SIGNUP_SMS_COUNT: String(normalizedCurrentSmsLimit),
+        SIGNUP_USER_COUNT: String(Math.max(1, currentUserCount, currentPaidUserLimit)),
+        SIGNUP_SMS_COUNT: String(Math.max(0, currentPaidSmsLimit)),
+        BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT: String(normalizedCurrentUserAdd),
+        BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT: String(normalizedCurrentSmsAdd),
+        BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS: accountAddonKeysToCsv(normalizedCurrentAddonKeys),
         BILLING_SUBSCRIPTION_NEXT_USER_COUNT: String(normalizedNextUserLimit),
         BILLING_SUBSCRIPTION_NEXT_SMS_COUNT: String(normalizedNextSmsLimit),
+        BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS: accountAddonKeysToCsv(normalizedNextAddonKeys),
       }
       const { data } = await api.put('/settings', payload)
       const merged = { ...payload, ...data }
       setSettings(merged)
-      setExtraUsersCount(normalizedCurrentUserLimit)
-      setSmsPackCount(normalizedCurrentSmsLimit)
-      setCurrentCycleUserAddCount(0)
-      setCurrentCycleSmsAddCount(0)
+      setExtraUsersCount(Math.max(1, currentUserCount, currentPaidUserLimit))
+      setSmsPackCount(Math.max(0, currentPaidSmsLimit))
+      setCurrentCycleUserAddCount(normalizedCurrentUserAdd)
+      setCurrentCycleSmsAddCount(normalizedCurrentSmsAdd)
+      setCurrentCycleAddonKeys(normalizedCurrentAddonKeys)
       setNextCycleUserLimit(normalizedNextUserLimit)
       setNextCycleSmsCount(normalizedNextSmsLimit)
+      setNextCycleAddonKeys(normalizedNextAddonKeys)
       window.dispatchEvent(new Event('settings-updated'))
       showToast('success', 'Naročniške kapacitete so posodobljene.')
     } catch (e: any) {
@@ -3541,14 +3644,23 @@ export function ConfigurationPage() {
     const activeTenantUserCount = Math.max(1, Array.isArray(tenantUsersRes.data) ? tenantUsersRes.data.filter((user) => user.active !== false).length : 1)
     const paidUserLimit = Math.max(1, positiveAccountInteger(nextSettings.SIGNUP_USER_COUNT, 1), activeTenantUserCount)
     const paidSmsLimit = Math.ceil(positiveAccountInteger(nextSettings.SIGNUP_SMS_COUNT, 0) / 50) * 50
+    const currentCycleUserAdd = Math.max(0, positiveAccountInteger(nextSettings.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, 0), activeTenantUserCount - paidUserLimit)
+    const currentSmsUsageForLimit = positiveAccountInteger(nextSettings.TENANCY_SMS_SENT_COUNT, 0)
+    const currentCycleSmsAdd = Math.ceil(Math.max(0, positiveAccountInteger(nextSettings.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, 0), currentSmsUsageForLimit - paidSmsLimit) / 50) * 50
     const plannedUserLimit = Math.max(1, activeTenantUserCount, positiveAccountInteger(nextSettings.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, paidUserLimit))
     const plannedSmsLimit = Math.ceil(positiveAccountInteger(nextSettings.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, paidSmsLimit) / 50) * 50
+    const signupAddonKeys = parseAccountAddonKeyCsv(nextSettings.SIGNUP_ADDON_KEYS)
+    const currentAddonKeys = parseAccountAddonKeyCsv(nextSettings.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS)
+      .filter((key) => !signupAddonKeys.includes(key))
+    const plannedAddonKeys = parseAccountAddonKeyCsv(nextSettings.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS || nextSettings.SIGNUP_ADDON_KEYS)
     setExtraUsersCount(paidUserLimit)
     setSmsPackCount(paidSmsLimit)
-    setCurrentCycleUserAddCount(0)
-    setCurrentCycleSmsAddCount(0)
+    setCurrentCycleUserAddCount(currentCycleUserAdd)
+    setCurrentCycleSmsAddCount(currentCycleSmsAdd)
+    setCurrentCycleAddonKeys(currentAddonKeys)
     setNextCycleUserLimit(plannedUserLimit)
     setNextCycleSmsCount(plannedSmsLimit)
+    setNextCycleAddonKeys(plannedAddonKeys)
     setAccountRegisterCatalog(normalizeAccountRegisterCatalog(catalogRes.data))
     setTenantUsersCount(activeTenantUserCount)
     setGuestAppSettings(nextGuestApp)
@@ -5485,6 +5597,51 @@ export function ConfigurationPage() {
               color: var(--account-muted);
               font-size: 13px;
             }
+            .account-addon-row-full {
+              align-items: flex-start;
+            }
+            .account-addon-sublist {
+              grid-column: 2 / -1;
+              display: grid;
+              gap: 10px;
+              min-width: 0;
+            }
+            .account-addon-option-row {
+              border: 1px solid rgba(30, 96, 255, 0.12);
+              border-radius: 16px;
+              padding: 12px;
+              display: grid;
+              grid-template-columns: minmax(0, 1fr) auto;
+              gap: 12px;
+              align-items: center;
+              background: rgba(248, 251, 255, 0.92);
+            }
+            .account-addon-option-row strong {
+              display: block;
+              color: #0f1f4d;
+              font-size: 13px;
+            }
+            .account-addon-option-row small {
+              display: block;
+              margin-top: 3px;
+              color: #7c8db8;
+              font-size: 11px;
+            }
+            .account-addon-option-controls {
+              display: flex;
+              flex-wrap: wrap;
+              justify-content: flex-end;
+              gap: 8px;
+              align-items: center;
+              color: #12245a;
+              font-size: 12px;
+            }
+            .account-addon-option-controls label {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              white-space: nowrap;
+            }
             .account-stepper {
               display: inline-flex;
               align-items: center;
@@ -5617,6 +5774,9 @@ export function ConfigurationPage() {
               }
               .account-overview-block { border-left: 0; padding-left: 0; }
               .account-addon-row { grid-template-columns: 48px minmax(0, 1fr); }
+              .account-addon-sublist { grid-column: 1 / -1; }
+              .account-addon-option-row { grid-template-columns: 1fr; }
+              .account-addon-option-controls { justify-content: flex-start; }
               .account-company-footer,
               .account-table-footer { flex-direction: column; align-items: stretch; }
               .account-company-footer-actions,
@@ -5984,7 +6144,7 @@ export function ConfigurationPage() {
                             </div>
                             <span className="account-price-chip">{formatAccountEuro(currentCycleUserAddonAmount)} / {subscriptionPeriodLabel}</span>
                           </div>
-                          <div className="account-stepper"><button type="button" onClick={() => changeCurrentCycleUserAdd(-1)} disabled={currentBillingCycleUserAdd <= 0}>−</button><span>+{currentBillingCycleUserAdd}</span><button type="button" onClick={() => changeCurrentCycleUserAdd(1)}>＋</button></div>
+                          <div className="account-stepper"><button type="button" onClick={() => changeCurrentCycleUserAdd(-1)} disabled={currentBillingCycleUserAdd <= minimumCurrentCycleUserAdd}>−</button><span>+{currentBillingCycleUserAdd}</span><button type="button" onClick={() => changeCurrentCycleUserAdd(1)}>＋</button></div>
                           <div className="account-addon-footnote">Maksimum v tekočem obdobju: <strong>{currentEffectiveUserLimit}</strong></div>
                         </div>
                         <div className="account-addon-control-card">
@@ -6017,7 +6177,7 @@ export function ConfigurationPage() {
                             </div>
                             <span className="account-price-chip">{formatAccountEuro(currentCycleSmsAddonAmount)} / {subscriptionPeriodLabel}</span>
                           </div>
-                          <div className="account-stepper"><button type="button" onClick={() => changeCurrentCycleSmsAdd(-50)} disabled={currentBillingCycleSmsAdd <= 0}>−</button><span>+{currentBillingCycleSmsAdd}</span><button type="button" onClick={() => changeCurrentCycleSmsAdd(50)}>＋</button></div>
+                          <div className="account-stepper"><button type="button" onClick={() => changeCurrentCycleSmsAdd(-50)} disabled={currentBillingCycleSmsAdd <= minimumCurrentCycleSmsAdd}>−</button><span>+{currentBillingCycleSmsAdd}</span><button type="button" onClick={() => changeCurrentCycleSmsAdd(50)}>＋</button></div>
                           <div className="account-addon-footnote">Maksimum v tekočem obdobju: <strong>{currentEffectiveSmsLimit}</strong></div>
                         </div>
                         <div className="account-addon-control-card">
@@ -6033,6 +6193,39 @@ export function ConfigurationPage() {
                         </div>
                       </div>
                     </div>
+                    {activeAccountAddonItems.length > 0 && (
+                      <div className="account-addon-row account-addon-row-full">
+                        <span className="account-addon-icon" aria-hidden>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 16.9l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3z" /></svg>
+                        </span>
+                        <div className="account-addon-copy">
+                          <strong>Dodatki</strong>
+                          <small>Dodatki iz registracije so že aktivni. Nove dodatke lahko aktivirate za tekoče obdobje ali odstranite iz naslednjega računa.</small>
+                        </div>
+                        <div className="account-addon-sublist">
+                          {activeAccountAddonItems.map((addon) => {
+                            const activeNow = currentEffectiveAddonKeys.includes(addon.key)
+                            const baseActive = currentBaseAddonKeys.includes(addon.key)
+                            const nextActive = nextInvoiceAddonKeys.includes(addon.key)
+                            const price = addonUnitPeriodPrice(addon)
+                            return (
+                              <div key={addon.key} className="account-addon-option-row">
+                                <div>
+                                  <strong>{addon.name}</strong>
+                                  {addon.description && <small>{addon.description}</small>}
+                                  {baseActive && <small>Aktivno iz registracije do konca trenutnega obdobja.</small>}
+                                </div>
+                                <div className="account-addon-option-controls">
+                                  <label><input type="checkbox" checked={activeNow} disabled={baseActive} onChange={(event) => toggleCurrentCycleAddon(addon.key, event.target.checked)} /> Tekoče obdobje</label>
+                                  <label><input type="checkbox" checked={nextActive} onChange={(event) => toggleNextCycleAddon(addon.key, event.target.checked)} /> Naslednje obdobje</label>
+                                  <span className="account-price-chip">{formatAccountEuro(price)} / {subscriptionPeriodLabel}</span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="account-subscription-actions" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
                     <button type="button" className="account-button-secondary" onClick={saveSubscriptionCapacity} disabled={savingSubscriptionAddons}>{savingSubscriptionAddons ? 'Shranjujem…' : 'Shrani dodatke'}</button>
@@ -6055,10 +6248,12 @@ export function ConfigurationPage() {
                   <div className="account-plan-header"><h3>Povzetek obračuna</h3></div>
                   <div className="account-summary-list">
                     <div className="account-summary-row"><span>Paket ({activePlanDetails.label})</span><strong>{formatAccountEuro(planPeriodAmount)}</strong></div>
+                    {currentBillingCycleUserAdd > 0 && <div className="account-summary-row"><span>Uporabniki tekoče obdobje (+{currentBillingCycleUserAdd})</span><strong>{formatAccountEuro(currentCycleUserAddonAmount)}</strong></div>}
                     <div className="account-summary-row"><span>Uporabniki naslednje obdobje ({selectedExtraUsersCount} max / {billableNextInvoiceUsers} dodatnih)</span><strong>{formatAccountEuro(usersAddonAmount)}</strong></div>
+                    {currentBillingCycleSmsAdd > 0 && <div className="account-summary-row"><span>SMS tekoče obdobje (+{currentBillingCycleSmsAdd})</span><strong>{formatAccountEuro(currentCycleSmsAddonAmount)}</strong></div>}
                     <div className="account-summary-row"><span>SMS naslednje obdobje ({selectedSmsCount})</span><strong>{formatAccountEuro(smsAddonAmount)}</strong></div>
-                    {currentBillingCycleUserAdd > 0 ? <div className="account-summary-row muted"><span>Dodano v tekočem obdobju</span><strong>{`+${currentBillingCycleUserAdd} uporabnik${currentBillingCycleUserAdd === 1 ? '' : 'i'}`}</strong></div> : null}
-                    {currentBillingCycleSmsAdd > 0 ? <div className="account-summary-row muted"><span>Dodano v tekočem obdobju</span><strong>{`+${currentBillingCycleSmsAdd} SMS`}</strong></div> : null}
+                    {currentCycleAddonAmount > 0 && <div className="account-summary-row"><span>Dodatki tekoče obdobje</span><strong>{formatAccountEuro(currentCycleAddonAmount)}</strong></div>}
+                    {nextCycleAddonAmount > 0 && <div className="account-summary-row"><span>Dodatki naslednje obdobje</span><strong>{formatAccountEuro(nextCycleAddonAmount)}</strong></div>}
                     <div className="account-summary-row total"><span>{subscriptionPeriodSummaryLabel}</span><strong>{formatAccountEuro(subscriptionSubtotal)}</strong></div>
                     <div className="account-summary-row"><span>DDV (22%)</span><strong>{formatAccountEuro(subscriptionVat)}</strong></div>
                   </div>
