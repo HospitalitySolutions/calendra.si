@@ -2832,7 +2832,6 @@ export function ConfigurationPage() {
   const [companyProfiles, setCompanyProfiles] = useState<CompanyProfileForm[]>([])
   const [selectedCompanyProfileId, setSelectedCompanyProfileId] = useState<string>('')
   const [companyProfilesInitialized, setCompanyProfilesInitialized] = useState(false)
-  const [companyProfileEditMode, setCompanyProfileEditMode] = useState(false)
   const [companyProfileMenuOpenId, setCompanyProfileMenuOpenId] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
   const [uploadingGuestAsset, setUploadingGuestAsset] = useState<GuestAppAssetField | null>(null)
@@ -2963,15 +2962,6 @@ export function ConfigurationPage() {
     URL.revokeObjectURL(url)
   }
 
-  const resetCompanyProfiles = () => {
-    const profiles = loadCompanyProfilesFromSettings(settings)
-    const selected = profiles.find((profile) => profile.id === settings.COMPANY_SELECTED_PROFILE_ID) || profiles.find((profile) => profile.isDefault) || profiles[0]
-    if (!selected) return
-    setCompanyProfiles(profiles)
-    setSelectedCompanyProfileId(selected.id)
-    setCompanyProfileEditMode(false)
-  }
-
   const formatAccountEuro = (value: number) => new Intl.NumberFormat(locale === 'sl' ? 'sl-SI' : 'en-US', { style: 'currency', currency: 'EUR' }).format(value)
 
   const renderAccountPlanIcon = (kind: 'leaf' | 'star' | 'crown') => {
@@ -2998,6 +2988,12 @@ export function ConfigurationPage() {
   }
 
   const renderCompanyOverviewValue = (value?: string | null, fallback = '—') => (value && value.trim() ? value : fallback)
+  const companyProfileDisplayName = (value?: string | null) => {
+    const normalized = (value || '').trim()
+    if (!normalized) return 'Naziv podjetja'
+    if (/^Profil podjetja \d+$/i.test(normalized)) return 'Naziv podjetja'
+    return normalized
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
@@ -3034,7 +3030,6 @@ export function ConfigurationPage() {
     const profile = companyProfiles.find((entry) => entry.id === profileId)
     if (!profile) return
     setSelectedCompanyProfileId(profile.id)
-    setCompanyProfileEditMode(false)
     setCompanyProfileMenuOpenId(null)
     setSettings((prev) => companyProfileToSettings(prev, profile, companyProfiles))
   }
@@ -3042,7 +3037,7 @@ export function ConfigurationPage() {
   const addCompanyProfile = () => {
     const nextProfile = sanitizeCompanyProfile({
       id: createCompanyProfileId(),
-      name: `Profil podjetja ${companyProfiles.length + 1}`,
+      name: '',
       bankQrPurposeCode: 'OTHR',
       bankQrPurposeText: 'PLACILO FOLIA',
       isDefault: companyProfiles.length === 0,
@@ -3071,17 +3066,16 @@ export function ConfigurationPage() {
       window.alert('Zadnjega profila ni mogoče izbrisati.')
       return
     }
-    if (target.isDefault) {
-      window.alert('Privzetega profila ni mogoče izbrisati.')
-      return
-    }
     if (!window.confirm(`Izbrišem profil "${target.name || 'Profil podjetja'}"?`)) return
-    const nextProfiles = companyProfiles.filter((profile) => profile.id !== profileId)
-    const nextSelected = nextProfiles.find((profile) => profile.id === selectedCompanyProfileId) || nextProfiles[0]
+    let nextProfiles = companyProfiles.filter((profile) => profile.id !== profileId)
+    if (!nextProfiles.some((profile) => profile.isDefault) && nextProfiles.length > 0) {
+      const fallbackDefaultId = nextProfiles[0].id
+      nextProfiles = nextProfiles.map((profile) => ({ ...profile, isDefault: profile.id === fallbackDefaultId }))
+    }
+    const nextSelected = nextProfiles.find((profile) => profile.id === selectedCompanyProfileId) || nextProfiles.find((profile) => profile.isDefault) || nextProfiles[0]
     if (!nextSelected) return
     setCompanyProfiles(nextProfiles)
     setSelectedCompanyProfileId(nextSelected.id)
-    setCompanyProfileEditMode(false)
     setCompanyProfileMenuOpenId(null)
     setSettings((prev) => companyProfileToSettings(prev, nextSelected, nextProfiles))
   }
@@ -3091,7 +3085,7 @@ export function ConfigurationPage() {
     const onPointerDown = (ev: MouseEvent) => {
       const target = ev.target as HTMLElement | null
       if (!target) return
-      if (target.closest('.company-profile-menu')) return
+      if (target.closest('.company-profile-menu-popover') || target.closest('.account-menu-button')) return
       setCompanyProfileMenuOpenId(null)
     }
     const onEscape = (ev: KeyboardEvent) => {
@@ -4516,33 +4510,35 @@ export function ConfigurationPage() {
             .account-subtabs {
               display: flex;
               align-items: center;
-              gap: 20px;
-              border-bottom: 1px solid var(--account-line);
-              margin-bottom: 26px;
+              gap: 10px;
+              flex-wrap: wrap;
+              border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+              padding-bottom: 10px;
+              margin-bottom: 18px;
             }
             .account-subtab {
               appearance: none;
-              border: 0;
+              border: 1px solid transparent;
               background: transparent;
-              color: var(--account-muted);
+              color: #475569;
               font-weight: 700;
               font-size: 15px;
-              padding: 0 18px 14px;
+              padding: 10px 14px;
+              border-radius: 10px;
               cursor: pointer;
-              position: relative;
+              box-shadow: none;
+              outline: none;
+              transition: color .18s ease, background .18s ease, box-shadow .18s ease, border-color .18s ease;
+            }
+            .account-subtab:hover {
+              color: #0f172a;
+              background: #f8fafc;
             }
             .account-subtab.active {
-              color: var(--account-blue);
-            }
-            .account-subtab.active::after {
-              content: '';
-              position: absolute;
-              left: 0;
-              right: 0;
-              bottom: -1px;
-              height: 3px;
-              border-radius: 999px;
-              background: var(--account-blue);
+              color: #2563eb;
+              background: #eaf2ff;
+              border-color: rgba(37, 99, 235, 0.16);
+              box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1), 0 3px 10px rgba(37, 99, 235, 0.18);
             }
             .account-card {
               background: var(--account-surface);
@@ -4667,9 +4663,18 @@ export function ConfigurationPage() {
             .account-profile-name {
               font-size: 16px;
               font-weight: 700;
+              color: var(--account-ink);
+              line-height: 1.25;
+              display: block;
+              min-width: 0;
               white-space: nowrap;
               overflow: hidden;
               text-overflow: ellipsis;
+            }
+            .account-pill-placeholder {
+              display: inline-block;
+              min-width: 56px;
+              height: 28px;
             }
             .account-menu-button {
               appearance: none;
@@ -5227,8 +5232,8 @@ export function ConfigurationPage() {
                             <path d="M3 21h18" /><path d="M6 21V7l6-3 6 3v14" /><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01" />
                           </svg>
                         </span>
-                        <span className="account-profile-name">{profile.name || 'Tenant 1'}</span>
-                        {profile.isDefault ? <span className="account-pill success">Aktivno</span> : <span />}
+                        <span className="account-profile-name">{companyProfileDisplayName(profile.name)}</span>
+                        {profile.isDefault ? <span className="account-pill success">Glavni</span> : <span className="account-pill-placeholder" aria-hidden />}
                         <span style={{ position: 'relative' }}>
                           <button
                             type="button"
@@ -5253,12 +5258,6 @@ export function ConfigurationPage() {
                 <section className="account-card account-company-overview">
                   <div className="account-company-overview-header">
                     <h3>Pregled podjetja</h3>
-                    <button type="button" className="account-button-secondary" onClick={() => setCompanyProfileEditMode((prev) => !prev)}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                      </svg>
-                      Uredi podjetje
-                    </button>
                   </div>
                   <div className="account-company-overview-body">
                     <div className="account-company-overview-main">
@@ -5269,8 +5268,18 @@ export function ConfigurationPage() {
                       </span>
                       <div>
                         <div className="account-overview-name">
-                          <strong>{renderCompanyOverviewValue(selectedCompanyProfile?.name, 'Tenant 1')}</strong>
-                          <span className="account-pill success">Aktivno</span>
+                          <strong>{renderCompanyOverviewValue(companyProfileDisplayName(selectedCompanyProfile?.name), 'Naziv podjetja')}</strong>
+                          {selectedCompanyProfile?.isDefault ? (
+                            <span className="account-pill success">Glavni</span>
+                          ) : selectedCompanyProfile?.id ? (
+                            <button
+                              type="button"
+                              className="account-button-secondary"
+                              onClick={() => setDefaultCompanyProfile(selectedCompanyProfile.id)}
+                            >
+                              Glavni
+                            </button>
+                          ) : null}
                         </div>
                         <div className="account-overview-kv">
                           <small>ID podjetja</small>
@@ -5306,40 +5315,27 @@ export function ConfigurationPage() {
                 <section className="account-card account-form-card">
                   <div className="account-form-card-header">
                     <h3>Osnovni podatki</h3>
-                    <button type="button" className="account-button-secondary" onClick={() => setCompanyProfileEditMode((prev) => !prev)}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                      </svg>
-                      Uredi
-                    </button>
                   </div>
                   <div className="account-form-grid">
-                    <label className="account-field"><span className="account-field-label">Naziv podjetja</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.name || ''} onChange={(e) => updateSelectedCompanyProfile({ name: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">Naslov</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.address || ''} onChange={(e) => updateSelectedCompanyProfile({ address: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">Poštna številka</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.postalCode || ''} onChange={(e) => updateSelectedCompanyProfile({ postalCode: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">Mesto</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.city || ''} onChange={(e) => updateSelectedCompanyProfile({ city: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">Davčna številka</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.vatId || ''} onChange={(e) => updateSelectedCompanyProfile({ vatId: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">E-pošta</span><input className="account-field-control" type="email" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.email || ''} onChange={(e) => updateSelectedCompanyProfile({ email: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">Telefon</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.telephone || ''} onChange={(e) => updateSelectedCompanyProfile({ telephone: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Naziv podjetja</span><input className="account-field-control" value={selectedCompanyProfile?.name || ''} onChange={(e) => updateSelectedCompanyProfile({ name: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Naslov</span><input className="account-field-control" value={selectedCompanyProfile?.address || ''} onChange={(e) => updateSelectedCompanyProfile({ address: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Poštna številka</span><input className="account-field-control" value={selectedCompanyProfile?.postalCode || ''} onChange={(e) => updateSelectedCompanyProfile({ postalCode: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Mesto</span><input className="account-field-control" value={selectedCompanyProfile?.city || ''} onChange={(e) => updateSelectedCompanyProfile({ city: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Davčna številka</span><input className="account-field-control" value={selectedCompanyProfile?.vatId || ''} onChange={(e) => updateSelectedCompanyProfile({ vatId: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">E-pošta</span><input className="account-field-control" type="email" value={selectedCompanyProfile?.email || ''} onChange={(e) => updateSelectedCompanyProfile({ email: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Telefon</span><input className="account-field-control" value={selectedCompanyProfile?.telephone || ''} onChange={(e) => updateSelectedCompanyProfile({ telephone: e.target.value })} /></label>
                   </div>
                 </section>
 
                 <section className="account-card account-form-card">
                   <div className="account-form-card-header">
                     <h3>Podatki za plačila</h3>
-                    <button type="button" className="account-button-secondary" onClick={() => setCompanyProfileEditMode((prev) => !prev)}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                      </svg>
-                      Uredi
-                    </button>
                   </div>
                   <div className="account-form-grid">
-                    <label className="account-field"><span className="account-field-label">IBAN</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.iban || ''} onChange={(e) => updateSelectedCompanyProfile({ iban: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">BIC / SWIFT (neobvezno)</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.bic || ''} onChange={(e) => updateSelectedCompanyProfile({ bic: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">Bank QR purpose code (neobvezno)</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.bankQrPurposeCode || 'OTHR'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeCode: e.target.value })} /></label>
-                    <label className="account-field"><span className="account-field-label">Bank QR purpose text (neobvezno)</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.bankQrPurposeText || 'Plačilo po računu'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeText: e.target.value })} /></label>
-                    <label className="account-field span-2"><span className="account-field-label">Plačnik</span><input className="account-field-control" readOnly value={[selectedCompanyProfile?.name, selectedCompanyProfile?.address, [selectedCompanyProfile?.postalCode, selectedCompanyProfile?.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')} /></label>
+                    <label className="account-field"><span className="account-field-label">IBAN</span><input className="account-field-control" value={selectedCompanyProfile?.iban || ''} onChange={(e) => updateSelectedCompanyProfile({ iban: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">BIC / SWIFT (neobvezno)</span><input className="account-field-control" value={selectedCompanyProfile?.bic || ''} onChange={(e) => updateSelectedCompanyProfile({ bic: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Bank QR purpose code (neobvezno)</span><input className="account-field-control" value={selectedCompanyProfile?.bankQrPurposeCode || 'OTHR'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeCode: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Bank QR purpose text (neobvezno)</span><input className="account-field-control" value={selectedCompanyProfile?.bankQrPurposeText || 'Plačilo po računu'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeText: e.target.value })} /></label>
                   </div>
                 </section>
               </div>
@@ -5352,7 +5348,6 @@ export function ConfigurationPage() {
                   Izvozi podatke
                 </button>
                 <div className="account-company-footer-actions">
-                  <button type="button" className="account-button-secondary" onClick={resetCompanyProfiles}>Prekliči</button>
                   <button type="button" className="account-button" onClick={() => void saveSettings()} disabled={savingSettings}>
                     <GuestSaveIcon />
                     {savingSettings ? 'Shranjevanje…' : 'Shrani spremembe'}
@@ -8356,10 +8351,6 @@ export function ConfigurationPage() {
       ) : tab === 'modules' && modulesDraftDisplay ? (
         <Card className="settings-card modules-design-card">
           <div className="modules-design-shell">
-            <div className="modules-design-page-header">
-              <h2>{locale === 'sl' ? 'Moduli' : 'Modules'}</h2>
-              <p>{locale === 'sl' ? 'Konfigurirajte in prilagodite module, vključene v vaš trenutni paket.' : 'Configure and customize the modules included in your current package.'}</p>
-            </div>
             <div className="modules-design-toolbar">
               <div className="modules-design-toolbar-copy">
                 <span className="modules-design-preset-icon"><ModulesDesignIcon kind="sliders" /></span>
