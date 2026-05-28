@@ -98,14 +98,13 @@ export function selectionToSearch(selection: RegisterSelection) {
   return params.toString()
 }
 
-/** Additional users on the signup slider (min 1). The first additional user is not billed. */
+/** Total user seats selected on signup (min 1). The first user is included; every extra seat is billed. */
 export function getBillableAdditionalUserSlots(selection: RegisterSelection): number {
   return Math.max(0, selection.additionalUsers - 1)
 }
 
 export function getEstimatedUserCount(selection: RegisterSelection) {
-  const baseAllowance = selection.plan === 'basic' ? 1 : selection.plan === 'pro' ? 5 : 10
-  return baseAllowance + selection.additionalUsers
+  return Math.max(1, selection.additionalUsers)
 }
 
 export function getBillingInterval(selection: RegisterSelection) {

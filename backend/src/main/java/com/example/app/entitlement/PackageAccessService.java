@@ -60,9 +60,6 @@ public class PackageAccessService {
         int explicit = parseIntSetting(companyId, SettingKey.SIGNUP_USER_COUNT, 1);
         String pkg = packageType(companyId);
         int packageMinimum = switch (pkg) {
-            case "TRIAL", "BASIC" -> 1;
-            case "PROFESSIONAL" -> 3;
-            case "PREMIUM" -> 10;
             case "CUSTOM" -> Integer.MAX_VALUE;
             default -> 1;
         };

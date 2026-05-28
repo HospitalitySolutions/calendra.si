@@ -2913,6 +2913,11 @@ export function ConfigurationPage() {
   const [smsAddonEnabled, setSmsAddonEnabled] = useState(true)
   const [extraUsersCount, setExtraUsersCount] = useState(5)
   const [smsPackCount, setSmsPackCount] = useState(0)
+  const [currentCycleUserAddCount, setCurrentCycleUserAddCount] = useState(0)
+  const [nextCycleUserLimit, setNextCycleUserLimit] = useState(1)
+  const [currentCycleSmsAddCount, setCurrentCycleSmsAddCount] = useState(0)
+  const [nextCycleSmsCount, setNextCycleSmsCount] = useState(0)
+  const [savingSubscriptionAddons, setSavingSubscriptionAddons] = useState(false)
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
   const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
@@ -3092,23 +3097,34 @@ export function ConfigurationPage() {
     accountRegisterCatalog.smsPerMessage ?? accountRegisterCatalog.usagePrices?.smsPerMessage,
     DEFAULT_ACCOUNT_REGISTER_CATALOG.smsPerMessage || 0,
   )
-  const selectedExtraUsersCount = extraUsersAddonEnabled ? Math.max(0, extraUsersCount) : 0
-  const selectedSmsCount = smsAddonEnabled ? Math.max(0, smsPackCount) : 0
   const usersAddonUnitPrice = subscriptionInterval === 'YEARLY'
     ? roundAccountMoney(additionalUserUnitMonthly * 12 * accountCatalogAnnualFactor)
     : additionalUserUnitMonthly
   const smsAddonUnitPrice = subscriptionInterval === 'YEARLY'
     ? roundAccountMoney(smsUnitPrice * 12)
     : smsUnitPrice
-  const usersAddonAmount = roundAccountMoney(selectedExtraUsersCount * usersAddonUnitPrice)
+  const currentUserCount = Math.max(1, tenantUsersCount)
+  const currentPaidUserLimit = Math.max(1, extraUsersCount, currentUserCount)
+  const currentBillingCycleUserAdd = Math.max(0, currentCycleUserAddCount)
+  const currentEffectiveUserLimit = Math.max(currentUserCount, currentPaidUserLimit + currentBillingCycleUserAdd)
+  const nextInvoiceUserLimit = Math.max(1, currentUserCount, nextCycleUserLimit)
+  const currentPaidSmsLimit = Math.max(0, smsPackCount)
+  const currentBillingCycleSmsAdd = Math.max(0, currentCycleSmsAddCount)
+  const currentEffectiveSmsLimit = Math.max(0, currentPaidSmsLimit + currentBillingCycleSmsAdd)
+  const nextInvoiceSmsCount = Math.max(0, nextCycleSmsCount)
+  const selectedExtraUsersCount = nextInvoiceUserLimit
+  const billableNextInvoiceUsers = Math.max(0, selectedExtraUsersCount - 1)
+  const selectedSmsCount = nextInvoiceSmsCount
+  const usersAddonAmount = roundAccountMoney(billableNextInvoiceUsers * usersAddonUnitPrice)
   const smsAddonAmount = roundAccountMoney(selectedSmsCount * smsAddonUnitPrice)
   const subscriptionSubtotal = roundAccountMoney(planPeriodAmount + usersAddonAmount + smsAddonAmount)
   const subscriptionVat = roundAccountMoney(subscriptionSubtotal * 0.22)
   const estimatedNextInvoice = roundAccountMoney(subscriptionSubtotal + subscriptionVat)
-  const currentUserCount = Math.max(1, tenantUsersCount)
-  const accountUserLimit = Math.max(1, selectedExtraUsersCount)
+  const accountUserLimit = currentEffectiveUserLimit
   const currentSmsUsage = positiveAccountInteger(settings.TENANCY_SMS_SENT_COUNT, 0)
-  const accountSmsLimit = selectedSmsCount
+  const accountSmsLimit = currentEffectiveSmsLimit
+  const currentCycleUserAddonAmount = roundAccountMoney(currentBillingCycleUserAdd * usersAddonUnitPrice)
+  const currentCycleSmsAddonAmount = roundAccountMoney(currentBillingCycleSmsAdd * smsAddonUnitPrice)
   const companyOverviewCreatedAt = me.createdAt || '2024-03-15T00:00:00Z'
   const companyOverviewUpdatedAt = '2024-05-24T00:00:00Z'
   const companyOwnerName = [me.firstName, me.lastName].filter(Boolean).join(' ').trim() || 'Sašo Admin'
@@ -3125,6 +3141,59 @@ export function ConfigurationPage() {
   }
 
   const formatAccountEuro = (value: number) => new Intl.NumberFormat(locale === 'sl' ? 'sl-SI' : 'en-US', { style: 'currency', currency: 'EUR' }).format(value)
+
+  const changeCurrentCycleUserAdd = (delta: number) => {
+    const next = Math.max(0, currentBillingCycleUserAdd + delta)
+    setCurrentCycleUserAddCount(next)
+    setNextCycleUserLimit((limit) => Math.max(currentUserCount, limit, currentPaidUserLimit + next))
+  }
+
+  const changeNextCycleUserLimit = (delta: number) => {
+    setNextCycleUserLimit((current) => Math.max(currentUserCount, 1, current + delta))
+  }
+
+  const changeCurrentCycleSmsAdd = (delta: number) => {
+    const next = Math.max(0, currentBillingCycleSmsAdd + delta)
+    setCurrentCycleSmsAddCount(next)
+    setNextCycleSmsCount((limit) => Math.max(0, limit, currentPaidSmsLimit + next))
+  }
+
+  const changeNextCycleSmsCount = (delta: number) => {
+    setNextCycleSmsCount((current) => Math.max(0, current + delta))
+  }
+
+  const saveSubscriptionCapacity = async () => {
+    if (!isAdmin) return
+    const normalizedCurrentUserLimit = Math.max(1, currentUserCount, currentEffectiveUserLimit)
+    const normalizedCurrentSmsLimit = Math.max(0, currentEffectiveSmsLimit)
+    const normalizedNextUserLimit = Math.max(1, currentUserCount, nextInvoiceUserLimit)
+    const normalizedNextSmsLimit = Math.max(0, nextInvoiceSmsCount)
+    setSavingSubscriptionAddons(true)
+    try {
+      const payload = {
+        ...settings,
+        SIGNUP_USER_COUNT: String(normalizedCurrentUserLimit),
+        SIGNUP_SMS_COUNT: String(normalizedCurrentSmsLimit),
+        BILLING_SUBSCRIPTION_NEXT_USER_COUNT: String(normalizedNextUserLimit),
+        BILLING_SUBSCRIPTION_NEXT_SMS_COUNT: String(normalizedNextSmsLimit),
+      }
+      const { data } = await api.put('/settings', payload)
+      const merged = { ...payload, ...data }
+      setSettings(merged)
+      setExtraUsersCount(normalizedCurrentUserLimit)
+      setSmsPackCount(normalizedCurrentSmsLimit)
+      setCurrentCycleUserAddCount(0)
+      setCurrentCycleSmsAddCount(0)
+      setNextCycleUserLimit(normalizedNextUserLimit)
+      setNextCycleSmsCount(normalizedNextSmsLimit)
+      window.dispatchEvent(new Event('settings-updated'))
+      showToast('success', 'Naročniške kapacitete so posodobljene.')
+    } catch (e: any) {
+      showToast('error', e?.response?.data?.message || 'Kapacitet naročnine ni bilo mogoče posodobiti.')
+    } finally {
+      setSavingSubscriptionAddons(false)
+    }
+  }
 
   const renderAccountPlanIcon = (kind: 'leaf' | 'star' | 'crown') => {
     if (kind === 'leaf') {
@@ -3469,10 +3538,19 @@ export function ConfigurationPage() {
     const nextGuestBookingRules = normalizeBookingRulesForPaymentLocation(parsedGuestBookingRules, nextGuestApp.paymentOnLocation)
     setSettings(nextSettings)
     setSubscriptionBillingInterval(String(nextSettings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY')
-    setExtraUsersCount(positiveAccountInteger(nextSettings.SIGNUP_USER_COUNT, 1))
-    setSmsPackCount(Math.ceil(positiveAccountInteger(nextSettings.SIGNUP_SMS_COUNT, 0) / 50) * 50)
+    const activeTenantUserCount = Math.max(1, Array.isArray(tenantUsersRes.data) ? tenantUsersRes.data.filter((user) => user.active !== false).length : 1)
+    const paidUserLimit = Math.max(1, positiveAccountInteger(nextSettings.SIGNUP_USER_COUNT, 1), activeTenantUserCount)
+    const paidSmsLimit = Math.ceil(positiveAccountInteger(nextSettings.SIGNUP_SMS_COUNT, 0) / 50) * 50
+    const plannedUserLimit = Math.max(1, activeTenantUserCount, positiveAccountInteger(nextSettings.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, paidUserLimit))
+    const plannedSmsLimit = Math.ceil(positiveAccountInteger(nextSettings.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, paidSmsLimit) / 50) * 50
+    setExtraUsersCount(paidUserLimit)
+    setSmsPackCount(paidSmsLimit)
+    setCurrentCycleUserAddCount(0)
+    setCurrentCycleSmsAddCount(0)
+    setNextCycleUserLimit(plannedUserLimit)
+    setNextCycleSmsCount(plannedSmsLimit)
     setAccountRegisterCatalog(normalizeAccountRegisterCatalog(catalogRes.data))
-    setTenantUsersCount(Math.max(1, Array.isArray(tenantUsersRes.data) ? tenantUsersRes.data.length : 1))
+    setTenantUsersCount(activeTenantUserCount)
     setGuestAppSettings(nextGuestApp)
     if (tabRef.current === 'modules') {
       setModulesDraft(buildModulesDraftFromCommitted(nextSettings, nextGuestApp))
@@ -5354,13 +5432,58 @@ export function ConfigurationPage() {
               border-radius: 16px;
               padding: 16px 18px;
               display: grid;
-              grid-template-columns: 48px minmax(0, 1fr) auto auto;
+              grid-template-columns: 48px minmax(0, 1fr);
               gap: 14px;
-              align-items: center;
+              align-items: start;
             }
             .account-addon-copy strong {
               display: block;
               margin-bottom: 4px;
+            }
+            .account-addon-copy small,
+            .account-addon-control-card small {
+              color: var(--account-muted);
+              line-height: 1.35;
+            }
+            .account-addon-controls {
+              grid-column: 1 / -1;
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 12px;
+            }
+            .account-addon-control-card {
+              border: 1px solid #e8eef8;
+              border-radius: 14px;
+              background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+              padding: 14px;
+              display: grid;
+              gap: 12px;
+            }
+            .account-addon-control-top {
+              display: flex;
+              justify-content: space-between;
+              gap: 12px;
+              align-items: flex-start;
+            }
+            .account-addon-control-label {
+              display: block;
+              color: var(--account-ink);
+              font-weight: 800;
+              margin-bottom: 3px;
+            }
+            .account-price-chip {
+              flex: 0 0 auto;
+              border-radius: 999px;
+              padding: 6px 10px;
+              background: #eef4ff;
+              color: var(--account-blue);
+              font-size: 12px;
+              font-weight: 800;
+              white-space: nowrap;
+            }
+            .account-addon-footnote {
+              color: var(--account-muted);
+              font-size: 13px;
             }
             .account-stepper {
               display: inline-flex;
@@ -5461,6 +5584,10 @@ export function ConfigurationPage() {
             .account-summary-row.total strong {
               font-size: 18px;
             }
+            .account-summary-row.muted {
+              color: var(--account-muted);
+              font-size: 13px;
+            }
             .account-next-invoice {
               margin-top: 14px;
               border-radius: 16px;
@@ -5475,6 +5602,7 @@ export function ConfigurationPage() {
               justify-self: end;
             }
             @media (max-width: 1320px) {
+              .account-addon-controls { grid-template-columns: 1fr; }
               .account-company-grid,
               .account-subscription-grid,
               .account-bottom-grid,
@@ -5843,21 +5971,71 @@ export function ConfigurationPage() {
                       <span className="account-addon-icon" aria-hidden>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                       </span>
-                      <div className="account-addon-copy"><strong>Dodatni uporabniki</strong><small>Upravljajte večje ekipe z dodatnimi uporabniškimi dostopi.</small></div>
-                      <div className="account-stepper"><button type="button" onClick={() => setExtraUsersCount((current) => Math.max(0, current - 1))}>−</button><span>{extraUsersCount}</span><button type="button" onClick={() => setExtraUsersCount((current) => current + 1)}>＋</button></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(usersAddonAmount)} / {subscriptionPeriodLabel}</strong><button type="button" className={extraUsersAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setExtraUsersAddonEnabled((prev) => !prev)} aria-label="Toggle extra users add-on" /></div>
+                      <div className="account-addon-copy">
+                        <strong>Dodatni uporabniki</strong>
+                        <small>Trenutni maksimum je {currentPaidUserLimit}. Nikoli ne more biti nižji od trenutno aktivnih uporabnikov ({currentUserCount}).</small>
+                      </div>
+                      <div className="account-addon-controls">
+                        <div className="account-addon-control-card">
+                          <div className="account-addon-control-top">
+                            <div>
+                              <span className="account-addon-control-label">Dodaj v tekoče obdobje</span>
+                              <small>Poveča obstoječi maksimum za ta obračunski cikel.</small>
+                            </div>
+                            <span className="account-price-chip">{formatAccountEuro(currentCycleUserAddonAmount)} / {subscriptionPeriodLabel}</span>
+                          </div>
+                          <div className="account-stepper"><button type="button" onClick={() => changeCurrentCycleUserAdd(-1)} disabled={currentBillingCycleUserAdd <= 0}>−</button><span>+{currentBillingCycleUserAdd}</span><button type="button" onClick={() => changeCurrentCycleUserAdd(1)}>＋</button></div>
+                          <div className="account-addon-footnote">Maksimum v tekočem obdobju: <strong>{currentEffectiveUserLimit}</strong></div>
+                        </div>
+                        <div className="account-addon-control-card">
+                          <div className="account-addon-control-top">
+                            <div>
+                              <span className="account-addon-control-label">Skupaj uporabnikov naslednje obdobje</span>
+                              <small>Uporabljeno za naslednji predvideni račun.</small>
+                            </div>
+                            <span className="account-price-chip">{formatAccountEuro(usersAddonAmount)} / {subscriptionPeriodLabel}</span>
+                          </div>
+                          <div className="account-stepper"><button type="button" onClick={() => changeNextCycleUserLimit(-1)} disabled={nextInvoiceUserLimit <= Math.max(1, currentUserCount)}>−</button><span>{nextInvoiceUserLimit}</span><button type="button" onClick={() => changeNextCycleUserLimit(1)}>＋</button></div>
+                          <div className="account-addon-footnote">Minimum: <strong>{Math.max(1, currentUserCount)}</strong></div>
+                        </div>
+                      </div>
                     </div>
                     <div className="account-addon-row">
                       <span className="account-addon-icon" aria-hidden>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                       </span>
-                      <div className="account-addon-copy"><strong>Dodatni SMSi</strong><small>Dodatna SMS sporočila za obveščanje gostov.</small></div>
-                      <div className="account-stepper"><button type="button" onClick={() => setSmsPackCount((current) => Math.max(0, current - 50))}>−</button><span>{smsPackCount}</span><button type="button" onClick={() => setSmsPackCount((current) => current + 50)}>＋</button></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(smsAddonAmount)} / {subscriptionPeriodLabel}</strong><button type="button" className={smsAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setSmsAddonEnabled((prev) => !prev)} aria-label="Toggle sms add-on" /></div>
+                      <div className="account-addon-copy">
+                        <strong>Dodatni SMSi</strong>
+                        <small>Trenutni SMS maksimum je {currentPaidSmsLimit}. Naslednje obdobje je lahko tudi 0.</small>
+                      </div>
+                      <div className="account-addon-controls">
+                        <div className="account-addon-control-card">
+                          <div className="account-addon-control-top">
+                            <div>
+                              <span className="account-addon-control-label">Dodaj v tekoče obdobje</span>
+                              <small>Dodajte SMS-e k že zakupljenemu paketu.</small>
+                            </div>
+                            <span className="account-price-chip">{formatAccountEuro(currentCycleSmsAddonAmount)} / {subscriptionPeriodLabel}</span>
+                          </div>
+                          <div className="account-stepper"><button type="button" onClick={() => changeCurrentCycleSmsAdd(-50)} disabled={currentBillingCycleSmsAdd <= 0}>−</button><span>+{currentBillingCycleSmsAdd}</span><button type="button" onClick={() => changeCurrentCycleSmsAdd(50)}>＋</button></div>
+                          <div className="account-addon-footnote">Maksimum v tekočem obdobju: <strong>{currentEffectiveSmsLimit}</strong></div>
+                        </div>
+                        <div className="account-addon-control-card">
+                          <div className="account-addon-control-top">
+                            <div>
+                              <span className="account-addon-control-label">Skupaj SMS naslednje obdobje</span>
+                              <small>Uporabljeno za naslednji predvideni račun.</small>
+                            </div>
+                            <span className="account-price-chip">{formatAccountEuro(smsAddonAmount)} / {subscriptionPeriodLabel}</span>
+                          </div>
+                          <div className="account-stepper"><button type="button" onClick={() => changeNextCycleSmsCount(-50)} disabled={nextInvoiceSmsCount <= 0}>−</button><span>{nextInvoiceSmsCount}</span><button type="button" onClick={() => changeNextCycleSmsCount(50)}>＋</button></div>
+                          <div className="account-addon-footnote">Minimum: <strong>0</strong></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="account-subscription-actions" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
-                    <button type="button" className="account-button-secondary">Upravljaj dodatke</button>
+                    <button type="button" className="account-button-secondary" onClick={saveSubscriptionCapacity} disabled={savingSubscriptionAddons}>{savingSubscriptionAddons ? 'Shranjujem…' : 'Shrani dodatke'}</button>
                   </div>
                 </section>
 
@@ -5877,8 +6055,10 @@ export function ConfigurationPage() {
                   <div className="account-plan-header"><h3>Povzetek obračuna</h3></div>
                   <div className="account-summary-list">
                     <div className="account-summary-row"><span>Paket ({activePlanDetails.label})</span><strong>{formatAccountEuro(planPeriodAmount)}</strong></div>
-                    <div className="account-summary-row"><span>Dodatni uporabniki ({selectedExtraUsersCount})</span><strong>{formatAccountEuro(usersAddonAmount)}</strong></div>
-                    <div className="account-summary-row"><span>Dodatni SMSi ({selectedSmsCount})</span><strong>{formatAccountEuro(smsAddonAmount)}</strong></div>
+                    <div className="account-summary-row"><span>Uporabniki naslednje obdobje ({selectedExtraUsersCount} max / {billableNextInvoiceUsers} dodatnih)</span><strong>{formatAccountEuro(usersAddonAmount)}</strong></div>
+                    <div className="account-summary-row"><span>SMS naslednje obdobje ({selectedSmsCount})</span><strong>{formatAccountEuro(smsAddonAmount)}</strong></div>
+                    {currentBillingCycleUserAdd > 0 ? <div className="account-summary-row muted"><span>Dodano v tekočem obdobju</span><strong>{`+${currentBillingCycleUserAdd} uporabnik${currentBillingCycleUserAdd === 1 ? '' : 'i'}`}</strong></div> : null}
+                    {currentBillingCycleSmsAdd > 0 ? <div className="account-summary-row muted"><span>Dodano v tekočem obdobju</span><strong>{`+${currentBillingCycleSmsAdd} SMS`}</strong></div> : null}
                     <div className="account-summary-row total"><span>{subscriptionPeriodSummaryLabel}</span><strong>{formatAccountEuro(subscriptionSubtotal)}</strong></div>
                     <div className="account-summary-row"><span>DDV (22%)</span><strong>{formatAccountEuro(subscriptionVat)}</strong></div>
                   </div>

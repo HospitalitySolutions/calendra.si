@@ -103,6 +103,10 @@ public enum SettingKey {
     BILLING_SUBSCRIPTION_END,
     /** MONTHLY or YEARLY */
     BILLING_SUBSCRIPTION_INTERVAL,
+    /** User-seat quota planned for the next subscription billing period. */
+    BILLING_SUBSCRIPTION_NEXT_USER_COUNT,
+    /** SMS quota planned for the next subscription billing period. */
+    BILLING_SUBSCRIPTION_NEXT_SMS_COUNT,
     /** Decimal amount string (e.g. EUR) still owed for subscription. */
     BILLING_SUBSCRIPTION_DUE_AMOUNT,
     /** Preferred payment method selected during self-serve signup billing details. */

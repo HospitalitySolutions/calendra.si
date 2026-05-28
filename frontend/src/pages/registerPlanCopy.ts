@@ -556,8 +556,8 @@ export function buildSummary(selection: RegisterSelection, locale: RegisterLocal
     rows.push({
       label:
         locale === 'sl'
-          ? `Uporabniki × ${selection.additionalUsers}`
-          : `Users × ${selection.additionalUsers}`,
+          ? `Dodatni uporabniki × ${getBillableAdditionalUserSlots(selection)}`
+          : `Additional users × ${getBillableAdditionalUserSlots(selection)}`,
       value: usersValue,
     })
   }
@@ -786,10 +786,10 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     usageAddonsSectionAria: 'Usage-based add-ons',
     usageAddonsDivider: 'Usage-based add-ons',
     usersStrong: 'Users',
-    usersHint: 'Add extra team members on top of your selected plan allowance.',
+    usersHint: 'Choose the total number of team users. The first user is included.',
     userSingular: 'user',
     userPlural: 'users',
-    firstUserFreeNote: 'First additional user free; then €9.90 / user / month',
+    firstUserFreeNote: 'First user included; extra users €9.90 / user / month',
     smsStrong: 'SMS messages',
     smsHint: 'Increase reminder volume in blocks of 50 SMS messages.',
     smsCount: (n) => `${n} SMS`,
@@ -863,10 +863,10 @@ const registerPlanPageCopy: Record<RegisterLocale, RegisterPlanPageCopy> = {
     usageAddonsSectionAria: 'Dodatki glede na porabo',
     usageAddonsDivider: 'Dodatki glede na porabo',
     usersStrong: 'Uporabniki',
-    usersHint: 'Dodajte dodatne člane ekipe ob kvoti izbranega paketa.',
+    usersHint: 'Izberite skupno število uporabnikov ekipe. Prvi uporabnik je vključen.',
     userSingular: 'uporabnik',
     userPlural: 'uporabniki',
-    firstUserFreeNote: 'Prvi dodatni uporabnik brezplačno; nato 9,90 € / uporabnik / mesec',
+    firstUserFreeNote: 'Prvi uporabnik je vključen; dodatni uporabniki 9,90 € / uporabnik / mesec',
     smsStrong: 'SMS sporočila',
     smsHint: 'Povečajte obseg opomnikov v blokih po 50 SMS sporočilih.',
     smsCount: (n) => `${n} SMS`,

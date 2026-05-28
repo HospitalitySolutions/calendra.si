@@ -181,6 +181,8 @@ public class PlatformSubscriptionBillingService {
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, plan.interval().settingValue());
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, String.valueOf(Math.max(1, userCount == null ? 1 : userCount)));
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, String.valueOf(Math.max(0, smsCount == null ? 0 : smsCount)));
 
         OpenBill open = openBills.findFirstByCompanyIdAndReferenceOrderByIdAsc(platformCompany.getId(), referenceForTenant(tenantCompany.getId()))
                 .orElseGet(() -> {
@@ -289,8 +291,8 @@ public class PlatformSubscriptionBillingService {
             if (plan == null) {
                 continue;
             }
-            Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
-            Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0);
+            Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1));
+            Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0));
             List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
             LocalDate billingStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
                     .map(AppSetting::getValue)
@@ -400,7 +402,7 @@ public class PlatformSubscriptionBillingService {
             totalGross = totalGross.add(addOpenLine(open, plan.transactionService(), 1, planGross));
         }
 
-        int billableUsers = Math.max(0, (selectedUserCount == null ? 1 : selectedUserCount) - baseIncludedUsers(plan.packageType()) - 1);
+        int billableUsers = Math.max(0, (selectedUserCount == null ? 1 : selectedUserCount) - 1);
         if (billableUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
                     ? annualGross(catalog.additionalUserMonthly(), catalog.annualDiscountPercent())

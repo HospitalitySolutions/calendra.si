@@ -1,0 +1,26 @@
+Changes done: Account Management subscription capacity controls
+
+Frontend
+- Updated Configuration -> Upravljanje računa -> Naročnina add-ons block so user seats and SMS packages now have two separate controls:
+  1. add more capacity to the current billing cycle;
+  2. set the total capacity for the next billing cycle.
+- User seats now respect the real current active user count and cannot be set below the active users or below 1.
+- SMS next-cycle total can be reduced to 0.
+- The current usage block now shows the current-cycle effective maximum, including any added current-cycle capacity.
+- The projected invoice summary now uses the next-cycle totals, with the first user included and only extra users charged.
+- Added a save action that persists current-cycle capacity separately from next-cycle planned capacity.
+- Register flow now stores the selected user count as the total user-seat limit instead of adding package-specific included-user allowances.
+- Register pricing text was aligned to show that the first user is included and extra users are billed.
+
+Backend
+- Added subscription next-cycle settings:
+  - BILLING_SUBSCRIPTION_NEXT_USER_COUNT
+  - BILLING_SUBSCRIPTION_NEXT_SMS_COUNT
+- Signup now seeds both the current capacity and the next-cycle capacity.
+- Platform subscription open-bill refresh now uses the next-cycle capacity settings for the next projected bill.
+- Additional-user billing now charges only seats above the first included user.
+- User quota enforcement now honors the configured user-seat limit instead of forcing package-specific user minimums such as 3 or 10.
+
+Validation note
+- Frontend build could not be completed in the sandbox because node_modules are not included in the uploaded ZIP.
+- Backend compile could not be completed in the sandbox because Maven wrapper attempted to download Maven from repo.maven.apache.org and network access is unavailable.
