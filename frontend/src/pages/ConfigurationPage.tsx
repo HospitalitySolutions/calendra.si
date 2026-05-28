@@ -2814,6 +2814,12 @@ export function ConfigurationPage() {
   const { showToast } = useToast()
 
   const [tab, setTab] = useState<Tab>('company')
+  const [accountSubtab, setAccountSubtab] = useState<'company' | 'receivedInvoices' | 'subscription'>('company')
+  const [subscriptionPackage, setSubscriptionPackage] = useState<'BASIC' | 'PROFESSIONAL' | 'PREMIUM'>('PROFESSIONAL')
+  const [extraUsersAddonEnabled, setExtraUsersAddonEnabled] = useState(true)
+  const [smsAddonEnabled, setSmsAddonEnabled] = useState(true)
+  const [extraUsersCount, setExtraUsersCount] = useState(5)
+  const [smsPackCount, setSmsPackCount] = useState(2)
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
   const [guestAppSubtab, setGuestAppSubtab] = useState<GuestAppSubtab>('general')
@@ -2880,6 +2886,118 @@ export function ConfigurationPage() {
   )
 
   const selectedCompanyProfile = companyProfiles.find((profile) => profile.id === selectedCompanyProfileId) || companyProfiles[0]
+
+  const activeSubscriptionPackage = useMemo<'BASIC' | 'PROFESSIONAL' | 'PREMIUM'>(() => {
+    const configured = normalizePackageType(settings.SIGNUP_PACKAGE_NAME || me.packageType || subscriptionPackage)
+    if (configured === 'BASIC' || configured === 'PROFESSIONAL' || configured === 'PREMIUM') return configured
+    return 'PROFESSIONAL'
+  }, [settings.SIGNUP_PACKAGE_NAME, me.packageType, subscriptionPackage])
+
+  useEffect(() => {
+    setSubscriptionPackage(activeSubscriptionPackage)
+  }, [activeSubscriptionPackage])
+
+  const accountPlanCatalog = useMemo(() => ({
+    BASIC: {
+      label: 'Basic',
+      subtitle: 'Za manjše nastanitve',
+      monthly: 19,
+      annual: 228,
+      icon: 'leaf',
+      features: ['Do 2 nastanitvi', 'Osnovni moduli', 'Email podpora'],
+    },
+    PROFESSIONAL: {
+      label: 'Professional',
+      subtitle: 'Za rastoča podjetja',
+      monthly: 49,
+      annual: 588,
+      icon: 'star',
+      features: ['Do 10 nastanitev', 'Napredni moduli', 'Prednostna podpora', 'Poročila in analitika'],
+    },
+    PREMIUM: {
+      label: 'Premium',
+      subtitle: 'Za večje verige',
+      monthly: 89,
+      annual: 1068,
+      icon: 'crown',
+      features: ['Neomejeno nastanitev', 'Vsi moduli', 'Prioritetna podpora 24/7', 'Namenski skrbnik'],
+    },
+  }), [])
+
+  const accountReceivedInvoices = useMemo(() => ([
+    { id: 24, billNumber: 'R-2024-00024', date: '2024-05-15', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Paketni račun', period: '01. 05. 2024 – 31. 05. 2024', amount: 1490, status: 'Plačano' },
+    { id: 23, billNumber: 'R-2024-00023', date: '2024-05-01', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Paketni račun', period: '01. 04. 2024 – 30. 04. 2024', amount: 1490, status: 'Plačano' },
+    { id: 22, billNumber: 'R-2024-00022', date: '2024-04-20', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Dodatek – Moduli', typeSubtitle: 'Google Calendar', period: '20. 04. 2024 – 19. 05. 2024', amount: 120, status: 'Plačano' },
+    { id: 21, billNumber: 'R-2024-00021', date: '2024-04-10', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Dodatni uporabniki', typeSubtitle: '2 uporabnika', period: '10. 04. 2024 – 09. 05. 2024', amount: 58, status: 'V plačilo' },
+    { id: 20, billNumber: 'R-2024-00020', date: '2024-04-05', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'SMS porabe', typeSubtitle: '120 SMS', period: '01. 03. 2024 – 31. 03. 2024', amount: 18.5, status: 'Zapadlo' },
+    { id: 19, billNumber: 'R-2024-00019', date: '2024-03-15', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Dodatni uporabniki', typeSubtitle: '1 uporabnik', period: '15. 03. 2024 – 14. 04. 2024', amount: 29, status: 'Plačano' },
+  ]), [])
+
+  const activePlanDetails = accountPlanCatalog[subscriptionPackage] || accountPlanCatalog.PROFESSIONAL
+  const subscriptionInterval = (settings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY'
+  const planMonthlyAmount = activePlanDetails.monthly
+  const usersAddonAmount = extraUsersAddonEnabled ? extraUsersCount * 3 : 0
+  const smsAddonAmount = smsAddonEnabled ? smsPackCount * 2 : 0
+  const subscriptionSubtotal = planMonthlyAmount + usersAddonAmount + smsAddonAmount
+  const subscriptionVat = Math.round(subscriptionSubtotal * 0.22 * 100) / 100
+  const estimatedNextInvoice = subscriptionSubtotal + subscriptionVat
+  const usageCaps = {
+    BASIC: { properties: 2, users: 5, reservations: 100, sms: 50 },
+    PROFESSIONAL: { properties: 10, users: 15, reservations: 500, sms: 200 },
+    PREMIUM: { properties: 999, users: 50, reservations: 2500, sms: 1000 },
+  } as const
+  const currentUsage = { properties: 7, users: 8, reservations: 128, sms: 46 }
+  const activeUsageCap = usageCaps[subscriptionPackage] || usageCaps.PROFESSIONAL
+  const companyOverviewCreatedAt = me.createdAt || '2024-03-15T00:00:00Z'
+  const companyOverviewUpdatedAt = '2024-05-24T00:00:00Z'
+  const companyOwnerName = [me.firstName, me.lastName].filter(Boolean).join(' ').trim() || 'Sašo Admin'
+
+  const exportCompanyProfile = () => {
+    const payload = JSON.stringify(selectedCompanyProfile || companyProfileFromSettings(settings), null, 2)
+    const blob = new Blob([payload], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(selectedCompanyProfile?.name || 'company-profile').replace(/\s+/g, '-').toLowerCase()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const resetCompanyProfiles = () => {
+    const profiles = loadCompanyProfilesFromSettings(settings)
+    const selected = profiles.find((profile) => profile.id === settings.COMPANY_SELECTED_PROFILE_ID) || profiles.find((profile) => profile.isDefault) || profiles[0]
+    if (!selected) return
+    setCompanyProfiles(profiles)
+    setSelectedCompanyProfileId(selected.id)
+    setCompanyProfileEditMode(false)
+  }
+
+  const formatAccountEuro = (value: number) => new Intl.NumberFormat(locale === 'sl' ? 'sl-SI' : 'en-US', { style: 'currency', currency: 'EUR' }).format(value)
+
+  const renderAccountPlanIcon = (kind: 'leaf' | 'star' | 'crown') => {
+    if (kind === 'leaf') {
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M6 19c9 0 12-9 12-14C13 5 4 8 4 17c0 1 .2 2 .6 3" />
+          <path d="M6 13c1.2 0 2.8.4 4 1.4" />
+        </svg>
+      )
+    }
+    if (kind === 'crown') {
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3 7l4.5 5L12 5l4.5 7L21 7l-2 11H5L3 7Z" />
+        </svg>
+      )
+    }
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
+      </svg>
+    )
+  }
+
+  const renderCompanyOverviewValue = (value?: string | null, fallback = '—') => (value && value.trim() ? value : fallback)
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
@@ -4369,466 +4487,1099 @@ export function ConfigurationPage() {
             )}
             <div className="config-content">
       {tab === 'company' ? (
-        <div className="company-page-shell">
+        <div className="account-management-shell">
           <style>{`
-            .company-page-shell {
-              --company-blue: #0f62fe;
-              --company-ink: #07173b;
-              --company-muted: #64708b;
-              --company-line: #dce3ef;
-              --company-soft: #f8fbff;
-              width: min(100%, 1540px);
-              color: var(--company-ink);
+            .account-management-shell {
+              --account-blue: #2167ff;
+              --account-blue-soft: #eef4ff;
+              --account-ink: #142655;
+              --account-muted: #67748e;
+              --account-line: #dbe5f2;
+              --account-surface: #ffffff;
+              --account-soft: #f7f9fc;
+              --account-success: #dff6e7;
+              --account-success-ink: #2e8a57;
+              --account-warn: #fff2c7;
+              --account-warn-ink: #d09105;
+              --account-danger: #fee2e2;
+              --account-danger-ink: #dc2626;
+              color: var(--account-ink);
+              width: min(100%, 1560px);
             }
-            .company-page-title {
-              margin: 0 0 8px;
-              font-size: clamp(30px, 3vw, 38px);
-              line-height: 1.1;
+            .account-heading {
+              margin: 0 0 18px;
+              font-size: clamp(30px, 2.8vw, 42px);
+              line-height: 1.08;
               letter-spacing: -0.04em;
               font-weight: 800;
             }
-            .company-page-subtitle {
-              margin: 0 0 28px;
-              color: var(--company-muted);
-              font-size: 15px;
-              line-height: 1.5;
-            }
-            .company-card {
-              border: 1px solid rgba(203, 213, 225, 0.86);
-              border-radius: 24px;
-              background: rgba(255,255,255,0.96);
-              box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
-              padding: 28px 34px 32px;
-              overflow: hidden;
-            }
-            .company-card-content {
-              display: grid;
-              grid-template-columns: 390px minmax(0, 1fr);
-              gap: 28px;
-              align-items: start;
-            }
-            .company-profiles-panel {
-              padding-right: 20px;
-              border-right: 1px solid #e5ebf4;
-            }
-            .company-panel-title-row {
+            .account-subtabs {
               display: flex;
               align-items: center;
-              justify-content: space-between;
-              gap: 14px;
-              margin-bottom: 22px;
+              gap: 20px;
+              border-bottom: 1px solid var(--account-line);
+              margin-bottom: 26px;
             }
-            .company-panel-title-row h3,
-            .company-form-section h3 {
-              margin: 0;
-              font-size: 20px;
-              font-weight: 800;
-              color: var(--company-ink);
-              letter-spacing: -0.02em;
-            }
-            .company-profile-list {
-              display: grid;
-              gap: 14px;
-            }
-            .company-profile-card {
+            .account-subtab {
               appearance: none;
-              border: 1px solid var(--company-line);
-              background: #fff;
-              border-radius: 16px;
-              padding: 16px;
-              display: grid;
-              grid-template-columns: 46px minmax(0, 1fr) auto auto;
-              align-items: center;
-              gap: 14px;
-              cursor: pointer;
-              color: var(--company-ink);
-              text-align: left;
-              box-shadow: 0 8px 18px rgba(8, 23, 58, 0.035);
-              transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
-            }
-            .company-profile-card:hover,
-            .company-profile-card.active {
-              border-color: rgba(15, 98, 254, 0.52);
-              background: #f8fbff;
-              box-shadow: 0 10px 24px rgba(15, 98, 254, 0.09);
-            }
-            .company-profile-icon {
-              display: grid;
-              place-items: center;
-              width: 46px;
-              height: 46px;
-              border-radius: 12px;
-              color: var(--company-blue);
-              background: linear-gradient(180deg, #eef4ff 0%, #e7efff 100%);
-            }
-            .company-profile-name {
-              display: block;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
+              border: 0;
+              background: transparent;
+              color: var(--account-muted);
+              font-weight: 700;
               font-size: 15px;
-              font-weight: 800;
-            }
-            .company-default-pill {
-              display: inline-flex;
-              align-items: center;
-              height: 26px;
-              padding: 0 10px;
-              border-radius: 999px;
-              color: #0a8f49;
-              background: #dcfce7;
-              font-size: 12px;
-              font-weight: 800;
-            }
-            .company-menu-dot {
-              color: var(--company-blue);
-              font-size: 22px;
-              line-height: 1;
-              font-weight: 800;
-            }
-            .company-profile-menu {
+              padding: 0 18px 14px;
+              cursor: pointer;
               position: relative;
             }
-            .company-profile-menu-trigger {
-              appearance: none;
-              border: 0;
-              background: transparent;
-              color: var(--company-blue);
-              font-size: 22px;
-              line-height: 1;
-              font-weight: 800;
-              cursor: pointer;
-              padding: 2px 4px;
-              border-radius: 8px;
+            .account-subtab.active {
+              color: var(--account-blue);
             }
-            .company-profile-menu-trigger:hover {
-              background: #eef4ff;
-            }
-            .company-profile-menu-popover {
+            .account-subtab.active::after {
+              content: '';
               position: absolute;
+              left: 0;
               right: 0;
-              top: calc(100% + 8px);
-              min-width: 154px;
-              padding: 6px;
-              border: 1px solid #dbe4f0;
-              border-radius: 10px;
-              background: #fff;
-              box-shadow: 0 12px 28px rgba(8, 23, 58, 0.12);
-              z-index: 15;
+              bottom: -1px;
+              height: 3px;
+              border-radius: 999px;
+              background: var(--account-blue);
             }
-            .company-profile-menu-item {
-              width: 100%;
-              min-height: 34px;
-              border: 0;
-              border-radius: 8px;
-              padding: 0 10px;
-              text-align: left;
-              background: transparent;
-              color: #b42318;
+            .account-card {
+              background: var(--account-surface);
+              border: 1px solid var(--account-line);
+              border-radius: 24px;
+              box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
+            }
+            .account-pill {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              padding: 0 12px;
+              min-height: 30px;
+              border-radius: 999px;
               font-size: 13px;
               font-weight: 700;
-              cursor: pointer;
             }
-            .company-profile-menu-item:hover {
-              background: #fef3f2;
-            }
-            .company-primary-button,
-            .company-secondary-button {
+            .account-pill.success { background: var(--account-success); color: var(--account-success-ink); }
+            .account-pill.warning { background: var(--account-warn); color: var(--account-warn-ink); }
+            .account-pill.danger { background: var(--account-danger); color: var(--account-danger-ink); }
+            .account-button,
+            .account-button-secondary,
+            .account-button-ghost {
+              appearance: none;
+              border-radius: 14px;
+              min-height: 48px;
+              padding: 0 20px;
               display: inline-flex;
               align-items: center;
               justify-content: center;
               gap: 8px;
-              min-height: 40px;
-              padding: 0 16px;
-              border-radius: 10px;
-              border: 1px solid transparent;
-              font-weight: 800;
+              font-weight: 700;
+              font-size: 14px;
               cursor: pointer;
               transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
             }
-            .company-add-profile-button {
-              font-weight: 500;
-            }
-            .company-primary-button {
+            .account-button:hover,
+            .account-button-secondary:hover,
+            .account-button-ghost:hover { transform: translateY(-1px); }
+            .account-button {
+              border: 1px solid transparent;
               color: #fff;
-              background: linear-gradient(180deg, #1664ff 0%, #0f62fe 100%);
-              box-shadow: 0 10px 22px rgba(15, 98, 254, 0.22);
+              background: linear-gradient(180deg, #2f73ff 0%, #1a63ff 100%);
+              box-shadow: 0 12px 24px rgba(33, 103, 255, 0.24);
             }
-            .company-primary-button:hover,
-            .company-secondary-button:hover { transform: translateY(-1px); }
-            .company-secondary-button {
-              color: var(--company-blue);
-              background: #f8fbff;
-              border-color: #d8e5fb;
-            }
-            .company-details-panel {
-              min-width: 0;
-              padding: 0 0 0 4px;
-            }
-            .company-details-toolbar {
-              display: flex;
-              justify-content: flex-end;
-              margin-bottom: 18px;
-            }
-            .company-form-sections {
-              display: grid;
-              grid-template-columns: minmax(0, 1fr) minmax(0, .92fr);
-              gap: 30px;
-            }
-            .company-form-section {
-              min-width: 0;
-            }
-            .company-form-section + .company-form-section {
-              border-left: 1px solid #e5ebf4;
-              padding-left: 30px;
-            }
-            .company-form-section h3 {
-              margin-bottom: 18px;
-            }
-            .company-form-grid {
-              display: grid;
-              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-              gap: 18px 22px;
-            }
-            .company-field {
-              display: grid;
-              gap: 8px;
-              min-width: 0;
-            }
-            .company-field.span-2 {
-              grid-column: 1 / -1;
-            }
-            .company-label {
-              color: var(--company-ink);
-              font-size: 13px;
-              font-weight: 800;
-            }
-            .company-input {
-              width: 100%;
-              min-height: 44px;
-              border: 1px solid var(--company-line);
-              border-radius: 10px;
-              padding: 0 14px;
-              color: var(--company-ink);
+            .account-button-secondary {
+              border: 1px solid #d5def0;
               background: #fff;
-              font: inherit;
-              outline: none;
-              box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
-              transition: border-color 160ms ease, box-shadow 160ms ease;
+              color: var(--account-ink);
             }
-            .company-input:focus {
-              border-color: rgba(15, 98, 254, 0.62);
-              box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.12);
+            .account-button-ghost {
+              border: 1px solid #d8e4fb;
+              background: var(--account-blue-soft);
+              color: var(--account-blue);
             }
-            .company-save-row {
+            .account-company-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+              gap: 24px;
+              margin-bottom: 24px;
+            }
+            .account-company-section {
+              padding: 28px;
+            }
+            .account-section-title-row,
+            .account-company-overview-header,
+            .account-form-card-header,
+            .account-table-header,
+            .account-plan-header {
               display: flex;
               align-items: center;
               justify-content: space-between;
-              gap: 18px;
-              margin-top: 26px;
+              gap: 16px;
             }
-            .company-default-control {
+            .account-section-title,
+            .account-form-card-header h3,
+            .account-table-title,
+            .account-plan-header h3,
+            .account-company-overview-header h3 {
+              margin: 0;
+              font-size: 18px;
+              line-height: 1.2;
+              font-weight: 800;
+              color: var(--account-ink);
+            }
+            .account-profile-list {
+              display: grid;
+              gap: 16px;
+              margin-top: 22px;
+            }
+            .account-profile-card {
+              appearance: none;
+              width: 100%;
+              border: 1.5px solid var(--account-line);
+              background: #fff;
+              border-radius: 18px;
+              padding: 18px 18px;
+              display: grid;
+              grid-template-columns: 48px minmax(0, 1fr) auto auto;
+              align-items: center;
+              gap: 14px;
+              text-align: left;
+              cursor: pointer;
+            }
+            .account-profile-card.active {
+              border-color: rgba(33, 103, 255, 0.55);
+              box-shadow: 0 8px 18px rgba(33, 103, 255, 0.12);
+            }
+            .account-profile-icon,
+            .account-overview-icon,
+            .account-metric-icon,
+            .account-addon-icon {
+              width: 48px;
+              height: 48px;
+              border-radius: 16px;
+              display: grid;
+              place-items: center;
+              color: var(--account-blue);
+              background: linear-gradient(180deg, #f0f5ff 0%, #eaf1ff 100%);
+              flex: none;
+            }
+            .account-profile-name {
+              font-size: 16px;
+              font-weight: 700;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .account-menu-button {
+              appearance: none;
+              border: 0;
+              background: transparent;
+              color: var(--account-blue);
+              font-size: 24px;
+              cursor: pointer;
+              padding: 0 4px;
+              border-radius: 10px;
+            }
+            .account-menu-button:hover { background: #eef4ff; }
+            .company-profile-menu-popover {
+              position: absolute;
+              right: 0;
+              top: calc(100% + 8px);
+              min-width: 150px;
+              padding: 6px;
+              border: 1px solid #dbe5f2;
+              border-radius: 12px;
+              background: #fff;
+              box-shadow: 0 16px 30px rgba(15, 23, 42, 0.14);
+              z-index: 12;
+            }
+            .company-profile-menu-item {
+              width: 100%;
+              border: 0;
+              background: transparent;
+              min-height: 38px;
+              border-radius: 10px;
+              padding: 0 12px;
+              text-align: left;
+              color: #c62828;
+              font-size: 13px;
+              font-weight: 700;
+              cursor: pointer;
+            }
+            .company-profile-menu-item:hover { background: #fff2f2; }
+            .account-company-overview {
+              padding: 28px;
+            }
+            .account-company-overview-body {
+              display: grid;
+              grid-template-columns: minmax(240px, 1.2fr) repeat(2, minmax(160px, .6fr));
+              gap: 22px;
+              margin-top: 20px;
+            }
+            .account-company-overview-main {
+              display: flex;
+              align-items: flex-start;
+              gap: 16px;
+            }
+            .account-overview-name {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              margin-bottom: 16px;
+            }
+            .account-overview-name strong {
+              font-size: 16px;
+            }
+            .account-overview-block {
+              padding-left: 22px;
+              border-left: 1px solid #e6edf8;
+              display: grid;
+              gap: 18px;
+              align-content: start;
+            }
+            .account-overview-kv small,
+            .account-field-label,
+            .account-plan-muted,
+            .account-summary-row span,
+            .account-usage-row span,
+            .account-metric-copy small,
+            .account-table td small,
+            .account-table th,
+            .account-overview-kv div small {
+              color: var(--account-muted);
+            }
+            .account-overview-kv {
+              display: grid;
+              gap: 4px;
+            }
+            .account-overview-kv strong {
+              font-size: 15px;
+            }
+            .account-company-form-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+              gap: 24px;
+              margin-bottom: 26px;
+            }
+            .account-form-card {
+              padding: 28px;
+            }
+            .account-form-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+              gap: 18px 22px;
+              margin-top: 22px;
+            }
+            .account-field {
+              display: grid;
+              gap: 10px;
+            }
+            .account-field.span-2 { grid-column: span 2; }
+            .account-field-label {
+              font-size: 14px;
+              font-weight: 700;
+            }
+            .account-field-control,
+            .account-field-control[readonly] {
+              width: 100%;
+              min-height: 54px;
+              border: 1px solid var(--account-line);
+              border-radius: 14px;
+              background: #fff;
+              padding: 0 16px;
+              font-size: 15px;
+              color: var(--account-ink);
+              outline: none;
+            }
+            .account-company-footer {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              margin-top: 28px;
+            }
+            .account-company-footer-actions {
+              display: flex;
+              align-items: center;
+              gap: 14px;
+            }
+            .account-metrics-grid {
+              display: grid;
+              grid-template-columns: repeat(4, minmax(0, 1fr));
+              gap: 18px;
+              margin-bottom: 22px;
+            }
+            .account-metric-card {
+              padding: 24px;
+              display: flex;
+              align-items: center;
+              gap: 16px;
+            }
+            .account-metric-copy {
+              display: grid;
+              gap: 6px;
+            }
+            .account-metric-copy strong {
+              font-size: 18px;
+            }
+            .account-table-card {
+              padding: 0;
+              overflow: hidden;
+            }
+            .account-table-header {
+              padding: 18px 24px 14px;
+            }
+            .account-table-filter {
+              border: 1px solid var(--account-line);
+              border-radius: 12px;
+              background: #fff;
+              color: var(--account-muted);
+              min-height: 42px;
+              padding: 0 16px;
               display: inline-flex;
               align-items: center;
               gap: 10px;
-              color: var(--company-ink);
-              font-weight: 400;
-              cursor: pointer;
-              user-select: none;
+              font-weight: 700;
             }
-            .company-static-value {
-              min-height: 44px;
+            .account-table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            .account-table thead th {
+              text-align: left;
+              font-size: 13px;
+              font-weight: 700;
+              padding: 16px 24px;
+              border-top: 1px solid #edf2fb;
+              border-bottom: 1px solid #edf2fb;
+              white-space: nowrap;
+            }
+            .account-table tbody td {
+              padding: 16px 24px;
+              border-bottom: 1px solid #edf2fb;
+              vertical-align: top;
+              font-size: 14px;
+              color: var(--account-ink);
+            }
+            .account-table-actions {
               display: flex;
               align-items: center;
-              border: 1px solid transparent;
-              border-radius: 10px;
-              padding: 0 2px;
-              color: var(--company-ink);
-              font-size: 14px;
-              line-height: 1.45;
-              white-space: pre-wrap;
-              word-break: break-word;
+              gap: 18px;
+              color: var(--account-blue);
+              font-weight: 700;
+              white-space: nowrap;
             }
-            .company-default-control input {
+            .account-table-actions button {
+              appearance: none;
+              border: 0;
+              background: transparent;
+              padding: 0;
+              color: inherit;
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              cursor: pointer;
+              font-weight: inherit;
+            }
+            .account-table-footer {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              padding: 18px 24px;
+              color: var(--account-muted);
+              font-size: 14px;
+            }
+            .account-pagination {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .account-page-button {
+              width: 38px;
+              height: 38px;
+              border: 1px solid var(--account-line);
+              border-radius: 10px;
+              background: #fff;
+              display: grid;
+              place-items: center;
+              color: var(--account-ink);
+              font-weight: 700;
+            }
+            .account-page-button.active {
+              border-color: rgba(33, 103, 255, 0.7);
+              color: var(--account-blue);
+            }
+            .account-subscription-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 1.06fr) minmax(0, 1.34fr);
+              gap: 22px;
+              margin-bottom: 22px;
+            }
+            .account-subscription-card {
+              padding: 24px;
+            }
+            .account-current-plan-layout {
+              margin-top: 18px;
+              border: 1px solid #e6edf8;
+              border-radius: 18px;
+              padding: 20px;
+              display: grid;
+              grid-template-columns: 170px minmax(0, 1fr);
+              gap: 18px;
+            }
+            .account-current-plan-brand {
+              display: grid;
+              align-content: start;
+              gap: 14px;
+            }
+            .account-plan-icon-badge {
+              width: 42px;
+              height: 42px;
+              border-radius: 14px;
+              display: grid;
+              place-items: center;
+              color: #fff;
+              background: linear-gradient(180deg, #2f73ff 0%, #165eff 100%);
+            }
+            .account-current-plan-brand strong {
+              font-size: 22px;
+              line-height: 1.15;
+            }
+            .account-price-main {
+              font-size: 18px;
+              font-weight: 800;
+            }
+            .account-current-plan-details {
+              display: grid;
+              gap: 14px;
+            }
+            .account-current-plan-details-row {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 14px 18px;
+            }
+            .account-subscription-actions {
+              display: flex;
+              justify-content: flex-end;
+              gap: 14px;
+              margin-top: 16px;
+            }
+            .account-plan-chooser-copy {
+              margin: 6px 0 0;
+              color: var(--account-muted);
+              font-size: 14px;
+            }
+            .account-plan-grid {
+              display: grid;
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: 16px;
+              margin-top: 18px;
+            }
+            .account-plan-option {
+              border: 1.5px solid #e3ebf6;
+              border-radius: 18px;
+              padding: 18px;
+              display: grid;
+              gap: 14px;
+              min-height: 100%;
+            }
+            .account-plan-option.active {
+              border-color: rgba(33, 103, 255, 0.65);
+              box-shadow: 0 10px 18px rgba(33, 103, 255, 0.08);
+            }
+            .account-plan-top {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 12px;
+            }
+            .account-plan-tag {
+              display: inline-flex;
+              align-items: center;
+              min-height: 28px;
+              padding: 0 12px;
+              border-radius: 999px;
+              background: #edf3ff;
+              color: var(--account-blue);
+              font-size: 12px;
+              font-weight: 700;
+            }
+            .account-plan-option h4 {
+              margin: 0 0 6px;
+              font-size: 18px;
+              font-weight: 800;
+            }
+            .account-plan-option ul {
+              list-style: none;
+              padding: 0;
+              margin: 0;
+              display: grid;
+              gap: 8px;
+              font-size: 14px;
+              color: var(--account-ink);
+            }
+            .account-plan-option li {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .account-check {
+              width: 16px;
+              height: 16px;
+              display: inline-grid;
+              place-items: center;
+              color: var(--account-blue);
+              font-size: 16px;
+            }
+            .account-bottom-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 1.25fr) minmax(0, .9fr) minmax(0, .9fr);
+              gap: 22px;
+            }
+            .account-addon-list {
+              margin-top: 18px;
+              display: grid;
+              gap: 14px;
+            }
+            .account-addon-row {
+              border: 1px solid #e6edf8;
+              border-radius: 16px;
+              padding: 16px 18px;
+              display: grid;
+              grid-template-columns: 48px minmax(0, 1fr) auto auto;
+              gap: 14px;
+              align-items: center;
+            }
+            .account-addon-copy strong {
+              display: block;
+              margin-bottom: 4px;
+            }
+            .account-stepper {
+              display: inline-flex;
+              align-items: center;
+              border: 1px solid #e1e9f7;
+              border-radius: 12px;
+              overflow: hidden;
+              min-height: 38px;
+            }
+            .account-stepper button {
+              width: 34px;
+              height: 38px;
+              border: 0;
+              background: #fff;
+              color: var(--account-muted);
+              cursor: pointer;
+              font-size: 18px;
+            }
+            .account-stepper span {
+              min-width: 34px;
+              text-align: center;
+              font-weight: 700;
+            }
+            .account-toggle {
+              position: relative;
+              width: 44px;
+              height: 24px;
+              border-radius: 999px;
+              background: #dbe4ef;
+              border: 0;
+              cursor: pointer;
+              transition: background 160ms ease;
+            }
+            .account-toggle::after {
+              content: '';
+              position: absolute;
+              top: 3px;
+              left: 3px;
               width: 18px;
               height: 18px;
-              accent-color: var(--company-blue);
+              border-radius: 50%;
+              background: #fff;
+              box-shadow: 0 3px 8px rgba(15, 23, 42, 0.14);
+              transition: transform 160ms ease;
             }
-            @media (max-width: 1100px) {
-              .company-card-content,
-              .company-form-sections { grid-template-columns: 1fr; }
-              .company-profiles-panel { border-right: 0; padding-right: 0; border-bottom: 1px solid #e5ebf4; padding-bottom: 24px; }
-              .company-form-section + .company-form-section { border-left: 0; padding-left: 0; border-top: 1px solid #e5ebf4; padding-top: 24px; }
+            .account-toggle.on {
+              background: #30c85a;
             }
-            @media (max-width: 720px) {
-              .company-card { padding: 22px; }
-              .company-form-grid { grid-template-columns: 1fr; }
-              .company-save-row { align-items: stretch; flex-direction: column; }
-              .company-primary-button { width: 100%; }
+            .account-toggle.on::after {
+              transform: translateX(20px);
+            }
+            .account-usage-list {
+              margin-top: 18px;
+              display: grid;
+              gap: 18px;
+            }
+            .account-usage-row {
+              display: grid;
+              gap: 8px;
+            }
+            .account-usage-row strong {
+              font-size: 14px;
+              font-weight: 700;
+            }
+            .account-usage-bar {
+              height: 6px;
+              border-radius: 999px;
+              background: #e8eff9;
+              overflow: hidden;
+            }
+            .account-usage-bar span {
+              display: block;
+              height: 100%;
+              border-radius: inherit;
+              background: linear-gradient(90deg, #1f67ff 0%, #2e79ff 100%);
+            }
+            .account-inline-link {
+              appearance: none;
+              border: 0;
+              background: transparent;
+              color: var(--account-blue);
+              font-weight: 700;
+              padding: 0;
+              cursor: pointer;
+            }
+            .account-summary-list {
+              margin-top: 18px;
+              display: grid;
+              gap: 14px;
+            }
+            .account-summary-row {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              font-size: 15px;
+            }
+            .account-summary-row.total strong {
+              font-size: 18px;
+            }
+            .account-next-invoice {
+              margin-top: 14px;
+              border-radius: 16px;
+              background: #f2f6ff;
+              padding: 18px;
+              display: grid;
+              gap: 8px;
+            }
+            .account-next-invoice strong:last-child {
+              color: var(--account-blue);
+              font-size: 22px;
+              justify-self: end;
+            }
+            @media (max-width: 1320px) {
+              .account-company-grid,
+              .account-subscription-grid,
+              .account-bottom-grid,
+              .account-metrics-grid,
+              .account-company-overview-body,
+              .account-company-form-grid,
+              .account-form-grid,
+              .account-plan-grid,
+              .account-current-plan-layout,
+              .account-current-plan-details-row {
+                grid-template-columns: 1fr;
+              }
+              .account-overview-block { border-left: 0; padding-left: 0; }
+              .account-addon-row { grid-template-columns: 48px minmax(0, 1fr); }
+              .account-company-footer,
+              .account-table-footer { flex-direction: column; align-items: stretch; }
+              .account-company-footer-actions,
+              .account-pagination,
+              .account-subscription-actions { justify-content: stretch; }
+              .account-company-footer-actions > *,
+              .account-subscription-actions > *,
+              .account-section-title-row > *:last-child,
+              .account-table-header > *:last-child {
+                width: 100%;
+              }
             }
           `}</style>
-          <Card className="company-card">
-            <div className="company-card-content">
-              <aside className="company-profiles-panel">
-                <div className="company-panel-title-row">
-                  <h3>Profili podjetja</h3>
-                  <button type="button" className="company-primary-button company-add-profile-button" onClick={addCompanyProfile}>
-                    <span aria-hidden>＋</span>
-                    Nov profil
-                  </button>
-                </div>
-                <div className="company-profile-list">
-                  {(companyProfiles.length > 0 ? companyProfiles : [companyProfileFromSettings(settings)]).map((profile) => (
-                    <button
-                      key={profile.id}
-                      type="button"
-                      className={profile.id === selectedCompanyProfile?.id ? 'company-profile-card active' : 'company-profile-card'}
-                      onClick={() => selectCompanyProfile(profile.id)}
-                    >
-                      <span className="company-profile-icon" aria-hidden>
+          <h1 className="account-heading">Upravljanje računa</h1>
+          <div className="account-subtabs" role="tablist" aria-label="Account management subtabs">
+            <button type="button" className={accountSubtab === 'company' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtab('company')}>Podjetje</button>
+            <button type="button" className={accountSubtab === 'receivedInvoices' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtab('receivedInvoices')}>Prejeti računi</button>
+            <button type="button" className={accountSubtab === 'subscription' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtab('subscription')}>Naročnina</button>
+          </div>
+
+          {accountSubtab === 'company' ? (
+            <>
+              <div className="account-company-grid">
+                <section className="account-card account-company-section">
+                  <div className="account-section-title-row">
+                    <h3 className="account-section-title">Profil podjetja</h3>
+                    <button type="button" className="account-button" onClick={addCompanyProfile}>
+                      <span aria-hidden>＋</span>
+                      <span>Novo podjetje</span>
+                    </button>
+                  </div>
+                  <div className="account-profile-list">
+                    {(companyProfiles.length > 0 ? companyProfiles : [companyProfileFromSettings(settings)]).map((profile) => (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        className={profile.id === selectedCompanyProfile?.id ? 'account-profile-card active' : 'account-profile-card'}
+                        onClick={() => selectCompanyProfile(profile.id)}
+                      >
+                        <span className="account-profile-icon" aria-hidden>
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 21h18" /><path d="M6 21V7l6-3 6 3v14" /><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01" />
+                          </svg>
+                        </span>
+                        <span className="account-profile-name">{profile.name || 'Tenant 1'}</span>
+                        {profile.isDefault ? <span className="account-pill success">Aktivno</span> : <span />}
+                        <span style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            className="account-menu-button"
+                            aria-label={`Dejanja za profil ${profile.name || 'Profil podjetja'}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCompanyProfileMenuOpenId((prev) => (prev === profile.id ? null : profile.id))
+                            }}
+                          >⋮</button>
+                          {companyProfileMenuOpenId === profile.id ? (
+                            <div className="company-profile-menu-popover" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" className="company-profile-menu-item" onClick={() => deleteCompanyProfile(profile.id)}>Izbriši profil</button>
+                            </div>
+                          ) : null}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="account-card account-company-overview">
+                  <div className="account-company-overview-header">
+                    <h3>Pregled podjetja</h3>
+                    <button type="button" className="account-button-secondary" onClick={() => setCompanyProfileEditMode((prev) => !prev)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                      Uredi podjetje
+                    </button>
+                  </div>
+                  <div className="account-company-overview-body">
+                    <div className="account-company-overview-main">
+                      <span className="account-overview-icon" aria-hidden>
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 21h18" />
-                          <path d="M5 21V7l7-4 7 4v14" />
-                          <path d="M9 21v-6h6v6" />
+                          <path d="M3 21h18" /><path d="M6 21V7l6-3 6 3v14" /><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01" />
                         </svg>
                       </span>
-                      <span className="company-profile-name">{profile.name || 'Nov profil podjetja'}</span>
-                      {profile.isDefault ? <span className="company-default-pill">Privzeto</span> : <span />}
-                      <span className="company-profile-menu">
-                        <button
-                          type="button"
-                          className="company-profile-menu-trigger"
-                          aria-label={`Dejanja za profil ${profile.name || 'Profil podjetja'}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setCompanyProfileMenuOpenId((prev) => (prev === profile.id ? null : profile.id))
-                          }}
-                        >
-                          <span className="company-menu-dot" aria-hidden>⋮</span>
-                        </button>
-                        {companyProfileMenuOpenId === profile.id ? (
-                          <div className="company-profile-menu-popover" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              className="company-profile-menu-item"
-                              onClick={() => deleteCompanyProfile(profile.id)}
-                            >
-                              Izbriši profil
-                            </button>
-                          </div>
-                        ) : null}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
+                      <div>
+                        <div className="account-overview-name">
+                          <strong>{renderCompanyOverviewValue(selectedCompanyProfile?.name, 'Tenant 1')}</strong>
+                          <span className="account-pill success">Aktivno</span>
+                        </div>
+                        <div className="account-overview-kv">
+                          <small>ID podjetja</small>
+                          <strong>{selectedCompanyProfile?.id || '550e8400-e29b-41d4-a716-4466555440000'}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="account-overview-block">
+                      <div className="account-overview-kv">
+                        <small>Ustvarjeno</small>
+                        <strong>{formatDate(companyOverviewCreatedAt)}</strong>
+                      </div>
+                      <div className="account-overview-kv">
+                        <small>Zadnja posodobitev</small>
+                        <strong>{formatDate(companyOverviewUpdatedAt)}</strong>
+                      </div>
+                    </div>
+                    <div className="account-overview-block">
+                      <div className="account-overview-kv">
+                        <small>Ustvaril</small>
+                        <strong>{companyOwnerName}</strong>
+                      </div>
+                      <div className="account-overview-kv">
+                        <small>Vloga</small>
+                        <strong>{me.role === 'CONSULTANT' ? 'Uporabnik' : 'Lastnik'}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
 
-              <section className="company-details-panel">
-                <div className="company-details-toolbar">
-                  <button type="button" className="company-secondary-button" onClick={() => setCompanyProfileEditMode((prev) => !prev)}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M12 20h9" />
-                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                    </svg>
-                    {companyProfileEditMode ? 'Zapri urejanje' : 'Uredi profil'}
-                  </button>
-                </div>
-                <div className="company-form-sections">
-                  <section className="company-form-section">
+              <div className="account-company-form-grid">
+                <section className="account-card account-form-card">
+                  <div className="account-form-card-header">
                     <h3>Osnovni podatki</h3>
-                    <div className="company-form-grid">
-                      <label className="company-field">
-                        <span className="company-label">Naziv podjetja</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.name || ''} onChange={(e) => updateSelectedCompanyProfile({ name: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.name || ''}</div>}
-                      </label>
-                      <label className="company-field">
-                        <span className="company-label">Naslov</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.address || ''} onChange={(e) => updateSelectedCompanyProfile({ address: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.address || ''}</div>}
-                      </label>
-                      <label className="company-field">
-                        <span className="company-label">Poštna številka</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.postalCode || ''} onChange={(e) => updateSelectedCompanyProfile({ postalCode: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.postalCode || ''}</div>}
-                      </label>
-                      <label className="company-field">
-                        <span className="company-label">Mesto</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.city || ''} onChange={(e) => updateSelectedCompanyProfile({ city: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.city || ''}</div>}
-                      </label>
-                      <label className="company-field">
-                        <span className="company-label">Davčna številka</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.vatId || ''} onChange={(e) => updateSelectedCompanyProfile({ vatId: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.vatId || ''}</div>}
-                      </label>
-                      <label className="company-field">
-                        <span className="company-label">Email</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" type="email" value={selectedCompanyProfile?.email || ''} onChange={(e) => updateSelectedCompanyProfile({ email: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.email || ''}</div>}
-                      </label>
-                      <label className="company-field">
-                        <span className="company-label">Telefon</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.telephone || ''} onChange={(e) => updateSelectedCompanyProfile({ telephone: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.telephone || ''}</div>}
-                      </label>
-                    </div>
-                  </section>
+                    <button type="button" className="account-button-secondary" onClick={() => setCompanyProfileEditMode((prev) => !prev)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                      Uredi
+                    </button>
+                  </div>
+                  <div className="account-form-grid">
+                    <label className="account-field"><span className="account-field-label">Naziv podjetja</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.name || ''} onChange={(e) => updateSelectedCompanyProfile({ name: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Naslov</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.address || ''} onChange={(e) => updateSelectedCompanyProfile({ address: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Poštna številka</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.postalCode || ''} onChange={(e) => updateSelectedCompanyProfile({ postalCode: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Mesto</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.city || ''} onChange={(e) => updateSelectedCompanyProfile({ city: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Davčna številka</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.vatId || ''} onChange={(e) => updateSelectedCompanyProfile({ vatId: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">E-pošta</span><input className="account-field-control" type="email" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.email || ''} onChange={(e) => updateSelectedCompanyProfile({ email: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Telefon</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.telephone || ''} onChange={(e) => updateSelectedCompanyProfile({ telephone: e.target.value })} /></label>
+                  </div>
+                </section>
 
-                  <section className="company-form-section">
+                <section className="account-card account-form-card">
+                  <div className="account-form-card-header">
                     <h3>Podatki za plačila</h3>
-                    <div className="company-form-grid">
-                      <label className="company-field">
-                        <span className="company-label">IBAN</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.iban || ''} onChange={(e) => updateSelectedCompanyProfile({ iban: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.iban || ''}</div>}
-                      </label>
-                      <label className="company-field">
-                        <span className="company-label">BIC / SWIFT (neobvezno)</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.bic || ''} onChange={(e) => updateSelectedCompanyProfile({ bic: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.bic || ''}</div>}
-                      </label>
-                      <label className="company-field span-2">
-                        <span className="company-label">Bank QR purpose code (neobvezno)</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.bankQrPurposeCode || 'OTHR'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeCode: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.bankQrPurposeCode || 'OTHR'}</div>}
-                      </label>
-                      <label className="company-field span-2">
-                        <span className="company-label">Bank QR purpose text (neobvezno)</span>
-                        {companyProfileEditMode
-                          ? <input className="company-input" value={selectedCompanyProfile?.bankQrPurposeText || 'PLACILO FOLIA'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeText: e.target.value })} />
-                          : <div className="company-static-value">{selectedCompanyProfile?.bankQrPurposeText || 'PLACILO FOLIA'}</div>}
-                      </label>
-                    </div>
-                  </section>
-                </div>
-                <div className="company-save-row">
-                  <label className="company-default-control">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(selectedCompanyProfile?.isDefault)}
-                      onChange={() => selectedCompanyProfile && setDefaultCompanyProfile(selectedCompanyProfile.id)}
-                    />
-                    <span>Privzeti profil</span>
-                  </label>
-                  <button type="button" className="company-primary-button" onClick={() => void saveSettings()} disabled={savingSettings}>
+                    <button type="button" className="account-button-secondary" onClick={() => setCompanyProfileEditMode((prev) => !prev)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                      Uredi
+                    </button>
+                  </div>
+                  <div className="account-form-grid">
+                    <label className="account-field"><span className="account-field-label">IBAN</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.iban || ''} onChange={(e) => updateSelectedCompanyProfile({ iban: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">BIC / SWIFT (neobvezno)</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.bic || ''} onChange={(e) => updateSelectedCompanyProfile({ bic: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Bank QR purpose code (neobvezno)</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.bankQrPurposeCode || 'OTHR'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeCode: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Bank QR purpose text (neobvezno)</span><input className="account-field-control" readOnly={!companyProfileEditMode} value={selectedCompanyProfile?.bankQrPurposeText || 'Plačilo po računu'} onChange={(e) => updateSelectedCompanyProfile({ bankQrPurposeText: e.target.value })} /></label>
+                    <label className="account-field span-2"><span className="account-field-label">Plačnik</span><input className="account-field-control" readOnly value={[selectedCompanyProfile?.name, selectedCompanyProfile?.address, [selectedCompanyProfile?.postalCode, selectedCompanyProfile?.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')} /></label>
+                  </div>
+                </section>
+              </div>
+
+              <div className="account-company-footer">
+                <button type="button" className="account-button-ghost" onClick={exportCompanyProfile}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" />
+                  </svg>
+                  Izvozi podatke
+                </button>
+                <div className="account-company-footer-actions">
+                  <button type="button" className="account-button-secondary" onClick={resetCompanyProfiles}>Prekliči</button>
+                  <button type="button" className="account-button" onClick={() => void saveSettings()} disabled={savingSettings}>
                     <GuestSaveIcon />
                     {savingSettings ? 'Shranjevanje…' : 'Shrani spremembe'}
                   </button>
                 </div>
+              </div>
+            </>
+          ) : accountSubtab === 'receivedInvoices' ? (
+            <>
+              <div className="account-metrics-grid">
+                <section className="account-card account-metric-card">
+                  <span className="account-metric-icon" aria-hidden>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3h8l4 4v14H5V3h2z" /><path d="M15 3v5h5" /></svg>
+                  </span>
+                  <div className="account-metric-copy"><small>Skupaj računov</small><strong>24</strong><small>vseh časov</small></div>
+                </section>
+                <section className="account-card account-metric-card">
+                  <span className="account-metric-icon" aria-hidden>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
+                  </span>
+                  <div className="account-metric-copy"><small>Neplačan znesek</small><strong>{formatAccountEuro(1248.5)}</strong><small>skupaj</small></div>
+                </section>
+                <section className="account-card account-metric-card">
+                  <span className="account-metric-icon" aria-hidden>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 6-6 4 4 7-7" /><path d="M14 8h6v6" /></svg>
+                  </span>
+                  <div className="account-metric-copy"><small>Plačano ta mesec</small><strong>{formatAccountEuro(1980)}</strong><small>maj 2024</small></div>
+                </section>
+                <section className="account-card account-metric-card">
+                  <span className="account-metric-icon" aria-hidden>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M6 21V7l6-3 6 3v14" /></svg>
+                  </span>
+                  <div className="account-metric-copy"><small>Izdajatelj</small><strong>2TEN – Platform Admin</strong><small>Glavni najemnik (Platform Admin)</small></div>
+                </section>
+              </div>
+
+              <section className="account-card account-table-card">
+                <div className="account-table-header">
+                  <h3 className="account-table-title">Prejeti računi</h3>
+                  <button type="button" className="account-table-filter">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 6h16" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>
+                    Filter
+                    <span aria-hidden>▾</span>
+                  </button>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="account-table">
+                    <thead>
+                      <tr>
+                        <th>Št. računa</th>
+                        <th>Datum</th>
+                        <th>Izdajatelj</th>
+                        <th>Vrsta</th>
+                        <th>Obdobje</th>
+                        <th>Znesek</th>
+                        <th>Status</th>
+                        <th>Dejanja</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accountReceivedInvoices.map((invoice) => {
+                        const statusClass = invoice.status === 'Plačano' ? 'success' : invoice.status === 'V plačilo' ? 'warning' : 'danger'
+                        return (
+                          <tr key={invoice.id}>
+                            <td>{invoice.billNumber}</td>
+                            <td>{formatDate(invoice.date)}</td>
+                            <td><strong>{invoice.issuer}</strong><br /><small>{invoice.issuerSubtitle}</small></td>
+                            <td><strong>{invoice.type}</strong><br />{invoice.typeSubtitle ? <small>{invoice.typeSubtitle}</small> : null}</td>
+                            <td>{invoice.period}</td>
+                            <td><strong>{formatAccountEuro(invoice.amount)}</strong><br /><small>DDV 22%</small></td>
+                            <td><span className={`account-pill ${statusClass}`}>{invoice.status}</span></td>
+                            <td>
+                              <div className="account-table-actions">
+                                <button type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></svg> Ogled</button>
+                                <button type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg> Prenesi</button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="account-table-footer">
+                  <span>Prikazujem 1–6 od 24 računov</span>
+                  <div className="account-pagination">
+                    <button type="button" className="account-page-button">‹</button>
+                    <button type="button" className="account-page-button active">1</button>
+                    <button type="button" className="account-page-button">2</button>
+                    <button type="button" className="account-page-button">3</button>
+                    <button type="button" className="account-page-button">4</button>
+                    <button type="button" className="account-page-button">›</button>
+                  </div>
+                </div>
               </section>
-            </div>
-          </Card>
+            </>
+          ) : (
+            <>
+              <div className="account-subscription-grid">
+                <section className="account-card account-subscription-card">
+                  <div className="account-plan-header">
+                    <h3>Trenutni paket</h3>
+                    <span className="account-pill success">Aktivno</span>
+                  </div>
+                  <div className="account-current-plan-layout">
+                    <div className="account-current-plan-brand">
+                      <span className="account-plan-icon-badge" aria-hidden>{renderAccountPlanIcon(accountPlanCatalog[subscriptionPackage].icon as 'leaf' | 'star' | 'crown')}</span>
+                      <div>
+                        <strong>{accountPlanCatalog[subscriptionPackage].label}</strong>
+                        <div className="account-plan-muted">{subscriptionInterval === 'YEARLY' ? 'Letno obračunavanje' : 'Mesečno obračunavanje'}</div>
+                      </div>
+                      <div>
+                        <div className="account-price-main">{formatAccountEuro(accountPlanCatalog[subscriptionPackage].monthly)} <span className="account-plan-muted">/ mesec</span></div>
+                        <div className="account-plan-muted">{formatAccountEuro(accountPlanCatalog[subscriptionPackage].annual)} z DDV / leto</div>
+                      </div>
+                    </div>
+                    <div className="account-current-plan-details">
+                      <div className="account-current-plan-details-row">
+                        <div className="account-overview-kv"><small>Naslednje podaljšanje</small><strong>{formatDate(settings.BILLING_SUBSCRIPTION_END || '2025-03-15')}</strong></div>
+                        <div className="account-overview-kv"><small>Status</small><strong><span className="account-pill success">Aktivno</span></strong></div>
+                        <div className="account-overview-kv"><small>Pogodba velja do</small><strong>{formatDate(settings.BILLING_SUBSCRIPTION_END || '2026-03-15')}</strong></div>
+                        <div className="account-overview-kv"><small>ID naročnine</small><strong>{`SUB-${me.tenantCode || '550e8400'}-${String(me.id).padStart(4, '0')}`}</strong></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="account-subscription-actions">
+                    <button type="button" className="account-button-secondary">Podrobnosti paketa</button>
+                    <button type="button" className="account-button" onClick={() => setSubscriptionPackage(subscriptionPackage)}>Spremeni paket</button>
+                  </div>
+                </section>
+
+                <section className="account-card account-subscription-card">
+                  <div className="account-plan-header">
+                    <h3>Izberi paket</h3>
+                  </div>
+                  <p className="account-plan-chooser-copy">Spremeni paket kadarkoli. Spremembe se uporabijo ob naslednjem obračunskem obdobju.</p>
+                  <div className="account-plan-grid">
+                    {(Object.keys(accountPlanCatalog) as Array<keyof typeof accountPlanCatalog>).map((planKey) => {
+                      const plan = accountPlanCatalog[planKey]
+                      const active = subscriptionPackage === planKey
+                      return (
+                        <section key={planKey} className={active ? 'account-plan-option active' : 'account-plan-option'}>
+                          <div className="account-plan-top">
+                            <span className="account-overview-icon" aria-hidden>{renderAccountPlanIcon(plan.icon as 'leaf' | 'star' | 'crown')}</span>
+                            {active ? <span className="account-plan-tag">Trenutni paket</span> : null}
+                          </div>
+                          <div>
+                            <h4>{plan.label}</h4>
+                            <div className="account-plan-muted">{plan.subtitle}</div>
+                          </div>
+                          <div>
+                            <div className="account-price-main">{formatAccountEuro(plan.monthly)} <span className="account-plan-muted">/ mesec</span></div>
+                            <div className="account-plan-muted">{formatAccountEuro(plan.annual)} z DDV / leto</div>
+                          </div>
+                          <ul>
+                            {plan.features.map((feature) => <li key={feature}><span className="account-check">✓</span><span>{feature}</span></li>)}
+                          </ul>
+                          <button type="button" className={active ? 'account-button-secondary' : 'account-button-secondary'} onClick={() => setSubscriptionPackage(planKey)}>{active ? 'Izbran' : 'Izberi paket'}</button>
+                        </section>
+                      )
+                    })}
+                  </div>
+                </section>
+              </div>
+
+              <div className="account-bottom-grid">
+                <section className="account-card account-subscription-card">
+                  <div className="account-plan-header"><h3>Dodatki in razširitve</h3></div>
+                  <p className="account-plan-chooser-copy">Dodaj dodatne kapacitete in storitve glede na potrebe.</p>
+                  <div className="account-addon-list">
+                    <div className="account-addon-row">
+                      <span className="account-addon-icon" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                      </span>
+                      <div className="account-addon-copy"><strong>Dodatni uporabniki</strong><small>Upravljajte večje ekipe z dodatnimi uporabniškimi dostopi.</small></div>
+                      <div className="account-stepper"><button type="button" onClick={() => setExtraUsersCount((current) => Math.max(0, current - 1))}>−</button><span>{extraUsersCount}</span><button type="button" onClick={() => setExtraUsersCount((current) => current + 1)}>＋</button></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(usersAddonAmount)} / mesec</strong><button type="button" className={extraUsersAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setExtraUsersAddonEnabled((prev) => !prev)} aria-label="Toggle extra users add-on" /></div>
+                    </div>
+                    <div className="account-addon-row">
+                      <span className="account-addon-icon" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                      </span>
+                      <div className="account-addon-copy"><strong>SMS paketi</strong><small>Paketi SMS sporočil za obveščanje gostov.</small></div>
+                      <div className="account-stepper"><button type="button" onClick={() => setSmsPackCount((current) => Math.max(0, current - 1))}>−</button><span>{smsPackCount}</span><button type="button" onClick={() => setSmsPackCount((current) => current + 1)}>＋</button></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><strong>{formatAccountEuro(smsAddonAmount)} / mesec</strong><button type="button" className={smsAddonEnabled ? 'account-toggle on' : 'account-toggle'} onClick={() => setSmsAddonEnabled((prev) => !prev)} aria-label="Toggle sms add-on" /></div>
+                    </div>
+                  </div>
+                  <div className="account-subscription-actions" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
+                    <button type="button" className="account-button-secondary">Upravljaj dodatke</button>
+                  </div>
+                </section>
+
+                <section className="account-card account-subscription-card">
+                  <div className="account-plan-header"><h3>Poraba in uporaba</h3></div>
+                  <div className="account-usage-list">
+                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>Nastanitve</strong><span>{`${currentUsage.properties} / ${activeUsageCap.properties === 999 ? '∞' : activeUsageCap.properties}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.properties / (activeUsageCap.properties === 999 ? currentUsage.properties : activeUsageCap.properties)) * 100)}%` }} /></div></div>
+                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>Uporabniki</strong><span>{`${currentUsage.users} / ${activeUsageCap.users}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.users / activeUsageCap.users) * 100)}%` }} /></div></div>
+                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>Rezervacije (ta mesec)</strong><span>{`${currentUsage.reservations} / ${activeUsageCap.reservations}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.reservations / activeUsageCap.reservations) * 100)}%` }} /></div></div>
+                    <div className="account-usage-row"><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>SMS sporočila</strong><span>{`${currentUsage.sms} / ${activeUsageCap.sms}`}</span></div><div className="account-usage-bar"><span style={{ width: `${Math.min(100, (currentUsage.sms / activeUsageCap.sms) * 100)}%` }} /></div></div>
+                  </div>
+                  <div className="account-subscription-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
+                    <button type="button" className="account-inline-link">Poglej podrobno poročilo</button>
+                    <span style={{ color: 'var(--account-blue)', fontSize: 18 }}>›</span>
+                  </div>
+                </section>
+
+                <section className="account-card account-subscription-card">
+                  <div className="account-plan-header"><h3>Povzetek obračuna</h3></div>
+                  <div className="account-summary-list">
+                    <div className="account-summary-row"><span>Paket ({activePlanDetails.label})</span><strong>{formatAccountEuro(planMonthlyAmount)}</strong></div>
+                    <div className="account-summary-row"><span>Dodatni uporabniki ({extraUsersAddonEnabled ? extraUsersCount : 0})</span><strong>{formatAccountEuro(usersAddonAmount)}</strong></div>
+                    <div className="account-summary-row"><span>SMS paketi ({smsAddonEnabled ? smsPackCount : 0})</span><strong>{formatAccountEuro(smsAddonAmount)}</strong></div>
+                    <div className="account-summary-row total"><span>Skupaj mesečno</span><strong>{formatAccountEuro(subscriptionSubtotal)}</strong></div>
+                    <div className="account-summary-row"><span>DDV (22%)</span><strong>{formatAccountEuro(subscriptionVat)}</strong></div>
+                  </div>
+                  <div className="account-next-invoice">
+                    <span className="account-plan-muted">Ocenjen naslednji račun</span>
+                    <strong>{formatDate(settings.BILLING_SUBSCRIPTION_END || '2025-03-15')}</strong>
+                    <strong>{formatAccountEuro(estimatedNextInvoice)}</strong>
+                  </div>
+                  <div className="account-subscription-actions" style={{ marginTop: 16 }}>
+                    <button type="button" className="account-button-secondary" style={{ width: '100%' }} onClick={() => setAccountSubtab('receivedInvoices')}>Poglej vse račune</button>
+                  </div>
+                </section>
+              </div>
+            </>
+          )}
         </div>
       ) : tab === 'booking' ? (
         <div className="booking-modern-shell">
