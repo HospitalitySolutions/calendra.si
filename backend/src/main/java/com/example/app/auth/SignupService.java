@@ -70,6 +70,47 @@ public class SignupService {
     private final boolean mailConfigured;
     private final SecureRandom secureRandom = new SecureRandom();
 
+    /**
+     * Backwards-compatible constructor used by existing unit tests and any manual
+     * instantiation that still uses the pre-platform-billing signature. Runtime
+     * Spring wiring uses the constructor below with PlatformSubscriptionBillingService.
+     */
+    public SignupService(
+            UserRepository users,
+            PasswordEncoder passwordEncoder,
+            CompanyProvisioningService companyProvisioningService,
+            CompanyRepository companies,
+            AppSettingRepository settings,
+            TransactionServiceRepository txServices,
+            SecurityCenterService securityCenterService,
+            AuthCookieService authCookieService,
+            SignupEmailIntentRepository signupEmailIntents,
+            ObjectMapper objectMapper,
+            @Autowired(required = false) JavaMailSender mailSender,
+            @Value("${app.mail.from:}") String mailFrom,
+            @Value("${spring.mail.host:}") String mailHost,
+            @Value("${spring.mail.username:}") String mailUsername
+    ) {
+        this(
+                users,
+                passwordEncoder,
+                companyProvisioningService,
+                companies,
+                settings,
+                txServices,
+                securityCenterService,
+                authCookieService,
+                signupEmailIntents,
+                null,
+                objectMapper,
+                mailSender,
+                mailFrom,
+                mailHost,
+                mailUsername
+        );
+    }
+
+    @Autowired
     public SignupService(
             UserRepository users,
             PasswordEncoder passwordEncoder,
@@ -691,6 +732,10 @@ public class SignupService {
             Integer smsCount,
             List<String> addonKeys
     ) {
+        if (platformSubscriptionBillingService == null) {
+            log.debug("Platform subscription open bill creation skipped because platform billing service is not wired.");
+            return;
+        }
         try {
             platformSubscriptionBillingService.ensureForSignupTenant(
                     company,
@@ -715,6 +760,9 @@ public class SignupService {
     }
 
     private PlatformSubscriptionBillingService.SignupBillingInvoiceResult tryCreateSignupSubscriptionInvoice(Company company) {
+        if (platformSubscriptionBillingService == null) {
+            return new PlatformSubscriptionBillingService.SignupBillingInvoiceResult(null, null, null, null);
+        }
         try {
             return platformSubscriptionBillingService.createInvoiceForSignupTenantIfDue(company);
         } catch (Exception e) {

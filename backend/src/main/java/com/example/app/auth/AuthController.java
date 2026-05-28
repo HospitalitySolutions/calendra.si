@@ -388,7 +388,39 @@ public class AuthController {
             /** MONTHLY or YEARLY */
             String billingInterval,
             String paymentMethod
-    ) {}
+    ) {
+        /** Backwards-compatible constructor for tests/callers from before usage add-ons were added. */
+        public SignupBillingDetailsRequest(
+                String firstName,
+                String lastName,
+                String companyName,
+                String vatId,
+                String address,
+                String postalCode,
+                String city,
+                String tenantType,
+                String packageName,
+                String billingInterval,
+                String paymentMethod
+        ) {
+            this(
+                    firstName,
+                    lastName,
+                    companyName,
+                    vatId,
+                    address,
+                    postalCode,
+                    city,
+                    tenantType,
+                    packageName,
+                    null,
+                    null,
+                    List.of(),
+                    billingInterval,
+                    paymentMethod
+            );
+        }
+    }
 
     @PostMapping("/signup/billing-details")
     public ResponseEntity<?> saveSignupBillingDetails(@Valid @RequestBody SignupBillingDetailsRequest body, Authentication authentication) {
@@ -505,6 +537,39 @@ public class AuthController {
             /** Optional: {@code location.search} from the register flow for redirects after email confirmation. */
             String returnSearch
     ) {
+        /** Backwards-compatible constructor for tests/callers from before package add-ons were added. */
+        public SignupRequest(
+                String companyName,
+                String firstName,
+                String lastName,
+                String email,
+                String phone,
+                String password,
+                String packageName,
+                Integer userCount,
+                Integer smsCount,
+                Integer spaceCount,
+                String billingInterval,
+                Boolean fiscalizationNeeded,
+                String returnSearch
+        ) {
+            this(
+                    companyName,
+                    firstName,
+                    lastName,
+                    email,
+                    phone,
+                    password,
+                    packageName,
+                    userCount,
+                    smsCount,
+                    spaceCount,
+                    List.of(),
+                    billingInterval,
+                    fiscalizationNeeded,
+                    returnSearch
+            );
+        }
     }
 
     @PostMapping("/logout")

@@ -2451,8 +2451,8 @@ private fun BuyPanel(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
             BuyMarketplaceCategoryRow(
@@ -2584,180 +2584,264 @@ private fun BuyMarketplaceOfferCard(
     modifier: Modifier = Modifier
 ) {
     val accent = marketplaceOfferAccent(offer, index)
+    val softColor = buyMarketplaceSoftPanelColor(offer, index)
     Surface(
-        modifier = modifier.height(142.dp),
-        shape = RoundedCornerShape(22.dp),
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.62f)),
-        shadowElevation = 7.dp,
+        border = BorderStroke(1.dp, WalletLine.copy(alpha = 0.82f)),
+        shadowElevation = 8.dp,
         tonalElevation = 0.dp
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BuyMarketplaceVisualPanel(
-                offer = offer,
-                languageCode = languageCode,
-                accent = accent,
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .width(112.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(start = 12.dp, top = 12.dp, bottom = 11.dp, end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                    .fillMaxWidth()
+                    .height(154.dp)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color.White, softColor, softColor.copy(alpha = 0.74f)),
+                            start = Offset(0f, 0f),
+                            end = Offset(900f, 380f)
+                        )
+                    )
             ) {
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = WalletGoldSoft,
-                    tonalElevation = 0.dp
+                BuyMarketplacePremiumBackdrop(
+                    offer = offer,
+                    accent = accent,
+                    index = index,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 15.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        Icon(Icons.Rounded.Star, contentDescription = null, tint = WalletGold, modifier = Modifier.size(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = WalletBlue,
+                            tonalElevation = 0.dp
+                        ) {
+                            Text(
+                                text = buyMarketplaceCardTypeLabel(offer, languageCode).uppercase(Locale.getDefault()),
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                lineHeight = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = WalletGoldSoft,
+                            tonalElevation = 0.dp
+                        ) {
+                            Text(
+                                text = marketplaceOfferTag(offer, languageCode),
+                                color = WalletGold,
+                                fontSize = 10.sp,
+                                lineHeight = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.weight(1f))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            BuyOfferSmallIcon(offer = offer, accent = WalletBlue)
+                            Text(
+                                text = buyMarketplaceQuantityLabel(offer, languageCode),
+                                color = WalletBlue,
+                                fontSize = 13.sp,
+                                lineHeight = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = offer.name.ifBlank { buyMarketplaceCardTypeLabel(offer, languageCode) },
+                        color = WalletInk,
+                        fontSize = 24.sp,
+                        lineHeight = 27.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = marketplaceOfferDescription(offer, languageCode),
+                        color = WalletInk.copy(alpha = 0.70f),
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.weight(1f))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(WalletLine.copy(alpha = 0.72f))
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Icon(Icons.Rounded.Schedule, contentDescription = null, tint = WalletMuted, modifier = Modifier.size(15.dp))
                         Text(
-                            text = marketplaceOfferTag(offer, languageCode).uppercase(Locale.getDefault()),
-                            color = WalletGold,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            text = buyMarketplaceExpiryLabel(offer, languageCode),
+                            color = WalletMuted,
+                            fontSize = 12.sp,
+                            lineHeight = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-
-                Text(
-                    text = offer.name.ifBlank { walletProductTypeLabel(offer.productType, languageCode) },
-                    color = WalletInk,
-                    fontSize = 16.sp,
-                    lineHeight = 18.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = marketplaceOfferDescription(offer, languageCode),
-                    color = WalletMuted,
-                    fontSize = 10.sp,
-                    lineHeight = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(Icons.Rounded.Schedule, contentDescription = null, tint = WalletMuted, modifier = Modifier.size(13.dp))
-                    Text(
-                        text = buyMarketplaceExpiryLabel(offer, languageCode),
-                        color = WalletMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
 
-            Box(
+            Row(
                 modifier = Modifier
-                    .width(1.dp)
-                    .height(104.dp)
-                    .background(WalletLine.copy(alpha = 0.82f))
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(108.dp)
-                    .padding(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.Start
+                    .fillMaxWidth()
+                    .height(68.dp)
+                    .background(Color.White)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    BuyOfferSmallIcon(offer = offer, accent = accent)
-                    Text(
-                        text = buyMarketplaceQuantityLabel(offer, languageCode),
-                        color = accent,
-                        fontSize = 10.sp,
-                        lineHeight = 12.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text(
-                        text = buyOfferPriceLabel(offer),
-                        color = accent,
-                        fontSize = 22.sp,
-                        lineHeight = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = buyMarketplacePriceSubtitle(offer, languageCode),
-                        color = WalletMuted,
-                        fontSize = 9.sp,
-                        lineHeight = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = buyOfferPriceLabel(offer),
+                    color = WalletBlue,
+                    fontSize = 26.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
 
                 Surface(
                     modifier = Modifier
-                        .height(38.dp)
-                        .fillMaxWidth()
+                        .height(48.dp)
+                        .widthIn(min = 142.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onBuyClick
                         ),
                     shape = RoundedCornerShape(999.dp),
-                    color = accent,
-                    shadowElevation = 4.dp,
+                    color = WalletBlueSoft,
+                    shadowElevation = 5.dp,
                     tonalElevation = 0.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 9.dp),
+                        modifier = Modifier.padding(horizontal = 18.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = walletTr(languageCode, "Buy now", "Kupi zdaj"),
                             color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
-                        Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                        Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BuyMarketplacePremiumBackdrop(
+    offer: WalletOfferCard,
+    accent: Color,
+    index: Int,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier, contentAlignment = Alignment.CenterEnd) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 70.dp, y = (-74).dp)
+                .size(214.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.11f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = 36.dp, y = 24.dp)
+                .width(156.dp)
+                .height(74.dp)
+                .rotate(if (index % 2 == 0) -8f else 8f)
+                .clip(RoundedCornerShape(26.dp))
+                .background(accent.copy(alpha = 0.10f))
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = 36.dp, y = (-18).dp)
+                .rotate(if (index % 2 == 0) -8f else 8f),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            repeat(5) { line ->
+                Box(
+                    modifier = Modifier
+                        .width((86 + line * 8).dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accent.copy(alpha = 0.10f + line.toFloat() * 0.018f))
+                )
+            }
+        }
+        Icon(
+            imageVector = when {
+                isGiftOffer(offer) -> Icons.Rounded.CardMembership
+                offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> Icons.Rounded.FitnessCenter
+                else -> Icons.Rounded.ConfirmationNumber
+            },
+            contentDescription = null,
+            tint = accent.copy(alpha = 0.16f),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = 30.dp, y = 8.dp)
+                .size(92.dp)
+                .rotate(if (index % 2 == 0) -8f else 8f)
+        )
+    }
+}
+
+private fun buyMarketplaceSoftPanelColor(offer: WalletOfferCard, index: Int): Color {
+    val type = offer.productType.uppercase(Locale.getDefault())
+    return when {
+        type == "MEMBERSHIP" -> Color(0xFFE8F5EC)
+        isGiftOffer(offer) -> Color(0xFFFFF2E3)
+        index % 2 == 0 -> Color(0xFFEAF6FF)
+        else -> Color(0xFFFFF0E1)
     }
 }
 
@@ -2930,19 +3014,19 @@ private fun buyMarketplaceQuantityLabel(offer: WalletOfferCard, languageCode: St
     val limit = offer.usageLimit ?: 0
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
+        type == "MEMBERSHIP" -> walletTr(languageCode, "1 month", "1 mesec")
+        isGiftOffer(offer) -> walletTr(languageCode, "1 item", "1 kos")
         limit > 1 -> walletTr(languageCode, "$limit visits", "$limit obiskov")
-        limit == 1 -> "1x"
-        type == "MEMBERSHIP" -> "1x"
-        isGiftOffer(offer) -> "1x"
-        else -> "1x"
+        else -> walletTr(languageCode, "1 visit", "1 obisk")
     }
 }
 
 private fun buyMarketplaceExpiryLabel(offer: WalletOfferCard, languageCode: String): String {
+    val pattern = if (walletIsSl(languageCode)) "dd. MM. yyyy" else "dd MMM yyyy"
     val date = offer.validityDays?.takeIf { it > 0 }?.let { days ->
-        java.time.LocalDate.now().plusDays(days.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-    } ?: "31.12.2026"
-    return walletTr(languageCode, "Valid until: $date", "Velja do: $date")
+        java.time.LocalDate.now().plusDays(days.toLong()).format(java.time.format.DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+    } ?: if (walletIsSl(languageCode)) "31. 12. 2026" else "31 Dec 2026"
+    return walletTr(languageCode, "Expires: $date", "Poteče: $date")
 }
 
 private fun buyMarketplacePriceSubtitle(offer: WalletOfferCard, languageCode: String): String {

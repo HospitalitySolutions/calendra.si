@@ -2842,154 +2842,227 @@ private struct BuyShowcaseOfferCard: View {
         switch offer.productType {
         case "MEMBERSHIP": return walletBlueSoft
         case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletAmber
-        case "PACK": return index % 2 == 0 ? Color(red: 1.0, green: 0.60, blue: 0.12) : Color(red: 0.55, green: 0.40, blue: 0.96)
-        default: return Color(red: 0.12, green: 0.71, blue: 0.42)
+        default: return index % 2 == 0 ? walletBlueSoft : walletAmber
         }
     }
 
-    private var tileBackground: Color {
+    private var softAccent: Color {
         switch offer.productType {
-        case "MEMBERSHIP": return walletCardBlue
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletCardCream
-        case "PACK": return index % 2 == 0 ? walletCardCream : walletCardLavender
-        default: return walletCardMint
+        case "MEMBERSHIP": return Color(red: 0.90, green: 0.96, blue: 0.93)
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return Color(red: 1.00, green: 0.95, blue: 0.88)
+        default: return index % 2 == 0 ? Color(red: 0.90, green: 0.96, blue: 1.00) : Color(red: 1.00, green: 0.94, blue: 0.86)
         }
     }
 
-    private var quantityLabel: String? {
-        guard offer.productType != "MEMBERSHIP" else { return nil }
-        if let usageLimit = offer.usageLimit, usageLimit > 1 { return walletTr(appUiLocaleStorage, "\(usageLimit) Sessions", "\(usageLimit) obiskov") }
-        return walletTr(appUiLocaleStorage, "1 Session", "1 obisk")
-    }
-
-    private var priceSubLabel: String {
+    private var visualTint: Color {
         switch offer.productType {
-        case "MEMBERSHIP":
-            return walletTr(appUiLocaleStorage, "Billed monthly", "Mesečno obračunavanje")
-        case "PACK":
-            let count = max(Double(offer.usageLimit ?? 1), 1)
-            let each = offer.priceGross / count
-            return walletTr(appUiLocaleStorage, "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) per session", "\(currencySymbol(offer.currency))\(formatCompactPrice(each)) na obisk")
-        default:
-            return walletTr(appUiLocaleStorage, "One-time payment", "Enkratno plačilo")
+        case "MEMBERSHIP": return Color(red: 0.14, green: 0.57, blue: 0.34)
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletAmber
+        default: return index % 2 == 0 ? walletBlueSoft : walletAmber
         }
     }
 
-    private var cardLabel: String {
+    private var typeLabel: String {
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
-        case "PACK": return walletTr(appUiLocaleStorage, "CARD", "KARTA")
         case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
-        default: return walletTr(appUiLocaleStorage, "DAY PASS", "DNEVNA VSTOPNICA")
+        default: return walletTr(appUiLocaleStorage, "CARD", "KARTA")
         }
+    }
+
+    private var promoLabel: String {
+        if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty { return promoText }
+        switch offer.productType {
+        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Special offer", "Posebna ponudba")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "Great gift", "Odlično darilo")
+        default: return index % 2 == 0 ? walletTr(appUiLocaleStorage, "New", "Novo") : walletTr(appUiLocaleStorage, "Deal", "Akcija")
+        }
+    }
+
+    private var quantityLabel: String {
+        let isSl = appUiLocaleStorage.lowercased().hasPrefix("sl")
+        if offer.productType == "MEMBERSHIP" { return isSl ? "1 mesec" : "1 month" }
+        if offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT" { return isSl ? "1 kos" : "1 item" }
+        guard let usageLimit = offer.usageLimit, usageLimit > 1 else { return isSl ? "1 obisk" : "1 visit" }
+        return isSl ? "\(usageLimit) obiskov" : "\(usageLimit) visits"
     }
 
     private var descriptionText: String {
-        if let description = offer.description, !description.isEmpty { return description }
+        if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
         switch offer.productType {
-        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Unlimited access to your favourite services with one simple membership.", "Neomejen dostop do vaših najljubših storitev z eno članarino.")
-        case "PACK": return walletTr(appUiLocaleStorage, "Bundle sessions together for better value and flexible booking.", "Združite obiske v paket za boljšo vrednost in prilagodljivo rezervacijo.")
-        default: return walletTr(appUiLocaleStorage, "A simple pass ready to use on your next visit.", "Preprosta vstopnica, pripravljena za vaš naslednji obisk.")
+        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Unlimited access to selected services", "Neomejen dostop do izbranih storitev")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "For all services from this provider", "Za vse storitve pri ponudniku")
+        default: return walletTr(appUiLocaleStorage, "Flexible access for regular visits", "Popolno za redne obiske")
         }
+    }
+
+    private var expiryText: String {
+        let fallback = appUiLocaleStorage.lowercased().hasPrefix("sl") ? "31. 12. 2026" : "31 Dec 2026"
+        guard let validityDays = offer.validityDays, validityDays > 0,
+              let date = Calendar.current.date(byAdding: .day, value: validityDays, to: Date()) else {
+            return walletTr(appUiLocaleStorage, "Expires: \(fallback)", "Poteče: \(fallback)")
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: appUiLocaleStorage.lowercased().hasPrefix("sl") ? "sl_SI" : "en_US_POSIX")
+        formatter.dateFormat = appUiLocaleStorage.lowercased().hasPrefix("sl") ? "dd. MM. yyyy" : "dd MMM yyyy"
+        return walletTr(appUiLocaleStorage, "Expires: \(formatter.string(from: date))", "Poteče: \(formatter.string(from: date))")
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(tileBackground)
-                .frame(width: 112, height: 132)
-                .overlay(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Image(systemName: iconName)
-                            .font(.system(size: 40, weight: .regular))
-                            .foregroundColor(accent)
-                        HStack(spacing: 6) {
-                            Circle().fill(accent).frame(width: 6, height: 6)
-                            Circle().fill(accent.opacity(0.35)).frame(width: 6, height: 6)
-                        }
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
+        VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                LinearGradient(
+                    colors: [Color.white, softAccent, softAccent.opacity(0.74)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                BuyPremiumVisualBackdrop(accent: visualTint, index: index)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .clipped()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(cardLabel)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(accent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(accent.opacity(0.12), in: Capsule(style: .continuous))
-                Text(offer.name)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(walletInk)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(descriptionText)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(walletInk.opacity(0.72))
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                BuyShowcaseMetaView(iconName: "calendar", text: offerValidityLabel(offer.validityDays))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(typeLabel)
+                            .font(.system(size: 11, weight: .black))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .padding(.horizontal, 10)
+                            .frame(height: 28)
+                            .background(walletBlue, in: Capsule(style: .continuous))
 
-            VStack(alignment: .leading, spacing: 8) {
-                if let quantityLabel {
-                    HStack(spacing: 6) {
-                        Image(systemName: offer.productType == "MEMBERSHIP" ? "person.2" : "shippingbox")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(accent)
-                        Text(quantityLabel)
+                        Text(promoLabel)
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(accent)
+                            .foregroundColor(walletAmber)
+                            .lineLimit(1)
+                            .padding(.horizontal, 10)
+                            .frame(height: 28)
+                            .background(Color(red: 1.0, green: 0.90, blue: 0.80), in: Capsule(style: .continuous))
+
+                        Spacer(minLength: 8)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : "person.crop.circle")
+                                .font(.system(size: 13, weight: .bold))
+                            Text(quantityLabel)
+                                .font(.system(size: 13, weight: .black))
+                                .lineLimit(1)
+                        }
+                        .foregroundColor(walletBlue)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(offer.name.isEmpty ? typeLabel.capitalized : offer.name)
+                            .font(.system(size: 24, weight: .black))
+                            .foregroundColor(walletInk)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.78)
+                        Text(descriptionText)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(walletInk.opacity(0.70))
+                            .lineLimit(2)
+                    }
+
+                    Rectangle()
+                        .fill(walletLine.opacity(0.72))
+                        .frame(height: 1)
+                        .padding(.top, 2)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(walletMuted)
+                        Text(expiryText)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(walletMuted)
                             .lineLimit(1)
                     }
                 }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 18)
+            }
+            .frame(minHeight: 154)
 
-                Spacer(minLength: 0)
+            HStack(alignment: .center, spacing: 14) {
+                Text(priceLabel)
+                    .font(.system(size: 27, weight: .black))
+                    .foregroundColor(walletBlue)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(priceLabel)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(walletInk)
-                    Text(priceSubLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(walletInk.opacity(0.58))
-                }
+                Spacer(minLength: 8)
 
                 Button(action: onTap) {
-                    HStack(spacing: 8) {
-                        Spacer(minLength: 0)
+                    HStack(spacing: 9) {
                         Text(walletTr(appUiLocaleStorage, "Buy now", "Kupi zdaj"))
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 15, weight: .black))
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 13, weight: .black))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .frame(height: 46)
-                    .frame(maxWidth: .infinity)
-                    .background(walletBlueSoft, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(.horizontal, 20)
+                    .frame(height: 50)
+                    .background(walletBlueSoft, in: Capsule(style: .continuous))
+                    .shadow(color: walletBlueSoft.opacity(0.25), radius: 10, y: 6)
                 }
                 .buttonStyle(.plain)
             }
-            .frame(width: 134, alignment: .leading)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 13)
+            .background(Color.white)
         }
-        .padding(16)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(walletLine.opacity(0.92), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(walletLine.opacity(0.82), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 12, y: 6)
+        .shadow(color: Color.black.opacity(0.07), radius: 14, y: 7)
+    }
+}
+
+private struct BuyPremiumVisualBackdrop: View {
+    let accent: Color
+    let index: Int
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+            ZStack(alignment: .trailing) {
+                Circle()
+                    .fill(accent.opacity(0.12))
+                    .frame(width: width * 0.72, height: width * 0.72)
+                    .offset(x: width * 0.28, y: -height * 0.28)
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(accent.opacity(0.11))
+                    .frame(width: width * 0.46, height: height * 0.50)
+                    .rotationEffect(.degrees(index % 2 == 0 ? -10 : 10))
+                    .offset(x: width * 0.22, y: height * 0.22)
+                VStack(spacing: 7) {
+                    ForEach(0..<5, id: \.self) { line in
+                        Capsule(style: .continuous)
+                            .fill(accent.opacity(0.10 + Double(line) * 0.018))
+                            .frame(width: width * (0.36 + CGFloat(line) * 0.025), height: 4)
+                    }
+                }
+                .rotationEffect(.degrees(index % 2 == 0 ? -8 : 8))
+                .offset(x: width * 0.08, y: height * 0.18)
+                Image(systemName: visualIconName)
+                    .font(.system(size: 76, weight: .regular))
+                    .foregroundColor(accent.opacity(0.16))
+                    .rotationEffect(.degrees(index % 2 == 0 ? -7 : 8))
+                    .offset(x: width * 0.16, y: height * 0.06)
+            }
+            .frame(width: width, height: height)
+        }
+        .allowsHitTesting(false)
     }
 
-    private var iconName: String {
-        switch offer.productType {
-        case "MEMBERSHIP": return "crown.fill"
-        case "PACK": return "dumbbell.fill"
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return "gift.fill"
-        default: return "figure.mind.and.body"
+    private var visualIconName: String {
+        switch index % 3 {
+        case 0: return "ticket"
+        case 1: return "leaf"
+        default: return "sparkles"
         }
     }
 }
