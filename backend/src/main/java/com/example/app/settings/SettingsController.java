@@ -1,11 +1,13 @@
 package com.example.app.settings;
 
+import com.example.app.company.PlatformTenantAccountLinkService;
 import com.example.app.files.TenantFileS3Service;
 import java.util.Locale;
 import java.util.Arrays;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.example.app.user.User;
@@ -21,17 +23,20 @@ public class SettingsController {
     private final SettingsCryptoService crypto;
     private final TenantFileS3Service fileStorage;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
 
     public SettingsController(
             AppSettingRepository repository,
             SettingsCryptoService crypto,
             TenantFileS3Service fileStorage,
-            GlobalPaymentProviderService globalPaymentProviders
+            GlobalPaymentProviderService globalPaymentProviders,
+            PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
         this.repository = repository;
         this.crypto = crypto;
         this.fileStorage = fileStorage;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.platformTenantAccountLinkService = platformTenantAccountLinkService;
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
@@ -46,6 +51,7 @@ public class SettingsController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping
+    @Transactional
     public Map<String, String> save(@RequestBody Map<String, String> payload, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
         Arrays.stream(SettingKey.values()).forEach(key -> {
@@ -60,6 +66,7 @@ public class SettingsController {
                 repository.save(s);
             }
         });
+        platformTenantAccountLinkService.syncFromTenantSettings(me.getCompany(), payload);
         return all(me);
     }
 

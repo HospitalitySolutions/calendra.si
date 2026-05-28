@@ -3,6 +3,7 @@ package com.example.app.company;
 import com.example.app.common.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -18,6 +19,14 @@ public class ClientCompany extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "owner_company_id", nullable = false)
     private Company ownerCompany;
+
+    /**
+     * When this row belongs to the Platform Admin tenant and represents a tenant payee, this points back
+     * to the tenant account from Platform Admin -> Tenant management.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "platform_tenant_company_id")
+    private Company platformTenantCompany;
 
     @Column(nullable = false)
     private String name;

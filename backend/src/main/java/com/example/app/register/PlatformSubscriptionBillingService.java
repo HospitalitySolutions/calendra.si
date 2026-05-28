@@ -167,7 +167,7 @@ public class PlatformSubscriptionBillingService {
         String lastName = owner == null ? null : trimToNull(owner.getLastName());
         String resolvedCompanyName = firstNonBlank(billingCompanyName, tenantCompany.getName(), fullName(firstName, lastName), email, "New Calendra tenant");
 
-        ClientCompany payee = upsertPlatformPayeeCompany(platformCompany, resolvedCompanyName, vatId, address, postalCode, city, email, phone);
+        ClientCompany payee = upsertPlatformPayeeCompany(platformCompany, tenantCompany, resolvedCompanyName, vatId, address, postalCode, city, email, phone);
         Client client = upsertPlatformPayeeClient(platformCompany, payee, firstName, lastName, email, phone, address, postalCode, city, vatId);
         User consultant = resolvePlatformConsultant(platformCompany).orElse(null);
         if (consultant == null) {
@@ -588,6 +588,7 @@ public class PlatformSubscriptionBillingService {
 
     private ClientCompany upsertPlatformPayeeCompany(
             Company platformCompany,
+            Company tenantCompany,
             String name,
             String vatId,
             String address,
@@ -597,8 +598,10 @@ public class PlatformSubscriptionBillingService {
             String phone
     ) {
         String normalizedVat = ClientCompany.normalizeVatIdStorage(vatId);
-        ClientCompany row = null;
-        if (normalizedVat != null) {
+        ClientCompany row = tenantCompany == null || tenantCompany.getId() == null
+                ? null
+                : clientCompanies.findFirstLinkedPlatformPayee(platformCompany.getId(), tenantCompany.getId()).orElse(null);
+        if (row == null && normalizedVat != null) {
             row = clientCompanies.findFirstByOwnerCompanyIdAndVatId(platformCompany.getId(), normalizedVat).orElse(null);
         }
         if (row == null && email != null && !email.isBlank()) {
@@ -610,6 +613,9 @@ public class PlatformSubscriptionBillingService {
         if (row == null) {
             row = new ClientCompany();
             row.setOwnerCompany(platformCompany);
+        }
+        if (tenantCompany != null && tenantCompany.getId() != null) {
+            row.setPlatformTenantCompany(tenantCompany);
         }
         row.setName(firstNonBlank(name, row.getName(), "New Calendra tenant"));
         row.setVatId(normalizedVat);

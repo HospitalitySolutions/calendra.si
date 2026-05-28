@@ -18,6 +18,26 @@ public interface ClientCompanyRepository extends JpaRepository<ClientCompany, Lo
     Optional<ClientCompany> findFirstByOwnerCompanyIdAndNameIgnoreCase(Long ownerCompanyId, String name);
 
     @Query("""
+            select c from ClientCompany c
+            where c.ownerCompany.id = :ownerCompanyId
+              and c.platformTenantCompany.id = :tenantCompanyId
+            order by c.id asc
+            """)
+    Optional<ClientCompany> findFirstLinkedPlatformPayee(
+            @Param("ownerCompanyId") Long ownerCompanyId,
+            @Param("tenantCompanyId") Long tenantCompanyId);
+
+    @Query("""
+            select c from ClientCompany c
+            where c.ownerCompany.id = :ownerCompanyId
+              and c.platformTenantCompany.id = :tenantCompanyId
+            order by c.id asc
+            """)
+    List<ClientCompany> findAllLinkedPlatformPayees(
+            @Param("ownerCompanyId") Long ownerCompanyId,
+            @Param("tenantCompanyId") Long tenantCompanyId);
+
+    @Query("""
             SELECT c FROM ClientCompany c
             WHERE c.ownerCompany.id = :ownerCompanyId
               AND (

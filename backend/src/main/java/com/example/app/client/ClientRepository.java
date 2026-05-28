@@ -28,6 +28,8 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
 
     Optional<Client> findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(Long companyId, Long billingCompanyId);
 
+    List<Client> findAllByCompanyIdAndBillingCompanyId(Long companyId, Long billingCompanyId);
+
     @Query(
             """
             select c from Client c

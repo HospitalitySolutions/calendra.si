@@ -1,0 +1,39 @@
+Platform tenant account/company profile sync
+
+Changed files:
+- backend/src/main/java/com/example/app/company/PlatformTenantAccountLinkService.java
+- backend/src/main/java/com/example/app/company/ClientCompany.java
+- backend/src/main/java/com/example/app/company/ClientCompanyRepository.java
+- backend/src/main/java/com/example/app/company/CompanyController.java
+- backend/src/main/java/com/example/app/client/ClientRepository.java
+- backend/src/main/java/com/example/app/settings/SettingsController.java
+- backend/src/main/java/com/example/app/settings/SettingKey.java
+- backend/src/main/java/com/example/app/register/PlatformSubscriptionBillingService.java
+- frontend/src/pages/ConfigurationPage.tsx
+
+What changed:
+1. Added a persistent link from Platform Admin tenant Clients -> Company profile rows to their tenant account in Platform Admin -> Tenant management.
+   - New ClientCompany.platformTenantCompany relation stores the linked tenant account.
+   - Existing signup/subscription payee creation now writes this link when creating or finding the platform payee company.
+
+2. Added PlatformTenantAccountLinkService.
+   - When a tenant saves Configuration -> Account Management -> Company, the main/default company profile is mirrored to:
+     a) the tenant account Company row used by Platform Admin -> Tenant management, and
+     b) the matching Platform Admin tenant Clients -> Company profile payee row.
+   - The service first uses the persistent link, then the subscription open-bill reference, then VAT/email/name matching, so changing a company name does not create a duplicate when an existing subscription payee can be found.
+
+3. Settings save now triggers the sync automatically.
+   - SettingsController.save persists the company profile settings and then mirrors the main/default profile to Platform Admin.
+   - COMPANY_PROFILES and COMPANY_SELECTED_PROFILE_ID are now recognized SettingKey values, so multiple company profiles and selected profile are persisted instead of being ignored by the backend.
+
+4. Platform Admin Clients -> Company profile updates can sync back to the linked tenant.
+   - If the edited ClientCompany has a platformTenantCompany link, CompanyController.update updates the linked tenant account name and tenant company settings.
+   - The tenant's COMPANY_PROFILES JSON is also updated for the main/default company profile so the Account Management UI reads the synced values.
+
+5. Frontend Account Management now keeps the legacy company settings aligned with the main/default profile.
+   - Selecting or editing a non-main profile no longer overwrites COMPANY_NAME/ADDRESS/VAT/etc. used by invoices and Platform Admin sync.
+   - COMPANY_SELECTED_PROFILE_ID still remembers which profile is selected in the UI.
+
+Validation notes:
+- Backend Maven compile could not be executed in this sandbox because the Maven wrapper attempted to download Maven from repo.maven.apache.org and network access is unavailable.
+- Frontend build could not be executed because node_modules are not installed in the uploaded archive, so TypeScript cannot resolve React/Axios/Capacitor dependencies.

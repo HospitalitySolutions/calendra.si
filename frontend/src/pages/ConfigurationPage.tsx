@@ -73,22 +73,25 @@ const companyProfileFromSettings = (settings: Record<string, string>): CompanyPr
   isDefault: true,
 })
 
-const companyProfileToSettings = (settings: Record<string, string>, profile: CompanyProfileForm, profiles: CompanyProfileForm[]): Record<string, string> => ({
-  ...settings,
-  COMPANY_NAME: profile.name,
-  COMPANY_ADDRESS: profile.address,
-  COMPANY_POSTAL_CODE: profile.postalCode,
-  COMPANY_CITY: profile.city,
-  COMPANY_VAT_ID: profile.vatId,
-  COMPANY_EMAIL: profile.email,
-  COMPANY_TELEPHONE: profile.telephone,
-  COMPANY_IBAN: profile.iban,
-  COMPANY_BIC: profile.bic,
-  BANK_QR_PURPOSE_CODE: profile.bankQrPurposeCode || 'OTHR',
-  BANK_QR_PURPOSE_TEXT: profile.bankQrPurposeText || 'PLACILO FOLIA',
-  COMPANY_PROFILES: JSON.stringify(profiles),
-  COMPANY_SELECTED_PROFILE_ID: profile.id,
-})
+const companyProfileToSettings = (settings: Record<string, string>, profile: CompanyProfileForm, profiles: CompanyProfileForm[]): Record<string, string> => {
+  const mainProfile = profiles.find((entry) => entry.isDefault) || profile
+  return {
+    ...settings,
+    COMPANY_NAME: mainProfile.name,
+    COMPANY_ADDRESS: mainProfile.address,
+    COMPANY_POSTAL_CODE: mainProfile.postalCode,
+    COMPANY_CITY: mainProfile.city,
+    COMPANY_VAT_ID: mainProfile.vatId,
+    COMPANY_EMAIL: mainProfile.email,
+    COMPANY_TELEPHONE: mainProfile.telephone,
+    COMPANY_IBAN: mainProfile.iban,
+    COMPANY_BIC: mainProfile.bic,
+    BANK_QR_PURPOSE_CODE: mainProfile.bankQrPurposeCode || 'OTHR',
+    BANK_QR_PURPOSE_TEXT: mainProfile.bankQrPurposeText || 'PLACILO FOLIA',
+    COMPANY_PROFILES: JSON.stringify(profiles),
+    COMPANY_SELECTED_PROFILE_ID: profile.id,
+  }
+}
 
 const loadCompanyProfilesFromSettings = (settings: Record<string, string>): CompanyProfileForm[] => {
   if (settings.COMPANY_PROFILES) {
@@ -113,6 +116,23 @@ type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notificat
 type ConfigNavItem = { id: Tab; icon: ConfigNavIcon }
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
 type PaymentGlobalCapabilities = { stripeEnabled: boolean; paypalEnabled: boolean }
+type AccountReceivedInvoice = {
+  id: number
+  billNumber: string
+  orderId?: string | null
+  billType: string
+  issueDate: string
+  totalGross: number
+  pendingPaymentGross?: number | null
+  paymentStatus: string
+  paidAt?: string | null
+  issuerName?: string | null
+  issuerTenantCode?: string | null
+  recipientCompanyName?: string | null
+  itemDescriptions?: string[]
+  pdfAvailable?: boolean
+  stripeHostedInvoiceUrl?: string | null
+}
 
 const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'googleCalendar', 'whatsapp', 'viber', 'modules', 'security']
 
@@ -2815,6 +2835,8 @@ export function ConfigurationPage() {
 
   const [tab, setTab] = useState<Tab>('company')
   const [accountSubtab, setAccountSubtab] = useState<'company' | 'receivedInvoices' | 'subscription'>('company')
+  const [accountReceivedInvoices, setAccountReceivedInvoices] = useState<AccountReceivedInvoice[]>([])
+  const [accountReceivedInvoicesLoading, setAccountReceivedInvoicesLoading] = useState(false)
   const [subscriptionPackage, setSubscriptionPackage] = useState<'BASIC' | 'PROFESSIONAL' | 'PREMIUM'>('PROFESSIONAL')
   const [extraUsersAddonEnabled, setExtraUsersAddonEnabled] = useState(true)
   const [smsAddonEnabled, setSmsAddonEnabled] = useState(true)
@@ -2923,14 +2945,55 @@ export function ConfigurationPage() {
     },
   }), [])
 
-  const accountReceivedInvoices = useMemo(() => ([
-    { id: 24, billNumber: 'R-2024-00024', date: '2024-05-15', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Paketni račun', period: '01. 05. 2024 – 31. 05. 2024', amount: 1490, status: 'Plačano' },
-    { id: 23, billNumber: 'R-2024-00023', date: '2024-05-01', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Paketni račun', period: '01. 04. 2024 – 30. 04. 2024', amount: 1490, status: 'Plačano' },
-    { id: 22, billNumber: 'R-2024-00022', date: '2024-04-20', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Dodatek – Moduli', typeSubtitle: 'Google Calendar', period: '20. 04. 2024 – 19. 05. 2024', amount: 120, status: 'Plačano' },
-    { id: 21, billNumber: 'R-2024-00021', date: '2024-04-10', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Dodatni uporabniki', typeSubtitle: '2 uporabnika', period: '10. 04. 2024 – 09. 05. 2024', amount: 58, status: 'V plačilo' },
-    { id: 20, billNumber: 'R-2024-00020', date: '2024-04-05', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'SMS porabe', typeSubtitle: '120 SMS', period: '01. 03. 2024 – 31. 03. 2024', amount: 18.5, status: 'Zapadlo' },
-    { id: 19, billNumber: 'R-2024-00019', date: '2024-03-15', issuer: '2TEN – Platform Admin', issuerSubtitle: 'Glavni najemnik', type: 'Dodatni uporabniki', typeSubtitle: '1 uporabnik', period: '15. 03. 2024 – 14. 04. 2024', amount: 29, status: 'Plačano' },
-  ]), [])
+  const accountReceivedInvoiceMetrics = useMemo(() => {
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+    const unpaidGross = accountReceivedInvoices.reduce((sum, invoice) => {
+      const status = String(invoice.paymentStatus || '').toUpperCase()
+      if (status === 'PAID' || status === 'CANCELLED') return sum
+      return sum + Number(invoice.pendingPaymentGross ?? invoice.totalGross ?? 0)
+    }, 0)
+    const paidThisMonth = accountReceivedInvoices.reduce((sum, invoice) => {
+      const status = String(invoice.paymentStatus || '').toUpperCase()
+      if (status !== 'PAID') return sum
+      const paidDate = invoice.paidAt ? new Date(invoice.paidAt) : null
+      if (!paidDate || Number.isNaN(paidDate.getTime())) return sum
+      return paidDate.getMonth() === currentMonth && paidDate.getFullYear() === currentYear
+        ? sum + Number(invoice.totalGross ?? 0)
+        : sum
+    }, 0)
+    const firstIssuer = accountReceivedInvoices.find((invoice) => invoice.issuerName || invoice.issuerTenantCode)
+    const issuerLabel = [firstIssuer?.issuerTenantCode, firstIssuer?.issuerName].filter(Boolean).join(' – ') || 'Platform Admin'
+    return { totalCount: accountReceivedInvoices.length, unpaidGross, paidThisMonth, issuerLabel }
+  }, [accountReceivedInvoices])
+
+  const buildAccountReceivedInvoicePdfUrl = (invoiceId: number, inline = false) => {
+    const base = String(api.defaults.baseURL || '').replace(/\/+$/, '')
+    const suffix = `/account-management/received-invoices/${invoiceId}/pdf${inline ? '?inline=true' : ''}`
+    return `${base}${suffix}`
+  }
+
+  const accountReceivedInvoiceStatusLabel = (invoice: AccountReceivedInvoice) => {
+    const status = String(invoice.paymentStatus || '').toUpperCase()
+    if (status === 'PAID') return 'Plačano'
+    if (status === 'PARTIAL') return 'Delno plačano'
+    if (status === 'CANCELLED') return 'Preklicano'
+    return 'V plačilo'
+  }
+
+  const accountReceivedInvoiceStatusClass = (invoice: AccountReceivedInvoice) => {
+    const status = String(invoice.paymentStatus || '').toUpperCase()
+    if (status === 'PAID') return 'success'
+    if (status === 'CANCELLED') return 'danger'
+    return 'warning'
+  }
+
+  const accountReceivedInvoiceTypeLabel = (invoice: AccountReceivedInvoice) => {
+    const type = String(invoice.billType || '').toUpperCase()
+    if (type === 'ADVANCE') return 'Avansni račun'
+    return 'Račun'
+  }
 
   const activePlanDetails = accountPlanCatalog[subscriptionPackage] || accountPlanCatalog.PROFESSIONAL
   const subscriptionInterval = (settings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY'
@@ -3256,13 +3319,15 @@ export function ConfigurationPage() {
   }
 
   const load = async () => {
-    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes, paypalConfigRes, stripeConnectRes] = await Promise.all([
+    setAccountReceivedInvoicesLoading(true)
+    const [settingsRes, spacesRes, paymentMethodsRes, certificateMetaRes, paypalConfigRes, stripeConnectRes, receivedInvoicesRes] = await Promise.all([
       api.get('/settings'),
       api.get('/spaces').catch(() => ({ data: [] })),
       api.get('/billing/payment-methods').catch(() => ({ data: [] })),
       api.get('/fiscal/certificate/meta').catch(() => ({ data: { uploaded: false } })),
       api.get('/paypal/onboarding/config').catch(() => ({ data: null })),
       api.get('/stripe/connect/config').catch(() => ({ data: null })),
+      api.get('/account-management/received-invoices').catch(() => ({ data: [] })),
     ])
     const paypalData = paypalConfigRes.data || {}
     const settingsData = {
@@ -3294,6 +3359,8 @@ export function ConfigurationPage() {
       .filter((method: PaymentMethod) => method.paymentType !== 'ADVANCE'))
     setCertificateMeta(certificateMetaRes.data || { uploaded: false })
     setStripeConnectStatus(stripeConnectRes.data || null)
+    setAccountReceivedInvoices(Array.isArray(receivedInvoicesRes.data) ? receivedInvoicesRes.data : [])
+    setAccountReceivedInvoicesLoading(false)
   }
 
   useEffect(() => {
@@ -4875,7 +4942,8 @@ export function ConfigurationPage() {
               font-weight: 700;
               white-space: nowrap;
             }
-            .account-table-actions button {
+            .account-table-actions button,
+            .account-table-actions a {
               appearance: none;
               border: 0;
               background: transparent;
@@ -4886,6 +4954,7 @@ export function ConfigurationPage() {
               gap: 8px;
               cursor: pointer;
               font-weight: inherit;
+              text-decoration: none;
             }
             .account-table-footer {
               display: flex;
@@ -5362,25 +5431,25 @@ export function ConfigurationPage() {
                   <span className="account-metric-icon" aria-hidden>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3h8l4 4v14H5V3h2z" /><path d="M15 3v5h5" /></svg>
                   </span>
-                  <div className="account-metric-copy"><small>Skupaj računov</small><strong>24</strong><small>vseh časov</small></div>
+                  <div className="account-metric-copy"><small>Skupaj računov</small><strong>{accountReceivedInvoiceMetrics.totalCount}</strong><small>vseh časov</small></div>
                 </section>
                 <section className="account-card account-metric-card">
                   <span className="account-metric-icon" aria-hidden>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
                   </span>
-                  <div className="account-metric-copy"><small>Neplačan znesek</small><strong>{formatAccountEuro(1248.5)}</strong><small>skupaj</small></div>
+                  <div className="account-metric-copy"><small>Neplačan znesek</small><strong>{formatAccountEuro(accountReceivedInvoiceMetrics.unpaidGross)}</strong><small>skupaj</small></div>
                 </section>
                 <section className="account-card account-metric-card">
                   <span className="account-metric-icon" aria-hidden>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 6-6 4 4 7-7" /><path d="M14 8h6v6" /></svg>
                   </span>
-                  <div className="account-metric-copy"><small>Plačano ta mesec</small><strong>{formatAccountEuro(1980)}</strong><small>maj 2024</small></div>
+                  <div className="account-metric-copy"><small>Plačano ta mesec</small><strong>{formatAccountEuro(accountReceivedInvoiceMetrics.paidThisMonth)}</strong><small>tekoči mesec</small></div>
                 </section>
                 <section className="account-card account-metric-card">
                   <span className="account-metric-icon" aria-hidden>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M6 21V7l6-3 6 3v14" /></svg>
                   </span>
-                  <div className="account-metric-copy"><small>Izdajatelj</small><strong>2TEN – Platform Admin</strong><small>Glavni najemnik (Platform Admin)</small></div>
+                  <div className="account-metric-copy"><small>Izdajatelj</small><strong>{accountReceivedInvoiceMetrics.issuerLabel}</strong><small>Glavni najemnik (Platform Admin)</small></div>
                 </section>
               </div>
 
@@ -5408,21 +5477,33 @@ export function ConfigurationPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {accountReceivedInvoices.map((invoice) => {
-                        const statusClass = invoice.status === 'Plačano' ? 'success' : invoice.status === 'V plačilo' ? 'warning' : 'danger'
+                      {accountReceivedInvoicesLoading ? (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '28px 16px' }}>Nalagam prejete račune…</td>
+                        </tr>
+                      ) : accountReceivedInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '28px 16px' }}>
+                            Ni prejetih računov iz Platform Admin najemnika za povezano podjetje tega tenanta.
+                          </td>
+                        </tr>
+                      ) : accountReceivedInvoices.map((invoice) => {
+                        const issuer = [invoice.issuerTenantCode, invoice.issuerName].filter(Boolean).join(' – ') || 'Platform Admin'
+                        const firstDescription = invoice.itemDescriptions && invoice.itemDescriptions.length > 0 ? invoice.itemDescriptions[0] : ''
+                        const periodLabel = invoice.issueDate ? formatDate(invoice.issueDate) : '—'
                         return (
                           <tr key={invoice.id}>
-                            <td>{invoice.billNumber}</td>
-                            <td>{formatDate(invoice.date)}</td>
-                            <td><strong>{invoice.issuer}</strong><br /><small>{invoice.issuerSubtitle}</small></td>
-                            <td><strong>{invoice.type}</strong><br />{invoice.typeSubtitle ? <small>{invoice.typeSubtitle}</small> : null}</td>
-                            <td>{invoice.period}</td>
-                            <td><strong>{formatAccountEuro(invoice.amount)}</strong><br /><small>DDV 22%</small></td>
-                            <td><span className={`account-pill ${statusClass}`}>{invoice.status}</span></td>
+                            <td>{invoice.billNumber || invoice.orderId || `#${invoice.id}`}</td>
+                            <td>{invoice.issueDate ? formatDate(invoice.issueDate) : '—'}</td>
+                            <td><strong>{issuer}</strong><br /><small>Glavni najemnik</small></td>
+                            <td><strong>{accountReceivedInvoiceTypeLabel(invoice)}</strong><br />{firstDescription ? <small>{firstDescription}</small> : null}</td>
+                            <td>{periodLabel}</td>
+                            <td><strong>{formatAccountEuro(Number(invoice.totalGross || 0))}</strong><br /><small>Skupaj z DDV</small></td>
+                            <td><span className={`account-pill ${accountReceivedInvoiceStatusClass(invoice)}`}>{accountReceivedInvoiceStatusLabel(invoice)}</span></td>
                             <td>
                               <div className="account-table-actions">
-                                <button type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></svg> Ogled</button>
-                                <button type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg> Prenesi</button>
+                                <a href={buildAccountReceivedInvoicePdfUrl(invoice.id, true)} target="_blank" rel="noreferrer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></svg> Ogled</a>
+                                <a href={buildAccountReceivedInvoicePdfUrl(invoice.id)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg> Prenesi</a>
                               </div>
                             </td>
                           </tr>
@@ -5432,14 +5513,11 @@ export function ConfigurationPage() {
                   </table>
                 </div>
                 <div className="account-table-footer">
-                  <span>Prikazujem 1–6 od 24 računov</span>
+                  <span>{accountReceivedInvoices.length === 0 ? 'Prikazujem 0 računov' : `Prikazujem 1–${accountReceivedInvoices.length} od ${accountReceivedInvoices.length} računov`}</span>
                   <div className="account-pagination">
-                    <button type="button" className="account-page-button">‹</button>
+                    <button type="button" className="account-page-button" disabled>‹</button>
                     <button type="button" className="account-page-button active">1</button>
-                    <button type="button" className="account-page-button">2</button>
-                    <button type="button" className="account-page-button">3</button>
-                    <button type="button" className="account-page-button">4</button>
-                    <button type="button" className="account-page-button">›</button>
+                    <button type="button" className="account-page-button" disabled>›</button>
                   </div>
                 </div>
               </section>

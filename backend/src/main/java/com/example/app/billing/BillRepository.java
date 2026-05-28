@@ -30,6 +30,18 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndRecipientCompanyIdSnapshotOrderByIssueDateDescIdDesc(Long companyId, Long recipientCompanyIdSnapshot);
 
+    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    List<Bill> findAllByCompanyIdAndBillTypeAndRecipientCompanyIdSnapshotInOrderByIssueDateDescIdDesc(
+            Long companyId,
+            BillType billType,
+            Collection<Long> recipientCompanyIdSnapshots);
+
+    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
+    Optional<Bill> findByIdAndCompanyIdAndRecipientCompanyIdSnapshotIn(
+            Long id,
+            Long companyId,
+            Collection<Long> recipientCompanyIdSnapshots);
+
     @Override
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     Optional<Bill> findById(Long id);

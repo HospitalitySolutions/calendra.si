@@ -39,17 +39,20 @@ public class CompanyController {
     private final BillRepository bills;
     private final CompanyFileRepository companyFiles;
     private final TenantFileS3Service fileStorage;
+    private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
 
     public CompanyController(
             ClientCompanyRepository companies,
             BillRepository bills,
             CompanyFileRepository companyFiles,
-            TenantFileS3Service fileStorage
+            TenantFileS3Service fileStorage,
+            PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
         this.companies = companies;
         this.bills = bills;
         this.companyFiles = companyFiles;
         this.fileStorage = fileStorage;
+        this.platformTenantAccountLinkService = platformTenantAccountLinkService;
     }
 
     public record CompanyRequest(
@@ -130,7 +133,9 @@ public class CompanyController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         apply(row, req);
         assertUniqueCompanyFields(me.getCompany().getId(), row, row.getId());
-        return toResponse(companies.save(row));
+        ClientCompany saved = companies.save(row);
+        platformTenantAccountLinkService.syncFromPlatformPayeeCompany(saved);
+        return toResponse(saved);
     }
 
     @DeleteMapping("/{id}")

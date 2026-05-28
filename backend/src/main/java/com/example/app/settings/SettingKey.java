@@ -50,6 +50,10 @@ public enum SettingKey {
     COMPANY_TELEPHONE,
     BANK_QR_PURPOSE_CODE,
     BANK_QR_PURPOSE_TEXT,
+    /** JSON array of company profiles shown in Configuration -> Account Management -> Company. */
+    COMPANY_PROFILES,
+    /** Currently selected company profile id in Configuration -> Account Management -> Company. */
+    COMPANY_SELECTED_PROFILE_ID,
     FISCAL_ENVIRONMENT,
     FISCAL_TAX_NUMBER,
     FISCAL_BUSINESS_PREMISE_ID,

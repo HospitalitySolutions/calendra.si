@@ -1,0 +1,20 @@
+Account Management → Prejeti računi now uses real Platform Admin-issued invoices instead of static mock rows.
+
+Backend
+- Added /api/account-management/received-invoices.
+- Added /api/account-management/received-invoices/{id}/pdf for viewing/downloading a received platform invoice PDF.
+- The endpoint resolves the Platform Admin tenant, then finds Client/Company profiles in the Platform Admin tenant that are explicitly linked to the current tenant account via platformTenantCompany.
+- Only finalized INVOICE bills from the Platform Admin tenant whose recipientCompanyIdSnapshot is one of those linked payee company profile IDs are returned.
+- The endpoint is outside /api/billing so tenants can still view their platform subscription invoices even when their own Obračun/Billing module is disabled.
+- Added repository helpers for linked platform payee lookup and invoice filtering by recipient company IDs.
+
+Frontend
+- Configuration → Account Management → Prejeti računi now loads from /account-management/received-invoices.
+- Removed demo/mock invoice rows and metrics.
+- Summary cards now calculate total invoices, unpaid amount, paid this month, and issuer from the real received invoices.
+- The table now shows an empty state when no Platform Admin invoice is issued to the linked company profile.
+- Ogled/Prenesi actions now open/download the secured received invoice PDF endpoint.
+
+Important behavior
+- A tenant sees only invoices issued by Platform Admin to the Platform Admin-side Client Company profile linked to that tenant.
+- Invoices issued to other companies in the Platform Admin tenant are no longer shown on this tab.
