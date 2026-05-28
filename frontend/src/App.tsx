@@ -304,7 +304,7 @@ export default function App() {
             path="/security"
             element={
               isAdmin ? (
-                <Navigate to="/configuration?tab=security" replace />
+                <Navigate to="/configuration?tab=company&subtab=security" replace />
               ) : (
                 <SecurityPage />
               )

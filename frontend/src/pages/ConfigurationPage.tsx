@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, FormEvent, ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -18,9 +18,10 @@ import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute, normalizePackageType } from '../lib/packageAccess'
 
-type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
+type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'integrations' | 'whatsapp' | 'viber' | 'modules'
 type BookingSubtab = 'general' | 'spaces'
 type BillingSubtab = 'settings' | 'paymentMethods' | 'stripe' | 'paypal' | 'fiscal' | 'invoiceDelivery' | 'folioLayout'
+type IntegrationSubtab = 'status' | 'googleCalendar'
 type PersonalTaskPreset = { id: string; name: string; color: string }
 
 type CompanyProfileForm = {
@@ -111,7 +112,7 @@ const loadCompanyProfilesFromSettings = (settings: Record<string, string>): Comp
 }
 
 
-type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
+type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'integrations' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
 
 type ConfigNavItem = { id: Tab; icon: ConfigNavIcon }
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
@@ -134,7 +135,18 @@ type AccountReceivedInvoice = {
   stripeHostedInvoiceUrl?: string | null
 }
 
-const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'googleCalendar', 'whatsapp', 'viber', 'modules', 'security']
+type IntegrationGoogleCalendarConnection = {
+  id: number
+  googleAccountEmail?: string | null
+  calendarSummary?: string | null
+  calendarId?: string | null
+  status?: string | null
+  lastError?: string | null
+  lastFullSyncAt?: string | null
+  lastIncrementalSyncAt?: string | null
+}
+
+const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'integrations', 'whatsapp', 'viber', 'modules']
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   company: 'tabCompany',
@@ -142,11 +154,10 @@ const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   billing: 'tabBilling',
   guestApp: 'tabGuestApp',
   notifications: 'tabNotifications',
-  googleCalendar: 'tabGoogleCalendar',
+  integrations: 'tabIntegrations',
   whatsapp: 'tabWhatsapp',
   viber: 'tabViber',
   modules: 'tabModules',
-  security: 'tabSecurity',
 }
 
 const isConfigTab = (value: string | null): value is Tab => Boolean(value && (CONFIG_TAB_IDS as readonly string[]).includes(value))
@@ -201,6 +212,18 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+    )
+  }
+  if (kind === 'integrations') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3" y="3" width="7" height="7" rx="2" />
+        <rect x="14" y="3" width="7" height="7" rx="2" />
+        <rect x="3" y="14" width="7" height="7" rx="2" />
+        <path d="M10 6.5h4" />
+        <path d="M6.5 10v4" />
+        <path d="M10 17.5h4.5a3.5 3.5 0 0 0 0-7H14" />
       </svg>
     )
   }
@@ -2834,7 +2857,7 @@ export function ConfigurationPage() {
   const { showToast } = useToast()
 
   const [tab, setTab] = useState<Tab>('company')
-  const [accountSubtab, setAccountSubtab] = useState<'company' | 'receivedInvoices' | 'subscription'>('company')
+  const [accountSubtab, setAccountSubtab] = useState<'company' | 'receivedInvoices' | 'subscription' | 'security'>('company')
   const [accountReceivedInvoices, setAccountReceivedInvoices] = useState<AccountReceivedInvoice[]>([])
   const [accountReceivedInvoicesLoading, setAccountReceivedInvoicesLoading] = useState(false)
   const [subscriptionPackage, setSubscriptionPackage] = useState<'BASIC' | 'PROFESSIONAL' | 'PREMIUM'>('PROFESSIONAL')
@@ -2844,11 +2867,15 @@ export function ConfigurationPage() {
   const [smsPackCount, setSmsPackCount] = useState(2)
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
+  const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
   const [guestAppSubtab, setGuestAppSubtab] = useState<GuestAppSubtab>('general')
   const [startingPaypalOnboarding, setStartingPaypalOnboarding] = useState(false)
   const [startingStripeOnboarding, setStartingStripeOnboarding] = useState(false)
   const [refreshingStripeStatus, setRefreshingStripeStatus] = useState(false)
   const [stripeConnectStatus, setStripeConnectStatus] = useState<StripeConnectTenantStatus | null>(null)
+  const [googleCalendarStatusLoading, setGoogleCalendarStatusLoading] = useState(false)
+  const [googleCalendarConnections, setGoogleCalendarConnections] = useState<IntegrationGoogleCalendarConnection[]>([])
+  const [googleCalendarConflictCount, setGoogleCalendarConflictCount] = useState(0)
 
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [companyProfiles, setCompanyProfiles] = useState<CompanyProfileForm[]>([])
@@ -3183,7 +3210,7 @@ export function ConfigurationPage() {
 
   const firstAvailableConfigTab = (): Tab => {
     if (isConfigTabAvailable('company')) return 'company'
-    return 'security'
+    return 'company'
   }
 
   useEffect(() => {
@@ -3201,7 +3228,16 @@ export function ConfigurationPage() {
       navigate('/session-types?subtab=transaction-services', { replace: true })
       return
     }
-    if (isConfigTab(q)) {
+    const subtabQuery = query.get('subtab')
+    if (q === 'security') {
+      setTab('company')
+      setAccountSubtab('security')
+      navigate('/configuration?tab=company&subtab=security', { replace: true })
+    } else if (q === 'googleCalendar') {
+      setTab('integrations')
+      setIntegrationSubtab('googleCalendar')
+      navigate('/configuration?tab=integrations&subtab=googleCalendar', { replace: true })
+    } else if (isConfigTab(q)) {
       if (isConfigTabAvailable(q)) {
         setTab(q)
       } else {
@@ -3210,7 +3246,12 @@ export function ConfigurationPage() {
         navigate(`/configuration?tab=${fallback}`, { replace: true })
       }
     }
-    const subtabQuery = query.get('subtab')
+    if (q === 'company' && (subtabQuery === 'company' || subtabQuery === 'receivedInvoices' || subtabQuery === 'subscription' || subtabQuery === 'security')) {
+      setAccountSubtab(subtabQuery)
+    }
+    if (q === 'integrations') {
+      setIntegrationSubtab(subtabQuery === 'googleCalendar' ? 'googleCalendar' : 'status')
+    }
     if (
       subtabQuery === 'settings' ||
       subtabQuery === 'paymentMethods' ||
@@ -3315,7 +3356,13 @@ export function ConfigurationPage() {
       return
     }
     setTab(next)
+    if (next === 'integrations') setIntegrationSubtab('status')
     navigate(`/configuration?tab=${next}`)
+  }
+
+  const setAccountSubtabAndUrl = (next: typeof accountSubtab) => {
+    setAccountSubtab(next)
+    navigate(next === 'company' ? '/configuration?tab=company' : `/configuration?tab=company&subtab=${next}`)
   }
 
   const load = async () => {
@@ -3428,10 +3475,11 @@ export function ConfigurationPage() {
     const connected = query.get('google_calendar_connected')
     const error = query.get('google_calendar_error')
     if (!connected && !error) return
-    setTab('googleCalendar')
+    setTab('integrations')
+    setIntegrationSubtab('googleCalendar')
     if (connected) showToast('success', 'Google Calendar connected. Full sync was queued.')
     if (error) showToast('error', error)
-    navigate('/configuration?tab=googleCalendar', { replace: true })
+    navigate('/configuration?tab=integrations&subtab=googleCalendar', { replace: true })
   }, [query, navigate, showToast])
 
   const spacesModuleEnabled = settings.SPACES_ENABLED === 'true'
@@ -3448,11 +3496,10 @@ export function ConfigurationPage() {
       { id: 'billing', icon: 'billing' },
       { id: 'guestApp', icon: 'guestApp' },
       { id: 'notifications', icon: 'notifications' },
-      { id: 'googleCalendar', icon: 'googleCalendar' },
+      { id: 'integrations', icon: 'integrations' },
       { id: 'whatsapp', icon: 'whatsapp' },
       { id: 'viber', icon: 'viber' },
       { id: 'modules', icon: 'modules' },
-      { id: 'security', icon: 'security' },
     ]
     return items.filter((entry) => isConfigTabAvailable(entry.id))
   }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted])
@@ -3639,6 +3686,84 @@ export function ConfigurationPage() {
     if (activeStripeAccount.onboardingStatus === 'ONBOARDING_LINK_CREATED') return 'Onboarding started'
     return activeStripeAccount.onboardingStatus?.replace(/_/g, ' ') || 'Action required'
   }, [stripeConnectStatus, activeStripeAccount])
+
+  const activeGoogleCalendarConnection = useMemo(() => (
+    googleCalendarConnections.find((entry) => entry.status && entry.status !== 'DISABLED') || googleCalendarConnections[0] || null
+  ), [googleCalendarConnections])
+
+  const googleCalendarStatusLabel = useMemo(() => {
+    if (googleCalendarStatusLoading && googleCalendarConnections.length === 0) return locale === 'sl' ? 'Preverjanje…' : 'Checking…'
+    if (!activeGoogleCalendarConnection) return locale === 'sl' ? 'Ni povezano' : 'Not connected'
+    if (activeGoogleCalendarConnection.status === 'ACTIVE') return locale === 'sl' ? 'Povezano' : 'Connected'
+    if (activeGoogleCalendarConnection.status === 'NEEDS_RECONNECT') return locale === 'sl' ? 'Potrebna ponovna povezava' : 'Reconnect required'
+    if (activeGoogleCalendarConnection.status === 'ERROR') return locale === 'sl' ? 'Napaka povezave' : 'Connection error'
+    return activeGoogleCalendarConnection.status?.replace(/_/g, ' ') || (locale === 'sl' ? 'Ni povezano' : 'Not connected')
+  }, [activeGoogleCalendarConnection, googleCalendarConnections.length, googleCalendarStatusLoading, locale])
+
+  const googleCalendarStatusTone = useMemo(() => {
+    if (!activeGoogleCalendarConnection) return 'neutral'
+    if (activeGoogleCalendarConnection.status === 'ACTIVE') return 'success'
+    if (activeGoogleCalendarConnection.status === 'ERROR') return 'danger'
+    if (activeGoogleCalendarConnection.status === 'NEEDS_RECONNECT') return 'warning'
+    return 'neutral'
+  }, [activeGoogleCalendarConnection])
+
+  const stripeStatusTone = useMemo(() => {
+    if (!activeStripeAccount?.connected) return 'neutral'
+    if (activeStripeAccount.chargesEnabled && activeStripeAccount.payoutsEnabled) return 'success'
+    if (activeStripeAccount.chargesEnabled || activeStripeAccount.detailsSubmitted || activeStripeAccount.onboardingStatus === 'ONBOARDING_LINK_CREATED') return 'warning'
+    return 'neutral'
+  }, [activeStripeAccount])
+
+  const refreshGoogleCalendarStatusSummary = useCallback(async () => {
+    setGoogleCalendarStatusLoading(true)
+    try {
+      const params = me.companyId ? { companyId: me.companyId } : undefined
+      const [{ data: statusData }, { data: conflictData }] = await Promise.all([
+        api.get('/google/calendar/status', { params }).catch(() => ({ data: [] })),
+        api.get('/google/calendar/conflicts', { params }).catch(() => ({ data: [] })),
+      ])
+      setGoogleCalendarConnections(Array.isArray(statusData) ? statusData : [])
+      setGoogleCalendarConflictCount(Array.isArray(conflictData) ? conflictData.length : 0)
+    } finally {
+      setGoogleCalendarStatusLoading(false)
+    }
+  }, [me.companyId])
+
+  const refreshIntegrationStatuses = async () => {
+    await Promise.all([
+      refreshGoogleCalendarStatusSummary(),
+      api.get('/stripe/connect/config').then(({ data }) => setStripeConnectStatus(data || null)).catch(() => undefined),
+    ])
+  }
+
+  const setIntegrationSubtabAndUrl = (next: IntegrationSubtab) => {
+    setIntegrationSubtab(next)
+    navigate(next === 'status' ? '/configuration?tab=integrations' : `/configuration?tab=integrations&subtab=${next}`)
+  }
+
+  const openStripeIntegration = () => {
+    if (!billingEnabledCommitted) {
+      setTab('modules')
+      navigate('/configuration?tab=modules')
+      return
+    }
+    setTab('billing')
+    setBillingSubtab('stripe')
+    navigate('/configuration?tab=billing&subtab=stripe')
+  }
+
+  const openGoogleCalendarIntegration = () => {
+    setTab('integrations')
+    setIntegrationSubtab('googleCalendar')
+    navigate('/configuration?tab=integrations&subtab=googleCalendar')
+  }
+
+  useEffect(() => {
+    if (!isAdmin) return
+    if (tab !== 'integrations') return
+    void refreshGoogleCalendarStatusSummary()
+  }, [isAdmin, tab, refreshGoogleCalendarStatusSummary])
 
   const saveStripePreference = async (patch: Partial<{ mode: string; country: string; businessType: string }>) => {
     const nextMode = patch.mode ?? stripeConnectStatus?.activeMode ?? 'sandbox'
@@ -5272,9 +5397,10 @@ export function ConfigurationPage() {
           `}</style>
           <h1 className="account-heading">Upravljanje računa</h1>
           <div className="account-subtabs" role="tablist" aria-label="Account management subtabs">
-            <button type="button" className={accountSubtab === 'company' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtab('company')}>Podjetje</button>
-            <button type="button" className={accountSubtab === 'receivedInvoices' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtab('receivedInvoices')}>Prejeti računi</button>
-            <button type="button" className={accountSubtab === 'subscription' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtab('subscription')}>Naročnina</button>
+            <button type="button" className={accountSubtab === 'company' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('company')}>Podjetje</button>
+            <button type="button" className={accountSubtab === 'receivedInvoices' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('receivedInvoices')}>Prejeti računi</button>
+            <button type="button" className={accountSubtab === 'subscription' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('subscription')}>Naročnina</button>
+            <button type="button" className={accountSubtab === 'security' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('security')}>Varnost</button>
           </div>
 
           {accountSubtab === 'company' ? (
@@ -5522,7 +5648,7 @@ export function ConfigurationPage() {
                 </div>
               </section>
             </>
-          ) : (
+          ) : accountSubtab === 'subscription' ? (
             <>
               <div className="account-subscription-grid">
                 <section className="account-card account-subscription-card">
@@ -5647,12 +5773,14 @@ export function ConfigurationPage() {
                     <strong>{formatAccountEuro(estimatedNextInvoice)}</strong>
                   </div>
                   <div className="account-subscription-actions" style={{ marginTop: 16 }}>
-                    <button type="button" className="account-button-secondary" style={{ width: '100%' }} onClick={() => setAccountSubtab('receivedInvoices')}>Poglej vse račune</button>
+                    <button type="button" className="account-button-secondary" style={{ width: '100%' }} onClick={() => setAccountSubtabAndUrl('receivedInvoices')}>Poglej vse račune</button>
                   </div>
                 </section>
               </div>
             </>
-          )}
+          ) : accountSubtab === 'security' ? (
+            <SecurityPage embedded />
+          ) : null}
         </div>
       ) : tab === 'booking' ? (
         <div className="booking-modern-shell">
@@ -8406,8 +8534,158 @@ export function ConfigurationPage() {
           onSave={saveSettings}
           t={t}
         />
-      ) : tab === 'googleCalendar' ? (
-        <GoogleCalendarIntegrationSection me={me} />
+      ) : tab === 'integrations' ? (
+        <div className="integrations-modern-shell">
+          <style>{`
+            .integrations-modern-shell { --integration-blue:#2563eb; --integration-ink:#0f1b3d; --integration-muted:#64748b; --integration-line:#dbe4f0; --integration-soft:#f8fafc; width:min(100%,1600px); color:var(--integration-ink); }
+            .integrations-modern-shell button { font-family:inherit; }
+            .integrations-card { border:1px solid rgba(203,213,225,.82); border-radius:24px; background:rgba(255,255,255,.98); box-shadow:0 24px 70px rgba(15,23,42,.08); overflow:hidden; }
+            .integrations-main-panel { padding:22px; }
+            .integrations-tabs-card { border-bottom:1px solid rgba(226,232,240,.95); padding-bottom:10px; margin-bottom:14px; }
+            .integrations-subtabs { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+            .integrations-subtab { appearance:none; border:1px solid transparent; background:transparent; color:#475569; font-weight:800; font-size:15px; padding:10px 14px; border-radius:10px; cursor:pointer; transition:color .18s ease, background .18s ease, box-shadow .18s ease, border-color .18s ease; }
+            .integrations-subtab:hover { color:#0f172a; background:#f8fafc; }
+            .integrations-subtab.active { color:#2563eb; background:#eaf2ff; border-color:rgba(37,99,235,.16); box-shadow:inset 0 0 0 1px rgba(37,99,235,.1),0 3px 10px rgba(37,99,235,.18); }
+            .integrations-page-head { margin:0 0 22px; }
+            .integrations-page-head h2 { margin:0 0 8px; font-size:clamp(28px,2.75vw,38px); line-height:1.05; letter-spacing:-.045em; font-weight:900; color:var(--integration-ink); }
+            .integrations-page-head p { margin:0; color:var(--integration-muted); font-size:16px; line-height:1.5; max-width:820px; }
+            .integrations-overview-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-bottom:16px; }
+            .integrations-overview-card { min-height:96px; display:flex; align-items:center; gap:14px; padding:18px; }
+            .integrations-overview-icon, .integrations-row-icon { width:46px; height:46px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; color:#2563eb; background:#eaf2ff; flex:0 0 auto; }
+            .integrations-overview-label { display:block; color:var(--integration-muted); font-size:13px; font-weight:700; margin-bottom:5px; }
+            .integrations-overview-value { display:block; color:var(--integration-ink); font-size:18px; font-weight:900; }
+            .integrations-list-card { padding:0; }
+            .integrations-section-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 22px; border-bottom:1px solid #e8eef6; }
+            .integrations-section-title { margin:0; font-size:18px; font-weight:900; letter-spacing:-.025em; color:var(--integration-ink); }
+            .integrations-section-kicker { display:block; color:var(--integration-muted); font-size:13px; line-height:1.4; margin-top:4px; }
+            .integrations-secondary-button { border:1px solid #d7e2f0; background:#fff; color:#1f3f75; border-radius:12px; min-height:38px; padding:0 14px; font-weight:800; cursor:pointer; }
+            .integrations-secondary-button:hover { border-color:#b9c9de; box-shadow:0 8px 24px rgba(15,23,42,.08); }
+            .integrations-status-row { width:100%; display:grid; grid-template-columns:minmax(260px,1.2fr) minmax(190px,.7fr) minmax(180px,.8fr) auto auto; gap:18px; align-items:center; border:0; border-bottom:1px solid #edf2f7; background:#fff; padding:18px 22px; text-align:left; cursor:pointer; }
+            .integrations-status-row:last-child { border-bottom:0; }
+            .integrations-status-row:hover { background:linear-gradient(90deg,#f8fbff,#fff); }
+            .integrations-row-main { display:flex; align-items:center; gap:14px; min-width:0; }
+            .integrations-row-title { display:block; color:var(--integration-ink); font-weight:900; font-size:15px; }
+            .integrations-row-subtitle { display:block; color:var(--integration-muted); font-size:13px; line-height:1.35; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+            .integrations-row-meta-label { display:block; color:#94a3b8; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+            .integrations-row-meta-value { display:block; color:#23345d; font-size:13px; font-weight:800; margin-top:5px; }
+            .integrations-status-pill { justify-self:start; display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding:7px 11px; font-size:12px; font-weight:900; white-space:nowrap; }
+            .integrations-status-pill::before { content:''; width:7px; height:7px; border-radius:999px; background:currentColor; }
+            .integrations-status-pill.success { color:#15803d; background:#dcfce7; }
+            .integrations-status-pill.warning { color:#b45309; background:#fef3c7; }
+            .integrations-status-pill.danger { color:#b91c1c; background:#fee2e2; }
+            .integrations-status-pill.neutral { color:#64748b; background:#f1f5f9; }
+            .integrations-row-arrow { color:#64748b; display:inline-flex; align-items:center; justify-content:center; }
+            .integrations-google-panel .google-calendar-card { box-shadow:none; border:0; padding:0; }
+            .integrations-google-panel .google-calendar-card > .section-title-row { display:none; }
+            @media (max-width:1180px) { .integrations-overview-grid { grid-template-columns:1fr; } .integrations-status-row { grid-template-columns:1fr; } .integrations-status-pill { justify-self:start; } }
+            @media (max-width:780px) { .integrations-main-panel { padding:14px; } .integrations-subtabs { gap:8px; } .integrations-subtab { flex:1 1 150px; min-width:0; } .integrations-section-heading { flex-direction:column; align-items:flex-start; } }
+          `}</style>
+          <div className="integrations-card integrations-main-panel">
+            <div className="integrations-tabs-card">
+              <div className="integrations-subtabs" role="tablist" aria-label={locale === 'sl' ? 'Nastavitve integracij' : 'Integration settings'}>
+                {[
+                  { id: 'status' as IntegrationSubtab, label: locale === 'sl' ? 'Status' : 'Status' },
+                  { id: 'googleCalendar' as IntegrationSubtab, label: 'Google Calendar' },
+                ].map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={integrationSubtab === entry.id}
+                    className={integrationSubtab === entry.id ? 'integrations-subtab active' : 'integrations-subtab'}
+                    onClick={() => setIntegrationSubtabAndUrl(entry.id)}
+                  >
+                    {entry.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {integrationSubtab === 'status' ? (
+              <>
+                <div className="integrations-page-head">
+                  <h2>{locale === 'sl' ? 'Integracije' : 'Integrations'}</h2>
+                  <p>{locale === 'sl' ? 'Pregled povezav za trenutni tenant. Klik na vrstico odpre stran, kjer nastavite posamezno povezavo.' : 'Connection overview for the current tenant. Click a row to open the setup page for that integration.'}</p>
+                </div>
+
+                <div className="integrations-overview-grid">
+                  <div className="integrations-card integrations-overview-card">
+                    <span className="integrations-overview-icon"><BillingLinkIcon /></span>
+                    <span><span className="integrations-overview-label">{locale === 'sl' ? 'Integracije' : 'Integrations'}</span><span className="integrations-overview-value">2</span></span>
+                  </div>
+                  <div className="integrations-card integrations-overview-card">
+                    <span className="integrations-overview-icon"><ConfigTabIcon kind="billing" /></span>
+                    <span><span className="integrations-overview-label">Stripe</span><span className="integrations-overview-value">{stripeStatusLabel}</span></span>
+                  </div>
+                  <div className="integrations-card integrations-overview-card">
+                    <span className="integrations-overview-icon"><ConfigTabIcon kind="googleCalendar" /></span>
+                    <span><span className="integrations-overview-label">Google Calendar</span><span className="integrations-overview-value">{googleCalendarStatusLabel}</span></span>
+                  </div>
+                </div>
+
+                <div className="integrations-card integrations-list-card">
+                  <div className="integrations-section-heading">
+                    <span>
+                      <h3 className="integrations-section-title">{locale === 'sl' ? 'Status integracij' : 'Integration status'}</h3>
+                      <span className="integrations-section-kicker">{locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.'}</span>
+                    </span>
+                    <button type="button" className="integrations-secondary-button" onClick={() => void refreshIntegrationStatuses()} disabled={googleCalendarStatusLoading}>
+                      {googleCalendarStatusLoading ? (locale === 'sl' ? 'Osvežujem…' : 'Refreshing…') : (locale === 'sl' ? 'Osveži status' : 'Refresh status')}
+                    </button>
+                  </div>
+
+                  <button type="button" className="integrations-status-row" onClick={openStripeIntegration}>
+                    <span className="integrations-row-main">
+                      <span className="integrations-row-icon"><ConfigTabIcon kind="billing" /></span>
+                      <span>
+                        <span className="integrations-row-title">Stripe</span>
+                        <span className="integrations-row-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in Stripe Connect onboarding.' : 'Connection for online payments and Stripe Connect onboarding.'}</span>
+                      </span>
+                    </span>
+                    <span>
+                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                      <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
+                    </span>
+                    <span>
+                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
+                      <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
+                    </span>
+                    <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeStatusLabel}</span>
+                    <span className="integrations-row-arrow" aria-hidden>›</span>
+                  </button>
+
+                  <button type="button" className="integrations-status-row" onClick={openGoogleCalendarIntegration}>
+                    <span className="integrations-row-main">
+                      <span className="integrations-row-icon"><ConfigTabIcon kind="googleCalendar" /></span>
+                      <span>
+                        <span className="integrations-row-title">Google Calendar</span>
+                        <span className="integrations-row-subtitle">{locale === 'sl' ? 'Dvosmerna sinhronizacija rezervacij, osebnih terminov in ToDo dogodkov.' : 'Two-way sync for bookings, personal sessions and ToDo events.'}</span>
+                      </span>
+                    </span>
+                    <span>
+                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                      <span className="integrations-row-meta-value">{activeGoogleCalendarConnection?.googleAccountEmail || '—'}</span>
+                    </span>
+                    <span>
+                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Konflikti' : 'Conflicts'}</span>
+                      <span className="integrations-row-meta-value">{googleCalendarConflictCount}</span>
+                    </span>
+                    <span className={`integrations-status-pill ${googleCalendarStatusTone}`}>{googleCalendarStatusLabel}</span>
+                    <span className="integrations-row-arrow" aria-hidden>›</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="integrations-google-panel">
+                <div className="integrations-page-head">
+                  <h2>Google Calendar</h2>
+                  <p>{locale === 'sl' ? 'Povežite Google Calendar in upravljajte dvosmerno sinhronizacijo za trenutni tenant.' : 'Connect Google Calendar and manage two-way sync for the current tenant.'}</p>
+                </div>
+                <GoogleCalendarIntegrationSection me={me} />
+              </div>
+            )}
+          </div>
+        </div>
       ) : tab === 'whatsapp' ? (
         <ConfigurationWhatsAppSection
           settings={settings}
@@ -8465,8 +8743,6 @@ export function ConfigurationPage() {
             </div>
           </div>
         </Card>
-      ) : tab === 'security' ? (
-        <SecurityPage embedded />
       ) : null}
             </div>
           </>

@@ -1,0 +1,24 @@
+Account Management Security subtab update
+
+Changed files:
+- frontend/src/pages/ConfigurationPage.tsx
+- frontend/src/App.tsx
+
+What changed:
+1. Moved Security from the main Configuration sidebar into Account Management as a new Varnost subtab.
+2. Account Management now contains these subtabs:
+   - Podjetje
+   - Prejeti računi
+   - Naročnina
+   - Varnost
+3. Removed Security from the main Configuration navigation/overview list so it no longer appears as a separate settings tab for admins.
+4. Added URL support for the new nested subtab:
+   - /configuration?tab=company&subtab=security
+5. Kept backwards compatibility for old Security links:
+   - /configuration?tab=security redirects to /configuration?tab=company&subtab=security
+   - /security for admin users redirects to /configuration?tab=company&subtab=security
+6. Non-admin Security page remains available as the standalone /security page.
+
+Validation:
+- Parsed the changed TSX files with the TypeScript transpiler successfully.
+- Full frontend build could not complete in this sandbox because node_modules are not included, so React/axios/router type packages are missing here.

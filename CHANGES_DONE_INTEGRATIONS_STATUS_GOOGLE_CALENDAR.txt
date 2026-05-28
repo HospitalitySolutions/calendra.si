@@ -1,0 +1,38 @@
+Changes done:
+
+1. Added a new top-level Configuration tab: Integrations / Integracije
+   - Replaced the old standalone Google Calendar item in the Configuration sidebar with Integrations.
+   - Added Slovenian and English labels for the new tab.
+   - Added an Integrations icon in the Configuration navigation.
+
+2. Added Integrations subtabs
+   - Status
+   - Google Calendar
+
+3. Added Status subtab behavior
+   - Shows tenant-level integration status rows for:
+     - Stripe
+     - Google Calendar
+   - Shows summary cards for total integrations, Stripe status, and Google Calendar status.
+   - Loads Google Calendar connection/conflict status from existing Google Calendar API endpoints.
+   - Uses the already-loaded Stripe Connect tenant status for Stripe.
+   - Added a refresh status button.
+
+4. Added row navigation from Status
+   - Clicking the Stripe row opens the existing Stripe connection page:
+     Configuration -> Billing -> Stripe.
+   - Clicking the Google Calendar row opens:
+     Configuration -> Integrations -> Google Calendar.
+
+5. Moved Google Calendar into Integrations
+   - The old /configuration?tab=googleCalendar URL now redirects to /configuration?tab=integrations&subtab=googleCalendar.
+   - Google Calendar OAuth return URL now returns to the new Integrations -> Google Calendar subtab.
+   - Existing Google Calendar connected/error callback handling now opens the new nested tab.
+
+6. Design update
+   - Integrations page and subtabs follow the same modern card/tab styling used on the Billing page.
+   - Status rows use status pills, overview cards, icons, hover state, and responsive layout.
+
+Validation:
+- TypeScript syntax/transpile validation passed for the changed TSX files using TypeScript transpileModule.
+- Full frontend build was not run because node_modules are not included in the uploaded archive.

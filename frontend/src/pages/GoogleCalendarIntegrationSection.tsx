@@ -155,7 +155,7 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
   const connect = async () => {
     setConnecting(true)
     try {
-      const returnUrl = `${window.location.origin}/configuration?tab=googleCalendar`
+      const returnUrl = `${window.location.origin}/configuration?tab=integrations&subtab=googleCalendar`
       const { data } = await api.get('/google/calendar/authorize', {
         params: {
           companyId,
