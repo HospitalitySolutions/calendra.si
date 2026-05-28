@@ -1,5 +1,6 @@
 package com.example.app.stripe;
 
+import com.example.app.company.Company;
 import com.example.app.guest.model.GuestOrder;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,6 +24,17 @@ public class StripeGuestCheckoutService {
         this.platformSettings = platformSettings;
         this.checkoutClient = checkoutClient;
         this.environment = environment;
+    }
+
+    /**
+     * Validates that the tenant can accept Stripe guest payments before a guest order is persisted.
+     *
+     * The actual Checkout Session still needs a saved order id for metadata and return URLs,
+     * but this guard lets callers fail early when Stripe Connect onboarding is incomplete so
+     * Wallet > Orders does not get a stray PENDING order for an attempt that never reached Stripe.
+     */
+    public void assertCheckoutReady(Company company) {
+        connectService.routingForCompany(company);
     }
 
     public StripeCheckoutSessionResult createCheckoutSession(GuestOrder order) {

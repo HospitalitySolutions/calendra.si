@@ -1,0 +1,12 @@
+Changes done:
+- Added an early Stripe Connect readiness check before creating a guest order for CARD payments.
+- If Stripe Connect onboarding is incomplete or charges are not enabled for the tenant, the create-order request now fails before any GuestOrder is saved.
+- This prevents Wallet > Orders from showing a new PENDING order when the guest never reaches Stripe Checkout.
+- Kept the existing Stripe Checkout session creation flow unchanged for tenants that are properly connected.
+
+Files changed:
+- backend/src/main/java/com/example/app/guest/order/GuestOrderService.java
+- backend/src/main/java/com/example/app/stripe/StripeGuestCheckoutService.java
+
+Validation:
+- Attempted backend compile with ./mvnw -DskipTests compile, but the Maven wrapper could not download Maven from repo.maven.apache.org because internet access is blocked in this environment.

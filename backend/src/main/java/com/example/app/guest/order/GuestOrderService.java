@@ -174,6 +174,7 @@ public class GuestOrderService {
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
         GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
         assertPaymentMethodAllowed(companyId, paymentMethodType, product.productType(), channel);
+        assertExternalCheckoutReadyBeforeOrderCreated(link, paymentMethodType);
         cancelOpenExternalCheckoutsForGuest(guestUser, companyId, paymentMethodType);
 
         GuestOrder order = new GuestOrder();
@@ -498,6 +499,16 @@ public class GuestOrderService {
                 null,
                 order.getCompany().getName()
         );
+    }
+
+    private void assertExternalCheckoutReadyBeforeOrderCreated(GuestTenantLink link, GuestPaymentMethodType paymentMethodType) {
+        if (paymentMethodType != GuestPaymentMethodType.CARD || stripeGuestCheckoutService == null) {
+            return;
+        }
+        // Stripe Checkout needs a saved order id for metadata/return URLs, but Stripe Connect
+        // readiness can be checked before persisting anything. If onboarding is incomplete,
+        // fail here so the guest sees the Stripe error without a new PENDING order appearing.
+        stripeGuestCheckoutService.assertCheckoutReady(link.getCompany());
     }
 
     private void cancelOpenExternalCheckoutsForGuest(GuestUser guestUser, Long companyId, GuestPaymentMethodType newPaymentMethodType) {
