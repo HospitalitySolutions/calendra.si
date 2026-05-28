@@ -1,0 +1,20 @@
+Changes done:
+
+1. Entitlement booking payment behavior
+- Updated Android guest booking review flow so an entitlement/ticket payment is still shown and submitted as ENTITLEMENT even when the tenant's pay-at-venue/no-online-payment behavior would normally hide payment methods.
+- Updated iOS guest booking review flow with the same entitlement-first logic.
+- The review footer continues to display the full service gross price using priceGross/currency.
+- Backend GuestOrderService now allows ENTITLEMENT and GIFT_CARD methods for session-like products even when booking rules otherwise force pay-at-venue, so the selected ticket can be consumed instead of falling back to PAY_AT_VENUE.
+
+2. Entitlement card visual adjustments
+- Removed the round icon badge from Android entitlement cards.
+- Removed the round icon badge from iOS entitlement cards.
+- Reduced entitlement card title size on Android and iOS so long names fit better.
+- Reduced the Izberi termin / Choose slot button height, icon size, font size, and padding on Android and iOS.
+
+3. Browse provider carousel logo layering
+- Updated Android browse-provider carousel cards so the logo is drawn in front of the white card body instead of being clipped by the image/header block.
+- Updated iOS browse-provider carousel cards by raising the logo z-index and spacing so it sits visually in front of the white block.
+
+Validation:
+- Attempted Android Kotlin compilation with Gradle, but the Gradle wrapper tried to download Gradle from services.gradle.org and the sandbox has no network access.

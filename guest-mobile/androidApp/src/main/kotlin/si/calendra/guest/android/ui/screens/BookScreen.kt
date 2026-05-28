@@ -432,6 +432,8 @@ fun BookScreen(
     } else {
         matchingEntitlements.firstOrNull()
     }
+    val usesEntitlementPayment = selectedPaymentMethod == PaymentMethodUi.ENTITLEMENT && selectedEntitlement != null
+    val showPaymentMethodSummary = !skipsOnlinePayment || usesEntitlementPayment
     val matchingGiftCards = redeemableEntitlements.filter { entitlement ->
         selectedService != null && entitlement.companyId == selectedService.companyId
                 && entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
@@ -668,7 +670,7 @@ fun BookScreen(
                 currentStep = currentStep,
                 languageCode = languageCode,
                 visibleSteps = visibleSteps,
-                skipsOnlinePayment = skipsOnlinePayment,
+                skipsOnlinePayment = skipsOnlinePayment && !usesEntitlementPayment,
                 canNavigateTo = { step -> canNavigateTo(step) },
                 onStepSelected = { currentStep = it }
             )
@@ -838,7 +840,7 @@ fun BookScreen(
                         }
                     }
 
-                    if (skipsOnlinePayment) {
+                    if (skipsOnlinePayment && !usesEntitlementPayment) {
                         item {
                             EmptyInlineMessage(
                                 title = bookTr(languageCode, "Pay at venue", "Plačilo na lokaciji"),
@@ -910,7 +912,7 @@ fun BookScreen(
                 }
                 BookingFlowStep.PAYMENT_REVIEW -> {
                     if (selectedService != null) {
-                        if (!skipsOnlinePayment) {
+                        if (showPaymentMethodSummary) {
                             SelectedPaymentMethodCard(
                                 method = selectedPaymentMethod,
                                 languageCode = languageCode,
@@ -925,9 +927,9 @@ fun BookScreen(
                     ContinueButton(
                         label = bookTr(languageCode, "Confirm booking", "Potrdi rezervacijo"),
                         enabled = selectedService != null && selectedSlot != null && !submitting && (
-                            skipsOnlinePayment || (
+                            (skipsOnlinePayment && !usesEntitlementPayment) || (
                                 selectedPaymentMethod.enabled &&
-                                    (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || matchingEntitlements.isNotEmpty()) &&
+                                    (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || selectedEntitlement != null) &&
                                     (selectedPaymentMethod != PaymentMethodUi.GIFT_CARD || hasGiftCardCoverage) &&
                                     (selectedPaymentMethod != PaymentMethodUi.CARD || selectedSavedCardId != null)
                                 )
@@ -936,7 +938,13 @@ fun BookScreen(
                         onClick = {
                             val service = selectedService ?: return@ContinueButton
                             val slot = selectedSlot ?: return@ContinueButton
-                            val method = if (skipsOnlinePayment) "PAY_AT_VENUE" else (selectedPaymentMethod.apiValue ?: return@ContinueButton)
+                            val method = if (usesEntitlementPayment) {
+                                PaymentMethodUi.ENTITLEMENT.apiValue ?: "ENTITLEMENT"
+                            } else if (skipsOnlinePayment) {
+                                "PAY_AT_VENUE"
+                            } else {
+                                selectedPaymentMethod.apiValue ?: return@ContinueButton
+                            }
                             scope.launch {
                                 submitting = true
                                 val consultantIdForOrder = if (employeeStepActive) selectedConsultantId else null

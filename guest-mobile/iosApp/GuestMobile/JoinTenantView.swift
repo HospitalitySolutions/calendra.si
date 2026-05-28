@@ -735,9 +735,11 @@ private struct JoinTenantPreviewCard: View {
                             }
                     }
                     .offset(y: 32)
+                    .zIndex(2)
             }
+            .zIndex(2)
 
-            Spacer().frame(height: 28)
+            Spacer().frame(height: 36)
 
             Text(tenant.name)
                 .font(.system(size: 18, weight: .heavy))

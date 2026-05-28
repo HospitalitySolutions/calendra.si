@@ -1594,15 +1594,14 @@ private struct WalletStackedPassCard: View {
                 .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: 14) {
-                    WalletPassIconBadge(type: entitlement.type, accent: style.accent)
+                HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(subtitle.uppercased())
                             .font(.system(size: 11, weight: .bold))
                             .tracking(0.8)
                             .foregroundColor(style.accent)
                         Text(entitlement.name)
-                            .font(.system(size: 22, weight: .bold, design: .serif))
+                            .font(.system(size: 20, weight: .bold, design: .serif))
                             .foregroundColor(walletInk)
                             .lineLimit(1)
                             .minimumScaleFactor(0.78)
@@ -1707,22 +1706,14 @@ private struct WalletStackedPassCard: View {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(alignment: .top, spacing: 16) {
                             VStack(alignment: .leading, spacing: 14) {
-                                HStack(alignment: .top, spacing: 14) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.white.opacity(0.92))
-                                            .frame(width: 56, height: 56)
-                                        Image(systemName: entitlement.type == "PACK" ? "ticket" : "ticket.fill")
-                                            .font(.system(size: 22, weight: .semibold))
-                                            .foregroundColor(Color(red: 0.93, green: 0.55, blue: 0.10))
-                                    }
+                                HStack(alignment: .top, spacing: 10) {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text("VSTOPNICE")
                                             .font(.system(size: 12, weight: .bold))
                                             .tracking(0.9)
                                             .foregroundColor(Color.white.opacity(0.92))
                                         Text(entitlement.name)
-                                            .font(.system(size: 26, weight: .bold))
+                                            .font(.system(size: 21, weight: .bold))
                                             .foregroundColor(.white)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.76)
@@ -1732,19 +1723,19 @@ private struct WalletStackedPassCard: View {
                                 Button {
                                     onBookWithEntitlement()
                                 } label: {
-                                    HStack(spacing: 14) {
+                                    HStack(spacing: 10) {
                                         Image(systemName: "calendar")
-                                            .font(.system(size: 18, weight: .semibold))
+                                            .font(.system(size: 16, weight: .semibold))
                                         Text(walletTr(appUiLocaleStorage, "Choose slot", "Izberi termin"))
-                                            .font(.system(size: 15, weight: .bold))
+                                            .font(.system(size: 13, weight: .bold))
                                             .lineLimit(1)
-                                        Spacer(minLength: 8)
+                                        Spacer(minLength: 6)
                                         Image(systemName: "chevron.right")
-                                            .font(.system(size: 15, weight: .bold))
+                                            .font(.system(size: 13, weight: .bold))
                                     }
                                     .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .frame(height: 44)
+                                    .padding(.horizontal, 13)
+                                    .frame(height: 38)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(
                                         LinearGradient(

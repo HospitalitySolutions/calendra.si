@@ -188,6 +188,14 @@ struct BookView: View {
         return matchingGiftCardsTotal + 0.0001 >= amountDueNow
     }
 
+    private var usesEntitlementPayment: Bool {
+        selectedPaymentMethod == .entitlement && selectedEntitlement != nil
+    }
+
+    private var shouldShowPaymentMethodSummary: Bool {
+        !skipsOnlinePaymentMethods || usesEntitlementPayment
+    }
+
     private var acceptedPaymentApiValues: [String] {
         (selectedProvider?.acceptedPaymentMethods ?? []).map { $0.uppercased() }
     }
@@ -234,7 +242,7 @@ struct BookView: View {
             return selectedSlot == nil
         case .paymentReview:
             if isSubmitting { return true }
-            if skipsOnlinePaymentMethods { return false }
+            if skipsOnlinePaymentMethods && !usesEntitlementPayment { return false }
             if selectedPaymentMethod == .card { return selectedStoredCard == nil }
             if selectedPaymentMethod == .entitlement { return selectedEntitlement == nil }
             if selectedPaymentMethod == .giftCard { return !hasGiftCardCoverage }
@@ -286,7 +294,7 @@ struct BookView: View {
                 VStack(spacing: 0) {
                     Divider().opacity(0.35)
                     if currentStep == .paymentReview, let service = selectedService {
-                        if !skipsOnlinePaymentMethods {
+                        if shouldShowPaymentMethodSummary {
                             selectedPaymentMethodCard
                                 .padding(.horizontal, 20)
                                 .padding(.top, 8)
@@ -799,7 +807,7 @@ struct BookView: View {
             if let service = selectedService {
                 reviewSummary(service: service)
 
-                if skipsOnlinePaymentMethods {
+                if skipsOnlinePaymentMethods && !usesEntitlementPayment {
                     emptyInlineMessage(tr("Pay at venue", "Plačilo na lokaciji"), tr("Payment is collected at the venue. Tap Confirm booking to reserve your slot.", "Plačilo se izvede na lokaciji. Tapnite Potrdi rezervacijo za rezervacijo termina."))
                 }
             }
@@ -1166,7 +1174,7 @@ struct BookView: View {
     }
 
     private func stepDisplayTitle(_ step: BookFlowStep) -> String {
-        if step == .paymentReview, skipsOnlinePaymentMethods {
+        if step == .paymentReview, skipsOnlinePaymentMethods && !usesEntitlementPayment {
             return tr("Review", "Pregled")
         }
         return step.localizedTitle(languageCode: appUiLocaleStorage)
@@ -1369,7 +1377,7 @@ struct BookView: View {
     private func confirmBooking(service: ServiceOptionModel, slot: AvailabilitySlotModel) async {
         do {
             isSubmitting = true
-            let paymentApi = skipsOnlinePaymentMethods ? "PAY_AT_VENUE" : selectedPaymentMethod.apiValue
+            let paymentApi = usesEntitlementPayment ? GuestBookingPaymentChoice.entitlement.apiValue : (skipsOnlinePaymentMethods ? "PAY_AT_VENUE" : selectedPaymentMethod.apiValue)
             let checkout = try await store.createOrder(
                 companyId: service.companyId,
                 productId: service.productId,

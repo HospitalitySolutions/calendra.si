@@ -617,7 +617,10 @@ public class GuestOrderService {
             return;
         }
 
-        if (!rules.requireOnlinePayment() && isSessionLikeProductType(productType)) {
+        if (!rules.requireOnlinePayment()
+                && isSessionLikeProductType(productType)
+                && paymentMethodType != GuestPaymentMethodType.ENTITLEMENT
+                && paymentMethodType != GuestPaymentMethodType.GIFT_CARD) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use pay at venue to complete this booking without online payment.");
         }
 

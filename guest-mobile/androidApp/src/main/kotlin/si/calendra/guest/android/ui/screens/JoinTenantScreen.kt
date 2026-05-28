@@ -542,35 +542,41 @@ private fun TenantCarouselCard(tenant: TenantSummary, isSl: Boolean, modifier: M
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 8.dp, top = 8.dp, end = 8.dp)
-                    .height(174.dp)
-                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 0.dp, bottomEnd = 0.dp))
-                    .background(Color(0xFFF0F5FC))
+                    .height(206.dp),
+                contentAlignment = Alignment.TopCenter
             ) {
-                if (!tenant.cardImageUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = tenant.cardImageUrl,
-                        contentDescription = tenant.companyName,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    TenantHeroPlaceholder(tenantType = tenant.tenantType)
-                }
-
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.08f))
-                            )
+                        .fillMaxWidth()
+                        .height(174.dp)
+                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 0.dp, bottomEnd = 0.dp))
+                        .background(Color(0xFFF0F5FC))
+                ) {
+                    if (!tenant.cardImageUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = tenant.cardImageUrl,
+                            contentDescription = tenant.companyName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
-                )
+                    } else {
+                        TenantHeroPlaceholder(tenantType = tenant.tenantType)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.08f))
+                                )
+                            )
+                    )
+                }
 
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .offset(y = 32.dp)
                         .size(78.dp),
                     shape = CircleShape,
                     color = Color.White,
@@ -608,7 +614,7 @@ private fun TenantCarouselCard(tenant: TenantSummary, isSl: Boolean, modifier: M
                 }
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(0.dp))
             Text(
                 text = tenant.companyName,
                 color = TitleText,

@@ -1524,12 +1524,8 @@ private fun WalletStackedPassCard(
                     ) {
                         Row(
                             verticalAlignment = Alignment.Top,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            WalletPassIconBadge(
-                                type = card.type,
-                                accent = style.accent
-                            )
                             Column(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1544,8 +1540,8 @@ private fun WalletStackedPassCard(
                                 Text(
                                     text = entitlementHeaderCardName(card.title),
                                     color = textColor,
-                                    fontSize = 25.sp,
-                                    lineHeight = 30.sp,
+                                    fontSize = 21.sp,
+                                    lineHeight = 25.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
@@ -1557,21 +1553,21 @@ private fun WalletStackedPassCard(
                             onClick = onBookWithEntitlement,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(42.dp),
+                                .height(36.dp),
                             shape = RoundedCornerShape(999.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF082552), contentColor = Color.White),
-                            contentPadding = PaddingValues(horizontal = 14.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Schedule,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(6.dp))
                             Text(
                                 text = walletTr(languageCode, "Choose slot", "Izberi termin"),
-                                fontSize = 15.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1581,7 +1577,7 @@ private fun WalletStackedPassCard(
                                 imageVector = Icons.Rounded.KeyboardArrowRight,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -1609,10 +1605,6 @@ private fun WalletStackedPassCard(
                         }
                     }
                 } else {
-                    WalletPassIconBadge(
-                        type = card.type,
-                        accent = style.accent
-                    )
                     Column(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1627,8 +1619,8 @@ private fun WalletStackedPassCard(
                         Text(
                             text = entitlementHeaderCardName(card.title),
                             color = textColor,
-                            fontSize = 25.sp,
-                            lineHeight = 30.sp,
+                            fontSize = 21.sp,
+                            lineHeight = 25.sp,
                             fontWeight = FontWeight.ExtraBold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
