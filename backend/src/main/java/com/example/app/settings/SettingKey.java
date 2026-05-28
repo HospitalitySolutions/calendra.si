@@ -83,6 +83,7 @@ public enum SettingKey {
     SIGNUP_PACKAGE_NAME,
     SIGNUP_USER_COUNT,
     SIGNUP_SMS_COUNT,
+    SIGNUP_ADDON_KEYS,
     SIGNUP_FISCALIZATION_REQUIRED,
     /**
      * When {@code true}, the tenancy owner signed up without a password and must still complete the emailed setup link.

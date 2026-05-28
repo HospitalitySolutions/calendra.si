@@ -484,13 +484,26 @@ fun UpcomingBookingFocusCard(
                     Spacer(Modifier.height(4.dp))
 
                     BookingPrimaryActionButton(
-                        label = "Contact",
+                        label = if (isSl) "Kontakt" else "Contact",
                         icon = Icons.Rounded.Call,
                         container = BrandBlue,
                         content = Color.White,
                         border = BrandBlue,
-                        onClick = { activeActionMenu = BookingActionMenu.Contact }
+                        onClick = { activeActionMenu = if (activeActionMenu == BookingActionMenu.Contact) null else BookingActionMenu.Contact }
                     )
+                    if (activeActionMenu == BookingActionMenu.Contact) {
+                        Spacer(Modifier.height(6.dp))
+                        BookingActionSheet(
+                            menu = BookingActionMenu.Contact,
+                            isSl = isSl,
+                            canContact = !booking.tenantPhone.isNullOrBlank(),
+                            canManage = booking.canBeCancelled(),
+                            onCall = { booking.tenantPhone?.let(onCall); activeActionMenu = null },
+                            onSms = { booking.tenantPhone?.let(onSms); activeActionMenu = null },
+                            onReschedule = { onReschedule(booking); activeActionMenu = null },
+                            onCancel = { onCancelBooking(booking); activeActionMenu = null }
+                        )
+                    }
                     Spacer(Modifier.height(5.dp))
                     BookingPrimaryActionButton(
                         label = if (isSl) "Upravljaj rezervacijo" else "Manage reservation",
@@ -498,32 +511,25 @@ fun UpcomingBookingFocusCard(
                         container = Color.White,
                         content = BrandBlue,
                         border = BrandBlue,
-                        onClick = { activeActionMenu = BookingActionMenu.Manage }
+                        onClick = { activeActionMenu = if (activeActionMenu == BookingActionMenu.Manage) null else BookingActionMenu.Manage }
                     )
+                    if (activeActionMenu == BookingActionMenu.Manage) {
+                        Spacer(Modifier.height(6.dp))
+                        BookingActionSheet(
+                            menu = BookingActionMenu.Manage,
+                            isSl = isSl,
+                            canContact = !booking.tenantPhone.isNullOrBlank(),
+                            canManage = booking.canBeCancelled(),
+                            onCall = { booking.tenantPhone?.let(onCall); activeActionMenu = null },
+                            onSms = { booking.tenantPhone?.let(onSms); activeActionMenu = null },
+                            onReschedule = { onReschedule(booking); activeActionMenu = null },
+                            onCancel = { onCancelBooking(booking); activeActionMenu = null }
+                        )
+                    }
                 }
             }
         }
 
-        activeActionMenu?.let { menu ->
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clickable { activeActionMenu = null }
-            )
-            BookingActionSheet(
-                menu = menu,
-                isSl = isSl,
-                canContact = !booking.tenantPhone.isNullOrBlank(),
-                canManage = booking.canBeCancelled(),
-                onCall = { booking.tenantPhone?.let(onCall); activeActionMenu = null },
-                onSms = { booking.tenantPhone?.let(onSms); activeActionMenu = null },
-                onReschedule = { onReschedule(booking); activeActionMenu = null },
-                onCancel = { onCancelBooking(booking); activeActionMenu = null },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(start = 10.dp, end = 10.dp, bottom = 74.dp)
-            )
-        }
     }
 }
 
@@ -563,9 +569,8 @@ private fun BookingHeroHeader(booking: UpcomingBookingCard, isSl: Boolean) {
                 .padding(12.dp),
             verticalAlignment = Alignment.Top
         ) {
-            BlueHeroBadge(text = if (isSl) "Naslednji termin" else "Next booking")
-            Spacer(Modifier.weight(1f))
             StatusPill(status = booking.status, isSl = isSl)
+            Spacer(Modifier.weight(1f))
         }
 
         Row(
@@ -758,7 +763,7 @@ private fun BookingActionSheet(
                 BookingActionMenu.Contact -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         SheetOptionButton(
-                            label = if (isSl) "Call" else "Call",
+                            label = if (isSl) "Kliči" else "Call",
                             icon = Icons.Rounded.Call,
                             color = BrandBlue,
                             enabled = canContact,
@@ -778,7 +783,7 @@ private fun BookingActionSheet(
                 BookingActionMenu.Manage -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         SheetOptionButton(
-                            label = if (isSl) "Reschedule" else "Reschedule",
+                            label = if (isSl) "Prestavi termin" else "Reschedule",
                             icon = Icons.Rounded.Schedule,
                             color = BrandBlue,
                             enabled = canManage,
@@ -786,7 +791,7 @@ private fun BookingActionSheet(
                             onClick = onReschedule
                         )
                         SheetOptionButton(
-                            label = if (isSl) "Cancel booked session" else "Cancel booked session",
+                            label = if (isSl) "Odpovej termin" else "Cancel booked session",
                             icon = Icons.Rounded.Delete,
                             color = Color(0xFFE53935),
                             enabled = canManage,
@@ -1000,6 +1005,7 @@ private fun translatedStatus(raw: String, isSl: Boolean): String {
     return when {
         normalized.contains("cancel") -> "Preklicano"
         normalized == "no show" -> "Ni prišel"
+        normalized.contains("reserve") -> "Rezervirano"
         normalized.contains("confirm") || normalized.contains("book") || normalized.contains("scheduled") -> "Potrjeno"
         normalized.contains("pending") -> "V čakanju"
         normalized.contains("complete") || normalized.contains("finished") -> "Zaključeno"

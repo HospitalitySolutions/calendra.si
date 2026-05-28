@@ -588,6 +588,7 @@ const REGISTER_SELECTION_PARAM_KEYS = [
   'interval',
   'users',
   'sms',
+  'addon',
   'voice',
   'billingAddon',
   'whitelabel',
@@ -686,10 +687,17 @@ function queryWithRegisterSelection(currentSearch: string, payload?: SignupSelec
   if (selectionSearch) {
     REGISTER_SELECTION_PARAM_KEYS.forEach((key) => q.delete(key))
     const selectionParams = new URLSearchParams(selectionSearch)
-    selectionParams.forEach((value, key) => q.set(key, value))
+    selectionParams.forEach((value, key) => {
+      if (key === 'addon') q.append(key, value)
+      else q.set(key, value)
+    })
     storeRegisterSelectionSearch(selectionSearch)
   }
   return q
+}
+
+function getSelectedAddonKeys(selection: RegisterSelection) {
+  return getActiveAddonKeys().filter((key) => Boolean(selection.addons[key]))
 }
 
 type AccountPageCopy = {
@@ -969,6 +977,7 @@ export function RegisterAccountPage() {
         userCount: getEstimatedUserCount(selection),
         smsCount: selection.additionalSms,
         spaceCount: null,
+        addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
         returnSearch: resolveRegisterSelectionSearch(null, location.search, selection),
@@ -1173,6 +1182,7 @@ export function RegisterAccountPage() {
         packageName,
         userCount: getEstimatedUserCount(selection),
         smsCount: selection.additionalSms,
+        addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
         returnSearch: resolveRegisterSelectionSearch(null, location.search, selection),

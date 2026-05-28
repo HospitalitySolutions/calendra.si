@@ -2540,7 +2540,7 @@ private fun BuyMarketplaceCategoryRow(
                     onClick = { onSelect(category) }
                 ),
                 shape = RoundedCornerShape(999.dp),
-                color = Color.White.copy(alpha = 0.94f),
+                color = if (active) WalletBlueSoft else Color.White.copy(alpha = 0.94f),
                 border = BorderStroke(1.dp, if (active) WalletBlueSoft.copy(alpha = 0.45f) else WalletLine.copy(alpha = 0.95f)),
                 shadowElevation = if (active) 6.dp else 2.dp,
                 tonalElevation = 0.dp
@@ -2553,7 +2553,7 @@ private fun BuyMarketplaceCategoryRow(
                 ) {
                     Text(
                         text = category.localizedTitle(languageCode),
-                        color = if (active) WalletBlue else WalletInk.copy(alpha = 0.88f),
+                        color = if (active) Color.White else WalletInk.copy(alpha = 0.88f),
                         fontSize = 12.sp,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1

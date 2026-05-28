@@ -382,6 +382,9 @@ public class AuthController {
             String city,
             String tenantType,
             String packageName,
+            Integer userCount,
+            Integer smsCount,
+            List<String> addonKeys,
             /** MONTHLY or YEARLY */
             String billingInterval,
             String paymentMethod
@@ -495,6 +498,7 @@ public class AuthController {
             Integer userCount,
             Integer smsCount,
             Integer spaceCount,
+            List<String> addonKeys,
             /** MONTHLY or YEARLY */
             String billingInterval,
             Boolean fiscalizationNeeded,

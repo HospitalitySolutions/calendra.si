@@ -20,6 +20,10 @@ public class RegisterPriceCatalog {
     private Double additionalUserMonthly;
     private Double smsPerMessage;
     private UsagePrices usagePrices;
+    /** Optional transaction service ids on the Platform Admin tenant for package billing. */
+    private Map<String, Long> planTransactionServiceIds;
+    private Long additionalUserTransactionServiceId;
+    private Long smsTransactionServiceId;
 
     public RegisterPriceCatalog() {}
 
@@ -92,6 +96,12 @@ public class RegisterPriceCatalog {
     public void setSmsPerMessage(Double smsPerMessage) { this.smsPerMessage = smsPerMessage; }
     public UsagePrices getUsagePrices() { return usagePrices; }
     public void setUsagePrices(UsagePrices usagePrices) { this.usagePrices = usagePrices; }
+    public Map<String, Long> getPlanTransactionServiceIds() { return planTransactionServiceIds; }
+    public void setPlanTransactionServiceIds(Map<String, Long> planTransactionServiceIds) { this.planTransactionServiceIds = planTransactionServiceIds; }
+    public Long getAdditionalUserTransactionServiceId() { return additionalUserTransactionServiceId; }
+    public void setAdditionalUserTransactionServiceId(Long additionalUserTransactionServiceId) { this.additionalUserTransactionServiceId = additionalUserTransactionServiceId; }
+    public Long getSmsTransactionServiceId() { return smsTransactionServiceId; }
+    public void setSmsTransactionServiceId(Long smsTransactionServiceId) { this.smsTransactionServiceId = smsTransactionServiceId; }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class AddonItem {
@@ -102,9 +112,13 @@ public class RegisterPriceCatalog {
         private String descriptionSl;
         private Double monthly;
         private Boolean active;
+        private Long transactionServiceId;
 
         public AddonItem() {}
         public AddonItem(String key, String name, String nameSl, String description, String descriptionSl, Double monthly, Boolean active) {
+            this(key, name, nameSl, description, descriptionSl, monthly, active, null);
+        }
+        public AddonItem(String key, String name, String nameSl, String description, String descriptionSl, Double monthly, Boolean active, Long transactionServiceId) {
             this.key = key;
             this.name = name;
             this.nameSl = nameSl;
@@ -112,6 +126,7 @@ public class RegisterPriceCatalog {
             this.descriptionSl = descriptionSl;
             this.monthly = monthly;
             this.active = active;
+            this.transactionServiceId = transactionServiceId;
         }
         public String getKey() { return key; }
         public void setKey(String key) { this.key = key; }
@@ -127,6 +142,8 @@ public class RegisterPriceCatalog {
         public void setMonthly(Double monthly) { this.monthly = monthly; }
         public Boolean getActive() { return active; }
         public void setActive(Boolean active) { this.active = active; }
+        public Long getTransactionServiceId() { return transactionServiceId; }
+        public void setTransactionServiceId(Long transactionServiceId) { this.transactionServiceId = transactionServiceId; }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -169,15 +186,26 @@ public class RegisterPriceCatalog {
     public static class UsagePrices {
         private Double additionalUserMonthly;
         private Double smsPerMessage;
+        private Long additionalUserTransactionServiceId;
+        private Long smsTransactionServiceId;
 
         public UsagePrices() {}
         public UsagePrices(Double additionalUserMonthly, Double smsPerMessage) {
+            this(additionalUserMonthly, smsPerMessage, null, null);
+        }
+        public UsagePrices(Double additionalUserMonthly, Double smsPerMessage, Long additionalUserTransactionServiceId, Long smsTransactionServiceId) {
             this.additionalUserMonthly = additionalUserMonthly;
             this.smsPerMessage = smsPerMessage;
+            this.additionalUserTransactionServiceId = additionalUserTransactionServiceId;
+            this.smsTransactionServiceId = smsTransactionServiceId;
         }
         public Double getAdditionalUserMonthly() { return additionalUserMonthly; }
         public void setAdditionalUserMonthly(Double additionalUserMonthly) { this.additionalUserMonthly = additionalUserMonthly; }
         public Double getSmsPerMessage() { return smsPerMessage; }
         public void setSmsPerMessage(Double smsPerMessage) { this.smsPerMessage = smsPerMessage; }
+        public Long getAdditionalUserTransactionServiceId() { return additionalUserTransactionServiceId; }
+        public void setAdditionalUserTransactionServiceId(Long additionalUserTransactionServiceId) { this.additionalUserTransactionServiceId = additionalUserTransactionServiceId; }
+        public Long getSmsTransactionServiceId() { return smsTransactionServiceId; }
+        public void setSmsTransactionServiceId(Long smsTransactionServiceId) { this.smsTransactionServiceId = smsTransactionServiceId; }
     }
 }

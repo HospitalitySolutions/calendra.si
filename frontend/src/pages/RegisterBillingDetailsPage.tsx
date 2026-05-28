@@ -10,12 +10,14 @@ import { useLocale } from '../locale'
 import { registerPageStyles } from './registerPageStyles'
 import {
   getBillingInterval,
+  getEstimatedUserCount,
   parseRegisterSelection,
   registerPlanToPackage,
   selectionToSearch,
 } from './registerFlow'
 import {
   buildSummary,
+  getActiveAddonKeys,
   getRegisterPlanPageCopy,
   plansForLocale,
   selectionRequiresBillingDetails,
@@ -34,6 +36,10 @@ function clearPendingBillingDetailsRedirect() {
   } catch {
     // Session storage is best-effort only.
   }
+}
+
+function getSelectedAddonKeys(selection: ReturnType<typeof parseRegisterSelection>) {
+  return getActiveAddonKeys().filter((key) => Boolean(selection.addons[key]))
 }
 
 const registerBillingDetailsStyles = `
@@ -948,7 +954,7 @@ export function RegisterBillingDetailsPage() {
 
     setSaving(true)
     try {
-      await api.post('/auth/signup/billing-details', {
+      const { data } = await api.post('/auth/signup/billing-details', {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         companyName: companyName.trim(),
@@ -958,11 +964,18 @@ export function RegisterBillingDetailsPage() {
         city: city.trim(),
         tenantType,
         packageName: registerPlanToPackage[selection.plan],
+        userCount: getEstimatedUserCount(selection),
+        smsCount: selection.additionalSms,
+        addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         paymentMethod,
       })
       clearPendingBillingDetailsRedirect()
       showToast('success', copy.saved)
+      if (data?.checkoutUrl) {
+        window.location.assign(String(data.checkoutUrl))
+        return
+      }
       window.location.assign('/calendar')
     } catch (err) {
       if (axios.isAxiosError(err)) {

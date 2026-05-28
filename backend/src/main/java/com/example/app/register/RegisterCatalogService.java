@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,6 +19,9 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class RegisterCatalogService {
     private static final double MAX_PRICE = 100_000.0;
+    private static final Set<String> PLAN_TRANSACTION_SERVICE_KEYS = Set.of(
+            "basicMonthly", "basicAnnual", "proMonthly", "proAnnual", "businessMonthly", "businessAnnual"
+    );
 
     private final AppSettingRepository settings;
     private final ObjectMapper objectMapper;
@@ -126,6 +130,23 @@ public class RegisterCatalogService {
         out.setAdditionalUserMonthly(roundMoney(additionalUserMonthly));
         out.setSmsPerMessage(roundFour(smsPerMessage));
         out.setUsagePrices(new RegisterPriceCatalog.UsagePrices(out.getAdditionalUserMonthly(), out.getSmsPerMessage()));
+        out.setPlanTransactionServiceIds(normalizePlanTransactionServiceIds(base.getPlanTransactionServiceIds(), patch.getPlanTransactionServiceIds()));
+        out.setAdditionalUserTransactionServiceId(firstValidServiceId(
+                patch.getAdditionalUserTransactionServiceId(),
+                patch.getUsagePrices() == null ? null : patch.getUsagePrices().getAdditionalUserTransactionServiceId(),
+                base.getAdditionalUserTransactionServiceId()
+        ));
+        out.setSmsTransactionServiceId(firstValidServiceId(
+                patch.getSmsTransactionServiceId(),
+                patch.getUsagePrices() == null ? null : patch.getUsagePrices().getSmsTransactionServiceId(),
+                base.getSmsTransactionServiceId()
+        ));
+        out.setUsagePrices(new RegisterPriceCatalog.UsagePrices(
+                out.getAdditionalUserMonthly(),
+                out.getSmsPerMessage(),
+                out.getAdditionalUserTransactionServiceId(),
+                out.getSmsTransactionServiceId()
+        ));
         return out;
     }
 
@@ -187,7 +208,8 @@ public class RegisterCatalogService {
                     text(item.getDescription(), fb == null ? "Optional platform add-on." : fb.getDescription()),
                     text(item.getDescriptionSl(), fb == null ? "Dodatek za platformo." : fb.getDescriptionSl()),
                     roundMoney(monthly),
-                    Boolean.FALSE != item.getActive()
+                    Boolean.FALSE != item.getActive(),
+                    firstValidServiceId(item.getTransactionServiceId(), fb == null ? null : fb.getTransactionServiceId())
             ));
         }
         return new ArrayList<>(out.values());
@@ -228,6 +250,47 @@ public class RegisterCatalogService {
 
     private static List<RegisterPriceCatalog.AddonItem> copyAddonItems(List<RegisterPriceCatalog.AddonItem> raw) {
         return normalizeAddonItems(raw == null ? List.of() : raw, List.of());
+    }
+
+    private static Map<String, Long> normalizePlanTransactionServiceIds(Map<String, Long> base, Map<String, Long> patch) {
+        Map<String, Long> out = new LinkedHashMap<>();
+        if (base != null) {
+            for (Map.Entry<String, Long> entry : base.entrySet()) {
+                Long id = validServiceId(entry.getValue());
+                if (PLAN_TRANSACTION_SERVICE_KEYS.contains(entry.getKey()) && id != null) {
+                    out.put(entry.getKey(), id);
+                }
+            }
+        }
+        if (patch != null) {
+            for (String key : PLAN_TRANSACTION_SERVICE_KEYS) {
+                if (!patch.containsKey(key)) continue;
+                Long id = validServiceId(patch.get(key));
+                if (id == null) {
+                    out.remove(key);
+                } else {
+                    out.put(key, id);
+                }
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    private static Long firstValidServiceId(Long... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Long value : values) {
+            Long id = validServiceId(value);
+            if (id != null) {
+                return id;
+            }
+        }
+        return null;
+    }
+
+    private static Long validServiceId(Long value) {
+        return value == null || value <= 0 ? null : value;
     }
 
     private static boolean isValidAmount(Double v) {

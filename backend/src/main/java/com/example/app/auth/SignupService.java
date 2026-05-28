@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -358,6 +359,7 @@ public class SignupService {
                 request.userCount(),
                 request.smsCount(),
                 request.spaceCount(),
+                request.addonKeys(),
                 request.billingInterval(),
                 request.fiscalizationNeeded(),
                 request.returnSearch()
@@ -459,6 +461,7 @@ public class SignupService {
                 request.userCount(),
                 request.smsCount(),
                 request.spaceCount(),
+                request.addonKeys(),
                 request.billingInterval(),
                 request.fiscalizationNeeded(),
                 request.returnSearch()
@@ -520,6 +523,8 @@ public class SignupService {
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(Math.max(1, request.userCount() == null ? 1 : request.userCount())));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(Math.max(0, request.smsCount() == null ? 0 : request.smsCount())));
+        List<String> selectedAddonKeys = resolveSelectedAddonKeys(request);
+        seedSetting(company, SettingKey.SIGNUP_ADDON_KEYS, String.join(",", selectedAddonKeys));
         seedSetting(company, SettingKey.SIGNUP_FISCALIZATION_REQUIRED, String.valueOf(Boolean.TRUE.equals(request.fiscalizationNeeded())));
         int spaceQuota = Math.max(1, request.spaceCount() == null ? 5 : request.spaceCount());
         seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, String.valueOf(spaceQuota));
@@ -547,7 +552,10 @@ public class SignupService {
                 null,
                 normalizedPackageType,
                 interval,
-                null
+                null,
+                Math.max(1, request.userCount() == null ? 1 : request.userCount()),
+                Math.max(0, request.smsCount() == null ? 0 : request.smsCount()),
+                selectedAddonKeys
         );
 
         if (!passwordProvided) {
@@ -622,6 +630,12 @@ public class SignupService {
 
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
+        int selectedUserCount = Math.max(1, request.userCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_USER_COUNT, 1) : request.userCount());
+        int selectedSmsCount = Math.max(0, request.smsCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_SMS_COUNT, 0) : request.smsCount());
+        List<String> selectedAddonKeys = request.addonKeys() == null ? parseAddonKeyCsv(settings.findByCompanyIdAndKey(company.getId(), SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse("")) : sanitizeAddonKeys(request.addonKeys());
+        seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(selectedUserCount));
+        seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(selectedSmsCount));
+        seedSetting(company, SettingKey.SIGNUP_ADDON_KEYS, String.join(",", selectedAddonKeys));
 
         String normalizedTenantType = normalizeTenantConfigType(request.tenantType());
         seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, normalizedTenantType);
@@ -644,13 +658,22 @@ public class SignupService {
                 request.city(),
                 normalizedPackageType,
                 interval,
-                request.paymentMethod()
+                request.paymentMethod(),
+                selectedUserCount,
+                selectedSmsCount,
+                selectedAddonKeys
         );
 
-        return ResponseEntity.ok(Map.of(
-                "ok", true,
-                "packageType", normalizedPackageType,
-                "billingInterval", interval));
+        PlatformSubscriptionBillingService.SignupBillingInvoiceResult invoice = tryCreateSignupSubscriptionInvoice(company);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("ok", true);
+        response.put("packageType", normalizedPackageType);
+        response.put("billingInterval", interval);
+        if (invoice.billId() != null) response.put("billId", invoice.billId());
+        if (invoice.billNumber() != null) response.put("billNumber", invoice.billNumber());
+        if (invoice.paymentStatus() != null) response.put("paymentStatus", invoice.paymentStatus());
+        if (invoice.checkoutUrl() != null && !invoice.checkoutUrl().isBlank()) response.put("checkoutUrl", invoice.checkoutUrl());
+        return ResponseEntity.ok(response);
     }
 
     private void tryEnsurePlatformSubscriptionOpenBill(
@@ -663,7 +686,10 @@ public class SignupService {
             String city,
             String packageName,
             String billingInterval,
-            String paymentMethod
+            String paymentMethod,
+            Integer userCount,
+            Integer smsCount,
+            List<String> addonKeys
     ) {
         try {
             platformSubscriptionBillingService.ensureForSignupTenant(
@@ -676,12 +702,26 @@ public class SignupService {
                     city,
                     packageName,
                     billingInterval,
-                    paymentMethod
+                    paymentMethod,
+                    userCount,
+                    smsCount,
+                    addonKeys
             );
         } catch (Exception e) {
             log.warn("Platform subscription open bill creation skipped for signup company {}: {}",
                     company == null ? null : company.getId(),
                     e.getMessage());
+        }
+    }
+
+    private PlatformSubscriptionBillingService.SignupBillingInvoiceResult tryCreateSignupSubscriptionInvoice(Company company) {
+        try {
+            return platformSubscriptionBillingService.createInvoiceForSignupTenantIfDue(company);
+        } catch (Exception e) {
+            log.warn("Platform subscription invoice creation skipped for signup company {}: {}",
+                    company == null ? null : company.getId(),
+                    e.getMessage());
+            return new PlatformSubscriptionBillingService.SignupBillingInvoiceResult(null, null, null, null);
         }
     }
 
@@ -823,6 +863,7 @@ public class SignupService {
         Integer userCount = Math.max(1, parsePositiveIntSetting(cid, SettingKey.SIGNUP_USER_COUNT, 1));
         Integer smsCount = parsePositiveIntSetting(cid, SettingKey.SIGNUP_SMS_COUNT, 0);
         Integer spaceCount = Math.max(1, parsePositiveIntSetting(cid, SettingKey.TENANCY_SPACE_QUOTA, 5));
+        List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(cid, SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
         String interval = settings.findByCompanyIdAndKey(cid, SettingKey.BILLING_SUBSCRIPTION_INTERVAL).map(AppSetting::getValue).orElse("MONTHLY");
         Boolean fiscal = settings.findByCompanyIdAndKey(cid, SettingKey.SIGNUP_FISCALIZATION_REQUIRED)
                 .map(s -> "true".equalsIgnoreCase(s.getValue()))
@@ -838,6 +879,7 @@ public class SignupService {
                 userCount,
                 smsCount,
                 spaceCount,
+                addonKeys,
                 interval,
                 fiscal,
                 null
@@ -890,6 +932,7 @@ public class SignupService {
         m.put("userCount", request.userCount());
         m.put("smsCount", request.smsCount());
         m.put("spaceCount", request.spaceCount());
+        m.put("addonKeys", sanitizeAddonKeys(request.addonKeys()));
         m.put("billingInterval", request.billingInterval());
         m.put("fiscalizationNeeded", request.fiscalizationNeeded());
         m.put("returnSearch", request.returnSearch());
@@ -910,10 +953,93 @@ public class SignupService {
                 intVal(map.get("userCount")),
                 intVal(map.get("smsCount")),
                 intVal(map.get("spaceCount")),
+                stringListVal(map.get("addonKeys")),
                 stringVal(map.get("billingInterval")),
                 boolVal(map.get("fiscalizationNeeded")),
                 stringVal(map.get("returnSearch"))
         );
+    }
+
+    private static List<String> stringListVal(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof List<?> list) {
+            List<String> out = new ArrayList<>();
+            for (Object item : list) {
+                if (item != null) {
+                    out.add(String.valueOf(item));
+                }
+            }
+            return sanitizeAddonKeys(out);
+        }
+        return parseAddonKeyCsv(String.valueOf(value));
+    }
+
+    private static List<String> parseAddonKeyCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        List<String> raw = new ArrayList<>();
+        for (String part : csv.split(",")) {
+            raw.add(part);
+        }
+        return sanitizeAddonKeys(raw);
+    }
+
+    private static List<String> sanitizeAddonKeys(List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (String key : keys) {
+            if (key == null) continue;
+            String cleaned = key.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+            if (!cleaned.isBlank() && !out.contains(cleaned)) {
+                out.add(cleaned);
+            }
+        }
+        return out;
+    }
+
+    private static List<String> parseAddonKeysFromReturnSearch(String returnSearch) {
+        if (returnSearch == null || returnSearch.isBlank()) {
+            return List.of();
+        }
+        String q = returnSearch.trim();
+        if (q.startsWith("?")) {
+            q = q.substring(1);
+        }
+        List<String> out = new ArrayList<>();
+        for (String part : q.split("&")) {
+            if (part.isBlank()) continue;
+            String[] kv = part.split("=", 2);
+            String key = urlDecode(kv[0]);
+            String value = kv.length > 1 ? urlDecode(kv[1]) : "";
+            if ("addon".equalsIgnoreCase(key)) {
+                out.add(value);
+            }
+        }
+        return sanitizeAddonKeys(out);
+    }
+
+    private static String urlDecode(String value) {
+        try {
+            return java.net.URLDecoder.decode(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return value == null ? "" : value;
+        }
+    }
+
+    private static List<String> resolveSelectedAddonKeys(AuthController.SignupRequest request) {
+        List<String> merged = new ArrayList<>();
+        if (request != null) {
+            if (request.addonKeys() != null) {
+                merged.addAll(request.addonKeys());
+            }
+            merged.addAll(parseAddonKeysFromReturnSearch(request.returnSearch()));
+        }
+        return sanitizeAddonKeys(merged);
     }
 
     private static String stringVal(Object o) {
@@ -1057,6 +1183,7 @@ public class SignupService {
                 pending.userCount(),
                 pending.smsCount(),
                 pending.spaceCount(),
+                pending.addonKeys(),
                 pending.billingInterval(),
                 pending.fiscalizationNeeded(),
                 returnSearch

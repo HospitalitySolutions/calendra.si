@@ -1,5 +1,15 @@
 package com.example.app.register;
 
+import com.example.app.billing.Bill;
+import com.example.app.billing.BillFiscalStatus;
+import com.example.app.billing.BillFolioPdfService;
+import com.example.app.billing.BillItem;
+import com.example.app.billing.BillPaymentStatus;
+import com.example.app.billing.BillRepository;
+import com.example.app.billing.BillType;
+import com.example.app.billing.BillingEmailService;
+import com.example.app.billing.InvoiceOrderIdService;
+import com.example.app.billing.InvoicePdfS3Service;
 import com.example.app.billing.OpenBill;
 import com.example.app.billing.OpenBillItem;
 import com.example.app.billing.OpenBillRepository;
@@ -17,17 +27,21 @@ import com.example.app.company.ClientCompanyRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
+import com.example.app.fiscal.FiscalizationService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.stripe.StripeBillingService;
+import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,11 +56,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Creates and keeps the platform-admin open bill for self-serve register subscriptions.
+ * Creates and keeps the Platform Admin open bill for self-serve register subscriptions.
  *
- * <p>The tenant is the newly registered company. The seller is the main Platform Admin tenant,
- * where the tenant is represented as a company payee ({@link ClientCompany}) and linked client.
- * The open-bill line is accrued daily by updating the quantity on a daily-priced line.</p>
+ * <p>Each package interval, add-on, additional user and SMS charge can be mapped to a
+ * transaction service in the Platform Admin tenant via the register catalog settings. If no
+ * mapping is selected, the service creates/uses a backward-compatible fallback transaction service.</p>
  */
 @Service
 public class PlatformSubscriptionBillingService {
@@ -66,6 +80,13 @@ public class PlatformSubscriptionBillingService {
     private final CompanyProvisioningService companyProvisioningService;
     private final AppSettingRepository settings;
     private final RegisterCatalogService registerCatalogService;
+    private final BillRepository bills;
+    private final InvoiceOrderIdService invoiceOrderIdService;
+    private final FiscalizationService fiscalizationService;
+    private final BillFolioPdfService billFolioPdfService;
+    private final InvoicePdfS3Service invoicePdfS3Service;
+    private final BillingEmailService billingEmailService;
+    private final StripeBillingService stripeBillingService;
 
     public PlatformSubscriptionBillingService(
             CompanyRepository companies,
@@ -77,7 +98,14 @@ public class PlatformSubscriptionBillingService {
             PaymentMethodRepository paymentMethods,
             CompanyProvisioningService companyProvisioningService,
             AppSettingRepository settings,
-            RegisterCatalogService registerCatalogService
+            RegisterCatalogService registerCatalogService,
+            BillRepository bills,
+            InvoiceOrderIdService invoiceOrderIdService,
+            FiscalizationService fiscalizationService,
+            BillFolioPdfService billFolioPdfService,
+            InvoicePdfS3Service invoicePdfS3Service,
+            BillingEmailService billingEmailService,
+            StripeBillingService stripeBillingService
     ) {
         this.companies = companies;
         this.users = users;
@@ -89,6 +117,13 @@ public class PlatformSubscriptionBillingService {
         this.companyProvisioningService = companyProvisioningService;
         this.settings = settings;
         this.registerCatalogService = registerCatalogService;
+        this.bills = bills;
+        this.invoiceOrderIdService = invoiceOrderIdService;
+        this.fiscalizationService = fiscalizationService;
+        this.billFolioPdfService = billFolioPdfService;
+        this.invoicePdfS3Service = invoicePdfS3Service;
+        this.billingEmailService = billingEmailService;
+        this.stripeBillingService = stripeBillingService;
     }
 
     /** Upserts the platform payee + open bill using the best data currently available for the signup. */
@@ -103,7 +138,10 @@ public class PlatformSubscriptionBillingService {
             String city,
             String packageName,
             String billingInterval,
-            String requestedPaymentMethod
+            String requestedPaymentMethod,
+            Integer userCount,
+            Integer smsCount,
+            List<String> addonKeys
     ) {
         if (tenantCompany == null || tenantCompany.getId() == null) {
             return;
@@ -115,8 +153,9 @@ public class PlatformSubscriptionBillingService {
         }
 
         companyProvisioningService.ensureDefaultPaymentMethods(platformCompany);
-        Map<String, PlatformPlan> plans = ensurePlatformTransactionServices(platformCompany);
-        PlatformPlan plan = resolvePlan(plans, packageName, billingInterval);
+        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+        PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
+        PlatformPlan plan = billingCatalog.resolvePlan(packageName, billingInterval);
         if (plan == null) {
             log.warn("Skipping platform subscription open bill for tenant {}: unsupported package={} interval={}", tenantCompany.getId(), packageName, billingInterval);
             return;
@@ -158,17 +197,73 @@ public class PlatformSubscriptionBillingService {
         open.setBatchTargetCompanyId(payee.getId());
         open.setSessionBooking(null);
         open.setBookingGroupKey(null);
-        open.setBillType(null);
-        applyPlanLine(open, plan, billingStart, today);
-        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, accruedGross(plan, billingStart, today).toPlainString());
+        open.setBillType(BillType.INVOICE);
+        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys);
+        upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
 
         openBills.save(open);
     }
 
     /**
-     * Daily accrual pass: open bills stay open and their single subscription line quantity grows
-     * from the billable start date until the end of the current billing period.
+     * Converts the signup open bill into a bill and starts the configured payment flow. Card bills use
+     * Stripe Checkout and are fiscalized/archived/emailed after the webhook marks them paid. Bank transfer
+     * and non-Stripe methods archive/email the PDF immediately in the same way as the standard close-bill flow.
      */
+    @Transactional(noRollbackFor = Exception.class)
+    public SignupBillingInvoiceResult createInvoiceForSignupTenantIfDue(Company tenantCompany) {
+        if (tenantCompany == null || tenantCompany.getId() == null) {
+            return SignupBillingInvoiceResult.empty();
+        }
+        Company platformCompany = resolvePlatformCompany().orElse(null);
+        if (platformCompany == null || platformCompany.getId() == null) {
+            return SignupBillingInvoiceResult.empty();
+        }
+        String reference = referenceForTenant(tenantCompany.getId());
+        OpenBill open = openBills.findFirstByCompanyIdAndReferenceOrderByIdAsc(platformCompany.getId(), reference).orElse(null);
+        if (open == null || open.getItems() == null || open.getItems().isEmpty()) {
+            return findExistingSignupBill(platformCompany.getId(), reference)
+                    .map(existing -> new SignupBillingInvoiceResult(existing.getId(), existing.getBillNumber(), null, existing.getPaymentStatus()))
+                    .orElseGet(SignupBillingInvoiceResult::empty);
+        }
+        BigDecimal openTotalGross = openBillTotalGross(open);
+        if (openTotalGross.compareTo(BigDecimal.ZERO) <= 0) {
+            return SignupBillingInvoiceResult.empty();
+        }
+        Optional<Bill> existing = findExistingSignupBill(platformCompany.getId(), reference);
+        if (existing.isPresent()) {
+            Bill bill = existing.get();
+            return new SignupBillingInvoiceResult(bill.getId(), bill.getBillNumber(), null, bill.getPaymentStatus());
+        }
+
+        Bill saved = createBillFromSignupOpenBill(open, platformCompany);
+        PaymentMethod method = saved.getPaymentMethod();
+        if (method != null && method.isStripeEnabled() && method.getPaymentType() == PaymentType.CARD) {
+            StripeCheckoutSessionResult checkout = stripeBillingService.createCheckoutSessionForBill(saved);
+            billingEmailService.sendCheckoutLink(saved, checkout.url());
+            return new SignupBillingInvoiceResult(saved.getId(), saved.getBillNumber(), checkout.url(), BillPaymentStatus.PAYMENT_PENDING);
+        }
+
+        boolean paidImmediately = method != null
+                && method.getPaymentType() != PaymentType.BANK_TRANSFER
+                && method.getPaymentType() != PaymentType.OTHER;
+        saved.setPaymentStatus(paidImmediately ? BillPaymentStatus.PAID : BillPaymentStatus.PAYMENT_PENDING);
+        if (paidImmediately) {
+            saved.setPaidAt(OffsetDateTime.now());
+        }
+        saved = bills.saveAndFlush(saved);
+        if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
+            saved = fiscalizationService.fiscalizeBill(saved, platformCompany.getId());
+        }
+        byte[] pdf = generateAndArchive(saved, platformCompany.getId());
+        if (method != null && method.getPaymentType() == PaymentType.BANK_TRANSFER) {
+            billingEmailService.sendBankTransferFolio(saved, pdf);
+        } else {
+            billingEmailService.sendInvoiceFolio(saved, pdf);
+        }
+        return new SignupBillingInvoiceResult(saved.getId(), saved.getBillNumber(), null, saved.getPaymentStatus());
+    }
+
+    /** Refresh open subscription bills from the tenant settings until they are converted into invoices. */
     @Scheduled(cron = "${app.platform-subscription-billing.daily-cron:0 10 0 * * *}")
     @Transactional
     public void refreshOpenSubscriptionBills() {
@@ -176,7 +271,8 @@ public class PlatformSubscriptionBillingService {
         if (platformCompany == null || platformCompany.getId() == null) {
             return;
         }
-        Map<String, PlatformPlan> plans = ensurePlatformTransactionServices(platformCompany);
+        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+        PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
         LocalDate today = LocalDate.now(ZoneId.systemDefault());
         for (OpenBill open : openBills.findAllByCompanyIdAndReferenceStartingWith(platformCompany.getId(), OPEN_BILL_REFERENCE_PREFIX)) {
             Long tenantId = parseTenantId(open.getReference());
@@ -187,132 +283,285 @@ public class PlatformSubscriptionBillingService {
             if (tenant == null) {
                 continue;
             }
-            String packageName = settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_PACKAGE_NAME)
-                    .map(AppSetting::getValue)
-                    .orElse("PROFESSIONAL");
-            String interval = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL)
-                    .map(AppSetting::getValue)
-                    .orElse("MONTHLY");
-            PlatformPlan plan = resolvePlan(plans, packageName, interval);
+            String packageName = settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_PACKAGE_NAME).map(AppSetting::getValue).orElse("PROFESSIONAL");
+            String interval = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL).map(AppSetting::getValue).orElse("MONTHLY");
+            PlatformPlan plan = billingCatalog.resolvePlan(packageName, interval);
             if (plan == null) {
                 continue;
             }
+            Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
+            Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0);
+            List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
             LocalDate billingStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
                     .map(AppSetting::getValue)
                     .map(this::parseDateOrNull)
                     .orElseGet(() -> resolveInitialBillingStart(plan, tenantId, today));
-            applyPlanLine(open, plan, billingStart, today);
-            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, accruedGross(plan, billingStart, today).toPlainString());
+            LocalDate billingEnd = periodEnd(billingStart, plan.interval());
+            BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys);
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
             openBills.save(open);
         }
     }
 
-    private Map<String, PlatformPlan> ensurePlatformTransactionServices(Company platformCompany) {
-        Map<String, PlatformPlan> plans = platformPlansFromCatalog();
-        for (PlatformPlan plan : plans.values()) {
-            TransactionService tx = txServices.findByCompanyIdAndCodeIgnoreCase(platformCompany.getId(), plan.code())
-                    .orElseGet(() -> {
-                        TransactionService created = new TransactionService();
-                        created.setCompany(platformCompany);
-                        created.setCode(plan.code());
-                        return created;
-                    });
-            boolean dirty = false;
-            if (!Objects.equals(tx.getDescription(), plan.description())) {
-                tx.setDescription(plan.description());
-                dirty = true;
+    private Bill createBillFromSignupOpenBill(OpenBill open, Company platformCompany) {
+        Bill bill = new Bill();
+        bill.setCompany(platformCompany);
+        bill.setBillType(BillType.INVOICE);
+        bill.setBillNumber(nextInvoiceNumber(platformCompany.getId()));
+        bill.setClient(open.getClient());
+        setBillClientSnapshot(bill, open.getClient());
+        if (OpenBill.BATCH_SCOPE_COMPANY.equals(open.getBatchScope()) && open.getBatchTargetCompanyId() != null) {
+            ClientCompany recipientCompany = clientCompanies.findByIdAndOwnerCompanyId(open.getBatchTargetCompanyId(), platformCompany.getId())
+                    .orElse(null);
+            if (recipientCompany != null) {
+                setBillRecipientCompanySnapshot(bill, recipientCompany);
+                bill.setClient(null);
+                bill.setClientFirstNameSnapshot("");
+                bill.setClientLastNameSnapshot("");
+            } else {
+                setBillRecipientPersonSnapshot(bill);
             }
-            if (tx.getTaxRate() != TaxRate.NO_VAT) {
-                tx.setTaxRate(TaxRate.NO_VAT);
-                dirty = true;
-            }
-            if (tx.getNetPrice() == null || tx.getNetPrice().compareTo(plan.grossMonthlyEquivalent()) != 0) {
-                tx.setNetPrice(plan.grossMonthlyEquivalent());
-                dirty = true;
-            }
-            if (!tx.isActive()) {
-                tx.setActive(true);
-                dirty = true;
-            }
-            if (tx.getId() == null || dirty) {
-                txServices.save(tx);
-            }
-            plan.setTransactionService(tx);
+        } else {
+            setBillRecipientPersonSnapshot(bill);
         }
-        return plans;
-    }
+        bill.setConsultant(open.getConsultant());
+        bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolvePaymentMethod(platformCompany.getId(), null).orElse(null));
+        bill.setBankTransferReference(open.getReference());
+        bill.setIssueDate(LocalDate.now());
+        bill.setFiscalStatus(BillFiscalStatus.NOT_SENT);
 
-    private Map<String, PlatformPlan> platformPlansFromCatalog() {
-        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
-        Map<String, Double> catalogPlans = catalog == null || catalog.getPlans() == null ? Map.of() : catalog.getPlans();
-        BigDecimal basic = money(catalogPlans.getOrDefault("basic", 18.90));
-        BigDecimal pro = money(catalogPlans.getOrDefault("pro", 34.90));
-        BigDecimal business = money(catalogPlans.getOrDefault("business", 59.90));
-        double annualDiscountPercent = catalog == null || catalog.getAnnualDiscountPercent() == null ? 15.0 : catalog.getAnnualDiscountPercent();
-
-        Map<String, PlatformPlan> out = new LinkedHashMap<>();
-        out.put("BASIC:MONTHLY", new PlatformPlan("BASICMONTHLY", "Basic Package - Monthly", basic, BillingInterval.MONTHLY));
-        out.put("BASIC:YEARLY", new PlatformPlan("BASICANNUAL", "Basic Package - Annual", annualMonthlyEquivalent(basic, annualDiscountPercent), BillingInterval.YEARLY));
-        out.put("PROFESSIONAL:MONTHLY", new PlatformPlan("PROMONTHLY", "Pro Package - Monthly", pro, BillingInterval.MONTHLY));
-        out.put("PROFESSIONAL:YEARLY", new PlatformPlan("PROANNUAL", "Pro Package - Annual", annualMonthlyEquivalent(pro, annualDiscountPercent), BillingInterval.YEARLY));
-        out.put("PREMIUM:MONTHLY", new PlatformPlan("BUSINESSMONTHLY", "Business Package - Monthly", business, BillingInterval.MONTHLY));
-        out.put("PREMIUM:YEARLY", new PlatformPlan("BUSINESSANNUAL", "Business Package - Annual", annualMonthlyEquivalent(business, annualDiscountPercent), BillingInterval.YEARLY));
-        return out;
-    }
-
-    private PlatformPlan resolvePlan(Map<String, PlatformPlan> plans, String packageName, String billingInterval) {
-        String normalizedPackage = normalizePackageType(packageName);
-        String normalizedInterval = normalizeInterval(billingInterval).settingValue();
-        if ("TRIAL".equals(normalizedPackage)) {
-            normalizedPackage = "BASIC";
-            normalizedInterval = "MONTHLY";
+        BigDecimal totalNet = BigDecimal.ZERO;
+        BigDecimal totalGross = BigDecimal.ZERO;
+        for (OpenBillItem source : open.getItems()) {
+            if (source.getTransactionService() == null || source.getQuantity() == null || source.getQuantity() <= 0) {
+                continue;
+            }
+            BillItem item = new BillItem();
+            item.setBill(bill);
+            item.setTransactionService(source.getTransactionService());
+            item.setQuantity(source.getQuantity());
+            item.setNetPrice(source.getNetPrice());
+            BigDecimal grossSingle = grossFromNet(source.getTransactionService(), source.getNetPrice());
+            item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(source.getQuantity())).setScale(2, RoundingMode.HALF_UP));
+            item.setSourceSessionBookingId(null);
+            item.setSourceAdvanceBillId(null);
+            totalNet = totalNet.add(source.getNetPrice().multiply(BigDecimal.valueOf(source.getQuantity())));
+            totalGross = totalGross.add(item.getGrossPrice());
+            bill.getItems().add(item);
         }
-        return plans.get(normalizedPackage + ":" + normalizedInterval);
+        bill.setTotalNet(totalNet.setScale(2, RoundingMode.HALF_UP));
+        bill.setTotalGross(totalGross.setScale(2, RoundingMode.HALF_UP));
+        bill.setPaymentStatus(bill.getPaymentMethod() != null && bill.getPaymentMethod().isStripeEnabled()
+                ? BillPaymentStatus.OPEN
+                : BillPaymentStatus.PAYMENT_PENDING);
+        invoiceOrderIdService.assignIfMissing(bill);
+        Bill saved = bills.saveAndFlush(bill);
+        openBills.delete(open);
+        openBills.flush();
+        return saved;
     }
 
-    private void applyPlanLine(OpenBill open, PlatformPlan plan, LocalDate billingStart, LocalDate today) {
+    private byte[] generateAndArchive(Bill bill, Long companyId) {
+        try {
+            byte[] pdf = billFolioPdfService.generate(bill, companyId);
+            invoicePdfS3Service.uploadAndPersistKey(bill, pdf);
+            return pdf;
+        } catch (Exception e) {
+            log.warn("Could not generate/archive signup subscription PDF for billId={}", bill == null ? null : bill.getId(), e);
+            return new byte[0];
+        }
+    }
+
+    private Optional<Bill> findExistingSignupBill(Long platformCompanyId, String reference) {
+        if (platformCompanyId == null || reference == null) {
+            return Optional.empty();
+        }
+        return bills.findAllByCompanyId(platformCompanyId).stream()
+                .filter(b -> reference.equals(b.getBankTransferReference()))
+                .max(Comparator.comparing(Bill::getId));
+    }
+
+    private BigDecimal applySubscriptionLines(
+            OpenBill open,
+            PlatformBillingCatalog catalog,
+            PlatformPlan plan,
+            Integer selectedUserCount,
+            Integer selectedSmsCount,
+            List<String> selectedAddonKeys
+    ) {
         if (open.getItems() != null) {
             open.getItems().clear();
         }
-        BigDecimal dailyNet = dailyGrossAmount(plan, billingStart);
-        int accruedDays = accruedDays(billingStart, periodEnd(billingStart, plan.interval()), today);
+        BigDecimal totalGross = BigDecimal.ZERO;
+        BigDecimal planGross = plan.periodGross();
+        if (planGross.compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, plan.transactionService(), 1, planGross));
+        }
+
+        int billableUsers = Math.max(0, (selectedUserCount == null ? 1 : selectedUserCount) - baseIncludedUsers(plan.packageType()) - 1);
+        if (billableUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
+                    ? annualGross(catalog.additionalUserMonthly(), catalog.annualDiscountPercent())
+                    : catalog.additionalUserMonthly();
+            totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableUsers, unitGross));
+        }
+
+        int smsCount = Math.max(0, selectedSmsCount == null ? 0 : selectedSmsCount);
+        if (smsCount > 0 && catalog.smsService() != null && catalog.smsPerMessage().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
+                    ? catalog.smsPerMessage().multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP)
+                    : catalog.smsPerMessage();
+            totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), smsCount, unitGross));
+        }
+
+        for (String key : selectedAddonKeys == null ? List.<String>of() : selectedAddonKeys) {
+            PlatformAddon addon = catalog.addons().get(normalizeAddonKey(key));
+            if (addon == null || addon.monthlyGross().compareTo(BigDecimal.ZERO) <= 0 || addon.transactionService() == null) {
+                continue;
+            }
+            BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
+                    ? annualGross(addon.monthlyGross(), catalog.annualDiscountPercent())
+                    : addon.monthlyGross();
+            totalGross = totalGross.add(addOpenLine(open, addon.transactionService(), 1, unitGross));
+        }
+        return totalGross.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal addOpenLine(OpenBill open, TransactionService tx, int quantity, BigDecimal targetGrossPerUnit) {
+        if (tx == null || quantity <= 0 || targetGrossPerUnit == null || targetGrossPerUnit.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
         OpenBillItem item = new OpenBillItem();
         item.setOpenBill(open);
-        item.setTransactionService(plan.transactionService());
-        item.setQuantity(accruedDays);
-        item.setNetPrice(dailyNet);
+        item.setTransactionService(tx);
+        item.setQuantity(quantity);
+        item.setNetPrice(netFromGross(tx, targetGrossPerUnit));
         item.setSourceSessionBookingId(null);
         item.setSourceAdvanceBillId(null);
         open.getItems().add(item);
+        return grossFromNet(tx, item.getNetPrice()).multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal accruedGross(PlatformPlan plan, LocalDate billingStart, LocalDate today) {
-        BigDecimal daily = dailyGrossAmount(plan, billingStart);
-        int quantity = accruedDays(billingStart, periodEnd(billingStart, plan.interval()), today);
-        return daily.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private BigDecimal dailyGrossAmount(PlatformPlan plan, LocalDate billingStart) {
-        LocalDate end = periodEnd(billingStart, plan.interval());
-        long days = Math.max(1L, ChronoUnit.DAYS.between(billingStart, end));
-        BigDecimal periodGross = plan.grossMonthlyEquivalent();
-        if (plan.interval() == BillingInterval.YEARLY) {
-            periodGross = periodGross.multiply(BigDecimal.valueOf(12));
+    private BigDecimal openBillTotalGross(OpenBill open) {
+        if (open == null || open.getItems() == null) {
+            return BigDecimal.ZERO;
         }
-        return periodGross.divide(BigDecimal.valueOf(days), 2, RoundingMode.HALF_UP);
+        return open.getItems().stream()
+                .filter(i -> i.getTransactionService() != null && i.getNetPrice() != null && i.getQuantity() != null)
+                .map(i -> grossFromNet(i.getTransactionService(), i.getNetPrice()).multiply(BigDecimal.valueOf(i.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
-    private int accruedDays(LocalDate billingStart, LocalDate billingEnd, LocalDate today) {
-        if (today.isBefore(billingStart)) {
-            return 0;
+    private PlatformBillingCatalog ensurePlatformBillingCatalog(Company platformCompany, RegisterPriceCatalog catalog) {
+        Map<String, Double> prices = catalog == null || catalog.getPlans() == null ? Map.of() : catalog.getPlans();
+        double annualDiscount = catalog == null || catalog.getAnnualDiscountPercent() == null ? 15.0 : catalog.getAnnualDiscountPercent();
+        Map<String, Long> planMappings = catalog == null || catalog.getPlanTransactionServiceIds() == null ? Map.of() : catalog.getPlanTransactionServiceIds();
+        BigDecimal basic = money(prices.getOrDefault("basic", 18.90));
+        BigDecimal pro = money(prices.getOrDefault("pro", 34.90));
+        BigDecimal business = money(prices.getOrDefault("business", 59.90));
+
+        Map<String, PlatformPlan> plans = new LinkedHashMap<>();
+        plans.put("BASIC:MONTHLY", plan(platformCompany, "basicMonthly", "BASICMONTHLY", "Basic Package - Monthly", PackageType.BASIC, BillingInterval.MONTHLY, basic, planMappings));
+        plans.put("BASIC:YEARLY", plan(platformCompany, "basicAnnual", "BASICANNUAL", "Basic Package - Annual", PackageType.BASIC, BillingInterval.YEARLY, annualGross(basic, annualDiscount), planMappings));
+        plans.put("PROFESSIONAL:MONTHLY", plan(platformCompany, "proMonthly", "PROMONTHLY", "Pro Package - Monthly", PackageType.PROFESSIONAL, BillingInterval.MONTHLY, pro, planMappings));
+        plans.put("PROFESSIONAL:YEARLY", plan(platformCompany, "proAnnual", "PROANNUAL", "Pro Package - Annual", PackageType.PROFESSIONAL, BillingInterval.YEARLY, annualGross(pro, annualDiscount), planMappings));
+        plans.put("PREMIUM:MONTHLY", plan(platformCompany, "businessMonthly", "BUSINESSMONTHLY", "Business Package - Monthly", PackageType.PREMIUM, BillingInterval.MONTHLY, business, planMappings));
+        plans.put("PREMIUM:YEARLY", plan(platformCompany, "businessAnnual", "BUSINESSANNUAL", "Business Package - Annual", PackageType.PREMIUM, BillingInterval.YEARLY, annualGross(business, annualDiscount), planMappings));
+
+        BigDecimal additionalUserMonthly = money(catalog == null || catalog.getAdditionalUserMonthly() == null ? 9.9 : catalog.getAdditionalUserMonthly());
+        BigDecimal smsPerMessage = money4(catalog == null || catalog.getSmsPerMessage() == null ? 0.05 : catalog.getSmsPerMessage());
+        TransactionService additionalUserService = resolveBillingTransactionService(
+                platformCompany,
+                catalog == null ? null : catalog.getAdditionalUserTransactionServiceId(),
+                "ADDITIONALUSER",
+                "Additional user / month",
+                additionalUserMonthly
+        );
+        TransactionService smsService = resolveBillingTransactionService(
+                platformCompany,
+                catalog == null ? null : catalog.getSmsTransactionServiceId(),
+                "SMSMESSAGE",
+                "SMS message",
+                smsPerMessage
+        );
+
+        Map<String, PlatformAddon> addons = new LinkedHashMap<>();
+        if (catalog != null && catalog.getAddonItems() != null) {
+            for (RegisterPriceCatalog.AddonItem item : catalog.getAddonItems()) {
+                if (item == null || Boolean.FALSE == item.getActive()) continue;
+                String key = normalizeAddonKey(item.getKey());
+                if (key.isBlank()) continue;
+                BigDecimal monthlyGross = money(item.getMonthly() == null ? 0.0 : item.getMonthly());
+                TransactionService tx = resolveBillingTransactionService(
+                        platformCompany,
+                        item.getTransactionServiceId(),
+                        "ADDON_" + key.toUpperCase(Locale.ROOT).replace('-', '_'),
+                        firstNonBlank(item.getName(), titleFromKey(key)) + " add-on",
+                        monthlyGross
+                );
+                addons.put(key, new PlatformAddon(key, monthlyGross, tx));
+            }
         }
-        LocalDate chargeThroughExclusive = today.plusDays(1).isAfter(billingEnd) ? billingEnd : today.plusDays(1);
-        long days = ChronoUnit.DAYS.between(billingStart, chargeThroughExclusive);
-        return Math.max(0, Math.toIntExact(days));
+        return new PlatformBillingCatalog(plans, addons, additionalUserService, additionalUserMonthly, smsService, smsPerMessage, annualDiscount);
+    }
+
+    private PlatformPlan plan(
+            Company platformCompany,
+            String mappingKey,
+            String fallbackCode,
+            String description,
+            PackageType packageType,
+            BillingInterval interval,
+            BigDecimal periodGross,
+            Map<String, Long> mappings
+    ) {
+        TransactionService tx = resolveBillingTransactionService(platformCompany, mappings.get(mappingKey), fallbackCode, description, periodGross);
+        return new PlatformPlan(packageType, interval, periodGross, tx, fallbackCode);
+    }
+
+    private TransactionService resolveBillingTransactionService(Company platformCompany, Long mappedId, String fallbackCode, String description, BigDecimal defaultGross) {
+        if (mappedId != null && mappedId > 0) {
+            TransactionService mapped = txServices.findByIdAndCompanyId(mappedId, platformCompany.getId()).orElse(null);
+            if (mapped != null) {
+                return mapped;
+            }
+        }
+        TransactionService tx = txServices.findByCompanyIdAndCodeIgnoreCase(platformCompany.getId(), fallbackCode)
+                .orElseGet(() -> {
+                    TransactionService created = new TransactionService();
+                    created.setCompany(platformCompany);
+                    created.setCode(fallbackCode);
+                    return created;
+                });
+        boolean dirty = false;
+        if (!Objects.equals(tx.getDescription(), description)) {
+            tx.setDescription(description);
+            dirty = true;
+        }
+        if (tx.getTaxRate() != TaxRate.NO_VAT) {
+            tx.setTaxRate(TaxRate.NO_VAT);
+            dirty = true;
+        }
+        BigDecimal net = defaultGross == null ? BigDecimal.ZERO : defaultGross.setScale(4, RoundingMode.HALF_UP);
+        if (tx.getNetPrice() == null || tx.getNetPrice().compareTo(net) != 0) {
+            tx.setNetPrice(net);
+            dirty = true;
+        }
+        if (!tx.isActive()) {
+            tx.setActive(true);
+            dirty = true;
+        }
+        if (tx.getId() == null || dirty) {
+            tx = txServices.save(tx);
+        }
+        return tx;
     }
 
     private LocalDate resolveInitialBillingStart(PlatformPlan plan, Long tenantId, LocalDate today) {
-        if (plan.interval() == BillingInterval.MONTHLY && "BASICMONTHLY".equals(plan.code())) {
+        if (plan.interval() == BillingInterval.MONTHLY && plan.packageType() == PackageType.BASIC) {
             LocalDate storedStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
                     .map(AppSetting::getValue)
                     .map(this::parseDateOrNull)
@@ -327,6 +576,14 @@ public class PlatformSubscriptionBillingService {
 
     private LocalDate periodEnd(LocalDate start, BillingInterval interval) {
         return interval == BillingInterval.YEARLY ? start.plusYears(1) : start.plusMonths(1);
+    }
+
+    private int baseIncludedUsers(PackageType packageType) {
+        return switch (packageType) {
+            case BASIC -> 1;
+            case PROFESSIONAL -> 5;
+            case PREMIUM -> 10;
+        };
     }
 
     private ClientCompany upsertPlatformPayeeCompany(
@@ -461,6 +718,74 @@ public class PlatformSubscriptionBillingService {
         });
     }
 
+    private String nextInvoiceNumber(Long companyId) {
+        AppSetting setting = settings.findByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
+                .orElseThrow(() -> new IllegalStateException("Missing setting: INVOICE_COUNTER"));
+        String current = setting.getValue();
+        setting.setValue(incrementAlphaNumeric(current));
+        settings.save(setting);
+        return current;
+    }
+
+    static String incrementAlphaNumeric(String value) {
+        if (value == null || value.isBlank()) return "1";
+        String v = value.trim();
+        var m = java.util.regex.Pattern.compile("^(.*?)(\\d+)$").matcher(v);
+        if (m.matches()) {
+            String prefix = m.group(1);
+            String digits = m.group(2);
+            long n = Long.parseLong(digits);
+            String next = String.valueOf(n + 1);
+            if (next.length() < digits.length()) {
+                next = "0".repeat(digits.length() - next.length()) + next;
+            }
+            return prefix + next;
+        }
+        return v + "1";
+    }
+
+    private static boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod) {
+        return paymentMethod != null && paymentMethod.isFiscalized();
+    }
+
+    private static void setBillClientSnapshot(Bill bill, Client client) {
+        if (client == null) {
+            bill.setClientFirstNameSnapshot("");
+            bill.setClientLastNameSnapshot("");
+            return;
+        }
+        bill.setClientFirstNameSnapshot(client.getFirstName() == null ? "" : client.getFirstName());
+        bill.setClientLastNameSnapshot(client.getLastName() == null ? "" : client.getLastName());
+    }
+
+    private static void setBillRecipientPersonSnapshot(Bill bill) {
+        bill.setRecipientTypeSnapshot("PERSON");
+        bill.setRecipientPersonEmailSnapshot(null);
+        bill.setRecipientCompanyIdSnapshot(null);
+        bill.setRecipientCompanyNameSnapshot(null);
+        bill.setRecipientCompanyAddressSnapshot(null);
+        bill.setRecipientCompanyPostalCodeSnapshot(null);
+        bill.setRecipientCompanyCitySnapshot(null);
+        bill.setRecipientCompanyVatIdSnapshot(null);
+        bill.setRecipientCompanyIbanSnapshot(null);
+        bill.setRecipientCompanyEmailSnapshot(null);
+        bill.setRecipientCompanyTelephoneSnapshot(null);
+    }
+
+    private static void setBillRecipientCompanySnapshot(Bill bill, ClientCompany company) {
+        bill.setRecipientTypeSnapshot("COMPANY");
+        bill.setRecipientPersonEmailSnapshot(null);
+        bill.setRecipientCompanyIdSnapshot(company.getId());
+        bill.setRecipientCompanyNameSnapshot(company.getName());
+        bill.setRecipientCompanyAddressSnapshot(company.getAddress());
+        bill.setRecipientCompanyPostalCodeSnapshot(company.getPostalCode());
+        bill.setRecipientCompanyCitySnapshot(company.getCity());
+        bill.setRecipientCompanyVatIdSnapshot(company.getVatId());
+        bill.setRecipientCompanyIbanSnapshot(company.getIban());
+        bill.setRecipientCompanyEmailSnapshot(company.getEmail());
+        bill.setRecipientCompanyTelephoneSnapshot(company.getTelephone());
+    }
+
     private String referenceForTenant(Long tenantCompanyId) {
         return OPEN_BILL_REFERENCE_PREFIX + tenantCompanyId;
     }
@@ -476,6 +801,19 @@ public class PlatformSubscriptionBillingService {
         }
     }
 
+    private Integer parsePositiveIntSetting(Long companyId, SettingKey key, int defaultVal) {
+        return settings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(v -> {
+                    try {
+                        return Math.max(0, Integer.parseInt(v.trim()));
+                    } catch (Exception e) {
+                        return defaultVal;
+                    }
+                })
+                .orElse(defaultVal);
+    }
+
     private LocalDate parseDateOrNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -487,14 +825,28 @@ public class PlatformSubscriptionBillingService {
         }
     }
 
+    private static BigDecimal netFromGross(TransactionService tx, BigDecimal gross) {
+        BigDecimal multiplier = tx == null || tx.getTaxRate() == null ? BigDecimal.ZERO : tx.getTaxRate().multiplier;
+        return gross.divide(BigDecimal.ONE.add(multiplier), 4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal grossFromNet(TransactionService tx, BigDecimal net) {
+        BigDecimal multiplier = tx == null || tx.getTaxRate() == null ? BigDecimal.ZERO : tx.getTaxRate().multiplier;
+        return net.multiply(BigDecimal.ONE.add(multiplier)).setScale(2, RoundingMode.HALF_UP);
+    }
+
     private static BigDecimal money(Double value) {
         return BigDecimal.valueOf(value == null ? 0.0 : value).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal annualMonthlyEquivalent(BigDecimal monthly, double annualDiscountPercent) {
+    private static BigDecimal money4(Double value) {
+        return BigDecimal.valueOf(value == null ? 0.0 : value).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal annualGross(BigDecimal monthly, double annualDiscountPercent) {
         double clampedDiscount = Math.max(0.0, Math.min(100.0, annualDiscountPercent));
         BigDecimal factor = BigDecimal.valueOf(1.0 - (clampedDiscount / 100.0));
-        return monthly.multiply(factor).setScale(2, RoundingMode.HALF_UP);
+        return monthly.multiply(BigDecimal.valueOf(12)).multiply(factor).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String normalizePackageType(String rawValue) {
@@ -520,6 +872,30 @@ public class PlatformSubscriptionBillingService {
         }
         String normalized = rawValue.trim().toUpperCase(Locale.ROOT).replace('-', '_');
         return "YEARLY".equals(normalized) || "ANNUAL".equals(normalized) ? BillingInterval.YEARLY : BillingInterval.MONTHLY;
+    }
+
+    private static String normalizeAddonKey(String raw) {
+        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+    }
+
+    private static List<String> parseAddonKeyCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (String part : csv.split(",")) {
+            String key = normalizeAddonKey(part);
+            if (!key.isBlank() && !out.contains(key)) {
+                out.add(key);
+            }
+        }
+        return out;
+    }
+
+    private static String titleFromKey(String key) {
+        if (key == null || key.isBlank()) return "Custom item";
+        String cleaned = key.replace('-', ' ');
+        return Character.toUpperCase(cleaned.charAt(0)) + cleaned.substring(1);
     }
 
     private static String firstNonBlank(String... values) {
@@ -552,6 +928,18 @@ public class PlatformSubscriptionBillingService {
         return value == null ? "" : value.trim();
     }
 
+    public record SignupBillingInvoiceResult(Long billId, String billNumber, String checkoutUrl, String paymentStatus) {
+        private static SignupBillingInvoiceResult empty() {
+            return new SignupBillingInvoiceResult(null, null, null, null);
+        }
+    }
+
+    private enum PackageType {
+        BASIC,
+        PROFESSIONAL,
+        PREMIUM
+    }
+
     private enum BillingInterval {
         MONTHLY,
         YEARLY;
@@ -561,42 +949,35 @@ public class PlatformSubscriptionBillingService {
         }
     }
 
-    private static final class PlatformPlan {
-        private final String code;
-        private final String description;
-        private final BigDecimal grossMonthlyEquivalent;
-        private final BillingInterval interval;
-        private TransactionService transactionService;
+    private record PlatformPlan(
+            PackageType packageType,
+            BillingInterval interval,
+            BigDecimal periodGross,
+            TransactionService transactionService,
+            String fallbackCode
+    ) {
+    }
 
-        private PlatformPlan(String code, String description, BigDecimal grossMonthlyEquivalent, BillingInterval interval) {
-            this.code = code;
-            this.description = description;
-            this.grossMonthlyEquivalent = grossMonthlyEquivalent;
-            this.interval = interval;
-        }
+    private record PlatformAddon(String key, BigDecimal monthlyGross, TransactionService transactionService) {
+    }
 
-        private String code() {
-            return code;
-        }
-
-        private String description() {
-            return description;
-        }
-
-        private BigDecimal grossMonthlyEquivalent() {
-            return grossMonthlyEquivalent;
-        }
-
-        private BillingInterval interval() {
-            return interval;
-        }
-
-        private TransactionService transactionService() {
-            return transactionService;
-        }
-
-        private void setTransactionService(TransactionService transactionService) {
-            this.transactionService = transactionService;
+    private record PlatformBillingCatalog(
+            Map<String, PlatformPlan> plans,
+            Map<String, PlatformAddon> addons,
+            TransactionService additionalUserService,
+            BigDecimal additionalUserMonthly,
+            TransactionService smsService,
+            BigDecimal smsPerMessage,
+            double annualDiscountPercent
+    ) {
+        private PlatformPlan resolvePlan(String packageName, String billingInterval) {
+            String normalizedPackage = normalizePackageType(packageName);
+            String normalizedInterval = normalizeInterval(billingInterval).settingValue();
+            if ("TRIAL".equals(normalizedPackage)) {
+                normalizedPackage = "BASIC";
+                normalizedInterval = "MONTHLY";
+            }
+            return plans.get(normalizedPackage + ":" + normalizedInterval);
         }
     }
 }

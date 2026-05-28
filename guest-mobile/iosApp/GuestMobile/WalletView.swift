@@ -2824,7 +2824,7 @@ private struct BuyShowcaseCategoryChip: View {
                     Capsule(style: .continuous)
                         .stroke(selected ? walletBlue.opacity(0.45) : walletLine.opacity(0.95), lineWidth: 1)
                 )
-                .shadow(color: selected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: selected ? 7 : 7, y: selected ? 3 : 3)
+                .shadow(color: selected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: 7, y: 3)
         }
         .buttonStyle(.plain)
     }

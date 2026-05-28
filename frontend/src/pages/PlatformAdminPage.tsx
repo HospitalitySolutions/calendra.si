@@ -372,6 +372,17 @@ function isPlaceholderHit(h: TenancySearchHit): boolean {
 }
 
 type RegisterPlanKeyDto = 'basic' | 'pro' | 'business'
+type PlanTransactionServiceKey = 'basicMonthly' | 'basicAnnual' | 'proMonthly' | 'proAnnual' | 'businessMonthly' | 'businessAnnual'
+type TransactionServiceSummaryDto = { id: number; code?: string; description?: string; active?: boolean; netPrice?: number; taxRate?: string }
+
+const PLAN_TRANSACTION_SERVICE_FIELDS: { key: PlanTransactionServiceKey; label: string }[] = [
+  { key: 'basicMonthly', label: 'Basic monthly' },
+  { key: 'basicAnnual', label: 'Basic annual' },
+  { key: 'proMonthly', label: 'Pro monthly' },
+  { key: 'proAnnual', label: 'Pro annual' },
+  { key: 'businessMonthly', label: 'Business monthly' },
+  { key: 'businessAnnual', label: 'Business annual' },
+]
 
 type RegisterCatalogAddonItemDto = {
   key: string
@@ -381,6 +392,7 @@ type RegisterCatalogAddonItemDto = {
   descriptionSl?: string
   monthly: number
   active?: boolean
+  transactionServiceId?: number | null
 }
 
 type RegisterCatalogFeatureItemDto = {
@@ -396,6 +408,8 @@ type RegisterCatalogFeatureItemDto = {
 type RegisterUsagePriceCatalogDto = {
   additionalUserMonthly: number
   smsPerMessage: number
+  additionalUserTransactionServiceId?: number | null
+  smsTransactionServiceId?: number | null
 }
 
 type RegisterPriceCatalogDto = {
@@ -407,6 +421,9 @@ type RegisterPriceCatalogDto = {
   additionalUserMonthly?: number
   smsPerMessage?: number
   usagePrices?: RegisterUsagePriceCatalogDto
+  planTransactionServiceIds?: Partial<Record<PlanTransactionServiceKey, number | null>>
+  additionalUserTransactionServiceId?: number | null
+  smsTransactionServiceId?: number | null
 }
 
 function coerceMoneyInput(raw: string, fallback: number): number {
@@ -434,6 +451,11 @@ function normalizeCatalogPlanKey(raw: string | undefined | null, fallback: Regis
   return value === 'basic' || value === 'pro' || value === 'business' ? value : fallback
 }
 
+function normalizeServiceId(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
+}
+
 function addonMapFromItems(items: RegisterCatalogAddonItemDto[]): Record<string, number> {
   return items.reduce<Record<string, number>>((acc, item) => {
     if (item.active !== false && item.key) acc[item.key] = item.monthly
@@ -456,6 +478,7 @@ function normalizeAddonItemsFromCatalog(data: RegisterPriceCatalogDto | null | u
         descriptionSl: (item.descriptionSl || fallback?.descriptionSl || item.description || 'Dodatek za platformo.').trim(),
         monthly: typeof item.monthly === 'number' && Number.isFinite(item.monthly) ? roundMoney2(item.monthly) : fallback?.monthly ?? 0,
         active: item.active !== false,
+        transactionServiceId: normalizeServiceId(item.transactionServiceId),
       })
     })
     return normalized
@@ -609,8 +632,27 @@ function mergeRegisterCatalog(fetched: RegisterPriceCatalogDto | null | undefine
     typeof smsRaw === 'number' && Number.isFinite(smsRaw)
       ? Math.max(0, Math.round(smsRaw * 10000) / 10000)
       : DEFAULT_USAGE_PRICES.smsPerMessage
-  const usagePrices = { additionalUserMonthly, smsPerMessage }
-  return { plans, addons, annualDiscountPercent, addonItems, featureItems, additionalUserMonthly, smsPerMessage, usagePrices }
+  const additionalUserTransactionServiceId = normalizeServiceId(fetched?.additionalUserTransactionServiceId ?? fetched?.usagePrices?.additionalUserTransactionServiceId)
+  const smsTransactionServiceId = normalizeServiceId(fetched?.smsTransactionServiceId ?? fetched?.usagePrices?.smsTransactionServiceId)
+  const planTransactionServiceIds = PLAN_TRANSACTION_SERVICE_FIELDS.reduce<Partial<Record<PlanTransactionServiceKey, number | null>>>((acc, field) => {
+    const id = normalizeServiceId(fetched?.planTransactionServiceIds?.[field.key])
+    if (id) acc[field.key] = id
+    return acc
+  }, {})
+  const usagePrices = { additionalUserMonthly, smsPerMessage, additionalUserTransactionServiceId, smsTransactionServiceId }
+  return {
+    plans,
+    addons,
+    annualDiscountPercent,
+    addonItems,
+    featureItems,
+    additionalUserMonthly,
+    smsPerMessage,
+    usagePrices,
+    planTransactionServiceIds,
+    additionalUserTransactionServiceId,
+    smsTransactionServiceId,
+  }
 }
 
 function planAmountsForTenant(selected: TenancyDetails, catalog: RegisterPriceCatalogDto) {
@@ -721,6 +763,10 @@ function PlanPricesAdminPanel() {
   const [annualDiscountPercent, setAnnualDiscountPercent] = useState(15)
   const [additionalUserMonthly, setAdditionalUserMonthly] = useState(DEFAULT_USAGE_PRICES.additionalUserMonthly)
   const [smsPerMessage, setSmsPerMessage] = useState(DEFAULT_USAGE_PRICES.smsPerMessage)
+  const [transactionServices, setTransactionServices] = useState<TransactionServiceSummaryDto[]>([])
+  const [planTransactionServiceIds, setPlanTransactionServiceIds] = useState<Partial<Record<PlanTransactionServiceKey, number | null>>>({})
+  const [additionalUserTransactionServiceId, setAdditionalUserTransactionServiceId] = useState<number | null>(null)
+  const [smsTransactionServiceId, setSmsTransactionServiceId] = useState<number | null>(null)
   const [addonItems, setAddonItems] = useState<RegisterCatalogAddonItemDto[]>(() => DEFAULT_ADDON_ITEMS.map((item) => ({ ...item })))
   const [featureItems, setFeatureItems] = useState<RegisterCatalogFeatureItemDto[]>(() => DEFAULT_FEATURE_ITEMS.map((item) => ({ ...item })))
 
@@ -730,9 +776,14 @@ function PlanPricesAdminPanel() {
       setLoading(true)
       setErr(null)
       try {
-        const { data } = await api.get<RegisterPriceCatalogDto>('/platform-admin/register-prices')
+        const [catalogResponse, serviceResponse] = await Promise.all([
+          api.get<RegisterPriceCatalogDto>('/platform-admin/register-prices'),
+          api.get<TransactionServiceSummaryDto[]>('/billing/services').catch(() => ({ data: [] as TransactionServiceSummaryDto[] })),
+        ])
         if (cancelled) return
+        const data = catalogResponse.data
         const catalog = mergeRegisterCatalog(data)
+        setTransactionServices((serviceResponse.data || []).filter((service) => service && service.id))
         setPlans({
           basic: typeof catalog.plans.basic === 'number' ? catalog.plans.basic : 18.9,
           pro: typeof catalog.plans.pro === 'number' ? catalog.plans.pro : 34.9,
@@ -741,6 +792,9 @@ function PlanPricesAdminPanel() {
         setAnnualDiscountPercent(catalog.annualDiscountPercent ?? 15)
         setAdditionalUserMonthly(catalog.additionalUserMonthly ?? DEFAULT_USAGE_PRICES.additionalUserMonthly)
         setSmsPerMessage(catalog.smsPerMessage ?? DEFAULT_USAGE_PRICES.smsPerMessage)
+        setPlanTransactionServiceIds(catalog.planTransactionServiceIds || {})
+        setAdditionalUserTransactionServiceId(catalog.additionalUserTransactionServiceId ?? null)
+        setSmsTransactionServiceId(catalog.smsTransactionServiceId ?? null)
         setAddonItems((catalog.addonItems || DEFAULT_ADDON_ITEMS).map((item) => ({ ...item })))
         setFeatureItems((catalog.featureItems || DEFAULT_FEATURE_ITEMS).map((item) => ({ ...item })))
       } catch {
@@ -793,6 +847,7 @@ function PlanPricesAdminPanel() {
         descriptionSl: (item.descriptionSl || item.description || 'Dodatek za platformo.').trim(),
         monthly: roundMoney2(item.monthly),
         active: item.active !== false,
+        transactionServiceId: normalizeServiceId(item.transactionServiceId),
       })
     })
     return cleaned
@@ -849,9 +904,16 @@ function PlanPricesAdminPanel() {
     try {
       const cleanedAddons = cleanAddonItems()
       const cleanedFeatures = cleanFeatureItems()
+      const normalizedPlanTransactionServiceIds = PLAN_TRANSACTION_SERVICE_FIELDS.reduce<Partial<Record<PlanTransactionServiceKey, number | null>>>((acc, field) => {
+        const id = normalizeServiceId(planTransactionServiceIds[field.key])
+        if (id) acc[field.key] = id
+        return acc
+      }, {})
       const usagePrices = {
         additionalUserMonthly: roundMoney2(additionalUserMonthly),
         smsPerMessage: Math.round(smsPerMessage * 10000) / 10000,
+        additionalUserTransactionServiceId: normalizeServiceId(additionalUserTransactionServiceId),
+        smsTransactionServiceId: normalizeServiceId(smsTransactionServiceId),
       }
       const payload: RegisterPriceCatalogDto = {
         plans,
@@ -862,6 +924,9 @@ function PlanPricesAdminPanel() {
         additionalUserMonthly: usagePrices.additionalUserMonthly,
         smsPerMessage: usagePrices.smsPerMessage,
         usagePrices,
+        planTransactionServiceIds: normalizedPlanTransactionServiceIds,
+        additionalUserTransactionServiceId: usagePrices.additionalUserTransactionServiceId,
+        smsTransactionServiceId: usagePrices.smsTransactionServiceId,
       }
       const { data } = await api.put<RegisterPriceCatalogDto>('/platform-admin/register-prices', payload)
       const catalog = mergeRegisterCatalog(data || payload)
@@ -873,9 +938,12 @@ function PlanPricesAdminPanel() {
       setAnnualDiscountPercent(catalog.annualDiscountPercent ?? annualDiscountPercent)
       setAdditionalUserMonthly(catalog.additionalUserMonthly ?? usagePrices.additionalUserMonthly)
       setSmsPerMessage(catalog.smsPerMessage ?? usagePrices.smsPerMessage)
+      setPlanTransactionServiceIds(catalog.planTransactionServiceIds || normalizedPlanTransactionServiceIds)
+      setAdditionalUserTransactionServiceId(catalog.additionalUserTransactionServiceId ?? usagePrices.additionalUserTransactionServiceId ?? null)
+      setSmsTransactionServiceId(catalog.smsTransactionServiceId ?? usagePrices.smsTransactionServiceId ?? null)
       setAddonItems((catalog.addonItems || cleanedAddons).map((item) => ({ ...item })))
       setFeatureItems((catalog.featureItems || cleanedFeatures).map((item) => ({ ...item })))
-      setOk('Saved. Visitors will see updated plan prices, usage prices, annual discount, add-ons, and included feature text after they reload the register pages.')
+      setOk('Saved. Visitors will see updated prices, transaction-service mappings, usage prices, add-ons, and included feature text after they reload the register pages.')
     } catch {
       setErr('Could not save catalog.')
     } finally {
@@ -890,6 +958,36 @@ function PlanPricesAdminPanel() {
     { key: 'business' as const, label: 'Business', monthly: plans.business },
   ]
   const activeAddonCount = addonItems.filter((item) => item.active !== false).length
+  const serviceOptions = transactionServices.filter((service) => service.active !== false)
+  const serviceSelectStyle = {
+    height: 44,
+    borderRadius: 14,
+    border: '1px solid var(--border)',
+    padding: '0 12px',
+    font: 'inherit',
+    fontWeight: 800,
+    background: '#fff',
+    minWidth: 0,
+  } as const
+  const renderServiceSelect = (
+    id: string,
+    value: number | null | undefined,
+    onChange: (value: number | null) => void,
+  ) => (
+    <select
+      id={id}
+      value={value ? String(value) : ''}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      style={serviceSelectStyle}
+    >
+      <option value="">Auto fallback service</option>
+      {serviceOptions.map((service) => (
+        <option key={service.id} value={service.id}>
+          {service.code ? `${service.code} · ` : ''}{service.description || `Service ${service.id}`}
+        </option>
+      ))}
+    </select>
+  )
 
   return (
     <div>
@@ -956,6 +1054,20 @@ function PlanPricesAdminPanel() {
           </div>
 
           <h3 className="muted" style={{ margin: '22px 0 10px', fontSize: '0.95rem', fontWeight: 950 }}>
+            Package transaction service mapping
+          </h3>
+          <div className="plan-price-grid">
+            {PLAN_TRANSACTION_SERVICE_FIELDS.map((field) => (
+              <div key={field.key} className="plan-price-field">
+                <label htmlFor={`pa-plan-service-${field.key}`}>{field.label}</label>
+                {renderServiceSelect(`pa-plan-service-${field.key}`, planTransactionServiceIds[field.key] ?? null, (value) =>
+                  setPlanTransactionServiceIds((current) => ({ ...current, [field.key]: value })),
+                )}
+              </div>
+            ))}
+          </div>
+
+          <h3 className="muted" style={{ margin: '22px 0 10px', fontSize: '0.95rem', fontWeight: 950 }}>
             Annual discount
           </h3>
           <div className="plan-price-grid" style={{ alignItems: 'end' }}>
@@ -985,8 +1097,16 @@ function PlanPricesAdminPanel() {
               <input id="pa-additional-user-price" type="text" inputMode="decimal" value={String(additionalUserMonthly)} onChange={(e) => setAdditionalUserMonthly((current) => coerceMoneyInput(e.target.value, current))} />
             </div>
             <div className="plan-price-field">
+              <label htmlFor="pa-additional-user-service">Additional user transaction service</label>
+              {renderServiceSelect('pa-additional-user-service', additionalUserTransactionServiceId, setAdditionalUserTransactionServiceId)}
+            </div>
+            <div className="plan-price-field">
               <label htmlFor="pa-sms-price">SMS message (€ / SMS)</label>
               <input id="pa-sms-price" type="text" inputMode="decimal" value={String(smsPerMessage)} onChange={(e) => setSmsPerMessage((current) => coerceMoneyInput(e.target.value, current))} />
+            </div>
+            <div className="plan-price-field">
+              <label htmlFor="pa-sms-service">SMS transaction service</label>
+              {renderServiceSelect('pa-sms-service', smsTransactionServiceId, setSmsTransactionServiceId)}
             </div>
             <div className="field-card" style={{ minHeight: 74, justifyContent: 'center' }}>
               <div className="field-label">
@@ -1098,6 +1218,10 @@ function PlanPricesAdminPanel() {
                   <div className="plan-price-field">
                     <label htmlFor={`pa-addon-monthly-${index}`}>Price (€ / month)</label>
                     <input id={`pa-addon-monthly-${index}`} type="text" inputMode="decimal" value={String(item.monthly)} onChange={(e) => updateAddon(index, { monthly: coerceMoneyInput(e.target.value, item.monthly) })} />
+                  </div>
+                  <div className="plan-price-field">
+                    <label htmlFor={`pa-addon-service-${index}`}>Transaction service</label>
+                    {renderServiceSelect(`pa-addon-service-${index}`, item.transactionServiceId ?? null, (value) => updateAddon(index, { transactionServiceId: value }))}
                   </div>
                   <div className="plan-price-field">
                     <label htmlFor={`pa-addon-desc-${index}`}>Description EN</label>

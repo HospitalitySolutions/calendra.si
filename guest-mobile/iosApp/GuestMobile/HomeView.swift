@@ -309,6 +309,11 @@ struct HomeView: View {
     }
 }
 
+private enum HomeBookingActionMenu {
+    case contact
+    case manage
+}
+
 struct HomeBookingCard: View {
     let booking: BookingCardModel
     let onCall: (String?) -> Void
@@ -317,23 +322,11 @@ struct HomeBookingCard: View {
     let onCancel: () -> Void
     let isSl: Bool
 
-    @State private var showActionSheet: Bool = false
+    @State private var activeActionMenu: HomeBookingActionMenu? = nil
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            cardContent
-
-            if showActionSheet {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { showActionSheet = false }
-                bookingActionSheet
-                    .padding(.horizontal, 6)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(2)
-            }
-        }
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: showActionSheet)
+        cardContent
+            .animation(.spring(response: 0.32, dampingFraction: 0.86), value: activeActionMenu)
     }
 
     private var cardContent: some View {
@@ -378,9 +371,8 @@ struct HomeBookingCard: View {
 
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
-                    blueHeroBadge(title: isSl ? "Naslednji termin" : "Next booking")
-                    Spacer()
                     statusPill
+                    Spacer()
                 }
                 .padding(14)
 
@@ -508,20 +500,34 @@ struct HomeBookingCard: View {
             infoLine(icon: "building.2.fill", label: isSl ? "PONUDNIK" : "TENANT", value: booking.tenantName)
 
             Button {
-                showActionSheet = true
+                activeActionMenu = activeActionMenu == .contact ? nil : .contact
             } label: {
-                fullWidthActionLabel(title: "Contact", systemName: "phone.connection", filled: true)
+                fullWidthActionLabel(title: isSl ? "Kontakt" : "Contact", systemName: "phone.connection", filled: true)
             }
             .buttonStyle(.plain)
             .padding(.top, 16)
 
+            if activeActionMenu == .contact {
+                bookingActionSheet(menu: .contact)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(2)
+            }
+
             Button {
-                showActionSheet = true
+                activeActionMenu = activeActionMenu == .manage ? nil : .manage
             } label: {
                 fullWidthActionLabel(title: isSl ? "Upravljaj rezervacijo" : "Manage reservation", systemName: "bell", filled: false)
             }
             .buttonStyle(.plain)
-            .padding(.top, 10)
+            .padding(.top, activeActionMenu == .contact ? 8 : 10)
+
+            if activeActionMenu == .manage {
+                bookingActionSheet(menu: .manage)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(2)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -571,7 +577,7 @@ struct HomeBookingCard: View {
         )
     }
 
-    private var bookingActionSheet: some View {
+    private func bookingActionSheet(menu: HomeBookingActionMenu) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Capsule(style: .continuous)
                 .fill(Color(red: 0.847, green: 0.871, blue: 0.910))
@@ -579,37 +585,37 @@ struct HomeBookingCard: View {
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
 
-            Text("CONTACT")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(mutedText)
-                .padding(.bottom, 10)
+            if menu == .contact {
+                Text(isSl ? "KONTAKT" : "CONTACT")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(mutedText)
+                    .padding(.bottom, 10)
 
-            HStack(spacing: 12) {
-                sheetButton(title: "Call", systemName: "phone", color: brandBlue, disabled: booking.tenantPhone?.isEmpty != false) {
-                    onCall(booking.tenantPhone)
-                    showActionSheet = false
+                HStack(spacing: 12) {
+                    sheetButton(title: isSl ? "Kliči" : "Call", systemName: "phone", color: brandBlue, disabled: booking.tenantPhone?.isEmpty != false) {
+                        onCall(booking.tenantPhone)
+                        activeActionMenu = nil
+                    }
+                    sheetButton(title: "SMS", systemName: "message", color: brandBlue, disabled: booking.tenantPhone?.isEmpty != false) {
+                        onMessage(booking.tenantPhone)
+                        activeActionMenu = nil
+                    }
                 }
-                sheetButton(title: "SMS", systemName: "message", color: brandBlue, disabled: booking.tenantPhone?.isEmpty != false) {
-                    onMessage(booking.tenantPhone)
-                    showActionSheet = false
-                }
-            }
+            } else {
+                Text(isSl ? "MOŽNOSTI REZERVACIJE" : "RESERVATION OPTIONS")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(mutedText)
+                    .padding(.bottom, 10)
 
-            Divider().overlay(softBorder).padding(.vertical, 16)
-
-            Text("RESERVATION OPTIONS")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(mutedText)
-                .padding(.bottom, 10)
-
-            HStack(spacing: 12) {
-                sheetButton(title: "Reschedule", systemName: "calendar.badge.clock", color: brandBlue, disabled: !booking.canManage) {
-                    onReschedule(booking)
-                    showActionSheet = false
-                }
-                sheetButton(title: "Cancel booked session", systemName: "trash", color: .red, disabled: !booking.canManage) {
-                    onCancel()
-                    showActionSheet = false
+                HStack(spacing: 12) {
+                    sheetButton(title: isSl ? "Prestavi termin" : "Reschedule", systemName: "calendar.badge.clock", color: brandBlue, disabled: !booking.canManage) {
+                        onReschedule(booking)
+                        activeActionMenu = nil
+                    }
+                    sheetButton(title: isSl ? "Odpovej termin" : "Cancel booked session", systemName: "trash", color: .red, disabled: !booking.canManage) {
+                        onCancel()
+                        activeActionMenu = nil
+                    }
                 }
             }
         }
@@ -617,12 +623,12 @@ struct HomeBookingCard: View {
         .padding(.top, 18)
         .padding(.bottom, 20)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color.white)
-                .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: -6)
+                .shadow(color: .black.opacity(0.12), radius: 18, x: 0, y: 8)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(softBorder, lineWidth: 1)
         )
     }
@@ -694,6 +700,7 @@ private func bookingStatus(_ raw: String, isSl: Bool) -> String {
     guard isSl else { return normalized.capitalized }
     if normalized.contains("cancel") { return "Preklicano" }
     if normalized == "no show" { return "Ni prišel" }
+    if normalized.contains("reserve") { return "Rezervirano" }
     if normalized.contains("confirm") || normalized.contains("book") || normalized.contains("scheduled") { return "Potrjeno" }
     if normalized.contains("pending") { return "V čakanju" }
     if normalized.contains("complete") || normalized.contains("finished") { return "Zaključeno" }
