@@ -1,0 +1,28 @@
+NO VAT invoice/PDF display update
+
+Changed files:
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- backend/src/main/java/com/example/app/billing/BillFolioPdfService.java
+- backend/src/test/java/com/example/app/billing/FolioPdfServiceTest.java
+
+What changed:
+1. NO VAT lines no longer print "NO VAT" in the Tax (%) column on folio/invoice PDFs.
+   - The underlying tax marker is still available internally for classification.
+   - The rendered PDF cell is blank when the tax level is NO VAT.
+
+2. NO VAT lines are no longer grouped into the VAT 0% breakdown row.
+   - NO VAT is now classified separately from VAT_0.
+   - Because NO VAT rows are intentionally excluded from the breakdown, a PDF with only NO VAT rows does not render the VAT breakdown block at all.
+
+3. Existing transaction-service invoice description handling was hardened.
+   - Invoice/PDF service rows still prefer the transaction service description over the code.
+   - If a stored description already starts with the service code, for example "PROMONTHLY - Pro Package - Monthly", the code prefix is stripped before rendering.
+
+4. Tests were updated/added for:
+   - Mixed VAT + NO VAT rows: 22% and 9.5% remain in the breakdown, while NO VAT does not create a VAT 0% row.
+   - Only NO VAT rows: the whole VAT breakdown block is hidden.
+   - NO VAT text is not present in the generated PDF text.
+
+Validation:
+- Attempted to run: backend ./mvnw -q -DskipTests compile
+- Could not complete in this sandbox because Maven wrapper failed to download Maven from repo.maven.apache.org and no system Maven is installed.

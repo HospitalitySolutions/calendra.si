@@ -184,12 +184,27 @@ public class BillFolioPdfService {
 
     private String invoiceLineDescription(TransactionService transactionService) {
         if (transactionService == null) return "";
-        String description = transactionService.getDescription();
-        if (description != null && !description.isBlank()) {
-            return description.trim();
+        String code = transactionService.getCode() == null ? "" : transactionService.getCode().trim();
+        String description = transactionService.getDescription() == null ? "" : transactionService.getDescription().trim();
+        if (!description.isBlank()) {
+            return stripLeadingServiceCode(description, code);
         }
-        String code = transactionService.getCode();
-        return code == null ? "" : code.trim();
+        return code;
+    }
+
+    private String stripLeadingServiceCode(String description, String code) {
+        if (description == null || description.isBlank()) return "";
+        if (code == null || code.isBlank()) return description.trim();
+        String trimmed = description.trim();
+        String prefix = code.trim();
+        if (trimmed.length() > prefix.length()
+                && trimmed.regionMatches(true, 0, prefix, 0, prefix.length())) {
+            String remainder = trimmed.substring(prefix.length()).trim();
+            if (remainder.startsWith("-") || remainder.startsWith("–") || remainder.startsWith("—") || remainder.startsWith(":")) {
+                return remainder.substring(1).trim();
+            }
+        }
+        return trimmed;
     }
 
     private String formatIssueDateTime(Bill bill) {

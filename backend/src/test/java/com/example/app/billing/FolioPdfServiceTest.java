@@ -92,8 +92,34 @@ class FolioPdfServiceTest {
             assertThat(text).contains("EUR 2.20");
             assertThat(text).contains("DDV 9,5%");
             assertThat(text).contains("EUR 0.95");
-            assertThat(text).contains("DDV 0%");
-            assertThat(text).contains("EUR 8.00");
+            assertThat(text).doesNotContain("DDV 0%");
+            assertThat(text).doesNotContain("NO VAT");
+        }
+    }
+
+    @Test
+    void generate_hidesVatBreakdownWhenOnlyNoVatLines() throws Exception {
+        FolioPdfService service = new FolioPdfService();
+        FolioPdfRequest request = new FolioPdfRequest();
+        request.setCompanyName("Test d.o.o.");
+        request.setRecipientName("Prejemnik");
+        request.setFolioNumber("RAC-4");
+        request.setFolioDate("2026-05-08");
+        request.setDateOfService("2026-05-08");
+        request.setDueDate("2026-05-15");
+        request.setLocale("sl");
+        request.setServices(List.of(
+                serviceLine("Pro Package - Monthly", "34.90", "34.90", "NO VAT", "0.00"),
+                serviceLine("Additional user / month", "9.90", "29.70", "NO VAT", "0.00")
+        ));
+
+        byte[] pdf = service.generate(request);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            String text = new PDFTextStripper().getText(document);
+            assertThat(text).doesNotContain("Opis DDV");
+            assertThat(text).doesNotContain("DDV 0%");
+            assertThat(text).doesNotContain("NO VAT");
         }
     }
 

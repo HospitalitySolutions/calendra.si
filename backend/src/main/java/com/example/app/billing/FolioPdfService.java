@@ -275,7 +275,7 @@ public class FolioPdfService {
         cellValues.put("qty", String.valueOf(line.getQty()));
         cellValues.put("nett", fmt(line.getNettPrice()));
         cellValues.put("gross", fmt(line.getGrossPrice()));
-        cellValues.put("taxPercent", safe(line.getTaxPercent()));
+        cellValues.put("taxPercent", displayTaxPercent(line.getTaxPercent()));
         cellValues.put("taxAmount", fmt(line.getTaxAmount()));
         cellValues.put("total", fmt(line.getTotalPrice()));
 
@@ -646,9 +646,21 @@ public class FolioPdfService {
 
     private static VatBreakdownBucket classifyVatBreakdownBucket(String taxPercentRaw) {
         String value = taxPercentRaw == null ? "" : taxPercentRaw.trim().toUpperCase(Locale.ROOT);
+        if (value.isBlank() || value.contains("NO VAT") || value.contains("BREZ DDV") || value.contains("NEOBDAV")) {
+            return VatBreakdownBucket.NO_VAT;
+        }
         if (value.contains("22")) return VatBreakdownBucket.VAT_22;
         if (value.contains("9.5") || value.contains("9,5")) return VatBreakdownBucket.VAT_9_5;
         return VatBreakdownBucket.VAT_0;
+    }
+
+    private static String displayTaxPercent(String taxPercentRaw) {
+        String value = taxPercentRaw == null ? "" : taxPercentRaw.trim();
+        String upper = value.toUpperCase(Locale.ROOT);
+        if (upper.isBlank() || upper.contains("NO VAT") || upper.contains("BREZ DDV") || upper.contains("NEOBDAV")) {
+            return "";
+        }
+        return safe(value);
     }
 
     private static String localizedVatBreakdownLabel(VatBreakdownBucket bucket, String locale) {
