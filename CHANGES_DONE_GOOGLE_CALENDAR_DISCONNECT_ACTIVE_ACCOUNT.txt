@@ -1,0 +1,21 @@
+Changes done:
+
+1. Google Calendar connect button visibility
+- Updated Integrations -> Google Calendar so the "Connect my Google Calendar" button is hidden when there is an ACTIVE Google Calendar account for the tenant.
+- If there is no active connection, the button remains available.
+- If the remaining visible connection needs reconnect or has an error, the button shows as a reconnect action instead of offering a duplicate active connection.
+
+2. Disconnect behavior
+- Disconnect still calls the backend disconnect endpoint, which disables the Google Calendar connection.
+- After successful disconnect, the frontend immediately removes that connection block from the Google Calendar tab.
+- Cleans related local draft/calendar/mapping state for the disconnected account so stale disabled data is not kept on screen.
+
+3. Status filtering
+- Backend Google Calendar status endpoint now excludes DISABLED Google Calendar connections from tenant status results.
+- Frontend also filters DISABLED connections defensively in both the Google Calendar tab and Integrations -> Status tab.
+- Integrations -> Status refreshes when returning to the Status subtab, so it does not keep an old connected value after disconnect.
+
+Validation:
+- TypeScript transpile check passed for the changed TSX files.
+- Full frontend build was not run because node_modules are not included in the uploaded archive.
+- Full backend Maven build was not run here; the Java change is limited to filtering disabled connections in an existing stream.

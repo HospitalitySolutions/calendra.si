@@ -92,7 +92,10 @@ public class GoogleCalendarConnectionService {
     public List<GoogleCalendarConnectionResponse> listStatus(User me, Long companyId) {
         Long effectiveCompanyId = companyId != null ? companyId : me.getCompany().getId();
         if (!me.getCompany().getId().equals(effectiveCompanyId) && !SecurityUtils.isAdmin(me)) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        return connections.findAllByCompany_IdOrderByIdAsc(effectiveCompanyId).stream().map(GoogleCalendarConnectionResponse::from).toList();
+        return connections.findAllByCompany_IdOrderByIdAsc(effectiveCompanyId).stream()
+                .filter(connection -> connection.getStatus() != GoogleCalendarConnectionStatus.DISABLED)
+                .map(GoogleCalendarConnectionResponse::from)
+                .toList();
     }
 
     @Transactional

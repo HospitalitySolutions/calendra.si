@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -337,7 +338,7 @@ public class GoogleCalendarSyncService {
     private void updateMappedEntityFromGoogleTask(GoogleCalendarEventLink link, JsonNode task) {
         if (link.getAppEntityType() != GoogleCalendarEntityType.TODO) return;
         todos.findById(link.getAppEntityId()).ifPresentOrElse(todo -> {
-            LocalDateTime due = startFromGoogleTask(task);
+            LocalDateTime due = startFromGoogleTask(task, todo);
             if (due != null) todo.setStartTime(due);
             String title = task.path("title").asText(null);
             if (title != null && !title.isBlank()) todo.setTask(limit(title, 200));
@@ -747,17 +748,46 @@ public class GoogleCalendarSyncService {
     }
 
     private LocalDateTime startFromGoogleTask(JsonNode task) {
-        String due = task.path("due").asText(null);
+        return startFromGoogleTask(task, null);
+    }
+
+    private LocalDateTime startFromGoogleTask(JsonNode task, CalendarTodo existingTodo) {
+        GoogleTaskDue due = parseGoogleTaskDue(task.path("due").asText(null));
+        if (due == null) return null;
+        if (due.dateOnly()) {
+            LocalTime displayTime = visibleTodoTime(existingTodo);
+            return due.date().atTime(displayTime);
+        }
+        return due.dateTime();
+    }
+
+    private GoogleTaskDue parseGoogleTaskDue(String due) {
         if (due == null || due.isBlank()) return null;
+        ZoneId zone = ZoneId.of(config.getTimezone());
         try {
-            return OffsetDateTime.parse(due).atZoneSameInstant(ZoneId.of(config.getTimezone())).toLocalDateTime();
+            OffsetDateTime parsed = OffsetDateTime.parse(due);
+            boolean dateOnly = parsed.toLocalTime().equals(LocalTime.MIDNIGHT);
+            LocalDate date = dateOnly ? parsed.toLocalDate() : parsed.atZoneSameInstant(zone).toLocalDate();
+            LocalDateTime dateTime = dateOnly ? null : parsed.atZoneSameInstant(zone).toLocalDateTime();
+            return new GoogleTaskDue(date, dateTime, dateOnly);
         } catch (Exception ignored) {
             try {
-                return Instant.parse(due).atZone(ZoneId.of(config.getTimezone())).toLocalDateTime();
+                Instant parsed = Instant.parse(due);
+                LocalDateTime dateTime = parsed.atZone(zone).toLocalDateTime();
+                boolean dateOnly = dateTime.toLocalTime().equals(LocalTime.MIDNIGHT);
+                return new GoogleTaskDue(dateTime.toLocalDate(), dateOnly ? null : dateTime, dateOnly);
             } catch (Exception ignoredAgain) {
                 return null;
             }
         }
+    }
+
+    private LocalTime visibleTodoTime(CalendarTodo existingTodo) {
+        if (existingTodo != null && existingTodo.getStartTime() != null) {
+            LocalTime current = existingTodo.getStartTime().toLocalTime();
+            if (!current.equals(LocalTime.MIDNIGHT)) return current;
+        }
+        return LocalTime.of(9, 0);
     }
 
     private void applyGoogleTaskFields(GoogleCalendarEventLink link, JsonNode googleTask, String taskListId, String hash) {
@@ -798,6 +828,7 @@ public class GoogleCalendarSyncService {
     }
 
     private record GoogleTaskPullResult(String warning, GoogleTaskMirrorIndex taskMirrorIndex) {}
+    private record GoogleTaskDue(LocalDate date, LocalDateTime dateTime, boolean dateOnly) {}
 
     private static class GoogleTaskMirrorIndex {
         private final Set<String> taskIds = new HashSet<>();

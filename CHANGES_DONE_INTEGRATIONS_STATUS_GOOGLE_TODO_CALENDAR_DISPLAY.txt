@@ -1,0 +1,24 @@
+Changes done
+============
+
+1. Integrations -> Status UI
+   - Removed the top integration summary/status cards from the Status subtab.
+   - The Status subtab now shows the actual integration status only in the clickable integration rows.
+   - Stripe row still opens the Stripe connection/settings page.
+   - Google Calendar row still opens the Google Calendar connection/settings page.
+
+2. Google Tasks / ToDo calendar visibility
+   - Updated Google Tasks import/update handling in GoogleCalendarSyncService.
+   - Google Tasks API due values are date-based and commonly arrive at midnight, which made imported ToDos appear only in the ToDo icon/overdue list and not inside the visible calendar time grid.
+   - Date-only Google Tasks are now imported as Calendra ToDos at 09:00 on the task due date so they appear as visible ToDo sessions on the calendar.
+   - For existing mapped Calendra ToDos, if a non-midnight time already exists, Google date-only task updates preserve that visible time while updating the date.
+
+Files changed
+=============
+- frontend/src/pages/ConfigurationPage.tsx
+- backend/src/main/java/com/example/app/google/calendar/GoogleCalendarSyncService.java
+
+Validation
+==========
+- ConfigurationPage.tsx was checked with TypeScript transpileModule successfully.
+- Full backend Maven build could not be run in this sandbox because mvn is not installed and ./mvnw needs to download Maven from repo.maven.apache.org, which is unavailable from the sandbox.

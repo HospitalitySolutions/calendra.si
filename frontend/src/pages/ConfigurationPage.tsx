@@ -3688,7 +3688,7 @@ export function ConfigurationPage() {
   }, [stripeConnectStatus, activeStripeAccount])
 
   const activeGoogleCalendarConnection = useMemo(() => (
-    googleCalendarConnections.find((entry) => entry.status && entry.status !== 'DISABLED') || googleCalendarConnections[0] || null
+    googleCalendarConnections.find((entry) => entry.status && entry.status !== 'DISABLED') || null
   ), [googleCalendarConnections])
 
   const googleCalendarStatusLabel = useMemo(() => {
@@ -3723,7 +3723,9 @@ export function ConfigurationPage() {
         api.get('/google/calendar/status', { params }).catch(() => ({ data: [] })),
         api.get('/google/calendar/conflicts', { params }).catch(() => ({ data: [] })),
       ])
-      setGoogleCalendarConnections(Array.isArray(statusData) ? statusData : [])
+      const activeStatusData: IntegrationGoogleCalendarConnection[] = (Array.isArray(statusData) ? statusData : [])
+        .filter((connection) => connection.status !== 'DISABLED')
+      setGoogleCalendarConnections(activeStatusData)
       setGoogleCalendarConflictCount(Array.isArray(conflictData) ? conflictData.length : 0)
     } finally {
       setGoogleCalendarStatusLoading(false)
@@ -3740,6 +3742,7 @@ export function ConfigurationPage() {
   const setIntegrationSubtabAndUrl = (next: IntegrationSubtab) => {
     setIntegrationSubtab(next)
     navigate(next === 'status' ? '/configuration?tab=integrations' : `/configuration?tab=integrations&subtab=${next}`)
+    if (next === 'status') void refreshIntegrationStatuses()
   }
 
   const openStripeIntegration = () => {
@@ -8549,11 +8552,7 @@ export function ConfigurationPage() {
             .integrations-page-head { margin:0 0 22px; }
             .integrations-page-head h2 { margin:0 0 8px; font-size:clamp(28px,2.75vw,38px); line-height:1.05; letter-spacing:-.045em; font-weight:900; color:var(--integration-ink); }
             .integrations-page-head p { margin:0; color:var(--integration-muted); font-size:16px; line-height:1.5; max-width:820px; }
-            .integrations-overview-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-bottom:16px; }
-            .integrations-overview-card { min-height:96px; display:flex; align-items:center; gap:14px; padding:18px; }
-            .integrations-overview-icon, .integrations-row-icon { width:46px; height:46px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; color:#2563eb; background:#eaf2ff; flex:0 0 auto; }
-            .integrations-overview-label { display:block; color:var(--integration-muted); font-size:13px; font-weight:700; margin-bottom:5px; }
-            .integrations-overview-value { display:block; color:var(--integration-ink); font-size:18px; font-weight:900; }
+            .integrations-row-icon { width:46px; height:46px; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; color:#2563eb; background:#eaf2ff; flex:0 0 auto; }
             .integrations-list-card { padding:0; }
             .integrations-section-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 22px; border-bottom:1px solid #e8eef6; }
             .integrations-section-title { margin:0; font-size:18px; font-weight:900; letter-spacing:-.025em; color:var(--integration-ink); }
@@ -8577,7 +8576,7 @@ export function ConfigurationPage() {
             .integrations-row-arrow { color:#64748b; display:inline-flex; align-items:center; justify-content:center; }
             .integrations-google-panel .google-calendar-card { box-shadow:none; border:0; padding:0; }
             .integrations-google-panel .google-calendar-card > .section-title-row { display:none; }
-            @media (max-width:1180px) { .integrations-overview-grid { grid-template-columns:1fr; } .integrations-status-row { grid-template-columns:1fr; } .integrations-status-pill { justify-self:start; } }
+            @media (max-width:1180px) { .integrations-status-row { grid-template-columns:1fr; } .integrations-status-pill { justify-self:start; } }
             @media (max-width:780px) { .integrations-main-panel { padding:14px; } .integrations-subtabs { gap:8px; } .integrations-subtab { flex:1 1 150px; min-width:0; } .integrations-section-heading { flex-direction:column; align-items:flex-start; } }
           `}</style>
           <div className="integrations-card integrations-main-panel">
@@ -8608,20 +8607,6 @@ export function ConfigurationPage() {
                   <p>{locale === 'sl' ? 'Pregled povezav za trenutni tenant. Klik na vrstico odpre stran, kjer nastavite posamezno povezavo.' : 'Connection overview for the current tenant. Click a row to open the setup page for that integration.'}</p>
                 </div>
 
-                <div className="integrations-overview-grid">
-                  <div className="integrations-card integrations-overview-card">
-                    <span className="integrations-overview-icon"><BillingLinkIcon /></span>
-                    <span><span className="integrations-overview-label">{locale === 'sl' ? 'Integracije' : 'Integrations'}</span><span className="integrations-overview-value">2</span></span>
-                  </div>
-                  <div className="integrations-card integrations-overview-card">
-                    <span className="integrations-overview-icon"><ConfigTabIcon kind="billing" /></span>
-                    <span><span className="integrations-overview-label">Stripe</span><span className="integrations-overview-value">{stripeStatusLabel}</span></span>
-                  </div>
-                  <div className="integrations-card integrations-overview-card">
-                    <span className="integrations-overview-icon"><ConfigTabIcon kind="googleCalendar" /></span>
-                    <span><span className="integrations-overview-label">Google Calendar</span><span className="integrations-overview-value">{googleCalendarStatusLabel}</span></span>
-                  </div>
-                </div>
 
                 <div className="integrations-card integrations-list-card">
                   <div className="integrations-section-heading">

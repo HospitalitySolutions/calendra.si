@@ -121,8 +121,19 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
   const [connecting, setConnecting] = useState(false)
 
   const activeConnection = useMemo(
-    () => connections.find((entry) => entry.userId === me.id && entry.status !== 'DISABLED') || connections[0] || null,
+    () => (
+      connections.find((entry) => entry.userId === me.id && entry.status === 'ACTIVE')
+      || connections.find((entry) => entry.userId === me.id)
+      || connections.find((entry) => entry.status === 'ACTIVE')
+      || connections[0]
+      || null
+    ),
     [connections, me.id],
+  )
+
+  const hasActiveConnection = useMemo(
+    () => connections.some((entry) => entry.status === 'ACTIVE'),
+    [connections],
   )
 
   const refresh = useCallback(async () => {
@@ -133,7 +144,8 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
         api.get('/google/calendar/status', { params }),
         api.get('/google/calendar/conflicts', { params }).catch(() => ({ data: [] })),
       ])
-      const nextConnections: GoogleCalendarConnection[] = Array.isArray(statusData) ? statusData : []
+      const nextConnections: GoogleCalendarConnection[] = (Array.isArray(statusData) ? statusData : [])
+        .filter((connection) => connection.status !== 'DISABLED')
       setConnections(nextConnections)
       setConflicts(Array.isArray(conflictData) ? conflictData : [])
       setDrafts((prev) => {
@@ -233,6 +245,22 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
     setBusyConnectionId(connectionId)
     try {
       await api.post(`/google/calendar/connections/${connectionId}/disconnect`)
+      setConnections((prev) => prev.filter((entry) => entry.id !== connectionId))
+      setDrafts((prev) => {
+        const next = { ...prev }
+        delete next[connectionId]
+        return next
+      })
+      setCalendarsByConnection((prev) => {
+        const next = { ...prev }
+        delete next[connectionId]
+        return next
+      })
+      setLinksByConnection((prev) => {
+        const next = { ...prev }
+        delete next[connectionId]
+        return next
+      })
       showToast('success', 'Google Calendar disconnected.')
       await refresh()
     } catch (err: any) {
@@ -290,9 +318,11 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
           </p>
         </div>
         <div className="google-calendar-actions">
-          <button type="button" className="google-calendar-primary" onClick={connect} disabled={connecting}>
-            {connecting ? 'Connecting…' : activeConnection?.status === 'NEEDS_RECONNECT' ? 'Reconnect Google' : 'Connect my Google Calendar'}
-          </button>
+          {!hasActiveConnection ? (
+            <button type="button" className="google-calendar-primary" onClick={connect} disabled={connecting}>
+              {connecting ? 'Connecting…' : activeConnection ? 'Reconnect Google' : 'Connect my Google Calendar'}
+            </button>
+          ) : null}
           <button type="button" className="google-calendar-secondary" onClick={() => void refresh()} disabled={loading}>Refresh</button>
         </div>
       </div>
