@@ -36,6 +36,9 @@ class CompanyControllerUniquenessTest {
     @Mock
     private TenantFileS3Service fileStorage;
 
+    @Mock
+    private PlatformTenantAccountLinkService platformTenantAccountLinkService;
+
     private CompanyController controller;
 
     private Company ownerCompany;
@@ -43,7 +46,7 @@ class CompanyControllerUniquenessTest {
 
     @BeforeEach
     void setUp() {
-        controller = new CompanyController(companies, bills, companyFiles, fileStorage);
+        controller = new CompanyController(companies, bills, companyFiles, fileStorage, platformTenantAccountLinkService);
         ownerCompany = new Company();
         ownerCompany.setId(42L);
         me = new User();

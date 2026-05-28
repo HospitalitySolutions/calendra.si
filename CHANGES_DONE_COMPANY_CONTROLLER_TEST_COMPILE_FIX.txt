@@ -1,0 +1,18 @@
+CompanyController test compile fix
+
+Problem
+- Docker backend build failed during test compilation because CompanyController now requires PlatformTenantAccountLinkService in its constructor.
+- CompanyControllerUniquenessTest still created CompanyController with the old 4-argument constructor.
+
+Changes
+- Updated backend/src/test/java/com/example/app/company/CompanyControllerUniquenessTest.java
+  - Added a Mockito mock for PlatformTenantAccountLinkService.
+  - Passed the mock into the CompanyController constructor in setUp().
+
+Result
+- Fixes the reported compilation error:
+  constructor CompanyController cannot be applied to given types.
+
+Validation
+- Searched for other direct `new CompanyController(...)` usages and found only the updated test instantiation.
+- Could not run Maven package inside this environment because the local container does not have Maven installed.
