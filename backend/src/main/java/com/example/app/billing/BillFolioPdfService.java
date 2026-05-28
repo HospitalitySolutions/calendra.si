@@ -159,7 +159,7 @@ public class BillFolioPdfService {
         var serviceLines = new ArrayList<FolioPdfRequest.ServiceLine>();
         for (var item : bill.getItems()) {
             var ts = item.getTransactionService();
-            String desc = ts.getCode() + " - " + ts.getDescription();
+            String desc = invoiceLineDescription(ts);
             BigDecimal totalGrossLine = item.getGrossPrice() != null ? item.getGrossPrice() : BigDecimal.ZERO;
             int qty = item.getQuantity();
             BigDecimal perUnitGross = qty > 0
@@ -179,6 +179,17 @@ public class BillFolioPdfService {
         }
         req.setServices(serviceLines);
         return req;
+    }
+
+
+    private String invoiceLineDescription(TransactionService transactionService) {
+        if (transactionService == null) return "";
+        String description = transactionService.getDescription();
+        if (description != null && !description.isBlank()) {
+            return description.trim();
+        }
+        String code = transactionService.getCode();
+        return code == null ? "" : code.trim();
     }
 
     private String formatIssueDateTime(Bill bill) {

@@ -1,0 +1,19 @@
+Transaction service invoice description display update
+
+Changed files:
+- backend/src/main/java/com/example/app/billing/BillFolioPdfService.java
+
+What changed:
+- Invoice/folio PDF generation now uses only the transaction service description for each invoice line.
+- Transaction service codes are no longer prefixed before descriptions on generated invoice PDFs.
+- This applies to all generated bill document types that use the shared BillFolioPdfService path, including invoices, advances, refunds and platform subscription invoices.
+
+Example before:
+- PROMONTHLY - Pro Package - Monthly
+
+Example after:
+- Pro Package - Monthly
+
+Notes:
+- If a legacy transaction service somehow has an empty description, the code is only used as a defensive fallback so the invoice line is not blank.
+- I attempted a backend compile, but this sandbox cannot download the Maven wrapper distribution from Maven Central and no system Maven is installed, so compilation could not be completed here.
