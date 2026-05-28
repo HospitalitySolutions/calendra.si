@@ -1,0 +1,32 @@
+Changes done
+============
+
+Google Calendar sync now imports only today and future items:
+
+1. Calendar event pull window
+   - Full Google Calendar pulls now use today's start-of-day as the lower bound instead of the historical lookback window.
+   - A one-second buffer is used on the API timeMin value so items starting exactly at midnight today are not missed.
+   - Extra backend guard skips Google events that ended before today's start-of-day, even if Google returns them through an existing incremental sync token.
+
+2. Google Tasks pull window
+   - Google Tasks pulls now pass a dueMin based on today's start-of-day.
+   - Backend also ignores Google Tasks whose parsed due date/time is before today, so historical tasks are not imported as Calendra ToDo sessions.
+   - Existing date-only Google Tasks still use the visible 09:00 display time behavior from the previous fix.
+
+3. Full sync push window
+   - Full sync no longer pushes historical Calendra bookings/personal blocks/ToDos into Google during the existing-item push phase.
+   - It now starts from today and looks forward using the configured lookahead window.
+
+4. Google Tasks scope handling hardening
+   - Read/import accepts either Google Tasks read-only or full Google Tasks permission.
+   - Writing/deleting Google Tasks now requires the exact full Google Tasks permission, so a readonly permission will not accidentally trigger unauthorized Task write/delete calls.
+   - TODO links backed by real Google Tasks are no longer deleted through the Calendar Events endpoint.
+
+Updated files
+=============
+- backend/src/main/java/com/example/app/google/calendar/GoogleCalendarApiClient.java
+- backend/src/main/java/com/example/app/google/calendar/GoogleCalendarSyncService.java
+
+Validation
+==========
+- Maven is not installed in this sandbox, so a full backend build could not be run here.

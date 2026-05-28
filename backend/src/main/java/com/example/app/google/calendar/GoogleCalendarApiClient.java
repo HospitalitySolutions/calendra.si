@@ -7,6 +7,8 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -80,7 +82,7 @@ public class GoogleCalendarApiClient {
         if (syncToken != null && !syncToken.isBlank()) {
             b.queryParam("syncToken", query(syncToken));
         } else {
-            b.queryParam("timeMin", query(Instant.now().minusSeconds(config.getFullSyncLookbackDays() * 24L * 60L * 60L).toString()));
+            b.queryParam("timeMin", query(todaySyncWindowStart().minusSeconds(1).toString()));
         }
         try {
             JsonNode root = objectMapper.readTree(restTemplate.exchange(b.build(true).toUri(), HttpMethod.GET, new HttpEntity<>(authHeaders(accessToken)), String.class).getBody());
@@ -133,11 +135,16 @@ public class GoogleCalendarApiClient {
     }
 
     public TasksPage listTasks(String accessToken, String taskListId, String pageToken) throws Exception {
+        return listTasks(accessToken, taskListId, pageToken, null);
+    }
+
+    public TasksPage listTasks(String accessToken, String taskListId, String pageToken, Instant dueMin) throws Exception {
         UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(TASKS_API + "/lists/" + path(taskListId) + "/tasks")
                 .queryParam("maxResults", "100")
                 .queryParam("showCompleted", "true")
                 .queryParam("showDeleted", "true")
                 .queryParam("showHidden", "true");
+        if (dueMin != null) b.queryParam("dueMin", query(dueMin.minusSeconds(1).toString()));
         if (pageToken != null && !pageToken.isBlank()) b.queryParam("pageToken", query(pageToken));
         JsonNode root = objectMapper.readTree(restTemplate.exchange(b.build(true).toUri(), HttpMethod.GET, new HttpEntity<>(authHeaders(accessToken)), String.class).getBody());
         List<JsonNode> tasks = new ArrayList<>();
@@ -170,6 +177,11 @@ public class GoogleCalendarApiClient {
         } catch (Exception ignored) {
             // A missing/expired channel should not break reconnect, disconnect, or watch renewal.
         }
+    }
+
+    private Instant todaySyncWindowStart() {
+        ZoneId zone = ZoneId.of(config.getTimezone());
+        return LocalDate.now(zone).atStartOfDay(zone).toInstant();
     }
 
     private JsonNode sendJson(String token, HttpMethod method, String url, ObjectNode body) throws Exception {
