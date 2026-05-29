@@ -580,7 +580,7 @@
 }
 
 .billing-date-range-picker input[type="date"] {
-    width: 136px;
+    width: 100%;
     height: auto;
     padding: 0;
     border: none;
@@ -589,6 +589,30 @@
     font-size: 0.86rem;
     font-weight: 700;
     background: transparent;
+}
+
+.billing-date-range-input-wrap {
+    position: relative;
+    width: 136px;
+    min-width: 136px;
+}
+
+.billing-date-range-input-wrap input[type="date"] {
+    padding-right: 22px;
+}
+
+.billing-date-range-input-icon {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.88rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.billing-date-range-input-wrap input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
 }
 
 .billing-date-range-separator {
@@ -735,7 +759,12 @@
     }
 
     .billing-date-range-picker input[type="date"] {
+        width: 100%;
+    }
+
+    .billing-date-range-input-wrap {
         width: 120px;
+        min-width: 120px;
     }
 }
 

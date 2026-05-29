@@ -6386,10 +6386,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     />
                   </div>
                   <div className="billing-date-range-picker" aria-label={billingCopy.historyFilterDateAria}>
-                    <span aria-hidden>📅</span>
-                    <input type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
+                    <div className="billing-date-range-input-wrap">
+                      <input type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
+                      <span className="billing-date-range-input-icon" aria-hidden>📅</span>
+                    </div>
                     <span className="billing-date-range-separator">–</span>
-                    <input type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
+                    <div className="billing-date-range-input-wrap">
+                      <input type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
+                      <span className="billing-date-range-input-icon" aria-hidden>📅</span>
+                    </div>
                   </div>
                 </div>
 
