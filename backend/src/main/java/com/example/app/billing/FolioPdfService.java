@@ -49,7 +49,7 @@ public class FolioPdfService {
     private static final int LAYOUT_PREVIEW_SERVICE_ROWS = 1;
     private static final float DOUBLE_RULE_GAP = 2.0f;
     private static final int PAYMENT_QR_CAPTION_FONT_SIZE = 7;
-    private static final float PAYMENT_QR_CAPTION_GAP = 4.0f;
+    private static final float PAYMENT_QR_CAPTION_GAP = 2.0f;
 
     private enum VatBreakdownBucket {
         VAT_22,
@@ -302,7 +302,7 @@ public class FolioPdfService {
 
         // Top rule above the column labels, rendered as a double line like the reference invoice style.
         // Raise it slightly so it sits clearly above the header text instead of touching it.
-        drawDoubleHLine(ctx, left, right, y + 4, 0.5f);
+        drawDoubleHLine(ctx, left, right, y + 6, 0.5f);
         y -= 6;
 
         for (var col : tbl.getColumns()) {
@@ -370,8 +370,8 @@ public class FolioPdfService {
                             float tableFlowOffset) throws IOException {
         var tbl = layout.getTable();
         var ftr = layout.getFooter();
-        // Pull the closing double rule slightly upward so it sits closer to the service rows.
-        float y = lastRowY - Math.max(0f, ftr.getGapAfterTable() - 3f);
+        // Pull the closing double rule further upward so it sits closer to the service rows.
+        float y = lastRowY + 2f;
 
         drawDoubleHLine(ctx, tbl.getStartX(), tbl.getStartX() + tbl.getWidth(), y, 0.75f);
         y -= DOUBLE_RULE_GAP + ftr.getLineSpacing() + 2;

@@ -1,0 +1,11 @@
+Folio services table line and payment QR caption spacing update
+
+Updated files:
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+
+Changes done:
+1. Moved the upper services-table double line slightly higher so it sits more clearly above the column labels.
+2. Moved the bottom services-table double line higher so it sits closer to the service rows.
+3. Reduced the gap between the payment QR and the localized scan-and-pay caption so the text sits closer to the QR code.
+4. Updated the folio layout editor preview to reflect the adjusted table line placement and QR caption spacing.

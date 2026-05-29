@@ -1097,7 +1097,7 @@ export function FolioLayoutEditor() {
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 2 * scale, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                   </div>
-                  <div className="fle-table-header" style={{ height: t.headerHeight * scale, paddingTop: 5 * scale, boxSizing: 'border-box' }}>
+                  <div className="fle-table-header" style={{ height: t.headerHeight * scale, paddingTop: 7 * scale, boxSizing: 'border-box' }}>
                     {t.columns.map((col) => (
                       <span key={col.key} className="fle-table-col-label" style={{
                         left: col.relX * scale,
@@ -1123,7 +1123,7 @@ export function FolioLayoutEditor() {
                       ))}
                     </div>
                   ))}
-                  <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: Math.max(0, (t.headerHeight + t.rowHeight * sampleRows - 4) * scale), height: 3 * scale, pointerEvents: 'none' }}>
+                  <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: Math.max(0, (t.headerHeight + t.rowHeight * sampleRows - 6) * scale), height: 3 * scale, pointerEvents: 'none' }}>
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 2 * scale, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                   </div>
@@ -1267,7 +1267,7 @@ export function FolioLayoutEditor() {
                     <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', display: 'grid', placeItems: 'center' }}>
                       <span className="fle-logo-placeholder">Payment QR</span>
                     </div>
-                    <div style={{ flex: '0 0 auto', width: '100%', textAlign: 'center', fontSize: Math.max(6, 7 * scale), lineHeight: 1.15, paddingBottom: 3, color: 'rgba(236, 72, 153, 0.65)', fontWeight: 600 }}>
+                    <div style={{ flex: '0 0 auto', width: '100%', textAlign: 'center', fontSize: Math.max(6, 7 * scale), lineHeight: 1.15, paddingTop: 1, paddingBottom: 1, color: 'rgba(236, 72, 153, 0.65)', fontWeight: 600 }}>
                       {PAYMENT_QR_CAPTION[locale]}
                     </div>
                   </div>
