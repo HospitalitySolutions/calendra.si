@@ -1,0 +1,10 @@
+Folio services table line position update
+
+Updated files:
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+
+Changes done:
+1. Moved the upper services-table double line higher in PDF rendering so it now sits clearly above the column labels.
+2. Moved the lower services-table double line higher so it sits closer to the service rows.
+3. Updated the folio layout editor preview to reflect the adjusted top and bottom table line placement.

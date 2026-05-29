@@ -301,7 +301,8 @@ public class FolioPdfService {
         float right = tbl.getStartX() + tbl.getWidth();
 
         // Top rule above the column labels, rendered as a double line like the reference invoice style.
-        drawDoubleHLine(ctx, left, right, y, 0.5f);
+        // Raise it slightly so it sits clearly above the header text instead of touching it.
+        drawDoubleHLine(ctx, left, right, y + 4, 0.5f);
         y -= 6;
 
         for (var col : tbl.getColumns()) {
@@ -369,7 +370,8 @@ public class FolioPdfService {
                             float tableFlowOffset) throws IOException {
         var tbl = layout.getTable();
         var ftr = layout.getFooter();
-        float y = lastRowY - ftr.getGapAfterTable();
+        // Pull the closing double rule slightly upward so it sits closer to the service rows.
+        float y = lastRowY - Math.max(0f, ftr.getGapAfterTable() - 3f);
 
         drawDoubleHLine(ctx, tbl.getStartX(), tbl.getStartX() + tbl.getWidth(), y, 0.75f);
         y -= DOUBLE_RULE_GAP + ftr.getLineSpacing() + 2;

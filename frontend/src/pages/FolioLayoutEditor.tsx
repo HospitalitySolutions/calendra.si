@@ -1097,7 +1097,7 @@ export function FolioLayoutEditor() {
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 2 * scale, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                   </div>
-                  <div className="fle-table-header" style={{ height: t.headerHeight * scale }}>
+                  <div className="fle-table-header" style={{ height: t.headerHeight * scale, paddingTop: 5 * scale, boxSizing: 'border-box' }}>
                     {t.columns.map((col) => (
                       <span key={col.key} className="fle-table-col-label" style={{
                         left: col.relX * scale,
@@ -1123,7 +1123,7 @@ export function FolioLayoutEditor() {
                       ))}
                     </div>
                   ))}
-                  <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: (t.headerHeight + t.rowHeight * sampleRows) * scale, height: 3 * scale, pointerEvents: 'none' }}>
+                  <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: Math.max(0, (t.headerHeight + t.rowHeight * sampleRows - 4) * scale), height: 3 * scale, pointerEvents: 'none' }}>
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                     <span style={{ position: 'absolute', left: 0, right: 0, top: 2 * scale, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
                   </div>
