@@ -472,18 +472,18 @@ button.calendar-input-picker-btn {
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 9px;
     background: var(--color-surface, #fff);
     color: var(--color-text);
-    min-height: 34px;
-    min-width: 102px;
-    padding: 7px 10px 7px 12px;
+    min-height: 30px;
+    min-width: 86px;
+    padding: 5px 8px 5px 10px;
     font: inherit;
-    font-size: 0.98rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    line-height: 1.35;
+    line-height: 1.25;
     text-align: left;
     box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
     transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
@@ -522,8 +522,8 @@ button.calendar-input-picker-btn {
 .booking-input-wrap .modern-time-picker__trigger,
 .booking-modern-input.modern-time-picker__trigger {
     width: 100%;
-    min-height: 46px;
-    padding-inline: 14px;
+    min-height: 40px;
+    padding-inline: 12px;
 }
 
 .calendar-timespan-input-inner .modern-time-picker__trigger {
@@ -537,9 +537,9 @@ button.calendar-input-picker-btn {
     position: fixed;
     z-index: 12000;
     border: 1px solid rgba(203, 213, 225, 0.88);
-    border-radius: 18px;
+    border-radius: 14px;
     background: var(--picker-surface);
-    box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.16);
     backdrop-filter: blur(10px);
     overflow: hidden;
 }
@@ -558,13 +558,13 @@ button.calendar-input-picker-btn {
 }
 
 .modern-time-picker-popover__quick {
-    padding: 12px 12px 10px;
+    padding: 10px 10px 8px;
     border-bottom: 1px solid rgba(226, 232, 240, 0.9);
 }
 
 .modern-time-picker-popover__quick-title {
-    margin-bottom: 8px;
-    font-size: 0.9rem;
+    margin-bottom: 6px;
+    font-size: 0.74rem;
     font-weight: 800;
     color: var(--color-text-muted);
 }
@@ -576,14 +576,20 @@ button.calendar-input-picker-btn {
 }
 
 .modern-time-picker-popover__quick-grid button {
-    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
     border: 1px solid rgba(203, 213, 225, 0.9);
-    border-radius: 10px;
+    border-radius: 8px;
     background: #fff;
     color: var(--color-text);
+    padding: 0;
+    text-align: center;
     font: inherit;
-    font-size: 0.88rem;
-    font-weight: 700;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1;
     transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
@@ -596,8 +602,8 @@ button.calendar-input-picker-btn {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: start;
-    gap: 10px;
-    padding: 12px 12px 8px;
+    gap: 8px;
+    padding: 10px 10px 6px;
 }
 
 .modern-time-picker-popover__column {
@@ -605,8 +611,8 @@ button.calendar-input-picker-btn {
 }
 
 .modern-time-picker-popover__column-title {
-    margin-bottom: 8px;
-    font-size: 0.9rem;
+    margin-bottom: 6px;
+    font-size: 0.8rem;
     font-weight: 800;
     color: var(--color-text-muted);
 }
@@ -614,17 +620,17 @@ button.calendar-input-picker-btn {
 .modern-time-picker-popover__options {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .modern-time-picker-popover__option {
-    min-height: 34px;
+    min-height: 30px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 8px;
     background: transparent;
     color: #94a3b8;
     font: inherit;
-    font-size: 0.96rem;
+    font-size: 0.84rem;
     font-weight: 700;
     transition: background 160ms ease, color 160ms ease, transform 160ms ease;
 }
@@ -645,17 +651,17 @@ button.calendar-input-picker-btn {
 
 .modern-time-picker-popover__separator {
     align-self: center;
-    margin-top: 26px;
+    margin-top: 22px;
     color: #2563eb;
-    font-size: 1.6rem;
+    font-size: 1.3rem;
     line-height: 1;
     font-weight: 800;
 }
 
 .modern-time-picker-popover__grab {
-    width: 38px;
-    height: 5px;
-    margin: 0 auto 10px;
+    width: 30px;
+    height: 4px;
+    margin: 0 auto 8px;
     border-radius: 999px;
     background: #cbd5e1;
 }

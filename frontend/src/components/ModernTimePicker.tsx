@@ -79,7 +79,7 @@ function addMinutes(value: { hour: number; minute: number }, minutesToAdd: numbe
 
 function ClockIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
       <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth="2" />
       <path d="M12 7.6V12l3.1 2.1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -91,7 +91,7 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 292, pointerX: 24 })
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 264, pointerX: 24 })
 
   const parsed = useMemo(() => parseTimeValue(value), [value])
   const selectedMinute = useMemo(() => getNearestMinuteStep(parsed.minute), [parsed.minute])
@@ -105,14 +105,14 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
     const rect = trigger.getBoundingClientRect()
     const viewportPadding = 16
     const availableWidth = window.innerWidth - viewportPadding * 2
-    const safeWidth = Math.min(Math.max(272, Math.min(292, rect.width + 108)), availableWidth)
+    const safeWidth = Math.min(Math.max(244, Math.min(264, rect.width + 92)), availableWidth)
     let left = rect.left
     if (left + safeWidth > window.innerWidth - viewportPadding) {
       left = window.innerWidth - viewportPadding - safeWidth
     }
     left = Math.max(viewportPadding, left)
 
-    const estimatedHeight = 320
+    const estimatedHeight = 274
     let top = rect.bottom + 8
     if (top + estimatedHeight > window.innerHeight - viewportPadding && rect.top > estimatedHeight + viewportPadding) {
       top = rect.top - estimatedHeight - 8

@@ -1615,7 +1615,7 @@ private struct WalletStackedPassCard: View {
                         .foregroundColor(walletInk.opacity(0.70))
                     }
                     Spacer(minLength: 10)
-                    WalletStatusBadge(label: statusLabel, accent: statusAccent)
+                    WalletTypeBadge(label: entitlementKindLabel, accent: style.accent)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 18)
@@ -1708,12 +1708,8 @@ private struct WalletStackedPassCard: View {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack(alignment: .top, spacing: 10) {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text("VSTOPNICE")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .tracking(0.9)
-                                            .foregroundColor(Color.white.opacity(0.92))
                                         Text(entitlement.name)
-                                            .font(.system(size: 21, weight: .bold))
+                                            .font(.system(size: 20, weight: .bold))
                                             .foregroundColor(.white)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.76)
@@ -1752,21 +1748,7 @@ private struct WalletStackedPassCard: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                             VStack(alignment: .trailing, spacing: 12) {
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(Color.green)
-                                        .frame(width: 8, height: 8)
-                                    Text(statusLabel)
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(Color.white)
-                                }
-                                .padding(.horizontal, 14)
-                                .frame(height: 34)
-                                .background(Color.white.opacity(0.18), in: Capsule(style: .continuous))
-                                .overlay(
-                                    Capsule(style: .continuous)
-                                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                                )
+                                WalletGlassTypeBadge(label: entitlementKindLabel)
 
                                 Button {
                                     onQRCodeTap(code)
@@ -1794,18 +1776,10 @@ private struct WalletStackedPassCard: View {
                                 value: validUntilLabel,
                                 caption: expiryCaption
                             )
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             bookingMetricDivider
-                            bookingMetricColumn(
-                                title: walletTr(appUiLocaleStorage, "ACCESS", "DOSTOP"),
-                                value: accessMetricValue,
-                                caption: accessMetricCaption
-                            )
-                            bookingMetricDivider
-                            bookingMetricColumn(
-                                title: walletTr(appUiLocaleStorage, "REMAINING", "PREOSTALO"),
-                                value: remainingMetricValue,
-                                caption: remainingMetricCaption
-                            )
+                            bookingAccessRemainingMetric
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
@@ -1818,6 +1792,38 @@ private struct WalletStackedPassCard: View {
                     .stroke(Color.white.opacity(0.18), lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.10), radius: 18, x: 0, y: 10)
+    }
+
+
+    private var bookingAccessRemainingMetric: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(walletTr(appUiLocaleStorage, "ACCESS / REMAINING", "DOSTOP / PREOSTALO"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color.white.opacity(0.82))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.24), lineWidth: 3.5)
+                    Circle()
+                        .trim(from: 0, to: accessRemainingProgress)
+                        .stroke(
+                            Color.white,
+                            style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: 24, height: 24)
+
+                Text(accessRemainingDisplayValue)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
     }
 
     private var bookingMetricDivider: some View {
@@ -1862,6 +1868,15 @@ private struct WalletStackedPassCard: View {
     private var typeLabel: String {
         switch entitlement.type {
         case "CLASS_TICKET": return "Single"
+        default: return productTypeLabel(entitlement.type)
+        }
+    }
+
+    private var entitlementKindLabel: String {
+        switch entitlement.type.uppercased() {
+        case "PACK", "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Ticket", "Vstopnica")
+        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Membership", "Članarina")
+        case "GIFT_CARD": return walletTr(appUiLocaleStorage, "Gift card", "Darilna kartica")
         default: return productTypeLabel(entitlement.type)
         }
     }
@@ -1955,6 +1970,30 @@ private struct WalletStackedPassCard: View {
 
     private var accessMetricCaption: String {
         walletTr(appUiLocaleStorage, "Ready to use", "Pripravljeno za uporabo")
+    }
+
+
+    private var accessRemainingDisplayValue: String {
+        if let remaining = entitlement.remainingUses, let total = effectiveTotalUses {
+            return "\(max(remaining, 0)) / \(total)"
+        }
+        if let remaining = entitlement.remainingUses {
+            return "\(max(remaining, 0))"
+        }
+        return accessMetricValue
+    }
+
+    private var accessRemainingProgress: CGFloat {
+        guard let remaining = entitlement.remainingUses, let total = effectiveTotalUses, total > 0 else {
+            return entitlement.remainingUses == nil ? 0 : 1
+        }
+        return min(max(CGFloat(max(remaining, 0)) / CGFloat(total), 0), 1)
+    }
+
+    private var effectiveTotalUses: Int? {
+        if let total = entitlement.totalUses, total > 0 { return total }
+        if entitlement.type == "CLASS_TICKET" { return 1 }
+        return nil
     }
 
     private var remainingMetricValue: String {
@@ -2145,6 +2184,40 @@ private struct WalletLogoBadge: View {
                 .multilineTextAlignment(.center)
         }
         .frame(width: 56, height: 56)
+    }
+}
+
+private struct WalletTypeBadge: View {
+    let label: String
+    let accent: Color
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(accent)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            .background(accent.opacity(0.10), in: Capsule(style: .continuous))
+            .overlay(Capsule(style: .continuous).stroke(accent.opacity(0.16), lineWidth: 1))
+            .lineLimit(1)
+    }
+}
+
+private struct WalletGlassTypeBadge: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(Color.white)
+            .padding(.horizontal, 14)
+            .frame(height: 34)
+            .background(Color.white.opacity(0.18), in: Capsule(style: .continuous))
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+            )
+            .lineLimit(1)
     }
 }
 

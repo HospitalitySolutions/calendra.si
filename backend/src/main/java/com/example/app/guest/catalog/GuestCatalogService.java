@@ -13,6 +13,7 @@ import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionType;
+import com.example.app.session.TypeTransactionService;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.user.Role;
 import com.example.app.user.User;
@@ -81,11 +82,7 @@ public class GuestCatalogService {
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
-            BigDecimal price = type.getLinkedServices() == null ? null : type.getLinkedServices().stream()
-                    .map(link -> link.getPrice())
-                    .filter(Objects::nonNull)
-                    .min(BigDecimal::compareTo)
-                    .orElse(BigDecimal.ZERO);
+            BigDecimal price = sessionTypePriceGross(type);
             String productType = Boolean.TRUE.equals(type.isWidgetGroupBookingEnabled()) ? "CLASS_TICKET" : "SESSION_SINGLE";
             out.add(new GuestDtos.ProductResponse(
                     derivedProductId(type),
@@ -193,11 +190,7 @@ public class GuestCatalogService {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
             }
-            BigDecimal price = type.getLinkedServices() == null ? null : type.getLinkedServices().stream()
-                    .map(link -> link.getPrice())
-                    .filter(Objects::nonNull)
-                    .min(BigDecimal::compareTo)
-                    .orElse(BigDecimal.ZERO);
+            BigDecimal price = sessionTypePriceGross(type);
             return new ResolvedProduct(null, type, type.getName(), type.isWidgetGroupBookingEnabled() ? "CLASS_TICKET" : "SESSION_SINGLE", price, "EUR", true);
         }
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
@@ -581,6 +574,31 @@ public class GuestCatalogService {
 
     public static String derivedProductId(SessionType type) {
         return "session-" + type.getId();
+    }
+
+    /**
+     * Session types store per-linked-service net prices; guest checkout and app UI require gross.
+     */
+    private static BigDecimal sessionTypePriceGross(SessionType type) {
+        if (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (TypeTransactionService link : type.getLinkedServices()) {
+            if (link == null || link.getTransactionService() == null) {
+                continue;
+            }
+            BigDecimal net = link.getPrice() != null ? link.getPrice() : link.getTransactionService().getNetPrice();
+            if (net == null) {
+                net = BigDecimal.ZERO;
+            }
+            BigDecimal multiplier = link.getTransactionService().getTaxRate() == null
+                    ? BigDecimal.ZERO
+                    : link.getTransactionService().getTaxRate().multiplier;
+            BigDecimal gross = net.add(net.multiply(multiplier)).setScale(2, java.math.RoundingMode.HALF_UP);
+            total = total.add(gross);
+        }
+        return total.setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     private static String slotToken(Long consultantId, LocalDateTime start, LocalDateTime end) {

@@ -1474,8 +1474,6 @@ private fun WalletStackedPassCard(
     val code = card.entitlementCode?.takeIf { it.isNotBlank() }
         ?: card.displayCode?.takeIf { it.isNotBlank() }
         ?: card.id
-    val headerStatus = entitlementHeaderStatus(card)
-    val statusAccent = if (headerStatus == "Inactive") Color(0xFF7C8798) else WalletGreen
     val primary = primaryMetric(card, languageCode)
     val secondary = secondaryMetric(card, languageCode)
     val textColor = if (isLightCard) WalletInk else Color.White
@@ -1531,13 +1529,6 @@ private fun WalletStackedPassCard(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "VSTOPNICE",
-                                    color = if (isLightCard) style.accent else Color.White.copy(alpha = 0.82f),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
-                                Text(
                                     text = entitlementHeaderCardName(card.title),
                                     color = textColor,
                                     fontSize = 21.sp,
@@ -1586,7 +1577,12 @@ private fun WalletStackedPassCard(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        WalletStatusChip(status = walletStatusDisplay(headerStatus, languageCode), accent = statusAccent)
+                        WalletEntitlementKindChip(
+                            label = entitlementTopRightTypeLabel(card.type, languageCode),
+                            textColor = if (isLightCard) style.accent else Color.White,
+                            borderColor = if (isLightCard) style.accent.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.35f),
+                            backgroundColor = if (isLightCard) style.accent.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.18f)
+                        )
                         Box(
                             modifier = Modifier
                                 .width(72.dp)
@@ -1610,17 +1606,10 @@ private fun WalletStackedPassCard(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = entitlementHeaderTypeTag(card.type, languageCode),
-                            color = if (isLightCard) style.accent else Color.White.copy(alpha = 0.82f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                        Text(
                             text = entitlementHeaderCardName(card.title),
                             color = textColor,
-                            fontSize = 21.sp,
-                            lineHeight = 25.sp,
+                            fontSize = 20.sp,
+                            lineHeight = 24.sp,
                             fontWeight = FontWeight.ExtraBold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -1638,7 +1627,12 @@ private fun WalletStackedPassCard(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        WalletStatusChip(status = walletStatusDisplay(headerStatus, languageCode), accent = statusAccent)
+                        WalletEntitlementKindChip(
+                            label = entitlementTopRightTypeLabel(card.type, languageCode),
+                            textColor = if (isLightCard) style.accent else Color.White,
+                            borderColor = if (isLightCard) style.accent.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.35f),
+                            backgroundColor = if (isLightCard) style.accent.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.18f)
+                        )
                         Box(
                             modifier = Modifier
                                 .width(72.dp)
@@ -1673,23 +1667,19 @@ private fun WalletStackedPassCard(
                         value = secondary.second,
                         textColor = textColor,
                         mutedColor = mutedColor,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(0.95f)
                     )
-                    Box(Modifier.height(40.dp).width(1.dp).background(lineColor))
-                    WalletMetricColumn(
-                        label = walletTr(languageCode, "ACCESS", "DOSTOP"),
-                        value = primary.second,
+                    Box(Modifier.height(48.dp).width(1.dp).background(lineColor))
+                    WalletAccessRemainingMetric(
+                        label = walletTr(languageCode, "ACCESS / REMAINING", "DOSTOP / PREOSTALO"),
+                        remainingUses = card.remainingUses,
+                        totalUses = card.totalUses ?: if (type == "CLASS_TICKET") 1 else null,
+                        fallbackValue = primary.second,
                         textColor = textColor,
                         mutedColor = mutedColor,
-                        modifier = Modifier.weight(1f).padding(start = 16.dp)
-                    )
-                    Box(Modifier.height(40.dp).width(1.dp).background(lineColor))
-                    WalletMetricColumn(
-                        label = walletTr(languageCode, "REMAINING", "PREOSTALO"),
-                        value = card.remainingUses?.let { walletTr(languageCode, "$it left", "$it preostalo") } ?: statusLabelForCard(card, languageCode),
-                        textColor = textColor,
-                        mutedColor = mutedColor,
-                        modifier = Modifier.weight(1f).padding(start = 16.dp)
+                        progressColor = if (isLightCard) style.accent else Color.White,
+                        trackColor = if (isLightCard) style.accent.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.24f),
+                        modifier = Modifier.weight(1.65f).padding(start = 18.dp)
                     )
                 }
             } else {
@@ -1752,6 +1742,66 @@ private fun WalletStackedPassCard(
                     Text(walletTr(languageCode, "Tap at check-in", "Tapnite ob prijavi"), color = mutedColor, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WalletAccessRemainingMetric(
+    label: String,
+    remainingUses: Int?,
+    totalUses: Int?,
+    fallbackValue: String,
+    textColor: Color,
+    mutedColor: Color,
+    progressColor: Color,
+    trackColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val safeTotal = totalUses?.takeIf { it > 0 }
+    val safeRemaining = remainingUses?.coerceAtLeast(0)
+    val progress = when {
+        safeRemaining != null && safeTotal != null -> (safeRemaining.toFloat() / safeTotal.toFloat()).coerceIn(0f, 1f)
+        safeRemaining != null -> 1f
+        else -> 0f
+    }
+    val displayValue = when {
+        safeRemaining != null && safeTotal != null -> "$safeRemaining / $safeTotal"
+        safeRemaining != null -> safeRemaining.toString()
+        else -> fallbackValue
+    }
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            label,
+            color = mutedColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxSize(),
+                    color = progressColor,
+                    trackColor = trackColor,
+                    strokeWidth = 3.5.dp
+                )
+            }
+            Text(
+                text = displayValue,
+                color = textColor,
+                fontSize = 18.sp,
+                lineHeight = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -2045,6 +2095,35 @@ private fun WalletStatusChip(status: String, accent: Color) {
 }
 
 @Composable
+private fun WalletEntitlementKindChip(
+    label: String,
+    textColor: Color,
+    borderColor: Color,
+    backgroundColor: Color
+) {
+    Surface(
+        color = backgroundColor,
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(1.dp, borderColor),
+        tonalElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.height(36.dp).padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                color = textColor,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
 private fun WalletCountChip(label: String, accent: Color) {
     Surface(
         color = accent.copy(alpha = 0.10f),
@@ -2176,6 +2255,13 @@ private fun entitlementHeaderTypeTag(type: String, languageCode: String = "en"):
     "CLASS_TICKET" -> walletTr(languageCode, "CLASS", "VSTOPNICA")
     "GIFT_CARD" -> walletTr(languageCode, "GIFT", "DARILO")
     else -> productTypeLabel(type).uppercase(Locale.getDefault())
+}
+
+private fun entitlementTopRightTypeLabel(type: String, languageCode: String = "en"): String = when (type.uppercase(Locale.getDefault())) {
+    "PACK", "CLASS_TICKET" -> walletTr(languageCode, "Ticket", "Vstopnica")
+    "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
+    "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
+    else -> productTypeLabel(type)
 }
 
 private fun entitlementHeaderStatus(card: WalletPassCardData): String {
