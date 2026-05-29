@@ -1,0 +1,10 @@
+Folio services table bottom line and Payment QR caption spacing update
+
+Updated files:
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+
+Changes done:
+1. Moved the bottom services-table double line higher again so it sits closer to the last service row.
+2. Reduced the Payment QR caption gap to zero in PDF rendering, so "Scan and pay." / "Skeniraj in plačaj." appears directly closer under the QR code.
+3. Updated the folio layout editor preview so the bottom services-table double line and Payment QR caption spacing match the PDF output more closely.

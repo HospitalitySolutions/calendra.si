@@ -606,9 +606,18 @@
     right: 2px;
     top: 50%;
     transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
     font-size: 0.88rem;
     line-height: 1;
-    pointer-events: none;
+    cursor: pointer;
 }
 
 .billing-date-range-input-wrap input[type="date"]::-webkit-calendar-picker-indicator {

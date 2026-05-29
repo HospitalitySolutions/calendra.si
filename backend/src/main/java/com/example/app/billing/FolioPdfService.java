@@ -49,7 +49,7 @@ public class FolioPdfService {
     private static final int LAYOUT_PREVIEW_SERVICE_ROWS = 1;
     private static final float DOUBLE_RULE_GAP = 2.0f;
     private static final int PAYMENT_QR_CAPTION_FONT_SIZE = 7;
-    private static final float PAYMENT_QR_CAPTION_GAP = 2.0f;
+    private static final float PAYMENT_QR_CAPTION_GAP = 0.0f;
 
     private enum VatBreakdownBucket {
         VAT_22,
@@ -371,7 +371,7 @@ public class FolioPdfService {
         var tbl = layout.getTable();
         var ftr = layout.getFooter();
         // Pull the closing double rule further upward so it sits closer to the service rows.
-        float y = lastRowY + 2f;
+        float y = lastRowY + 7f;
 
         drawDoubleHLine(ctx, tbl.getStartX(), tbl.getStartX() + tbl.getWidth(), y, 0.75f);
         y -= DOUBLE_RULE_GAP + ftr.getLineSpacing() + 2;

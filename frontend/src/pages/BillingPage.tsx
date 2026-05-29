@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
@@ -899,6 +899,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [historySearch, setHistorySearch] = useState('')
   const [historyDateFrom, setHistoryDateFrom] = useState('')
   const [historyDateTo, setHistoryDateTo] = useState('')
+  const historyDateFromInputRef = useRef<HTMLInputElement | null>(null)
+  const historyDateToInputRef = useRef<HTMLInputElement | null>(null)
   const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'paid' | 'payment_pending' | 'open' | 'cancelled'>('all')
   const [historyBillTypeFilter, setHistoryBillTypeFilter] = useState<'all' | BillDocumentType>('all')
   const [billingTab, setBillingTab] = useState<'open' | 'openPayments' | 'unusedAdvances' | 'history'>('open')
@@ -2364,6 +2366,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     () => sortedHistoryBills.reduce((sum, bill) => sum + Number(bill.totalGross || 0), 0),
     [sortedHistoryBills],
   )
+
+  const openHistoryDatePicker = useCallback((input: HTMLInputElement | null) => {
+    if (!input) return
+    input.focus()
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void }
+    if (typeof pickerInput.showPicker === 'function') {
+      pickerInput.showPicker()
+      return
+    }
+    input.click()
+  }, [])
 
   const openPayments = useMemo(() => {
     const q = openPaymentsSearch.trim().toLowerCase()
@@ -6387,13 +6400,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                   <div className="billing-date-range-picker" aria-label={billingCopy.historyFilterDateAria}>
                     <div className="billing-date-range-input-wrap">
-                      <input type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
-                      <span className="billing-date-range-input-icon" aria-hidden>📅</span>
+                      <input ref={historyDateFromInputRef} type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
+                      <button
+                        type="button"
+                        className="billing-date-range-input-icon"
+                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma od' : 'Open start date picker'}
+                        onClick={() => openHistoryDatePicker(historyDateFromInputRef.current)}
+                      >
+                        <span aria-hidden>📅</span>
+                      </button>
                     </div>
                     <span className="billing-date-range-separator">–</span>
                     <div className="billing-date-range-input-wrap">
-                      <input type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
-                      <span className="billing-date-range-input-icon" aria-hidden>📅</span>
+                      <input ref={historyDateToInputRef} type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
+                      <button
+                        type="button"
+                        className="billing-date-range-input-icon"
+                        aria-label={locale === 'sl' ? 'Odpri izbirnik datuma do' : 'Open end date picker'}
+                        onClick={() => openHistoryDatePicker(historyDateToInputRef.current)}
+                      >
+                        <span aria-hidden>📅</span>
+                      </button>
                     </div>
                   </div>
                 </div>
