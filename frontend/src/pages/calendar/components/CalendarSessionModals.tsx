@@ -1806,7 +1806,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </svg>
                       </span>
                       <span className="calendar-payment-manager-add-client-copy">
-                        <strong>{locale === 'sl' ? 'Dodaj člana' : 'Add member'}</strong>
+                        <strong>{locale === 'sl' ? 'Dodaj klienta' : 'Add client'}</strong>
                       </span>
                       <span className="calendar-payment-manager-chevron">›</span>
                     </button>
@@ -3641,11 +3641,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         >
           <div className="modal large-modal clients-create-popup calendar-client-create-popup clients-detail-panel-modern clients-create-modal calendar-create-entry-modal calendar-create-entry-modal--client-only" onClick={(e) => e.stopPropagation()}>
             <div className="calendar-create-entry-header" {...getSessionPopupDragHandleProps()}>
-              <div>
+              <div className="calendar-create-entry-mobile-handle" aria-hidden="true" />
+              <button type="button" className="calendar-create-entry-close" onClick={() => setShowAddClientModal(false)} aria-label={t('mobileNavClose')}>×</button>
+              <div className="calendar-create-entry-title-copy">
                 <h2>{locale === 'sl' ? 'Dodaj novo stranko' : 'Add new client'}</h2>
                 <p>{locale === 'sl' ? 'Ustvari novo stranko in jo poveži s terminom.' : 'Create a new client and attach it to this session.'}</p>
               </div>
-              <button type="button" className="calendar-create-entry-close" onClick={() => setShowAddClientModal(false)} aria-label={t('mobileNavClose')}>×</button>
+              <button
+                type="button"
+                className="calendar-create-entry-mobile-submit"
+                onClick={() => void createClientFromBooking()}
+                disabled={savingClient}
+                aria-label={locale === 'sl' ? 'Ustvari stranko' : 'Create client'}
+              >
+                <span aria-hidden="true">✓</span>
+              </button>
             </div>
 
             <div className="calendar-create-entry-body">

@@ -1294,3 +1294,213 @@
 [data-theme="dark"] .calendar-no-show-client-picker__name small {
     color: #fca5a5;
 }
+
+/* Mobile session forms: keep time and date on one row and keep the all-day switch in the date heading. */
+@media (max-width: 939px) {
+    .calendar-edit-session-panel .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day),
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+        display: grid !important;
+        grid-template-columns: minmax(0, 0.72fr) minmax(0, 0.72fr) minmax(0, 1.46fr) !important;
+        gap: 8px !important;
+        align-items: end !important;
+        width: 100%;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row--two:not(.calendar-timespan-row--all-day) {
+        display: grid !important;
+        grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.48fr) !important;
+        gap: 8px !important;
+        align-items: end !important;
+        width: 100%;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row--all-day,
+    .calendar-edit-session-panel--availability .calendar-timespan-row--all-day {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-field,
+    .calendar-edit-session-panel .calendar-timespan-field--date,
+    .calendar-edit-session-panel .calendar-timespan-row--two .calendar-timespan-field--date,
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-field,
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-field--date {
+        min-width: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+        grid-column: auto !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row--all-day .calendar-timespan-field--date,
+    .calendar-edit-session-panel--availability .calendar-timespan-row--all-day .calendar-timespan-field--date {
+        grid-column: 1 / -1 !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-date-head,
+    .calendar-edit-session-panel .calendar-timespan-date-head--with-all-day,
+    .calendar-edit-session-panel--availability .calendar-timespan-date-head,
+    .calendar-edit-session-panel--availability .calendar-timespan-field--date .calendar-timespan-date-head {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 6px !important;
+        min-height: 20px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-all-day-line,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-line {
+        display: inline-flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 5px !important;
+        flex: 0 1 auto;
+        min-width: 0;
+        white-space: nowrap;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-label,
+    .calendar-edit-session-panel .calendar-timespan-all-day-caption,
+    .calendar-edit-session-panel--availability .calendar-timespan-label,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-caption {
+        font-size: 0.76rem !important;
+        line-height: 1.05;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-all-day-caption,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-caption {
+        color: #475569;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 56px;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner,
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner,
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row .calendar-timespan-input-inner {
+        width: 100%;
+        min-width: 0;
+        gap: 4px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner .modern-time-picker__trigger {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 40px !important;
+        padding: 7px 8px !important;
+        border-radius: 11px !important;
+        font-size: 0.92rem !important;
+        font-weight: 760;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"],
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner input[type="date"],
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row input[type="date"] {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 40px !important;
+        padding: 7px 8px !important;
+        border-radius: 11px !important;
+        font-size: 0.86rem !important;
+        font-weight: 760;
+        line-height: 1.1;
+    }
+}
+
+@media (max-width: 420px) {
+    .calendar-edit-session-panel .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day),
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+        grid-template-columns: minmax(0, 0.68fr) minmax(0, 0.68fr) minmax(0, 1.52fr) !important;
+        gap: 7px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row--two:not(.calendar-timespan-row--all-day) {
+        grid-template-columns: minmax(0, 0.76fr) minmax(0, 1.44fr) !important;
+        gap: 7px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-label,
+    .calendar-edit-session-panel .calendar-timespan-all-day-caption,
+    .calendar-edit-session-panel--availability .calendar-timespan-label,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-caption {
+        font-size: 0.7rem !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-date-head,
+    .calendar-edit-session-panel--availability .calendar-timespan-date-head,
+    .calendar-edit-session-panel--availability .calendar-timespan-field--date .calendar-timespan-date-head {
+        gap: 4px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-all-day-line,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-line {
+        gap: 4px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-all-day-switch.repeats-toggle-switch,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-switch.repeats-toggle-switch {
+        width: 32px !important;
+        height: 18px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-all-day-switch .repeats-toggle-slider::before,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-switch .repeats-toggle-slider::before {
+        width: 14px !important;
+        height: 14px !important;
+        left: 2px !important;
+        top: 2px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-all-day-switch.repeats-toggle-switch input:checked + .repeats-toggle-slider::before,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-switch.repeats-toggle-switch input:checked + .repeats-toggle-slider::before {
+        transform: translateX(14px) !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner .modern-time-picker__trigger,
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"],
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner input[type="date"],
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row input[type="date"] {
+        min-height: 38px !important;
+        padding: 6px 7px !important;
+        font-size: 0.84rem !important;
+    }
+
+    .calendar-edit-session-panel .modern-time-picker__trigger {
+        gap: 5px;
+    }
+}
+
+@media (max-width: 360px) {
+    .calendar-edit-session-panel .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day),
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+        grid-template-columns: minmax(0, 0.66fr) minmax(0, 0.66fr) minmax(0, 1.58fr) !important;
+        gap: 6px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-row--two:not(.calendar-timespan-row--all-day) {
+        grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.46fr) !important;
+        gap: 6px !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-label,
+    .calendar-edit-session-panel .calendar-timespan-all-day-caption,
+    .calendar-edit-session-panel--availability .calendar-timespan-label,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-caption {
+        font-size: 0.66rem !important;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-all-day-caption,
+    .calendar-edit-session-panel--availability .calendar-timespan-all-day-caption {
+        max-width: 46px;
+    }
+
+    .calendar-edit-session-panel .calendar-timespan-input-inner .modern-time-picker__trigger,
+    .calendar-edit-session-panel .calendar-timespan-input-inner input[type="date"],
+    .calendar-edit-session-panel--availability .calendar-timespan-row:not(.calendar-timespan-row--two) .calendar-timespan-input-inner input[type="date"],
+    .calendar-edit-session-panel--availability .calendar-availability-datum-row input[type="date"] {
+        font-size: 0.78rem !important;
+        padding-inline: 6px !important;
+    }
+}

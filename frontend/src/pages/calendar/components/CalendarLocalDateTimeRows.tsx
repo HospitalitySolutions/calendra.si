@@ -31,7 +31,7 @@ export function CalendarLocalTimespanRow({
   const allDay = !!allDayToggle?.checked
 
   return (
-    <div className={['calendar-timespan-row', allDay ? 'calendar-timespan-row--all-day' : ''].filter(Boolean).join(' ')}>
+    <div className={['calendar-timespan-row', allDayToggle ? 'calendar-timespan-row--with-all-day' : '', allDay ? 'calendar-timespan-row--all-day' : ''].filter(Boolean).join(' ')}>
       {!allDay && (
         <>
           <div className="calendar-timespan-field">
@@ -66,7 +66,7 @@ export function CalendarLocalTimespanRow({
       )}
       <div className="calendar-timespan-field calendar-timespan-field--date">
         <div className="calendar-timespan-input-inner">
-          <div className="calendar-timespan-date-head">
+          <div className={['calendar-timespan-date-head', allDayToggle ? 'calendar-timespan-date-head--with-all-day' : ''].filter(Boolean).join(' ')}>
             <span className="calendar-timespan-label">{labels.date}</span>
             {allDayToggle && (
               <div className="calendar-timespan-all-day-line" role="group" aria-label={allDayToggle.label}>
@@ -133,7 +133,7 @@ export function CalendarLocalTimeDateRow({
 
   return (
     <div
-      className={['calendar-timespan-row', 'calendar-timespan-row--two', allDay ? 'calendar-timespan-row--all-day' : '']
+      className={['calendar-timespan-row', 'calendar-timespan-row--two', allDayToggle ? 'calendar-timespan-row--with-all-day' : '', allDay ? 'calendar-timespan-row--all-day' : '']
         .filter(Boolean)
         .join(' ')}
     >
@@ -155,7 +155,7 @@ export function CalendarLocalTimeDateRow({
       )}
       <div className="calendar-timespan-field calendar-timespan-field--date">
         <div className="calendar-timespan-input-inner">
-          <div className="calendar-timespan-date-head">
+          <div className={['calendar-timespan-date-head', allDayToggle ? 'calendar-timespan-date-head--with-all-day' : ''].filter(Boolean).join(' ')}>
             <span className="calendar-timespan-label">{labels.date}</span>
             {allDayToggle && (
               <div className="calendar-timespan-all-day-line" role="group" aria-label={allDayToggle.label}>

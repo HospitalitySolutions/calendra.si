@@ -1,0 +1,13 @@
+Implemented mobile time/date row layout for session forms.
+
+Changed files:
+- frontend/src/pages/calendar/components/CalendarLocalDateTimeRows.tsx
+- frontend/src/styles/main/calendar-booking-mode.css
+
+What changed:
+- Added explicit helper classes to the shared time/date row components so CSS can reliably target rows that contain the Cel dan / All day control.
+- On smaller resolutions, booked, personal, todo and availability forms now keep Čas od, Čas do and Datum on the same row where applicable.
+- Todo time/date rows now keep Čas od and Datum on the same row on mobile.
+- Cel dan is kept inside the date header, aligned on the right side of the same label row as Datum, above the date input.
+- Availability form mobile overrides now keep the all-day switch horizontal instead of stacking it under/over the label.
+- Added tighter mobile sizing for the time picker, date input, labels and all-day switch so the row remains readable on narrow screens.
