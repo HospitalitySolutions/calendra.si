@@ -1,6 +1,7 @@
 package com.example.app.session;
 
 import com.example.app.company.CompanyRepository;
+import com.example.app.consumables.ConsumableService;
 import com.example.app.billing.Bill;
 import com.example.app.billing.BillItem;
 import com.example.app.billing.BillPaymentStatus;
@@ -54,6 +55,7 @@ public class SessionBookingController {
     private final OpenBillRepository openBills;
     private final BillRepository bills;
     private final GuestEntitlementUsageRepository entitlementUsages;
+    private final ConsumableService consumableService;
 
     public SessionBookingController(SessionBookingRepository repo,
                                     BookableSlotRepository bookableSlots,
@@ -66,7 +68,8 @@ public class SessionBookingController {
                                     OpenBillSyncService openBillSyncService,
                                     OpenBillRepository openBills,
                                     BillRepository bills,
-                                    GuestEntitlementUsageRepository entitlementUsages) {
+                                    GuestEntitlementUsageRepository entitlementUsages,
+                                    ConsumableService consumableService) {
         this.repo = repo;
         this.bookableSlots = bookableSlots;
         this.personalBlocks = personalBlocks;
@@ -80,6 +83,7 @@ public class SessionBookingController {
         this.openBills = openBills;
         this.bills = bills;
         this.entitlementUsages = entitlementUsages;
+        this.consumableService = consumableService;
     }
 
     public record BookingRequest(
@@ -372,7 +376,6 @@ public class SessionBookingController {
                 && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-
         var selectedClientIds = new java.util.LinkedHashSet<Long>();
         if (req != null && req.clientIds() != null) {
             for (Long clientId : req.clientIds()) {
@@ -458,6 +461,9 @@ public class SessionBookingController {
         if (!SecurityUtils.isAdmin(me)
                 && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        if (grouped.stream().anyMatch(row -> SessionBookingStatus.CHECKED_OUT.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())))) {
+            consumableService.reverseSessionUsage(me, companyId, groupKey(representative));
         }
         for (var row : grouped) {
             reminderService.sendSessionCancelled(row);

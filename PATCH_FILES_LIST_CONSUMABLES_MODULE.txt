@@ -1,0 +1,35 @@
+Updated-files-only zip for Consumables module
+=================================================
+
+This zip contains only files that were added or changed compared with the original uploaded project zip.
+It does not contain the full project.
+
+Added files:
+- calendra.si-main/CHANGES_DONE_CONSUMABLES_MODULE.txt
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/Consumable.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableCategory.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableCategoryRepository.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableController.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableEnums.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumablePurchaseOrder.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumablePurchaseOrderRepository.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableRepository.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableService.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableStockMovement.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableStockMovementRepository.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableSupplier.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ConsumableSupplierRepository.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ServiceTypeConsumable.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/ServiceTypeConsumableRepository.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/SessionConsumable.java
+- calendra.si-main/backend/src/main/java/com/example/app/consumables/SessionConsumableRepository.java
+- calendra.si-main/frontend/src/pages/ConsumablesPage.tsx
+- calendra.si-main/frontend/src/styles/main/consumables.css
+
+Changed existing files:
+- calendra.si-main/backend/src/main/java/com/example/app/session/SessionBookingController.java
+- calendra.si-main/backend/src/main/java/com/example/app/session/SessionBookingCreationService.java
+- calendra.si-main/frontend/src/App.tsx
+- calendra.si-main/frontend/src/components/Shell.tsx
+- calendra.si-main/frontend/src/locale.tsx
+- calendra.si-main/frontend/src/styles.css

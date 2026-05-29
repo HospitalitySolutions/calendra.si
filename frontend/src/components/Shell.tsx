@@ -37,6 +37,16 @@ function AndroidNavIconBilling() {
     </svg>
   )
 }
+
+function SidebarIconConsumables() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="M3.3 7 12 12l8.7-5" />
+      <path d="M12 22V12" />
+    </svg>
+  )
+}
 function AndroidNavIconClients() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -549,6 +559,18 @@ function ShellInner({ children }: PropsWithChildren) {
                   <AndroidNavIconBilling />
                 </span>
                 <span className="mobile-nav-overlay-link-label">{t('navBilling')}</span>
+              </NavLink>
+            )}
+            {isAdmin && (
+              <NavLink
+                to="/consumables"
+                className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
+                onClick={() => closeMobileNavIfAlreadyOn('/consumables')}
+              >
+                <span className="mobile-nav-overlay-link-icon">
+                  <SidebarIconConsumables />
+                </span>
+                <span className="mobile-nav-overlay-link-label">{t('navConsumables')}</span>
               </NavLink>
             )}
             <NavLink
@@ -1090,6 +1112,19 @@ function ShellInner({ children }: PropsWithChildren) {
                   <AndroidNavIconBilling />
                 </span>
                 <span className="sidebar-rail-link-label">{t('navBilling')}</span>
+              </NavLink>
+            )}
+            {isAdmin && (
+              <NavLink
+                className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
+                to="/consumables"
+                title={t('navConsumables')}
+                aria-label={t('navConsumables')}
+              >
+                <span className="sidebar-rail-link-icon" aria-hidden>
+                  <SidebarIconConsumables />
+                </span>
+                <span className="sidebar-rail-link-label">{t('navConsumables')}</span>
               </NavLink>
             )}
             {inboxAllowed && (

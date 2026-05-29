@@ -1,6 +1,7 @@
 package com.example.app.session;
 
 import com.example.app.client.Client;
+import com.example.app.consumables.ConsumableService;
 import com.example.app.client.ClientRepository;
 import com.example.app.billing.OpenBillSyncService;
 import com.example.app.company.ClientCompany;
@@ -55,6 +56,7 @@ public class SessionBookingCreationService {
     private final BookingChangePublisher bookingChangePublisher;
     private final OpenBillSyncService openBillSyncService;
     private final GuestEntitlementService guestEntitlementService;
+    private final ConsumableService consumableService;
     private final ZoneId bookingZone;
 
     @Autowired
@@ -75,6 +77,7 @@ public class SessionBookingCreationService {
             BookingChangePublisher bookingChangePublisher,
             OpenBillSyncService openBillSyncService,
             GuestEntitlementService guestEntitlementService,
+            ConsumableService consumableService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String bookingTimezoneId) {
         this.repo = repo;
         this.personalBlocks = personalBlocks;
@@ -92,6 +95,7 @@ public class SessionBookingCreationService {
         this.bookingChangePublisher = bookingChangePublisher;
         this.openBillSyncService = openBillSyncService;
         this.guestEntitlementService = guestEntitlementService;
+        this.consumableService = consumableService;
         String zoneId = bookingTimezoneId == null || bookingTimezoneId.isBlank()
                 ? "Europe/Ljubljana"
                 : bookingTimezoneId.trim();
@@ -116,7 +120,7 @@ public class SessionBookingCreationService {
             BookingChangePublisher bookingChangePublisher,
             OpenBillSyncService openBillSyncService) {
         this(repo, personalBlocks, clients, users, spaces, types, companies, settings, groupRepository, clientCompanies,
-                reminderService, zoomService, googleMeetService, bookingChangePublisher, openBillSyncService, null,
+                reminderService, zoomService, googleMeetService, bookingChangePublisher, openBillSyncService, null, null,
                 "Europe/Ljubljana");
     }
 
@@ -200,6 +204,10 @@ public class SessionBookingCreationService {
                 saved.add(booking);
                 reminderService.sendBookingConfirmation(booking);
             }
+        }
+        if (consumableService != null) {
+            consumableService.ensureSessionDefaultsForBookings(saved, companyId);
+            consumableService.applySessionUsageIfCheckedOut(me, saved, java.util.Map.of());
         }
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved);
         bookingChangePublisher.publish(
@@ -368,6 +376,10 @@ public class SessionBookingCreationService {
         if (!cancelledUnbilledSessionIds.isEmpty()) {
             openBillSyncService.removeSessionRowsFromOpenBills(companyId, cancelledUnbilledSessionIds);
         }
+        if (consumableService != null) {
+            consumableService.ensureSessionDefaultsForBookings(saved, companyId);
+            consumableService.applySessionUsageIfCheckedOut(me, saved, previouslyStoredStatusById);
+        }
         openBillSyncService.syncSessionGroup(companyId, groupKey);
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved);
         bookingChangePublisher.publish(
@@ -499,6 +511,10 @@ public class SessionBookingCreationService {
         if (request.sendConfirmation()) {
             reminderService.sendBookingConfirmation(booking);
         }
+        if (consumableService != null) {
+            consumableService.ensureSessionDefaultsForBookings(java.util.List.of(booking), companyId);
+            consumableService.applySessionUsageIfCheckedOut(actor, java.util.List.of(booking), java.util.Map.of());
+        }
         bookingChangePublisher.publish(
                 companyId,
                 booking.getId(),
@@ -595,6 +611,11 @@ public class SessionBookingCreationService {
         joined = repo.save(joined);
         if (request.sendConfirmation()) {
             reminderService.sendBookingConfirmation(joined);
+        }
+        if (consumableService != null) {
+            var refreshedForConsumables = new java.util.ArrayList<>(loadGroupedRows(representative, companyId));
+            refreshedForConsumables.add(joined);
+            consumableService.ensureSessionDefaultsForBookings(refreshedForConsumables, companyId);
         }
         bookingChangePublisher.publish(
                 companyId,

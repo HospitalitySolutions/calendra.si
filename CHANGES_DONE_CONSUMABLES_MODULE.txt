@@ -1,0 +1,53 @@
+Consumables module implementation
+=================================
+
+Backend
+-------
+- Added a new consumables domain under backend/src/main/java/com/example/app/consumables.
+- Added tenant-isolated entities and repositories for:
+  - consumable categories
+  - consumable items/articles
+  - service-type default consumables
+  - session-level actual consumables
+  - stock movement ledger
+  - suppliers
+  - purchase orders
+- Added /api/consumables endpoints for:
+  - overview dashboard data
+  - item CRUD
+  - stock adjustments with immutable movement history
+  - category CRUD
+  - movement history
+  - service type default consumables
+  - session consumable overrides and reset-to-defaults
+  - supplier CRUD
+  - purchase order CRUD
+- Added stock ledger logic so current stock is changed through movement rows, not direct subtraction only.
+- Added support for PER_SESSION and PER_PARTICIPANT quantity modes.
+- Added automatic copying of service-type consumable defaults to newly created sessions.
+- Added automatic recalculation of non-manual session consumables when group participant count changes.
+- Added automatic stock deduction when a session transitions to CHECKED_OUT.
+- Added reversal logic for checked-out session stock usage when the booking is deleted or reverted from checked-out by update.
+
+Frontend
+--------
+- Added new /consumables user web app page.
+- Added sidebar navigation item for Porabni material.
+- Added modern but app-consistent design matching the current Calendra layout: narrow dark-blue icon sidebar, compact header, large rounded white page panel, compact cards/tables.
+- Added tabs:
+  - Pregled
+  - Artikli
+  - Nabava
+  - Dobavitelji
+  - Premiki zaloge
+  - Inventura
+- Added overview dashboard with KPI cards, low-stock table, recent movements, usage/category cards, reorder suggestions and stock table.
+- Added items table with filters, category chips, low-stock sidebar, category distribution, quick stats and add-item modal.
+- Added stock adjustment action from item rows.
+- Added procurement, suppliers, stock movement and inventory-count views wired to backend endpoints.
+- Added consumables.css and imported it into styles.css.
+
+Notes
+-----
+- Hibernate ddl-auto=update is already enabled in the project, so new tables are created automatically in local/dev environments.
+- I could not run Maven wrapper in this environment because it attempted to download Maven and outbound internet is unavailable here. Frontend node_modules were also not present, so a full local build could not be executed in the sandbox.

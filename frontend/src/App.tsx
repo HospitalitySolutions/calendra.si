@@ -70,6 +70,7 @@ const PlatformAdminPage = lazyWithReload(() => import('./pages/PlatformAdminPage
 const HelpPage = lazyWithReload(() => import('./pages/HelpPage').then((mod) => ({ default: mod.HelpPage })), CHUNK_RELOAD_KEY)
 const SessionTypesPage = lazyWithReload(() => import('./pages/SessionTypesPage').then((mod) => ({ default: mod.SessionTypesPage })), CHUNK_RELOAD_KEY)
 const WalletScannerPage = lazyWithReload(() => import('./pages/WalletScannerPage').then((mod) => ({ default: mod.WalletScannerPage })), CHUNK_RELOAD_KEY)
+const ConsumablesPage = lazyWithReload(() => import('./pages/ConsumablesPage').then((mod) => ({ default: mod.ConsumablesPage })), CHUNK_RELOAD_KEY)
 
 export default function App() {
   const [user, setUser] = useState(() => getStoredUser())
@@ -290,6 +291,7 @@ export default function App() {
           <Route path="/billing" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/consumables" element={isAdmin ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={<ConfigurationPage />} />
