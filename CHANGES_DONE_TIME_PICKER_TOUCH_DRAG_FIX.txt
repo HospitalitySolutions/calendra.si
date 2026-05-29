@@ -1,0 +1,14 @@
+Time picker touch drag fix
+
+Updated files:
+- frontend/src/components/ModernTimePicker.tsx
+- frontend/src/styles/base.css
+
+Changes done:
+1. Added touch/pointer drag support to the shared ModernTimePicker component used by user-web time pickers.
+2. Dragging up/down on the Hour column now changes the selected hour on mobile touch devices.
+3. Dragging up/down on the Minute column now changes the selected minute on mobile touch devices.
+4. Added touch-event propagation guards so parent modals/bottom sheets do not steal the time picker drag gesture.
+5. Added click suppression after drag so releasing the finger does not accidentally select the wrong visible value.
+6. Added touch-action/overscroll CSS to the picker wheel, columns, and options to make mobile dragging reliable.
+7. Because this is fixed in the shared ModernTimePicker component, the fix applies to new/edit booked sessions, personal sessions, availability sessions, and every other user-web screen using the same picker.

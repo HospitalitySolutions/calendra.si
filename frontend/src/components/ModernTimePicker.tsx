@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchEvent } from 'react'
 import { createPortal } from 'react-dom'
 
 type ModernTimePickerLabels = {
@@ -34,6 +34,14 @@ const DEFAULT_LABELS: ModernTimePickerLabels = {
 
 const HOURS = Array.from({ length: 24 }, (_, index) => index)
 const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5)
+const TOUCH_DRAG_STEP_PX = 24
+
+type TimePickerColumn = 'hour' | 'minute'
+type TouchDragState = {
+  column: TimePickerColumn
+  lastY: number
+  moved: boolean
+}
 
 function pad(value: number) {
   return String(value).padStart(2, '0')
@@ -90,10 +98,27 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   const mergedLabels = { ...DEFAULT_LABELS, ...(labels || {}) }
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  const dragStateRef = useRef<TouchDragState | null>(null)
+  const suppressClickRef = useRef(false)
+  const suppressClickTimerRef = useRef<number | null>(null)
+  const currentTimeRef = useRef(parseTimeValue(value))
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0, width: 264, pointerX: 24 })
 
   const parsed = useMemo(() => parseTimeValue(value), [value])
+
+  useEffect(() => {
+    currentTimeRef.current = parsed
+  }, [parsed])
+
+  useEffect(() => {
+    return () => {
+      if (suppressClickTimerRef.current != null && typeof window !== 'undefined') {
+        window.clearTimeout(suppressClickTimerRef.current)
+      }
+    }
+  }, [])
+
   const selectedMinute = useMemo(() => getNearestMinuteStep(parsed.minute), [parsed.minute])
   const hourOptions = useMemo(() => getLoopedOptions(HOURS, parsed.hour, 2), [parsed.hour])
   const minuteOptions = useMemo(() => getLoopedOptions(MINUTES, selectedMinute, 2), [selectedMinute])
@@ -163,6 +188,7 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   }, [open, updatePosition])
 
   const commit = useCallback((nextValue: string) => {
+    currentTimeRef.current = parseTimeValue(nextValue)
     onChange(nextValue)
     if (typeof window !== 'undefined') {
       window.requestAnimationFrame(() => {
@@ -177,22 +203,97 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
   }, [commit, parsed])
 
   const selectHour = useCallback((hour: number) => {
-    commit(formatTime(hour, selectedMinute))
-  }, [commit, selectedMinute])
+    const current = currentTimeRef.current
+    commit(formatTime(hour, getNearestMinuteStep(current.minute)))
+  }, [commit])
 
   const selectMinute = useCallback((minute: number) => {
-    commit(formatTime(parsed.hour, minute))
-  }, [commit, parsed.hour])
+    const current = currentTimeRef.current
+    commit(formatTime(current.hour, minute))
+  }, [commit])
 
   const shiftHour = useCallback((direction: number) => {
-    selectHour(parsed.hour + direction)
-  }, [parsed.hour, selectHour])
+    const current = currentTimeRef.current
+    selectHour(current.hour + direction)
+  }, [selectHour])
 
   const shiftMinute = useCallback((direction: number) => {
-    const currentIndex = Math.max(0, MINUTES.indexOf(selectedMinute))
+    const currentMinute = getNearestMinuteStep(currentTimeRef.current.minute)
+    const currentIndex = Math.max(0, MINUTES.indexOf(currentMinute))
     const nextIndex = (currentIndex + direction + MINUTES.length) % MINUTES.length
     selectMinute(MINUTES[nextIndex])
-  }, [selectMinute, selectedMinute])
+  }, [selectMinute])
+
+  const resetClickSuppressionSoon = useCallback(() => {
+    if (typeof window === 'undefined') {
+      suppressClickRef.current = false
+      return
+    }
+    if (suppressClickTimerRef.current != null) {
+      window.clearTimeout(suppressClickTimerRef.current)
+    }
+    suppressClickTimerRef.current = window.setTimeout(() => {
+      suppressClickRef.current = false
+      suppressClickTimerRef.current = null
+    }, 80)
+  }, [])
+
+  const finishTouchDrag = useCallback(() => {
+    const drag = dragStateRef.current
+    dragStateRef.current = null
+    if (drag?.moved) {
+      suppressClickRef.current = true
+      resetClickSuppressionSoon()
+    }
+  }, [resetClickSuppressionSoon])
+
+  const handleTouchBoundary = useCallback((event: ReactTouchEvent<HTMLElement>) => {
+    event.stopPropagation()
+  }, [])
+
+  const handleWheelPointerDown = useCallback((column: TimePickerColumn) => (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.stopPropagation()
+    dragStateRef.current = {
+      column,
+      lastY: event.clientY,
+      moved: false,
+    }
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // Some browsers can throw if pointer capture is unavailable for this event.
+    }
+  }, [])
+
+  const handleWheelPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragStateRef.current
+    if (!drag) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const deltaY = event.clientY - drag.lastY
+    if (Math.abs(deltaY) < TOUCH_DRAG_STEP_PX) return
+
+    const steps = Math.trunc(Math.abs(deltaY) / TOUCH_DRAG_STEP_PX)
+    const direction = deltaY < 0 ? 1 : -1
+    for (let index = 0; index < steps; index += 1) {
+      if (drag.column === 'hour') {
+        shiftHour(direction)
+      } else {
+        shiftMinute(direction)
+      }
+    }
+    drag.lastY += (deltaY < 0 ? -1 : 1) * steps * TOUCH_DRAG_STEP_PX
+    drag.moved = true
+  }, [shiftHour, shiftMinute])
+
+  const handleWheelClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!suppressClickRef.current) return
+    event.preventDefault()
+    event.stopPropagation()
+  }, [])
 
   const triggerClasses = ['modern-time-picker__trigger', className || '', open ? 'is-open' : '']
     .filter(Boolean)
@@ -211,6 +312,9 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
           } as CSSProperties}
           role="dialog"
           aria-label={ariaLabel || 'Time picker'}
+          onTouchStart={handleTouchBoundary}
+          onTouchMove={handleTouchBoundary}
+          onTouchEnd={handleTouchBoundary}
         >
           <div className="modern-time-picker-popover__quick">
             <div className="modern-time-picker-popover__quick-title">{mergedLabels.quickTitle}</div>
@@ -226,8 +330,14 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
               className="modern-time-picker-popover__column"
               onWheel={(event) => {
                 event.preventDefault()
+                event.stopPropagation()
                 shiftHour(event.deltaY > 0 ? 1 : -1)
               }}
+              onPointerDown={handleWheelPointerDown('hour')}
+              onPointerMove={handleWheelPointerMove}
+              onPointerUp={finishTouchDrag}
+              onPointerCancel={finishTouchDrag}
+              onClickCapture={handleWheelClickCapture}
             >
               <div className="modern-time-picker-popover__column-title">{mergedLabels.hour}</div>
               <div className="modern-time-picker-popover__options">
@@ -250,8 +360,14 @@ export function ModernTimePicker({ value, onChange, ariaLabel, className, disabl
               className="modern-time-picker-popover__column"
               onWheel={(event) => {
                 event.preventDefault()
+                event.stopPropagation()
                 shiftMinute(event.deltaY > 0 ? 1 : -1)
               }}
+              onPointerDown={handleWheelPointerDown('minute')}
+              onPointerMove={handleWheelPointerMove}
+              onPointerUp={finishTouchDrag}
+              onPointerCancel={finishTouchDrag}
+              onClickCapture={handleWheelClickCapture}
             >
               <div className="modern-time-picker-popover__column-title">{mergedLabels.minute}</div>
               <div className="modern-time-picker-popover__options">
