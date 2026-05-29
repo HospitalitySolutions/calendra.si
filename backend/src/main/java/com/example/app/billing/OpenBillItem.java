@@ -25,6 +25,10 @@ public class OpenBillItem extends BaseEntity {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal netPrice;
 
+    /** Optional product/name snapshot copied to the final invoice line description. */
+    @Column(name = "invoice_line_description", length = 512)
+    private String invoiceLineDescription;
+
     @Column(name = "source_session_booking_id")
     private Long sourceSessionBookingId;
 

@@ -1,0 +1,12 @@
+CHANGES_DONE_INVOICE_PRODUCT_NAME_AND_GUEST_LOCALE.txt
+PATCH_FILES_LIST_INVOICE_PRODUCT_NAME_AND_GUEST_LOCALE.txt
+backend/src/main/java/com/example/app/billing/Bill.java
+backend/src/main/java/com/example/app/billing/BillItem.java
+backend/src/main/java/com/example/app/billing/OpenBillItem.java
+backend/src/main/java/com/example/app/billing/BillFolioPdfService.java
+backend/src/main/java/com/example/app/billing/BillingController.java
+backend/src/main/java/com/example/app/client/ClientWalletPurchaseController.java
+backend/src/main/java/com/example/app/guest/common/GuestBookingActionsController.java
+backend/src/main/java/com/example/app/guest/order/GuestBankTransferBillingService.java
+backend/src/main/java/com/example/app/guest/order/GuestProductBillingService.java
+backend/src/main/java/com/example/app/stripe/StripeInvoiceClient.java

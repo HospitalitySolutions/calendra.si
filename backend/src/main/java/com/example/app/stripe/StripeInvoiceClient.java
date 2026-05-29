@@ -287,7 +287,10 @@ public class StripeInvoiceClient {
     }
 
     private String buildLineDescription(BillItem item) {
-        String description = item.getTransactionService() == null ? "Therapy service" : safe(item.getTransactionService().getDescription());
+        String override = item.getInvoiceLineDescription() == null ? "" : item.getInvoiceLineDescription().trim();
+        String description = !override.isBlank()
+                ? override
+                : (item.getTransactionService() == null ? "Therapy service" : safe(item.getTransactionService().getDescription()));
         Integer quantity = item.getQuantity();
         if (quantity != null && quantity > 1) {
             return description + " × " + quantity;

@@ -11,6 +11,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -45,8 +46,9 @@ public class BillFolioPdfService {
     }
 
     public byte[] generate(Bill bill, Long companyId, String locale) {
-        var req = buildFolioPdfRequest(bill, companyId);
-        req.setLocale(locale);
+        String effectiveLocale = resolveInvoiceLocale(bill, locale);
+        var req = buildFolioPdfRequest(bill, companyId, effectiveLocale);
+        req.setLocale(effectiveLocale);
         var layout = loadFolioLayout(companyId);
         return folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
     }
@@ -64,7 +66,7 @@ public class BillFolioPdfService {
         }
     }
 
-    private FolioPdfRequest buildFolioPdfRequest(Bill bill, Long companyId) {
+    private FolioPdfRequest buildFolioPdfRequest(Bill bill, Long companyId, String locale) {
         var req = new FolioPdfRequest();
         req.setFolioNumber(bill.getBillNumber());
         req.setFolioDate(formatIssueDateTime(bill));
@@ -111,7 +113,7 @@ public class BillFolioPdfService {
         }
 
         req.setIssuedBy(bill.getConsultant().getFirstName() + " " + bill.getConsultant().getLastName());
-        List<FolioPdfRequest.PaymentLine> paymentLines = buildPaymentLines(bill);
+        List<FolioPdfRequest.PaymentLine> paymentLines = buildPaymentLines(bill, locale);
         req.setPaymentMethods(paymentLines);
         if (!paymentLines.isEmpty()) {
             req.setPaymentMethod(buildPaymentSummary(paymentLines));
@@ -136,7 +138,7 @@ public class BillFolioPdfService {
             String purposeCode = firstNonBlank(settingValue(companyId, SettingKey.BANK_QR_PURPOSE_CODE), "OTHR");
             String purpose = buildUpnPurpose(companyId, bill);
             req.setIban(companyIban);
-            req.setNotes(buildPaymentNotes(req.getNotes(), reference, companyBic));
+            req.setNotes(buildPaymentNotes(req.getNotes(), reference, companyBic, locale));
             req.setPaymentQrPayload(upnQrPayloadBuilder.build(new UpnQrPayloadBuilder.UpnQrRequest(
                     payerName,
                     payerStreet,
@@ -159,13 +161,13 @@ public class BillFolioPdfService {
         var serviceLines = new ArrayList<FolioPdfRequest.ServiceLine>();
         for (var item : bill.getItems()) {
             var ts = item.getTransactionService();
-            String desc = invoiceLineDescription(ts);
+            String desc = invoiceLineDescription(item);
             BigDecimal totalGrossLine = item.getGrossPrice() != null ? item.getGrossPrice() : BigDecimal.ZERO;
             int qty = item.getQuantity();
             BigDecimal perUnitGross = qty > 0
                     ? totalGrossLine.divide(BigDecimal.valueOf(qty), 2, RoundingMode.HALF_UP)
                     : totalGrossLine;
-            String taxPct = ts.getTaxRate() != null ? ts.getTaxRate().label : "0%";
+            String taxPct = ts != null && ts.getTaxRate() != null ? ts.getTaxRate().label : "0%";
             BigDecimal netTotal = (item.getNetPrice() != null ? item.getNetPrice() : BigDecimal.ZERO)
                     .multiply(BigDecimal.valueOf(qty));
             BigDecimal taxAmt = totalGrossLine.subtract(netTotal).setScale(2, RoundingMode.HALF_UP);
@@ -181,6 +183,15 @@ public class BillFolioPdfService {
         return req;
     }
 
+
+    private String invoiceLineDescription(BillItem item) {
+        if (item == null) return "";
+        String override = item.getInvoiceLineDescription() == null ? "" : item.getInvoiceLineDescription().trim();
+        if (!override.isBlank()) {
+            return override;
+        }
+        return invoiceLineDescription(item.getTransactionService());
+    }
 
     private String invoiceLineDescription(TransactionService transactionService) {
         if (transactionService == null) return "";
@@ -218,7 +229,7 @@ public class BillFolioPdfService {
         return "";
     }
 
-    private List<FolioPdfRequest.PaymentLine> buildPaymentLines(Bill bill) {
+    private List<FolioPdfRequest.PaymentLine> buildPaymentLines(Bill bill, String locale) {
         var rows = new ArrayList<FolioPdfRequest.PaymentLine>();
         if (bill == null) return rows;
 
@@ -227,12 +238,12 @@ public class BillFolioPdfService {
             if (split == null || split.getPaymentMethod() == null) continue;
             BigDecimal amount = split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross();
             if (amount.compareTo(BigDecimal.ZERO) == 0) continue;
-            rows.add(new FolioPdfRequest.PaymentLine(split.getPaymentMethod().getName(), amount.setScale(2, RoundingMode.HALF_UP)));
+            rows.add(new FolioPdfRequest.PaymentLine(localizedPaymentMethodName(split.getPaymentMethod(), locale), amount.setScale(2, RoundingMode.HALF_UP)));
         }
 
         if (rows.isEmpty() && bill.getPaymentMethod() != null) {
             BigDecimal amount = bill.getTotalGross() == null ? BigDecimal.ZERO : bill.getTotalGross();
-            rows.add(new FolioPdfRequest.PaymentLine(bill.getPaymentMethod().getName(), amount.setScale(2, RoundingMode.HALF_UP)));
+            rows.add(new FolioPdfRequest.PaymentLine(localizedPaymentMethodName(bill.getPaymentMethod(), locale), amount.setScale(2, RoundingMode.HALF_UP)));
         }
         return rows;
     }
@@ -271,12 +282,48 @@ public class BillFolioPdfService {
         return value.length() <= 42 ? value : value.substring(0, 42);
     }
 
-    private String buildPaymentNotes(String existing, String reference, String bic) {
+    private String buildPaymentNotes(String existing, String reference, String bic, String locale) {
+        boolean sl = isSlovenian(locale);
         List<String> parts = new ArrayList<>();
         if (existing != null && !existing.isBlank()) parts.add(existing.trim());
-        if (reference != null && !reference.isBlank()) parts.add("Reference: " + reference);
+        if (reference != null && !reference.isBlank()) parts.add((sl ? "Sklic: " : "Reference: ") + reference);
         if (bic != null && !bic.isBlank()) parts.add("BIC/SWIFT: " + bic);
         return String.join(" | ", parts);
+    }
+
+    private String resolveInvoiceLocale(Bill bill, String requestedLocale) {
+        String value = firstNonBlank(requestedLocale, bill == null ? null : bill.getInvoiceLocale());
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("sl") ? "sl" : "en";
+    }
+
+    private boolean isSlovenian(String locale) {
+        return locale != null && locale.trim().toLowerCase(Locale.ROOT).startsWith("sl");
+    }
+
+    private String localizedPaymentMethodName(PaymentMethod method, String locale) {
+        if (method == null) {
+            return isSlovenian(locale) ? "Plačilo" : "Payment";
+        }
+        if (!isSlovenian(locale)) {
+            return method.getName() == null || method.getName().isBlank() ? "Payment" : method.getName().trim();
+        }
+        PaymentType type = method.getPaymentType();
+        if (type != null) {
+            return switch (type) {
+                case BANK_TRANSFER -> "Bančno nakazilo";
+                case CARD -> "Kartica";
+                case CASH -> "Gotovina";
+                case ADVANCE -> "Predplačilo";
+                case OTHER -> {
+                    String name = method.getName() == null ? "" : method.getName().trim();
+                    yield name.equalsIgnoreCase("paypal") ? "PayPal" : (name.isBlank() ? "Drugo" : name);
+                }
+            };
+        }
+        String name = method.getName() == null ? "" : method.getName().trim();
+        return name.isBlank() ? "Plačilo" : name;
     }
 
     private String joinPostalAndCity(String postalCode, String city) {

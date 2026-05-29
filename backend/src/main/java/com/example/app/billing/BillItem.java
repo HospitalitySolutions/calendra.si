@@ -24,6 +24,10 @@ public class BillItem extends BaseEntity {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal grossPrice;
 
+    /** Optional product/name snapshot shown on invoice PDFs instead of the transaction service description. */
+    @Column(name = "invoice_line_description", length = 512)
+    private String invoiceLineDescription;
+
     /** When set, this folio line is allocated to a booked session row (participant). */
     @Column(name = "source_session_booking_id")
     private Long sourceSessionBookingId;

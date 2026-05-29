@@ -5,6 +5,7 @@ import com.example.app.client.Client;
 import com.example.app.guest.common.GuestInvoiceSettingsSupport;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestProduct;
+import com.example.app.guest.model.ProductType;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -78,6 +79,8 @@ public class GuestProductBillingService {
             Bill existing = bills.findById(order.getBillId()).orElse(null);
             if (existing != null) {
                 applyOrderReferenceIfMissing(existing, order);
+                applyInvoiceLocaleIfMissing(existing, order);
+                applyWalletProductLineDescriptionsIfMissing(existing, product);
                 return bills.save(existing);
             }
         }
@@ -97,6 +100,7 @@ public class GuestProductBillingService {
         bill.setPaymentMethod(paymentMethod);
         bill.setIssueDate(LocalDate.now());
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
+        bill.setInvoiceLocale(resolveInvoiceLocale(order));
 
         int quantity = product.getUsageLimit() != null && product.getUsageLimit() > 0 ? product.getUsageLimit() : 1;
         BigDecimal totalGross = order.getTotalGross() != null ? order.getTotalGross() : product.getPriceGross();
@@ -116,6 +120,7 @@ public class GuestProductBillingService {
         item.setQuantity(quantity);
         item.setNetPrice(unitNet);
         item.setGrossPrice(totalGross);
+        item.setInvoiceLineDescription(walletProductInvoiceLineDescription(product));
         bill.getItems().add(item);
         bill.setTotalNet(totalNet);
         bill.setTotalGross(totalGross);
@@ -131,7 +136,7 @@ public class GuestProductBillingService {
 
         if ("BANK_TRANSFER".equalsIgnoreCase(paymentMethodType)) {
             try {
-                byte[] pdf = billFolioPdfService.generate(saved, companyId);
+                byte[] pdf = billFolioPdfService.generate(saved, companyId, resolveInvoiceLocale(order));
                 invoicePdfS3Service.uploadAndPersistKey(saved, pdf);
                 billingEmailService.sendBankTransferFolio(saved, pdf);
             } catch (Exception ex) {
@@ -174,6 +179,39 @@ public class GuestProductBillingService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private void applyInvoiceLocaleIfMissing(Bill bill, GuestOrder order) {
+        if (bill == null || hasText(bill.getInvoiceLocale())) return;
+        bill.setInvoiceLocale(resolveInvoiceLocale(order));
+    }
+
+    private void applyWalletProductLineDescriptionsIfMissing(Bill bill, GuestProduct product) {
+        if (bill == null || product == null || bill.getItems() == null) return;
+        String productName = walletProductInvoiceLineDescription(product);
+        for (BillItem item : bill.getItems()) {
+            if (item == null || hasText(item.getInvoiceLineDescription())) continue;
+            item.setInvoiceLineDescription(productName);
+        }
+    }
+
+    private static String resolveInvoiceLocale(GuestOrder order) {
+        String language = order == null || order.getGuestUser() == null ? null : order.getGuestUser().getLanguage();
+        if (language == null || language.isBlank()) return null;
+        return language.trim().toLowerCase(Locale.ROOT).startsWith("sl") ? "sl" : "en";
+    }
+
+    private static String walletProductInvoiceLineDescription(GuestProduct product) {
+        if (product == null) return "Wallet product";
+        String name = product.getName() == null ? "" : product.getName().trim();
+        if (!name.isBlank()) return name;
+        return switch (product.getProductType() == null ? ProductType.PACK : product.getProductType()) {
+            case MEMBERSHIP -> "Membership";
+            case GIFT_CARD -> "Gift card";
+            case CLASS_TICKET -> "Ticket";
+            case PACK -> "Pack";
+            case SESSION_SINGLE -> "Session";
+        };
     }
 
     /** Flips a previously-issued wallet bill to {@code PAID} at the given time. Idempotent. */

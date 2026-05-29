@@ -125,6 +125,10 @@ public class Bill extends BaseEntity {
     @Column(length = 1024)
     private String invoicePdfObjectKey;
 
+    /** Locale captured when the invoice is created, used for archived/generated PDF labels. */
+    @Column(name = "invoice_locale", length = 8)
+    private String invoiceLocale;
+
     @OneToMany(mappedBy = "bill", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<BillItem> items = new ArrayList<>();
 }

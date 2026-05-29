@@ -1,0 +1,33 @@
+Invoice product names + guest invoice language update
+
+Changed files:
+- backend/src/main/java/com/example/app/billing/Bill.java
+- backend/src/main/java/com/example/app/billing/BillItem.java
+- backend/src/main/java/com/example/app/billing/OpenBillItem.java
+- backend/src/main/java/com/example/app/billing/BillFolioPdfService.java
+- backend/src/main/java/com/example/app/billing/BillingController.java
+- backend/src/main/java/com/example/app/client/ClientWalletPurchaseController.java
+- backend/src/main/java/com/example/app/guest/common/GuestBookingActionsController.java
+- backend/src/main/java/com/example/app/guest/order/GuestBankTransferBillingService.java
+- backend/src/main/java/com/example/app/guest/order/GuestProductBillingService.java
+- backend/src/main/java/com/example/app/stripe/StripeInvoiceClient.java
+
+What changed:
+1. Cards & memberships invoice line names
+   - Added an invoice-line description snapshot on BillItem and OpenBillItem.
+   - Guest wallet purchases now store the purchased product name on the invoice line.
+   - Staff-created client wallet purchases also carry the purchased product name from open bill to final bill.
+   - Folio PDF generation now uses the invoice-line description snapshot first, then falls back to the transaction service description/code.
+   - Stripe invoice item descriptions now also use the invoice-line description snapshot when present.
+
+2. Guest invoice language
+   - Added an invoice locale snapshot on Bill.
+   - Guest wallet product invoices and guest booking advance invoices now capture the guest user's selected language.
+   - Folio PDF generation now uses the explicit locale, then the saved bill invoice locale, and only then falls back to the default English layout.
+   - Guest receipt PDF fallback generation passes the guest user's language.
+   - Slovenian invoices now use Slovenian folio labels already supported by the layout system, plus localized payment labels such as "Bančno nakazilo", "Kartica", "Gotovina", and "Predplačilo".
+   - Bank-transfer payment notes now use "Sklic" instead of "Reference" for Slovenian invoices.
+
+Notes:
+- The project uses Hibernate ddl-auto=update, so the new bill/open-bill item snapshot columns and bill invoice locale column will be created automatically on startup.
+- Full Maven compile could not be executed in this sandbox because the Maven wrapper could not download Maven from repo.maven.apache.org.

@@ -143,7 +143,7 @@ public class GuestBookingActionsController {
         Bill bill = requireOrderBill(order);
         byte[] pdf = invoicePdfS3Service.downloadIfPresent(bill);
         if (pdf == null) {
-            pdf = billFolioPdfService.generate(bill, bill.getCompany().getId());
+            pdf = billFolioPdfService.generate(bill, bill.getCompany().getId(), guestUser.getLanguage());
         }
         String fileName = receiptFileName(order, bill);
         return ResponseEntity.ok()

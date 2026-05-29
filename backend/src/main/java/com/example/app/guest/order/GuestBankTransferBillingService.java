@@ -81,7 +81,7 @@ public class GuestBankTransferBillingService {
         Bill existing = bills.findFirstByCompanyIdAndSourceSessionIdSnapshotAndBillTypeOrderByIdDesc(companyId, booking.getId(), BillType.ADVANCE)
                 .orElse(null);
         if (existing != null) {
-            return finalizeExistingAdvance(existing, targetPaymentStatus, paidAt, order.getId());
+            return finalizeExistingAdvance(existing, targetPaymentStatus, paidAt, order);
         }
 
         PaymentMethod paymentMethod = resolvePaymentMethod(companyId, paymentMethodType);
@@ -96,6 +96,7 @@ public class GuestBankTransferBillingService {
         bill.setPaymentMethod(paymentMethod);
         bill.setIssueDate(LocalDate.now());
         bill.setSourceSessionIdSnapshot(booking.getId());
+        bill.setInvoiceLocale(resolveInvoiceLocale(order));
         bill.setPaymentStatus(targetPaymentStatus);
         if (BillPaymentStatus.PAID.equals(targetPaymentStatus)) {
             bill.setPaidAt(paidAt == null ? OffsetDateTime.now() : paidAt);
@@ -142,8 +143,12 @@ public class GuestBankTransferBillingService {
         return saved;
     }
 
-    private Bill finalizeExistingAdvance(Bill existing, String targetPaymentStatus, OffsetDateTime paidAt, Long orderId) {
+    private Bill finalizeExistingAdvance(Bill existing, String targetPaymentStatus, OffsetDateTime paidAt, GuestOrder order) {
         invoiceOrderIdService.assignIfMissing(existing);
+        if (existing.getInvoiceLocale() == null || existing.getInvoiceLocale().isBlank()) {
+            existing.setInvoiceLocale(resolveInvoiceLocale(order));
+        }
+        Long orderId = order == null ? null : order.getId();
         if (!BillPaymentStatus.PAID.equals(targetPaymentStatus) || BillPaymentStatus.PAID.equals(existing.getPaymentStatus())) {
             return bills.save(existing);
         }
@@ -219,6 +224,12 @@ public class GuestBankTransferBillingService {
     private boolean isPaypalNamedMethod(PaymentMethod method) {
         if (method == null || method.getName() == null) return false;
         return "paypal".equalsIgnoreCase(method.getName().trim());
+    }
+
+    private static String resolveInvoiceLocale(GuestOrder order) {
+        String language = order == null || order.getGuestUser() == null ? null : order.getGuestUser().getLanguage();
+        if (language == null || language.isBlank()) return null;
+        return language.trim().toLowerCase(Locale.ROOT).startsWith("sl") ? "sl" : "en";
     }
 
     private User resolveBillConsultant(Long companyId, SessionBooking booking) {

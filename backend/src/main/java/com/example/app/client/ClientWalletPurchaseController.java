@@ -258,7 +258,21 @@ public class ClientWalletPurchaseController {
         item.setTransactionService(service);
         item.setQuantity(quantity);
         item.setNetPrice(unitNet);
+        item.setInvoiceLineDescription(walletProductInvoiceLineDescription(product));
         open.getItems().add(item);
+    }
+
+    private String walletProductInvoiceLineDescription(GuestProduct product) {
+        if (product == null) return "Wallet product";
+        String name = product.getName() == null ? "" : product.getName().trim();
+        if (!name.isBlank()) return name;
+        return switch (product.getProductType() == null ? ProductType.PACK : product.getProductType()) {
+            case MEMBERSHIP -> "Membership";
+            case GIFT_CARD -> "Gift card";
+            case CLASS_TICKET -> "Ticket";
+            case PACK -> "Pack";
+            case SESSION_SINGLE -> "Session";
+        };
     }
 
     private void addFullAmountPayment(OpenBill open, PaymentMethod paymentMethod, BigDecimal amountGross) {

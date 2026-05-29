@@ -1630,6 +1630,7 @@ public class BillingController {
         bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId));
         bill.setBankTransferReference(open.getReference());
         bill.setIssueDate(LocalDate.now());
+        bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
         if (open.getItems() == null || open.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no items.");
         }
@@ -1650,6 +1651,7 @@ public class BillingController {
             item.setNetPrice(obi.getNetPrice());
             item.setSourceSessionBookingId(resolveInvoiceLineSourceSessionId(obi.getSourceSessionBookingId(), linkedSessionId));
             item.setSourceAdvanceBillId(null);
+            item.setInvoiceLineDescription(obi.getInvoiceLineDescription());
             var grossSingle = obi.getNetPrice().add(obi.getNetPrice().multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
             item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(obi.getQuantity())));
             totalNet = totalNet.add(obi.getNetPrice().multiply(BigDecimal.valueOf(obi.getQuantity())));
@@ -1727,6 +1729,7 @@ public class BillingController {
         bill.setPaymentMethod(paymentMethod);
         bill.setBankTransferReference(req != null && req.reference() != null ? req.reference().trim() : open.getReference());
         bill.setIssueDate(LocalDate.now());
+        bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
 
         Long linkedSessionId = resolvePreviewSessionId(open, req, companyId);
         BigDecimal totalNet = BigDecimal.ZERO;
@@ -1754,6 +1757,9 @@ public class BillingController {
                                 fallback == null ? linkedSessionId : fallback.getSourceSessionBookingId()),
                         null
                 );
+                if (fallback != null) {
+                    item.setInvoiceLineDescription(fallback.getInvoiceLineDescription());
+                }
                 totalNet = totalNet.add(item.getNetPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
                 totalGross = totalGross.add(item.getGrossPrice());
                 bill.getItems().add(item);
@@ -1770,6 +1776,7 @@ public class BillingController {
                         resolveInvoiceLineSourceSessionId(openItem.getSourceSessionBookingId(), linkedSessionId),
                         null
                 );
+                item.setInvoiceLineDescription(openItem.getInvoiceLineDescription());
                 totalNet = totalNet.add(item.getNetPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
                 totalGross = totalGross.add(item.getGrossPrice());
                 bill.getItems().add(item);
@@ -1867,6 +1874,15 @@ public class BillingController {
                     .getId();
         }
         return open.getSessionBooking() != null ? open.getSessionBooking().getId() : null;
+    }
+
+    private String resolveInvoiceLocaleForOpenBill(OpenBill open, Long companyId) {
+        if (open == null || open.getSourceGuestOrderId() == null) return null;
+        return guestOrders.findById(open.getSourceGuestOrderId())
+                .filter(order -> order.getCompany() != null && Objects.equals(order.getCompany().getId(), companyId))
+                .map(order -> order.getGuestUser() == null ? null : order.getGuestUser().getLanguage())
+                .map(language -> language.trim().toLowerCase(Locale.ROOT).startsWith("sl") ? "sl" : "en")
+                .orElse(null);
     }
 
     private void linkSourceGuestOrderToCreatedBill(OpenBill open, Bill saved, Long companyId) {
