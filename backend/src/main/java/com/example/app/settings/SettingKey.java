@@ -123,6 +123,8 @@ public enum SettingKey {
     INVOICE_DELIVERY_EMAIL_SUBJECT,
     INVOICE_DELIVERY_EMAIL_BODY,
     FOLIO_TEMPLATE_LAYOUT_JSON,
+    /** JSON array of folio layout styles saved on the platform-admin tenancy and offered to all tenants. */
+    PLATFORM_FOLIO_STYLES_JSON,
     COMPANY_LOGO_BASE64,
     FOLIO_SIGNATURE_BASE64,
 

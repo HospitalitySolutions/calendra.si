@@ -1,0 +1,45 @@
+Folio platform styles update
+============================
+
+Backend
+-------
+- Added the new global setting key `PLATFORM_FOLIO_STYLES_JSON`.
+- Added platform folio style API endpoints on BillingController:
+  - `GET /api/billing/folio-layout-styles`
+    - Available to tenant admins and platform admins.
+    - Reads styles saved on the platform-admin/super-admin tenant account.
+    - Returns normalized folio layouts so every tenant can load the same centrally managed styles.
+  - `POST /api/billing/folio-layout-styles`
+    - Platform admin only.
+    - Creates a new folio style or updates an existing one when an id is supplied.
+    - Stores the normalized layout, style name, description, created timestamp, and updated timestamp.
+  - `DELETE /api/billing/folio-layout-styles/{id}`
+    - Platform admin only.
+    - Removes a saved platform folio style.
+- Styles are stored centrally on the first SUPER_ADMIN/platform-admin company, not on each tenant.
+- Tenant-specific folio layout saving remains unchanged; loading a platform style does not overwrite a tenant layout until the tenant clicks Save.
+
+Frontend
+--------
+- Added a Folio style selector to the folio layout editor toolbar.
+- All tenant admins can select a platform folio style and click Load style.
+- Loading a style places the full layout onto the editor canvas and marks it dirty, so the tenant can review it and click Save to apply it.
+- Platform admins now see additional controls:
+  - Style name
+  - Description
+  - Save as style
+  - Update style
+  - Delete style
+- Added a small notice bar confirming when a style is loaded, saved, updated, or deleted.
+
+Files changed
+-------------
+- backend/src/main/java/com/example/app/settings/SettingKey.java
+- backend/src/main/java/com/example/app/billing/BillingController.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+- frontend/src/styles/folio-layout-editor.css
+
+Notes
+-----
+- The ZIP also includes the latest folio PDF/layout files from the previous header/main/footer and QR/table updates, so applying this patch keeps those changes intact.
+- I could not run Maven or the frontend build in this sandbox because the extracted workspace does not include all build wrapper/dependency files and network dependency downloads are unavailable here.

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
+import { getStoredUser } from '../auth'
 import { Field, PageHeader } from '../components/ui'
 import { useLocale, type AppLocale } from '../locale'
 import '../styles/folio-layout-editor.css'
@@ -129,6 +130,15 @@ type LayoutConfig = {
   paymentQr: PaymentQrConfig
   fiscalQr: PaymentQrConfig
   vatBreakdownTable: VatBreakdownTableConfig
+}
+
+type FolioLayoutStyle = {
+  id: string
+  name: string
+  description?: string | null
+  layout: LayoutConfig
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 type Selection =
@@ -393,6 +403,13 @@ export function FolioLayoutEditor() {
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [folioStyles, setFolioStyles] = useState<FolioLayoutStyle[]>([])
+  const [selectedStyleId, setSelectedStyleId] = useState('')
+  const [styleName, setStyleName] = useState('')
+  const [styleDescription, setStyleDescription] = useState('')
+  const [styleSaving, setStyleSaving] = useState(false)
+  const [styleNotice, setStyleNotice] = useState<string | null>(null)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(() => getStoredUser()?.role === 'SUPER_ADMIN')
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -408,6 +425,19 @@ export function FolioLayoutEditor() {
   } | null>(null)
 
   const [loadError, setLoadError] = useState<string | null>(null)
+
+  const loadFolioStyles = useCallback(async () => {
+    try {
+      const r = await api.get('/billing/folio-layout-styles')
+      const list = Array.isArray(r.data) ? r.data : []
+      const valid = list.filter((style: any): style is FolioLayoutStyle => Boolean(style?.id && style?.name && style?.layout && isValidLayout(style.layout)))
+      setFolioStyles(valid)
+      setSelectedStyleId((current) => current && valid.some((style) => style.id === current) ? current : '')
+    } catch (err) {
+      console.error('Failed to load folio layout styles', err)
+      setFolioStyles([])
+    }
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -439,13 +469,18 @@ export function FolioLayoutEditor() {
       }
     }
     void load()
+    void loadFolioStyles()
+    api.get('/auth/me').then((r) => {
+      const role = r.data?.user?.role
+      setIsPlatformAdmin(role === 'SUPER_ADMIN')
+    }).catch(() => { /* keep stored role fallback */ })
     api.get('/billing/folio-logo').then((r) => {
       if (r.status === 200 && r.data) setLogoDataUrl(r.data as string)
     }).catch(() => { /* no logo */ })
     api.get('/billing/folio-signature').then((r) => {
       if (r.status === 200 && r.data) setSignatureDataUrl(r.data as string)
     }).catch(() => { /* no signature */ })
-  }, [])
+  }, [loadFolioStyles])
 
   const save = async () => {
     if (!layout) return
@@ -500,6 +535,89 @@ export function FolioLayoutEditor() {
       } catch { /* ignore bad files */ }
     }
     input.click()
+  }
+
+  const selectFolioStyle = (id: string) => {
+    setSelectedStyleId(id)
+    const style = folioStyles.find((item) => item.id === id)
+    if (style) {
+      setStyleName(style.name || '')
+      setStyleDescription(style.description || '')
+    } else if (!id) {
+      setStyleName('')
+      setStyleDescription('')
+    }
+  }
+
+  const loadSelectedFolioStyle = () => {
+    const style = folioStyles.find((item) => item.id === selectedStyleId)
+    if (!style?.layout) return
+    const next = JSON.parse(JSON.stringify(style.layout)) as LayoutConfig
+    if (!isValidLayout(next)) return
+    setLayout(next)
+    setSelection(null)
+    setDirty(true)
+    setStyleNotice(`Loaded “${style.name}”. Click Save to apply it to this tenant.`)
+  }
+
+  const savePlatformFolioStyle = async (mode: 'create' | 'update') => {
+    if (!layout || !isPlatformAdmin) return
+    const name = styleName.trim()
+    if (!name) {
+      setStyleNotice('Enter a style name first.')
+      return
+    }
+    const id = mode === 'update' ? selectedStyleId : undefined
+    if (mode === 'update' && !id) {
+      setStyleNotice('Select a style to update first.')
+      return
+    }
+    setStyleSaving(true)
+    try {
+      const { data } = await api.post('/billing/folio-layout-styles', {
+        id,
+        name,
+        description: styleDescription.trim(),
+        layout,
+      })
+      const list = Array.isArray(data) ? data : []
+      const valid = list.filter((style: any): style is FolioLayoutStyle => Boolean(style?.id && style?.name && style?.layout && isValidLayout(style.layout)))
+      setFolioStyles(valid)
+      const saved = (id ? valid.find((style) => style.id === id) : null)
+        || [...valid].reverse().find((style) => style.name === name)
+      if (saved) {
+        setSelectedStyleId(saved.id)
+        setStyleName(saved.name)
+        setStyleDescription(saved.description || '')
+        setStyleNotice(mode === 'update' ? `Updated platform style “${saved.name}”.` : `Saved platform style “${saved.name}”.`)
+      }
+    } catch (err) {
+      console.error('Failed to save platform folio style', err)
+      setStyleNotice('Could not save the platform folio style.')
+    } finally {
+      setStyleSaving(false)
+    }
+  }
+
+  const deleteSelectedPlatformFolioStyle = async () => {
+    if (!selectedStyleId || !isPlatformAdmin) return
+    const style = folioStyles.find((item) => item.id === selectedStyleId)
+    setStyleSaving(true)
+    try {
+      const { data } = await api.delete(`/billing/folio-layout-styles/${encodeURIComponent(selectedStyleId)}`)
+      const list = Array.isArray(data) ? data : []
+      const valid = list.filter((item: any): item is FolioLayoutStyle => Boolean(item?.id && item?.name && item?.layout && isValidLayout(item.layout)))
+      setFolioStyles(valid)
+      setSelectedStyleId('')
+      setStyleName('')
+      setStyleDescription('')
+      setStyleNotice(style ? `Deleted platform style “${style.name}”.` : 'Deleted platform style.')
+    } catch (err) {
+      console.error('Failed to delete platform folio style', err)
+      setStyleNotice('Could not delete the platform folio style.')
+    } finally {
+      setStyleSaving(false)
+    }
   }
 
   const mutateLayout = useCallback((fn: (l: LayoutConfig) => void) => {
@@ -749,6 +867,37 @@ export function FolioLayoutEditor() {
     <div className="fle-root">
       {/* Toolbar */}
       <div className="fle-toolbar">
+        <label className="fle-toolbar-item fle-style-picker">
+          Folio style
+          <select className="fle-style-select" value={selectedStyleId} onChange={(e) => selectFolioStyle(e.target.value)}>
+            <option value="">Select style...</option>
+            {folioStyles.map((style) => (
+              <option key={style.id} value={style.id}>{style.name}</option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="fle-btn" onClick={loadSelectedFolioStyle} disabled={!selectedStyleId}>Load style</button>
+        {isPlatformAdmin && (
+          <div className="fle-platform-style-tools">
+            <input
+              className="fle-style-input"
+              type="text"
+              value={styleName}
+              onChange={(e) => setStyleName(e.target.value)}
+              placeholder="Style name"
+            />
+            <input
+              className="fle-style-input fle-style-input--wide"
+              type="text"
+              value={styleDescription}
+              onChange={(e) => setStyleDescription(e.target.value)}
+              placeholder="Description"
+            />
+            <button type="button" className="fle-btn fle-btn-add" onClick={() => savePlatformFolioStyle('create')} disabled={styleSaving || !layout}>Save as style</button>
+            <button type="button" className="fle-btn" onClick={() => savePlatformFolioStyle('update')} disabled={styleSaving || !selectedStyleId || !layout}>Update style</button>
+            <button type="button" className="fle-btn fle-btn-secondary" onClick={deleteSelectedPlatformFolioStyle} disabled={styleSaving || !selectedStyleId}>Delete style</button>
+          </div>
+        )}
         <label className="fle-toolbar-item">
           Zoom
           <input type="range" min={0.4} max={1.5} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
@@ -791,6 +940,12 @@ export function FolioLayoutEditor() {
           {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
+      {styleNotice && (
+        <div className="fle-style-notice">
+          <span>{styleNotice}</span>
+          <button type="button" onClick={() => setStyleNotice(null)} aria-label="Dismiss style message">×</button>
+        </div>
+      )}
 
       <div className="fle-body">
         {/* A4 preview */}

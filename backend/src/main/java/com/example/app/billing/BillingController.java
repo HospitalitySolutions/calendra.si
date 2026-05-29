@@ -3252,6 +3252,22 @@ public class BillingController {
                 .orElse("");
     }
 
+    private void saveSettingValue(Long companyId, SettingKey key, String value) {
+        var setting = settings.findByCompanyIdAndKey(companyId, key).orElseGet(() -> {
+            var ns = new AppSetting();
+            var owner = users.findAllByCompanyId(companyId).stream()
+                    .map(User::getCompany)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
+            ns.setCompany(owner);
+            ns.setKey(key.name());
+            return ns;
+        });
+        setting.setValue(value == null ? "" : value);
+        settings.save(setting);
+    }
+
     private UnusedAdvanceResponse toUnusedAdvanceResponse(Long companyId, Bill advance) {
         BigDecimal total = (advance.getTotalNet() == null ? BigDecimal.ZERO : advance.getTotalNet()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal totalGross = (advance.getTotalGross() == null ? BigDecimal.ZERO : advance.getTotalGross()).setScale(2, RoundingMode.HALF_UP);
@@ -3837,6 +3853,24 @@ public class BillingController {
 
     private static final ObjectMapper LAYOUT_MAPPER = new ObjectMapper();
 
+    public record FolioLayoutStyleRequest(
+            String id,
+            String name,
+            String description,
+            FolioLayoutConfig layout
+    ) {}
+
+    public record FolioLayoutStyleResponse(
+            String id,
+            String name,
+            String description,
+            FolioLayoutConfig layout,
+            String createdAt,
+            String updatedAt
+    ) {}
+
+    public record FolioLayoutStylesDocument(List<FolioLayoutStyleResponse> styles) {}
+
     @GetMapping("/folio-layout")
     public ResponseEntity<String> getFolioLayout(@AuthenticationPrincipal User me) {
         var json = settingValue(me.getCompany().getId(), SettingKey.FOLIO_TEMPLATE_LAYOUT_JSON);
@@ -3898,6 +3932,148 @@ public class BillingController {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    @GetMapping("/folio-layout-styles")
+    public ResponseEntity<List<FolioLayoutStyleResponse>> getFolioLayoutStyles() {
+        return ResponseEntity.ok(readPlatformFolioStyles());
+    }
+
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PostMapping("/folio-layout-styles")
+    @Transactional
+    public ResponseEntity<List<FolioLayoutStyleResponse>> saveFolioLayoutStyle(@RequestBody FolioLayoutStyleRequest req,
+                                                                               @AuthenticationPrincipal User me) {
+        if (req == null || req.layout() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Folio style layout is required.");
+        }
+        String name = firstNonBlank(req.name(), null);
+        if (name == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Folio style name is required.");
+        }
+
+        Long platformCompanyId = resolvePlatformAdminCompanyId(me);
+        List<FolioLayoutStyleResponse> styles = new ArrayList<>(readPlatformFolioStyles(platformCompanyId));
+        String id = firstNonBlank(req.id(), null);
+        if (id == null) {
+            id = java.util.UUID.randomUUID().toString();
+        }
+        String now = LocalDateTime.now().toString();
+        String description = firstNonBlank(req.description(), "");
+        FolioLayoutConfig normalizedLayout = FolioLayoutConfig.normalize(req.layout());
+
+        boolean updated = false;
+        List<FolioLayoutStyleResponse> next = new ArrayList<>();
+        for (FolioLayoutStyleResponse existing : styles) {
+            if (existing != null && id.equals(existing.id())) {
+                next.add(new FolioLayoutStyleResponse(
+                        id,
+                        name,
+                        description,
+                        normalizedLayout,
+                        firstNonBlank(existing.createdAt(), now),
+                        now
+                ));
+                updated = true;
+            } else if (existing != null && firstNonBlank(existing.id(), null) != null) {
+                next.add(existing);
+            }
+        }
+        if (!updated) {
+            next.add(new FolioLayoutStyleResponse(id, name, description, normalizedLayout, now, now));
+        }
+        persistPlatformFolioStyles(platformCompanyId, next);
+        return ResponseEntity.ok(next);
+    }
+
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @DeleteMapping("/folio-layout-styles/{id}")
+    @Transactional
+    public ResponseEntity<List<FolioLayoutStyleResponse>> deleteFolioLayoutStyle(@PathVariable String id,
+                                                                                 @AuthenticationPrincipal User me) {
+        Long platformCompanyId = resolvePlatformAdminCompanyId(me);
+        String normalizedId = firstNonBlank(id, null);
+        if (normalizedId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Folio style id is required.");
+        }
+        List<FolioLayoutStyleResponse> next = readPlatformFolioStyles(platformCompanyId).stream()
+                .filter(style -> style != null && !normalizedId.equals(style.id()))
+                .toList();
+        persistPlatformFolioStyles(platformCompanyId, next);
+        return ResponseEntity.ok(next);
+    }
+
+    private List<FolioLayoutStyleResponse> readPlatformFolioStyles() {
+        Long platformCompanyId = resolvePlatformAdminCompanyId(null);
+        if (platformCompanyId == null) return List.of();
+        return readPlatformFolioStyles(platformCompanyId);
+    }
+
+    private List<FolioLayoutStyleResponse> readPlatformFolioStyles(Long platformCompanyId) {
+        if (platformCompanyId == null) return List.of();
+        String raw = settingValue(platformCompanyId, SettingKey.PLATFORM_FOLIO_STYLES_JSON);
+        if (raw == null || raw.isBlank()) return List.of();
+        try {
+            FolioLayoutStylesDocument doc = LAYOUT_MAPPER.readValue(raw, FolioLayoutStylesDocument.class);
+            if (doc == null || doc.styles() == null) return List.of();
+            return doc.styles().stream()
+                    .filter(Objects::nonNull)
+                    .filter(style -> firstNonBlank(style.id(), null) != null)
+                    .filter(style -> firstNonBlank(style.name(), null) != null)
+                    .filter(style -> style.layout() != null)
+                    .map(style -> new FolioLayoutStyleResponse(
+                            style.id(),
+                            style.name(),
+                            firstNonBlank(style.description(), ""),
+                            FolioLayoutConfig.normalize(style.layout()),
+                            firstNonBlank(style.createdAt(), ""),
+                            firstNonBlank(style.updatedAt(), "")
+                    ))
+                    .toList();
+        } catch (Exception docError) {
+            try {
+                var arrayType = LAYOUT_MAPPER.getTypeFactory().constructCollectionType(List.class, FolioLayoutStyleResponse.class);
+                List<FolioLayoutStyleResponse> legacy = LAYOUT_MAPPER.readValue(raw, arrayType);
+                if (legacy == null) return List.of();
+                return legacy.stream()
+                        .filter(Objects::nonNull)
+                        .filter(style -> firstNonBlank(style.id(), null) != null)
+                        .filter(style -> firstNonBlank(style.name(), null) != null)
+                        .filter(style -> style.layout() != null)
+                        .map(style -> new FolioLayoutStyleResponse(
+                                style.id(),
+                                style.name(),
+                                firstNonBlank(style.description(), ""),
+                                FolioLayoutConfig.normalize(style.layout()),
+                                firstNonBlank(style.createdAt(), ""),
+                                firstNonBlank(style.updatedAt(), "")
+                        ))
+                        .toList();
+            } catch (Exception arrayError) {
+                log.warn("Invalid platform folio styles JSON for company={}, returning an empty style list", platformCompanyId, arrayError);
+                return List.of();
+            }
+        }
+    }
+
+    private void persistPlatformFolioStyles(Long platformCompanyId, List<FolioLayoutStyleResponse> stylesToSave) {
+        try {
+            String body = LAYOUT_MAPPER.writeValueAsString(new FolioLayoutStylesDocument(stylesToSave == null ? List.of() : stylesToSave));
+            saveSettingValue(platformCompanyId, SettingKey.PLATFORM_FOLIO_STYLES_JSON, body);
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to save platform folio styles", e);
+        }
+    }
+
+    private Long resolvePlatformAdminCompanyId(User fallbackUser) {
+        return users.findAllByRoleOrderByIdAsc(Role.SUPER_ADMIN).stream()
+                .map(User::getCompany)
+                .filter(Objects::nonNull)
+                .map(company -> company.getId())
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseGet(() -> fallbackUser == null || fallbackUser.getCompany() == null ? null : fallbackUser.getCompany().getId());
     }
 
     /* ── Folio logo management ── */

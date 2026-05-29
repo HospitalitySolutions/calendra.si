@@ -103,6 +103,66 @@
   background: rgba(248, 113, 113, 0.1);
 }
 
+.fle-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+.fle-style-picker {
+  min-width: 220px;
+}
+
+.fle-style-select,
+.fle-style-input {
+  border: 1px solid var(--fle-panel-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text, #ccc);
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+.fle-style-select {
+  min-width: 150px;
+}
+
+.fle-style-input {
+  width: 130px;
+}
+
+.fle-style-input--wide {
+  width: 170px;
+}
+
+.fle-platform-style-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fle-style-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(22, 114, 243, 0.2);
+  background: rgba(22, 114, 243, 0.08);
+  color: var(--text, #dbeafe);
+  font-size: 13px;
+}
+
+.fle-style-notice button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 /* ── Body (canvas + panel) ── */
 .fle-body {
   display: flex;
