@@ -182,8 +182,13 @@ public class GuestProductBillingService {
     }
 
     private void applyInvoiceLocaleIfMissing(Bill bill, GuestOrder order) {
-        if (bill == null || hasText(bill.getInvoiceLocale())) return;
-        bill.setInvoiceLocale(resolveInvoiceLocale(order));
+        if (bill == null) return;
+        String resolved = resolveInvoiceLocale(order);
+        if (!hasText(resolved)) return;
+        boolean explicitOrderLocale = order != null && hasText(order.getInvoiceLocale());
+        if (!hasText(bill.getInvoiceLocale()) || (explicitOrderLocale && !resolved.equalsIgnoreCase(bill.getInvoiceLocale()))) {
+            bill.setInvoiceLocale(resolved);
+        }
     }
 
     private void applyWalletProductLineDescriptionsIfMissing(Bill bill, GuestProduct product) {
@@ -196,9 +201,20 @@ public class GuestProductBillingService {
     }
 
     private static String resolveInvoiceLocale(GuestOrder order) {
-        String language = order == null || order.getGuestUser() == null ? null : order.getGuestUser().getLanguage();
+        String language = null;
+        if (order != null) {
+            language = firstNonBlank(order.getInvoiceLocale(), order.getGuestUser() == null ? null : order.getGuestUser().getLanguage());
+        }
         if (language == null || language.isBlank()) return null;
         return language.trim().toLowerCase(Locale.ROOT).startsWith("sl") ? "sl" : "en";
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value.trim();
+        }
+        return null;
     }
 
     private static String walletProductInvoiceLineDescription(GuestProduct product) {

@@ -1091,10 +1091,11 @@ fun GuestMobileRoot() {
                                         slotId = slotId,
                                         paymentMethodType = paymentMethodType,
                                         consultantId = consultantId,
-                                        entitlementId = if (paymentMethodType == "ENTITLEMENT") entitlementId else null
+                                        entitlementId = if (paymentMethodType == "ENTITLEMENT") entitlementId else null,
+                                        locale = appUiLocale
                                     )
                                 )
-                                repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = paymentMethodType == "CARD"))
+                                repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = paymentMethodType == "CARD", locale = appUiLocale))
                             }.getOrElse {
                                 statusMessage = it.message ?: "Checkout failed"
                                 return@onCheckout
@@ -1313,14 +1314,16 @@ fun GuestMobileRoot() {
                                             CreateOrderRequest(
                                                 companyId = offer.companyId,
                                                 productId = offer.productId,
-                                                paymentMethodType = paymentMethod
+                                                paymentMethodType = paymentMethod,
+                                                locale = appUiLocale
                                             )
                                         )
                                         repo.checkout(
                                             order.order.orderId,
                                             CheckoutRequest(
                                                 paymentMethodType = paymentMethod,
-                                                saveCard = paymentMethod == "CARD"
+                                                saveCard = paymentMethod == "CARD",
+                                                locale = appUiLocale
                                             )
                                         )
                                     }.getOrElse {

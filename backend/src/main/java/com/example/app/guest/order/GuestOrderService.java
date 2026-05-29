@@ -181,6 +181,7 @@ public class GuestOrderService {
         order.setCompany(link.getCompany());
         order.setClient(link.getClient());
         order.setGuestUser(guestUser);
+        order.setInvoiceLocale(resolveRequestedInvoiceLocale(request.locale(), request.language(), guestUser));
         order.setStatus(OrderStatus.PENDING);
         order.setPaymentMethodType(paymentMethodType);
         order.setCurrency(product.currency());
@@ -194,6 +195,29 @@ public class GuestOrderService {
 
         GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null ? null : new GuestDtos.BookingSummaryResponse(String.valueOf(order.getId()), "PENDING_PAYMENT");
         return new GuestDtos.CreateOrderResponse(toOrder(order), bookingSummary, "CHECKOUT");
+    }
+
+    private static void applyRequestedInvoiceLocale(GuestOrder order, String locale, String language, GuestUser guestUser) {
+        if (order == null) return;
+        String normalized = resolveRequestedInvoiceLocale(locale, language, guestUser);
+        if (normalized != null && !normalized.isBlank()) {
+            order.setInvoiceLocale(normalized);
+        }
+    }
+
+    private static String resolveRequestedInvoiceLocale(String locale, String language, GuestUser guestUser) {
+        String requested = firstNonBlank(locale, language, guestUser == null ? null : guestUser.getLanguage());
+        if (requested == null || requested.isBlank()) return null;
+        String normalized = requested.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("sl") ? "sl" : "en";
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value.trim();
+        }
+        return null;
     }
 
     private static BigDecimal calculateOrderSubtotal(
@@ -229,6 +253,7 @@ public class GuestOrderService {
         GuestOrder order = orders.findByIdAndGuestUserId(orderId, guestUser.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
+        applyRequestedInvoiceLocale(order, request.locale(), request.language(), guestUser);
         if (order.getPaymentMethodType() != paymentMethodType) {
             order.setPaymentMethodType(paymentMethodType);
         }

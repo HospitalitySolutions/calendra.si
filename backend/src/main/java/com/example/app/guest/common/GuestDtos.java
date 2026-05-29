@@ -161,12 +161,38 @@ public final class GuestDtos {
     public record AvailabilityResponse(String sessionTypeId, String date, List<AvailabilitySlotResponse> slots) {}
     public record ConsultantResponse(String id, String firstName, String lastName, String email) {}
 
-    public record CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {}
+    public record CreateOrderRequest(
+            String companyId,
+            String productId,
+            String slotId,
+            String paymentMethodType,
+            String entitlementId,
+            /** UI locale selected in the guest app when the order is created. */
+            String locale,
+            /** Backwards-compatible alias for clients that send language instead of locale. */
+            String language
+    ) {
+        public CreateOrderRequest(String companyId, String productId, String slotId, String paymentMethodType, String entitlementId) {
+            this(companyId, productId, slotId, paymentMethodType, entitlementId, null, null);
+        }
+    }
     public record OrderSummaryResponse(String orderId, String status, String paymentMethodType, double subtotalGross, double taxAmount, double totalGross, String currency) {}
     public record BookingSummaryResponse(String bookingId, String bookingStatus) {}
     public record CreateOrderResponse(OrderSummaryResponse order, BookingSummaryResponse booking, String nextAction) {}
 
-    public record CheckoutRequest(String paymentMethodType, Boolean saveCard, String useSavedPaymentMethodId) {}
+    public record CheckoutRequest(
+            String paymentMethodType,
+            Boolean saveCard,
+            String useSavedPaymentMethodId,
+            /** UI locale selected in the guest app when checkout is confirmed. */
+            String locale,
+            /** Backwards-compatible alias for clients that send language instead of locale. */
+            String language
+    ) {
+        public CheckoutRequest(String paymentMethodType, Boolean saveCard, String useSavedPaymentMethodId) {
+            this(paymentMethodType, saveCard, useSavedPaymentMethodId, null, null);
+        }
+    }
     public record BankTransferInstructionsResponse(double amount, String currency, String referenceCode, String instructions) {}
     public record CheckoutResponse(String orderId, String paymentMethodType, String status, String checkoutUrl, BankTransferInstructionsResponse bankTransfer, String nextAction, String paymentIntentClientSecret, String customerId, String customerEphemeralKeySecret, String merchantDisplayName) {}
 

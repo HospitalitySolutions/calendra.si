@@ -1,6 +1,7 @@
 package com.example.app.billing;
 
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,17 +27,20 @@ public class BillFolioPdfService {
 
     private final AppSettingRepository settings;
     private final SessionBookingRepository sessionBookings;
+    private final GuestOrderRepository guestOrders;
     private final FolioPdfService folioPdfService;
     private final UpnQrPayloadBuilder upnQrPayloadBuilder;
 
     public BillFolioPdfService(
             AppSettingRepository settings,
             SessionBookingRepository sessionBookings,
+            GuestOrderRepository guestOrders,
             FolioPdfService folioPdfService,
             UpnQrPayloadBuilder upnQrPayloadBuilder
     ) {
         this.settings = settings;
         this.sessionBookings = sessionBookings;
+        this.guestOrders = guestOrders;
         this.folioPdfService = folioPdfService;
         this.upnQrPayloadBuilder = upnQrPayloadBuilder;
     }
@@ -138,7 +142,7 @@ public class BillFolioPdfService {
             String purposeCode = firstNonBlank(settingValue(companyId, SettingKey.BANK_QR_PURPOSE_CODE), "OTHR");
             String purpose = buildUpnPurpose(companyId, bill);
             req.setIban(companyIban);
-            req.setNotes(buildPaymentNotes(req.getNotes(), reference, companyBic, locale));
+            req.setNotes(buildInvoiceNotes(bill));
             req.setPaymentQrPayload(upnQrPayloadBuilder.build(new UpnQrPayloadBuilder.UpnQrRequest(
                     payerName,
                     payerStreet,
@@ -282,20 +286,45 @@ public class BillFolioPdfService {
         return value.length() <= 42 ? value : value.substring(0, 42);
     }
 
-    private String buildPaymentNotes(String existing, String reference, String bic, String locale) {
-        boolean sl = isSlovenian(locale);
-        List<String> parts = new ArrayList<>();
-        if (existing != null && !existing.isBlank()) parts.add(existing.trim());
-        if (reference != null && !reference.isBlank()) parts.add((sl ? "Sklic: " : "Reference: ") + reference);
-        if (bic != null && !bic.isBlank()) parts.add("BIC/SWIFT: " + bic);
-        return String.join(" | ", parts);
+    private String buildInvoiceNotes(Bill bill) {
+        if (bill == null) return "";
+        // Print only the public order id on the folio notes line. The bank RF/sklic remains
+        // inside the UPN QR payload for reconciliation, but is no longer repeated visually.
+        return firstNonBlank(bill.getOrderId(), resolveGuestOrderReferenceCode(bill));
+    }
+
+    private String resolveGuestOrderReferenceCode(Bill bill) {
+        if (bill == null || bill.getId() == null) return null;
+        try {
+            return guestOrders.findByBillId(bill.getId())
+                    .map(order -> firstNonBlank(order.getReferenceCode()))
+                    .orElse(null);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String resolveInvoiceLocale(Bill bill, String requestedLocale) {
-        String value = firstNonBlank(requestedLocale, bill == null ? null : bill.getInvoiceLocale());
+        String value = firstNonBlank(
+                requestedLocale,
+                bill == null ? null : bill.getInvoiceLocale(),
+                resolveGuestOrderInvoiceLocale(bill)
+        );
         if (value == null || value.isBlank()) return null;
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         return normalized.startsWith("sl") ? "sl" : "en";
+    }
+
+    private String resolveGuestOrderInvoiceLocale(Bill bill) {
+        if (bill == null || bill.getId() == null) return null;
+        try {
+            return guestOrders.findByBillId(bill.getId())
+                    .map(order -> firstNonBlank(order.getInvoiceLocale(),
+                            order.getGuestUser() == null ? null : order.getGuestUser().getLanguage()))
+                    .orElse(null);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private boolean isSlovenian(String locale) {

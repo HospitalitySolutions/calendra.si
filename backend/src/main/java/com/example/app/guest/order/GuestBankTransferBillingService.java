@@ -145,8 +145,12 @@ public class GuestBankTransferBillingService {
 
     private Bill finalizeExistingAdvance(Bill existing, String targetPaymentStatus, OffsetDateTime paidAt, GuestOrder order) {
         invoiceOrderIdService.assignIfMissing(existing);
-        if (existing.getInvoiceLocale() == null || existing.getInvoiceLocale().isBlank()) {
-            existing.setInvoiceLocale(resolveInvoiceLocale(order));
+        String resolvedLocale = resolveInvoiceLocale(order);
+        boolean explicitOrderLocale = order != null && order.getInvoiceLocale() != null && !order.getInvoiceLocale().isBlank();
+        if (resolvedLocale != null && !resolvedLocale.isBlank()
+                && (existing.getInvoiceLocale() == null || existing.getInvoiceLocale().isBlank()
+                || (explicitOrderLocale && !resolvedLocale.equalsIgnoreCase(existing.getInvoiceLocale())))) {
+            existing.setInvoiceLocale(resolvedLocale);
         }
         Long orderId = order == null ? null : order.getId();
         if (!BillPaymentStatus.PAID.equals(targetPaymentStatus) || BillPaymentStatus.PAID.equals(existing.getPaymentStatus())) {
@@ -227,9 +231,20 @@ public class GuestBankTransferBillingService {
     }
 
     private static String resolveInvoiceLocale(GuestOrder order) {
-        String language = order == null || order.getGuestUser() == null ? null : order.getGuestUser().getLanguage();
+        String language = null;
+        if (order != null) {
+            language = firstNonBlank(order.getInvoiceLocale(), order.getGuestUser() == null ? null : order.getGuestUser().getLanguage());
+        }
         if (language == null || language.isBlank()) return null;
         return language.trim().toLowerCase(Locale.ROOT).startsWith("sl") ? "sl" : "en";
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value.trim();
+        }
+        return null;
     }
 
     private User resolveBillConsultant(Long companyId, SessionBooking booking) {

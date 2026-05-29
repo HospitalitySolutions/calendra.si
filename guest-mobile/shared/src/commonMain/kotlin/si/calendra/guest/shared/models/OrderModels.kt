@@ -9,7 +9,9 @@ data class CreateOrderRequest(
     val slotId: String? = null,
     val paymentMethodType: String,
     val consultantId: String? = null,
-    val entitlementId: String? = null
+    val entitlementId: String? = null,
+    /** UI language/locale selected in the app when the order is created. */
+    val locale: String? = null
 )
 
 @Serializable
@@ -48,7 +50,9 @@ data class CreateOrderResponse(
 data class CheckoutRequest(
     val paymentMethodType: String,
     val saveCard: Boolean = false,
-    val useSavedPaymentMethodId: String? = null
+    val useSavedPaymentMethodId: String? = null,
+    /** UI language/locale selected in the app when checkout is confirmed. */
+    val locale: String? = null
 )
 
 @Serializable

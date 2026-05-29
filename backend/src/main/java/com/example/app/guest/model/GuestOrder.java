@@ -77,6 +77,10 @@ public class GuestOrder extends BaseEntity {
     @Column(name = "bill_id")
     private Long billId;
 
+    /** Locale snapshot from the guest app at order time; used for invoice/receipt PDF language. */
+    @Column(name = "invoice_locale", length = 8)
+    private String invoiceLocale;
+
 
     private Instant paidAt;
     private Instant cancelledAt;

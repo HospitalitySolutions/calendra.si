@@ -147,7 +147,9 @@ public class PublicWidgetOrderService {
                 request.productId(),
                 request.slotId(),
                 request.paymentMethodType(),
-                request.entitlementId()
+                request.entitlementId(),
+                request.locale(),
+                request.language()
         );
         return guestOrderService.createOrder(guestUser, normalized, GuestOrderService.PaymentChannel.WEBSITE);
     }

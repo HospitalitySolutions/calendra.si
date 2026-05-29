@@ -376,7 +376,7 @@ public class FolioPdfService {
 
             String value = footerValues.get(item.getKey());
             if (value == null || value.isBlank()) continue;
-            String label = resolveLocalized(item.getLabelI18n(), item.getLabel(), locale);
+            String label = suppressFooterLabel(item.getKey()) ? "" : resolveLocalized(item.getLabelI18n(), item.getLabel(), locale);
             String text = (label == null || label.isBlank()) ? value : (label + ": " + value);
 
             PDFont font = item.isBold() ? fonts.bold() : fonts.regular();
@@ -400,6 +400,10 @@ public class FolioPdfService {
                 y -= ftr.getLineSpacing();
             }
         }
+    }
+
+    private boolean suppressFooterLabel(String key) {
+        return "notes".equals(key) || "iban".equals(key);
     }
 
     private List<String> paymentFooterLines(FolioPdfRequest req) {
