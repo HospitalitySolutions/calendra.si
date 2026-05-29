@@ -46,7 +46,10 @@ public class FolioPdfService {
     private static final float BOTTOM_MARGIN = 60;
     private static final String FONT_REGULAR_CLASSPATH = "/fonts/NotoSans-Regular.ttf";
     private static final String FONT_BOLD_CLASSPATH = "/fonts/NotoSans-Bold.ttf";
-    private static final int LAYOUT_PREVIEW_SERVICE_ROWS = 3;
+    private static final int LAYOUT_PREVIEW_SERVICE_ROWS = 1;
+    private static final float DOUBLE_RULE_GAP = 2.0f;
+    private static final int PAYMENT_QR_CAPTION_FONT_SIZE = 7;
+    private static final float PAYMENT_QR_CAPTION_GAP = 4.0f;
 
     private enum VatBreakdownBucket {
         VAT_22,
@@ -56,6 +59,8 @@ public class FolioPdfService {
     }
 
     private record VatBreakdownRow(VatBreakdownBucket bucket, BigDecimal netBasis, BigDecimal vatAmount, int lineCount) {}
+    private record InvoiceTotals(BigDecimal net, BigDecimal gross) {}
+    private record FooterRenderData(Map<String, String> values, List<String> paymentLines) {}
 
     /**
      * Generate PDF using default layout.
@@ -80,51 +85,49 @@ public class FolioPdfService {
     }
 
     public byte[] generate(FolioPdfRequest req, FolioLayoutConfig layout, byte[] logoBytes, byte[] signatureBytes, String locale) {
+        if (req == null) throw new IllegalArgumentException("FolioPdfRequest is required");
+        layout = FolioLayoutConfig.normalize(layout);
         String selectedLocale = normalizeLocale(locale);
         float pageH = layout.getPageHeight();
         float pageW = layout.getPageWidth();
         var tbl = layout.getTable();
 
+        List<FolioPdfRequest.ServiceLine> lines = req.getServices() == null ? List.of() : req.getServices();
+        InvoiceTotals totals = calculateInvoiceTotals(lines);
+
         try (var doc = new PDDocument(); var out = new ByteArrayOutputStream()) {
             FontSet fonts = loadFonts(doc);
             var ctx = new PageContext(doc, pageW, pageH);
             ctx.newPage();
+            drawFixedPageSections(ctx, layout, req, selectedLocale, fonts, logoBytes, signatureBytes, totals);
 
-            drawLogo(ctx, layout, logoBytes);
-            drawHeaderFields(ctx, layout, req, selectedLocale, fonts);
+            drawLogo(ctx, layout, logoBytes, false);
+            drawFields(ctx, layout, req, selectedLocale, fonts, false);
 
             // Table: Y in the config is distance from page top; convert to PDF coords
             float cursorY = pageH - tbl.getStartY();
             cursorY = drawTableHeader(ctx, layout, cursorY, selectedLocale, fonts);
 
-            List<FolioPdfRequest.ServiceLine> lines = req.getServices() == null ? List.of() : req.getServices();
-            BigDecimal totalNett = BigDecimal.ZERO;
-            BigDecimal totalGross = BigDecimal.ZERO;
             int rowsOnCurrentPage = 0;
-
             for (var line : lines) {
-                if (cursorY - tbl.getRowHeight() < BOTTOM_MARGIN) {
+                if (cursorY - tbl.getRowHeight() < contentBottomLimit(layout)) {
                     ctx.closeStream();
                     ctx.newPage();
-                    cursorY = pageH - 50; // top margin on continuation pages
+                    drawFixedPageSections(ctx, layout, req, selectedLocale, fonts, logoBytes, signatureBytes, totals);
+                    cursorY = pageH - continuationTableStartY(layout);
                     cursorY = drawTableHeader(ctx, layout, cursorY, selectedLocale, fonts);
                     rowsOnCurrentPage = 0;
                 }
                 cursorY = drawServiceRow(ctx, layout, cursorY, line, fonts);
                 rowsOnCurrentPage++;
-
-                BigDecimal lineNett = lineNetBasis(line);
-                BigDecimal lineGross = lineGrossTotal(line);
-                totalNett  = totalNett.add(lineNett);
-                totalGross = totalGross.add(lineGross);
             }
 
             float tableFlowOffset = tableFlowOffset(layout, rowsOnCurrentPage);
-            drawFooter(ctx, layout, cursorY, totalNett, totalGross, req, selectedLocale, fonts, tableFlowOffset);
-            drawVatBreakdownTable(ctx, layout, req, selectedLocale, fonts, tableFlowOffset);
-            drawSignature(ctx, layout, signatureBytes, tableFlowOffset);
-            drawPaymentQr(ctx, layout, req, tableFlowOffset);
-            drawFiscalQr(ctx, layout, req, tableFlowOffset);
+            drawFooter(ctx, layout, cursorY, totals.net(), totals.gross(), req, selectedLocale, fonts, tableFlowOffset);
+            drawVatBreakdownTable(ctx, layout, req, selectedLocale, fonts, tableFlowOffset, false);
+            drawSignature(ctx, layout, signatureBytes, tableFlowOffset, false);
+            drawPaymentQr(ctx, layout, req, selectedLocale, fonts, tableFlowOffset, false);
+            drawFiscalQr(ctx, layout, req, tableFlowOffset, false);
 
             ctx.closeStream();
             doc.save(out);
@@ -152,12 +155,62 @@ public class FolioPdfService {
         }
     }
 
+    private void drawFixedPageSections(
+            PageContext ctx,
+            FolioLayoutConfig layout,
+            FolioPdfRequest req,
+            String locale,
+            FontSet fonts,
+            byte[] logoBytes,
+            byte[] signatureBytes,
+            InvoiceTotals totals
+    ) throws IOException {
+        drawLogo(ctx, layout, logoBytes, true);
+        drawFields(ctx, layout, req, locale, fonts, true);
+        drawFixedFooterItems(ctx, layout, totals.net(), totals.gross(), req, locale, fonts);
+        drawVatBreakdownTable(ctx, layout, req, locale, fonts, 0, true);
+        drawSignature(ctx, layout, signatureBytes, 0, true);
+        drawPaymentQr(ctx, layout, req, locale, fonts, 0, true);
+        drawFiscalQr(ctx, layout, req, 0, true);
+    }
+
+    private InvoiceTotals calculateInvoiceTotals(List<FolioPdfRequest.ServiceLine> lines) {
+        BigDecimal totalNett = BigDecimal.ZERO;
+        BigDecimal totalGross = BigDecimal.ZERO;
+        if (lines != null) {
+            for (var line : lines) {
+                totalNett = totalNett.add(lineNetBasis(line));
+                totalGross = totalGross.add(lineGrossTotal(line));
+            }
+        }
+        return new InvoiceTotals(totalNett, totalGross);
+    }
+
+    private float contentBottomLimit(FolioLayoutConfig layout) {
+        float fixedFooterHeight = layout.getPageSections() == null ? 0 : layout.getPageSections().getFooterHeight();
+        return Math.max(BOTTOM_MARGIN, fixedFooterHeight + 12f);
+    }
+
+    private float continuationTableStartY(FolioLayoutConfig layout) {
+        float headerHeight = layout.getPageSections() == null ? 0 : layout.getPageSections().getHeaderHeight();
+        return Math.max(50f, headerHeight + 20f);
+    }
+
+    private boolean isFixedPageSectionBlock(FolioLayoutConfig layout, float y, float height) {
+        if (layout == null || layout.getPageSections() == null) return false;
+        float blockBottom = y + Math.max(0, height);
+        float headerBottom = layout.getPageSections().getHeaderHeight();
+        float footerTop = layout.getPageHeight() - layout.getPageSections().getFooterHeight();
+        return blockBottom <= headerBottom || y >= footerTop;
+    }
+
     /* ────────────────────────── logo ────────────────────────── */
 
-    private void drawLogo(PageContext ctx, FolioLayoutConfig layout, byte[] logoBytes) throws IOException {
+    private void drawLogo(PageContext ctx, FolioLayoutConfig layout, byte[] logoBytes, boolean fixedOnly) throws IOException {
         if (logoBytes == null || logoBytes.length == 0) return;
         var logoCfg = layout.getLogo();
         if (logoCfg == null || !logoCfg.isVisible()) return;
+        if (isFixedPageSectionBlock(layout, logoCfg.getY(), logoCfg.getHeight()) != fixedOnly) return;
 
         PDImageXObject img = PDImageXObject.createFromByteArray(ctx.doc, logoBytes, "logo");
         float pageH = layout.getPageHeight();
@@ -167,12 +220,13 @@ public class FolioPdfService {
 
     /* ────────────────────────── header fields ────────────────────────── */
 
-    private void drawHeaderFields(
+    private void drawFields(
             PageContext ctx,
             FolioLayoutConfig layout,
             FolioPdfRequest req,
             String locale,
-            FontSet fonts
+            FontSet fonts,
+            boolean fixedOnly
     ) throws IOException {
         Map<String, String> values = new HashMap<>();
         values.put("companyName", req.getCompanyName());
@@ -199,6 +253,7 @@ public class FolioPdfService {
         float pageH = layout.getPageHeight();
         for (var field : layout.getFields()) {
             if (!field.isVisible()) continue;
+            if (isFixedPageSectionBlock(layout, field.getY(), field.getHeight()) != fixedOnly) continue;
             if ("dueDate".equals(field.getKey()) && !hasToBePaid) continue;
             String text;
             if ("custom".equals(field.getType())) {
@@ -242,6 +297,11 @@ public class FolioPdfService {
     private float drawTableHeader(PageContext ctx, FolioLayoutConfig layout, float y, String locale, FontSet fonts) throws IOException {
         var tbl = layout.getTable();
         int fs = tbl.getHeaderFontSize();
+        float left = tbl.getStartX();
+        float right = tbl.getStartX() + tbl.getWidth();
+
+        // Top rule above the column labels, rendered as a double line like the reference invoice style.
+        drawDoubleHLine(ctx, left, right, y, 0.5f);
         y -= 6;
 
         for (var col : tbl.getColumns()) {
@@ -254,8 +314,9 @@ public class FolioPdfService {
             }
         }
 
+        // Keep a thin separator between the column labels and body rows for readability.
         y -= 4;
-        drawHLine(ctx, tbl.getStartX(), tbl.getStartX() + tbl.getWidth(), y, 0.5f);
+        drawHLine(ctx, left, right, y, 0.5f);
         y -= tbl.getRowHeight() * 0.6f;
         return y;
     }
@@ -310,37 +371,22 @@ public class FolioPdfService {
         var ftr = layout.getFooter();
         float y = lastRowY - ftr.getGapAfterTable();
 
-        drawHLine(ctx, tbl.getStartX(), tbl.getStartX() + tbl.getWidth(), y, 0.75f);
-        y -= ftr.getLineSpacing() + 2;
+        drawDoubleHLine(ctx, tbl.getStartX(), tbl.getStartX() + tbl.getWidth(), y, 0.75f);
+        y -= DOUBLE_RULE_GAP + ftr.getLineSpacing() + 2;
 
         float rightEdge = tbl.getStartX() + tbl.getWidth();
         float leftEdge = tbl.getStartX();
         float pageH = layout.getPageHeight();
 
-        Map<String, String> footerValues = new HashMap<>();
-        footerValues.put("totalNett", fmtEur(totalNett));
-        footerValues.put("totalGross", fmtEur(totalGross));
-        footerValues.put("toBePaid", fmtEur(resolveToBePaid(req)));
-        List<VatBreakdownRow> vatRows = buildVatBreakdownRows(req.getServices());
-        footerValues.put("vat22", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_22)));
-        footerValues.put("vat95", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_9_5)));
-        footerValues.put("vat0", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_0)));
-        footerValues.put("noVat", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.NO_VAT)));
-        if (req.getNotes() != null && !req.getNotes().isBlank())
-            footerValues.put("notes", safe(req.getNotes()));
-        List<String> paymentLines = paymentFooterLines(req);
-        if (!paymentLines.isEmpty())
-            footerValues.put("payment", safe(paymentLines.get(0)));
-        if (req.getIban() != null && !req.getIban().isBlank())
-            footerValues.put("iban", safe(req.getIban()));
-        if (req.getIssuedBy() != null && !req.getIssuedBy().isBlank())
-            footerValues.put("issuedBy", safe(req.getIssuedBy()));
-        if (req.getFiscalZoi() != null && !req.getFiscalZoi().isBlank())
-            footerValues.put("fiscalZoi", safe(req.getFiscalZoi()));
-        if (req.getFiscalEor() != null && !req.getFiscalEor().isBlank())
-            footerValues.put("fiscalEor", safe(req.getFiscalEor()));
+        FooterRenderData footerData = buildFooterRenderData(totalNett, totalGross, req);
+        Map<String, String> footerValues = footerData.values();
+        List<String> paymentLines = footerData.paymentLines();
 
         for (var item : ftr.getItems()) {
+            if (item.getX() >= 0 && item.getY() >= 0
+                    && isFixedPageSectionBlock(layout, item.getY(), item.getHeight() > 0 ? item.getHeight() : ftr.getLineSpacing())) {
+                continue;
+            }
             if ("payment".equals(item.getKey())) {
                 if (paymentLines.isEmpty()) continue;
                 String label = resolveLocalized(item.getLabelI18n(), item.getLabel(), locale);
@@ -404,6 +450,92 @@ public class FolioPdfService {
         }
     }
 
+    private void drawFixedFooterItems(
+            PageContext ctx,
+            FolioLayoutConfig layout,
+            BigDecimal totalNett,
+            BigDecimal totalGross,
+            FolioPdfRequest req,
+            String locale,
+            FontSet fonts
+    ) throws IOException {
+        var ftr = layout.getFooter();
+        if (ftr == null || ftr.getItems() == null) return;
+        float pageH = layout.getPageHeight();
+        FooterRenderData footerData = buildFooterRenderData(totalNett, totalGross, req);
+        Map<String, String> footerValues = footerData.values();
+        List<String> paymentLines = footerData.paymentLines();
+
+        for (var item : ftr.getItems()) {
+            if (item.getX() < 0 || item.getY() < 0) continue;
+            float itemHeight = item.getHeight() > 0 ? item.getHeight() : ftr.getLineSpacing();
+            if (!isFixedPageSectionBlock(layout, item.getY(), itemHeight)) continue;
+
+            PDFont font = item.isBold() ? fonts.bold() : fonts.regular();
+            float itemRight = item.getWidth() > 0 ? item.getX() + item.getWidth() : item.getX() + 150;
+            if ("payment".equals(item.getKey())) {
+                if (paymentLines.isEmpty()) continue;
+                String label = resolveLocalized(item.getLabelI18n(), item.getLabel(), locale);
+                float lineGap = Math.max(item.getFontSize() + 3, Math.min(ftr.getLineSpacing(), 14));
+                float firstLineY = item.getY() - (lineGap * Math.max(0, paymentLines.size() - 1));
+                for (int i = 0; i < paymentLines.size(); i++) {
+                    String value = paymentLines.get(i);
+                    String text = (i == 0 && label != null && !label.isBlank()) ? (label + ": " + value) : value;
+                    float absY = pageH - (firstLineY + lineGap * i) - item.getFontSize();
+                    if ("right".equals(item.getAlignment())) {
+                        drawTextRight(ctx, font, item.getFontSize(), itemRight, absY, text);
+                    } else {
+                        drawText(ctx, font, item.getFontSize(), item.getX(), absY, text);
+                    }
+                }
+                continue;
+            }
+
+            String value = footerValues.get(item.getKey());
+            if (value == null || value.isBlank()) continue;
+            String label = suppressFooterLabel(item.getKey()) ? "" : resolveLocalized(item.getLabelI18n(), item.getLabel(), locale);
+            String text = (label == null || label.isBlank()) ? value : (label + ": " + value);
+            float absY = pageH - item.getY() - item.getFontSize();
+            if ("right".equals(item.getAlignment())) {
+                drawTextRight(ctx, font, item.getFontSize(), itemRight, absY, text);
+            } else {
+                drawText(ctx, font, item.getFontSize(), item.getX(), absY, text);
+            }
+        }
+    }
+
+    private FooterRenderData buildFooterRenderData(BigDecimal totalNett, BigDecimal totalGross, FolioPdfRequest req) {
+        Map<String, String> footerValues = new HashMap<>();
+        footerValues.put("totalNett", fmtEur(totalNett));
+        footerValues.put("totalGross", fmtEur(totalGross));
+        footerValues.put("toBePaid", fmtEur(resolveToBePaid(req)));
+        List<VatBreakdownRow> vatRows = buildVatBreakdownRows(req == null ? null : req.getServices());
+        footerValues.put("vat22", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_22)));
+        footerValues.put("vat95", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_9_5)));
+        footerValues.put("vat0", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_0)));
+        footerValues.put("noVat", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.NO_VAT)));
+        if (req != null && req.getNotes() != null && !req.getNotes().isBlank()) {
+            footerValues.put("notes", safe(req.getNotes()));
+        }
+        List<String> paymentLines = paymentFooterLines(req);
+        if (!paymentLines.isEmpty()) {
+            footerValues.put("payment", safe(paymentLines.get(0)));
+        }
+        if (req != null && req.getIban() != null && !req.getIban().isBlank()) {
+            footerValues.put("iban", safe(req.getIban()));
+        }
+        if (req != null && req.getIssuedBy() != null && !req.getIssuedBy().isBlank()) {
+            footerValues.put("issuedBy", safe(req.getIssuedBy()));
+        }
+        if (req != null && req.getFiscalZoi() != null && !req.getFiscalZoi().isBlank()) {
+            footerValues.put("fiscalZoi", safe(req.getFiscalZoi()));
+        }
+        if (req != null && req.getFiscalEor() != null && !req.getFiscalEor().isBlank()) {
+            footerValues.put("fiscalEor", safe(req.getFiscalEor()));
+        }
+        return new FooterRenderData(footerValues, paymentLines);
+    }
+
     private boolean suppressFooterLabel(String key) {
         return "notes".equals(key) || "iban".equals(key);
     }
@@ -428,25 +560,49 @@ public class FolioPdfService {
 
     /* ────────────────────────── payment QR ────────────────────────── */
 
-    private void drawPaymentQr(PageContext ctx, FolioLayoutConfig layout, FolioPdfRequest req, float tableFlowOffset) throws IOException {
+    private void drawPaymentQr(
+            PageContext ctx,
+            FolioLayoutConfig layout,
+            FolioPdfRequest req,
+            String locale,
+            FontSet fonts,
+            float tableFlowOffset,
+            boolean fixedOnly
+    ) throws IOException {
         var qrCfg = layout.getPaymentQr();
         if (qrCfg == null || !qrCfg.isVisible()) return;
+        if (isFixedPageSectionBlock(layout, qrCfg.getY(), qrCfg.getHeight()) != fixedOnly) return;
         String payload = req.getPaymentQrPayload() == null ? "" : req.getPaymentQrPayload().replace("\r", "");
         if (payload.isBlank()) return;
 
-        byte[] png = createQrPng(payload,
-                Math.max(64, Math.round(qrCfg.getWidth())),
-                Math.max(64, Math.round(qrCfg.getHeight())));
-        PDImageXObject img = PDImageXObject.createFromByteArray(ctx.doc, png, "payment-qr");
         float pageH = layout.getPageHeight();
-        float qrY = shiftedBelowServicesTableY(qrCfg.getY(), layout, tableFlowOffset);
-        float pdfY = pageH - qrY - qrCfg.getHeight();
-        ctx.stream.drawImage(img, qrCfg.getX(), pdfY, qrCfg.getWidth(), qrCfg.getHeight());
+        float qrBlockY = fixedOnly ? qrCfg.getY() : shiftedBelowServicesTableY(qrCfg.getY(), layout, tableFlowOffset);
+        String caption = paymentQrCaption(locale);
+        float captionReserve = PAYMENT_QR_CAPTION_FONT_SIZE + PAYMENT_QR_CAPTION_GAP + 2;
+        float qrSize = Math.min(qrCfg.getWidth(), Math.max(40, qrCfg.getHeight() - captionReserve));
+        qrSize = Math.min(qrSize, qrCfg.getHeight());
+        float qrX = qrCfg.getX() + Math.max(0, (qrCfg.getWidth() - qrSize) / 2f);
+
+        byte[] png = createQrPng(payload,
+                Math.max(64, Math.round(qrSize)),
+                Math.max(64, Math.round(qrSize)));
+        PDImageXObject img = PDImageXObject.createFromByteArray(ctx.doc, png, "payment-qr");
+        float pdfY = pageH - qrBlockY - qrSize;
+        ctx.stream.drawImage(img, qrX, pdfY, qrSize, qrSize);
+
+        float captionYFromTop = qrBlockY + qrSize + PAYMENT_QR_CAPTION_GAP;
+        float captionPdfY = pageH - captionYFromTop - PAYMENT_QR_CAPTION_FONT_SIZE;
+        drawTextCentered(ctx, fonts.regular(), PAYMENT_QR_CAPTION_FONT_SIZE, qrCfg.getX(), qrCfg.getWidth(), captionPdfY, caption);
     }
 
-    private void drawFiscalQr(PageContext ctx, FolioLayoutConfig layout, FolioPdfRequest req, float tableFlowOffset) throws IOException {
+    private String paymentQrCaption(String locale) {
+        return "sl".equals(normalizeLocale(locale)) ? "Skeniraj in plačaj." : "Scan and pay.";
+    }
+
+    private void drawFiscalQr(PageContext ctx, FolioLayoutConfig layout, FolioPdfRequest req, float tableFlowOffset, boolean fixedOnly) throws IOException {
         var qrCfg = layout.getFiscalQr();
         if (qrCfg == null || !qrCfg.isVisible()) return;
+        if (isFixedPageSectionBlock(layout, qrCfg.getY(), qrCfg.getHeight()) != fixedOnly) return;
         String payload = req.getFiscalQr() == null ? "" : req.getFiscalQr().replace("\r", "");
         if (payload.isBlank()) return;
 
@@ -455,7 +611,7 @@ public class FolioPdfService {
                 Math.max(64, Math.round(qrCfg.getHeight())));
         PDImageXObject img = PDImageXObject.createFromByteArray(ctx.doc, png, "fiscal-qr");
         float pageH = layout.getPageHeight();
-        float qrY = shiftedBelowServicesTableY(qrCfg.getY(), layout, tableFlowOffset);
+        float qrY = fixedOnly ? qrCfg.getY() : shiftedBelowServicesTableY(qrCfg.getY(), layout, tableFlowOffset);
         float pdfY = pageH - qrY - qrCfg.getHeight();
         ctx.stream.drawImage(img, qrCfg.getX(), pdfY, qrCfg.getWidth(), qrCfg.getHeight());
     }
@@ -468,16 +624,19 @@ public class FolioPdfService {
             FolioPdfRequest req,
             String locale,
             FontSet fonts,
-            float tableFlowOffset
+            float tableFlowOffset,
+            boolean fixedOnly
     ) throws IOException {
         var cfg = layout.getVatBreakdownTable();
         if (cfg == null || !cfg.isVisible()) return;
+        float tableHeightForZone = cfg.getHeaderHeight() + cfg.getRowHeight() * Math.max(1, buildVatBreakdownRows(req.getServices()).size());
+        if (isFixedPageSectionBlock(layout, cfg.getY(), tableHeightForZone) != fixedOnly) return;
 
         List<VatBreakdownRow> rows = buildVatBreakdownRows(req.getServices());
         if (rows.isEmpty()) return;
 
         float x = cfg.getX();
-        float yTopFromPageTop = shiftedBelowServicesTableY(cfg.getY(), layout, tableFlowOffset);
+        float yTopFromPageTop = fixedOnly ? cfg.getY() : shiftedBelowServicesTableY(cfg.getY(), layout, tableFlowOffset);
         float width = Math.max(160, cfg.getWidth());
         float headerH = Math.max(10, cfg.getHeaderHeight());
         float rowH = Math.max(10, cfg.getRowHeight());
@@ -548,14 +707,15 @@ public class FolioPdfService {
 
     /* ────────────────────────── signature ────────────────────────── */
 
-    private void drawSignature(PageContext ctx, FolioLayoutConfig layout, byte[] signatureBytes, float tableFlowOffset) throws IOException {
+    private void drawSignature(PageContext ctx, FolioLayoutConfig layout, byte[] signatureBytes, float tableFlowOffset, boolean fixedOnly) throws IOException {
         if (signatureBytes == null || signatureBytes.length == 0) return;
         var sigCfg = layout.getSignature();
         if (sigCfg == null || !sigCfg.isVisible()) return;
+        if (isFixedPageSectionBlock(layout, sigCfg.getY(), sigCfg.getHeight()) != fixedOnly) return;
 
         PDImageXObject img = PDImageXObject.createFromByteArray(ctx.doc, signatureBytes, "signature");
         float pageH = layout.getPageHeight();
-        float sigY = shiftedBelowServicesTableY(sigCfg.getY(), layout, tableFlowOffset);
+        float sigY = fixedOnly ? sigCfg.getY() : shiftedBelowServicesTableY(sigCfg.getY(), layout, tableFlowOffset);
         float pdfY = pageH - sigY - sigCfg.getHeight();
         ctx.stream.drawImage(img, sigCfg.getX(), pdfY, sigCfg.getWidth(), sigCfg.getHeight());
     }
@@ -578,12 +738,23 @@ public class FolioPdfService {
         drawText(ctx, font, size, rightX - tw, y, text);
     }
 
+    private void drawTextCentered(PageContext ctx, PDFont font, int size, float x, float width, float y, String text) throws IOException {
+        if (text == null || text.isBlank()) return;
+        float tw = font.getStringWidth(text) / 1000f * size;
+        drawText(ctx, font, size, x + (width - tw) / 2f, y, text);
+    }
+
     private void drawHLine(PageContext ctx, float x1, float x2, float y, float lineWidth) throws IOException {
         var s = ctx.stream;
         s.setLineWidth(lineWidth);
         s.moveTo(x1, y);
         s.lineTo(x2, y);
         s.stroke();
+    }
+
+    private void drawDoubleHLine(PageContext ctx, float x1, float x2, float y, float lineWidth) throws IOException {
+        drawHLine(ctx, x1, x2, y, lineWidth);
+        drawHLine(ctx, x1, x2, y - DOUBLE_RULE_GAP, lineWidth);
     }
 
     private void drawVLine(PageContext ctx, float x, float yTop, float yBottom, float lineWidth) throws IOException {

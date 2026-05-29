@@ -1,0 +1,32 @@
+Payment QR caption + services table rule update
+================================================
+
+Changed files
+-------------
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- backend/src/main/java/com/example/app/billing/FolioLayoutConfig.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+
+What changed
+------------
+1. Payment QR caption
+   - The bank-transfer/payment QR block now renders a small localized caption below the QR code.
+   - Slovenian invoices show: "Skeniraj in plačaj."
+   - English invoices show: "Scan and pay."
+   - The caption is rendered as part of the existing Payment QR block, so it moves down together with the QR block when extra service rows push content down.
+   - The QR image is slightly reduced inside the block to keep the caption inside the configured QR block height.
+
+2. Services table lines
+   - Added a double horizontal rule above the services table column labels.
+   - Replaced the single rule below service rows with a double horizontal rule, matching the style shown in the reference image.
+   - Kept the thin separator between column labels and service rows for readability.
+   - The double bottom rule continues to follow the service rows, so it stays below the final service row when multiple rows are generated.
+
+3. Layout editor preview
+   - Payment QR preview now shows the localized scan-and-pay caption inside the QR block.
+   - Services table preview now shows the double rule at the top of the columns and below the preview row.
+
+Notes
+-----
+- These changes build on the previous services-table flow update, where all fields below the services table move down when extra rows are added.
+- I could not run the backend Maven build in this sandbox because dependencies/Maven downloads are unavailable here.

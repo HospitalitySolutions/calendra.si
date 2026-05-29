@@ -1,0 +1,23 @@
+Folio Services Table Flow Update
+
+Changed files:
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- backend/src/main/java/com/example/app/billing/FolioLayoutConfig.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+
+What changed:
+1. Services table now uses one service row as the default reserved layout height instead of three rows.
+   - This removes the large empty gap between the Services table and the fields below it when the invoice has only one service line.
+   - The layout editor preview now shows one default service row.
+
+2. All positioned elements below the Services table now flow downward when extra service rows are rendered.
+   - VAT breakdown table, footer/payment/notes/IBAN/issued-by/ZOI/EOR fields, signature, payment QR, and fiscal QR are shifted down based on the number of actual service rows.
+   - This prevents overlap when invoices contain multiple service rows.
+
+3. Default folio layout coordinates were compacted for the one-row default.
+   - VAT breakdown and footer fields start closer under the Services table.
+   - Payment QR, fiscal QR, and signature were moved up by the same default-row reduction.
+
+4. Added a one-time compatibility migration for older stored folio layouts.
+   - Existing layouts that still look like the old three-row default are compacted to the new one-row baseline on load/normalization.
+   - The migration only targets legacy default-like layouts so it does not repeatedly shift already-migrated layouts.

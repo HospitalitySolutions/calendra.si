@@ -13,8 +13,13 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FolioLayoutConfig {
 
+    /** The layout editor and renderer now reserve one service row by default; additional rows flow content down. */
+    private static final int SERVICE_TABLE_BASELINE_ROWS = 1;
+    private static final int LEGACY_SERVICE_TABLE_BASELINE_ROWS = 3;
+
     private float pageWidth = 595.28f;
     private float pageHeight = 841.89f;
+    private PageSectionsConfig pageSections = new PageSectionsConfig();
     private List<FieldConfig> fields = new ArrayList<>();
     private TableConfig table = new TableConfig();
     private FooterConfig footer = new FooterConfig();
@@ -27,6 +32,21 @@ public class FolioLayoutConfig {
     public FolioLayoutConfig() {}
 
     /* ── inner models ── */
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class PageSectionsConfig {
+        /** Fixed top space. Blocks fully inside this area are repeated at the top of every page and never flow down. */
+        private float headerHeight = 200;
+        /** Fixed bottom space. Blocks fully inside this area are repeated at the bottom of every page and never flow down. */
+        private float footerHeight = 90;
+
+        public PageSectionsConfig() {}
+
+        public float getHeaderHeight() { return headerHeight; }
+        public void setHeaderHeight(float headerHeight) { this.headerHeight = headerHeight; }
+        public float getFooterHeight() { return footerHeight; }
+        public void setFooterHeight(float footerHeight) { this.footerHeight = footerHeight; }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class LocalizedText {
@@ -240,7 +260,7 @@ public class FolioLayoutConfig {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class QrCodeConfig {
         private float x = 395;
-        private float y = 392;
+        private float y = 356;
         private float width = 120;
         private float height = 120;
         private boolean visible = true;
@@ -262,7 +282,7 @@ public class FolioLayoutConfig {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class VatBreakdownTableConfig {
         private float x = 50;
-        private float y = 322;
+        private float y = 286;
         private float width = 300;
         private float headerHeight = 14;
         private float rowHeight = 14;
@@ -315,7 +335,7 @@ public class FolioLayoutConfig {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SignatureConfig {
         private float x = 50;
-        private float y = 500;
+        private float y = 464;
         private float width = 120;
         private float height = 50;
         private boolean visible = true;
@@ -338,6 +358,10 @@ public class FolioLayoutConfig {
 
     public static FolioLayoutConfig defaultLayout() {
         var cfg = new FolioLayoutConfig();
+        var sections = new PageSectionsConfig();
+        sections.setHeaderHeight(200);
+        sections.setFooterHeight(90);
+        cfg.setPageSections(sections);
 
         var fields = new ArrayList<FieldConfig>();
         // Company block
@@ -398,14 +422,14 @@ public class FolioLayoutConfig {
         footer.setGapAfterTable(4);
         footer.setLineSpacing(16);
         var items = new ArrayList<FooterItem>();
-        items.add(new FooterItem("payment",    "Payment",     10, false, "right", 395, 340, 150, 16));
-        items.add(new FooterItem("totalGross", "Total gross", 11, true,  "right", 395, 358, 150, 16));
-        items.add(new FooterItem("toBePaid",   "To be paid",  11, true,  "right", 395, 376, 150, 16));
-        items.add(new FooterItem("notes",      "Notes",        9, false, "left",  50,  398, 300, 16));
-        items.add(new FooterItem("iban",       "IBAN",        10, false, "left",  50,  416, 300, 16));
-        items.add(new FooterItem("issuedBy",   "Issued by",   10, false, "left",  50,  434, 200, 16));
-        items.add(new FooterItem("fiscalZoi",  "ZOI",          8, false, "left",  50,  454, 300, 14));
-        items.add(new FooterItem("fiscalEor",  "EOR",          8, false, "left",  50,  468, 300, 14));
+        items.add(new FooterItem("payment",    "Payment",     10, false, "right", 395, 304, 150, 16));
+        items.add(new FooterItem("totalGross", "Total gross", 11, true,  "right", 395, 322, 150, 16));
+        items.add(new FooterItem("toBePaid",   "To be paid",  11, true,  "right", 395, 340, 150, 16));
+        items.add(new FooterItem("notes",      "Notes",        9, false, "left",  50,  362, 300, 16));
+        items.add(new FooterItem("iban",       "IBAN",        10, false, "left",  50,  380, 300, 16));
+        items.add(new FooterItem("issuedBy",   "Issued by",   10, false, "left",  50,  398, 200, 16));
+        items.add(new FooterItem("fiscalZoi",  "ZOI",          8, false, "left",  50,  418, 300, 14));
+        items.add(new FooterItem("fiscalEor",  "EOR",          8, false, "left",  50,  432, 300, 14));
         for (var item : items) {
             item.setLabelI18n(new LocalizedText(item.getLabel(), slFooterLabel(item.getKey(), item.getLabel())));
         }
@@ -416,7 +440,7 @@ public class FolioLayoutConfig {
         cfg.setPaymentQr(new QrCodeConfig());
         var fiscalQr = new QrCodeConfig();
         fiscalQr.setX(395);
-        fiscalQr.setY(520);
+        fiscalQr.setY(484);
         fiscalQr.setWidth(95);
         fiscalQr.setHeight(95);
         fiscalQr.setVisible(true);
@@ -604,6 +628,11 @@ public class FolioLayoutConfig {
     public static FolioLayoutConfig normalize(FolioLayoutConfig cfg) {
         if (cfg == null) return defaultLayout();
         FolioLayoutConfig defaults = defaultLayout();
+        if (cfg.getPageSections() == null) {
+            cfg.setPageSections(defaults.getPageSections());
+        } else {
+            normalizePageSections(cfg.getPageSections(), cfg.getPageHeight());
+        }
         if (cfg.getFields() == null) {
             cfg.setFields(defaults.getFields());
         } else {
@@ -659,7 +688,78 @@ public class FolioLayoutConfig {
         if (cfg.getPaymentQr() == null) cfg.setPaymentQr(defaults.getPaymentQr());
         if (cfg.getFiscalQr() == null) cfg.setFiscalQr(defaults.getFiscalQr());
         if (cfg.getVatBreakdownTable() == null) cfg.setVatBreakdownTable(defaults.getVatBreakdownTable());
+        migrateLegacyServicesTableBaseline(cfg);
         return cfg;
+    }
+
+    private static void normalizePageSections(PageSectionsConfig sections, float pageHeight) {
+        if (sections == null) return;
+        float maxCombined = Math.max(120f, pageHeight - 180f);
+        if (sections.getHeaderHeight() < 0) sections.setHeaderHeight(0);
+        if (sections.getFooterHeight() < 0) sections.setFooterHeight(0);
+        if (sections.getHeaderHeight() > pageHeight - 80f) sections.setHeaderHeight(pageHeight - 80f);
+        if (sections.getFooterHeight() > pageHeight - 80f) sections.setFooterHeight(pageHeight - 80f);
+        float combined = sections.getHeaderHeight() + sections.getFooterHeight();
+        if (combined > maxCombined) {
+            float overflow = combined - maxCombined;
+            sections.setFooterHeight(Math.max(0, sections.getFooterHeight() - overflow));
+        }
+    }
+
+    private static boolean isFixedPageSectionBlock(FolioLayoutConfig cfg, float y, float height) {
+        if (cfg == null || cfg.getPageSections() == null) return false;
+        float blockBottom = y + Math.max(0, height);
+        float headerBottom = cfg.getPageSections().getHeaderHeight();
+        float footerTop = cfg.getPageHeight() - cfg.getPageSections().getFooterHeight();
+        return blockBottom <= headerBottom || y >= footerTop;
+    }
+
+    private static void migrateLegacyServicesTableBaseline(FolioLayoutConfig cfg) {
+        if (cfg == null || cfg.getTable() == null) return;
+        float oldBottom = servicesTableBottom(cfg, LEGACY_SERVICE_TABLE_BASELINE_ROWS);
+        float newBottom = servicesTableBottom(cfg, SERVICE_TABLE_BASELINE_ROWS);
+        float delta = oldBottom - newBottom;
+        if (delta <= 0) return;
+        if (!looksLikeLegacyServicesBaseline(cfg, oldBottom)) return;
+
+        if (cfg.getFields() != null) {
+            for (FieldConfig field : cfg.getFields()) {
+                if (field != null && field.getY() >= oldBottom && !isFixedPageSectionBlock(cfg, field.getY(), field.getHeight())) field.setY(field.getY() - delta);
+            }
+        }
+        if (cfg.getFooter() != null && cfg.getFooter().getItems() != null) {
+            for (FooterItem item : cfg.getFooter().getItems()) {
+                if (item != null && item.getY() >= oldBottom && !isFixedPageSectionBlock(cfg, item.getY(), item.getHeight())) item.setY(item.getY() - delta);
+            }
+        }
+        shiftQrIfBelow(cfg, cfg.getPaymentQr(), oldBottom, delta);
+        shiftQrIfBelow(cfg, cfg.getFiscalQr(), oldBottom, delta);
+        if (cfg.getSignature() != null && cfg.getSignature().getY() >= oldBottom
+                && !isFixedPageSectionBlock(cfg, cfg.getSignature().getY(), cfg.getSignature().getHeight())) {
+            cfg.getSignature().setY(cfg.getSignature().getY() - delta);
+        }
+        if (cfg.getVatBreakdownTable() != null && cfg.getVatBreakdownTable().getY() >= oldBottom
+                && !isFixedPageSectionBlock(cfg, cfg.getVatBreakdownTable().getY(), cfg.getVatBreakdownTable().getHeaderHeight() + cfg.getVatBreakdownTable().getRowHeight() * 3)) {
+            cfg.getVatBreakdownTable().setY(cfg.getVatBreakdownTable().getY() - delta);
+        }
+    }
+
+    private static boolean looksLikeLegacyServicesBaseline(FolioLayoutConfig cfg, float oldBottom) {
+        float nearLimit = oldBottom + Math.max(45f, cfg.getTable().getRowHeight() * 2.5f);
+        var vat = cfg.getVatBreakdownTable();
+        return vat != null && vat.getY() >= oldBottom && vat.getY() <= nearLimit;
+    }
+
+    private static float servicesTableBottom(FolioLayoutConfig cfg, int rows) {
+        var table = cfg.getTable();
+        return table.getStartY()
+                + table.getHeaderHeight()
+                + table.getRowHeight() * Math.max(0, rows)
+                + table.getFooterSpacing();
+    }
+
+    private static void shiftQrIfBelow(FolioLayoutConfig cfg, QrCodeConfig qr, float oldBottom, float delta) {
+        if (qr != null && qr.getY() >= oldBottom && !isFixedPageSectionBlock(cfg, qr.getY(), qr.getHeight())) qr.setY(qr.getY() - delta);
     }
 
     private static void addMissingFooterItem(FolioLayoutConfig cfg, FolioLayoutConfig defaults, String key) {
@@ -677,6 +777,8 @@ public class FolioLayoutConfig {
     public void setPageWidth(float pageWidth) { this.pageWidth = pageWidth; }
     public float getPageHeight() { return pageHeight; }
     public void setPageHeight(float pageHeight) { this.pageHeight = pageHeight; }
+    public PageSectionsConfig getPageSections() { return pageSections; }
+    public void setPageSections(PageSectionsConfig pageSections) { this.pageSections = pageSections; }
     public List<FieldConfig> getFields() { return fields; }
     public void setFields(List<FieldConfig> fields) { this.fields = fields; }
     public TableConfig getTable() { return table; }

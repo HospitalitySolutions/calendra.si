@@ -1,0 +1,29 @@
+Implemented folio layout header / main / footer spaces.
+
+Changed files:
+- backend/src/main/java/com/example/app/billing/FolioLayoutConfig.java
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+- frontend/src/styles/folio-layout-editor.css
+
+Backend changes:
+- Added pageSections to FolioLayoutConfig with configurable headerHeight and footerHeight.
+- Added normalization for older saved layouts so existing layouts automatically receive default page spaces.
+- Added fixed-section detection: any block fully inside the header space or footer space is treated as fixed.
+- Fixed header/footer blocks are rendered on every PDF page and do not receive the services-table flow offset.
+- Main-space blocks keep the existing behavior: items below the services table move down when service rows are added.
+- Pagination now respects the fixed footer space, so service rows do not continue into the footer area.
+- Continuation pages start service rows below the fixed header space.
+- Supported fixed/repeating blocks include: logo, data/custom fields, footer items, VAT breakdown table, signature, payment QR, and fiscal QR.
+
+Frontend/layout editor changes:
+- Added visible Header space, Main space, and Footer space overlays to the folio layout editor.
+- Added editable Header/Footer height controls in the toolbar.
+- Added a Page spaces property panel explaining fixed vs flowing behavior.
+- Existing layouts are migrated client-side to include pageSections.
+- Added CSS styling for the page-space overlays and toolbar number inputs.
+
+Notes:
+- Blocks fully inside the header/footer spaces are fixed and repeated on every page.
+- Blocks in the main space still flow down when the services table grows.
+- I could not run Maven or frontend builds in this sandbox because dependencies/downloads are unavailable here.

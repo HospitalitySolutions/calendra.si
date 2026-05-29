@@ -582,3 +582,53 @@
   letter-spacing: 0.5px;
   pointer-events: none;
 }
+
+/* ── Header / main / footer page space guides ── */
+.fle-toolbar-number {
+  width: 64px;
+  padding: 3px 5px;
+  border: 1px solid var(--fle-panel-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text, #ccc);
+  font-size: 12px;
+}
+
+.fle-page-space {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.fle-page-space span {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.fle-page-space--header {
+  border-bottom: 1px dashed rgba(91, 141, 239, 0.55);
+  background: rgba(91, 141, 239, 0.035);
+  color: #3b82f6;
+}
+
+.fle-page-space--main {
+  border-bottom: 1px dashed rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.018);
+  color: #10b981;
+}
+
+.fle-page-space--footer {
+  border-top: 1px dashed rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.045);
+  color: #d97706;
+}

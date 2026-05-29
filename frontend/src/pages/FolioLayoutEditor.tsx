@@ -13,6 +13,11 @@ type LocalizedText = {
 
 type DateFormat = 'YYYY-MM-DD' | 'DD-MM-YYYY' | 'DD.MM.YYYY' | 'YYYY-MM-DD HH:mm' | 'DD-MM-YYYY HH:mm' | 'DD.MM.YYYY HH:mm'
 
+type PageSectionsConfig = {
+  headerHeight: number
+  footerHeight: number
+}
+
 type FieldConfig = {
   key: string
   group: string
@@ -115,6 +120,7 @@ type VatBreakdownTableConfig = {
 type LayoutConfig = {
   pageWidth: number
   pageHeight: number
+  pageSections: PageSectionsConfig
   fields: FieldConfig[]
   table: TableConfig
   footer: FooterConfig
@@ -134,6 +140,7 @@ type Selection =
   | { type: 'paymentQr' }
   | { type: 'fiscalQr' }
   | { type: 'vatBreakdownTable' }
+  | { type: 'pageSections' }
   | null
 
 const GROUP_COLORS: Record<string, string> = {
@@ -143,11 +150,15 @@ const GROUP_COLORS: Record<string, string> = {
   custom: 'var(--fle-group-custom)',
 }
 
+const DEFAULT_PAGE_SECTIONS: PageSectionsConfig = { headerHeight: 200, footerHeight: 90 }
 const DEFAULT_LOGO: LogoConfig = { x: 400, y: 40, width: 120, height: 60, visible: true }
-const DEFAULT_SIGNATURE: SignatureConfig = { x: 50, y: 500, width: 120, height: 50, visible: true }
-const DEFAULT_PAYMENT_QR: PaymentQrConfig = { x: 395, y: 392, width: 120, height: 120, visible: true }
-const DEFAULT_FISCAL_QR: PaymentQrConfig = { x: 395, y: 520, width: 95, height: 95, visible: true }
-const DEFAULT_VAT_BREAKDOWN_TABLE: VatBreakdownTableConfig = { x: 50, y: 322, width: 300, headerHeight: 14, rowHeight: 14, headerFontSize: 7, bodyFontSize: 7, visible: true }
+const DEFAULT_SIGNATURE: SignatureConfig = { x: 50, y: 464, width: 120, height: 50, visible: true }
+const DEFAULT_PAYMENT_QR: PaymentQrConfig = { x: 395, y: 356, width: 120, height: 120, visible: true }
+const DEFAULT_FISCAL_QR: PaymentQrConfig = { x: 395, y: 484, width: 95, height: 95, visible: true }
+const PAYMENT_QR_CAPTION: Record<AppLocale, string> = { en: 'Scan and pay.', sl: 'Skeniraj in plačaj.' }
+const DEFAULT_VAT_BREAKDOWN_TABLE: VatBreakdownTableConfig = { x: 50, y: 286, width: 300, headerHeight: 14, rowHeight: 14, headerFontSize: 7, bodyFontSize: 7, visible: true }
+const SERVICE_TABLE_PREVIEW_ROWS = 1
+const LEGACY_SERVICE_TABLE_PREVIEW_ROWS = 3
 const VAT_SAMPLE_ROWS = 3
 const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en' }
 const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
@@ -202,6 +213,58 @@ function ensureLocalizedText(i18n: LocalizedText | undefined, legacy: string | u
 function migratePostalCityFields(layout: LayoutConfig) {
   migratePostalCityField(layout, 'companyPostalCode', 'companyCity', 'companyPostalCodeCity', 'header', 'Postal Code & City')
   migratePostalCityField(layout, 'recipientPostalCode', 'recipientCity', 'recipientPostalCodeCity', 'recipient', 'Recipient Postal Code & City')
+}
+
+function servicesTableBottom(layout: LayoutConfig, rows: number) {
+  const table = layout.table
+  return table.startY + table.headerHeight + table.rowHeight * Math.max(0, rows) + table.footerSpacing
+}
+
+function normalizePageSections(layout: LayoutConfig) {
+  if (!layout.pageSections) layout.pageSections = { ...DEFAULT_PAGE_SECTIONS }
+  const maxCombined = Math.max(120, layout.pageHeight - 180)
+  layout.pageSections.headerHeight = Math.max(0, Math.min(layout.pageHeight - 80, Number(layout.pageSections.headerHeight ?? DEFAULT_PAGE_SECTIONS.headerHeight)))
+  layout.pageSections.footerHeight = Math.max(0, Math.min(layout.pageHeight - 80, Number(layout.pageSections.footerHeight ?? DEFAULT_PAGE_SECTIONS.footerHeight)))
+  const combined = layout.pageSections.headerHeight + layout.pageSections.footerHeight
+  if (combined > maxCombined) {
+    layout.pageSections.footerHeight = Math.max(0, layout.pageSections.footerHeight - (combined - maxCombined))
+  }
+}
+
+function isFixedPageSectionBlock(layout: LayoutConfig, y: number, height: number) {
+  const blockBottom = y + Math.max(0, height || 0)
+  const headerBottom = layout.pageSections?.headerHeight ?? 0
+  const footerTop = layout.pageHeight - (layout.pageSections?.footerHeight ?? 0)
+  return blockBottom <= headerBottom || y >= footerTop
+}
+
+function migrateLegacyServicesTableBaseline(layout: LayoutConfig) {
+  if (!layout?.table) return
+  const oldBottom = servicesTableBottom(layout, LEGACY_SERVICE_TABLE_PREVIEW_ROWS)
+  const newBottom = servicesTableBottom(layout, SERVICE_TABLE_PREVIEW_ROWS)
+  const delta = oldBottom - newBottom
+  if (delta <= 0 || !looksLikeLegacyServicesBaseline(layout, oldBottom)) return
+
+  layout.fields?.forEach((field) => {
+    if (field && field.y >= oldBottom && !isFixedPageSectionBlock(layout, field.y, field.height)) field.y -= delta
+  })
+  layout.footer?.items?.forEach((item) => {
+    if (item && item.y >= oldBottom && !isFixedPageSectionBlock(layout, item.y, item.height)) item.y -= delta
+  })
+  shiftQrIfBelow(layout, layout.paymentQr, oldBottom, delta)
+  shiftQrIfBelow(layout, layout.fiscalQr, oldBottom, delta)
+  if (layout.signature && layout.signature.y >= oldBottom && !isFixedPageSectionBlock(layout, layout.signature.y, layout.signature.height)) layout.signature.y -= delta
+  if (layout.vatBreakdownTable && layout.vatBreakdownTable.y >= oldBottom && !isFixedPageSectionBlock(layout, layout.vatBreakdownTable.y, layout.vatBreakdownTable.headerHeight + layout.vatBreakdownTable.rowHeight * VAT_SAMPLE_ROWS)) layout.vatBreakdownTable.y -= delta
+}
+
+function looksLikeLegacyServicesBaseline(layout: LayoutConfig, oldBottom: number) {
+  const nearLimit = oldBottom + Math.max(45, layout.table.rowHeight * 2.5)
+  const vatY = layout.vatBreakdownTable?.y
+  return vatY != null && vatY >= oldBottom && vatY <= nearLimit
+}
+
+function shiftQrIfBelow(layout: LayoutConfig, qr: PaymentQrConfig | undefined, oldBottom: number, delta: number) {
+  if (qr && qr.y >= oldBottom && !isFixedPageSectionBlock(layout, qr.y, qr.height)) qr.y -= delta
 }
 
 function migratePostalCityField(
@@ -267,12 +330,15 @@ function migratePostalCityField(
 
 function isValidLayout(data: any): data is LayoutConfig {
   if (!data || Array.isArray(data) || !Array.isArray(data.fields) || !data.table || !data.footer) return false
+  if (!data.pageSections) data.pageSections = { ...DEFAULT_PAGE_SECTIONS }
+  normalizePageSections(data)
   if (!data.logo) data.logo = { ...DEFAULT_LOGO }
   if (!data.signature) data.signature = { ...DEFAULT_SIGNATURE }
   if (!data.paymentQr) data.paymentQr = { ...DEFAULT_PAYMENT_QR }
   if (!data.fiscalQr) data.fiscalQr = { ...DEFAULT_FISCAL_QR }
   if (!data.vatBreakdownTable) data.vatBreakdownTable = { ...DEFAULT_VAT_BREAKDOWN_TABLE }
   migratePostalCityFields(data)
+  migrateLegacyServicesTableBaseline(data)
   for (const field of data.fields ?? []) {
     field.labelI18n = ensureLocalizedText(field.labelI18n, field.label)
     field.label = resolveLocalizedText(field.labelI18n, field.label, 'en')
@@ -692,6 +758,30 @@ export function FolioLayoutEditor() {
           <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
           Snap
         </label>
+        <label className="fle-toolbar-item">
+          Header
+          <input
+            className="fle-toolbar-number"
+            type="number"
+            min={0}
+            max={Math.max(0, layout.pageHeight - layout.pageSections.footerHeight - 180)}
+            value={Math.round(layout.pageSections.headerHeight)}
+            onChange={(e) => mutateLayout((l) => { l.pageSections.headerHeight = Number(e.target.value); normalizePageSections(l) })}
+          />
+          pt
+        </label>
+        <label className="fle-toolbar-item">
+          Footer
+          <input
+            className="fle-toolbar-number"
+            type="number"
+            min={0}
+            max={Math.max(0, layout.pageHeight - layout.pageSections.headerHeight - 180)}
+            value={Math.round(layout.pageSections.footerHeight)}
+            onChange={(e) => mutateLayout((l) => { l.pageSections.footerHeight = Number(e.target.value); normalizePageSections(l) })}
+          />
+          pt
+        </label>
         <div className="fle-toolbar-spacer" />
         <button type="button" className="fle-btn fle-btn-add" onClick={addCustomField}>+ Text field</button>
         <button type="button" className="fle-btn" onClick={importJson}>Import</button>
@@ -734,6 +824,27 @@ export function FolioLayoutEditor() {
                 <span key={i} className="fle-ruler-mark" style={{ top: i * 50 * scale }}>{i * 50}</span>
               ))}
             </div>
+
+            {/* Header / main / footer page spaces */}
+            {(() => {
+              const headerH = layout.pageSections.headerHeight
+              const footerH = layout.pageSections.footerHeight
+              const footerTop = layout.pageHeight - footerH
+              const mainH = Math.max(0, footerTop - headerH)
+              return (
+                <>
+                  <div className="fle-page-space fle-page-space--header" style={{ top: 0, height: headerH * scale }} onClick={(e) => { e.stopPropagation(); setSelection({ type: 'pageSections' }) }}>
+                    <span>Header space</span>
+                  </div>
+                  <div className="fle-page-space fle-page-space--main" style={{ top: headerH * scale, height: mainH * scale }} onClick={(e) => { e.stopPropagation(); setSelection({ type: 'pageSections' }) }}>
+                    <span>Main space</span>
+                  </div>
+                  <div className="fle-page-space fle-page-space--footer" style={{ top: footerTop * scale, height: footerH * scale }} onClick={(e) => { e.stopPropagation(); setSelection({ type: 'pageSections' }) }}>
+                    <span>Footer space</span>
+                  </div>
+                </>
+              )
+            })()}
 
             {/* Logo overlay */}
             {layout.logo && (() => {
@@ -813,7 +924,7 @@ export function FolioLayoutEditor() {
             {(() => {
               const t = layout.table
               const isSel = selection?.type === 'table'
-              const sampleRows = 3
+              const sampleRows = SERVICE_TABLE_PREVIEW_ROWS
               const tableH = t.headerHeight + t.rowHeight * sampleRows + t.footerSpacing
               return (
                 <div
@@ -827,6 +938,10 @@ export function FolioLayoutEditor() {
                   onPointerDown={(e) => onPointerDown(e, { type: 'table' }, 'move')}
                   onClick={(e) => { e.stopPropagation(); setSelection({ type: 'table' }) }}
                 >
+                  <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 3 * scale, pointerEvents: 'none' }}>
+                    <span style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
+                    <span style={{ position: 'absolute', left: 0, right: 0, top: 2 * scale, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
+                  </div>
                   <div className="fle-table-header" style={{ height: t.headerHeight * scale }}>
                     {t.columns.map((col) => (
                       <span key={col.key} className="fle-table-col-label" style={{
@@ -853,6 +968,10 @@ export function FolioLayoutEditor() {
                       ))}
                     </div>
                   ))}
+                  <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: (t.headerHeight + t.rowHeight * sampleRows) * scale, height: 3 * scale, pointerEvents: 'none' }}>
+                    <span style={{ position: 'absolute', left: 0, right: 0, top: 0, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
+                    <span style={{ position: 'absolute', left: 0, right: 0, top: 2 * scale, borderTop: '1px solid rgba(16, 185, 129, 0.65)' }} />
+                  </div>
                   <span className="fle-table-label">Services Table</span>
                   {isSel && (
                     <div
@@ -937,7 +1056,7 @@ export function FolioLayoutEditor() {
             {/* Footer items preview — positioned absolutely when x/y are set */}
             {layout.footer.items.map((item, idx) => {
               const t = layout.table
-              const sampleRows = 3
+              const sampleRows = SERVICE_TABLE_PREVIEW_ROWS
               const tableBottom = t.startY + t.headerHeight + t.rowHeight * sampleRows + t.footerSpacing
               const hasPos = item.x >= 0 && item.y >= 0
               const posX = hasPos ? item.x : (item.alignment === 'right' ? t.startX + t.width - 150 : t.startX)
@@ -989,8 +1108,13 @@ export function FolioLayoutEditor() {
                   onPointerDown={(e) => onPointerDown(e, { type: 'paymentQr' }, 'move')}
                   onClick={(e) => { e.stopPropagation(); setSelection({ type: 'paymentQr' }) }}
                 >
-                  <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', pointerEvents: 'none', background: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06) 6px, transparent 6px, transparent 12px)' }}>
-                    <span className="fle-logo-placeholder">Payment QR</span>
+                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', pointerEvents: 'none', background: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.06), rgba(0,0,0,0.06) 6px, transparent 6px, transparent 12px)' }}>
+                    <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', display: 'grid', placeItems: 'center' }}>
+                      <span className="fle-logo-placeholder">Payment QR</span>
+                    </div>
+                    <div style={{ flex: '0 0 auto', width: '100%', textAlign: 'center', fontSize: Math.max(6, 7 * scale), lineHeight: 1.15, paddingBottom: 3, color: 'rgba(236, 72, 153, 0.65)', fontWeight: 600 }}>
+                      {PAYMENT_QR_CAPTION[locale]}
+                    </div>
                   </div>
                   {isSel && (
                     <div
@@ -1070,7 +1194,28 @@ export function FolioLayoutEditor() {
         <div className="fle-panel">
           {selection === null && (
             <div className="fle-panel-empty">
-              <p className="muted">Click a field, the services table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.</p>
+              <p className="muted">Click a field, page space, services table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.</p>
+              <button type="button" className="fle-btn" onClick={() => setSelection({ type: 'pageSections' })}>Edit page spaces</button>
+            </div>
+          )}
+
+          {selection?.type === 'pageSections' && (
+            <div className="fle-panel-content">
+              <PageHeader title="Page spaces" subtitle="Header, main, and footer fixed areas" />
+              <div className="fle-panel-grid">
+                <Field label="Header height">
+                  <input type="number" step={1} min={0} value={Math.round(layout.pageSections.headerHeight)} onChange={(e) => mutateLayout((l) => { l.pageSections.headerHeight = Number(e.target.value); normalizePageSections(l) })} />
+                </Field>
+                <Field label="Footer height">
+                  <input type="number" step={1} min={0} value={Math.round(layout.pageSections.footerHeight)} onChange={(e) => mutateLayout((l) => { l.pageSections.footerHeight = Number(e.target.value); normalizePageSections(l) })} />
+                </Field>
+              </div>
+              <div className="fle-panel-coords">
+                Main space: {Math.round(layout.pageSections.headerHeight)} pt – {Math.round(layout.pageHeight - layout.pageSections.footerHeight)} pt
+              </div>
+              <p className="muted" style={{ fontSize: 12, lineHeight: 1.45 }}>
+                Blocks fully inside the header or footer space are repeated on every generated PDF page and do not move when service rows are added. Blocks in the main space still flow down below the services table.
+              </p>
             </div>
           )}
 
@@ -1116,7 +1261,7 @@ export function FolioLayoutEditor() {
 
           {selection?.type === 'paymentQr' && (
             <div className="fle-panel-content">
-              <PageHeader title="Payment QR" subtitle="Auto-generated bank-app payment QR placement" />
+              <PageHeader title="Payment QR" subtitle="Auto-generated bank-app payment QR placement with localized scan-and-pay caption" />
               <div className="fle-panel-grid">
                 <Field label="X (pt)">
                   <input type="number" step={1} value={Math.round(layout.paymentQr.x)} onChange={(e) => mutateLayout((l) => { l.paymentQr.x = Number(e.target.value) })} />
