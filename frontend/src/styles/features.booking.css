@@ -5633,3 +5633,531 @@ button.transaction-service-modal-close {
   width: 16px;
   height: 16px;
 }
+
+/* Mobile full-width redesign for the Client & payee popup */
+@media (max-width: 720px) {
+  .calendar-payment-manager-backdrop {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.32);
+    backdrop-filter: blur(7px);
+  }
+
+  .calendar-payment-manager-modal {
+    position: relative;
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+  }
+
+  .calendar-payment-manager-modal::before {
+    content: '';
+    position: absolute;
+    top: max(8px, env(safe-area-inset-top));
+    left: 50%;
+    z-index: 5;
+    width: 54px;
+    height: 5px;
+    border-radius: 999px;
+    background: #cbd5e1;
+    transform: translateX(-50%);
+  }
+
+  .calendar-payment-manager-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    align-items: flex-start;
+    gap: 10px;
+    padding: calc(28px + env(safe-area-inset-top)) 20px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  }
+
+  .calendar-payment-manager-title-row {
+    flex: 1 1 auto;
+  }
+
+  .calendar-payment-manager-title-row h2 {
+    font-size: clamp(1.72rem, 7.2vw, 2.28rem);
+    line-height: 1.02;
+    letter-spacing: -0.055em;
+  }
+
+  .calendar-payment-manager-title-row p {
+    margin-top: 8px;
+    color: #5f6f86;
+    font-size: clamp(0.94rem, 3.7vw, 1.12rem);
+    line-height: 1.28;
+    font-weight: 700;
+  }
+
+  .calendar-payment-manager-close {
+    width: 46px;
+    height: 46px;
+    margin-top: 12px;
+    border-radius: 16px;
+    color: #475569;
+    font-size: 2.25rem;
+    line-height: 1;
+  }
+
+  .calendar-payment-manager-close:hover {
+    background: #f8fafc;
+  }
+
+  .calendar-payment-manager-body {
+    gap: 16px;
+    padding: 18px 20px 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .calendar-payment-manager-overview {
+    gap: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .calendar-payment-manager-overview-people {
+    min-height: 102px;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid #e0e8f4;
+    border-radius: 24px;
+    background: #ffffff;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  }
+
+  .calendar-payment-manager-overview-group {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .calendar-payment-manager-icon,
+  .calendar-payment-manager-overview-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, #eff6ff 0%, #eaf2ff 100%);
+    color: #2563eb;
+    box-shadow: inset 0 0 0 1px rgba(191, 219, 254, 0.68);
+  }
+
+  .calendar-payment-manager-overview-icon svg {
+    width: 31px;
+    height: 31px;
+  }
+
+  .calendar-payment-manager-overview-people strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: clamp(1.15rem, 4.7vw, 1.42rem);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+  }
+
+  .calendar-payment-manager-overview-group-input {
+    min-height: 52px;
+    padding: 10px 16px;
+    border-color: #cbd5e1;
+    border-radius: 17px;
+    font-size: clamp(1.04rem, 4.6vw, 1.32rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+  }
+
+  .calendar-payment-manager-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 20px 10px 18px;
+    border: 1px solid #dbe5f1;
+    border-radius: 24px;
+    background: #ffffff;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+  }
+
+  .calendar-payment-manager-metrics div {
+    position: relative;
+    min-width: 0;
+    justify-items: center;
+    gap: 8px;
+    padding: 0 5px;
+    border-left: 1px solid #e2e8f0;
+    text-align: center;
+  }
+
+  .calendar-payment-manager-metrics div:first-child {
+    border-left: 0;
+  }
+
+  .calendar-payment-manager-metrics div::before {
+    content: '';
+    width: 32px;
+    height: 32px;
+    display: block;
+    border-radius: 999px;
+    background-color: currentColor;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 18px 18px;
+  }
+
+  .calendar-payment-manager-metrics div:nth-child(1)::before {
+    color: #2563eb;
+    background-color: #eff6ff;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 8.5h13.5A2.5 2.5 0 0 1 20 11v5.5A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Zm0 0V7a2 2 0 0 1 2-2h10' stroke='%232563eb' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M16 13.75h.01' stroke='%232563eb' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  }
+
+  .calendar-payment-manager-metrics div:nth-child(2)::before {
+    color: #16a34a;
+    background-color: #ecfdf5;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m7 12.4 3.1 3.1L17.4 8' stroke='%2316a34a' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12' r='8.5' stroke='%2316a34a' stroke-width='1.9'/%3E%3C/svg%3E");
+  }
+
+  .calendar-payment-manager-metrics div:nth-child(3)::before {
+    color: #2563eb;
+    background-color: #eff6ff;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='12' cy='12' r='8.5' stroke='%232563eb' stroke-width='1.9'/%3E%3Cpath d='M12 7.5V12l3 2' stroke='%232563eb' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  .calendar-payment-manager-metrics div:nth-child(4)::before {
+    color: #dc2626;
+    background-color: #fef2f2;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 7.5v5' stroke='%23dc2626' stroke-width='2.2' stroke-linecap='round'/%3E%3Cpath d='M12 16.75h.01' stroke='%23dc2626' stroke-width='2.7' stroke-linecap='round'/%3E%3Cpath d='M10.15 4.95a2.1 2.1 0 0 1 3.7 0l7 12.25A2.1 2.1 0 0 1 19 20.35H5a2.1 2.1 0 0 1-1.85-3.15l7-12.25Z' stroke='%23dc2626' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  .calendar-payment-manager-metrics span {
+    font-size: clamp(0.72rem, 3.15vw, 0.94rem);
+    line-height: 1.12;
+    font-weight: 780;
+    white-space: normal;
+  }
+
+  .calendar-payment-manager-metrics strong {
+    font-size: clamp(0.96rem, 4.2vw, 1.28rem);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
+    white-space: nowrap;
+  }
+
+  .calendar-payment-manager-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: visible;
+    border-top: 0;
+  }
+
+  .calendar-payment-manager-sidebar {
+    position: relative;
+    gap: 12px;
+    padding: 0;
+    border-right: 0;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .calendar-payment-manager-sidebar-head {
+    min-height: 46px;
+    align-items: center;
+  }
+
+  .calendar-payment-manager-sidebar-head h3 {
+    font-size: clamp(1.34rem, 5.6vw, 1.76rem);
+    letter-spacing: -0.04em;
+  }
+
+  .calendar-payment-manager-sidebar-count {
+    display: none;
+  }
+
+  .calendar-payment-manager-client-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .calendar-payment-manager-client {
+    min-width: 0;
+    min-height: 76px;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: 12px 14px;
+    border-color: #dbe5f1;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.055);
+  }
+
+  .calendar-payment-manager-client.is-selected {
+    border-color: #dbe5f1;
+    background: #ffffff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.055);
+  }
+
+  .calendar-payment-manager-client-status {
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
+    font-size: 1.24rem;
+  }
+
+  .calendar-payment-manager-client-status--paid {
+    color: #16a34a;
+    background: #ecfdf5;
+  }
+
+  .calendar-payment-manager-client-status--pending {
+    color: #2563eb;
+    background: #eff6ff;
+  }
+
+  .calendar-payment-manager-client-status--unpaid {
+    color: #dc2626;
+    background: #fef2f2;
+  }
+
+  .calendar-payment-manager-client-name strong {
+    font-size: clamp(1rem, 4.5vw, 1.3rem);
+    letter-spacing: -0.03em;
+  }
+
+  .calendar-payment-manager-client-name small {
+    font-size: clamp(0.84rem, 3.55vw, 1.02rem);
+    font-weight: 750;
+  }
+
+  .calendar-payment-manager-chevron {
+    color: #2563eb;
+    font-size: 2.1rem;
+    font-weight: 600;
+  }
+
+  .calendar-payment-manager-add-client {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: auto;
+    min-height: 46px;
+    min-width: 0;
+    max-width: 48%;
+    justify-content: center;
+    gap: 9px;
+    padding: 9px 14px;
+    border-color: #c8d8f3;
+    border-radius: 17px;
+    background: #ffffff;
+    color: #2563eb;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035);
+  }
+
+  .calendar-payment-manager-add-client .calendar-payment-manager-chevron {
+    display: none;
+  }
+
+  .calendar-payment-manager-add-client-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 0;
+    background: transparent;
+    color: currentColor;
+  }
+
+  .calendar-payment-manager-add-client-copy {
+    flex: 0 1 auto;
+  }
+
+  .calendar-payment-manager-add-client-copy strong {
+    overflow: hidden;
+    font-size: clamp(0.88rem, 3.7vw, 1.02rem);
+    font-weight: 900;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-payment-manager-main {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0 0 calc(102px + env(safe-area-inset-bottom));
+    overflow: visible;
+  }
+
+  .calendar-payment-manager-main--client-workspace {
+    display: flex;
+  }
+
+  .calendar-payment-manager-tabs--client {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    padding: 4px;
+    border: 1px solid #dbe5f1;
+    border-radius: 19px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
+    overflow: hidden;
+  }
+
+  .calendar-payment-manager-tabs--client .calendar-payment-manager-tab {
+    min-height: 56px;
+    gap: 8px;
+    border-radius: 15px;
+    color: #5f6f86;
+    font-size: clamp(1rem, 4.25vw, 1.2rem);
+    font-weight: 900;
+  }
+
+  .calendar-payment-manager-tabs--client .calendar-payment-manager-tab.is-active {
+    background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+    color: #2563eb;
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16), 0 8px 18px rgba(37, 99, 235, 0.10);
+  }
+
+  .calendar-payment-manager-tabs--client .calendar-payment-manager-tab::before {
+    content: '';
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+    background-color: currentColor;
+    vertical-align: -4px;
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+  }
+
+  .calendar-payment-manager-tabs--client .calendar-payment-manager-tab:first-child::before {
+    mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 3.5h8l4 4v13H6zM14 3.5V8h4M9 12h6M9 16h5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 3.5h8l4 4v13H6zM14 3.5V8h4M9 12h6M9 16h5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  .calendar-payment-manager-tabs--client .calendar-payment-manager-tab:nth-child(2)::before {
+    mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 5h16v14H4zM8 9h5M8 13h3M15.5 13h2M15.5 16h2' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 5h16v14H4zM8 9h5M8 13h3M15.5 13h2M15.5 16h2' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+
+  .calendar-payment-manager-details-pane {
+    min-width: 0;
+  }
+
+  .calendar-payment-manager-card {
+    border-color: #dbe5f1;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.055);
+  }
+
+  .calendar-payment-manager-card h3 {
+    font-size: clamp(1.08rem, 4.7vw, 1.35rem);
+    letter-spacing: -0.035em;
+  }
+
+  .calendar-payment-manager-table-card,
+  .calendar-payment-manager-payee-editor,
+  .calendar-payment-manager-add-client-card {
+    padding: 16px;
+  }
+
+  .calendar-payment-manager-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    display: block;
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -18px 34px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(12px);
+  }
+
+  .calendar-payment-manager-footer .calendar-payment-manager-save-button {
+    width: 100%;
+    min-height: 64px;
+    border-radius: 20px;
+    font-size: clamp(1.05rem, 4.6vw, 1.28rem);
+    font-weight: 950;
+    box-shadow: 0 18px 34px rgba(37, 99, 235, 0.26);
+  }
+}
+
+@media (max-width: 430px) {
+  .calendar-payment-manager-header {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .calendar-payment-manager-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .calendar-payment-manager-overview-people {
+    min-height: 92px;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .calendar-payment-manager-overview-group {
+    grid-template-columns: 60px minmax(0, 1fr);
+  }
+
+  .calendar-payment-manager-icon,
+  .calendar-payment-manager-overview-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 20px;
+  }
+
+  .calendar-payment-manager-overview-group-input {
+    min-height: 48px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .calendar-payment-manager-metrics {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .calendar-payment-manager-metrics div {
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+
+  .calendar-payment-manager-metrics div::before {
+    width: 28px;
+    height: 28px;
+    background-size: 16px 16px;
+  }
+
+  .calendar-payment-manager-add-client {
+    max-width: 46%;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .calendar-payment-manager-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}

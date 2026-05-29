@@ -1806,7 +1806,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </svg>
                       </span>
                       <span className="calendar-payment-manager-add-client-copy">
-                        <strong>{locale === 'sl' ? 'Dodaj klienta' : 'Add client'}</strong>
+                        <strong>{locale === 'sl' ? 'Dodaj člana' : 'Add member'}</strong>
                       </span>
                       <span className="calendar-payment-manager-chevron">›</span>
                     </button>
