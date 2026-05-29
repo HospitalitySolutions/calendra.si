@@ -3654,7 +3654,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 disabled={savingClient}
                 aria-label={locale === 'sl' ? 'Ustvari stranko' : 'Create client'}
               >
-                <span aria-hidden="true">✓</span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
               </button>
             </div>
 

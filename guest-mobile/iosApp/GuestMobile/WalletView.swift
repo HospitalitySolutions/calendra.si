@@ -1596,23 +1596,11 @@ private struct WalletStackedPassCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(subtitle.uppercased())
-                            .font(.system(size: 11, weight: .bold))
-                            .tracking(0.8)
-                            .foregroundColor(style.accent)
                         Text(entitlement.name)
                             .font(.system(size: 20, weight: .bold, design: .serif))
                             .foregroundColor(walletInk)
                             .lineLimit(1)
                             .minimumScaleFactor(0.78)
-                        HStack(spacing: 5) {
-                            Image(systemName: "mappin.circle")
-                                .font(.system(size: 14, weight: .medium))
-                            Text(subtitle)
-                                .font(.system(size: 14, weight: .medium))
-                                .lineLimit(1)
-                        }
-                        .foregroundColor(walletInk.opacity(0.70))
                     }
                     Spacer(minLength: 10)
                     WalletTypeBadge(label: entitlementKindLabel, accent: style.accent)
@@ -1633,16 +1621,18 @@ private struct WalletStackedPassCard: View {
                                 .frame(width: 1, height: 36)
                             WalletDetailBlock(label: secondaryMetric.label.uppercased(), value: secondaryMetric.value, accent: style.accent)
                         }
-                        Divider().overlay(walletLine.opacity(0.55))
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(walletTr(appUiLocaleStorage, "SCAN CODE", "KODA"))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(walletInk.opacity(0.58))
-                            Text(code)
-                                .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                .foregroundColor(walletInk)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                        if entitlement.type.uppercased() != "GIFT_CARD" {
+                            Divider().overlay(walletLine.opacity(0.55))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(walletTr(appUiLocaleStorage, "SCAN CODE", "KODA"))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(walletInk.opacity(0.58))
+                                Text(code)
+                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
+                                    .foregroundColor(walletInk)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1879,11 +1869,6 @@ private struct WalletStackedPassCard: View {
         case "GIFT_CARD": return walletTr(appUiLocaleStorage, "Gift card", "Darilna kartica")
         default: return productTypeLabel(entitlement.type)
         }
-    }
-
-    private var subtitle: String {
-        if entitlement.type == "MEMBERSHIP" { return "All locations" }
-        return entitlement.tenantName
     }
 
     private var statusLabel: String {
@@ -2375,22 +2360,6 @@ private struct EntitlementTicketCard: View {
                 ticketBody
             }
             .buttonStyle(.plain)
-
-            if entitlement.type == "MEMBERSHIP" {
-                HStack {
-                    Text("Auto-renew").font(.subheadline.weight(.medium))
-                    Spacer()
-                    Toggle("", isOn: Binding(
-                        get: { entitlement.autoRenews },
-                        set: { onToggleAutoRenew($0) }
-                    ))
-                    .labelsHidden()
-                    .tint(walletBlue)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 16))
-            }
         }
     }
 
@@ -2404,9 +2373,6 @@ private struct EntitlementTicketCard: View {
                     .font(.title2.weight(.bold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
-                Text(entitlement.tenantName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.92))
                 Text(priceLine)
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(.white.opacity(0.82))
@@ -2436,35 +2402,37 @@ private struct EntitlementTicketCard: View {
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            verticalDashedDivider
-                .padding(.vertical, 20)
+            if entitlement.type.uppercased() != "GIFT_CARD" {
+                verticalDashedDivider
+                    .padding(.vertical, 20)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("SCAN CODE")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.65))
-                    .tracking(0.5)
-                Text(entitlement.entitlementCode ?? entitlement.displayCode ?? "—")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(.white)
-                if let validUntilText {
-                    Spacer().frame(height: 2)
-                    horizontalDashedDivider
-                    Spacer().frame(height: 2)
-                    Text("VALID UNTIL")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("SCAN CODE")
                         .font(.caption.weight(.semibold))
                         .foregroundColor(.white.opacity(0.65))
                         .tracking(0.5)
-                    Text(validUntilText)
+                    Text(entitlement.entitlementCode ?? entitlement.displayCode ?? "—")
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
+                    if let validUntilText {
+                        Spacer().frame(height: 2)
+                        horizontalDashedDivider
+                        Spacer().frame(height: 2)
+                        Text("VALID UNTIL")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.white.opacity(0.65))
+                            .tracking(0.5)
+                        Text(validUntilText)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .padding(.leading, 14)
+                .padding(.trailing, 20)
+                .padding(.vertical, 20)
+                .frame(width: 128, alignment: .leading)
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 20)
-            .padding(.vertical, 20)
-            .frame(width: 128, alignment: .leading)
         }
         .background(
             shape.fill(LinearGradient(colors: [walletBlue, walletBlueSoft], startPoint: .topLeading, endPoint: .bottomTrailing))

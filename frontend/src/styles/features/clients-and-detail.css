@@ -3182,128 +3182,133 @@ a.clients-contact-link:hover {
 
     .calendar-client-create-popup-backdrop.modal-backdrop,
     .layout-android .calendar-client-create-popup-backdrop.modal-backdrop {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        width: 100dvw;
+        height: 100vh;
+        height: 100dvh;
         align-items: flex-end;
         justify-content: center;
-        padding: 0;
+        padding: 0 !important;
         overflow: hidden;
         background: rgba(15, 23, 42, 0.48);
         backdrop-filter: blur(8px);
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only.modal.large-modal {
-        width: 100vw;
-        max-width: 100vw;
+        width: 100vw !important;
+        width: 100dvw !important;
+        max-width: 100vw !important;
+        max-width: 100dvw !important;
+        min-width: 100vw;
         height: auto;
-        max-height: min(88dvh, calc(100vh - 64px));
-        margin: 0;
+        max-height: 96dvh;
+        margin: auto 0 0 !important;
         padding: 0;
-        border-radius: 34px 34px 0 0;
+        border-radius: 26px 26px 0 0;
         border: 0;
         background: #ffffff;
-        box-shadow: 0 -22px 70px rgba(15, 23, 42, 0.30);
+        box-shadow: 0 -18px 58px rgba(15, 23, 42, 0.24);
         overflow: hidden;
+        align-self: stretch;
+        transform: none !important;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-header {
         position: relative;
         display: block;
-        min-height: 250px;
-        padding: 134px 28px 24px;
+        min-height: 76px;
+        padding: 30px 20px 8px;
         cursor: default;
         background: #ffffff;
+        border-bottom: 1px solid #e2e8f0;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-mobile-handle {
         position: absolute;
-        top: 18px;
+        top: 12px;
         left: 50%;
         display: block;
-        width: 62px;
-        height: 6px;
+        width: 56px;
+        height: 5px;
         border-radius: 999px;
-        background: #cfd6df;
+        background: #d1d5db;
         transform: translateX(-50%);
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-close,
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-mobile-submit {
         position: absolute;
-        top: 48px;
+        top: 30px;
+        min-width: 40px;
+        width: 40px;
+        height: 40px;
+        padding: 0;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 64px;
-        height: 64px;
+        border: none;
         border-radius: 999px;
-        border: 0;
-        font-size: 2rem;
         line-height: 1;
         cursor: pointer;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-close {
-        left: 24px;
-        background: #f3f6f9;
+        left: 20px;
+        background: #ffffff;
         color: #0f172a;
+        font-size: 1rem;
+        font-weight: 700;
         box-shadow: none;
         transform: none;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-close:hover {
-        background: #edf2f7;
+        background: #f1f5f9;
+        color: #0f172a;
         transform: none;
+        box-shadow: none;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-mobile-submit {
-        right: 24px;
-        background: linear-gradient(180deg, #1473ff 0%, #0b63e5 100%);
+        right: 20px;
+        background: var(--color-primary);
         color: #ffffff;
-        box-shadow: 0 14px 28px rgba(20, 115, 255, 0.28);
+        box-shadow: 0 2px 8px rgba(22, 114, 243, 0.35);
+    }
+
+    .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-mobile-submit svg {
+        width: 18px;
+        height: 18px;
+        display: block;
+    }
+
+    .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-mobile-submit:hover:not(:disabled) {
+        background: var(--color-primary-hover);
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-mobile-submit:disabled {
-        opacity: 0.68;
+        opacity: 0.65;
         cursor: not-allowed;
         box-shadow: none;
     }
 
-    .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-mobile-submit span {
-        transform: translateY(-1px);
-    }
-
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-title-copy {
-        display: block;
-        width: 100%;
-    }
-
-    .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-header h2 {
-        margin: 0;
-        color: #0f172a;
-        font-size: 1.86rem;
-        line-height: 1.08;
-        letter-spacing: -0.045em;
-        font-weight: 900;
-    }
-
-    .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-header p {
-        margin: 14px 0 0;
-        max-width: 360px;
-        color: #667085;
-        font-size: 1.08rem;
-        line-height: 1.34;
-        letter-spacing: -0.02em;
+        display: none;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-body {
-        padding: 0 26px max(28px, env(safe-area-inset-bottom));
-        gap: 18px;
+        max-height: calc(96dvh - 76px);
+        padding: 14px 20px max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
+        gap: 10px;
         overflow-y: auto;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-grid--client {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 26px;
+        gap: 18px;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-field {
@@ -3318,52 +3323,63 @@ a.clients-contact-link:hover {
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-field > span {
         position: absolute;
-        top: -12px;
-        left: 18px;
+        top: -8px;
+        left: 16px;
         z-index: 1;
         display: inline-flex;
-        gap: 8px;
-        padding: 0 10px;
+        align-items: center;
+        gap: 7px;
+        padding: 0 8px;
         background: #ffffff;
         color: #0f172a;
-        font-size: 1rem;
-        font-weight: 900;
-        line-height: 1.25;
-        letter-spacing: -0.025em;
+        font-size: 0.82rem;
+        font-weight: 760;
+        line-height: 1.2;
+        letter-spacing: -0.015em;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-field > span i {
-        width: 6px;
-        height: 6px;
-        margin-top: 8px;
+        width: 5px;
+        height: 5px;
+        margin-top: 1px;
         background: #1473ff;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-field input {
         width: 100%;
-        height: 64px;
-        padding: 0 22px;
-        border: 1px solid #dbe4ee;
-        border-radius: 18px;
+        height: 40px;
+        min-height: 40px;
+        padding: 7px 10px 7px 24px;
+        border: 1px solid #d8e0ea;
+        border-radius: 11px;
         background: #ffffff;
         color: #0f172a;
-        font-size: 1.08rem;
-        font-weight: 500;
+        font-size: 0.94rem;
+        font-weight: 600;
+        line-height: 1.15;
         box-shadow: none;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-field input::placeholder {
-        color: #9aa8bb;
+        color: #94a3b8;
         opacity: 1;
+        font-weight: 500;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-field input:focus {
-        border-color: #93c5fd;
-        box-shadow: 0 0 0 4px rgba(20, 115, 255, 0.10);
+        border-color: #2dd4bf;
+        box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
+        outline: none;
     }
 
     .calendar-client-create-popup.calendar-create-entry-modal--client-only .calendar-create-entry-footer {
         display: none;
+    }
+
+    .calendar-client-create-popup.calendar-create-entry-modal--client-only {
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
     }
 }
 

@@ -1614,14 +1614,6 @@ private fun WalletStackedPassCard(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = card.tenantName?.takeIf { it.isNotBlank() } ?: "Oceanview Club",
-                            color = mutedColor,
-                            fontSize = 17.sp,
-                            lineHeight = 21.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
                     Column(
                         horizontalAlignment = Alignment.End,
@@ -1707,39 +1699,32 @@ private fun WalletStackedPassCard(
                         modifier = Modifier.weight(1f).padding(start = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        if (type == "MEMBERSHIP") {
-                            Text(walletTr(languageCode, "AUTO-RENEW", "SAMODEJNO PODALJŠANJE"), color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            Switch(
-                                checked = card.autoRenews,
-                                onCheckedChange = { onToggleAutoRenew(card.id, it) },
-                                modifier = Modifier.height(28.dp)
-                            )
-                        } else {
-                            Text(card.remainingUses?.let { walletTr(languageCode, "$it left", "$it preostalo") } ?: statusLabelForCard(card, languageCode), color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
+                        Text(card.remainingUses?.let { walletTr(languageCode, "$it left", "$it preostalo") } ?: statusLabelForCard(card, languageCode), color = textColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                Spacer(Modifier.weight(1f))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isLightCard) style.accent.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                if (type != "GIFT_CARD") {
+                    Spacer(Modifier.weight(1f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("▦", color = if (isLightCard) style.accent else Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isLightCard) style.accent.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("▦", color = if (isLightCard) style.accent else Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(walletTr(languageCode, "YOUR ACCESS CODE", "VAŠA DOSTOPNA KODA"), color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(code, color = textColor, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(walletTr(languageCode, "Tap at check-in", "Tapnite ob prijavi"), color = mutedColor, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(walletTr(languageCode, "YOUR ACCESS CODE", "VAŠA DOSTOPNA KODA"), color = mutedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        Text(code, color = textColor, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Text(walletTr(languageCode, "Tap at check-in", "Tapnite ob prijavi"), color = mutedColor, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }
