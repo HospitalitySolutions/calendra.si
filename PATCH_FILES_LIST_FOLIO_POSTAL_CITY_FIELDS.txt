@@ -1,0 +1,5 @@
+backend/src/main/java/com/example/app/billing/FolioLayoutConfig.java
+backend/src/main/java/com/example/app/billing/FolioPdfService.java
+frontend/src/pages/FolioLayoutEditor.tsx
+CHANGES_DONE_FOLIO_POSTAL_CITY_FIELDS.txt
+PATCH_FILES_LIST_FOLIO_POSTAL_CITY_FIELDS.txt

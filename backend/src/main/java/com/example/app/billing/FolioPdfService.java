@@ -179,6 +179,7 @@ public class FolioPdfService {
         values.put("companyAddress", req.getCompanyAddress());
         values.put("companyPostalCode", req.getCompanyPostalCode());
         values.put("companyCity", req.getCompanyCity());
+        values.put("companyPostalCodeCity", joinPostalCodeAndCity(req.getCompanyPostalCode(), req.getCompanyCity()));
         values.put("companyTaxId", req.getCompanyTaxId());
         values.put("folioNumber", req.getFolioNumber());
         values.put("folioDate", req.getFolioDate());
@@ -190,6 +191,7 @@ public class FolioPdfService {
         values.put("recipientAddress", req.getRecipientAddress());
         values.put("recipientPostalCode", req.getRecipientPostalCode());
         values.put("recipientCity", req.getRecipientCity());
+        values.put("recipientPostalCodeCity", joinPostalCodeAndCity(req.getRecipientPostalCode(), req.getRecipientCity()));
         values.put("recipientVatId", req.getRecipientVatId());
 
         boolean hasToBePaid = resolveToBePaid(req).compareTo(BigDecimal.ZERO) > 0;
@@ -860,6 +862,15 @@ public class FolioPdfService {
             }
         }
         return null;
+    }
+
+
+    private static String joinPostalCodeAndCity(String postalCode, String city) {
+        String pc = safe(postalCode);
+        String c = safe(city);
+        if (pc.isBlank()) return c;
+        if (c.isBlank()) return pc;
+        return pc + " " + c;
     }
 
     private static String safe(String v) {

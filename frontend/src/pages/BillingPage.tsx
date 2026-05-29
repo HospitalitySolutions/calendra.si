@@ -578,7 +578,7 @@ function doesUnusedAdvanceMatchRecipient(
 }
 
 type OpenBillsSortField = 'gross' | 'client' | 'date'
-type HistorySortField = 'gross' | 'folio'
+type HistorySortField = 'gross' | 'folio' | 'date'
 type SortDir = 'asc' | 'desc'
 function getOpenBillsSortOptions(loc: AppLocale): Array<{ field: OpenBillsSortField; label: string }> {
   if (loc === 'sl') {
@@ -597,11 +597,13 @@ function getOpenBillsSortOptions(loc: AppLocale): Array<{ field: OpenBillsSortFi
 function getHistorySortOptions(loc: AppLocale): Array<{ field: HistorySortField; label: string }> {
   if (loc === 'sl') {
     return [
+      { field: 'date', label: 'Datum' },
       { field: 'gross', label: 'Bruto' },
       { field: 'folio', label: 'Št. lista' },
     ]
   }
   return [
+    { field: 'date', label: 'Date' },
     { field: 'gross', label: 'Gross' },
     { field: 'folio', label: 'Folio no.' },
   ]
@@ -933,8 +935,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillsSortField, setOpenBillsSortField] = useState<OpenBillsSortField>('gross')
   const [openBillsSortDir, setOpenBillsSortDir] = useState<SortDir>('desc')
   const [openBillsSortMenuOpen, setOpenBillsSortMenuOpen] = useState(false)
-  const [historySortField, setHistorySortField] = useState<HistorySortField>('gross')
-  const [historySortDir, setHistorySortDir] = useState<SortDir>('desc')
+  const [historySortField, setHistorySortField] = useState<HistorySortField>('date')
+  const [historySortDir, setHistorySortDir] = useState<SortDir>('asc')
   const [historySortMenuOpen, setHistorySortMenuOpen] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
   const [openPaymentsPage, setOpenPaymentsPage] = useState(1)
@@ -1422,6 +1424,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const factor = historySortDir === 'asc' ? 1 : -1
     list.sort((a, b) => {
       if (historySortField === 'gross') return (Number(a.totalGross || 0) - Number(b.totalGross || 0)) * factor
+      if (historySortField === 'date') {
+        const tsA = Date.parse(String(a.issueDate || ''))
+        const tsB = Date.parse(String(b.issueDate || ''))
+        const safeA = Number.isFinite(tsA) ? tsA : 0
+        const safeB = Number.isFinite(tsB) ? tsB : 0
+        return (safeA - safeB) * factor
+      }
       const folioA = Number.parseInt(String(a.billNumber || a.id || 0).replace(/[^\d]/g, ''), 10)
       const folioB = Number.parseInt(String(b.billNumber || b.id || 0).replace(/[^\d]/g, ''), 10)
       const safeA = Number.isFinite(folioA) ? folioA : 0

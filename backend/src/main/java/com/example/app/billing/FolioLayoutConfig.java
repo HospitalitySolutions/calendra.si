@@ -343,8 +343,7 @@ public class FolioLayoutConfig {
         // Company block
         fields.add(new FieldConfig("companyName",       "header",    "Company Name",     50, 50,  200, 17, 13, true,  "left"));
         fields.add(new FieldConfig("companyAddress",    "header",    "Company Address",  50, 67,  200, 14, 10, false, "left"));
-        fields.add(new FieldConfig("companyPostalCode", "header",    "Postal Code",      50, 81,  80,  14, 10, false, "left"));
-        fields.add(new FieldConfig("companyCity",       "header",    "City",            130, 81,  120, 14, 10, false, "left"));
+        fields.add(new FieldConfig("companyPostalCodeCity", "header", "Postal Code & City", 50, 81, 200, 14, 10, false, "left"));
         fields.add(new FieldConfig("companyTaxId",      "header",    "VAT ID",           50, 95,  200, 14, 10, false, "left"));
         // Document meta
         fields.add(new FieldConfig("folioNumber",       "document",  "Folio Number",        355, 50,  190, 16, 12, true,  "right"));
@@ -354,8 +353,7 @@ public class FolioLayoutConfig {
         // Recipient block
         fields.add(new FieldConfig("recipientName",     "recipient", "Recipient Name",   50, 125, 200, 15, 11, true,  "left"));
         fields.add(new FieldConfig("recipientAddress",  "recipient", "Recipient Addr",   50, 140, 200, 14, 10, false, "left"));
-        fields.add(new FieldConfig("recipientPostalCode","recipient","Recipient Postal",  50, 154, 80,  14, 10, false, "left"));
-        fields.add(new FieldConfig("recipientCity",     "recipient", "Recipient City",  130, 154, 120, 14, 10, false, "left"));
+        fields.add(new FieldConfig("recipientPostalCodeCity", "recipient", "Recipient Postal Code & City", 50, 154, 200, 14, 10, false, "left"));
         fields.add(new FieldConfig("recipientVatId",    "recipient", "Recipient VAT ID", 50, 168, 300, 14, 10, false, "left"));
         for (var field : fields) {
             field.setLabelI18n(new LocalizedText(field.getLabel(), slFieldLabel(field.getKey(), field.getLabel())));
@@ -456,6 +454,7 @@ public class FolioLayoutConfig {
             case "companyAddress" -> "Naslov podjetja";
             case "companyPostalCode" -> "Postna stevilka";
             case "companyCity" -> "Kraj";
+            case "companyPostalCodeCity" -> "Postna stevilka in kraj";
             case "companyTaxId" -> "Davcna stevilka";
             case "folioNumber" -> "Stevilka racuna";
             case "folioDate" -> "Datum in ura izdaje";
@@ -465,6 +464,7 @@ public class FolioLayoutConfig {
             case "recipientAddress" -> "Naslov prejemnika";
             case "recipientPostalCode" -> "Postna stevilka prejemnika";
             case "recipientCity" -> "Kraj prejemnika";
+            case "recipientPostalCodeCity" -> "Postna stevilka in kraj prejemnika";
             case "recipientVatId" -> "Davčna številka prejemnika (ID za DDV)";
             default -> fallback;
         };
@@ -502,6 +502,101 @@ public class FolioLayoutConfig {
         };
     }
 
+
+    private static void migratePostalCityFields(FolioLayoutConfig cfg) {
+        if (cfg == null || cfg.getFields() == null) return;
+        migratePostalCityField(cfg, "companyPostalCode", "companyCity", "companyPostalCodeCity", "header", "Postal Code & City");
+        migratePostalCityField(cfg, "recipientPostalCode", "recipientCity", "recipientPostalCodeCity", "recipient", "Recipient Postal Code & City");
+    }
+
+    private static void migratePostalCityField(
+            FolioLayoutConfig cfg,
+            String postalKey,
+            String cityKey,
+            String combinedKey,
+            String group,
+            String label
+    ) {
+        List<FieldConfig> fields = cfg.getFields();
+        FieldConfig existingCombined = null;
+        FieldConfig postal = null;
+        FieldConfig city = null;
+        int insertAt = fields.size();
+
+        for (int i = 0; i < fields.size(); i++) {
+            FieldConfig field = fields.get(i);
+            if (field == null) continue;
+            String key = field.getKey();
+            if (combinedKey.equals(key)) {
+                existingCombined = field;
+                insertAt = Math.min(insertAt, i);
+            } else if (postalKey.equals(key)) {
+                postal = field;
+                insertAt = Math.min(insertAt, i);
+            } else if (cityKey.equals(key)) {
+                city = field;
+                insertAt = Math.min(insertAt, i);
+            }
+        }
+
+        if (existingCombined != null) {
+            fields.removeIf(field -> field != null && (postalKey.equals(field.getKey()) || cityKey.equals(field.getKey())));
+            ensurePostalCityFieldMetadata(existingCombined, label);
+            return;
+        }
+
+        if (postal == null && city == null) return;
+
+        FieldConfig anchor = postal != null ? postal : city;
+        FieldConfig other = postal != null ? city : postal;
+        float x = anchor.getX();
+        float y = anchor.getY();
+        float width = Math.max(anchor.getWidth(), 200);
+        float height = anchor.getHeight();
+        boolean visible = anchor.isVisible();
+
+        if (other != null) {
+            x = Math.min(anchor.getX(), other.getX());
+            y = Math.min(anchor.getY(), other.getY());
+            float right = Math.max(anchor.getX() + anchor.getWidth(), other.getX() + other.getWidth());
+            width = Math.max(200, right - x);
+            height = Math.max(anchor.getHeight(), other.getHeight());
+            visible = anchor.isVisible() || other.isVisible();
+        }
+
+        FieldConfig combined = new FieldConfig(combinedKey, group, label, x, y, width, height, anchor.getFontSize(), anchor.isBold(), anchor.getAlignment());
+        combined.setVisible(visible);
+        ensurePostalCityFieldMetadata(combined, label);
+
+        fields.removeIf(field -> field != null && (postalKey.equals(field.getKey()) || cityKey.equals(field.getKey())));
+        fields.add(Math.min(insertAt, fields.size()), combined);
+    }
+
+    private static void ensurePostalCityFieldMetadata(FieldConfig field, String label) {
+        if (field == null) return;
+        if (field.getLabel() == null || field.getLabel().isBlank()
+                || "Postal Code".equals(field.getLabel())
+                || "City".equals(field.getLabel())
+                || "Recipient Postal".equals(field.getLabel())
+                || "Recipient City".equals(field.getLabel())) {
+            field.setLabel(label);
+        }
+        if (field.getLabelI18n() == null) {
+            field.setLabelI18n(new LocalizedText(field.getLabel(), slFieldLabel(field.getKey(), field.getLabel())));
+        } else {
+            if (field.getLabelI18n().getEn() == null || field.getLabelI18n().getEn().isBlank()
+                    || "Postal Code".equals(field.getLabelI18n().getEn())
+                    || "City".equals(field.getLabelI18n().getEn())
+                    || "Recipient Postal".equals(field.getLabelI18n().getEn())
+                    || "Recipient City".equals(field.getLabelI18n().getEn())) {
+                field.getLabelI18n().setEn(label);
+            }
+            if (field.getLabelI18n().getSl() == null || field.getLabelI18n().getSl().isBlank()) {
+                field.getLabelI18n().setSl(slFieldLabel(field.getKey(), field.getLabel()));
+            }
+        }
+    }
+
     /**
      * Adds newly introduced optional layout blocks to older saved JSON layouts
      * without overwriting the tenant's existing coordinates or labels.
@@ -512,6 +607,7 @@ public class FolioLayoutConfig {
         if (cfg.getFields() == null) {
             cfg.setFields(defaults.getFields());
         } else {
+            migratePostalCityFields(cfg);
             for (FieldConfig field : cfg.getFields()) {
                 if (field == null) continue;
                 if (field.getLabelI18n() == null) {

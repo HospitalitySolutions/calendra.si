@@ -161,6 +161,8 @@ const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
   recipientVatId: { en: 'Recipient VAT ID:', sl: 'Davčna številka prejemnika (ID za DDV):' },
 }
 const FIELD_SAMPLE_VALUES: Record<string, string> = {
+  companyPostalCodeCity: '1000 Ljubljana',
+  recipientPostalCodeCity: '1000 Ljubljana',
   folioNumber: '0000',
   folioDate: '2026-05-26 14:30',
   dateOfService: '2026-05-26',
@@ -196,6 +198,73 @@ function ensureLocalizedText(i18n: LocalizedText | undefined, legacy: string | u
   }
 }
 
+
+function migratePostalCityFields(layout: LayoutConfig) {
+  migratePostalCityField(layout, 'companyPostalCode', 'companyCity', 'companyPostalCodeCity', 'header', 'Postal Code & City')
+  migratePostalCityField(layout, 'recipientPostalCode', 'recipientCity', 'recipientPostalCodeCity', 'recipient', 'Recipient Postal Code & City')
+}
+
+function migratePostalCityField(
+  layout: LayoutConfig,
+  postalKey: string,
+  cityKey: string,
+  combinedKey: string,
+  group: string,
+  label: string,
+) {
+  if (!Array.isArray(layout.fields)) return
+  const existingCombined = layout.fields.find((field) => field?.key === combinedKey)
+  const postal = layout.fields.find((field) => field?.key === postalKey)
+  const city = layout.fields.find((field) => field?.key === cityKey)
+
+  if (existingCombined) {
+    existingCombined.label = label
+    existingCombined.labelI18n = ensureLocalizedText(existingCombined.labelI18n, label)
+    existingCombined.labelI18n.en = existingCombined.labelI18n.en || label
+    layout.fields = layout.fields.filter((field) => field?.key !== postalKey && field?.key !== cityKey)
+    return
+  }
+
+  if (!postal && !city) return
+
+  const anchor = postal || city!
+  const other = postal ? city : postal
+  const originalIndex = Math.min(
+    ...[postalKey, cityKey]
+      .map((key) => layout.fields.findIndex((field) => field?.key === key))
+      .filter((idx) => idx >= 0),
+  )
+  let x = anchor.x
+  let y = anchor.y
+  let width = Math.max(anchor.width || 0, 200)
+  let height = anchor.height
+  let visible = anchor.visible !== false
+
+  if (other) {
+    x = Math.min(anchor.x, other.x)
+    y = Math.min(anchor.y, other.y)
+    width = Math.max(200, Math.max(anchor.x + anchor.width, other.x + other.width) - x)
+    height = Math.max(anchor.height, other.height)
+    visible = anchor.visible !== false || other.visible !== false
+  }
+
+  const combined: FieldConfig = {
+    ...anchor,
+    key: combinedKey,
+    group,
+    label,
+    labelI18n: { en: label, sl: label },
+    x,
+    y,
+    width,
+    height,
+    visible,
+  }
+
+  layout.fields = layout.fields.filter((field) => field?.key !== postalKey && field?.key !== cityKey)
+  layout.fields.splice(Math.min(originalIndex, layout.fields.length), 0, combined)
+}
+
 function isValidLayout(data: any): data is LayoutConfig {
   if (!data || Array.isArray(data) || !Array.isArray(data.fields) || !data.table || !data.footer) return false
   if (!data.logo) data.logo = { ...DEFAULT_LOGO }
@@ -203,6 +272,7 @@ function isValidLayout(data: any): data is LayoutConfig {
   if (!data.paymentQr) data.paymentQr = { ...DEFAULT_PAYMENT_QR }
   if (!data.fiscalQr) data.fiscalQr = { ...DEFAULT_FISCAL_QR }
   if (!data.vatBreakdownTable) data.vatBreakdownTable = { ...DEFAULT_VAT_BREAKDOWN_TABLE }
+  migratePostalCityFields(data)
   for (const field of data.fields ?? []) {
     field.labelI18n = ensureLocalizedText(field.labelI18n, field.label)
     field.label = resolveLocalizedText(field.labelI18n, field.label, 'en')

@@ -1,0 +1,36 @@
+Changes done - Folio layout postal code + city combined fields
+
+1. Combined company postal code and city into one layout data field:
+   - New field key: companyPostalCodeCity
+   - Default label: Postal Code & City
+   - Default Slovenian label: Postna stevilka in kraj
+   - Default placement uses the old Postal Code + City row as one wider field.
+
+2. Combined recipient postal code and city into one layout data field:
+   - New field key: recipientPostalCodeCity
+   - Default label: Recipient Postal Code & City
+   - Default Slovenian label: Postna stevilka in kraj prejemnika
+   - Default placement uses the old Recipient Postal + Recipient City row as one wider field.
+
+3. PDF generation now supports the two new combined keys:
+   - companyPostalCodeCity renders as "<company postal code> <company city>".
+   - recipientPostalCodeCity renders as "<recipient postal code> <recipient city>".
+   - Legacy separate fields still render if an older saved layout contains them.
+
+4. Existing saved folio layouts are normalized/migrated automatically:
+   - Old companyPostalCode + companyCity fields are replaced by companyPostalCodeCity.
+   - Old recipientPostalCode + recipientCity fields are replaced by recipientPostalCodeCity.
+   - Coordinates are preserved by using the original postal/city row area and merging their width.
+
+5. Folio layout editor preview updated:
+   - Old separate postal/city fields are merged client-side as well when an older JSON layout is loaded/imported.
+   - Preview sample values now show the combined field as "1000 Ljubljana".
+
+Files changed:
+- backend/src/main/java/com/example/app/billing/FolioLayoutConfig.java
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- frontend/src/pages/FolioLayoutEditor.tsx
+
+Validation note:
+- I prepared the patch as updated-files-only in the existing folder structure.
+- I did not run full Maven/frontend builds in this sandbox because the environment is missing project dependencies / Maven wrapper download access.
