@@ -1604,9 +1604,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const advanceBillId = Number(item.sourceAdvanceBillId)
         if (!Number.isFinite(advanceBillId) || advanceBillId <= 0) return acc
         const grossAmount = estimateGross([{
-          transactionServiceId: item.transactionService.id,
           quantity: item.quantity,
-          netPrice: String(Math.abs(Number(item.netPrice || 0))),
           grossPrice: String(Math.abs(Number(item.grossPrice || 0)) || Math.abs(Number(item.netPrice || 0)) * (1 + billingTaxMultiplier(item.transactionService.taxRate))),
         }])
         const existing = acc.find((entry) => entry.advanceBillId === advanceBillId)

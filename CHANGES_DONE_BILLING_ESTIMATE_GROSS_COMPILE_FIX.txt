@@ -1,0 +1,13 @@
+BillingPage TypeScript compile fix
+
+Changed:
+- frontend/src/pages/BillingPage.tsx
+
+Details:
+- Fixed staging frontend build error TS2353 at BillingPage.tsx around legacy advance open-bill calculation.
+- The helper estimateGross() accepts only quantity and grossPrice, but the call was passing transactionServiceId and netPrice as extra object properties.
+- Removed those extra properties from the estimateGross() call while keeping the gross fallback calculation unchanged.
+
+Validation:
+- Ran npm ci --ignore-scripts in frontend.
+- Ran npm run build:staging successfully.
