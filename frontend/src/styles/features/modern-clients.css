@@ -916,6 +916,16 @@
     min-width: 150px;
 }
 
+
+.clients-create-footer--single {
+    justify-content: stretch;
+}
+
+.clients-create-footer--single button {
+    width: 100%;
+    min-width: 0;
+}
+
 .clients-gapp-save-button {
     display: inline-flex;
     align-items: center;
@@ -2557,6 +2567,7 @@
     /* Requested edge-to-edge width for client/group new and edit popups on small screens. */
     .clients-client-detail-modal.modal.large-modal,
     .clients-client-create-modal.modal.large-modal,
+    .clients-company-create-modal.modal.large-modal,
     .clients-group-detail-modal.modal.large-modal,
     .clients-group-create-modal.modal.large-modal {
         width: 100vw !important;
@@ -2569,6 +2580,7 @@
 
     .clients-client-detail-modal .clients-action-workspace-body,
     .clients-client-create-modal .clients-action-workspace-body,
+    .clients-company-create-modal .clients-action-workspace-body,
     .clients-group-detail-modal .clients-action-workspace-body,
     .clients-group-create-modal .clients-action-workspace-body {
         padding-left: max(14px, env(safe-area-inset-left));
@@ -2577,6 +2589,7 @@
 
     .clients-client-detail-modal .clients-action-workspace-header,
     .clients-client-create-modal .clients-action-workspace-header,
+    .clients-company-create-modal .clients-action-workspace-header,
     .clients-group-detail-modal .clients-action-workspace-header,
     .clients-group-create-modal .clients-action-workspace-header {
         padding-left: max(16px, env(safe-area-inset-left));
@@ -2585,6 +2598,7 @@
 
     .clients-client-detail-modal .clients-action-workspace-footer,
     .clients-client-create-modal .clients-action-workspace-footer,
+    .clients-company-create-modal .clients-action-workspace-footer,
     .clients-group-detail-modal .clients-action-workspace-footer,
     .clients-group-create-modal .clients-action-workspace-footer {
         padding-left: max(14px, env(safe-area-inset-left));
@@ -2720,10 +2734,72 @@
     }
 }
 
+@media (max-width: 760px) {
+    .clients-client-create-modal.modal.large-modal,
+    .clients-company-create-modal.modal.large-modal,
+    .clients-group-create-modal.modal.large-modal {
+        align-self: flex-end;
+        margin-top: auto;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: 100dvh;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+        border-radius: 24px 24px 0 0;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-header,
+    .clients-company-create-modal .clients-action-workspace-header,
+    .clients-group-create-modal .clients-action-workspace-header {
+        padding-top: 18px;
+        position: relative;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-header::before,
+    .clients-company-create-modal .clients-action-workspace-header::before,
+    .clients-group-create-modal .clients-action-workspace-header::before {
+        content: "";
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        width: 72px;
+        height: 6px;
+        border-radius: 999px;
+        transform: translateX(-50%);
+        background: #d6dde7;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-body,
+    .clients-company-create-modal .clients-action-workspace-body,
+    .clients-group-create-modal .clients-action-workspace-body {
+        padding-bottom: 14px;
+    }
+
+    .clients-client-create-modal .clients-action-workspace-footer,
+    .clients-company-create-modal .clients-action-workspace-footer,
+    .clients-group-create-modal .clients-action-workspace-footer {
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+        border-top-color: #e5edf6;
+        background: rgba(255, 255, 255, 0.96);
+    }
+
+    .clients-client-create-modal .clients-gapp-save-button,
+    .clients-company-create-modal .clients-gapp-save-button,
+    .clients-group-create-modal .clients-gapp-save-button {
+        min-height: 54px;
+        width: 100%;
+        border-radius: 16px;
+        font-size: 0.98rem;
+        box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24);
+    }
+}
+
 @supports selector(:has(*)) {
     @media (max-width: 760px) {
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-client-detail-modal),
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-client-create-modal),
+        .clients-action-workspace-backdrop.modal-backdrop:has(.clients-company-create-modal),
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-group-detail-modal),
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-group-create-modal) {
             padding-left: 0;

@@ -648,6 +648,330 @@
 .billing-status-pill--failed { background: #fee2e2; color: #ef4444; }
 .billing-status-pill--not-sent { background: #f1f5f9; color: #64748b; }
 
+
+.billing-open-modern-mobile-layout {
+    display: grid;
+    gap: 16px;
+}
+
+.billing-open-modern-mobile-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.billing-open-modern-mobile-list-head h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.15rem;
+    font-weight: 850;
+}
+
+.billing-open-modern-mobile-sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    background: #ffffff;
+    color: #475569;
+    font-size: 0.82rem;
+    font-weight: 800;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.billing-open-modern-mobile-sort-caret {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.billing-open-modern-mobile-cards {
+    display: grid;
+    gap: 14px;
+}
+
+.billing-open-modern-mobile-card {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: #ffffff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    cursor: pointer;
+}
+
+.billing-open-modern-mobile-card-head {
+    display: grid;
+    gap: 10px;
+}
+
+.billing-open-modern-mobile-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.billing-open-modern-mobile-id-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: 14px;
+    background: #eaf2ff;
+    color: #2563eb;
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.billing-open-modern-mobile-client-wrap {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.billing-open-modern-mobile-client-wrap strong {
+    color: #0f172a;
+    font-size: 1.03rem;
+    font-weight: 850;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.billing-open-modern-mobile-subchips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.billing-open-modern-mobile-subchip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 750;
+}
+
+.billing-open-modern-mobile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid #edf2f7;
+    border-bottom: 1px solid #edf2f7;
+}
+
+.billing-open-modern-mobile-cell {
+    display: flex;
+    gap: 10px;
+    padding: 14px 10px;
+    min-width: 0;
+}
+
+.billing-open-modern-mobile-cell + .billing-open-modern-mobile-cell {
+    border-left: 1px solid #edf2f7;
+}
+
+.billing-open-modern-mobile-cell-icon {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    flex: 0 0 auto;
+    margin-top: 1px;
+}
+
+.billing-open-modern-mobile-cell-icon svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.billing-open-modern-mobile-cell > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.billing-open-modern-mobile-cell span,
+.billing-open-modern-mobile-footer span {
+    color: #64748b;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.billing-open-modern-mobile-cell strong {
+    color: #0f172a;
+    font-size: 0.94rem;
+    font-weight: 800;
+    line-height: 1.28;
+    overflow-wrap: anywhere;
+}
+
+.billing-open-modern-mobile-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 12px;
+}
+
+.billing-open-modern-mobile-footer > div {
+    display: grid;
+    gap: 4px;
+}
+
+.billing-open-modern-mobile-footer strong {
+    color: #16a34a;
+    font-size: 1.14rem;
+    font-weight: 900;
+    line-height: 1.1;
+}
+
+
+.billing-open-modern-mobile-paymethod {
+    display: grid;
+    gap: 8px;
+}
+
+.billing-open-modern-mobile-paymethod-label {
+    color: #64748b;
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.billing-open-modern-mobile-select-wrap {
+    position: relative;
+}
+
+.billing-open-modern-mobile-select-wrap::after {
+    content: "▾";
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #475569;
+    font-size: 0.92rem;
+    pointer-events: none;
+}
+
+.billing-open-modern-mobile-select {
+    width: 100%;
+    min-height: 52px;
+    padding: 0 42px 0 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.98rem;
+    font-weight: 750;
+    appearance: none;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.billing-open-modern-mobile-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.billing-open-modern-mobile-action {
+    min-height: 52px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 14px;
+    font-size: 0.96rem;
+    font-weight: 850;
+    border: 1px solid transparent;
+    transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+
+.billing-open-modern-mobile-action svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    flex: 0 0 auto;
+}
+
+.billing-open-modern-mobile-action:hover {
+    transform: translateY(-1px);
+}
+
+.billing-open-modern-mobile-action:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.billing-open-modern-mobile-action--danger {
+    background: #fff5f5;
+    border-color: #fecaca;
+    color: #ef4444;
+}
+
+.billing-open-modern-mobile-action--primary {
+    background: linear-gradient(135deg, #16a34a 0%, #16a34a 100%);
+    color: #ffffff;
+    box-shadow: 0 12px 24px rgba(22, 163, 74, 0.22);
+}
+
+
+.billing-modern-tabs .clients-session-tab.active {
+    background: #eaf2ff;
+    border-color: rgba(37, 99, 235, 0.18);
+    color: #2563eb;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.12);
+}
+
+[data-theme="dark"] .billing-open-modern-mobile-sort-btn,
+[data-theme="dark"] .billing-open-modern-mobile-card {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] .billing-open-modern-mobile-list-head h3,
+[data-theme="dark"] .billing-open-modern-mobile-client-wrap strong,
+[data-theme="dark"] .billing-open-modern-mobile-cell strong {
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .billing-modern-tabs .clients-session-tab {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] .billing-modern-tabs .clients-session-tab.active {
+    background: #1e293b;
+    border-color: rgba(96, 165, 250, 0.38);
+}
+
+
+[data-theme="dark"] .billing-open-modern-mobile-select {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.18);
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .billing-open-modern-mobile-select-wrap::after,
+[data-theme="dark"] .billing-open-modern-mobile-paymethod-label {
+    color: #94a3b8;
+}
+
 [data-theme="dark"] .billing-modern-card.card,
 [data-theme="dark"] .billing-modern-stat-card,
 [data-theme="dark"] .billing-modern-table-wrap,
@@ -735,19 +1059,47 @@
     }
 
     .billing-modern-tabs.clients-session-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         width: 100%;
-        overflow-x: auto;
-        padding-bottom: 2px;
+        gap: 8px;
+        padding: 0;
+        margin-bottom: 6px;
+        border-bottom: 0;
+        overflow: visible;
     }
 
     .billing-modern-tabs .clients-session-tab {
-        min-width: max-content;
-        white-space: nowrap;
+        min-width: 0;
+        min-height: 68px;
+        padding: 10px 8px;
+        border: 1px solid rgba(15, 23, 42, 0.10);
+        border-radius: 14px;
+        background: #ffffff;
+        white-space: normal;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+    }
+
+    .billing-modern-tabs .clients-session-tab span {
+        display: block;
+        line-height: 1.18;
     }
 
     .billing-modern-filter-row,
     .billing-modern-filter-row--history {
         grid-template-columns: 1fr;
+    }
+
+    .billing-modern-filter-row .clients-modern-new-btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 52px;
+        border-radius: 18px;
+        font-size: 1rem;
+        box-shadow: 0 12px 28px rgba(37, 99, 235, 0.22);
     }
 
     .billing-modern-stats,
@@ -756,6 +1108,25 @@
     .billing-modern-stats--center {
         grid-template-columns: 1fr;
         justify-content: stretch;
+    }
+
+    .billing-modern-stats--two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .billing-modern-stat-card {
+        min-height: 0;
+        align-items: flex-start;
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    .billing-modern-stat-card strong {
+        font-size: 1.08rem;
+    }
+
+    .billing-modern-stat-card small {
+        font-size: 0.84rem;
     }
 
     .billing-modern-stat-card--compact {
@@ -774,6 +1145,298 @@
     .billing-date-range-input-wrap {
         width: 120px;
         min-width: 120px;
+    }
+}
+
+@media (max-width: 560px) {
+    .billing-modern-card.card {
+        padding: 12px;
+        border-radius: 15px;
+    }
+
+    .billing-modern-header {
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .billing-modern-header .section-title {
+        font-size: 1.42rem;
+        line-height: 1.08;
+    }
+
+    .billing-modern-tabs.clients-session-tabs {
+        gap: 8px;
+        margin-bottom: 2px;
+    }
+
+    .billing-modern-tabs .clients-session-tab {
+        min-width: 0;
+        justify-content: center;
+        padding: 9px 8px;
+        border-radius: 13px;
+        font-size: 0.82rem;
+        gap: 5px;
+        min-height: 62px;
+    }
+
+    .billing-tab-icon,
+    .billing-tab-icon svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .billing-modern-search-wrap .billing-modern-search-icon {
+        left: 11px;
+        font-size: 0.92rem;
+    }
+
+    .billing-modern-search.clients-search-input {
+        height: 44px;
+        padding-left: 34px;
+        padding-right: 12px;
+        border-radius: 14px;
+        font-size: 0.86rem;
+    }
+
+    .billing-modern-filter-row .clients-modern-new-btn {
+        min-height: 44px;
+        border-radius: 14px;
+        font-size: 0.9rem;
+        box-shadow: 0 10px 22px rgba(37, 99, 235, 0.20);
+    }
+
+    .billing-modern-filter-row .clients-modern-new-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .billing-modern-stats--two {
+        gap: 8px;
+    }
+
+    .billing-modern-stat-card {
+        gap: 8px;
+        padding: 10px;
+        border-radius: 15px;
+    }
+
+    .billing-modern-stat-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        font-size: 0.92rem;
+    }
+
+    .billing-modern-stat-label {
+        font-size: 0.7rem;
+        margin-bottom: 1px;
+    }
+
+    .billing-modern-stat-card strong {
+        font-size: 0.92rem;
+        line-height: 1.15;
+    }
+
+    .billing-modern-stat-card small {
+        display: none;
+    }
+
+    .billing-open-modern-mobile-layout {
+        gap: 10px;
+    }
+
+    .billing-open-modern-mobile-list-head {
+        gap: 8px;
+    }
+
+    .billing-open-modern-mobile-list-head h3 {
+        font-size: 1rem;
+    }
+
+    .billing-open-modern-mobile-sort-btn {
+        min-height: 36px;
+        padding: 0 10px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    .billing-open-modern-mobile-cards {
+        gap: 8px;
+    }
+
+    .billing-open-modern-mobile-card {
+        gap: 10px;
+        padding: 10px;
+        border-radius: 15px;
+    }
+
+    .billing-open-modern-mobile-title-row {
+        gap: 8px;
+    }
+
+    .billing-open-modern-mobile-id-chip {
+        min-width: 44px;
+        min-height: 32px;
+        padding: 0 8px;
+        border-radius: 11px;
+        font-size: 0.88rem;
+    }
+
+    .billing-open-modern-mobile-client-wrap {
+        gap: 2px;
+    }
+
+    .billing-open-modern-mobile-client-wrap strong {
+        font-size: 0.92rem;
+    }
+
+    .billing-open-modern-mobile-subchip {
+        min-height: 20px;
+        padding: 2px 7px;
+        font-size: 0.64rem;
+    }
+
+    .billing-open-modern-mobile-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .billing-open-modern-mobile-cell {
+        gap: 7px;
+        padding: 8px 2px;
+    }
+
+    .billing-open-modern-mobile-cell + .billing-open-modern-mobile-cell {
+        border-left: none;
+        border-top: 1px solid #edf2f7;
+    }
+
+    .billing-open-modern-mobile-cell-icon,
+    .billing-open-modern-mobile-cell-icon svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .billing-open-modern-mobile-cell span,
+    .billing-open-modern-mobile-footer span {
+        font-size: 0.68rem;
+    }
+
+    .billing-open-modern-mobile-cell strong {
+        font-size: 0.82rem;
+    }
+
+    .billing-open-modern-mobile-footer strong {
+        font-size: 0.98rem;
+    }
+
+    .billing-open-modern-mobile-paymethod {
+        gap: 5px;
+    }
+
+    .billing-open-modern-mobile-paymethod-label {
+        font-size: 0.74rem;
+    }
+
+    .billing-open-modern-mobile-select {
+        min-height: 42px;
+        padding: 0 34px 0 11px;
+        border-radius: 11px;
+        font-size: 0.84rem;
+    }
+
+    .billing-open-modern-mobile-select-wrap::after {
+        right: 11px;
+        font-size: 0.8rem;
+    }
+
+    .billing-open-modern-mobile-actions {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .billing-open-modern-mobile-action {
+        min-height: 42px;
+        border-radius: 11px;
+        font-size: 0.84rem;
+        gap: 7px;
+    }
+
+    .billing-open-modern-mobile-action svg {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+@media (max-width: 420px) {
+    .billing-modern-card.card {
+        padding: 10px;
+    }
+
+    .billing-modern-header .section-title {
+        font-size: 1.32rem;
+    }
+
+    .billing-modern-tabs .clients-session-tab {
+        min-width: 0;
+        min-height: 58px;
+        padding: 8px 6px;
+        font-size: 0.78rem;
+    }
+
+    .billing-modern-search.clients-search-input,
+    .billing-modern-filter-row .clients-modern-new-btn {
+        font-size: 0.82rem;
+    }
+
+    .billing-modern-stat-card {
+        padding: 9px;
+    }
+
+    .billing-modern-stat-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 11px;
+    }
+
+    .billing-modern-stat-card strong {
+        font-size: 0.88rem;
+    }
+
+    .billing-open-modern-mobile-list-head h3 {
+        font-size: 0.96rem;
+    }
+
+    .billing-open-modern-mobile-sort-btn {
+        min-height: 34px;
+        font-size: 0.72rem;
+    }
+
+    .billing-open-modern-mobile-card {
+        padding: 9px;
+    }
+
+    .billing-open-modern-mobile-id-chip {
+        min-width: 42px;
+        min-height: 32px;
+        font-size: 0.82rem;
+    }
+
+    .billing-open-modern-mobile-client-wrap strong {
+        font-size: 0.88rem;
+    }
+
+    .billing-open-modern-mobile-cell strong {
+        font-size: 0.8rem;
+    }
+
+    .billing-open-modern-mobile-footer strong {
+        font-size: 0.96rem;
+    }
+
+    .billing-open-modern-mobile-select,
+    .billing-open-modern-mobile-action {
+        min-height: 40px;
+        font-size: 0.82rem;
     }
 }
 

@@ -3859,3 +3859,574 @@
         grid-template-columns: 48px 1fr 78px 38px;
     }
 }
+
+/* Mobile redesign for edit invoice popup (smaller resolutions) */
+@media (max-width: 720px) {
+    .billing-bill-modal-header {
+        padding: 18px 16px 14px;
+        gap: 12px;
+    }
+
+    .billing-bill-modal-title-row {
+        gap: 8px;
+    }
+
+    .billing-bill-modal-title-row h2 {
+        font-size: 1.22rem;
+    }
+
+    .billing-bill-modal-header p {
+        margin-top: 6px;
+        font-size: 0.86rem;
+        line-height: 1.35;
+    }
+
+    .billing-bill-modal-status {
+        min-height: 24px;
+        padding: 4px 9px;
+        font-size: 0.72rem;
+    }
+
+    .billing-bill-modal-close {
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        border-radius: 11px;
+        font-size: 1.15rem;
+    }
+
+    .billing-invoice-modern-body {
+        padding: 0 12px 14px;
+        gap: 12px;
+    }
+
+    .billing-invoice-management-card,
+    .billing-invoice-workspace-card,
+    .billing-invoice-compact-summary {
+        border-radius: 16px;
+    }
+
+    .billing-invoice-management-card {
+        padding: 14px;
+    }
+
+    .billing-invoice-management-head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .billing-invoice-management-head h3,
+    .billing-invoice-section-title-row h3 {
+        font-size: 0.98rem;
+    }
+
+    .billing-invoice-management-head p,
+    .billing-invoice-inline-note,
+    .billing-invoice-external-picker small,
+    .billing-invoice-add-menu small {
+        font-size: 0.8rem;
+    }
+
+    .billing-invoice-one-payee-switch {
+        justify-content: space-between;
+        width: 100%;
+        min-height: 40px;
+        padding: 8px 0 0;
+        font-size: 0.82rem;
+        line-height: 1.3;
+    }
+
+    .billing-invoice-tabs-row--bookmarks {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding-top: 0;
+    }
+
+    .billing-invoice-bill-tab--bookmark,
+    .billing-invoice-add-tab-wrap {
+        flex: none;
+        max-width: none;
+        width: 100%;
+        margin: 0;
+    }
+
+    .billing-invoice-tabs-row--bookmarks .billing-invoice-bill-tab,
+    .billing-invoice-tabs-row--bookmarks .billing-invoice-add-tab {
+        min-height: 84px;
+        border-radius: 15px;
+        padding: 12px;
+    }
+
+    .billing-invoice-bill-tab--bookmark {
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .billing-invoice-bill-tab--bookmark::after {
+        display: none;
+    }
+
+    .billing-invoice-bill-tab--bookmark.is-active {
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+    }
+
+    .billing-invoice-tab-icon {
+        width: 42px;
+        height: 42px;
+        margin-left: 0;
+        font-size: 1.2rem;
+    }
+
+    .billing-invoice-tab-copy {
+        gap: 5px;
+    }
+
+    .billing-invoice-tab-copy strong {
+        font-size: 0.94rem;
+        white-space: normal;
+        line-height: 1.18;
+    }
+
+    .billing-invoice-tab-copy small {
+        font-size: 0.72rem;
+        padding: 4px 9px;
+    }
+
+    .billing-invoice-tab-service-client {
+        font-size: 0.73rem;
+        white-space: normal;
+        line-height: 1.25;
+    }
+
+    .billing-invoice-tab-edit {
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        border-radius: 11px;
+        margin-left: auto;
+        align-self: center;
+    }
+
+    .billing-invoice-add-tab-wrap {
+        position: relative;
+    }
+
+    .billing-invoice-add-tab--bookmark {
+        min-height: 72px !important;
+    }
+
+    .billing-invoice-add-menu {
+        left: 0;
+        right: 0;
+        top: calc(100% + 8px);
+        width: auto;
+        padding: 8px;
+    }
+
+    .billing-invoice-add-menu button {
+        min-height: 60px;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .billing-invoice-add-menu-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+    }
+
+    .billing-invoice-external-picker {
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .billing-invoice-external-picker-head {
+        align-items: center;
+    }
+
+    .billing-invoice-workspace-card {
+        grid-template-columns: 1fr;
+        padding: 0;
+        gap: 12px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .billing-invoice-items-panel,
+    .billing-invoice-payment-panel {
+        padding: 14px;
+        border-radius: 16px;
+        box-shadow: 0 16px 34px rgba(15, 23, 42, 0.05);
+    }
+
+    .billing-invoice-payment-panel {
+        border-top: 1px solid rgba(16, 185, 129, 0.20);
+    }
+
+    .billing-invoice-items-panel .billing-invoice-section-title-row,
+    .billing-invoice-payment-panel .billing-invoice-section-title-row {
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .billing-invoice-items-panel .billing-invoice-section-title-row span,
+    .billing-invoice-payment-panel .billing-invoice-section-title-row span {
+        font-size: 0.74rem;
+        padding: 3px 8px;
+    }
+
+    .billing-invoice-selection-toolbar {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 13px;
+    }
+
+    .billing-invoice-selection-toolbar strong,
+    .billing-invoice-selection-toolbar label {
+        font-size: 0.8rem;
+    }
+
+    .billing-invoice-selection-toolbar select,
+    .billing-invoice-move-selected-btn {
+        min-height: 38px;
+        font-size: 0.84rem;
+    }
+
+    .billing-invoice-item-list {
+        gap: 12px;
+    }
+
+    .billing-invoice-item-row,
+    .billing-invoice-item-row--with-client {
+        grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 40px;
+        gap: 10px;
+        align-items: start;
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .billing-invoice-row-tools {
+        grid-column: 1;
+        grid-row: 1 / span 3;
+        align-self: start;
+        padding-top: 4px;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .billing-invoice-item-row .billing-bill-modal-field--service {
+        grid-column: 2 / 5;
+        grid-row: 1;
+    }
+
+    .billing-invoice-client-chip {
+        grid-column: 2 / 4;
+        grid-row: 2;
+        justify-self: start;
+        min-height: 32px;
+        font-size: 0.75rem;
+        padding: 5px 10px;
+    }
+
+    .billing-invoice-item-row .billing-bill-modal-field--qty {
+        grid-column: 2;
+        grid-row: 3;
+    }
+
+    .billing-invoice-item-row .billing-bill-modal-field--price {
+        grid-column: 3;
+        grid-row: 3;
+    }
+
+    .billing-invoice-row-amount {
+        grid-column: 2 / 4;
+        grid-row: 4;
+        align-self: end;
+        padding-top: 2px;
+    }
+
+    .billing-invoice-row-amount strong {
+        font-size: 1rem;
+    }
+
+    .billing-invoice-delete-mini {
+        grid-column: 4;
+        grid-row: 3 / span 2;
+        align-self: center;
+        justify-self: end;
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        border-radius: 11px;
+    }
+
+    .billing-invoice-item-row .billing-bill-modal-field label,
+    .billing-invoice-item-row .billing-bill-modal-field > span {
+        margin-bottom: 5px;
+        font-size: 0.74rem;
+    }
+
+    .billing-invoice-item-row .billing-bill-modal-field select,
+    .billing-invoice-item-row .billing-bill-modal-field input {
+        min-height: 40px;
+        font-size: 0.9rem;
+    }
+
+    .billing-invoice-add-dashed--line {
+        min-height: 62px;
+        border-radius: 13px;
+        font-size: 0.9rem;
+    }
+
+    .billing-invoice-add-dashed--line small {
+        font-size: 0.74rem;
+    }
+
+    .billing-invoice-payment-card,
+    .billing-invoice-totals-card {
+        padding: 14px;
+        border-radius: 14px;
+    }
+
+    .billing-invoice-payment-row {
+        grid-template-columns: 34px minmax(0, 1fr) 40px 40px;
+        grid-template-rows: auto auto auto;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 13px;
+    }
+
+    .billing-invoice-payment-icon {
+        width: 34px;
+        height: 34px;
+    }
+
+    .billing-invoice-payment-row select {
+        grid-column: 2 / 5;
+        grid-row: 1;
+        min-height: 40px;
+        font-size: 0.9rem;
+    }
+
+    .billing-invoice-payment-amount-input {
+        grid-column: 2 / 4;
+        grid-row: 2;
+        min-height: 40px;
+        font-size: 0.92rem;
+        text-align: left;
+    }
+
+    .billing-invoice-payment-row .billing-invoice-match-mini,
+    .billing-invoice-payment-row .billing-invoice-delete-mini {
+        grid-row: 2;
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        border-radius: 11px;
+    }
+
+    .billing-invoice-payment-row .billing-invoice-match-mini {
+        grid-column: 4;
+    }
+
+    .billing-invoice-payment-row .billing-invoice-delete-mini {
+        grid-column: 4;
+        grid-row: 3;
+    }
+
+    .billing-invoice-advance-summary {
+        grid-column: 2 / 5;
+        grid-row: 3;
+        padding: 0;
+        gap: 6px;
+    }
+
+    .billing-invoice-advance-summary strong,
+    .billing-invoice-advance-summary span {
+        font-size: 0.74rem;
+    }
+
+    .billing-invoice-remaining-strip {
+        min-height: 52px;
+        padding: 10px 12px;
+        gap: 10px;
+        border-radius: 13px;
+    }
+
+    .billing-invoice-remaining-copy strong {
+        font-size: 0.82rem;
+    }
+
+    .billing-invoice-remaining-copy small {
+        font-size: 0.74rem;
+    }
+
+    .billing-invoice-remaining-amount {
+        font-size: 1rem;
+    }
+
+    .billing-invoice-totals-card .billing-bill-modal-summary-line span,
+    .billing-invoice-totals-card .billing-bill-modal-summary-line strong {
+        font-size: 0.92rem;
+    }
+
+    .billing-invoice-totals-card .billing-bill-modal-total-line strong {
+        font-size: 1.22rem;
+    }
+
+    .billing-invoice-compact-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 0;
+        min-height: 0;
+        border: 0;
+        box-shadow: none;
+        background: transparent;
+    }
+
+    .billing-invoice-compact-summary > div {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        align-items: center;
+        column-gap: 10px;
+        row-gap: 2px;
+        padding: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+        border-right: 1px solid rgba(148, 163, 184, 0.22);
+        border-bottom: 0;
+    }
+
+    .billing-invoice-summary-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+    }
+
+    .billing-invoice-compact-summary span:not(.billing-invoice-summary-icon) {
+        font-size: 0.74rem;
+        white-space: normal;
+        line-height: 1.2;
+    }
+
+    .billing-invoice-compact-summary strong {
+        font-size: 0.84rem;
+    }
+
+    .billing-bill-modal-footer {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        align-items: stretch;
+        padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(10px);
+    }
+
+    .billing-bill-modal-delete,
+    .billing-bill-modal-preview-btn,
+    .billing-bill-modal-save-btn,
+    .billing-bill-modal-primary-action {
+        width: 100%;
+        min-height: 44px;
+        padding: 10px 14px;
+        border-radius: 13px;
+        font-size: 0.88rem;
+    }
+
+    .billing-bill-modal-delete {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .billing-bill-modal-preview-btn {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .billing-bill-modal-footer-actions {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        width: 100%;
+    }
+
+    .billing-bill-modal-save-btn__icon,
+    .billing-bill-modal-preview-btn__icon {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .billing-bill-modal-title-row h2 {
+        font-size: 1.12rem;
+    }
+
+    .billing-bill-modal-header p {
+        font-size: 0.82rem;
+    }
+
+    .billing-invoice-management-card,
+    .billing-invoice-items-panel,
+    .billing-invoice-payment-panel,
+    .billing-invoice-payment-card,
+    .billing-invoice-totals-card {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .billing-invoice-payment-row {
+        grid-template-columns: 30px minmax(0, 1fr) 36px;
+    }
+
+    .billing-invoice-payment-row select {
+        grid-column: 2 / 4;
+    }
+
+    .billing-invoice-payment-amount-input {
+        grid-column: 2 / 3;
+    }
+
+    .billing-invoice-payment-row .billing-invoice-match-mini {
+        grid-column: 3;
+        grid-row: 2;
+    }
+
+    .billing-invoice-payment-row .billing-invoice-delete-mini {
+        grid-column: 3;
+        grid-row: 3;
+    }
+
+    .billing-invoice-advance-summary {
+        grid-column: 2 / 4;
+    }
+
+    .billing-invoice-compact-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .billing-bill-modal-footer,
+    .billing-bill-modal-footer-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .billing-bill-modal-delete,
+    .billing-bill-modal-preview-btn {
+        grid-column: auto;
+        grid-row: auto;
+    }
+}

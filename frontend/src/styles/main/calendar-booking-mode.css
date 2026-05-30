@@ -1016,6 +1016,84 @@
     text-align: center;
 }
 
+
+.calendar-session-billing-view-mobile-list {
+    display: none;
+}
+
+.calendar-session-billing-view-mobile-card {
+    display: grid;
+    gap: 14px;
+    padding: 14px 16px;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.calendar-session-billing-view-mobile-card-top {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+}
+
+.calendar-session-billing-view-mobile-number {
+    min-width: 52px;
+    min-height: 52px;
+    padding: 8px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 1rem;
+    font-weight: 900;
+    text-align: center;
+    line-height: 1.1;
+    word-break: break-word;
+}
+
+.calendar-session-billing-view-mobile-payer,
+.calendar-session-billing-view-mobile-grid > div,
+.calendar-session-billing-view-mobile-status-row {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.calendar-session-billing-view-mobile-payer small,
+.calendar-session-billing-view-mobile-grid small,
+.calendar-session-billing-view-mobile-status-row small {
+    color: #64748b;
+    font-size: 0.76rem;
+    font-weight: 850;
+}
+
+.calendar-session-billing-view-mobile-payer strong,
+.calendar-session-billing-view-mobile-grid strong {
+    color: #0f172a;
+    font-size: 0.98rem;
+    font-weight: 900;
+    line-height: 1.25;
+}
+
+.calendar-session-billing-view-mobile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.calendar-session-billing-view-mobile-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid #e2e8f0;
+}
+
 .calendar-session-billing-view-footer {
     min-height: 58px;
     display: flex;
@@ -1039,17 +1117,134 @@
 }
 
 @media (max-width: 860px) {
+    .calendar-session-billing-view-backdrop {
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        background: rgba(241, 245, 249, 0.92);
+        backdrop-filter: blur(10px);
+    }
+
     .calendar-session-billing-view-modal {
-        width: calc(100vw - 22px);
+        width: 100vw;
+        max-height: 100vh;
+        height: 100vh;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        grid-template-rows: auto auto auto 1fr auto;
+    }
+
+    .calendar-session-billing-view-header {
+        padding: 18px 16px 12px;
+    }
+
+    .calendar-session-billing-view-header h2 {
+        font-size: 1.9rem;
+        line-height: 1.06;
+    }
+
+    .calendar-session-billing-view-info {
+        margin: 0 16px 12px;
     }
 
     .calendar-session-billing-view-session-card {
-        grid-template-columns: 42px 1fr 1fr;
+        margin: 0 16px 14px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 18px;
+    }
+
+    .calendar-session-billing-view-session-card > span {
+        display: none;
+    }
+
+    .calendar-session-billing-view-session-card > div {
+        padding: 18px 16px;
+        min-height: 82px;
+    }
+
+    .calendar-session-billing-view-session-card > div:nth-of-type(5) {
+        grid-column: 1 / -1;
+    }
+
+    .calendar-session-billing-view-session-card > div:nth-of-type(-n+4) {
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .calendar-session-billing-view-session-card > div:nth-of-type(2),
+    .calendar-session-billing-view-session-card > div:nth-of-type(4) {
+        border-left: 1px solid #e2e8f0;
+    }
+
+    .calendar-session-billing-view-session-card small {
+        font-size: 0.76rem;
+    }
+
+    .calendar-session-billing-view-session-card strong {
+        white-space: normal;
+        font-size: 0.95rem;
+        line-height: 1.28;
+    }
+
+    .calendar-session-billing-view-table {
+        margin: 0 16px;
+        border-radius: 18px;
+        overflow: auto;
     }
 
     .calendar-session-billing-view-table-head,
     .calendar-session-billing-view-table-row {
-        min-width: 760px;
+        display: none;
+    }
+
+    .calendar-session-billing-view-mobile-list {
+        display: grid;
+    }
+
+    .calendar-session-billing-view-footer {
+        margin: 14px 16px 18px;
+        min-height: 0;
+        padding: 14px 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        background: #fff;
+    }
+
+    .calendar-session-billing-view-footer strong {
+        display: inline-grid;
+        gap: 2px;
+        text-align: right;
+    }
+}
+
+@media (max-width: 560px) {
+    .calendar-session-billing-view-header h2 {
+        font-size: 1.55rem;
+    }
+
+    .calendar-session-billing-view-session-card {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .calendar-session-billing-view-mobile-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .calendar-session-billing-view-mobile-grid > div:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .calendar-session-billing-view-footer {
+        align-items: flex-start;
+        gap: 14px;
+    }
+
+    .calendar-session-billing-view-footer span,
+    .calendar-session-billing-view-footer strong {
+        flex: 1 1 0;
     }
 }
 

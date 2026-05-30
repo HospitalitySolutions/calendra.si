@@ -525,6 +525,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     const emptyText = isAdvances
       ? (locale === 'sl' ? 'Za ta termin ni plačanih predplačil ali predplačil, ki čakajo na plačilo.' : 'No paid or payment-pending advances for this session yet.')
       : (locale === 'sl' ? 'Za ta termin ni plačanih računov ali računov, ki čakajo na plačilo.' : 'No paid or payment-pending invoices for this session.')
+    const numberLabel = isAdvances ? (locale === 'sl' ? 'Predplačilo št.' : 'Advance no.') : (locale === 'sl' ? 'Račun št.' : 'Invoice no.')
+    const payerTitle = locale === 'sl' ? 'Plačnik' : 'Payer'
+    const amountTitle = locale === 'sl' ? 'Znesek' : 'Amount'
+    const dateTitle = isAdvances ? (locale === 'sl' ? 'Datum plačila' : 'Paid date') : (locale === 'sl' ? 'Datum' : 'Date')
+    const paymentMethodTitle = locale === 'sl' ? 'Način plačila' : 'Payment method'
+    const statusTitle = locale === 'sl' ? 'Status' : 'Status'
     return (
       <div className="calendar-session-billing-view-backdrop" onClick={closeBookedBillingView}>
         <div className="calendar-session-billing-view-modal" onClick={(event) => event.stopPropagation()}>
@@ -554,30 +560,74 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           </div>
           <div className={`calendar-session-billing-view-table${isAdvances ? ' calendar-session-billing-view-table--advances' : ''}`}>
             <div className="calendar-session-billing-view-table-head">
-              <span>{isAdvances ? (locale === 'sl' ? 'Predplačilo št.' : 'Advance no.') : (locale === 'sl' ? 'Račun št.' : 'Invoice no.')}</span>
-              <span>{locale === 'sl' ? 'Plačnik' : 'Payer'}</span>
-              <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
-              <span>{isAdvances ? (locale === 'sl' ? 'Datum plačila' : 'Paid date') : (locale === 'sl' ? 'Datum' : 'Date')}</span>
-              <span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span>
-              <span>{locale === 'sl' ? 'Status' : 'Status'}</span>
+              <span>{numberLabel}</span>
+              <span>{payerTitle}</span>
+              <span>{amountTitle}</span>
+              <span>{dateTitle}</span>
+              <span>{paymentMethodTitle}</span>
+              <span>{statusTitle}</span>
             </div>
-            {rows.length > 0 ? rows.map((row: any) => {
-              const paid = row.statusKey === 'PAID'
-              const statusLabel = paid
-                ? (locale === 'sl' ? 'Plačano' : 'Paid')
-                : (locale === 'sl' ? 'Čaka na plačilo' : 'Payment pending')
-              const payerLabel = Array.from(row.payerNames || []).join(', ') || '—'
-              return (
-                <div key={row.key} className="calendar-session-billing-view-table-row">
-                  <span><strong>{row.billNumber}</strong></span>
-                  <span>{payerLabel}</span>
-                  <span>{currency(row.amountGross)}</span>
-                  <span>{formatPaymentDateOnly(row.dateValue) || '—'}</span>
-                  <span>{row.paymentMethod || '—'}</span>
-                  <span><em className={`calendar-session-billing-view-status calendar-session-billing-view-status--${paid ? 'paid' : 'pending'}`}>{statusLabel}</em></span>
+            {rows.length > 0 ? (
+              <>
+                {rows.map((row: any) => {
+                  const paid = row.statusKey === 'PAID'
+                  const statusLabel = paid
+                    ? (locale === 'sl' ? 'Plačano' : 'Paid')
+                    : (locale === 'sl' ? 'Čaka na plačilo' : 'Payment pending')
+                  const payerLabel = Array.from(row.payerNames || []).join(', ') || '—'
+                  return (
+                    <div key={row.key} className="calendar-session-billing-view-table-row">
+                      <span><strong>{row.billNumber}</strong></span>
+                      <span>{payerLabel}</span>
+                      <span>{currency(row.amountGross)}</span>
+                      <span>{formatPaymentDateOnly(row.dateValue) || '—'}</span>
+                      <span>{row.paymentMethod || '—'}</span>
+                      <span><em className={`calendar-session-billing-view-status calendar-session-billing-view-status--${paid ? 'paid' : 'pending'}`}>{statusLabel}</em></span>
+                    </div>
+                  )
+                })}
+                <div className="calendar-session-billing-view-mobile-list" aria-hidden>
+                  {rows.map((row: any) => {
+                    const paid = row.statusKey === 'PAID'
+                    const statusLabel = paid
+                      ? (locale === 'sl' ? 'Plačano' : 'Paid')
+                      : (locale === 'sl' ? 'Čaka na plačilo' : 'Payment pending')
+                    const payerLabel = Array.from(row.payerNames || []).join(', ') || '—'
+                    return (
+                      <article key={`mobile-${row.key}`} className="calendar-session-billing-view-mobile-card">
+                        <div className="calendar-session-billing-view-mobile-card-top">
+                          <div className="calendar-session-billing-view-mobile-number" aria-label={`${numberLabel} ${row.billNumber || '—'}`}>
+                            {row.billNumber || '—'}
+                          </div>
+                          <div className="calendar-session-billing-view-mobile-payer">
+                            <small>{payerTitle}</small>
+                            <strong>{payerLabel}</strong>
+                          </div>
+                        </div>
+                        <div className="calendar-session-billing-view-mobile-grid">
+                          <div>
+                            <small>{amountTitle}</small>
+                            <strong>{currency(row.amountGross)}</strong>
+                          </div>
+                          <div>
+                            <small>{dateTitle}</small>
+                            <strong>{formatPaymentDateOnly(row.dateValue) || '—'}</strong>
+                          </div>
+                          <div>
+                            <small>{paymentMethodTitle}</small>
+                            <strong>{row.paymentMethod || '—'}</strong>
+                          </div>
+                        </div>
+                        <div className="calendar-session-billing-view-mobile-status-row">
+                          <small>{statusTitle}</small>
+                          <em className={`calendar-session-billing-view-status calendar-session-billing-view-status--${paid ? 'paid' : 'pending'}`}>{statusLabel}</em>
+                        </div>
+                      </article>
+                    )
+                  })}
                 </div>
-              )
-            }) : (
+              </>
+            ) : (
               <div className="calendar-session-billing-view-empty">{emptyText}</div>
             )}
           </div>

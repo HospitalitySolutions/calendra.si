@@ -3939,9 +3939,8 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                 {errorMessage && <div className="error">{errorMessage}</div>}
                 </div>
               </div>
-              <div className="form-actions clients-action-workspace-footer clients-create-footer">
-                <button type="button" className="secondary" onClick={closeModal}>{t('formCancel')}</button>
-                <button type="submit" disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>{saving ? clientsCopy.saving : clientsCopy.createClient}</button>
+              <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
+                <button type="submit" className="clients-gapp-save-button" disabled={saving || !form.firstName.trim() || !form.lastName.trim()}>{saving ? clientsCopy.saving : clientsCopy.createClient}</button>
               </div>
             </form>
           </div>
@@ -3955,7 +3954,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
           role="presentation"
         >
           <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal"
+            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-company-create-modal"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <form className="clients-create-modal-form" onSubmit={submitCompanyForm}>
@@ -3964,7 +3963,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                   <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>{initials(companyForm.name, locale === 'sl' ? 'Podjetje' : 'Company')}</span>
                   <div className="clients-name-stack clients-action-workspace-title-stack">
                     <span className="clients-name">{companyForm.name.trim() || clientsCopy.newCompanyName}</span>
-                    <span className="clients-id">{clientsCopy.newCompanySubtitle}</span>
+                    <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {activeStatusLabel}</span>
                   </div>
                 </div>
                 <button type="button" className="secondary clients-action-workspace-close" onClick={closeCompanyModal} aria-label={t('mobileNavClose')}>
@@ -3979,18 +3978,6 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                       <input required value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
                     </label>
                     <label className="clients-detail-field-card clients-detail-field-card--wide">
-                      <span>{clientsCopy.address}</span>
-                      <input value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card">
-                      <span>{clientsCopy.postalCode}</span>
-                      <input value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card">
-                      <span>{clientsCopy.city}</span>
-                      <input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
-                    </label>
-                    <label className="clients-detail-field-card clients-detail-field-card--wide">
                       <span>{clientsCopy.vatId}</span>
                       <input value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
                     </label>
@@ -4002,13 +3989,24 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                       <span>{clientsCopy.telephone}</span>
                       <input value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
                     </label>
+                    <label className="clients-detail-field-card clients-detail-field-card--wide">
+                      <span>{clientsCopy.address}</span>
+                      <input value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card">
+                      <span>{clientsCopy.postalCode}</span>
+                      <input value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
+                    </label>
+                    <label className="clients-detail-field-card">
+                      <span>{clientsCopy.city}</span>
+                      <input value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
+                    </label>
                   </div>
 
                   {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
                 </div>
               </div>
-              <div className="form-actions clients-action-workspace-footer clients-create-footer">
-                <button type="button" className="secondary" onClick={closeCompanyModal}>{t('formCancel')}</button>
+              <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
                 <button type="submit" className="clients-gapp-save-button" disabled={savingCompany || !companyForm.name.trim()}>
                   {savingCompany ? clientsCopy.saving : clientsCopy.createCompany}
                 </button>
@@ -4387,7 +4385,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                   <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>{(groupForm.name?.[0] || 'G').toUpperCase()}</span>
                   <div className="clients-name-stack clients-action-workspace-title-stack">
                     <span className="clients-name">{groupForm.name.trim() || clientsCopy.newGroupTitle}</span>
-                    <span className="clients-id">{clientsCopy.newGroupSubtitle}</span>
+                    <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {activeStatusLabel}</span>
                   </div>
                 </div>
                 <button type="button" className="secondary clients-action-workspace-close" onClick={() => setShowGroupModal(false)} aria-label={t('mobileNavClose')}>
@@ -4410,8 +4408,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
                   {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
                 </div>
               </div>
-              <div className="form-actions clients-action-workspace-footer clients-create-footer">
-                <button type="button" className="secondary" onClick={() => setShowGroupModal(false)}>{t('cancel')}</button>
+              <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
                 <button type="submit" className="clients-gapp-save-button" disabled={savingGroup || !groupForm.name.trim()}>
                   {savingGroup ? clientsCopy.saving : clientsCopy.createGroup}
                 </button>

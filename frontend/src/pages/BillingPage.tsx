@@ -5,7 +5,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import type { Bill, BillingService, Booking, Client, Company, OpenBill, PaymentMethod, PaymentSplit, User } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
-import { Card, EmptyState, Field, PageHeader, SectionTitle } from '../components/ui'
+import { Card, EmptyState, Field, PageHeader } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
 
@@ -948,7 +948,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const batchInvoicesRef = useRef<HTMLDivElement | null>(null)
   const [creatingManualOpenBill, setCreatingManualOpenBill] = useState(false)
   const [isOpenBillsMobile, setIsOpenBillsMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false,
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 760px)').matches : false,
   )
 
   const load = async () => {
@@ -1258,7 +1258,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [clients])
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 450px)')
+    const mq = window.matchMedia('(max-width: 760px)')
     const apply = () => setIsOpenBillsMobile(mq.matches)
     apply()
     mq.addEventListener('change', apply)
@@ -6029,9 +6029,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack">
-          <Card className={(billingTab === 'open' || billingTab === 'openPayments' || billingTab === 'history' || billingTab === 'unusedAdvances') && isOpenBillsMobile ? 'billing-open-mobile-shell billing-modern-card' : 'billing-modern-card'}>
+          <Card className={billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell billing-modern-card' : 'billing-modern-card'}>
             <div className="billing-modern-header">
-              <SectionTitle>{t('navBilling')}</SectionTitle>
               <div className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>
                 <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>
                   {billingTabIcon('open')}
@@ -6092,7 +6091,159 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </div>
 
-                {sortedOpenBills.length === 0 ? <EmptyState title={t('billingEmptyOpenTitle')} text={t('billingEmptyOpenText')} /> : (
+                {sortedOpenBills.length === 0 ? <EmptyState title={t('billingEmptyOpenTitle')} text={t('billingEmptyOpenText')} /> : isOpenBillsMobile ? (
+                  <div className="billing-open-modern-mobile-layout">
+                    <div className="billing-open-modern-mobile-list-head">
+                      <h3>{t('billingTabOpenBills')}</h3>
+                      <div className="billing-open-mobile-sort-wrap">
+                        <button
+                          type="button"
+                          className="billing-open-modern-mobile-sort-btn"
+                          aria-haspopup="menu"
+                          aria-expanded={openBillsSortMenuOpen}
+                          aria-label={billingCopy.sortOpenBillsAria}
+                          onClick={() => setOpenBillsSortMenuOpen((prev) => !prev)}
+                        >
+                          <span>{openBillsSortLabel}</span>
+                          <span className="billing-open-modern-mobile-sort-caret" aria-hidden>▾</span>
+                        </button>
+                        {openBillsSortMenuOpen ? (
+                          <div className="billing-open-mobile-sort-popup" role="menu" aria-label={billingCopy.sortOpenBillsAria}>
+                            {openBillsSortOptions.map((option) => {
+                              const active = openBillsSortField === option.field
+                              return (
+                                <button
+                                  key={option.field}
+                                  type="button"
+                                  role="menuitemradio"
+                                  aria-checked={active}
+                                  className={active ? 'billing-open-mobile-sort-option active' : 'billing-open-mobile-sort-option'}
+                                  onClick={() => {
+                                    if (active) {
+                                      setOpenBillsSortDir((prev) => prev === 'asc' ? 'desc' : 'asc')
+                                    } else {
+                                      setOpenBillsSortField(option.field)
+                                      setOpenBillsSortDir(option.field === 'client' ? 'asc' : 'desc')
+                                    }
+                                    setOpenBillsSortMenuOpen(false)
+                                  }}
+                                >
+                                  {option.label}{active ? (openBillsSortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="billing-open-modern-mobile-cards">
+                      {sortedOpenBills.map((ob) => {
+                        const rowMembers = getOpenBillListGroupMembers(ob)
+                        const gross = openBillListGroupGross(ob)
+                        const employeeLabel = openBillListGroupEmployeeLabel(ob)
+                        const clientLabel = openBillListGroupClientLabel(ob)
+                        const rowDescription = Array.from(new Set(rowMembers.map((entry) => openBillDescription(entry)).filter((value) => value && value !== '—'))).join(' · ') || '—'
+                        const groupBillCount = rowMembers.length
+                        const sessionCount = ob.sessions?.length ?? 0
+                        const rawId = String(ob.sessionDisplayId || formatBillingSessionIdDisplay(ob.sessionId) || '—')
+                        const displayId = rawId.startsWith('#') ? rawId : `#${rawId}`
+                        return (
+                          <article key={`${openBillListGroupKey(ob)}:${ob.id}`} className="billing-open-modern-mobile-card" onClick={() => openEditInvoicePopup(ob)}>
+                            <div className="billing-open-modern-mobile-card-head">
+                              <div className="billing-open-modern-mobile-title-row">
+                                <span className="billing-open-modern-mobile-id-chip">{displayId}</span>
+                                <div className="billing-open-modern-mobile-client-wrap">
+                                  <strong>{clientLabel}</strong>
+                                  {(groupBillCount > 1 || sessionCount > 1) ? (
+                                    <div className="billing-open-modern-mobile-subchips">
+                                      {groupBillCount > 1 ? <span className="billing-open-modern-mobile-subchip">{groupBillCount} {locale === 'sl' ? 'računi' : 'bills'}</span> : null}
+                                      {sessionCount > 1 ? <span className="billing-open-modern-mobile-subchip">{sessionCount} {locale === 'sl' ? 'seje' : 'sessions'}</span> : null}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="billing-open-modern-mobile-grid">
+                              <div className="billing-open-modern-mobile-cell">
+                                <span className="billing-open-modern-mobile-cell-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="3" /><path d="M8 2v4M16 2v4M3 10h18" /></svg>
+                                </span>
+                                <div>
+                                  <span>{billingCopy.openBillsColSession}</span>
+                                  <strong>{formatOpenBillSession(ob.sessionInfo)}</strong>
+                                </div>
+                              </div>
+                              <div className="billing-open-modern-mobile-cell">
+                                <span className="billing-open-modern-mobile-cell-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82Z" /><path d="M7 7h.01" /></svg>
+                                </span>
+                                <div>
+                                  <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
+                                  <strong>{rowDescription}</strong>
+                                </div>
+                              </div>
+                              <div className="billing-open-modern-mobile-cell">
+                                <span className="billing-open-modern-mobile-cell-icon" aria-hidden>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></svg>
+                                </span>
+                                <div>
+                                  <span>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</span>
+                                  <strong>{employeeLabel}</strong>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="billing-open-modern-mobile-footer">
+                              <div>
+                                <span>{locale === 'sl' ? 'Odprt znesek' : 'Open amount'}</span>
+                                <strong>{currency(gross)}</strong>
+                              </div>
+                            </div>
+                            <div className="billing-open-modern-mobile-paymethod" onClick={(e) => e.stopPropagation()}>
+                              <label className="billing-open-modern-mobile-paymethod-label" htmlFor={`open-bill-payment-${ob.id}`}>
+                                {locale === 'sl' ? 'Izberite način plačila' : 'Select payment method'}
+                              </label>
+                              <div className="billing-open-modern-mobile-select-wrap">
+                                <select
+                                  id={`open-bill-payment-${ob.id}`}
+                                  className="billing-open-modern-mobile-select"
+                                  value={ob.paymentMethod?.id ?? ''}
+                                  onChange={(e) => updateOpenBillPaymentMethod(ob.id, Number(e.target.value))}
+                                >
+                                  <option value="" disabled>{locale === 'sl' ? 'Izberite način plačila' : 'Select payment method'}</option>
+                                  {nonDepositPaymentMethods.map((method) => (
+                                    <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div className="billing-open-modern-mobile-actions" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                className="billing-open-modern-mobile-action billing-open-modern-mobile-action--primary"
+                                onClick={() => groupBillCount > 1 ? openEditInvoicePopup(ob) : createBillFromOpen(ob)}
+                                disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || !ob.paymentMethod?.id)}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></svg>
+                                <span>{creatingFromOpenId === ob.id
+                                  ? billingCopy.creating
+                                  : (groupBillCount > 1 ? (locale === 'sl' ? 'Uredi račune' : 'Edit bills') : (locale === 'sl' ? 'Zapri račun' : 'Close Invoice'))}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="billing-open-modern-mobile-action billing-open-modern-mobile-action--danger"
+                                onClick={() => deleteOpenBill(ob)}
+                                disabled={deletingOpenId === ob.id || groupBillCount > 1}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                                <span>{deletingOpenId === ob.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}</span>
+                              </button>
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
                   <div className="billing-modern-table-wrap">
                     <table className="billing-modern-table billing-open-bills-table">
                       <thead>

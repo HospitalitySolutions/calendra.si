@@ -72,7 +72,7 @@ function flagsFromGuestBookingMode(mode: GuestBookingMode): {
   }
 }
 
-const GUEST_BOOKING_OPTIONS: {
+const GUEST_BOOKING_OPTIONS_EN: {
   value: GuestBookingMode;
   label: string;
   line: string;
@@ -83,14 +83,26 @@ const GUEST_BOOKING_OPTIONS: {
   { value: "DISABLED", label: "DISABLED", line: "Not bookable by guests" },
 ];
 
-function guestBookingOptionMeta(mode: GuestBookingMode) {
+const GUEST_BOOKING_OPTIONS_SL: {
+  value: GuestBookingMode;
+  label: string;
+  line: string;
+}[] = [
+  { value: "ALL", label: "VSE", line: "Spletna stran in mobilna guest aplikacija" },
+  { value: "WEBSITE", label: "SPLET", line: "Samo spletna stran" },
+  { value: "GUEST", label: "GUEST", line: "Samo mobilna guest aplikacija" },
+  { value: "DISABLED", label: "IZKLOPLJENO", line: "Rezervacija gostov ni omogočena" },
+];
+
+function guestBookingOptionMeta(mode: GuestBookingMode, locale: AppLocale) {
+  const options =
+    locale === "sl" ? GUEST_BOOKING_OPTIONS_SL : GUEST_BOOKING_OPTIONS_EN;
   return (
-    GUEST_BOOKING_OPTIONS.find((o) => o.value === mode) ??
-    GUEST_BOOKING_OPTIONS[2]
+    options.find((o) => o.value === mode) ?? options[2]
   );
 }
 
-const PRICE_CALCULATION_OPTIONS: {
+const PRICE_CALCULATION_OPTIONS_EN: {
   value: PriceCalculationMode;
   label: string;
   line: string;
@@ -107,10 +119,31 @@ const PRICE_CALCULATION_OPTIONS: {
   },
 ];
 
-function priceCalculationOptionMeta(mode: PriceCalculationMode) {
+const PRICE_CALCULATION_OPTIONS_SL: {
+  value: PriceCalculationMode;
+  label: string;
+  line: string;
+}[] = [
+  {
+    value: "PER_CLIENT",
+    label: "NA STRANKO",
+    line: "Cena se obračuna za vsako dodano stranko.",
+  },
+  {
+    value: "TOTAL",
+    label: "SKUPAJ",
+    line: "Cena se obračuna enkrat za celoten termin.",
+  },
+];
+
+function priceCalculationOptionMeta(
+  mode: PriceCalculationMode,
+  locale: AppLocale,
+) {
+  const options =
+    locale === "sl" ? PRICE_CALCULATION_OPTIONS_SL : PRICE_CALCULATION_OPTIONS_EN;
   return (
-    PRICE_CALCULATION_OPTIONS.find((o) => o.value === mode) ??
-    PRICE_CALCULATION_OPTIONS[0]
+    options.find((o) => o.value === mode) ?? options[0]
   );
 }
 
@@ -2481,7 +2514,11 @@ export function SessionTypesPage() {
                     >
                       <ServiceConfigTabIcon name="services" />
                     </span>
-                    <h3>Transaction services</h3>
+                    <h3>
+                      {locale === "sl"
+                        ? "Transakcijske storitve"
+                        : "Transaction services"}
+                    </h3>
                     <button
                       type="button"
                       className="secondary small-btn session-type-config-add-service"
@@ -2509,7 +2546,9 @@ export function SessionTypesPage() {
                       }}
                     >
                       <ServiceConfigTabIcon name="plus" />
-                      <span>Add service</span>
+                      <span>
+                        {locale === "sl" ? "Dodaj storitev" : "Add service"}
+                      </span>
                     </button>
                   </div>
                   <div
@@ -2517,12 +2556,20 @@ export function SessionTypesPage() {
                     aria-hidden="true"
                   >
                     <span>{locale === "sl" ? "Opis" : "Description"}</span>
-                    <span>Gross Price</span>
+                    <span>{locale === "sl" ? "Bruto cena" : "Gross Price"}</span>
                   </div>
                   {typeForm.serviceLines.length === 0 ? (
                     <EmptyState
-                      title="No services linked"
-                      text="Add one or more transaction services."
+                      title={
+                        locale === "sl"
+                          ? "Ni povezanih storitev"
+                          : "No services linked"
+                      }
+                      text={
+                        locale === "sl"
+                          ? "Dodajte eno ali več transakcijskih storitev."
+                          : "Add one or more transaction services."
+                      }
                     />
                   ) : (
                     typeForm.serviceLines.map((line, idx) => (
@@ -2557,14 +2604,22 @@ export function SessionTypesPage() {
                             .map((s) => (
                               <option key={s.id} value={s.id}>
                                 {s.code} · {s.description}
-                                {s.active === false ? " (inactive)" : ""}
+                                {s.active === false
+                                  ? locale === "sl"
+                                    ? " (neaktivna)"
+                                    : " (inactive)"
+                                  : ""}
                               </option>
                             ))}
                         </select>
                         <input
                           type="number"
                           step="0.01"
-                          placeholder="Gross price (optional)"
+                          placeholder={
+                            locale === "sl"
+                              ? "Bruto cena (neobvezno)"
+                              : "Gross price (optional)"
+                          }
                           value={line.price}
                           onChange={(e) => {
                             const next = [...typeForm.serviceLines];
@@ -2584,7 +2639,7 @@ export function SessionTypesPage() {
                             })
                           }
                         >
-                          Remove
+                          {locale === "sl" ? "Odstrani" : "Remove"}
                         </button>
                       </div>
                     ))
@@ -2599,7 +2654,7 @@ export function SessionTypesPage() {
                   >
                     <ServiceConfigTabIcon name="cards" />
                   </span>
-                  <h3>{locale === "sl" ? "Booking rules" : "Booking rules"}</h3>
+                  <h3>{locale === "sl" ? "Pravila rezervacij" : "Booking rules"}</h3>
                 </div>
                 <Field label={locale === "sl" ? "Cena na terminu" : "Session price"}>
                   <div
@@ -2615,10 +2670,20 @@ export function SessionTypesPage() {
                     >
                       <span className="guest-booking-select-trigger-main">
                         <span className="guest-booking-select-value">
-                          {priceCalculationOptionMeta(typeForm.priceCalculationMode).label}
+                          {
+                            priceCalculationOptionMeta(
+                              typeForm.priceCalculationMode,
+                              locale,
+                            ).label
+                          }
                         </span>
                         <span className="guest-booking-select-line">
-                          {priceCalculationOptionMeta(typeForm.priceCalculationMode).line}
+                          {
+                            priceCalculationOptionMeta(
+                              typeForm.priceCalculationMode,
+                              locale,
+                            ).line
+                          }
                         </span>
                       </span>
                       <span
@@ -2643,7 +2708,10 @@ export function SessionTypesPage() {
                     </button>
                     {priceCalculationPickerOpen ? (
                       <ul className="guest-booking-select-menu" role="listbox">
-                        {PRICE_CALCULATION_OPTIONS.map((opt) => {
+                        {(locale === "sl"
+                          ? PRICE_CALCULATION_OPTIONS_SL
+                          : PRICE_CALCULATION_OPTIONS_EN
+                        ).map((opt) => {
                           const selected =
                             typeForm.priceCalculationMode === opt.value;
                           return (
@@ -2675,7 +2743,7 @@ export function SessionTypesPage() {
                     ) : null}
                   </div>
                 </Field>
-                <Field label="Guest booking">
+                <Field label={locale === "sl" ? "Rezervacija gostov" : "Guest booking"}>
                   <div
                     className={`guest-booking-select${guestBookingPickerOpen ? " is-open" : ""}`}
                     ref={guestBookingSelectRef}
@@ -2690,13 +2758,19 @@ export function SessionTypesPage() {
                       <span className="guest-booking-select-trigger-main">
                         <span className="guest-booking-select-value">
                           {
-                            guestBookingOptionMeta(typeForm.guestBookingMode)
+                            guestBookingOptionMeta(
+                              typeForm.guestBookingMode,
+                              locale,
+                            )
                               .label
                           }
                         </span>
                         <span className="guest-booking-select-line">
                           {
-                            guestBookingOptionMeta(typeForm.guestBookingMode)
+                            guestBookingOptionMeta(
+                              typeForm.guestBookingMode,
+                              locale,
+                            )
                               .line
                           }
                         </span>
@@ -2723,7 +2797,10 @@ export function SessionTypesPage() {
                     </button>
                     {guestBookingPickerOpen ? (
                       <ul className="guest-booking-select-menu" role="listbox">
-                        {GUEST_BOOKING_OPTIONS.map((opt) => {
+                        {(locale === "sl"
+                          ? GUEST_BOOKING_OPTIONS_SL
+                          : GUEST_BOOKING_OPTIONS_EN
+                        ).map((opt) => {
                           const selected =
                             typeForm.guestBookingMode === opt.value;
                           return (
@@ -2797,10 +2874,13 @@ export function SessionTypesPage() {
                       </svg>
                     </span>
                     <span className="session-type-config-group-copy">
-                      <strong>Group ON/OFF</strong>
+                      <strong>
+                        {locale === "sl" ? "Skupina VKLOP/IZKLOP" : "Group ON/OFF"}
+                      </strong>
                       <span>
-                        When on, this type can be selected for staff-created
-                        group booked sessions.
+                        {locale === "sl"
+                          ? "Ko je vklopljeno, je to storitev mogoče izbrati za skupinske termine, ki jih ustvarja osebje."
+                          : "When on, this type can be selected for staff-created group booked sessions."}
                       </span>
                     </span>
                     <span className="session-type-config-switch">
@@ -2825,7 +2905,13 @@ export function SessionTypesPage() {
                   {typeForm.groupBookingEnabled ? (
                     <div className="session-type-config-conditional-grid">
                       <div className="session-type-config-conditional-single">
-                        <Field label="Group max participants">
+                        <Field
+                          label={
+                            locale === "sl"
+                              ? "Največ udeležencev v skupini"
+                              : "Group max participants"
+                          }
+                        >
                           <input
                             type="number"
                             min={1}
@@ -2842,12 +2928,14 @@ export function SessionTypesPage() {
                                   ),
                               })
                             }
-                            placeholder="No limit"
+                            placeholder={locale === "sl" ? "Brez omejitve" : "No limit"}
                           />
                         </Field>
                       </div>
                       <div className="session-type-config-conditional-full">
-                        <Field label="Limit to users">
+                        <Field
+                          label={locale === "sl" ? "Omeji na uporabnike" : "Limit to users"}
+                        >
                           <div
                             className={`guest-limit-client-picker${guestLimitPickerOpen ? " is-open" : ""}`}
                             ref={guestLimitClientPickerRef}
@@ -2873,7 +2961,11 @@ export function SessionTypesPage() {
                                     </span>
                                     <button
                                       type="button"
-                                      aria-label={`Remove ${entry.name}`}
+                                      aria-label={
+                                        locale === "sl"
+                                          ? `Odstrani ${entry.name}`
+                                          : `Remove ${entry.name}`
+                                      }
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setGuestLimitEmails(
@@ -2944,7 +3036,11 @@ export function SessionTypesPage() {
                               <div
                                 className="guest-limit-client-menu"
                                 role="listbox"
-                                aria-label="Limit to guest app clients"
+                                aria-label={
+                                  locale === "sl"
+                                    ? "Omeji na stranke z guest app dostopom"
+                                    : "Limit to guest app clients"
+                                }
                               >
                                 {filteredGuestLimitClients.length === 0 ? (
                                   <div className="guest-limit-client-empty">
