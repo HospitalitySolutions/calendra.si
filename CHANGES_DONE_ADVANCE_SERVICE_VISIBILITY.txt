@@ -1,0 +1,31 @@
+Advance transaction service visibility fix
+=========================================
+
+Requested behavior:
+- When Predplačilo is ON on a transaction service, that service should only be selectable on Novo predplačilo.
+- It should not be visible/selectable on New Open Bill or Edit Open Bill.
+
+Changes done:
+1. Frontend Billing page
+   - Split transaction services into:
+     - advance services: services whose IDs are in ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID
+     - normal open-bill services: all other transaction services
+   - Novo predplačilo now shows only advance services.
+   - Nov odprti račun now excludes advance services.
+   - Edit Open Bill service dropdowns now exclude advance services for normal invoice/open-bill tabs.
+   - Hidden stale advance-service lines are filtered out of normal open-bill editors so they are not shown in Edit Open Bill.
+   - Add-line buttons in Edit Open Bill now use the first normal open-bill service, not a Predplačilo service.
+
+2. Backend Billing controller guardrails
+   - Manual/open bill creation rejects advance-marked services unless the bill type is ADVANCE.
+   - Open bill updates reject advance-marked services on normal invoice/open-bill flows.
+   - Direct bill creation and open-bill closing use the same validation.
+   - Open-bill PDF preview also applies the same validation.
+
+3. Backend open-bill sync
+   - Session-linked transaction services marked as Predplačilo are filtered out when normal open bill lines are generated/synced.
+   - Existing generated session lines using services that later became Predplačilo are removed from normal open bills during sync.
+
+Build notes:
+- Backend compile could not be completed because Maven wrapper needs to download Maven from repo.maven.apache.org and internet access is blocked.
+- Frontend build could not be completed because node_modules are missing, so React/Axios/Capacitor types cannot be resolved.

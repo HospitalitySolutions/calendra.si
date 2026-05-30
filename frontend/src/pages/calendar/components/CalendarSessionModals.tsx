@@ -1127,6 +1127,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-row form-row-infield calendar-booking-service-with-online calendar-booking-field--service">
                   <div className="calendar-booking-service-infield-head">
                     <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
+                    {onlineSessionBookingEnabled && selectedBookedSession.online ? (
+                      <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
+                        <span className="meeting-provider-summary__name">
+                          {selectedBookedSession.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
+                        </span>
+                        <button
+                          type="button"
+                          className="secondary meeting-provider-change-btn"
+                          onClick={() => {
+                            setMeetingPickerCancelUnchecksOnline(false)
+                            setMeetingProviderPickerTarget('edit')
+                            setMeetingProviderPickerOpen(true)
+                          }}
+                        >
+                          {t('formChange')}
+                        </button>
+                      </div>
+                    ) : null}
                     {onlineSessionBookingEnabled ? (
                       <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
                         <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
@@ -1399,27 +1417,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 )
               })()}
-              {selectedBookedSession.online && (
-                <div className="form-row form-row-infield">
-                  <span className="form-field-inline-label">{t('formMeeting')}</span>
-                  <div className="form-field-inline-control">
-                  <div className="meeting-provider-summary">
-                    <span>{selectedBookedSession.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}</span>
-                    <button
-                      type="button"
-                      className="secondary meeting-provider-change-btn"
-                      onClick={() => {
-                        setMeetingPickerCancelUnchecksOnline(false)
-                        setMeetingProviderPickerTarget('edit')
-                        setMeetingProviderPickerOpen(true)
-                      }}
-                    >
-                      {t('formChange')}
-                    </button>
-                  </div>
-                  </div>
-                </div>
-              )}
               {(selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').includes('Zoom meeting:')) && (
                 <div className="form-row form-row-infield">
                   <span className="form-field-inline-label">{t('formMeetingLink')}</span>
@@ -3226,6 +3223,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <>
                       <div className="calendar-booking-service-infield-head">
                         <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
+                        {onlineSessionBookingEnabled && form.online ? (
+                          <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
+                            <span className="meeting-provider-summary__name">
+                              {form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
+                            </span>
+                            <button
+                              type="button"
+                              className="secondary meeting-provider-change-btn"
+                              onClick={() => {
+                                setMeetingPickerCancelUnchecksOnline(false)
+                                setMeetingProviderPickerTarget('create')
+                                setMeetingProviderPickerOpen(true)
+                              }}
+                            >
+                              {t('formChange')}
+                            </button>
+                          </div>
+                        ) : null}
                         {onlineSessionBookingEnabled ? (
                           <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
                             <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
@@ -3525,27 +3540,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                     </div>
                   </div>
-                  {form.online && (
-                    <div className="form-row form-row-infield">
-                      <span className="form-field-inline-label">{t('formMeeting')}</span>
-                      <div className="form-field-inline-control">
-                        <div className="meeting-provider-summary">
-                          <span>{form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}</span>
-                          <button
-                            type="button"
-                            className="secondary meeting-provider-change-btn"
-                            onClick={() => {
-                              setMeetingPickerCancelUnchecksOnline(false)
-                              setMeetingProviderPickerTarget('create')
-                              setMeetingProviderPickerOpen(true)
-                            }}
-                          >
-                            {t('formChange')}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
                 </>

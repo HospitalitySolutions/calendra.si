@@ -331,6 +331,8 @@ export type OpenBillItem = {
   transactionService: BillingService
   quantity: number
   netPrice: number
+  /** Gross unit price is the Billing source of truth; netPrice is derived from it for VAT/base. */
+  grossPrice: number
   sourceSessionBookingId?: number | null
   sourceAdvanceBillId?: number | null
 }

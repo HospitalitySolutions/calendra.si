@@ -355,7 +355,9 @@ public class PlatformSubscriptionBillingService {
             item.setTransactionService(source.getTransactionService());
             item.setQuantity(source.getQuantity());
             item.setNetPrice(source.getNetPrice());
-            BigDecimal grossSingle = grossFromNet(source.getTransactionService(), source.getNetPrice());
+            BigDecimal grossSingle = source.getUnitGrossPrice() != null
+                    ? source.getUnitGrossPrice()
+                    : grossFromNet(source.getTransactionService(), source.getNetPrice());
             item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(source.getQuantity())).setScale(2, RoundingMode.HALF_UP));
             item.setSourceSessionBookingId(null);
             item.setSourceAdvanceBillId(null);
@@ -474,10 +476,11 @@ public class PlatformSubscriptionBillingService {
         item.setTransactionService(tx);
         item.setQuantity(quantity);
         item.setNetPrice(netFromGross(tx, targetGrossPerUnit));
+        item.setUnitGrossPrice(targetGrossPerUnit.setScale(2, RoundingMode.HALF_UP));
         item.setSourceSessionBookingId(null);
         item.setSourceAdvanceBillId(null);
         open.getItems().add(item);
-        return grossFromNet(tx, item.getNetPrice()).multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
+        return targetGrossPerUnit.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal openBillTotalGross(OpenBill open) {
@@ -485,8 +488,11 @@ public class PlatformSubscriptionBillingService {
             return BigDecimal.ZERO;
         }
         return open.getItems().stream()
-                .filter(i -> i.getTransactionService() != null && i.getNetPrice() != null && i.getQuantity() != null)
-                .map(i -> grossFromNet(i.getTransactionService(), i.getNetPrice()).multiply(BigDecimal.valueOf(i.getQuantity())))
+                .filter(i -> i.getTransactionService() != null && i.getQuantity() != null)
+                .map(i -> (i.getUnitGrossPrice() != null
+                        ? i.getUnitGrossPrice()
+                        : grossFromNet(i.getTransactionService(), i.getNetPrice() == null ? BigDecimal.ZERO : i.getNetPrice()))
+                        .multiply(BigDecimal.valueOf(i.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
     }

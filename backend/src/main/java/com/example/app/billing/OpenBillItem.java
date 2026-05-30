@@ -22,8 +22,12 @@ public class OpenBillItem extends BaseEntity {
     @Column(nullable = false)
     private Integer quantity = 1;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 4)
     private BigDecimal netPrice;
+
+    /** Gross unit price entered/displayed in Billing. Net is derived from this and the tax rate. */
+    @Column(name = "unit_gross_price", precision = 12, scale = 2)
+    private BigDecimal unitGrossPrice;
 
     /** Optional product/name snapshot copied to the final invoice line description. */
     @Column(name = "invoice_line_description", length = 512)

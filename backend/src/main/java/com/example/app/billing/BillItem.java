@@ -19,7 +19,7 @@ public class BillItem extends BaseEntity {
     private TransactionService transactionService;
     @Column(nullable = false)
     private Integer quantity;
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 4)
     private BigDecimal netPrice;
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal grossPrice;

@@ -4919,13 +4919,15 @@ export function ConfigurationPage() {
           <>
             {isCompactConfigViewport ? (
               <div className="config-detail-bar">
-                <button type="button" className="config-detail-back" onClick={() => navigate('/configuration')} aria-label={t('settingsGroup')}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M19 12H5" />
-                    <path d="M12 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <span>{configDetailTitle}</span>
+                {tab === 'company' ? null : (
+                  <button type="button" className="config-detail-back" onClick={() => navigate('/configuration')} aria-label={t('settingsGroup')}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M19 12H5" />
+                      <path d="M12 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                )}
+                {tab === 'company' ? null : <span>{configDetailTitle}</span>}
               </div>
             ) : (
               <aside className="config-nav">
@@ -5790,7 +5792,9 @@ export function ConfigurationPage() {
               }
             }
           `}</style>
-          <h1 className="account-heading">Upravljanje računa</h1>
+          {isCompactConfigViewport ? null : (
+            <h1 className="account-heading">Upravljanje računa</h1>
+          )}
           <div className="account-subtabs" role="tablist" aria-label="Account management subtabs">
             <button type="button" className={accountSubtab === 'company' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('company')}>Podjetje</button>
             <button type="button" className={accountSubtab === 'receivedInvoices' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('receivedInvoices')}>Prejeti računi</button>

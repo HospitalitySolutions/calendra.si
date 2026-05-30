@@ -134,7 +134,7 @@ public class BillingController {
         billingModuleAccess.assertBillingEnabled(me);
     }
 
-    public record BillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId) {}
+    public record BillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {}
     public record BillRequest(
             Long clientId,
             Long consultantId,
@@ -220,8 +220,8 @@ public class BillingController {
             List<BillItemResponse> items
     ) {}
 
-    public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
-    public record OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
+    public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
+    public record OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record OpenBillSessionSummary(
             Long sessionId,
             String sessionDisplayId,
@@ -296,7 +296,7 @@ public class BillingController {
     ) {}
     public record SplitOpenBillSessionRequest(Long sessionId) {}
     public record MergeOpenBillsRequest(List<Long> openBillIds) {}
-    public record ManualOpenBillLineRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, Long sourceSessionBookingId) {}
+    public record ManualOpenBillLineRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {}
 
     public record ManualOpenBillRequest(
             Long clientId,
@@ -1063,6 +1063,64 @@ public class BillingController {
                 && item.netPrice().compareTo(BigDecimal.ZERO) < 0;
     }
 
+    private static TaxRate safeTaxRate(TransactionService tx) {
+        return tx != null && tx.getTaxRate() != null ? tx.getTaxRate() : TaxRate.NO_VAT;
+    }
+
+    private static BigDecimal safeUnitGross(BigDecimal gross) {
+        return (gross == null ? BigDecimal.ZERO : gross).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal safeUnitNet(BigDecimal net) {
+        return (net == null ? BigDecimal.ZERO : net).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal defaultUnitGrossFromNet(TransactionService tx, BigDecimal requestedNetPrice) {
+        BigDecimal sourceNet = requestedNetPrice != null
+                ? requestedNetPrice
+                : (tx == null || tx.getNetPrice() == null ? BigDecimal.ZERO : tx.getNetPrice());
+        BigDecimal gross = PriceMath.unitGrossFromNet(sourceNet, safeTaxRate(tx));
+        return safeUnitGross(gross);
+    }
+
+    private static BigDecimal deriveNetFromGross(TransactionService tx, BigDecimal unitGrossPrice) {
+        return PriceMath.netFromGross(safeUnitGross(unitGrossPrice), safeTaxRate(tx)).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal resolveUnitGrossPrice(TransactionService tx, BigDecimal requestedNetPrice, BigDecimal requestedGrossPrice) {
+        if (requestedGrossPrice != null) {
+            return safeUnitGross(requestedGrossPrice);
+        }
+        return defaultUnitGrossFromNet(tx, requestedNetPrice);
+    }
+
+    private static BigDecimal resolveNetPrice(TransactionService tx, BigDecimal requestedNetPrice, BigDecimal requestedGrossPrice) {
+        if (requestedGrossPrice != null) {
+            return deriveNetFromGross(tx, requestedGrossPrice);
+        }
+        return safeUnitNet(requestedNetPrice != null
+                ? requestedNetPrice
+                : (tx == null || tx.getNetPrice() == null ? BigDecimal.ZERO : tx.getNetPrice()));
+    }
+
+    private static BigDecimal resolveOpenBillUnitGrossPrice(OpenBillItem item) {
+        if (item == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (item.getUnitGrossPrice() != null) {
+            return safeUnitGross(item.getUnitGrossPrice());
+        }
+        return defaultUnitGrossFromNet(item.getTransactionService(), item.getNetPrice());
+    }
+
+    private static BigDecimal resolveOpenBillLineGross(OpenBillItem item) {
+        if (item == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        int qty = item.getQuantity() == null ? 1 : item.getQuantity();
+        return resolveOpenBillUnitGrossPrice(item)
+                .multiply(BigDecimal.valueOf(qty))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
     private PaymentMethod resolveAdvancePaymentMethodForOpenBill(OpenBill openBill, Long companyId) {
         if (openBill != null && isAdvanceLikePaymentMethod(openBill.getPaymentMethod())) {
             return openBill.getPaymentMethod();
@@ -1148,10 +1206,9 @@ public class BillingController {
         if (lines == null || lines.isEmpty()) {
             return;
         }
-        Set<Long> allowedAdvanceServiceIds = open.getBillType() == BillType.ADVANCE
-                ? resolveAdvanceDeductionServiceIds(companyId)
-                : Set.of();
-        if (open.getBillType() == BillType.ADVANCE && allowedAdvanceServiceIds.isEmpty()) {
+        BillType openBillType = open.getBillType() == null ? BillType.INVOICE : open.getBillType();
+        Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
+        if (openBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
         }
         Long syntheticSessionId = selectedSessionId != null ? selectedSessionId : -manualSessionNo;
@@ -1159,16 +1216,15 @@ public class BillingController {
             if (line == null || line.transactionServiceId() == null) {
                 continue;
             }
-            if (open.getBillType() == BillType.ADVANCE && !allowedAdvanceServiceIds.contains(line.transactionServiceId())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ADVANCE bills can only use transaction services marked for advance deduction.");
-            }
+            requireTransactionServiceAllowedForBillType(openBillType, line.transactionServiceId(), advanceServiceIds);
             var tx = txRepo.findByIdAndCompanyId(line.transactionServiceId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid transactionServiceId."));
             var obi = new OpenBillItem();
             obi.setOpenBill(open);
             obi.setTransactionService(tx);
             obi.setQuantity(line.quantity() != null && line.quantity() > 0 ? line.quantity() : 1);
-            obi.setNetPrice(line.netPrice() != null ? line.netPrice() : tx.getNetPrice());
+            obi.setNetPrice(resolveNetPrice(tx, line.netPrice(), line.grossPrice()));
+            obi.setUnitGrossPrice(resolveUnitGrossPrice(tx, line.netPrice(), line.grossPrice()));
             obi.setSourceSessionBookingId(line.sourceSessionBookingId() != null ? line.sourceSessionBookingId() : syntheticSessionId);
             obi.setSourceAdvanceBillId(null);
             open.getItems().add(obi);
@@ -1256,19 +1312,30 @@ public class BillingController {
         var existingItems = new ArrayList<>(open.getItems());
         open.getItems().clear();
         if (req.items() != null) {
+            BillType openBillType = open.getBillType() == null ? BillType.INVOICE : open.getBillType();
+            Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
+            if (openBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            }
             int idx = 0;
             for (var item : req.items()) {
                 if (isLegacyAdvanceOffsetRequest(item)) {
                     idx++;
                     continue;
                 }
+                if (item == null || item.transactionServiceId() == null) {
+                    idx++;
+                    continue;
+                }
+                requireTransactionServiceAllowedForBillType(openBillType, item.transactionServiceId(), advanceServiceIds);
                 var tx = txRepo.findByIdAndCompanyId(item.transactionServiceId(), companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
                 var obi = new OpenBillItem();
                 obi.setOpenBill(open);
                 obi.setTransactionService(tx);
                 obi.setQuantity(item.quantity() != null ? item.quantity() : 1);
-                obi.setNetPrice(item.netPrice() != null ? item.netPrice() : tx.getNetPrice());
+                obi.setNetPrice(resolveNetPrice(tx, item.netPrice(), item.grossPrice()));
+                obi.setUnitGrossPrice(resolveUnitGrossPrice(tx, item.netPrice(), item.grossPrice()));
                 var fallbackItem = idx < existingItems.size() ? existingItems.get(idx) : null;
                 Long fallbackSourceSessionId = fallbackItem != null ? fallbackItem.getSourceSessionBookingId() : null;
                 obi.setSourceSessionBookingId(item.sourceSessionBookingId() != null ? item.sourceSessionBookingId() : fallbackSourceSessionId);
@@ -1390,6 +1457,7 @@ public class BillingController {
             moved.setTransactionService(item.getTransactionService());
             moved.setQuantity(item.getQuantity());
             moved.setNetPrice(item.getNetPrice());
+            moved.setUnitGrossPrice(resolveOpenBillUnitGrossPrice(item));
             moved.setSourceSessionBookingId(sessionId);
             moved.setSourceAdvanceBillId(item.getSourceAdvanceBillId());
             split.getItems().add(moved);
@@ -1606,9 +1674,7 @@ public class BillingController {
                 ? open.getBillType()
                 : deriveBillTypeFromSessions(companyId, linkedSessionIds);
         boolean explicitAdvanceOpenBill = open.getBillType() == BillType.ADVANCE;
-        Set<Long> allowedAdvanceServiceIds = explicitAdvanceOpenBill
-                ? resolveAdvanceDeductionServiceIds(companyId)
-                : Set.of();
+        Set<Long> allowedAdvanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
         if (explicitAdvanceOpenBill && allowedAdvanceServiceIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
         }
@@ -1641,9 +1707,7 @@ public class BillingController {
                 continue;
             }
             var tx = obi.getTransactionService();
-            if (explicitAdvanceOpenBill && (tx == null || !allowedAdvanceServiceIds.contains(tx.getId()))) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ADVANCE bills can only use transaction services marked for advance deduction.");
-            }
+            requireTransactionServiceAllowedForBillType(resolvedBillType, tx == null ? null : tx.getId(), allowedAdvanceServiceIds);
             var item = new BillItem();
             item.setBill(bill);
             item.setTransactionService(tx);
@@ -1652,8 +1716,7 @@ public class BillingController {
             item.setSourceSessionBookingId(resolveInvoiceLineSourceSessionId(obi.getSourceSessionBookingId(), linkedSessionId));
             item.setSourceAdvanceBillId(null);
             item.setInvoiceLineDescription(obi.getInvoiceLineDescription());
-            var grossSingle = obi.getNetPrice().add(obi.getNetPrice().multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
-            item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(obi.getQuantity())));
+            item.setGrossPrice(resolveOpenBillLineGross(obi));
             totalNet = totalNet.add(obi.getNetPrice().multiply(BigDecimal.valueOf(obi.getQuantity())));
             totalGross = totalGross.add(item.getGrossPrice());
             bill.getItems().add(item);
@@ -1736,6 +1799,11 @@ public class BillingController {
         BigDecimal totalGross = BigDecimal.ZERO;
         List<OpenBillItemRequest> requestedItems = req == null ? null : req.items();
         if (requestedItems != null) {
+            BillType previewBillType = bill.getBillType() == null ? BillType.INVOICE : bill.getBillType();
+            Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
+            if (previewBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            }
             int idx = 0;
             List<OpenBillItem> existingItems = open.getItems() == null ? List.of() : new ArrayList<>(open.getItems());
             for (OpenBillItemRequest requested : requestedItems) {
@@ -1744,6 +1812,7 @@ public class BillingController {
                     idx++;
                     continue;
                 }
+                requireTransactionServiceAllowedForBillType(previewBillType, requested.transactionServiceId(), advanceServiceIds);
                 var tx = txRepo.findByIdAndCompanyId(requested.transactionServiceId(), companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
                 OpenBillItem fallback = idx < existingItems.size() ? existingItems.get(idx) : null;
@@ -1752,6 +1821,7 @@ public class BillingController {
                         tx,
                         requested.quantity(),
                         requested.netPrice(),
+                        requested.grossPrice(),
                         resolveInvoiceLineSourceSessionId(
                                 requested.sourceSessionBookingId(),
                                 fallback == null ? linkedSessionId : fallback.getSourceSessionBookingId()),
@@ -1766,13 +1836,20 @@ public class BillingController {
                 idx++;
             }
         } else if (open.getItems() != null) {
+            BillType previewBillType = bill.getBillType() == null ? BillType.INVOICE : bill.getBillType();
+            Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
+            if (previewBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            }
             for (OpenBillItem openItem : open.getItems()) {
                 if (openItem == null || openItem.getTransactionService() == null || isLegacyAdvanceOffsetItem(openItem)) continue;
+                requireTransactionServiceAllowedForBillType(previewBillType, openItem.getTransactionService().getId(), advanceServiceIds);
                 var item = newTransientBillItem(
                         bill,
                         openItem.getTransactionService(),
                         openItem.getQuantity(),
                         openItem.getNetPrice(),
+                        resolveOpenBillUnitGrossPrice(openItem),
                         resolveInvoiceLineSourceSessionId(openItem.getSourceSessionBookingId(), linkedSessionId),
                         null
                 );
@@ -1803,18 +1880,18 @@ public class BillingController {
                                           TransactionService tx,
                                           Integer quantity,
                                           BigDecimal requestedNetPrice,
+                                          BigDecimal requestedGrossPrice,
                                           Long sourceSessionBookingId,
                                           Long sourceAdvanceBillId) {
         int qty = quantity != null && quantity > 0 ? quantity : 1;
-        BigDecimal net = requestedNetPrice != null ? requestedNetPrice : (tx.getNetPrice() == null ? BigDecimal.ZERO : tx.getNetPrice());
-        BigDecimal multiplier = tx.getTaxRate() == null ? BigDecimal.ZERO : tx.getTaxRate().multiplier;
-        BigDecimal grossSingle = net.add(net.multiply(multiplier)).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal unitGross = resolveUnitGrossPrice(tx, requestedNetPrice, requestedGrossPrice);
+        BigDecimal net = resolveNetPrice(tx, requestedNetPrice, requestedGrossPrice);
         var item = new BillItem();
         item.setBill(bill);
         item.setTransactionService(tx);
         item.setQuantity(qty);
-        item.setNetPrice(net.setScale(2, RoundingMode.HALF_UP));
-        item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(qty)).setScale(2, RoundingMode.HALF_UP));
+        item.setNetPrice(net);
+        item.setGrossPrice(unitGross.multiply(BigDecimal.valueOf(qty)).setScale(2, RoundingMode.HALF_UP));
         item.setSourceSessionBookingId(sourceSessionBookingId);
         item.setSourceAdvanceBillId(sourceAdvanceBillId);
         return item;
@@ -2286,14 +2363,21 @@ public class BillingController {
             return false;
         }
 
-        var expectedLinks = distinctLinkedServicesForBilling(billingSession);
+        Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
+        if (!advanceServiceIds.isEmpty()) {
+            changed |= removeGeneratedSessionServiceLines(open, sourceSessionId, advanceServiceIds);
+            if (!Objects.equals(sourceSessionId, session.getId())) {
+                changed |= removeGeneratedSessionServiceLines(open, session.getId(), advanceServiceIds);
+            }
+        }
+        var expectedLinks = distinctLinkedServicesForBilling(billingSession, companyId);
         var expectedServiceIds = linkedServiceIds(expectedLinks);
 
         // TOTAL-priced group sessions must be charged once only: on the first billable
         // session row. If this sync is invoked for another participant row, remove any
         // old generated service lines for that row instead of adding another copy.
         if (isTotalPriceCalculation(session) && !Objects.equals(sourceSessionId, session.getId())) {
-            return removeGeneratedSessionServiceLines(open, session.getId(), linkedServiceIds(distinctLinkedServicesForBilling(session)));
+            return changed | removeGeneratedSessionServiceLines(open, session.getId(), linkedServiceIds(distinctLinkedServicesForBilling(session, companyId)));
         }
         if (isTotalPriceCalculation(session)) {
             changed |= removeTotalPriceNonPrimaryLines(open, billingSession, companyId, expectedServiceIds);
@@ -2317,8 +2401,10 @@ public class BillingController {
                         item.setQuantity(1);
                         changed = true;
                     }
-                    if (!sameMoney(item.getNetPrice(), price)) {
-                        item.setNetPrice(price);
+                    BigDecimal unitGross = resolveUnitGrossPrice(noShowService, price, null);
+                    if (!sameMoney(item.getNetPrice(), price) || !sameMoney(resolveOpenBillUnitGrossPrice(item), unitGross)) {
+                        item.setNetPrice(safeUnitNet(price));
+                        item.setUnitGrossPrice(unitGross);
                         changed = true;
                     }
                     continue;
@@ -2331,7 +2417,8 @@ public class BillingController {
                 obi.setOpenBill(open);
                 obi.setTransactionService(entityManager.getReference(TransactionService.class, noShowService.getId()));
                 obi.setQuantity(1);
-                obi.setNetPrice(price);
+                obi.setNetPrice(safeUnitNet(price));
+                obi.setUnitGrossPrice(resolveUnitGrossPrice(noShowService, price, null));
                 obi.setSourceSessionBookingId(sourceSessionId);
                 obi.setSourceAdvanceBillId(null);
                 open.getItems().add(obi);
@@ -2380,8 +2467,10 @@ public class BillingController {
                         item.setQuantity(1);
                         changed = true;
                     }
-                    if (!sameMoney(item.getNetPrice(), price)) {
-                        item.setNetPrice(price);
+                    BigDecimal unitGross = resolveUnitGrossPrice(tx, price, null);
+                    if (!sameMoney(item.getNetPrice(), price) || !sameMoney(resolveOpenBillUnitGrossPrice(item), unitGross)) {
+                        item.setNetPrice(safeUnitNet(price));
+                        item.setUnitGrossPrice(unitGross);
                         changed = true;
                     }
                     continue;
@@ -2395,7 +2484,8 @@ public class BillingController {
                 obi.setOpenBill(open);
                 obi.setTransactionService(entityManager.getReference(TransactionService.class, tx.getId()));
                 obi.setQuantity(1);
-                obi.setNetPrice(price);
+                obi.setNetPrice(safeUnitNet(price));
+                obi.setUnitGrossPrice(resolveUnitGrossPrice(tx, price, null));
                 obi.setSourceSessionBookingId(sourceSessionId);
                 obi.setSourceAdvanceBillId(null);
                 open.getItems().add(obi);
@@ -2405,16 +2495,21 @@ public class BillingController {
         return changed;
     }
 
-    private List<TypeTransactionService> distinctLinkedServicesForBilling(SessionBooking session) {
+    private List<TypeTransactionService> distinctLinkedServicesForBilling(SessionBooking session, Long companyId) {
         if (session == null || session.getType() == null || session.getType().getLinkedServices() == null) {
             return List.of();
         }
+        Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
         var byServiceId = new LinkedHashMap<Long, TypeTransactionService>();
         for (TypeTransactionService link : session.getType().getLinkedServices()) {
             if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) {
                 continue;
             }
-            byServiceId.putIfAbsent(link.getTransactionService().getId(), link);
+            Long serviceId = link.getTransactionService().getId();
+            if (advanceServiceIds.contains(serviceId)) {
+                continue;
+            }
+            byServiceId.putIfAbsent(serviceId, link);
         }
         return new ArrayList<>(byServiceId.values());
     }
@@ -2534,6 +2629,10 @@ public class BillingController {
             for (var billItem : advance.getItems()) {
                 if (billItem.getTransactionService() == null) continue;
                 var negativeNet = (billItem.getNetPrice() == null ? BigDecimal.ZERO : billItem.getNetPrice()).negate();
+                int advanceQty = billItem.getQuantity() == null || billItem.getQuantity() <= 0 ? 1 : billItem.getQuantity();
+                BigDecimal negativeUnitGross = safeUnitGross((billItem.getGrossPrice() == null ? BigDecimal.ZERO : billItem.getGrossPrice())
+                        .divide(BigDecimal.valueOf(advanceQty), 2, RoundingMode.HALF_UP)
+                        .negate());
                 boolean exists = open.getItems().stream().anyMatch(item -> Objects.equals(item.getSourceAdvanceBillId(), advance.getId())
                         && Objects.equals(item.getSourceSessionBookingId(), session.getId())
                         && item.getTransactionService() != null
@@ -2545,7 +2644,8 @@ public class BillingController {
                     obi.setOpenBill(open);
                     obi.setTransactionService(entityManager.getReference(TransactionService.class, billItem.getTransactionService().getId()));
                     obi.setQuantity(billItem.getQuantity());
-                    obi.setNetPrice(negativeNet);
+                    obi.setNetPrice(safeUnitNet(negativeNet));
+                    obi.setUnitGrossPrice(negativeUnitGross);
                     obi.setSourceSessionBookingId(session.getId());
                     obi.setSourceAdvanceBillId(advance.getId());
                     open.getItems().add(obi);
@@ -2621,7 +2721,14 @@ public class BillingController {
                 }
             }
             var ss = new ServiceSummary(tx.getId(), tx.getCode(), description, tx.getTaxRate(), tx.getNetPrice());
-            return new OpenBillItemResponse(obi.getId(), ss, obi.getQuantity(), obi.getNetPrice(), obi.getSourceSessionBookingId(), obi.getSourceAdvanceBillId());
+            return new OpenBillItemResponse(
+                    obi.getId(),
+                    ss,
+                    obi.getQuantity(),
+                    obi.getNetPrice(),
+                    resolveOpenBillUnitGrossPrice(obi),
+                    obi.getSourceSessionBookingId(),
+                    obi.getSourceAdvanceBillId());
         }).toList();
 
         Map<Long, BigDecimal> sessionNetTotals = new HashMap<>();
@@ -2641,10 +2748,7 @@ public class BillingController {
             BigDecimal net = (item.getNetPrice() == null ? BigDecimal.ZERO : item.getNetPrice())
                     .multiply(BigDecimal.valueOf(qty))
                     .setScale(2, RoundingMode.HALF_UP);
-            BigDecimal grossSingle = (item.getNetPrice() == null ? BigDecimal.ZERO : item.getNetPrice())
-                    .add((item.getNetPrice() == null ? BigDecimal.ZERO : item.getNetPrice()).multiply(tx.getTaxRate().multiplier))
-                    .setScale(2, RoundingMode.HALF_UP);
-            BigDecimal gross = grossSingle.multiply(BigDecimal.valueOf(qty)).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal gross = resolveOpenBillLineGross(item);
             sessionNetTotals.merge(groupingSessionId, net, BigDecimal::add);
             sessionGrossTotals.merge(groupingSessionId, gross, BigDecimal::add);
             sessionLineCounts.merge(groupingSessionId, 1, Integer::sum);
@@ -2818,9 +2922,7 @@ public class BillingController {
         bill.setBillNumber(billNumber);
         BillType requestedBillType = resolveRequestedBillType(request.billType());
         bill.setBillType(requestedBillType);
-        Set<Long> allowedAdvanceServiceIds = requestedBillType == BillType.ADVANCE
-                ? resolveAdvanceDeductionServiceIds(companyId)
-                : Set.of();
+        Set<Long> allowedAdvanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
         if (requestedBillType == BillType.ADVANCE && allowedAdvanceServiceIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
         }
@@ -2882,25 +2984,22 @@ public class BillingController {
         BigDecimal totalGross = BigDecimal.ZERO;
         List<PaymentSplitRequest> legacyUnusedAdvanceSplits = new ArrayList<>();
         for (var req : request.items()) {
-            if (requestedBillType == BillType.ADVANCE) {
-                Long txId = req == null ? null : req.transactionServiceId();
-                if (txId == null || !allowedAdvanceServiceIds.contains(txId)) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ADVANCE bills can only use transaction services marked for advance deduction.");
-                }
-            }
+            Long txId = req == null ? null : req.transactionServiceId();
+            requireTransactionServiceAllowedForBillType(requestedBillType, txId, allowedAdvanceServiceIds);
             var tx = txRepo.findByIdAndCompanyId(req.transactionServiceId(), companyId).orElseThrow();
+            int qty = req.quantity() != null && req.quantity() > 0 ? req.quantity() : 1;
+            BigDecimal unitGross = resolveUnitGrossPrice(tx, req.netPrice(), req.grossPrice());
+            BigDecimal net = resolveNetPrice(tx, req.netPrice(), req.grossPrice());
             var item = new BillItem();
             item.setBill(bill);
             item.setTransactionService(tx);
-            item.setQuantity(req.quantity());
-            var net = req.netPrice() == null ? tx.getNetPrice() : req.netPrice();
+            item.setQuantity(qty);
             item.setNetPrice(net);
             item.setSourceSessionBookingId(resolveInvoiceLineSourceSessionId(
                     req.sourceSessionBookingId(),
                     selectedSession != null ? selectedSession.getId() : null));
-            var grossSingle = net.add(net.multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
-            item.setGrossPrice(grossSingle.multiply(BigDecimal.valueOf(req.quantity())));
-            totalNet = totalNet.add(net.multiply(BigDecimal.valueOf(req.quantity())));
+            item.setGrossPrice(unitGross.multiply(BigDecimal.valueOf(qty)).setScale(2, RoundingMode.HALF_UP));
+            totalNet = totalNet.add(net.multiply(BigDecimal.valueOf(qty)));
             totalGross = totalGross.add(item.getGrossPrice());
             bill.getItems().add(item);
         }
@@ -3359,6 +3458,23 @@ public class BillingController {
         advanceAllocationRepo.deleteByCompanyIdAndOpenBillId(companyId, openBillId);
     }
 
+    private void requireTransactionServiceAllowedForBillType(BillType billType, Long transactionServiceId, Set<Long> advanceServiceIds) {
+        BillType effectiveType = billType == null ? BillType.INVOICE : billType;
+        if (transactionServiceId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "transactionServiceId is required.");
+        }
+        Set<Long> configuredAdvanceIds = advanceServiceIds == null ? Set.of() : advanceServiceIds;
+        if (effectiveType == BillType.ADVANCE) {
+            if (!configuredAdvanceIds.contains(transactionServiceId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ADVANCE bills can only use transaction services marked for advance deduction.");
+            }
+            return;
+        }
+        if (configuredAdvanceIds.contains(transactionServiceId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction services marked as advance can only be used on ADVANCE bills.");
+        }
+    }
+
     private TransactionService resolveAdvanceDeductionService(Long companyId) {
         Set<Long> ids = resolveAdvanceDeductionServiceIds(companyId);
         if (ids.isEmpty()) {
@@ -3780,10 +3896,7 @@ public class BillingController {
         BigDecimal total = BigDecimal.ZERO;
         for (var item : open.getItems()) {
             if (item == null || item.getTransactionService() == null || isLegacyAdvanceOffsetItem(item)) continue;
-            BigDecimal net = item.getNetPrice() == null ? BigDecimal.ZERO : item.getNetPrice();
-            int qty = item.getQuantity() == null ? 1 : Math.max(1, item.getQuantity());
-            BigDecimal grossSingle = net.add(net.multiply(item.getTransactionService().getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
-            total = total.add(grossSingle.multiply(BigDecimal.valueOf(qty))).setScale(2, RoundingMode.HALF_UP);
+            total = total.add(resolveOpenBillLineGross(item)).setScale(2, RoundingMode.HALF_UP);
         }
         return total.setScale(2, RoundingMode.HALF_UP);
     }
@@ -4333,10 +4446,7 @@ public class BillingController {
             if (!openBillItemMatchesSession(openBill, item, sessionId)) continue;
             var tx = item.getTransactionService();
             if (tx == null) continue;
-            BigDecimal net = item.getNetPrice() == null ? BigDecimal.ZERO : item.getNetPrice();
-            BigDecimal qty = BigDecimal.valueOf(item.getQuantity() == null ? 1 : item.getQuantity());
-            BigDecimal grossSingle = net.add(net.multiply(tx.getTaxRate().multiplier)).setScale(2, RoundingMode.HALF_UP);
-            total = total.add(grossSingle.multiply(qty));
+            total = total.add(resolveOpenBillLineGross(item));
         }
         return total.setScale(2, RoundingMode.HALF_UP);
     }

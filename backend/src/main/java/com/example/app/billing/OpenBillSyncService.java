@@ -15,6 +15,7 @@ import com.example.app.user.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -677,14 +678,21 @@ public class OpenBillSyncService {
             return false;
         }
 
-        var expectedLinks = distinctLinkedServicesForBilling(billingSession);
+        Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
+        if (!advanceServiceIds.isEmpty()) {
+            changed |= removeGeneratedSessionServiceLines(open, sourceSessionId, advanceServiceIds);
+            if (!Objects.equals(sourceSessionId, session.getId())) {
+                changed |= removeGeneratedSessionServiceLines(open, session.getId(), advanceServiceIds);
+            }
+        }
+        var expectedLinks = distinctLinkedServicesForBilling(billingSession, companyId);
         var expectedServiceIds = linkedServiceIds(expectedLinks);
 
         // TOTAL-priced group sessions must be charged once only: on the first billable
         // session row. If this sync is invoked for another participant row, remove any
         // old generated service lines for that row instead of adding another copy.
         if (isTotalPriceCalculation(session) && !Objects.equals(sourceSessionId, session.getId())) {
-            return removeGeneratedSessionServiceLines(open, session.getId(), linkedServiceIds(distinctLinkedServicesForBilling(session)));
+            return changed | removeGeneratedSessionServiceLines(open, session.getId(), linkedServiceIds(distinctLinkedServicesForBilling(session, companyId)));
         }
         if (isTotalPriceCalculation(session)) {
             changed |= removeTotalPriceNonPrimaryLines(open, billingSession, companyId, expectedServiceIds);
@@ -708,8 +716,10 @@ public class OpenBillSyncService {
                         item.setQuantity(1);
                         changed = true;
                     }
-                    if (!sameMoney(item.getNetPrice(), price)) {
-                        item.setNetPrice(price);
+                    BigDecimal unitGross = unitGrossFromNet(noShowService, price);
+                    if (!sameMoney(item.getNetPrice(), price) || !sameMoney(item.getUnitGrossPrice(), unitGross)) {
+                        item.setNetPrice(safeUnitNet(price));
+                        item.setUnitGrossPrice(unitGross);
                         changed = true;
                     }
                     continue;
@@ -722,7 +732,8 @@ public class OpenBillSyncService {
                 obi.setOpenBill(open);
                 obi.setTransactionService(entityManager.getReference(TransactionService.class, noShowService.getId()));
                 obi.setQuantity(1);
-                obi.setNetPrice(price);
+                obi.setNetPrice(safeUnitNet(price));
+                obi.setUnitGrossPrice(unitGrossFromNet(noShowService, price));
                 obi.setSourceSessionBookingId(sourceSessionId);
                 obi.setSourceAdvanceBillId(null);
                 open.getItems().add(obi);
@@ -771,8 +782,10 @@ public class OpenBillSyncService {
                         item.setQuantity(1);
                         changed = true;
                     }
-                    if (!sameMoney(item.getNetPrice(), price)) {
-                        item.setNetPrice(price);
+                    BigDecimal unitGross = unitGrossFromNet(tx, price);
+                    if (!sameMoney(item.getNetPrice(), price) || !sameMoney(item.getUnitGrossPrice(), unitGross)) {
+                        item.setNetPrice(safeUnitNet(price));
+                        item.setUnitGrossPrice(unitGross);
                         changed = true;
                     }
                     continue;
@@ -786,7 +799,8 @@ public class OpenBillSyncService {
                 obi.setOpenBill(open);
                 obi.setTransactionService(entityManager.getReference(TransactionService.class, tx.getId()));
                 obi.setQuantity(1);
-                obi.setNetPrice(price);
+                obi.setNetPrice(safeUnitNet(price));
+                obi.setUnitGrossPrice(unitGrossFromNet(tx, price));
                 obi.setSourceSessionBookingId(sourceSessionId);
                 obi.setSourceAdvanceBillId(null);
                 open.getItems().add(obi);
@@ -796,16 +810,21 @@ public class OpenBillSyncService {
         return changed;
     }
 
-    private List<TypeTransactionService> distinctLinkedServicesForBilling(SessionBooking session) {
+    private List<TypeTransactionService> distinctLinkedServicesForBilling(SessionBooking session, Long companyId) {
         if (session == null || session.getType() == null || session.getType().getLinkedServices() == null) {
             return List.of();
         }
+        Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
         var byServiceId = new LinkedHashMap<Long, TypeTransactionService>();
         for (TypeTransactionService link : session.getType().getLinkedServices()) {
             if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) {
                 continue;
             }
-            byServiceId.putIfAbsent(link.getTransactionService().getId(), link);
+            Long serviceId = link.getTransactionService().getId();
+            if (advanceServiceIds.contains(serviceId)) {
+                continue;
+            }
+            byServiceId.putIfAbsent(serviceId, link);
         }
         return new ArrayList<>(byServiceId.values());
     }
@@ -871,6 +890,25 @@ public class OpenBillSyncService {
                 .orElse(null);
     }
 
+    private Set<Long> resolveAdvanceDeductionServiceIds(Long companyId) {
+        if (companyId == null) return Set.of();
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID)
+                .map(setting -> parsePositiveLongCsv(setting.getValue()))
+                .orElse(Set.of());
+    }
+
+    private Set<Long> parsePositiveLongCsv(String raw) {
+        if (raw == null || raw.isBlank()) return Set.of();
+        Set<Long> ids = new LinkedHashSet<>();
+        for (String part : raw.split(",")) {
+            Long parsed = parsePositiveLong(part);
+            if (parsed != null) {
+                ids.add(parsed);
+            }
+        }
+        return ids;
+    }
+
     private Long parsePositiveLong(String raw) {
         if (raw == null || raw.isBlank()) return null;
         try {
@@ -925,6 +963,10 @@ public class OpenBillSyncService {
             for (var billItem : advance.getItems()) {
                 if (billItem.getTransactionService() == null) continue;
                 var negativeNet = (billItem.getNetPrice() == null ? BigDecimal.ZERO : billItem.getNetPrice()).negate();
+                int advanceQty = billItem.getQuantity() == null || billItem.getQuantity() <= 0 ? 1 : billItem.getQuantity();
+                BigDecimal negativeUnitGross = safeUnitGross((billItem.getGrossPrice() == null ? BigDecimal.ZERO : billItem.getGrossPrice())
+                        .divide(BigDecimal.valueOf(advanceQty), 2, RoundingMode.HALF_UP)
+                        .negate());
                 boolean exists = open.getItems().stream().anyMatch(item -> Objects.equals(item.getSourceAdvanceBillId(), advance.getId())
                         && Objects.equals(item.getSourceSessionBookingId(), session.getId())
                         && item.getTransactionService() != null
@@ -936,7 +978,8 @@ public class OpenBillSyncService {
                     obi.setOpenBill(open);
                     obi.setTransactionService(entityManager.getReference(TransactionService.class, billItem.getTransactionService().getId()));
                     obi.setQuantity(billItem.getQuantity());
-                    obi.setNetPrice(negativeNet);
+                    obi.setNetPrice(safeUnitNet(negativeNet));
+                    obi.setUnitGrossPrice(negativeUnitGross);
                     obi.setSourceSessionBookingId(session.getId());
                     obi.setSourceAdvanceBillId(advance.getId());
                     open.getItems().add(obi);
@@ -951,6 +994,22 @@ public class OpenBillSyncService {
         if (a == null && b == null) return true;
         if (a == null || b == null) return false;
         return a.compareTo(b) == 0;
+    }
+
+    private static TaxRate safeTaxRate(TransactionService tx) {
+        return tx != null && tx.getTaxRate() != null ? tx.getTaxRate() : TaxRate.NO_VAT;
+    }
+
+    private static BigDecimal safeUnitNet(BigDecimal net) {
+        return (net == null ? BigDecimal.ZERO : net).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal safeUnitGross(BigDecimal gross) {
+        return (gross == null ? BigDecimal.ZERO : gross).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal unitGrossFromNet(TransactionService tx, BigDecimal net) {
+        return safeUnitGross(PriceMath.unitGrossFromNet(net == null ? BigDecimal.ZERO : net, safeTaxRate(tx)));
     }
 
     private void deleteAdvanceAllocationsForOpenBill(Long companyId, Long openBillId) {

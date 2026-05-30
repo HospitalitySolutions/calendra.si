@@ -1540,6 +1540,75 @@
     min-width: 0;
 }
 
+.calendar-booking-service-with-online .calendar-booking-service-infield-head .meeting-provider-summary--service-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    gap: 6px;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--color-text, #0f172a);
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.calendar-booking-service-meeting-inline .meeting-provider-summary__name {
+    display: inline-block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-booking-service-meeting-inline .meeting-provider-change-btn {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+[data-theme="dark"] .calendar-booking-service-with-online .calendar-booking-service-infield-head .meeting-provider-summary--service-inline {
+    color: #f8fafc;
+}
+
+@media (max-width: 480px) {
+    .calendar-booking-service-with-online .calendar-booking-service-infield-head {
+        gap: 8px;
+    }
+
+    .calendar-booking-service-with-online .calendar-booking-service-infield-head .meeting-provider-summary--service-inline {
+        font-size: 0.78rem;
+        gap: 5px;
+    }
+
+    .calendar-booking-service-meeting-inline .meeting-provider-summary__name {
+        max-width: 92px;
+    }
+
+    .calendar-booking-service-meeting-inline .meeting-provider-change-btn {
+        padding: 3px 8px;
+        font-size: 0.74rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .calendar-booking-service-meeting-inline .meeting-provider-summary__name {
+        max-width: 76px;
+    }
+}
+
 /* ── Repeats config panel ── */
 .form-repeats-config {
     background: var(--color-surface-alt, #f8fafc);

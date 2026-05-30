@@ -1,0 +1,17 @@
+Billing gross-price source-of-truth fix
+
+Changed Billing so the entered/displayed gross amount is preserved instead of recalculating gross from a rounded net amount.
+
+What changed:
+- Open bill items now store a unit gross price (`unit_gross_price`) separately from the derived net price.
+- Billing create/edit/preview requests now send both gross and derived net values.
+- Backend now treats gross as authoritative: if gross is provided, net is calculated from gross and the selected tax level.
+- Final invoice/bill lines copy gross from the open bill item instead of calculating gross again from net.
+- Open-bill totals, payment split totals, session summaries and invoice previews now use stored gross values.
+- Net values are stored at 4 decimal precision so taxable base calculations remain accurate.
+- Startup schema guard widens `open_bill_items.net_price` and `bill_item.net_price` to NUMERIC(12,4), adds `open_bill_items.unit_gross_price`, and backfills it for existing rows.
+- Backfill prefers the higher-precision transaction-service net price when the old open-bill row clearly matches it, so a service entered as 45.00 EUR gross stays 45.00 EUR instead of 45.01 EUR.
+
+Result:
+- If you enter 45.00 EUR gross on a transaction service/service type, Billing keeps 45.00 EUR gross everywhere.
+- Net is derived from 45.00 EUR gross using the selected VAT/tax rate and is used only for VAT/taxable-base calculations.

@@ -53,6 +53,18 @@ function formatBillingSessionIdDisplay(sessionId: number | null | undefined): st
 function displayInvoiceOrderId(bill: Pick<Bill, 'id' | 'orderId'>): string {
   return bill.orderId?.trim() || `PAY-${String(bill.id).padStart(4, '0')}`
 }
+
+function billingTaxMultiplier(taxRate: BillingService['taxRate'] | null | undefined): number {
+  if (taxRate === 'VAT_22') return 0.22
+  if (taxRate === 'VAT_9_5') return 0.095
+  return 0
+}
+
+function grossStringFromService(service: BillingService | null | undefined): string {
+  if (!service) return '0.00'
+  return (Number(service.netPrice || 0) * (1 + billingTaxMultiplier(service.taxRate))).toFixed(2)
+}
+
 import { currency, formatDate, fullName } from '../lib/format'
 type BillForm = {
   clientId?: number
@@ -64,7 +76,7 @@ type BillForm = {
   billType: BillDocumentType
   sessionId?: number
   paymentSplits?: OpenBillPaymentSplitDraft[]
-  items: { transactionServiceId: number; quantity: number; netPrice: string; sourceSessionBookingId?: number | null }[]
+  items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string; sourceSessionBookingId?: number | null }[]
 }
 
 function parseAdvanceDeductionServiceIds(raw: string | null | undefined): Set<number> {
@@ -85,6 +97,7 @@ type OpenBillEditItem = {
   transactionServiceId: number
   quantity: number
   netPrice: string
+  grossPrice: string
   sourceSessionBookingId?: number | null
   sourceAdvanceBillId?: number | null
 }
@@ -162,12 +175,13 @@ type EntitlementWalletOption = {
 const ENTITLEMENT_PAYMENT_OPTION_VALUE = '__ENTITLEMENT_PAYMENT__'
 
 
-/** Lines that share service + net unit price + session are combined; quantities add (same gross per unit). */
+/** Lines that share service + gross unit price + session are combined; quantities add (gross is authoritative). */
 function openBillLineMergeKey(item: {
   openBillItemId?: number
   clientRowKey?: string
   transactionServiceId: number
   netPrice: string
+  grossPrice: string
   sourceSessionBookingId?: number | null
   sourceAdvanceBillId?: number | null
 }) {
@@ -179,9 +193,9 @@ function openBillLineMergeKey(item: {
   }
   const sid = item.sourceSessionBookingId == null ? '' : String(item.sourceSessionBookingId)
   const aid = item.sourceAdvanceBillId == null ? '' : String(item.sourceAdvanceBillId)
-  const net = Number(item.netPrice || 0)
-  const netKey = Number.isFinite(net) ? net.toFixed(4) : '0'
-  return `${item.transactionServiceId}|${netKey}|${sid}|${aid}`
+  const gross = Number(item.grossPrice || 0)
+  const grossKey = Number.isFinite(gross) ? gross.toFixed(2) : '0.00'
+  return `${item.transactionServiceId}|${grossKey}|${sid}|${aid}`
 }
 
 function mergeDuplicateOpenBillLines(items: OpenBillEditItem[]): OpenBillEditItem[] {
@@ -198,6 +212,7 @@ function mergeDuplicateOpenBillLines(items: OpenBillEditItem[]): OpenBillEditIte
         transactionServiceId: item.transactionServiceId,
         quantity: item.quantity,
         netPrice: String(item.netPrice),
+        grossPrice: String(item.grossPrice),
         sourceSessionBookingId: item.sourceSessionBookingId ?? null,
         sourceAdvanceBillId: item.sourceAdvanceBillId ?? null,
       })
@@ -1072,6 +1087,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const normalizeOpenBill = (ob: OpenBill): OpenBill => ({
     ...ob,
     paymentMethod: normalizePaymentMethod(ob.paymentMethod),
+    items: (ob.items ?? []).map((item) => {
+      const fallbackGross = Number(item.netPrice || 0) * (1 + billingTaxMultiplier(item.transactionService?.taxRate))
+      return {
+        ...item,
+        netPrice: Number(item.netPrice || 0),
+        grossPrice: Number.isFinite(Number(item.grossPrice)) ? Number(item.grossPrice) : Number(fallbackGross.toFixed(2)),
+      }
+    }),
     paymentSplits: (ob.paymentSplits ?? []).map((split) => ({
       ...split,
       paymentMethod: normalizePaymentMethod(split.paymentMethod)!,
@@ -1278,27 +1301,33 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [openBillsSortMenuOpen, historySortMenuOpen])
 
   const grossPreview = useMemo(() => billForm.items.reduce((sum, item) => {
-    const service = services.find((s) => s.id === item.transactionServiceId)
-    if (!service) return sum
-    const net = Number(item.netPrice || 0)
-    const multiplier = service.taxRate === 'VAT_22' ? 0.22 : service.taxRate === 'VAT_9_5' ? 0.095 : 0
-    return sum + net * item.quantity * (1 + multiplier)
-  }, 0), [billForm.items, services])
+    const gross = Number(item.grossPrice || 0)
+    return sum + (Number.isFinite(gross) ? gross : 0) * Number(item.quantity || 0)
+  }, 0), [billForm.items])
   const advanceDeductionIds = useMemo(
     () => parseAdvanceDeductionServiceIds(settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID),
     [settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID],
   )
+  const advanceBillServices = useMemo(
+    () => services.filter((s) => advanceDeductionIds.has(s.id)),
+    [services, advanceDeductionIds],
+  )
+  const openBillSelectableServices = useMemo(
+    () => services.filter((s) => !advanceDeductionIds.has(s.id)),
+    [services, advanceDeductionIds],
+  )
   const availableBillServices = useMemo(
-    () => (billForm.billType === 'ADVANCE' ? services.filter((s) => advanceDeductionIds.has(s.id)) : services),
-    [billForm.billType, services, advanceDeductionIds],
+    () => (billForm.billType === 'ADVANCE' ? advanceBillServices : openBillSelectableServices),
+    [billForm.billType, advanceBillServices, openBillSelectableServices],
+  )
+  const selectableServicesForOpenBill = (ob: OpenBill | null | undefined) => (
+    String(ob?.billType || 'INVOICE').toUpperCase() === 'ADVANCE' ? advanceBillServices : openBillSelectableServices
   )
 
   useEffect(() => {
-    if (billForm.billType !== 'ADVANCE') return
     const firstAllowed = availableBillServices[0]
     const allowedIds = new Set(availableBillServices.map((s) => s.id))
     setBillForm((prev) => {
-      if (prev.billType !== 'ADVANCE') return prev
       if (!firstAllowed) {
         if (prev.items.length === 0) return prev
         return { ...prev, items: [] }
@@ -1311,6 +1340,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ...item,
           transactionServiceId: firstAllowed.id,
           netPrice: String(firstAllowed.netPrice),
+          grossPrice: grossStringFromService(firstAllowed),
         }
       })
       return changed ? { ...prev, items: nextItems } : prev
@@ -1462,27 +1492,37 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [historyPagination.page, historyPage])
 
   function openBillItemToDraft(ob: OpenBill, i: OpenBill['items'][number], index: number): OpenBillEditItem {
+    const fallbackGross = Number(i.netPrice || 0) * (1 + billingTaxMultiplier(i.transactionService?.taxRate))
+    const grossPrice = Number.isFinite(Number(i.grossPrice)) ? Number(i.grossPrice) : fallbackGross
     return {
       openBillItemId: i.id,
       clientRowKey: Number(i.id) > 0 ? undefined : `server-row-${ob.id}-${index}`,
       transactionServiceId: i.transactionService.id,
       quantity: i.quantity,
       netPrice: String(i.netPrice),
+      grossPrice: grossPrice.toFixed(2),
       sourceSessionBookingId: i.sourceSessionBookingId ?? null,
       sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
     }
   }
 
+  function isHiddenAdvanceServiceForOpenBill(ob: OpenBill, item: OpenBillEditItem) {
+    const openBillType = String(ob.billType || 'INVOICE').toUpperCase()
+    return openBillType !== 'ADVANCE'
+      && item.sourceAdvanceBillId == null
+      && advanceDeductionIds.has(item.transactionServiceId)
+  }
+
   function getOpenBillItems(ob: OpenBill) {
     return (openBillEdits[ob.id]
       ?? ob.items.map((i, index) => openBillItemToDraft(ob, i, index)))
-      .filter((item) => !isLegacyAdvanceOffsetDraftItem(item))
+      .filter((item) => !isLegacyAdvanceOffsetDraftItem(item) && !isHiddenAdvanceServiceForOpenBill(ob, item))
   }
 
   function openBillServerItemsToDraft(ob: OpenBill): OpenBillEditItem[] {
     return ob.items
       .map((i, index) => openBillItemToDraft(ob, i, index))
-      .filter((item) => !isLegacyAdvanceOffsetDraftItem(item))
+      .filter((item) => !isLegacyAdvanceOffsetDraftItem(item) && !isHiddenAdvanceServiceForOpenBill(ob, item))
   }
 
   const markOpenBillDirty = (ob: OpenBill) => {
@@ -1527,6 +1567,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           transactionServiceId: i.transactionServiceId,
           quantity: i.quantity,
           netPrice: Number(i.netPrice),
+          grossPrice: Number(i.grossPrice),
           sourceSessionBookingId: i.sourceSessionBookingId ?? null,
           sourceAdvanceBillId: null,
         })),
@@ -1543,13 +1584,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return payload
   }
 
-  function estimateGross(items: { transactionServiceId: number; quantity: number; netPrice: string }[]) {
-    return items.reduce((sum, item) => {
-      const svc = services.find((s) => s.id === item.transactionServiceId)
-      if (!svc) return sum
-      const mult = svc.taxRate === 'VAT_22' ? 0.22 : svc.taxRate === 'VAT_9_5' ? 0.095 : 0
-      return sum + Number(item.netPrice || 0) * item.quantity * (1 + mult)
-    }, 0)
+  function estimateGross(items: { quantity: number; grossPrice?: string | number | null }[]) {
+    return items.reduce((sum, item) => sum + Number(item.grossPrice || 0) * Number(item.quantity || 0), 0)
   }
 
   function formatPaymentAmountInput(amount: number) {
@@ -1571,6 +1607,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           transactionServiceId: item.transactionService.id,
           quantity: item.quantity,
           netPrice: String(Math.abs(Number(item.netPrice || 0))),
+          grossPrice: String(Math.abs(Number(item.grossPrice || 0)) || Math.abs(Number(item.netPrice || 0)) * (1 + billingTaxMultiplier(item.transactionService.taxRate))),
         }])
         const existing = acc.find((entry) => entry.advanceBillId === advanceBillId)
         if (existing) {
@@ -2597,6 +2634,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         items: billForm.items.map((item) => ({
           ...item,
           netPrice: Number(item.netPrice),
+          grossPrice: Number(item.grossPrice),
           sourceSessionBookingId: item.sourceSessionBookingId ?? billForm.sessionId ?? undefined,
         })),
       }
@@ -2927,8 +2965,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       items: prev.items.map((item) => ({ ...item, sourceSessionBookingId: undefined })),
     }))
   }, [billForm.billType, billForm.sessionId, createBillSessionOptions])
-  const billItemsAllowedByType = billForm.billType !== 'ADVANCE'
-    || (availableBillServices.length > 0 && billForm.items.every((item) => advanceDeductionIds.has(item.transactionServiceId)))
+  const billItemsAllowedByType = billForm.items.length === 0
+    || (availableBillServices.length > 0 && billForm.items.every((item) => availableBillServices.some((service) => service.id === item.transactionServiceId)))
   const createAvailablePaymentMethods = useMemo(
     () => billForm.billType === 'INVOICE' ? paymentMethods : paymentMethods.filter((method) => !isDepositPaymentMethod(method)),
     [paymentMethods, billForm.billType],
@@ -3215,6 +3253,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         transactionService: service,
         quantity: row.quantity,
         netPrice: Number(row.netPrice || 0),
+        grossPrice: Number(row.grossPrice || 0),
         sourceSessionBookingId: row.sourceSessionBookingId ?? null,
         sourceAdvanceBillId: row.sourceAdvanceBillId ?? null,
       }
@@ -3411,6 +3450,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       transactionServiceId: row.transactionServiceId,
       quantity: row.quantity,
       netPrice: Number(row.netPrice),
+      grossPrice: Number(row.grossPrice),
       sourceSessionBookingId: row.sourceSessionBookingId ?? billForm.sessionId ?? undefined,
     }))
     return payload
@@ -3592,31 +3632,29 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (!Number.isFinite(net) || net <= 0) return 0
     return Number((net * (1 + advanceDeductionTaxMultiplier)).toFixed(2))
   }
-  const netToGross = (net: string, serviceId: number) => Number(net || 0) * (1 + taxMultiplierByServiceId(serviceId))
   const grossToNet = (gross: string, serviceId: number) => {
     const divisor = 1 + taxMultiplierByServiceId(serviceId)
     if (!Number.isFinite(divisor) || divisor <= 0) return Number(gross || 0)
-    return Number(gross || 0) / divisor
+    return Number((Number(gross || 0) / divisor).toFixed(4))
   }
-
-  const lineNetTotal = (item: { transactionServiceId: number; quantity: number; netPrice: string }) =>
+  const lineNetTotal = (item: { quantity: number; netPrice: string }) =>
     Number(item.netPrice || 0) * Number(item.quantity || 0)
 
-  const lineTaxTotal = (item: { transactionServiceId: number; quantity: number; netPrice: string }) =>
-    lineNetTotal(item) * taxMultiplierByServiceId(item.transactionServiceId)
+  const lineGrossTotal = (item: { quantity: number; grossPrice: string }) =>
+    Number(item.grossPrice || 0) * Number(item.quantity || 0)
 
-  const lineGrossTotal = (item: { transactionServiceId: number; quantity: number; netPrice: string }) =>
-    lineNetTotal(item) + lineTaxTotal(item)
+  const lineTaxTotal = (item: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }) =>
+    lineGrossTotal(item) - lineNetTotal(item)
 
   const serviceOptionLabel = (service: BillingService) => billingServiceDisplayLabel(service)
 
-  const estimateNet = (items: { transactionServiceId: number; quantity: number; netPrice: string }[]) =>
+  const estimateNet = (items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[]) =>
     items.reduce((sum, item) => sum + lineNetTotal(item), 0)
 
-  const estimateTax = (items: { transactionServiceId: number; quantity: number; netPrice: string }[]) =>
+  const estimateTax = (items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[]) =>
     items.reduce((sum, item) => sum + lineTaxTotal(item), 0)
 
-  const vatBreakdownRowsForItems = (items: { transactionServiceId: number; quantity: number; netPrice: string }[]): VatBreakdownRow[] => {
+  const vatBreakdownRowsForItems = (items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[]): VatBreakdownRow[] => {
     const order: VatBreakdownKey[] = ['VAT_22', 'VAT_9_5', 'VAT_0', 'NO_VAT']
     const grouped = new Map<VatBreakdownKey, { taxTotal: number; lineCount: number }>(
       order.map((key) => [key, { taxTotal: 0, lineCount: 0 }]),
@@ -3742,6 +3780,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const renderOpenBillLineEditor = (ob: OpenBill, idx: number) => {
     const item = getOpenBillItems(ob)[idx]
+    const billServices = selectableServicesForOpenBill(ob)
     if (!item) return null
     return (
       <div key={openBillEditorLineKey(ob, idx, item)} className="billing-bill-modal-item-row">
@@ -3750,13 +3789,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             value={item.transactionServiceId}
             onChange={(e) => {
               const id = Number(e.target.value)
-              const svc = services.find((s) => s.id === id)
+              const svc = billServices.find((s) => s.id === id)
               const next = [...getOpenBillItems(ob)]
-              next[idx] = { ...next[idx], transactionServiceId: id, netPrice: String(svc?.netPrice ?? 0) }
+              next[idx] = { ...next[idx], transactionServiceId: id, netPrice: String(svc?.netPrice ?? 0), grossPrice: grossStringFromService(svc) }
               setOpenBillItems(ob, next)
             }}
           >
-            {services.map((s) => (
+            {billServices.map((s) => (
               <option key={s.id} value={s.id}>
                 {serviceOptionLabel(s)}
               </option>
@@ -3779,10 +3818,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <input
             type="number"
             step="0.01"
-            value={String(netToGross(item.netPrice, item.transactionServiceId).toFixed(2))}
+            value={String(Number(item.grossPrice || 0).toFixed(2))}
             onChange={(e) => {
+              const grossStr = Number(e.target.value || 0).toFixed(2)
               const next = [...getOpenBillItems(ob)]
-              next[idx].netPrice = String(grossToNet(e.target.value, item.transactionServiceId))
+              next[idx].grossPrice = grossStr
+              next[idx].netPrice = String(grossToNet(grossStr, item.transactionServiceId))
               setOpenBillItems(ob, next)
             }}
           />
@@ -3812,7 +3853,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             const id = Number(e.target.value)
             const service = services.find((entry) => entry.id === id)
             const next = [...billForm.items]
-            next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0) }
+            next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0), grossPrice: grossStringFromService(service) }
             setBillForm({ ...billForm, items: next })
           }}
         >
@@ -3839,12 +3880,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           inputMode="numeric"
           autoComplete="off"
           aria-label={billingCopy.grossUnitPrice}
-          value={formatCashRegisterAmount(netToGross(item.netPrice, item.transactionServiceId), locale)}
+          value={formatCashRegisterAmount(Number(item.grossPrice || 0), locale)}
           onChange={(e) => {
             const digits = cashRegisterDigitsFromRaw(e.target.value)
             const cents = digits ? Number.parseInt(digits, 10) : 0
             const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
             const next = [...billForm.items]
+            next[index].grossPrice = grossStr
             next[index].netPrice = String(grossToNet(grossStr, item.transactionServiceId))
             setBillForm({ ...billForm, items: next })
           }}
@@ -4742,6 +4784,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     options?: { showClientColumn?: boolean; clientLabel?: string; selectable?: boolean },
   ) => {
     const item = getOpenBillItems(rowBill)[idx]
+    const billServices = selectableServicesForOpenBill(rowBill)
     if (!item) return null
     const lineKey = openBillEditorLineKey(rowBill, idx, item)
     const selectable = options?.selectable !== false
@@ -4779,13 +4822,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             value={item.transactionServiceId}
             onChange={(e) => {
               const id = Number(e.target.value)
-              const svc = services.find((entry) => entry.id === id)
+              const svc = billServices.find((entry) => entry.id === id)
               const next = [...getOpenBillItems(rowBill)]
-              next[idx] = { ...next[idx], transactionServiceId: id, netPrice: String(svc?.netPrice ?? 0) }
+              next[idx] = { ...next[idx], transactionServiceId: id, netPrice: String(svc?.netPrice ?? 0), grossPrice: grossStringFromService(svc) }
               setOpenBillItems(rowBill, next)
             }}
           >
-            {services.map((service) => (
+            {billServices.map((service) => (
               <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
             ))}
           </select>
@@ -4810,13 +4853,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             type="text"
             inputMode="numeric"
             autoComplete="off"
-            value={formatCashRegisterAmount(netToGross(item.netPrice, item.transactionServiceId), locale)}
+            value={formatCashRegisterAmount(Number(item.grossPrice || 0), locale)}
             onChange={(e) => {
               const digits = cashRegisterDigitsFromRaw(e.target.value)
               const cents = digits ? Number.parseInt(digits, 10) : 0
               const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
               const next = [...getOpenBillItems(rowBill)]
-              next[idx] = { ...next[idx], netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
+              next[idx] = { ...next[idx], grossPrice: grossStr, netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
               setOpenBillItems(rowBill, next)
             }}
           />
@@ -4845,7 +4888,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             const id = Number(e.target.value)
             const service = services.find((entry) => entry.id === id)
             const next = [...billForm.items]
-            next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0) }
+            next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0), grossPrice: grossStringFromService(service) }
             setBillForm({ ...billForm, items: next })
           }}
         >
@@ -4872,13 +4915,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           inputMode="numeric"
           autoComplete="off"
           aria-label={billingCopy.grossUnitPrice}
-          value={formatCashRegisterAmount(netToGross(item.netPrice, item.transactionServiceId), locale)}
+          value={formatCashRegisterAmount(Number(item.grossPrice || 0), locale)}
           onChange={(e) => {
             const digits = cashRegisterDigitsFromRaw(e.target.value)
             const cents = digits ? Number.parseInt(digits, 10) : 0
             const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
             const next = [...billForm.items]
-            next[index] = { ...next[index], netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
+            next[index] = { ...next[index], grossPrice: grossStr, netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
             setBillForm({ ...billForm, items: next })
           }}
         />
@@ -5457,6 +5500,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const detailVatRows = vatBreakdownRowsForItems(totalsItems)
     const detailTax = detailVatRows.reduce((sum, row) => sum + row.taxTotal, 0)
     const detailGross = detailNet + detailTax
+    const activeBillSelectableServices = selectableServicesForOpenBill(activeBill)
     const totalOpenBills = onePayeeForAll ? 1 : relatedOpenBills.length
     const totalLineItems = relatedOpenBills.reduce((sum, entry) => sum + getOpenBillItems(entry).length, 0)
     const totalAcrossBills = relatedOpenBills.reduce((sum, entry) => sum + estimateGross(getOpenBillItems(entry)), 0)
@@ -5783,16 +5827,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <button
                 type="button"
                 className="billing-invoice-add-dashed billing-invoice-add-dashed--line"
-                disabled={services.length === 0}
+                disabled={activeBillSelectableServices.length === 0}
                 onClick={() => {
-                  if (!services[0]) return
+                  const firstService = activeBillSelectableServices[0]
+                  if (!firstService) return
                   setOpenBillItems(activeBill, [
                     ...getOpenBillItems(activeBill),
                     {
                       clientRowKey: createOpenBillClientRowKey(),
-                      transactionServiceId: services[0].id,
+                      transactionServiceId: firstService.id,
                       quantity: 1,
-                      netPrice: String(services[0].netPrice),
+                      netPrice: String(firstService.netPrice),
+                      grossPrice: grossStringFromService(firstService),
                       sourceSessionBookingId: createManualOpenBillLineSourceId(),
                     },
                   ])
@@ -6846,7 +6892,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               : billForm.items.length === 0
                 ? (locale === 'sl' ? 'Dodajte vsaj eno postavko.' : 'Add at least one line item.')
                 : !billItemsAllowedByType
-                  ? (locale === 'sl' ? 'Za predračun lahko izberete samo storitve predplačila.' : 'Advance bills only accept advance services.')
+                  ? (isCreateAdvanceBill
+                    ? (locale === 'sl' ? 'Za predplačilo lahko izberete samo storitve s Predplačilo ON.' : 'Advance bills only accept services marked as Advance.')
+                    : (locale === 'sl' ? 'Storitve s Predplačilo ON lahko uporabite samo na Novo predplačilo.' : 'Services marked as Advance can only be used on New advance.'))
                   : !createPaymentsMatchTotal
                     ? (locale === 'sl' ? 'Vsota plačil mora biti enaka znesku računa.' : 'Payment amounts must match the total.')
                     : !createAdvanceSelectionValid
@@ -6955,6 +7003,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                 transactionServiceId: firstService.id,
                                 quantity: 1,
                                 netPrice: String(firstService.netPrice),
+                                grossPrice: grossStringFromService(firstService),
                                 sourceSessionBookingId: billForm.sessionId ?? undefined,
                               },
                             ],

@@ -251,13 +251,14 @@ public class ClientWalletPurchaseController {
                 : 1;
         BigDecimal unitGross = safeGross(product.getPriceGross())
                 .divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
-        BigDecimal unitNet = PriceMath.netFromGross(unitGross, service.getTaxRate() == null ? TaxRate.NO_VAT : service.getTaxRate()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal unitNet = PriceMath.netFromGross(unitGross, service.getTaxRate() == null ? TaxRate.NO_VAT : service.getTaxRate()).setScale(4, RoundingMode.HALF_UP);
 
         var item = new OpenBillItem();
         item.setOpenBill(open);
         item.setTransactionService(service);
         item.setQuantity(quantity);
         item.setNetPrice(unitNet);
+        item.setUnitGrossPrice(unitGross);
         item.setInvoiceLineDescription(walletProductInvoiceLineDescription(product));
         open.getItems().add(item);
     }
