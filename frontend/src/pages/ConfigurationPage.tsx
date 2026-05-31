@@ -13,6 +13,7 @@ import { ConfigurationInvoiceDeliverySection } from './ConfigurationInvoiceDeliv
 import { FolioLayoutEditor } from './FolioLayoutEditor'
 import { SecurityPage } from './SecurityPage'
 import { GoogleCalendarIntegrationSection } from './GoogleCalendarIntegrationSection'
+import googleCalendarLogo from '../assets/google-calendar-logo.png'
 import { GuestConfigSaveIcon as GuestSaveIcon } from '../components/GuestConfigSaveIcon'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useLocale } from '../locale'
@@ -249,6 +250,26 @@ function ConfigSettingsIcon() {
     </svg>
   )
 }
+
+function IntegrationStatusCardIcon() {
+  return (
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 8V5a2 2 0 0 1 2-2h1" />
+      <path d="M16 8V5a2 2 0 0 0-2-2h-1" />
+      <path d="M9 12H6a2 2 0 0 1-2-2V9" />
+      <path d="M15 12h3a2 2 0 0 0 2-2V9" />
+      <path d="M8 16v3a2 2 0 0 0 2 2h1" />
+      <path d="M16 16v3a2 2 0 0 1-2 2h-1" />
+      <path d="M7.5 7.5 16.5 16.5" />
+      <rect x="8.5" y="8.5" width="7" height="7" rx="2.2" />
+    </svg>
+  )
+}
+
+function IntegrationGoogleCalendarIcon() {
+  return <img src={googleCalendarLogo} alt="" aria-hidden />
+}
+
 
 function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
   if (kind === 'company') {
@@ -2957,6 +2978,7 @@ export function ConfigurationPage() {
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
   const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
+  const [expandedIntegrationCard, setExpandedIntegrationCard] = useState<'stripe' | 'googleCalendar' | null>(null)
   const [guestAppSubtab, setGuestAppSubtab] = useState<GuestAppSubtab>('general')
   const [startingPaypalOnboarding, setStartingPaypalOnboarding] = useState(false)
   const [startingStripeOnboarding, setStartingStripeOnboarding] = useState(false)
@@ -3984,6 +4006,20 @@ export function ConfigurationPage() {
     return 'neutral'
   }, [activeStripeAccount])
 
+  const stripeCompactStatusLabel = useMemo(() => {
+    if (locale === 'sl') return activeStripeAccount?.connected ? 'Povezano' : 'Ni povezano'
+    return activeStripeAccount?.connected ? 'Connected' : 'Not connected'
+  }, [activeStripeAccount?.connected, locale])
+
+  const googleCalendarCompactStatusLabel = useMemo(() => {
+    if (locale === 'sl') return activeGoogleCalendarConnection ? 'Povezano' : 'Ni povezano'
+    return activeGoogleCalendarConnection ? 'Connected' : 'Not connected'
+  }, [activeGoogleCalendarConnection, locale])
+
+  const toggleIntegrationDetails = (integration: 'stripe' | 'googleCalendar') => {
+    setExpandedIntegrationCard((current) => (current === integration ? null : integration))
+  }
+
   const refreshGoogleCalendarStatusSummary = useCallback(async () => {
     setGoogleCalendarStatusLoading(true)
     try {
@@ -4918,17 +4954,19 @@ export function ConfigurationPage() {
         ) : (
           <>
             {isCompactConfigViewport ? (
-              <div className="config-detail-bar">
-                {tab === 'company' ? null : (
-                  <button type="button" className="config-detail-back" onClick={() => navigate('/configuration')} aria-label={t('settingsGroup')}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M19 12H5" />
-                      <path d="M12 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                )}
-                {tab === 'company' ? null : <span>{configDetailTitle}</span>}
-              </div>
+              tab === 'integrations' ? null : (
+                <div className="config-detail-bar">
+                  {tab === 'company' ? null : (
+                    <button type="button" className="config-detail-back" onClick={() => navigate('/configuration')} aria-label={t('settingsGroup')}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M19 12H5" />
+                        <path d="M12 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                  )}
+                  {tab === 'company' ? null : <span>{configDetailTitle}</span>}
+                </div>
+              )
             ) : (
               <aside className="config-nav">
                 <div className="config-nav-title">{t('settingsGroup')}</div>
@@ -9067,8 +9105,81 @@ export function ConfigurationPage() {
             .integrations-row-arrow { color:#64748b; display:inline-flex; align-items:center; justify-content:center; }
             .integrations-google-panel .google-calendar-card { box-shadow:none; border:0; padding:0; }
             .integrations-google-panel .google-calendar-card > .section-title-row { display:none; }
+            .integrations-mobile-status-layout { display:none; }
+            .integrations-mobile-summary-card,
+            .integrations-mobile-connection-card { border:1px solid rgba(213,223,238,.92); border-radius:28px; background:rgba(255,255,255,.98); box-shadow:0 20px 56px rgba(15,23,42,.08); }
+            .integrations-mobile-summary-card { display:grid; grid-template-columns:auto 1fr auto; gap:22px; align-items:center; padding:30px 32px; }
+            .integrations-mobile-summary-icon { width:76px; height:76px; border-radius:24px; display:inline-flex; align-items:center; justify-content:center; color:#2563eb; background:linear-gradient(180deg,#f7fbff 0%,#ffffff 100%); border:1px solid #dbe7f5; box-shadow:0 14px 34px rgba(15,23,42,.06); }
+            .integrations-mobile-summary-icon svg { width:34px; height:34px; display:block; }
+            .integrations-mobile-summary-copy { min-width:0; }
+            .integrations-mobile-summary-copy h2 { margin:0; color:#0b1745; font-size:26px; line-height:1.08; letter-spacing:-.04em; font-weight:950; }
+            .integrations-mobile-summary-copy p { margin:9px 0 0; color:#66758f; font-size:17px; line-height:1.45; font-weight:500; }
+            .integrations-mobile-refresh-button { justify-self:end; align-self:end; display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:46px; padding:0 20px; border-radius:15px; border:1px solid #bdd3ff; background:#fff; color:#1769f7; font-size:16px; font-weight:900; cursor:pointer; box-shadow:0 10px 26px rgba(23,105,247,.08); }
+            .integrations-mobile-refresh-button:disabled { opacity:.62; cursor:wait; }
+            .integrations-mobile-connection-card { overflow:hidden; }
+            .integrations-mobile-card-trigger { width:100%; display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:center; gap:22px; border:0; background:transparent; padding:28px 32px; cursor:pointer; text-align:left; }
+            .integrations-mobile-logo { width:76px; height:76px; border-radius:22px; flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 12px 30px rgba(15,23,42,.08); overflow:hidden; }
+            .integrations-mobile-logo--stripe { background:linear-gradient(135deg,#723df5 0%,#5b82ff 100%); color:#fff; font-size:50px; line-height:1; font-weight:950; letter-spacing:-.08em; }
+            .integrations-mobile-logo--google { position:relative; background:#fff; border:1px solid #e3ebf6; display:inline-flex; align-items:center; justify-content:center; overflow:hidden; }
+            .integrations-mobile-logo--google::before { content:none; }
+            .integrations-mobile-logo--google::after { content:none; }
+            .integrations-mobile-logo--google img { width:46px; height:46px; display:block; object-fit:contain; }
+            .integrations-mobile-card-copy { min-width:0; display:block; }
+            .integrations-mobile-card-title { display:block; color:#0b1745; font-size:24px; line-height:1.12; letter-spacing:-.035em; font-weight:950; }
+            .integrations-mobile-card-subtitle { display:block; margin-top:8px; color:#66758f; font-size:16px; line-height:1.42; font-weight:500; }
+            .integrations-mobile-chevron { color:#1769f7; display:inline-flex; align-items:center; justify-content:center; transition:transform .2s ease; }
+            .integrations-mobile-connection-card.is-open .integrations-mobile-chevron { transform:rotate(180deg); }
+            .integrations-mobile-details { display:grid; grid-template-columns:1fr 1fr; gap:0; margin:0 32px 28px; padding-top:18px; border-top:1px solid #e6eef8; }
+            .integrations-mobile-detail-row { min-width:0; padding:4px 14px 14px 0; }
+            .integrations-mobile-manage-button { grid-column:1 / -1; display:inline-flex; align-items:center; justify-content:center; margin-top:8px; min-height:46px; border:0; border-radius:15px; background:linear-gradient(180deg,#1c78ff 0%,#0f62fe 100%); color:#fff; font-size:15px; font-weight:900; cursor:pointer; box-shadow:0 14px 30px rgba(37,99,235,.24); }
             @media (max-width:1180px) { .integrations-status-row { grid-template-columns:1fr; } .integrations-status-pill { justify-self:start; } }
-            @media (max-width:780px) { .integrations-main-panel { padding:14px; } .integrations-subtabs { gap:8px; } .integrations-subtab { flex:1 1 150px; min-width:0; } .integrations-section-heading { flex-direction:column; align-items:flex-start; } }
+            @media (max-width:780px) {
+              .integrations-modern-shell { width:100%; }
+              .integrations-modern-shell .integrations-card.integrations-main-panel { border:0; border-radius:0; background:transparent; box-shadow:none; overflow:visible; padding:0 14px 30px; }
+              .integrations-tabs-card { display:block; padding-bottom:0; margin-bottom:18px; border-bottom:0; }
+              .integrations-subtabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+              .integrations-subtab { width:100%; min-height:52px; display:inline-flex; align-items:center; justify-content:center; border-radius:16px; background:#ffffff; border:1px solid #dbe4f0; font-size:16px; box-shadow:0 10px 28px rgba(15,23,42,.06); }
+              .integrations-subtab.active { background:#edf4ff; border-color:#bcd2ff; box-shadow:0 12px 26px rgba(37,99,235,.14); }
+              .integrations-desktop-status-layout { display:none; }
+              .integrations-mobile-status-layout { display:flex; flex-direction:column; gap:22px; }
+              .integrations-google-panel .integrations-page-head { display:none; }
+              .integrations-mobile-summary-card { grid-template-columns:auto 1fr; gap:16px; padding:24px 20px; border-radius:26px; }
+              .integrations-mobile-summary-icon { width:68px; height:68px; border-radius:21px; }
+              .integrations-mobile-summary-copy h2 { font-size:25px; }
+              .integrations-mobile-summary-copy p { font-size:15px; line-height:1.45; }
+              .integrations-mobile-refresh-button { grid-column:2; justify-self:end; margin-top:4px; min-height:44px; padding:0 18px; border-radius:15px; font-size:15px; }
+              .integrations-mobile-connection-card { border-radius:26px; }
+              .integrations-mobile-card-trigger { grid-template-columns:auto minmax(0,1fr) auto; gap:18px; padding:26px 20px; }
+              .integrations-mobile-logo { width:64px; height:64px; border-radius:20px; }
+              .integrations-mobile-logo--stripe { font-size:42px; }
+              .integrations-mobile-logo--google img { width:42px; height:42px; }
+              .integrations-mobile-card-title { font-size:23px; }
+              .integrations-mobile-card-subtitle { font-size:15px; }
+              .integrations-mobile-card-trigger .integrations-status-pill { grid-column:3; grid-row:1; align-self:start; }
+              .integrations-mobile-chevron { grid-column:3; grid-row:1; align-self:end; margin-top:40px; }
+              .integrations-mobile-details { grid-template-columns:1fr; margin:0 20px 24px; padding-top:16px; }
+              .integrations-mobile-detail-row { padding-right:0; }
+            }
+            @media (max-width:420px) {
+              .integrations-modern-shell .integrations-card.integrations-main-panel { padding-left:12px; padding-right:12px; }
+              .integrations-mobile-status-layout { gap:18px; }
+              .integrations-subtabs { gap:10px; }
+              .integrations-subtab { min-height:48px; font-size:15px; padding:0 12px; }
+              .integrations-mobile-summary-card { padding:22px 16px; }
+              .integrations-mobile-summary-icon { width:58px; height:58px; }
+              .integrations-mobile-summary-icon svg { width:28px; height:28px; }
+              .integrations-mobile-summary-copy h2 { font-size:23px; }
+              .integrations-mobile-summary-copy p { font-size:14px; }
+              .integrations-mobile-refresh-button { font-size:14px; padding:0 14px; }
+              .integrations-mobile-card-trigger { gap:14px; padding:24px 16px; }
+              .integrations-mobile-logo { width:58px; height:58px; border-radius:18px; }
+              .integrations-mobile-logo--stripe { font-size:38px; }
+              .integrations-mobile-card-title { font-size:21px; }
+              .integrations-mobile-card-subtitle { font-size:14px; line-height:1.45; }
+              .integrations-status-pill { padding:6px 10px; font-size:11px; }
+              .integrations-mobile-chevron { margin-top:36px; }
+              .integrations-mobile-details { margin-left:16px; margin-right:16px; }
+            }
           `}</style>
           <div className="integrations-card integrations-main-panel">
             <div className="integrations-tabs-card">
@@ -9093,64 +9204,155 @@ export function ConfigurationPage() {
 
             {integrationSubtab === 'status' ? (
               <>
-                <div className="integrations-page-head">
-                  <h2>{locale === 'sl' ? 'Integracije' : 'Integrations'}</h2>
-                  <p>{locale === 'sl' ? 'Pregled povezav za trenutni tenant. Klik na vrstico odpre stran, kjer nastavite posamezno povezavo.' : 'Connection overview for the current tenant. Click a row to open the setup page for that integration.'}</p>
-                </div>
-
-
-                <div className="integrations-card integrations-list-card">
-                  <div className="integrations-section-heading">
-                    <span>
-                      <h3 className="integrations-section-title">{locale === 'sl' ? 'Status integracij' : 'Integration status'}</h3>
-                      <span className="integrations-section-kicker">{locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.'}</span>
+                <div className="integrations-mobile-status-layout" aria-label={locale === 'sl' ? 'Status integracij' : 'Integration status'}>
+                  <section className="integrations-mobile-summary-card">
+                    <span className="integrations-mobile-summary-icon" aria-hidden><IntegrationStatusCardIcon /></span>
+                    <span className="integrations-mobile-summary-copy">
+                      <h2>{locale === 'sl' ? 'Status integracij' : 'Integration status'}</h2>
+                      <p>{locale === 'sl' ? 'Pregled povezanih storitev in njihov trenutni status.' : 'Overview of connected services and their current status.'}</p>
                     </span>
-                    <button type="button" className="integrations-secondary-button" onClick={() => void refreshIntegrationStatuses()} disabled={googleCalendarStatusLoading}>
+                    <button type="button" className="integrations-mobile-refresh-button" onClick={() => void refreshIntegrationStatuses()} disabled={googleCalendarStatusLoading}>
+                      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M21 12a9 9 0 0 1-15.42 6.36" />
+                        <path d="M3 12A9 9 0 0 1 18.42 5.64" />
+                        <path d="M18 2v4h-4" />
+                        <path d="M6 22v-4h4" />
+                      </svg>
                       {googleCalendarStatusLoading ? (locale === 'sl' ? 'Osvežujem…' : 'Refreshing…') : (locale === 'sl' ? 'Osveži status' : 'Refresh status')}
                     </button>
+                  </section>
+
+                  <article className={expandedIntegrationCard === 'googleCalendar' ? 'integrations-mobile-connection-card is-open' : 'integrations-mobile-connection-card'}>
+                    <button
+                      type="button"
+                      className="integrations-mobile-card-trigger"
+                      onClick={() => toggleIntegrationDetails('googleCalendar')}
+                      aria-expanded={expandedIntegrationCard === 'googleCalendar'}
+                    >
+                      <span className="integrations-mobile-logo integrations-mobile-logo--google" aria-hidden><IntegrationGoogleCalendarIcon /></span>
+                      <span className="integrations-mobile-card-copy">
+                        <span className="integrations-mobile-card-title">Google Calendar</span>
+                        <span className="integrations-mobile-card-subtitle">{locale === 'sl' ? 'Sinhronizirajte dogodke in termine iz Google Calendar za enostavno upravljanje razpoložljivosti.' : 'Sync events and appointments from Google Calendar for easier availability management.'}</span>
+                      </span>
+                      <span className={`integrations-status-pill ${googleCalendarStatusTone}`}>{googleCalendarCompactStatusLabel}</span>
+                      <span className="integrations-mobile-chevron" aria-hidden>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </span>
+                    </button>
+                    {expandedIntegrationCard === 'googleCalendar' ? (
+                      <div className="integrations-mobile-details">
+                        <div className="integrations-mobile-detail-row">
+                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                          <span className="integrations-row-meta-value">{activeGoogleCalendarConnection?.googleAccountEmail || '—'}</span>
+                        </div>
+                        <div className="integrations-mobile-detail-row">
+                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Konflikti' : 'Conflicts'}</span>
+                          <span className="integrations-row-meta-value">{googleCalendarConflictCount}</span>
+                        </div>
+                        <button type="button" className="integrations-mobile-manage-button" onClick={openGoogleCalendarIntegration}>
+                          {locale === 'sl' ? 'Upravljaj povezavo' : 'Manage connection'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+
+                  <article className={expandedIntegrationCard === 'stripe' ? 'integrations-mobile-connection-card is-open' : 'integrations-mobile-connection-card'}>
+                    <button
+                      type="button"
+                      className="integrations-mobile-card-trigger"
+                      onClick={() => toggleIntegrationDetails('stripe')}
+                      aria-expanded={expandedIntegrationCard === 'stripe'}
+                    >
+                      <span className="integrations-mobile-logo integrations-mobile-logo--stripe" aria-hidden>S</span>
+                      <span className="integrations-mobile-card-copy">
+                        <span className="integrations-mobile-card-title">Stripe</span>
+                        <span className="integrations-mobile-card-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in upravljanje naročnin prek Stripe.' : 'Connection for online payments and subscription management through Stripe.'}</span>
+                      </span>
+                      <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeCompactStatusLabel}</span>
+                      <span className="integrations-mobile-chevron" aria-hidden>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </span>
+                    </button>
+                    {expandedIntegrationCard === 'stripe' ? (
+                      <div className="integrations-mobile-details">
+                        <div className="integrations-mobile-detail-row">
+                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                          <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
+                        </div>
+                        <div className="integrations-mobile-detail-row">
+                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
+                          <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
+                        </div>
+                        <button type="button" className="integrations-mobile-manage-button" onClick={openStripeIntegration}>
+                          {locale === 'sl' ? 'Upravljaj povezavo' : 'Manage connection'}
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                </div>
+
+                <div className="integrations-desktop-status-layout">
+                  <div className="integrations-page-head">
+                    <h2>{locale === 'sl' ? 'Integracije' : 'Integrations'}</h2>
+                    <p>{locale === 'sl' ? 'Pregled povezav za trenutni tenant. Klik na vrstico odpre stran, kjer nastavite posamezno povezavo.' : 'Connection overview for the current tenant. Click a row to open the setup page for that integration.'}</p>
                   </div>
 
-                  <button type="button" className="integrations-status-row" onClick={openStripeIntegration}>
-                    <span className="integrations-row-main">
-                      <span className="integrations-row-icon"><ConfigTabIcon kind="billing" /></span>
+                  <div className="integrations-card integrations-list-card">
+                    <div className="integrations-section-heading">
                       <span>
-                        <span className="integrations-row-title">Stripe</span>
-                        <span className="integrations-row-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in Stripe Connect onboarding.' : 'Connection for online payments and Stripe Connect onboarding.'}</span>
+                        <h3 className="integrations-section-title">{locale === 'sl' ? 'Status integracij' : 'Integration status'}</h3>
+                        <span className="integrations-section-kicker">{locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.'}</span>
                       </span>
-                    </span>
-                    <span>
-                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
-                      <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
-                    </span>
-                    <span>
-                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
-                      <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
-                    </span>
-                    <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeStatusLabel}</span>
-                    <span className="integrations-row-arrow" aria-hidden>›</span>
-                  </button>
+                      <button type="button" className="integrations-secondary-button" onClick={() => void refreshIntegrationStatuses()} disabled={googleCalendarStatusLoading}>
+                        {googleCalendarStatusLoading ? (locale === 'sl' ? 'Osvežujem…' : 'Refreshing…') : (locale === 'sl' ? 'Osveži status' : 'Refresh status')}
+                      </button>
+                    </div>
 
-                  <button type="button" className="integrations-status-row" onClick={openGoogleCalendarIntegration}>
-                    <span className="integrations-row-main">
-                      <span className="integrations-row-icon"><ConfigTabIcon kind="googleCalendar" /></span>
-                      <span>
-                        <span className="integrations-row-title">Google Calendar</span>
-                        <span className="integrations-row-subtitle">{locale === 'sl' ? 'Dvosmerna sinhronizacija rezervacij, osebnih terminov in ToDo dogodkov.' : 'Two-way sync for bookings, personal sessions and ToDo events.'}</span>
+                    <button type="button" className="integrations-status-row" onClick={openGoogleCalendarIntegration}>
+                      <span className="integrations-row-main">
+                        <span className="integrations-row-icon"><ConfigTabIcon kind="googleCalendar" /></span>
+                        <span>
+                          <span className="integrations-row-title">Google Calendar</span>
+                          <span className="integrations-row-subtitle">{locale === 'sl' ? 'Dvosmerna sinhronizacija rezervacij, osebnih terminov in ToDo dogodkov.' : 'Two-way sync for bookings, personal sessions and ToDo events.'}</span>
+                        </span>
                       </span>
-                    </span>
-                    <span>
-                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
-                      <span className="integrations-row-meta-value">{activeGoogleCalendarConnection?.googleAccountEmail || '—'}</span>
-                    </span>
-                    <span>
-                      <span className="integrations-row-meta-label">{locale === 'sl' ? 'Konflikti' : 'Conflicts'}</span>
-                      <span className="integrations-row-meta-value">{googleCalendarConflictCount}</span>
-                    </span>
-                    <span className={`integrations-status-pill ${googleCalendarStatusTone}`}>{googleCalendarStatusLabel}</span>
-                    <span className="integrations-row-arrow" aria-hidden>›</span>
-                  </button>
-                </div>
-              </>
+                      <span>
+                        <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                        <span className="integrations-row-meta-value">{activeGoogleCalendarConnection?.googleAccountEmail || '—'}</span>
+                      </span>
+                      <span>
+                        <span className="integrations-row-meta-label">{locale === 'sl' ? 'Konflikti' : 'Conflicts'}</span>
+                        <span className="integrations-row-meta-value">{googleCalendarConflictCount}</span>
+                      </span>
+                      <span className={`integrations-status-pill ${googleCalendarStatusTone}`}>{googleCalendarStatusLabel}</span>
+                      <span className="integrations-row-arrow" aria-hidden>›</span>
+                    </button>
+
+                    <button type="button" className="integrations-status-row" onClick={openStripeIntegration}>
+                      <span className="integrations-row-main">
+                        <span className="integrations-row-icon"><ConfigTabIcon kind="billing" /></span>
+                        <span>
+                          <span className="integrations-row-title">Stripe</span>
+                          <span className="integrations-row-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in Stripe Connect onboarding.' : 'Connection for online payments and Stripe Connect onboarding.'}</span>
+                        </span>
+                      </span>
+                      <span>
+                        <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                        <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
+                      </span>
+                      <span>
+                        <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
+                        <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
+                      </span>
+                      <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeStatusLabel}</span>
+                      <span className="integrations-row-arrow" aria-hidden>›</span>
+                    </button>
+                  </div>
+                </div>              </>
             ) : (
               <div className="integrations-google-panel">
                 <div className="integrations-page-head">
