@@ -1076,16 +1076,14 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                       <EmployeeFormIcon name="trash" />
                       {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}
                     </button>
-                  ) : (
-                    <button type="button" className="secondary employees-form-cancel-btn" disabled={saving || deleting} onClick={dismissFormPanel}>
-                      {cancelLabel}
-                    </button>
-                  )}
+                  ) : null}
                 </div>
-                <button form="consultant-edit-form" type="submit" className="gapp-primary-button" disabled={formPrimaryDisabled}>
-                  <GuestConfigSaveIcon />
-                  {formPrimaryLabel}
-                </button>
+                {(!isConsultantsMobile || !editing || isFormDirty || saving) && (
+                  <button form="consultant-edit-form" type="submit" className="gapp-primary-button" disabled={formPrimaryDisabled}>
+                    <GuestConfigSaveIcon />
+                    {formPrimaryLabel}
+                  </button>
+                )}
               </div>
             </div>
           </div>

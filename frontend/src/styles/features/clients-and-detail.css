@@ -749,6 +749,45 @@
         grid-area: search;
     }
 
+    /* Employee tab mobile toolbar: avoid search/icon overlap and enforce requested action order/layout. */
+    .employees-modern-card.clients-mobile-shell .employees-modern-toolbar .clients-search-wrap > svg {
+        left: 12px;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-modern-toolbar .clients-search-input {
+        padding-left: 42px;
+        padding-right: 12px;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "new new"
+            "count filter";
+        align-items: center;
+        gap: 8px;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .clients-count-chip {
+        grid-area: count;
+        justify-self: start;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .clients-filter-tabs {
+        grid-area: filter;
+        justify-self: end;
+        width: auto;
+        margin-bottom: 0;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-toolbar-actions .employees-modern-new-btn {
+        grid-area: new;
+        width: 100%;
+        justify-self: stretch;
+    }
+
     .clients-mobile-shell .clients-toolbar .clients-session-tabs {
         grid-area: tabs;
         display: flex;

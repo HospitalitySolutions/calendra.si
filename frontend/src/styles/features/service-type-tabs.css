@@ -144,6 +144,60 @@
     justify-content: center;
 }
 
+/* Narrow/mobile service tabs toolbar layout: full-width New, count left, status right. */
+.service-config-card.clients-mobile-shell .service-config-search-wrap .clients-search-icon {
+    left: 12px;
+}
+
+.service-config-card.clients-mobile-shell .service-config-search-wrap .clients-search-input {
+    padding-left: 42px;
+    padding-right: 12px;
+}
+
+.clients-modern-page--mobile .service-config-card.clients-mobile-shell .service-config-search-wrap .clients-search-input {
+    height: 46px;
+    padding: 0 16px 0 44px;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+}
+
+.clients-modern-page--mobile .service-config-card.clients-mobile-shell .service-config-search-wrap .clients-search-icon,
+.clients-modern-page--mobile .service-config-card.clients-mobile-shell .service-config-search-wrap > svg {
+    left: 14px;
+    width: 18px;
+    height: 18px;
+}
+
+.service-config-card.clients-mobile-shell .service-config-toolbar-trailing.clients-toolbar-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "new new"
+        "count filter";
+    align-items: center;
+    gap: 8px;
+}
+
+.service-config-card.clients-mobile-shell .service-config-toolbar-trailing .service-config-new-btn {
+    grid-area: new;
+    width: 100%;
+    justify-self: stretch;
+}
+
+.service-config-card.clients-mobile-shell .service-config-toolbar-trailing .clients-count-chip {
+    grid-area: count;
+    justify-self: start;
+}
+
+.service-config-card.clients-mobile-shell .service-config-toolbar-trailing .service-config-filter-tabs {
+    grid-area: filter;
+    justify-self: end;
+    width: auto;
+    margin-bottom: 0;
+}
+
 .service-config-filter-tabs.clients-session-tabs {
     display: inline-flex;
     align-items: center;
@@ -437,6 +491,41 @@
 }
 
 @media (max-width: 720px) {
+    .clients-modern-page--mobile .service-config-card.clients-modern-card.card {
+        padding: 18px;
+        border-radius: 28px;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-page-header {
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs-shell {
+        overflow: visible;
+        padding: 0;
+        width: 100%;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab {
+        min-height: 54px;
+        padding: 0 3px;
+        gap: 4px;
+        font-size: clamp(0.58rem, 2.45vw, 0.72rem);
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab svg {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab > span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .service-config-icon {
         width: 44px;
         height: 44px;
@@ -446,6 +535,21 @@
     .service-config-mobile-card.clients-mobile-card {
         border-radius: 18px;
         box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+    }
+}
+
+@media (max-width: 420px) {
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab {
+        min-height: 50px;
+        padding: 0 2px;
+        gap: 3px;
+        font-size: 0.56rem;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab svg {
+        width: 14px;
+        height: 14px;
+        flex-basis: 14px;
     }
 }
 

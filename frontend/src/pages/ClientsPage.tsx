@@ -543,17 +543,22 @@ function ClientWorkspaceIcon({ name }: { name: ClientWorkspaceIconName }) {
 
 type ClientsPageProps = {
   embeddedClientId?: number | null
+  embeddedGroupId?: number | null
   onEmbeddedClose?: () => void
   onEmbeddedSaved?: () => void | Promise<void>
 }
 
-export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbeddedSaved }: ClientsPageProps = {}) {
+export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, onEmbeddedClose, onEmbeddedSaved }: ClientsPageProps = {}) {
   const { t, locale } = useLocale()
   const location = useLocation()
   const navigate = useNavigate()
   const embeddedClientDetailIdRaw = Number(embeddedClientId ?? 0)
   const embeddedClientDetailId = Number.isInteger(embeddedClientDetailIdRaw) && embeddedClientDetailIdRaw > 0 ? embeddedClientDetailIdRaw : null
+  const embeddedGroupDetailIdRaw = Number(embeddedGroupId ?? 0)
+  const embeddedGroupDetailId = Number.isInteger(embeddedGroupDetailIdRaw) && embeddedGroupDetailIdRaw > 0 ? embeddedGroupDetailIdRaw : null
   const embeddedClientDetailMode = embeddedClientDetailId != null
+  const embeddedGroupDetailMode = embeddedGroupDetailId != null
+  const embeddedDetailMode = embeddedClientDetailMode || embeddedGroupDetailMode
   const compactCreateModalHeader = useCalendarFiltersBottomBar()
   /** Match `clients-tab-client-detail-modal` header CSS (title hidden, close left). */
   const clientDetailCompactHeader = useMediaMaxWidth(768)
@@ -1703,7 +1708,34 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
     setGroupMemberSearch('')
     setGroupMemberDropdownOpen(false)
     setPendingGroupMemberIds([])
+    if (embeddedGroupDetailMode) {
+      onEmbeddedClose?.()
+    } else if (new URLSearchParams(location.search).has('groupId')) {
+      navigate('/clients', { replace: true })
+    }
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const groupId = embeddedGroupDetailId ?? Number(params.get('groupId'))
+    if (!Number.isFinite(groupId) || groupId <= 0) return
+    if (detailGroup?.id === groupId) return
+    const existing = groups.find((group) => group.id === groupId)
+    if (existing) {
+      openGroupDetailModal(existing)
+      return
+    }
+    let cancelled = false
+    api
+      .get<ClientGroup>(`/groups/${groupId}`)
+      .then((res) => {
+        if (!cancelled && res.data) openGroupDetailModal(res.data)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [location.search, groups, detailGroup?.id, embeddedGroupDetailId])
 
   const saveDetailGroupInline = async () => {
     if (!detailGroup || savingGroupDetailEdit) return
@@ -1721,6 +1753,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
       const updated = response.data
       setDetailGroup(updated)
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
+      if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
     } catch {
       setGroupErrorMessage('Failed to save group.')
     } finally {
@@ -1749,8 +1782,10 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
       if (updated) {
         setDetailGroup(updated)
         setGroups((prev) => prev.map((g) => g.id === updated!.id ? updated! : g))
+        if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
       }
       setPendingGroupMemberIds([])
+      setGroupMemberSearch('')
       setGroupMemberDropdownOpen(true)
     } catch { /* ignore */ } finally {
       setAddingMember(false)
@@ -1765,6 +1800,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
       const updated = response.data
       setDetailGroup(updated)
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
+      if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
     } catch { /* ignore */ } finally {
       setRemovingMemberId(null)
     }
@@ -1795,6 +1831,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
       const updated = response.data
       if (detailGroup?.id === groupId) setDetailGroup(updated)
       setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
+      if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
       setOpenGroupMenuId(null)
     } catch (error: any) {
       const backendMessage = error?.response?.data?.message
@@ -2711,8 +2748,8 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
   }
 
   return (
-    <div className={`stack gap-lg clients-modern-page${isClientsMobile ? ' clients-modern-page--mobile' : ''}${embeddedClientDetailMode ? ' clients-modern-page--embedded-detail' : ''}`}>
-      {!embeddedClientDetailMode && (
+    <div className={`stack gap-lg clients-modern-page${isClientsMobile ? ' clients-modern-page--mobile' : ''}${embeddedDetailMode ? ' clients-modern-page--embedded-detail' : ''}`}>
+      {!embeddedDetailMode && (
       <Card className={`clients-modern-card${isClientsMobile ? ' clients-mobile-shell' : ''}`}>
         <div className={`clients-page-header${isClientsMobile ? ' clients-page-header--sticky-mobile' : ''}`}>
           <div className="clients-page-header__entity clients-entity-tabs-shell">
@@ -3100,7 +3137,7 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
 
       {detailClient && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop${embeddedClientDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={(e) => {
             e.stopPropagation()
             if (e.target === e.currentTarget) closeDetailModal()
@@ -3618,14 +3655,14 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
         </div>
       )}
 
-      {!embeddedClientDetailMode && detailCompany && (
+      {!embeddedDetailMode && detailCompany && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(closeCompanyDetailModal)}
           role="presentation"
         >
           <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal"
+            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-company-detail-modal"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="clients-action-workspace-header">
@@ -3903,9 +3940,9 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
         </div>
       )}
 
-      {!embeddedClientDetailMode && showModal && (
+      {!embeddedDetailMode && showModal && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(closeModal)}
           role="presentation"
         >
@@ -3947,9 +3984,9 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
         </div>
       )}
 
-      {!embeddedClientDetailMode && showCompanyModal && (
+      {!embeddedDetailMode && showCompanyModal && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(closeCompanyModal)}
           role="presentation"
         >
@@ -4016,9 +4053,9 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
         </div>
       )}
 
-      {!embeddedClientDetailMode && detailGroup && (
+      {detailGroup && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(closeGroupDetailModal)}
           role="presentation"
         >
@@ -4369,9 +4406,9 @@ export function ClientsPage({ embeddedClientId = null, onEmbeddedClose, onEmbedd
         </div>
       )}
 
-      {!embeddedClientDetailMode && showGroupModal && (
+      {!embeddedDetailMode && showGroupModal && (
         <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
+          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
           onMouseDown={onSidePanelBackdropMouseDown(() => setShowGroupModal(false))}
           role="presentation"
         >

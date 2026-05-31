@@ -2300,19 +2300,19 @@
     }
 
     .clients-modern-page--mobile .clients-modern-card .clients-search-wrap > svg {
-        left: 18px;
-        width: 22px;
-        height: 22px;
-        color: #94a3b8;
+        left: 14px;
+        width: 18px;
+        height: 18px;
+        color: #64748b;
     }
 
     .clients-modern-page--mobile .clients-modern-card .clients-search-input {
-        height: 58px;
-        padding: 0 18px 0 52px;
-        border-radius: 18px;
+        height: 46px;
+        padding: 0 16px 0 44px;
+        border-radius: 14px;
         border-color: #dbe3ef;
-        font-size: 1rem;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+        font-size: 0.95rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
     }
 
     .clients-modern-page--mobile .clients-toolbar-actions {
@@ -2331,17 +2331,17 @@
         grid-column: 1;
         grid-row: 1;
         justify-self: stretch;
-        min-height: 56px;
-        border-radius: 18px;
+        min-height: 44px;
+        border-radius: 14px;
         padding: 0 18px;
-        font-size: 1.04rem;
-        font-weight: 850;
-        box-shadow: 0 16px 30px rgba(22, 114, 243, 0.26);
+        font-size: 0.95rem;
+        font-weight: 800;
+        box-shadow: 0 12px 24px rgba(22, 114, 243, 0.24);
     }
 
     .clients-modern-page--mobile .clients-modern-new-btn svg {
-        width: 22px;
-        height: 22px;
+        width: 18px;
+        height: 18px;
     }
 
     .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs {
@@ -2355,20 +2355,20 @@
     }
 
     .clients-modern-page--mobile .clients-modern-card .clients-filter-tabs .clients-session-tab {
-        min-height: 54px;
-        border-radius: 17px;
-        padding: 0 18px;
-        gap: 10px;
-        font-size: 0.98rem;
+        min-height: 42px;
+        border-radius: 13px;
+        padding: 9px 14px;
+        gap: 8px;
+        font-size: 0.9rem;
         color: #0f172a;
         border: 1px solid #dbe3ef;
         background: #ffffff;
-        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
     }
 
     .clients-modern-page--mobile .clients-filter-dot {
-        width: 11px;
-        height: 11px;
+        width: 9px;
+        height: 9px;
     }
 
     .clients-modern-page--mobile .clients-mobile-list {
@@ -2566,6 +2566,7 @@
 @media (max-width: 760px) {
     /* Requested edge-to-edge width for client/group new and edit popups on small screens. */
     .clients-client-detail-modal.modal.large-modal,
+    .clients-company-detail-modal.modal.large-modal,
     .clients-client-create-modal.modal.large-modal,
     .clients-company-create-modal.modal.large-modal,
     .clients-group-detail-modal.modal.large-modal,
@@ -2579,6 +2580,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-body,
+    .clients-company-detail-modal .clients-action-workspace-body,
     .clients-client-create-modal .clients-action-workspace-body,
     .clients-company-create-modal .clients-action-workspace-body,
     .clients-group-detail-modal .clients-action-workspace-body,
@@ -2588,6 +2590,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-header,
+    .clients-company-detail-modal .clients-action-workspace-header,
     .clients-client-create-modal .clients-action-workspace-header,
     .clients-company-create-modal .clients-action-workspace-header,
     .clients-group-detail-modal .clients-action-workspace-header,
@@ -2597,6 +2600,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-footer,
+    .clients-company-detail-modal .clients-action-workspace-footer,
     .clients-client-create-modal .clients-action-workspace-footer,
     .clients-company-create-modal .clients-action-workspace-footer,
     .clients-group-detail-modal .clients-action-workspace-footer,
@@ -2606,6 +2610,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-tabs,
+    .clients-company-detail-modal .clients-action-workspace-tabs,
     .clients-group-detail-modal .clients-action-workspace-tabs,
     .clients-client-detail-modal .clients-detail-sessions-card,
     .clients-group-detail-modal .clients-detail-sessions-card,
@@ -2616,6 +2621,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-tabs-inner.clients-session-tabs,
+    .clients-company-detail-modal .clients-action-workspace-tabs-inner.clients-session-tabs,
     .clients-group-detail-modal .clients-action-workspace-tabs-inner.clients-session-tabs {
         width: 100%;
         max-width: 100%;
@@ -2624,6 +2630,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab,
+    .clients-company-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab,
     .clients-group-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab {
         min-width: 0;
         width: 100%;
@@ -2637,6 +2644,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab svg,
+    .clients-company-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab svg,
     .clients-group-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab svg {
         width: 15px;
         height: 15px;
@@ -2798,6 +2806,7 @@
 @supports selector(:has(*)) {
     @media (max-width: 760px) {
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-client-detail-modal),
+        .clients-action-workspace-backdrop.modal-backdrop:has(.clients-company-detail-modal),
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-client-create-modal),
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-company-create-modal),
         .clients-action-workspace-backdrop.modal-backdrop:has(.clients-group-detail-modal),
@@ -2810,6 +2819,7 @@
 
 @media (max-width: 420px) {
     .clients-client-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab,
+    .clients-company-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab,
     .clients-group-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab {
         min-height: 44px;
         gap: 3px;
@@ -2819,6 +2829,7 @@
     }
 
     .clients-client-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab svg,
+    .clients-company-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab svg,
     .clients-group-detail-modal .clients-action-workspace-tabs-inner .clients-session-tab svg {
         width: 14px;
         height: 14px;

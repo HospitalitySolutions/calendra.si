@@ -672,7 +672,7 @@ export function SessionTypesPage() {
 
   const [isSessionTypesNarrow, setIsSessionTypesNarrow] = useState(() =>
     typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 450px)").matches
+      ? window.matchMedia("(max-width: 720px)").matches
       : false,
   );
   const [openTypeMenuId, setOpenTypeMenuId] = useState<number | null>(null);
@@ -743,7 +743,7 @@ export function SessionTypesPage() {
   );
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 450px)");
+    const mq = window.matchMedia("(max-width: 720px)");
     const apply = () => setIsSessionTypesNarrow(mq.matches);
     apply();
     mq.addEventListener("change", apply);
@@ -2054,18 +2054,21 @@ export function SessionTypesPage() {
     if (e.target === e.currentTarget) dismissServiceModal();
   };
 
+  const sessionTypesPageClass = `stack gap-lg${isSessionTypesNarrow ? " clients-modern-page--mobile" : ""}`;
   const sessionTypesCardClass = `service-config-card clients-modern-card${isSessionTypesNarrow ? " clients-mobile-shell" : ""}`;
+  const sessionTypesHeaderClass = `clients-page-header${isSessionTypesNarrow ? " clients-page-header--sticky-mobile" : ""}`;
 
   return (
-    <div className="stack gap-lg">
+    <div className={sessionTypesPageClass}>
       {typesModuleEnabled ? (
         <Card className={sessionTypesCardClass}>
-          <div className="service-config-topbar">
-            <div
-              className="clients-session-tabs service-config-tabs"
-              role="tablist"
-              aria-label={t("sessionTypesSubtabsAria")}
-            >
+          <div className={sessionTypesHeaderClass}>
+            <div className="clients-page-header__entity clients-entity-tabs-shell">
+              <div
+                className="clients-session-tabs clients-entity-tabs"
+                role="tablist"
+                aria-label={t("sessionTypesSubtabsAria")}
+              >
               <button
                 type="button"
                 role="tab"
@@ -2223,6 +2226,7 @@ export function SessionTypesPage() {
               </button>
             </div>
           </div>
+          </div>
           {showCardsMemberships ? (
             <CardsMembershipsSection
               ref={cardsMembershipsRef}
@@ -2239,12 +2243,13 @@ export function SessionTypesPage() {
         </Card>
       ) : (
         <Card className={sessionTypesCardClass}>
-          <div className="service-config-topbar">
-            <div
-              className="clients-session-tabs service-config-tabs"
-              role="tablist"
-              aria-label={t("sessionTypesSubtabsAria")}
-            >
+          <div className={sessionTypesHeaderClass}>
+            <div className="clients-page-header__entity clients-entity-tabs-shell">
+              <div
+                className="clients-session-tabs clients-entity-tabs"
+                role="tablist"
+                aria-label={t("sessionTypesSubtabsAria")}
+              >
               <button
                 type="button"
                 role="tab"
@@ -2364,6 +2369,7 @@ export function SessionTypesPage() {
               </button>
             </div>
           </div>
+          </div>
           {showCardsMemberships ? (
             <CardsMembershipsSection
               ref={cardsMembershipsRef}
@@ -2395,11 +2401,6 @@ export function SessionTypesPage() {
                 </span>
                 <div>
                   <h2>{editingType ? t("Edit type") : t("New type")}</h2>
-                  <p>
-                    {locale === "sl"
-                      ? "Uredi podrobnosti storitve"
-                      : "Edit service details"}
-                  </p>
                 </div>
               </div>
               <button
@@ -3160,11 +3161,6 @@ export function SessionTypesPage() {
                       ? t("sessionTypesTxModalEditTitle")
                       : t("sessionTypesTxModalNewTitle")}
                   </h2>
-                  <p>
-                    {locale === "sl"
-                      ? "Uredi podrobnosti transakcijske storitve"
-                      : "Edit transaction service details"}
-                  </p>
                 </div>
               </div>
               <button
