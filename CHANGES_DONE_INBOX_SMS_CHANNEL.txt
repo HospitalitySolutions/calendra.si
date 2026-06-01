@@ -1,0 +1,21 @@
+Inbox SMS channel update
+
+Updated files:
+- backend/src/main/java/com/example/app/inbox/MessageChannel.java
+- backend/src/main/java/com/example/app/inbox/ClientMessageService.java
+- frontend/src/lib/types.ts
+- frontend/src/pages/AnalyticsInboxTab.tsx
+
+Changes done:
+- Added SMS as a first-class Inbox message channel on backend and frontend.
+- Backend manual Inbox sends now route SMS through the existing SmsGateway / A1 Crosschat integration.
+- SMS sends are saved in the same client message timeline as email, WhatsApp, Viber and Guest App messages.
+- Failed SMS sends are persisted as FAILED, matching existing Inbox delivery behavior.
+- Successful manual Inbox SMS sends increment TENANCY_SMS_SENT_COUNT by the returned SMS parts count.
+- Frontend Inbox channel selector now shows SMS.
+- SMS is disabled for single-client sending when the selected client has no phone number.
+- Bulk and group send flows now include SMS for clients/group members with phone numbers.
+- Inbox filters, labels, icons, statuses and compose helper text now handle SMS.
+
+Build note:
+- Full Maven/npm builds were not run in this sandbox because dependencies/wrappers may need internet access.

@@ -16,10 +16,12 @@ import com.example.app.files.ClientFileUploadPolicy;
 import com.example.app.files.StoredFileResponse;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
+import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalMessagingProviderService;
 import com.example.app.settings.SettingKey;
 import com.example.app.settings.SettingsCryptoService;
+import com.example.app.sms.SmsGateway;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -73,8 +75,10 @@ public class ClientMessageService {
     private final AppSettingRepository settings;
     private final UserRepository users;
     private final SettingsCryptoService crypto;
+    private final SmsGateway smsGateway;
     private final JavaMailSender mailSender;
     private final boolean mailConfigured;
+    private final boolean smsConfigured;
     private final String mailFrom;
     private final String fallbackFrom;
     private final ObjectMapper objectMapper;
@@ -96,6 +100,7 @@ public class ClientMessageService {
             SettingsCryptoService crypto,
             GlobalMessagingProviderService globalMessagingProviders,
             GuestSettingsService guestSettingsService,
+            SmsGateway smsGateway,
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
@@ -115,6 +120,8 @@ public class ClientMessageService {
         this.crypto = crypto;
         this.globalMessagingProviders = globalMessagingProviders;
         this.guestSettingsService = guestSettingsService;
+        this.smsGateway = smsGateway;
+        this.smsConfigured = smsGateway != null && smsGateway.isConfigured();
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
         this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
@@ -477,6 +484,7 @@ public class ClientMessageService {
         try {
             ChannelDeliveryResult result = switch (channel) {
                 case EMAIL -> sendEmail(client, row.getSubject(), body, me);
+                case SMS -> sendSmsText(client, body);
                 case WHATSAPP -> sendWhatsAppText(client, row.getSubject(), body, me);
                 case VIBER -> sendViberText(client, body);
                 case GUEST_APP -> sendGuestAppMessage(client, body, me, row, safeAttachments);
@@ -999,6 +1007,58 @@ public class ClientMessageService {
         }
     }
 
+    private ChannelDeliveryResult sendSmsText(Client client, String body) {
+        String to = blankToNull(client.getPhone());
+        if (to == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client does not have a phone number for SMS.");
+        }
+        if (!smsConfigured || smsGateway == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SMS is not configured on the server. Configure the A1 Crosschat SMS gateway first.");
+        }
+        try {
+            SmsGateway.SmsSendResult result = smsGateway.send(new SmsGateway.SmsSendRequest(
+                    client.getCompany().getId(),
+                    to,
+                    body,
+                    buildInboxSmsCustomId(client)
+            ));
+            incrementTenantSmsSentCount(client.getCompany(), result.parts());
+            String externalId = result.messageId() != null ? String.valueOf(result.messageId()) : result.customId();
+            return new ChannelDeliveryResult(to.trim(), externalId, MessageStatus.SENT);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SMS send failed: " + safeMessage(ex));
+        }
+    }
+
+    private String buildInboxSmsCustomId(Client client) {
+        String clientPart = client != null && client.getId() != null ? String.valueOf(client.getId()) : "x";
+        String base = "inbox-c" + clientPart + "-" + Instant.now().toEpochMilli();
+        return base.length() <= 36 ? base : base.substring(0, 36);
+    }
+
+    private void incrementTenantSmsSentCount(Company company, int parts) {
+        if (company == null || company.getId() == null) return;
+        try {
+            AppSetting setting = settings.findForUpdateByCompanyIdAndKey(company.getId(), SettingKey.TENANCY_SMS_SENT_COUNT).orElseGet(() -> {
+                AppSetting created = new AppSetting();
+                created.setCompany(company);
+                created.setKey(SettingKey.TENANCY_SMS_SENT_COUNT.name());
+                created.setValue("0");
+                return settings.save(created);
+            });
+            int current;
+            try {
+                current = Integer.parseInt(setting.getValue() == null || setting.getValue().isBlank() ? "0" : setting.getValue().trim());
+            } catch (NumberFormatException ignored) {
+                current = 0;
+            }
+            setting.setValue(String.valueOf(current + Math.max(1, parts)));
+            settings.save(setting);
+        } catch (Exception ignored) {
+            // SMS was accepted by the provider; do not fail the user-facing send just because usage metering failed.
+        }
+    }
+
     private ChannelDeliveryResult sendWhatsAppText(Client client, String subject, String body, User me) {
         if (!globalMessagingProviders.isWhatsAppEnabled()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "WhatsApp is globally disabled by platform admin.");
@@ -1165,6 +1225,7 @@ public class ClientMessageService {
     private String resolveRecipient(Client client, MessageChannel channel) {
         return switch (channel) {
             case EMAIL -> blankToNull(client.getEmail()) != null ? client.getEmail().trim() : "";
+            case SMS -> blankToNull(client.getPhone()) != null ? client.getPhone().trim() : "";
             case WHATSAPP -> blankToNull(client.getWhatsappPhone()) != null ? client.getWhatsappPhone().trim() : blankToNull(client.getPhone()) != null ? client.getPhone().trim() : "";
             case VIBER -> blankToNull(client.getViberUserId()) != null ? client.getViberUserId().trim() : "";
             case GUEST_APP -> blankToNull(client.getEmail()) != null ? client.getEmail().trim() : String.valueOf(client.getId());

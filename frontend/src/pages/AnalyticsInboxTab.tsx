@@ -7,7 +7,7 @@ import type { Client, ClientGroup, ClientMessage, InboxChannel, InboxStatus, Inb
 import { formatDateTime } from '../lib/format'
 import { useLocale } from '../locale'
 
-const CHANNELS: InboxChannel[] = ['EMAIL', 'WHATSAPP', 'VIBER', 'GUEST_APP']
+const CHANNELS: InboxChannel[] = ['EMAIL', 'SMS', 'WHATSAPP', 'VIBER', 'GUEST_APP']
 type RecipientMode = 'single' | 'bulk' | 'group'
 type ScheduleView = 'list' | 'form'
 type ScheduledItem = {
@@ -295,6 +295,7 @@ function clientName(row: { firstName?: string | null; lastName?: string | null }
 }
 
 function channelLabel(channel: InboxChannel) {
+  if (channel === 'SMS') return 'SMS'
   if (channel === 'WHATSAPP') return 'WhatsApp'
   if (channel === 'VIBER') return 'Viber'
   if (channel === 'GUEST_APP') return 'Guest App'
@@ -303,6 +304,7 @@ function channelLabel(channel: InboxChannel) {
 
 function channelTone(channel: InboxChannel): 'default' | 'green' | 'red' | 'blue' {
   if (channel === 'EMAIL') return 'blue'
+  if (channel === 'SMS') return 'default'
   if (channel === 'WHATSAPP') return 'green'
   if (channel === 'GUEST_APP') return 'blue'
   return 'default'
@@ -359,6 +361,10 @@ function hasWhatsAppTarget(client?: Client | null) {
   return !!(client?.whatsappPhone?.trim() || client?.phone?.trim())
 }
 
+function hasSmsTarget(client?: Client | null) {
+  return !!client?.phone?.trim()
+}
+
 function hasViberTarget(client?: Client | null) {
   return !!client?.viberConnected
 }
@@ -370,6 +376,7 @@ function hasGuestAppTarget(client?: Client | null) {
 function isClientEligibleForChannel(client: Client | null | undefined, channel: InboxChannel) {
   if (!client) return false
   if (channel === 'EMAIL') return hasEmailTarget(client)
+  if (channel === 'SMS') return hasSmsTarget(client)
   if (channel === 'WHATSAPP') return !!client.whatsappOptIn && hasWhatsAppTarget(client)
   if (channel === 'VIBER') return hasViberTarget(client)
   return hasGuestAppTarget(client)
@@ -377,6 +384,7 @@ function isClientEligibleForChannel(client: Client | null | undefined, channel: 
 
 function clientEligibilityLabel(client: Client, channel: InboxChannel, copy: any) {
   if (channel === 'EMAIL') return hasEmailTarget(client) ? copy.ready : copy.missingEmail
+  if (channel === 'SMS') return hasSmsTarget(client) ? copy.ready : copy.missingPhone
   if (channel === 'WHATSAPP') {
     if (!client.whatsappOptIn) return copy.optInNeeded
     return hasWhatsAppTarget(client) ? copy.ready : copy.missingPhone
@@ -424,6 +432,7 @@ function threadSectionLabel(value?: string | null) {
 }
 
 function channelIcon(channel: InboxChannel) {
+  if (channel === 'SMS') return '💬'
   if (channel === 'WHATSAPP') return '☘'
   if (channel === 'VIBER') return '☎'
   if (channel === 'GUEST_APP') return '▣'
@@ -481,8 +490,9 @@ export function AnalyticsInboxTab() {
     groupSummary: (members: number, active: number, eligible: number, channel: string) => `${members} članov · ${active} aktivnih · ${eligible} ustreznih za ${channel.toLowerCase()}`,
     noClientsMatch: 'Nobena stranka ne ustreza iskanju.',
     noContactInfo: 'Ni kontaktnih podatkov',
-    bulkSendTitle: 'Množično pošiljanje trenutno podpira le e-pošto in WhatsApp.',
+    bulkSendTitle: 'Množično pošiljanje trenutno podpira e-pošto, SMS in WhatsApp.',
     addEmailAddress: 'Dodajte e-poštni naslov stranke.',
+    addSmsPhone: 'Dodajte telefonsko številko stranke za SMS.',
     addWhatsApp: 'Dodajte telefonsko številko stranke in soglasje za WhatsApp.',
     viberOnlyLinked: 'Viber je na voljo samo za povezane stranke.',
     guestAppOnlyLinked: 'Gost aplikacija je na voljo samo za povezane goste.',
@@ -492,8 +502,11 @@ export function AnalyticsInboxTab() {
     writeMessage: (channel: string) => `Napišite ${channel} sporočilo...`,
     bulkEmailNote: 'Množična e-pošta pošlje isto sporočilo vsem izbranim strankam z e-poštnim naslovom.',
     bulkWhatsAppNote: 'Množični WhatsApp se pošlje samo izbranim strankam s soglasjem in WhatsApp številko.',
-    bulkChannelUnavailable: 'Množično pošiljanje je trenutno na voljo za e-pošto in WhatsApp.',
+    bulkSmsNote: 'Množični SMS se pošlje samo izbranim strankam s telefonsko številko.',
+    bulkChannelUnavailable: 'Množično pošiljanje je trenutno na voljo za e-pošto, SMS in WhatsApp.',
     emailNote: 'E-pošta uporablja SMTP nastavitve, ki so že nastavljene v zaledju.',
+    smsNoteReady: 'SMS uporablja telefonsko številko stranke in nastavljen A1 Crosschat SMS prehod.',
+    smsNotePending: 'Za pošiljanje SMS sporočila dodajte telefonsko številko stranke.',
     whatsappNoteReady: 'WhatsApp uporablja telefonsko številko stranke ali WhatsApp številko. Telefon zaposlenega se v aplikaciji uporabi kot referenca pošiljatelja, dostava pa še vedno uporablja vaš nastavljen WhatsApp API pošiljatelj.',
     whatsappNoteOptIn: 'Pred pošiljanjem označite to stranko kot WhatsApp opt-in.',
     viberNoteReady: 'Viber uporablja uradni bot API in pošilja samo strankam, ki so že povezane z vašim Viber botom.',
@@ -585,8 +598,9 @@ export function AnalyticsInboxTab() {
     groupSummary: (members: number, active: number, eligible: number, channel: string) => `${members} members · ${active} active · ${eligible} eligible for ${channel.toLowerCase()}`,
     noClientsMatch: 'No clients match this search.',
     noContactInfo: 'No contact info',
-    bulkSendTitle: 'Bulk send currently supports Email and WhatsApp.',
+    bulkSendTitle: 'Bulk send currently supports Email, SMS and WhatsApp.',
     addEmailAddress: 'Add a client email address.',
+    addSmsPhone: 'Add a client phone number for SMS.',
     addWhatsApp: 'Add a client phone number and WhatsApp opt-in.',
     viberOnlyLinked: 'Viber is available only for linked clients.',
     guestAppOnlyLinked: 'Guest App is available only for clients linked to the guest mobile app.',
@@ -596,8 +610,11 @@ export function AnalyticsInboxTab() {
     writeMessage: (channel: string) => `Write your ${channel} message...`,
     bulkEmailNote: 'Bulk email sends the same message to every selected client with an email address.',
     bulkWhatsAppNote: 'Bulk WhatsApp sends only to selected clients with opt-in and a WhatsApp target number.',
-    bulkChannelUnavailable: 'Bulk send is currently available for Email and WhatsApp.',
+    bulkSmsNote: 'Bulk SMS sends only to selected clients with a phone number.',
+    bulkChannelUnavailable: 'Bulk send is currently available for Email, SMS and WhatsApp.',
     emailNote: 'Email uses the SMTP settings already configured on the backend.',
+    smsNoteReady: 'SMS uses the client phone number and the configured A1 Crosschat SMS gateway.',
+    smsNotePending: 'Add a client phone number before sending SMS.',
     whatsappNoteReady: 'WhatsApp uses the client phone or WhatsApp number. The consultant phone is used as the sender reference in the app, while delivery still relies on your configured WhatsApp API sender.',
     whatsappNoteOptIn: 'Mark this client as WhatsApp opt-in before sending.',
     viberNoteReady: 'Viber uses the official bot API and sends only to clients already linked to your Viber bot.',
@@ -1265,7 +1282,7 @@ export function AnalyticsInboxTab() {
         <div className="analytics-inbox-hero__copy">
           <SectionTitle>Inbox</SectionTitle>
           <p className="muted analytics-inbox-hero__text">
-            A unified communication hub for email, WhatsApp, Viber and Guest App.
+            A unified communication hub for email, SMS, WhatsApp, Viber and Guest App.
             <br />
             All conversations, across all channels and clients, in one place.
           </p>
@@ -1553,7 +1570,9 @@ export function AnalyticsInboxTab() {
                     ? channel === 'VIBER' || channel === 'GUEST_APP'
                     : recipientMode === 'group'
                       ? false
-                      : channel === 'WHATSAPP'
+                      : channel === 'SMS'
+                        ? !hasSmsTarget(selectedClient)
+                        : channel === 'WHATSAPP'
                         ? !selectedClient?.whatsappOptIn || !hasWhatsAppTarget(selectedClient)
                         : channel === 'VIBER'
                           ? !selectedClient?.viberConnected
@@ -1568,7 +1587,9 @@ export function AnalyticsInboxTab() {
                       ? undefined
                       : channel === 'EMAIL'
                         ? copy.addEmailAddress
-                        : channel === 'WHATSAPP'
+                        : channel === 'SMS'
+                          ? copy.addSmsPhone
+                          : channel === 'WHATSAPP'
                           ? copy.addWhatsApp
                           : channel === 'GUEST_APP'
                             ? copy.guestAppOnlyLinked
@@ -1620,7 +1641,9 @@ export function AnalyticsInboxTab() {
               {recipientMode === 'bulk'
                 ? composeChannel === 'EMAIL'
                   ? copy.bulkEmailNote
-                  : composeChannel === 'WHATSAPP'
+                  : composeChannel === 'SMS'
+                    ? copy.bulkSmsNote
+                    : composeChannel === 'WHATSAPP'
                     ? copy.bulkWhatsAppNote
                     : copy.bulkChannelUnavailable
                 : recipientMode === 'group'
@@ -1629,7 +1652,9 @@ export function AnalyticsInboxTab() {
                     : copy.groupSummary((selectedGroup.members ?? []).length, groupMemberClients.length, eligibleGroupClients.length, channelLabel(composeChannel))
                   : composeChannel === 'EMAIL'
                     ? copy.emailNote
-                    : composeChannel === 'WHATSAPP'
+                    : composeChannel === 'SMS'
+                      ? (hasSmsTarget(selectedClient) ? copy.smsNoteReady : copy.smsNotePending)
+                      : composeChannel === 'WHATSAPP'
                       ? (selectedClient?.whatsappOptIn ? copy.whatsappNoteReady : copy.whatsappNoteOptIn)
                       : composeChannel === 'VIBER'
                         ? (selectedClient?.viberConnected ? copy.viberNoteReady : copy.viberNotePending)

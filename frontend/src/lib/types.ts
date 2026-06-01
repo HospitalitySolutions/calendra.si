@@ -374,7 +374,7 @@ export type OpenBill = {
 }
 
 
-export type InboxChannel = 'EMAIL' | 'WHATSAPP' | 'VIBER' | 'GUEST_APP'
+export type InboxChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'VIBER' | 'GUEST_APP'
 export type InboxDirection = 'INBOUND' | 'OUTBOUND'
 export type InboxStatus = 'SENT' | 'DELIVERED' | 'READ' | 'RECEIVED' | 'FAILED'
 
