@@ -1,0 +1,7 @@
+Changes done:
+- Fixed backend test compilation error in SessionTypeController.TypeResponse.
+- Restored the TypeResponse accessor to name() while keeping the JSON response field as "name".
+- This keeps existing frontend/API payload behavior unchanged and satisfies SessionTypeControllerVatValidationTest.
+
+Build check:
+- Backend build could not be run in this sandbox because Maven is not installed and the Maven wrapper cannot download Maven without internet access.

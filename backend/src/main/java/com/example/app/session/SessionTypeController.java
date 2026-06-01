@@ -65,7 +65,7 @@ public class SessionTypeController {
     ) {}
     public record TypeResponse(
             Long id,
-            @JsonProperty("name") String code,
+            @JsonProperty("name") String name,
             String description,
             Integer durationMinutes,
             Integer breakMinutes,
