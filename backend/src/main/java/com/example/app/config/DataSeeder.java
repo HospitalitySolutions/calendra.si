@@ -115,7 +115,7 @@ public class DataSeeder implements CommandLineRunner {
         seedSetting(platformCompany, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "false");
         seedSetting(platformCompany, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, "true");
         seedSetting(platformCompany, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false");
-        seedSetting(platformCompany, SettingKey.GLOBAL_CONSUMABLES_ENABLED, "true");
+        seedSetting(platformCompany, SettingKey.GLOBAL_CONSUMABLES_ENABLED, "false");
     }
 
     private void seedTenant(String tenantName, String adminEmail) {

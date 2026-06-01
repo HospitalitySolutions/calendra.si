@@ -382,7 +382,7 @@ public class PlatformAdminController {
                 Map.entry(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name(),
                         get(companyId, SettingKey.GLOBAL_AJPES_PRS_ENABLED, "false")),
                 Map.entry(SettingKey.GLOBAL_CONSUMABLES_ENABLED.name(),
-                        get(companyId, SettingKey.GLOBAL_CONSUMABLES_ENABLED, "true"))
+                        get(companyId, SettingKey.GLOBAL_CONSUMABLES_ENABLED, "false"))
         );
     }
 

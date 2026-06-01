@@ -25,7 +25,7 @@ public class GlobalConsumablesFeatureService {
                 .map(v -> v == null ? "" : v.trim())
                 .filter(v -> !v.isBlank())
                 .map(v -> "true".equalsIgnoreCase(v) || "1".equals(v))
-                .orElse(true);
+                .orElse(false);
     }
 
     public boolean isEnabledForUser(User user) {
