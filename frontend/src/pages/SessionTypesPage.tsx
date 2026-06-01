@@ -1045,6 +1045,7 @@ export function SessionTypesPage() {
   }, []);
 
   const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
+  const groupBookingModuleEnabled = settings.GROUP_BOOKING_ENABLED === "true";
   const advanceDeductionIds = useMemo(
     () =>
       parseAdvanceDeductionServiceIds(
@@ -1090,6 +1091,25 @@ export function SessionTypesPage() {
     [serviceForm.grossPrice, serviceForm.taxRate],
   );
 
+  useEffect(() => {
+    if (groupBookingModuleEnabled) return;
+    setTypeForm((prev) => {
+      if (
+        prev.groupBookingEnabled !== true &&
+        !prev.maxParticipantsPerSession.trim() &&
+        !prev.guestLimitUserEmailsText.trim()
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        groupBookingEnabled: false,
+        maxParticipantsPerSession: "",
+        guestLimitUserEmailsText: "",
+      };
+    });
+  }, [groupBookingModuleEnabled]);
+
   const submitType = async (e: FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
@@ -1102,6 +1122,8 @@ export function SessionTypesPage() {
     const { widgetGroupBookingEnabled, guestBookingEnabled } =
       flagsFromGuestBookingMode(typeForm.guestBookingMode);
     const maxParticipantsTrimmed = typeForm.maxParticipantsPerSession.trim();
+    const effectiveGroupBookingEnabled =
+      groupBookingModuleEnabled && typeForm.groupBookingEnabled;
     const maxParticipantsParsed =
       maxParticipantsTrimmed === ""
         ? null
@@ -1116,14 +1138,14 @@ export function SessionTypesPage() {
       description: typeForm.description,
       durationMinutes: clampSessionTypeInt0to999(typeForm.durationMinutes),
       breakMinutes: clampSessionTypeInt0to999(typeForm.breakMinutes),
-      maxParticipantsPerSession: typeForm.groupBookingEnabled
+      maxParticipantsPerSession: effectiveGroupBookingEnabled
         ? maxParticipantsParsed
         : null,
-      groupBookingEnabled: typeForm.groupBookingEnabled,
+      groupBookingEnabled: effectiveGroupBookingEnabled,
       widgetGroupBookingEnabled,
       guestBookingEnabled,
       priceCalculationMode: typeForm.priceCalculationMode,
-      guestLimitUserEmails: typeForm.groupBookingEnabled
+      guestLimitUserEmails: effectiveGroupBookingEnabled
         ? parseGuestLimitUserEmails(typeForm.guestLimitUserEmailsText)
         : [],
       services: typeForm.serviceLines.map((l) => ({
@@ -1190,12 +1212,19 @@ export function SessionTypesPage() {
         active: nextActive,
         durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
         breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
-        maxParticipantsPerSession: type.maxParticipantsPerSession ?? null,
-        groupBookingEnabled: type.groupBookingEnabled === true,
+        maxParticipantsPerSession:
+          groupBookingModuleEnabled && type.groupBookingEnabled === true
+            ? type.maxParticipantsPerSession ?? null
+            : null,
+        groupBookingEnabled:
+          groupBookingModuleEnabled && type.groupBookingEnabled === true,
         widgetGroupBookingEnabled: type.widgetGroupBookingEnabled === true,
         guestBookingEnabled: type.guestBookingEnabled !== false,
         priceCalculationMode: type.priceCalculationMode ?? "PER_CLIENT",
-        guestLimitUserEmails: type.guestLimitUserEmails ?? [],
+        guestLimitUserEmails:
+          groupBookingModuleEnabled && type.groupBookingEnabled === true
+            ? type.guestLimitUserEmails ?? []
+            : [],
         services: (type.linkedServices || []).map((ls) => ({
           transactionServiceId: ls.transactionServiceId,
           price: ls.price ?? null,
@@ -1386,20 +1415,22 @@ export function SessionTypesPage() {
       durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
       breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
       maxParticipantsPerSession:
+        groupBookingModuleEnabled &&
         type.maxParticipantsPerSession != null &&
         Number(type.maxParticipantsPerSession) >= 1
           ? normalizeOptionalParticipantsField(
               String(type.maxParticipantsPerSession),
             )
           : "",
-      groupBookingEnabled: type.groupBookingEnabled === true,
+      groupBookingEnabled:
+        groupBookingModuleEnabled && type.groupBookingEnabled === true,
       guestBookingMode: guestBookingModeFromFlags(
         type.widgetGroupBookingEnabled === true,
         type.guestBookingEnabled !== false,
       ),
       priceCalculationMode: type.priceCalculationMode ?? "PER_CLIENT",
       guestLimitUserEmailsText: guestLimitUserEmailsTextFromApi(
-        type.guestLimitUserEmails,
+        groupBookingModuleEnabled ? type.guestLimitUserEmails : [],
       ),
       serviceLines: (type.linkedServices || []).map((ls) => ({
         transactionServiceId: ls.transactionServiceId,
@@ -2868,6 +2899,9 @@ export function SessionTypesPage() {
 
                 <div
                   className={`session-type-config-group-card${typeForm.groupBookingEnabled ? " is-on" : ""}`}
+                  style={
+                    groupBookingModuleEnabled ? undefined : { display: "none" }
+                  }
                 >
                   <label className="session-type-config-group-toggle">
                     <span
