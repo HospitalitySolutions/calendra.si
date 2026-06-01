@@ -164,6 +164,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10006000000000000000001 /* Build configuration list for PBXNativeTarget "GuestMobile" */;
 			buildPhases = (
+				A10005020000000000000001 /* Validate API_BASE_URL */,
 				A10005000000000000000001 /* Sources */,
 				A10002000000000000000001 /* Frameworks */,
 				A10005010000000000000001 /* Resources */,
@@ -235,6 +236,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A10005020000000000000001 /* Validate API_BASE_URL */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Validate API_BASE_URL";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/validate-api-base-url.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		A10005000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -271,6 +294,7 @@
 		A10008000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				API_BASE_URL = "http://localhost:4000";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -294,6 +318,7 @@
 		A10008010000000000000001 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				API_BASE_URL = "https://app.calendra.si";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

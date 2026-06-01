@@ -3530,7 +3530,8 @@ public class BillingController {
                                              @RequestParam(value = "locale", required = false) String locale,
                                              @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
-        var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId).orElseThrow());
+        var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND)));
         if (BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cancelled bill cannot be resent.");
         }
@@ -3543,7 +3544,8 @@ public class BillingController {
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> billPdf(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
-        var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId).orElseThrow());
+        var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND)));
         byte[] pdf = invoicePdfS3Service.downloadIfPresent(bill);
         if (pdf == null) {
             pdf = billFolioPdfService.generate(bill, companyId);
@@ -3560,7 +3562,8 @@ public class BillingController {
                                                @RequestParam(value = "locale", required = false) String locale,
                                                @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
-        var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId).orElseThrow());
+        var bill = ensureSnapshotBackfilled(billRepo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND)));
         byte[] pdf = billFolioPdfService.generate(bill, companyId, locale);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,

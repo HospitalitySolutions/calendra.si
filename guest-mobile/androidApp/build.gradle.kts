@@ -7,14 +7,38 @@ fun esc(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"
 fun envOrProp(name: String, defaultValue: String = ""): String = (project.findProperty(name) as String?) ?: System.getenv(name) ?: defaultValue
 fun quoted(value: String): String = "\"${esc(value)}\""
 fun quotedEnv(name: String, defaultValue: String = ""): String = quoted(envOrProp(name, defaultValue))
-fun apiBaseUrl(): String {
-    val explicit = envOrProp("API_BASE_URL")
+
+fun buildApiBaseUrl(protocol: String, host: String, port: String): String {
+    val safeHost = host.removePrefix("http://").removePrefix("https://").trimEnd('/')
+    return if (port.isBlank()) "$protocol://$safeHost" else "$protocol://$safeHost:$port"
+}
+
+fun apiBaseUrlForDebug(): String {
+    val explicit = envOrProp("API_BASE_URL").trim()
     if (explicit.isNotBlank()) return explicit
 
-    val protocol = envOrProp("API_BASE_PROTOCOL", "http")
-    val host = envOrProp("API_BASE_HOST", "https://app.calendra.si")
-    val port = envOrProp("API_BASE_PORT", "4000")
-    return if (port.isBlank()) "$protocol://$host" else "$protocol://$host:$port"
+    val protocol = envOrProp("API_BASE_PROTOCOL", "http").trim().ifBlank { "http" }
+    val host = envOrProp("API_BASE_HOST", "10.0.2.2").trim().ifBlank { "10.0.2.2" }
+    val port = envOrProp("API_BASE_PORT", "4000").trim()
+    return buildApiBaseUrl(protocol, host, port)
+}
+
+fun apiBaseUrlForRelease(): String {
+    // Keep Android Studio/Gradle sync usable, but release build tasks below require API_BASE_URL explicitly.
+    return envOrProp("API_BASE_URL", "https://app.calendra.si").trim()
+}
+
+fun validateReleaseApiBaseUrl() {
+    val explicit = envOrProp("API_BASE_URL").trim()
+    require(explicit.isNotBlank()) {
+        "API_BASE_URL must be set for Android release builds, for example: API_BASE_URL=https://app.calendra.si ./gradlew :androidApp:assembleRelease"
+    }
+    require(explicit.startsWith("https://")) {
+        "API_BASE_URL must use https:// for Android release builds. Current value: $explicit"
+    }
+    require(!explicit.contains("localhost", ignoreCase = true) && !explicit.contains("127.0.0.1") && !explicit.contains("10.0.2.2")) {
+        "API_BASE_URL must not point to a local development host for Android release builds. Current value: $explicit"
+    }
 }
 
 android {
@@ -27,13 +51,22 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "0.1.1"
-        // Switch API target by setting API_BASE_HOST (or full API_BASE_URL) before building.
-        // Android emulator default: 10.0.2.2 → host machine.
-        buildConfigField("String", "API_BASE_URL", quoted(apiBaseUrl()))
         buildConfigField("String", "FCM_PROJECT_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID"))
         buildConfigField("String", "FCM_APPLICATION_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID"))
         buildConfigField("String", "FCM_API_KEY", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_API_KEY"))
         buildConfigField("String", "FCM_GCM_SENDER_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID"))
+    }
+
+    buildTypes {
+        debug {
+            // Android emulator default: 10.0.2.2 → host machine. Override with API_BASE_URL when needed.
+            buildConfigField("String", "API_BASE_URL", quoted(apiBaseUrlForDebug()))
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
+        release {
+            buildConfigField("String", "API_BASE_URL", quoted(apiBaseUrlForRelease()))
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+        }
     }
 
     buildFeatures {
@@ -45,6 +78,15 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+tasks.matching { task ->
+    val name = task.name.lowercase()
+    name.contains("release") && (name.startsWith("assemble") || name.startsWith("bundle") || name.startsWith("package"))
+}.configureEach {
+    doFirst {
+        validateReleaseApiBaseUrl()
     }
 }
 

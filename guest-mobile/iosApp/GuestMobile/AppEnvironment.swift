@@ -13,11 +13,22 @@ final class AppEnvironment {
         let configured = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String
         let value = configured?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-        if !value.isEmpty, !value.contains("$("), let url = URL(string: value) {
+        if !value.isEmpty, !value.contains("$("), let url = URL(string: value), let scheme = url.scheme, let host = url.host, !host.isEmpty {
+            #if DEBUG
             return url
+            #else
+            if scheme == "https" && host != "localhost" && host != "127.0.0.1" {
+                return url
+            }
+            #endif
         }
 
-        // iOS simulator can reach the Mac host through localhost.
+        #if DEBUG
+        // iOS simulator can reach the Mac host through localhost during local development.
         return URL(string: "http://localhost:4000")!
+        #else
+        // Release builds also validate API_BASE_URL at build time; keep a safe production fallback here.
+        return URL(string: "https://app.calendra.si")!
+        #endif
     }
 }
