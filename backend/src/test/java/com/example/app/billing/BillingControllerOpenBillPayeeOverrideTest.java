@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
-import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,6 +26,7 @@ import com.example.app.stripe.StripeBillingService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -124,9 +125,9 @@ class BillingControllerOpenBillPayeeOverrideTest {
         openBill.setConsultant(consultant);
         openBill.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
 
-        when(openBillRepo.findById(18L)).thenReturn(Optional.of(openBill));
-        when(openBillRepo.save(any(OpenBill.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(openBillRepo.findAllWithItemsByCompanyId(1L)).thenReturn(List.of(openBill));
+        org.mockito.Mockito.lenient().when(openBillRepo.findById(18L)).thenReturn(Optional.of(openBill));
+        org.mockito.Mockito.lenient().when(openBillRepo.save(any(OpenBill.class))).thenAnswer(inv -> inv.getArgument(0));
+        org.mockito.Mockito.lenient().when(openBillRepo.findAllWithItemsByCompanyId(1L)).thenReturn(List.of(openBill));
     }
 
     @Test
@@ -147,6 +148,10 @@ class BillingControllerOpenBillPayeeOverrideTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 List.of()
         );
 
@@ -163,6 +168,7 @@ class BillingControllerOpenBillPayeeOverrideTest {
         recipientCompany.setOwnerCompany(ownerCompany);
 
         when(clientCompanies.findByIdAndOwnerCompanyId(202L, 1L)).thenReturn(Optional.of(recipientCompany));
+        when(clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(1L, 202L)).thenReturn(Optional.empty());
 
         BillingController.OpenBillUpdateRequest req = new BillingController.OpenBillUpdateRequest(
                 null,
@@ -173,13 +179,17 @@ class BillingControllerOpenBillPayeeOverrideTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 List.of()
         );
 
         assertDoesNotThrow(() -> controller.updateOpenBill(18L, req, me));
         assertSame(existingClient, openBill.getClient());
         assertEquals(202L, openBill.getBatchTargetCompanyId());
-        verify(clients, never()).findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(1L, 202L);
+        verify(clients).findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(1L, 202L);
     }
 
     @Test
@@ -192,6 +202,10 @@ class BillingControllerOpenBillPayeeOverrideTest {
                 "COMPANY",
                 11L,
                 999L,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -223,7 +237,7 @@ class BillingControllerOpenBillPayeeOverrideTest {
         when(clients.findByIdAndCompanyId(11L, 1L)).thenReturn(Optional.of(existingClient));
         when(sessionBookings.findByIdAndCompanyId(55L, 1L)).thenReturn(Optional.of(selectedSession));
         when(openBillRepo.findBySessionBookingIdAndCompanyId(55L, 1L)).thenReturn(Optional.of(openBill));
-        when(sessionBookings.findAllByCompanyIdAndIds(1L, anySet())).thenReturn(List.of(selectedSession));
+        when(sessionBookings.findAllByCompanyIdAndIds(eq(1L), anySet())).thenReturn(List.of(selectedSession));
 
         BillingController.OpenBillUpdateRequest req = new BillingController.OpenBillUpdateRequest(
                 null,
@@ -233,6 +247,10 @@ class BillingControllerOpenBillPayeeOverrideTest {
                 303L,
                 null,
                 55L,
+                null,
+                null,
+                null,
+                null,
                 null,
                 List.of()
         );
@@ -271,11 +289,60 @@ class BillingControllerOpenBillPayeeOverrideTest {
                 null,
                 77L,
                 null,
+                null,
+                null,
+                null,
+                null,
                 List.of()
         );
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.updateOpenBill(18L, req, me));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals("Selected session is already linked to another open bill.", ex.getReason());
+    }
+
+    @Test
+    void updateOpenBill_persistsDiscountAndReturnsComputedTotals() {
+        TransactionService tx = new TransactionService();
+        tx.setId(44L);
+        tx.setCompany(ownerCompany);
+        tx.setCode("CONS");
+        tx.setDescription("Consultation");
+        tx.setTaxRate(TaxRate.VAT_22);
+        tx.setNetPrice(new BigDecimal("50.00"));
+
+        when(txRepo.findByIdAndCompanyId(44L, 1L)).thenReturn(Optional.of(tx));
+        when(clients.findByIdAndCompanyId(11L, 1L)).thenReturn(Optional.of(existingClient));
+
+        BillingController.OpenBillUpdateRequest req = new BillingController.OpenBillUpdateRequest(
+                null,
+                "",
+                "PERSON",
+                11L,
+                null,
+                null,
+                null,
+                "PERCENT",
+                new BigDecimal("10"),
+                null,
+                null,
+                null,
+                List.of(new BillingController.OpenBillItemRequest(
+                        44L,
+                        1,
+                        new BigDecimal("50.00"),
+                        new BigDecimal("61.00"),
+                        null,
+                        null
+                ))
+        );
+
+        BillingController.OpenBillResponse response = assertDoesNotThrow(() -> controller.updateOpenBill(18L, req, me));
+        assertEquals("PERCENT", openBill.getDiscountType());
+        assertEquals(new BigDecimal("10.0000"), openBill.getDiscountValue());
+        assertEquals("PERCENT", response.discountType());
+        assertEquals(new BigDecimal("10.0000"), response.discountValue());
+        assertEquals(new BigDecimal("6.10"), response.discountAmountGross());
+        assertEquals(new BigDecimal("54.90"), response.discountedTotalGross());
     }
 }

@@ -3,6 +3,7 @@ package com.example.app.billing;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.client.Client;
+import com.example.app.client.InvoiceRecipientType;
 import com.example.app.client.ClientRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -64,6 +65,7 @@ public class BillingController {
     private static final ObjectMapper JSON = new ObjectMapper();
     /** Must match the frontend sentinel range used for invoice-editor lines added manually. */
     private static final long MANUAL_OPEN_BILL_LINE_SOURCE_ID_LIMIT = -900_000_000_000L;
+    private static final String COMPANY_BILL_PROXY_EMAIL_DOMAIN = "calendra.invalid";
     private static final Set<String> GUEST_PRODUCT_TYPES = Set.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
     private static final List<String> DEFAULT_ALLOWED_FOR_CARD = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
     private static final List<String> DEFAULT_ALLOWED_FOR_BANK_TRANSFER = List.of("PACK", "MEMBERSHIP", "GIFT_CARD");
@@ -247,6 +249,10 @@ public class BillingController {
             String batchScope,
             Long batchTargetClientId,
             Long batchTargetCompanyId,
+            String discountType,
+            BigDecimal discountValue,
+            BigDecimal discountAmountGross,
+            BigDecimal discountedTotalGross,
             String billType,
             String bookingGroupKey,
             List<PaymentSplitResponse> paymentSplits,
@@ -291,6 +297,10 @@ public class BillingController {
             Long recipientCompanyId,
             Long consultantId,
             Long sessionId,
+            String discountType,
+            BigDecimal discountValue,
+            BigDecimal discountAmountGross,
+            BigDecimal discountedTotalGross,
             List<PaymentSplitRequest> paymentSplits,
             List<OpenBillItemRequest> items
     ) {}
@@ -306,6 +316,10 @@ public class BillingController {
             Long sessionId,
             String billType,
             String reference,
+            String discountType,
+            BigDecimal discountValue,
+            BigDecimal discountAmountGross,
+            BigDecimal discountedTotalGross,
             List<PaymentSplitRequest> paymentSplits,
             List<ManualOpenBillLineRequest> items
     ) {}
@@ -760,8 +774,7 @@ public class BillingController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid recipientCompanyId."));
 
         if (resolvedClient == null && recipientCompany != null) {
-            resolvedClient = clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(companyId, recipientCompany.getId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No clients linked to this company."));
+            resolvedClient = resolveClientForCompanyTarget(companyId, recipientCompany, null, null, actor);
         }
         if (resolvedClient == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to resolve client for additional open bill.");
@@ -822,13 +835,6 @@ public class BillingController {
                 : clientCompanies.findByIdAndOwnerCompanyId(req.recipientCompanyId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid recipientCompanyId."));
 
-        if (client == null && recipientCompany != null) {
-            client = clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(companyId, recipientCompany.getId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No clients linked to this company."));
-        }
-        if (client == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to resolve client for manual open bill.");
-        }
         SessionBooking selectedSession = null;
         if (req.sessionId() != null && req.sessionId() > 0) {
             selectedSession = sessionBookings.findByIdAndCompanyId(req.sessionId(), companyId)
@@ -851,12 +857,27 @@ public class BillingController {
             client = selectedSession.getClient();
         }
 
+        if (client == null && recipientCompany != null) {
+            client = resolveClientForCompanyTarget(companyId, recipientCompany, null, null, actor);
+        }
+        if (client == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to resolve client for manual open bill.");
+        }
+
         final var resolvedClient = client;
         final var resolvedLinkedCompany = recipientCompany != null ? recipientCompany : resolvedClient.getBillingCompany();
         final var selectedSessionForOpenBill = selectedSession;
+        final boolean proxyCompanyClient = recipientCompany != null
+                && isCompanyProxyBillingClient(resolvedClient, companyId, recipientCompany.getId());
 
-        final boolean companyBatchEnabled = selectedSessionForOpenBill == null && resolvedLinkedCompany != null && resolvedLinkedCompany.isBatchPaymentEnabled();
-        final boolean clientBatchEnabled = selectedSessionForOpenBill == null && !companyBatchEnabled && resolvedClient.isBatchPaymentEnabled();
+        final boolean companyBatchEnabled = selectedSessionForOpenBill == null
+                && recipientCompany != null
+                && resolvedLinkedCompany != null
+                && !proxyCompanyClient;
+        final boolean clientBatchEnabled = selectedSessionForOpenBill == null
+                && !companyBatchEnabled
+                && !proxyCompanyClient
+                && resolvedClient.isBatchPaymentEnabled();
 
         OpenBill open;
         if (selectedSessionForOpenBill != null) {
@@ -910,9 +931,15 @@ public class BillingController {
             open.setClient(resolvedClient);
             open.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
             open.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
-            open.setBatchScope(OpenBill.BATCH_SCOPE_NONE);
-            open.setBatchTargetClientId(null);
-            open.setBatchTargetCompanyId(null);
+            if (selectedSessionForOpenBill == null && recipientCompany != null && resolvedLinkedCompany != null) {
+                open.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
+                open.setBatchTargetCompanyId(resolvedLinkedCompany.getId());
+                open.setBatchTargetClientId(null);
+            } else {
+                open.setBatchScope(OpenBill.BATCH_SCOPE_NONE);
+                open.setBatchTargetClientId(null);
+                open.setBatchTargetCompanyId(null);
+            }
             open.setSessionBooking(null);
             open.setManualSplitLocked(false);
         }
@@ -944,6 +971,12 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
         }
         addInitialLinesToManualOpenBill(open, companyId, selectedSessionId, nextManualSessionNo, req.items());
+        applyOpenBillDiscountDraft(
+                open,
+                req.discountType(),
+                req.discountValue(),
+                open.getBillType() == BillType.INVOICE
+        );
         if (req.paymentSplits() != null) {
             replaceOpenBillPaymentSplits(open, req.paymentSplits(), companyId);
         }
@@ -952,6 +985,77 @@ public class BillingController {
 
         syncOpenBillsFromPastSessions(companyId);
         return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId);
+    }
+
+    private Client resolveClientForCompanyTarget(
+            Long companyId,
+            ClientCompany recipientCompany,
+            Long explicitClientId,
+            Client existingClientFallback,
+            User fallbackAssignee
+    ) {
+        if (recipientCompany == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "recipientCompanyId is required for company open bills.");
+        }
+        if (explicitClientId != null) {
+            return clients.findByIdAndCompanyId(explicitClientId, companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid clientId."));
+        }
+        Client linkedClient = clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(companyId, recipientCompany.getId()).orElse(null);
+        if (linkedClient != null) {
+            return linkedClient;
+        }
+        if (existingClientFallback != null
+                && existingClientFallback.getCompany() != null
+                && Objects.equals(existingClientFallback.getCompany().getId(), companyId)) {
+            return existingClientFallback;
+        }
+        return findOrCreateCompanyProxyClient(companyId, recipientCompany, fallbackAssignee);
+    }
+
+    private Client findOrCreateCompanyProxyClient(Long companyId, ClientCompany recipientCompany, User fallbackAssignee) {
+        String proxyEmail = "company-billing-proxy+" + companyId + "-" + recipientCompany.getId() + "@" + COMPANY_BILL_PROXY_EMAIL_DOMAIN;
+        String normalizedProxyEmail = Client.normalizeEmailStorage(proxyEmail);
+        if (normalizedProxyEmail != null) {
+            for (Client candidate : clients.findAllByCompanyIdAndNormalizedEmail(companyId, normalizedProxyEmail)) {
+                if (candidate != null
+                        && candidate.getBillingCompany() != null
+                        && Objects.equals(candidate.getBillingCompany().getId(), recipientCompany.getId())) {
+                    return candidate;
+                }
+            }
+        }
+        Client created = new Client();
+        created.setCompany(recipientCompany.getOwnerCompany());
+        created.setFirstName("Company");
+        created.setLastName("Billing Proxy");
+        created.setEmail(proxyEmail);
+        created.setBillingCompany(recipientCompany);
+        created.setInvoiceRecipientType(InvoiceRecipientType.COMPANY);
+        created.setInvoiceCompanyName(recipientCompany.getName());
+        created.setInvoiceCompanyAddressLine(recipientCompany.getAddress() == null ? "" : recipientCompany.getAddress());
+        created.setInvoiceCompanyPostalCode(recipientCompany.getPostalCode() == null ? "" : recipientCompany.getPostalCode());
+        created.setInvoiceCompanyCity(recipientCompany.getCity() == null ? "" : recipientCompany.getCity());
+        created.setInvoiceCompanyVatId(recipientCompany.getVatId());
+        created.setAssignedTo(fallbackAssignee);
+        created.setBatchPaymentEnabled(true);
+        created.setActive(false);
+        return clients.save(created);
+    }
+
+    private static boolean isCompanyProxyBillingClient(Client client, Long companyId, Long recipientCompanyId) {
+        if (client == null || client.getBillingCompany() == null || recipientCompanyId == null) {
+            return false;
+        }
+        if (!Objects.equals(client.getBillingCompany().getId(), recipientCompanyId)) {
+            return false;
+        }
+        String email = Client.normalizeEmailStorage(client.getEmail());
+        if (email == null) {
+            return false;
+        }
+        String marker = "company-billing-proxy+" + companyId + "-" + recipientCompanyId + "@";
+        return email.startsWith(marker) && email.endsWith(COMPANY_BILL_PROXY_EMAIL_DOMAIN);
     }
 
     private void replaceOpenBillPaymentSplits(OpenBill open, List<PaymentSplitRequest> splits, Long companyId) {
@@ -1247,18 +1351,13 @@ public class BillingController {
                 }
                 var recipientCompany = clientCompanies.findByIdAndOwnerCompanyId(req.recipientCompanyId(), companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid recipientCompanyId."));
-                Client resolvedClient = null;
-                if (req.clientId() != null) {
-                    resolvedClient = clients.findByIdAndCompanyId(req.clientId(), companyId)
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid clientId."));
-                } else if (open.getClient() != null
-                        && open.getClient().getCompany() != null
-                        && Objects.equals(open.getClient().getCompany().getId(), companyId)) {
-                    resolvedClient = open.getClient();
-                } else {
-                    resolvedClient = clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(companyId, recipientCompany.getId())
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No clients linked to this company."));
-                }
+                Client resolvedClient = resolveClientForCompanyTarget(
+                        companyId,
+                        recipientCompany,
+                        req.clientId(),
+                        open.getClient(),
+                        me
+                );
                 open.setClient(resolvedClient);
                 open.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
                 open.setBatchTargetCompanyId(recipientCompany.getId());
@@ -1344,6 +1443,14 @@ public class BillingController {
                 idx++;
             }
         }
+        String discountTypeForSave = req.discountType() != null ? req.discountType() : open.getDiscountType();
+        BigDecimal discountValueForSave = req.discountValue() != null ? req.discountValue() : open.getDiscountValue();
+        applyOpenBillDiscountDraft(
+                open,
+                discountTypeForSave,
+                discountValueForSave,
+                open.getBillType() == null || open.getBillType() == BillType.INVOICE
+        );
         openBillRepo.save(open);
         return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId)
                 .stream()
@@ -1724,6 +1831,13 @@ public class BillingController {
         if (bill.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no billable items.");
         }
+        if (resolvedBillType == BillType.INVOICE) {
+            totalGross = resolveOpenBillDiscountedTotalGross(
+                    normalizeOpenBillDiscountType(open.getDiscountType()),
+                    open.getDiscountValue(),
+                    totalGross
+            );
+        }
         bill.setTotalNet(totalNet);
         bill.setTotalGross(totalGross);
         copyOpenBillPaymentSplitsToBill(open, bill, totalGross);
@@ -1861,6 +1975,19 @@ public class BillingController {
         }
         if (bill.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no items.");
+        }
+        String discountTypeForPreview = req != null && req.discountType() != null
+                ? normalizeOpenBillDiscountType(req.discountType())
+                : normalizeOpenBillDiscountType(open.getDiscountType());
+        BigDecimal discountValueForPreview = req != null && req.discountValue() != null
+                ? req.discountValue()
+                : open.getDiscountValue();
+        if (bill.getBillType() == null || bill.getBillType() == BillType.INVOICE) {
+            totalGross = resolveOpenBillDiscountedTotalGross(
+                    discountTypeForPreview,
+                    normalizeOpenBillDiscountValue(discountTypeForPreview, discountValueForPreview, totalGross),
+                    totalGross
+            );
         }
         bill.setTotalNet(totalNet.setScale(2, RoundingMode.HALF_UP));
         bill.setTotalGross(totalGross.setScale(2, RoundingMode.HALF_UP));
@@ -2812,6 +2939,11 @@ public class BillingController {
         Long sessionId = sessions.isEmpty() ? null : sessions.getFirst().sessionId();
         String sessionDisplayId = sessions.isEmpty() ? "—" : sessions.getFirst().sessionDisplayId();
         String sessionInfo = sessions.isEmpty() ? "" : sessions.getFirst().sessionInfo();
+        BigDecimal subtotalGross = estimateOpenBillGross(o);
+        String resolvedDiscountType = normalizeOpenBillDiscountType(o.getDiscountType());
+        BigDecimal resolvedDiscountValue = normalizeOpenBillDiscountValue(resolvedDiscountType, o.getDiscountValue(), subtotalGross);
+        BigDecimal discountAmountGross = resolveOpenBillDiscountGross(resolvedDiscountType, resolvedDiscountValue, subtotalGross);
+        BigDecimal discountedTotalGross = resolveOpenBillDiscountedTotalGross(resolvedDiscountType, resolvedDiscountValue, subtotalGross);
         return new OpenBillResponse(
                 o.getId(),
                 sessionId,
@@ -2825,9 +2957,13 @@ public class BillingController {
                 o.getBatchScope(),
                 o.getBatchTargetClientId(),
                 o.getBatchTargetCompanyId(),
+                o.getDiscountType(),
+                o.getDiscountValue(),
+                discountAmountGross,
+                discountedTotalGross,
                 o.getBillType() == null ? null : o.getBillType().name(),
                 o.getBookingGroupKey(),
-                toOpenBillPaymentSplitResponses(o, estimateOpenBillGross(o)),
+                toOpenBillPaymentSplitResponses(o, discountedTotalGross),
                 sessions
         );
     }
@@ -3899,6 +4035,56 @@ public class BillingController {
             total = total.add(resolveOpenBillLineGross(item)).setScale(2, RoundingMode.HALF_UP);
         }
         return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static String normalizeOpenBillDiscountType(String raw) {
+        if (raw == null || raw.isBlank()) return "PERCENT";
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        return ("AMOUNT".equals(normalized) || "PERCENT".equals(normalized)) ? normalized : "PERCENT";
+    }
+
+    private static BigDecimal normalizeOpenBillDiscountValue(String discountType, BigDecimal rawValue, BigDecimal subtotalGross) {
+        BigDecimal subtotal = subtotalGross == null ? BigDecimal.ZERO : subtotalGross.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal safeRaw = rawValue == null ? BigDecimal.ZERO : rawValue.max(BigDecimal.ZERO);
+        if ("AMOUNT".equals(discountType)) {
+            return safeRaw.min(subtotal).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal clampedPercent = safeRaw.min(new BigDecimal("100"));
+        return clampedPercent.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal resolveOpenBillDiscountGross(String discountType, BigDecimal discountValue, BigDecimal subtotalGross) {
+        BigDecimal subtotal = subtotalGross == null ? BigDecimal.ZERO : subtotalGross.setScale(2, RoundingMode.HALF_UP);
+        if (subtotal.compareTo(BigDecimal.ZERO) <= 0) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (discountValue == null || discountValue.compareTo(BigDecimal.ZERO) <= 0) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if ("AMOUNT".equals(discountType)) {
+            return discountValue.min(subtotal).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal percent = discountValue.min(new BigDecimal("100")).max(BigDecimal.ZERO);
+        BigDecimal gross = subtotal.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        return gross.min(subtotal).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal resolveOpenBillDiscountedTotalGross(String discountType, BigDecimal discountValue, BigDecimal subtotalGross) {
+        BigDecimal subtotal = subtotalGross == null ? BigDecimal.ZERO : subtotalGross.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal discount = resolveOpenBillDiscountGross(discountType, discountValue, subtotal);
+        BigDecimal remaining = subtotal.subtract(discount).setScale(2, RoundingMode.HALF_UP);
+        return remaining.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : remaining;
+    }
+
+    private static void applyOpenBillDiscountDraft(OpenBill open, String discountTypeRaw, BigDecimal discountValueRaw, boolean enabled) {
+        if (open == null || !enabled) {
+            if (open != null) {
+                open.setDiscountType(null);
+                open.setDiscountValue(null);
+            }
+            return;
+        }
+        String discountType = normalizeOpenBillDiscountType(discountTypeRaw);
+        BigDecimal subtotalGross = estimateOpenBillGross(open);
+        BigDecimal discountValue = normalizeOpenBillDiscountValue(discountType, discountValueRaw, subtotalGross);
+        open.setDiscountType(discountType);
+        open.setDiscountValue(discountValue);
     }
 
     private static List<PaymentSplitResponse> toOpenBillPaymentSplitResponses(OpenBill open, BigDecimal fallbackGross) {

@@ -6,6 +6,7 @@ import com.example.app.common.BaseEntity;
 import com.example.app.session.SessionBooking;
 import com.example.app.user.User;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -75,6 +76,12 @@ public class OpenBill extends BaseEntity {
 
     @Column(name = "booking_group_key", length = 64)
     private String bookingGroupKey;
+
+    @Column(name = "discount_type", length = 16)
+    private String discountType;
+
+    @Column(name = "discount_value", precision = 19, scale = 4)
+    private BigDecimal discountValue;
 
     /** Guest wallet order created from Client > Wallet > Kupi ugodnost. */
     @Column(name = "source_guest_order_id")

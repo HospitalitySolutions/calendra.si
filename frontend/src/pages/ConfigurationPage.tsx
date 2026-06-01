@@ -762,6 +762,26 @@ function getNotificationTemplateBody(settings: Record<string, string>, channel: 
   return settings[notificationTemplateBodyKey(channel, id)] || notificationTemplateDefaults[channel][id].body
 }
 
+function NotificationInfoIcon({ kind }: { kind: Exclude<NotificationChannel, 'email'> }) {
+  if (kind === 'guestApp') {
+    return (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="7" y="2" width="10" height="20" rx="2" />
+        <path d="M11 18h2" />
+        <path d="M10 6h4" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
+}
+
 function NotificationEventIcon({ icon }: { icon: NotificationEventDefinition['icon'] }) {
   if (icon === 'calendar') {
     return (
@@ -910,6 +930,25 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
 
   const selectedEvent = editingEvent ? notificationEvents.find((event) => event.id === editingEvent) || null : null
   const selectedTemplateBody = selectedEvent ? getNotificationTemplateBody(settings, channel, selectedEvent.id) : ''
+
+  useEffect(() => {
+    if (!selectedEvent) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEditingEvent(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedEvent])
+
+  useEffect(() => {
+    if (!selectedEvent) return
+    if (typeof window === 'undefined' || !window.matchMedia('(max-width: 640px)').matches) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [selectedEvent])
 
   const setNotificationEnabled = (id: NotificationEventKind, checked: boolean) => {
     const key = notificationEnabledKey(channel, id)
@@ -1077,6 +1116,9 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
         }
         .notif-card-content {
           position: relative;
+        }
+        .notif-mobile-channel-note {
+          display: none;
         }
         .notif-layout {
           display: grid;
@@ -1451,6 +1493,13 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
           color: var(--notif-muted);
           font-style: italic;
         }
+        .notif-template-close {
+          display: none;
+          border: 0;
+          background: transparent;
+          color: #07173b;
+          cursor: pointer;
+        }
         .notif-savebar {
           display: flex;
           justify-content: flex-end;
@@ -1506,10 +1555,359 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
           }
         }
         @media (max-width: 640px) {
-          .notif-card { padding: 18px; border-radius: 18px; }
-          .notif-event-row { padding: 14px; }
-          .notif-savebar { justify-content: stretch; }
-          .notif-save-button { width: 100%; }
+          .notif-page-shell {
+            width: 100%;
+          }
+          .notif-card {
+            padding: 0 12px 18px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            overflow: visible;
+          }
+          .notif-card::before {
+            display: none;
+          }
+          .notif-card-content {
+            display: grid;
+            gap: 14px;
+          }
+          .notif-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0;
+            width: 100%;
+            margin: 0;
+            overflow: visible;
+            border-bottom: 1px solid #dbe5f3;
+          }
+          .notif-tab {
+            min-width: 0;
+            padding: 13px 4px 14px;
+            border-radius: 0;
+            color: #07173b;
+            font-size: 13px;
+            line-height: 1.15;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: transparent;
+          }
+          .notif-tab:hover {
+            background: transparent;
+          }
+          .notif-tab::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -1px;
+            height: 2px;
+            border-radius: 999px 999px 0 0;
+            background: transparent;
+            transform: scaleX(0.3);
+            opacity: 0;
+            transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+          }
+          .notif-tab.is-active {
+            color: var(--notif-blue);
+            background: transparent;
+            box-shadow: none;
+          }
+          .notif-tab.is-active::after {
+            background: var(--notif-blue);
+            transform: scaleX(1);
+            opacity: 1;
+          }
+          .notif-mobile-channel-note {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 10px 0 2px;
+            padding: 16px 14px;
+            border: 1px solid rgba(226, 234, 246, 0.95);
+            border-radius: 13px;
+            background: linear-gradient(135deg, #f6f9ff 0%, #eef4ff 100%);
+            color: #596886;
+            font-size: 13px;
+            line-height: 1.35;
+            font-weight: 600;
+            box-shadow: 0 8px 18px rgba(8, 23, 58, 0.04);
+          }
+          .notif-mobile-channel-note-icon {
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            color: var(--notif-blue);
+            background: rgba(255, 255, 255, 0.78);
+          }
+          .notif-layout,
+          .notif-layout.has-editor {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
+          .notif-event-list {
+            gap: 14px;
+          }
+          .notif-event-row,
+          .notif-layout.has-editor .notif-event-row {
+            display: grid;
+            grid-template-columns: 48px minmax(0, 1fr) auto;
+            grid-template-areas:
+              'icon copy switch'
+              'reminder reminder reminder'
+              'action action chevron';
+            align-items: center;
+            gap: 0 14px;
+            min-height: 0;
+            padding: 14px 14px 0;
+            border: 1px solid #dfe7f3;
+            border-radius: 13px;
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 8px 20px rgba(8, 23, 58, 0.045);
+            overflow: hidden;
+          }
+          .notif-event-row.is-editing {
+            border-color: rgba(15, 98, 254, 0.42);
+            box-shadow: 0 10px 24px rgba(15, 98, 254, 0.10);
+          }
+          .notif-event-icon {
+            grid-area: icon;
+            align-self: start;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+          }
+          .notif-event-icon svg {
+            width: 22px;
+            height: 22px;
+          }
+          .notif-event-copy {
+            grid-area: copy;
+            min-width: 0;
+            padding: 2px 0 14px;
+          }
+          .notif-event-copy strong {
+            margin-bottom: 4px;
+            font-size: 15px;
+            line-height: 1.22;
+            letter-spacing: -0.01em;
+          }
+          .notif-event-copy span {
+            font-size: 13px;
+            line-height: 1.28;
+          }
+          .notif-switch {
+            grid-area: switch;
+            align-self: center;
+            width: 48px;
+            height: 28px;
+          }
+          .notif-switch span {
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+          }
+          .notif-switch.is-on span {
+            transform: translateX(20px);
+          }
+          .notif-reminder-placeholder {
+            display: none;
+          }
+          .notif-reminder-select-wrap {
+            grid-area: reminder;
+            display: block;
+            margin: 0 -14px;
+            padding: 0 14px;
+            border-top: 1px solid #e8eef7;
+          }
+          .notif-reminder-select-wrap label {
+            display: none;
+          }
+          .notif-reminder-select {
+            min-height: 42px;
+            border: 0;
+            border-radius: 0;
+            background-color: transparent;
+            padding: 0 34px 0 0;
+            color: #07173b;
+            font-size: 13px;
+            font-weight: 800;
+            box-shadow: none !important;
+            background-position: calc(100% - 14px) 18px, calc(100% - 9px) 18px;
+            background-size: 5px 5px, 5px 5px;
+          }
+          .notif-row-action {
+            grid-area: action;
+            display: flex !important;
+            align-items: center;
+            min-height: 42px;
+            margin: 0 0 0 -14px;
+            padding: 0 0 0 14px;
+            border-top: 1px solid #e8eef7;
+            color: var(--notif-blue);
+            font-size: 13px;
+            font-weight: 850;
+            text-align: left;
+          }
+          .notif-row-chevron {
+            grid-area: chevron;
+            align-self: stretch;
+            display: grid;
+            place-items: center;
+            min-height: 42px;
+            margin: 0 -14px 0 0;
+            padding: 0 14px 0 6px;
+            border-top: 1px solid #e8eef7;
+            color: #07173b;
+          }
+          .notif-row-chevron svg {
+            width: 19px;
+            height: 19px;
+          }
+          .notif-template-panel {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            padding: 0;
+            border: 0;
+            background: #fff;
+            overflow: hidden;
+            overscroll-behavior: contain;
+          }
+          .notif-template-card {
+            width: 100vw;
+            max-width: 100vw;
+            min-height: 100vh;
+            min-height: 100dvh;
+            max-height: none;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: max(18px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+            border: 0;
+            border-radius: 0;
+            background: #fff;
+            box-shadow: none;
+            animation: notif-template-fullscreen-in 160ms ease-out;
+          }
+          @keyframes notif-template-fullscreen-in {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          .notif-template-header {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            align-items: flex-start;
+            gap: 10px;
+            margin: calc(-1 * max(18px, env(safe-area-inset-top))) -16px 12px;
+            padding: max(18px, env(safe-area-inset-top)) 70px 14px 16px;
+            border-bottom: 1px solid #edf2f8;
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+          }
+          .notif-template-header h4 {
+            font-size: 18px;
+          }
+          .notif-template-close {
+            position: absolute;
+            top: max(10px, env(safe-area-inset-top));
+            right: 16px;
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            width: 44px;
+            height: 44px;
+            margin: 0;
+            border-radius: 999px;
+            color: #07173b;
+            background: #f2f6ff;
+            box-shadow: 0 8px 18px rgba(8, 23, 58, 0.08);
+          }
+          .notif-template-close:active {
+            transform: scale(0.98);
+          }
+          .notif-status-pill {
+            display: none;
+          }
+          .notif-template-subtitle {
+            display: none;
+          }
+          .notif-template-toolbar {
+            gap: 3px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .notif-template-format {
+            min-width: 116px;
+          }
+          .notif-template-preview-button {
+            flex: 0 0 auto;
+          }
+          .notif-template-textarea,
+          .notif-template-preview-pane {
+            min-height: 190px;
+          }
+          .notif-template-tags {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: 0;
+          }
+          .notif-template-tag-list {
+            flex-wrap: wrap;
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+            overflow-y: visible;
+            padding-bottom: 0;
+          }
+          .notif-template-tag {
+            flex: 0 1 auto;
+            min-width: 0;
+            max-width: 100%;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            font-size: 11px;
+          }
+          .notif-savebar {
+            position: sticky;
+            bottom: 0;
+            z-index: 3;
+            justify-content: stretch;
+            margin: 10px -16px 0;
+            padding: 12px 16px max(2px, env(safe-area-inset-bottom));
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.94) 28%, #fff 100%);
+          }
+          .notif-save-button {
+            width: 100%;
+            min-width: 0;
+            min-height: 50px;
+            border: 1px solid rgba(15, 98, 254, 0.12);
+            border-radius: 11px;
+            background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+            color: var(--notif-blue);
+            font-size: 14px;
+            box-shadow: 0 6px 16px rgba(15, 98, 254, 0.08);
+          }
         }
       `}</style>
       <div className="notif-card">
@@ -1532,6 +1930,16 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
               </button>
             ))}
           </div>
+          {channel !== 'email' ? (
+            <div className="notif-mobile-channel-note" role="note">
+              <span className="notif-mobile-channel-note-icon"><NotificationInfoIcon kind={channel} /></span>
+              <span>
+                {channel === 'sms'
+                  ? 'SMS obvestila se pošiljajo na telefonsko številko gosta, ki jo imate shranjeno v rezervaciji.'
+                  : 'Push obvestila bodo prikazana v aplikaciji za vaše goste.'}
+              </span>
+            </div>
+          ) : null}
           <div className={selectedEvent ? 'notif-layout has-editor' : 'notif-layout'}>
             <div>
               <div className="notif-event-list">
@@ -1568,10 +1976,22 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
             </div>
 
             {selectedEvent ? (
-              <aside className="notif-template-panel" aria-label={`${channelCopy[channel].editLabel}: ${selectedEvent.title}`}>
-                <div className="notif-template-card">
+              <aside
+                className="notif-template-panel"
+                aria-label={`${channelCopy[channel].editLabel}: ${selectedEvent.title}`}
+                onClick={(event) => {
+                  if (event.currentTarget === event.target) setEditingEvent(null)
+                }}
+              >
+                <div className="notif-template-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
                   <div className="notif-template-header">
                     <h4>{channelCopy[channel].editLabel}: {selectedEvent.title}</h4>
+                    <button type="button" className="notif-template-close" aria-label="Zapri predlogo" onClick={() => setEditingEvent(null)}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
                     <span className={getNotificationEnabled(settings, channel, selectedEvent.id) ? 'notif-status-pill' : 'notif-status-pill is-off'}>
                       {getNotificationEnabled(settings, channel, selectedEvent.id) ? 'VKLOPLJENO' : 'IZKLOPLJENO'}
                     </span>

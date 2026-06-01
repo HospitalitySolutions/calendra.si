@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -55,7 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -319,11 +319,14 @@ fun GuestMobileRoot() {
     suspend fun completeAuth(session: GuestSession) {
         applySession(session)
         if (session.linkedTenants.isEmpty()) {
-            navController.navigate(RootRoute.JoinTenant.route)
+            navController.navigate(RootRoute.JoinTenant.route) {
+                popUpTo(navController.graph.id) { inclusive = true }
+                launchSingleTop = true
+            }
         } else {
             refreshAllTenants()
             navController.navigate(RootRoute.Home.route) {
-                popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                popUpTo(navController.graph.id) { inclusive = true }
                 launchSingleTop = true
             }
         }
@@ -888,12 +891,18 @@ fun GuestMobileRoot() {
                                 launchSingleTop = true
                             }
                         } else if (!navController.popBackStack()) {
-                            navController.navigate(RootRoute.Home.route) { launchSingleTop = true }
+                            navController.navigate(RootRoute.Home.route) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     },
                 )
             }
             composable(RootRoute.Home.route) {
+                BackHandler {
+                    // Home is the root tab: consume back to prevent revealing stale splash/auth routes.
+                }
                 GuestTabsScaffold(
                     current = RootRoute.Home.route,
                     languageCode = appUiLocale,
@@ -1268,7 +1277,12 @@ fun GuestMobileRoot() {
                             tenantPaymentMethods = walletTenantPaymentMethods,
                             languageCode = appUiLocale,
                             tenantName = walletTenantName,
-                            onOpenTenantPicker = { openWalletTabWithTenantSelection() },
+                            onOpenTenantPicker = {
+                                tenantPickerTarget = TenantPickerTarget.Wallet
+                                walletTenantPickerDraftId = walletTenantId
+                                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                                showWalletTenantPicker = state.uiState.linkedTenants.isNotEmpty()
+                            },
                             onSubTabChanged = { nextSubTab ->
                                 if (nextSubTab == WalletSubTab.Buy) {
                                     refreshWalletOffersIfNeeded(walletTenantId)
@@ -2728,7 +2742,10 @@ private suspend fun joinTenantWithCode(
         selectedTenantId = null,
         tenantDashboards = state.uiState.tenantDashboards + (tenant.companyId to dashboard)
     )
-    navController.navigate(RootRoute.Home.route) { launchSingleTop = true }
+    navController.navigate(RootRoute.Home.route) {
+        popUpTo(navController.graph.id) { inclusive = true }
+        launchSingleTop = true
+    }
 }
 private suspend fun joinPublicTenant(
     companyId: String,
@@ -2787,6 +2804,7 @@ private suspend fun joinPublicTenant(
     )
 
     navController.navigate(RootRoute.Home.route) {
+        popUpTo(navController.graph.id) { inclusive = true }
         launchSingleTop = true
     }
 }

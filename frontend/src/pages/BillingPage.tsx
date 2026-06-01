@@ -66,6 +66,10 @@ function grossStringFromService(service: BillingService | null | undefined): str
 }
 
 import { currency, formatDate, fullName } from '../lib/format'
+type DiscountType = 'PERCENT' | 'AMOUNT'
+
+type DiscountDraft = { type: DiscountType; value: string }
+
 type BillForm = {
   clientId?: number
   consultantId?: number
@@ -76,6 +80,8 @@ type BillForm = {
   billType: BillDocumentType
   sessionId?: number
   paymentSplits?: OpenBillPaymentSplitDraft[]
+  discountType?: DiscountType
+  discountValue?: string
   items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string; sourceSessionBookingId?: number | null }[]
 }
 
@@ -880,6 +886,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillEdits, setOpenBillEdits] = useState<Record<number, OpenBillEditItem[]>>({})
   const [openBillDetailsEdits, setOpenBillDetailsEdits] = useState<Record<number, OpenBillDetailsDraft>>({})
   const [openBillPaymentEdits, setOpenBillPaymentEdits] = useState<Record<number, OpenBillPaymentSplitDraft[]>>({})
+  const [openBillDiscountEdits, setOpenBillDiscountEdits] = useState<Record<number, DiscountDraft>>({})
   const [entitlementPaymentTarget, setEntitlementPaymentTarget] = useState<EntitlementPaymentTarget | null>(null)
   const [entitlementPaymentStep, setEntitlementPaymentStep] = useState<EntitlementPaymentStep>('choice')
   const [entitlementManualCode, setEntitlementManualCode] = useState('')
@@ -1086,6 +1093,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const normalizeOpenBill = (ob: OpenBill): OpenBill => ({
     ...ob,
+    discountType: ob.discountType ?? null,
+    discountValue: ob.discountValue == null ? null : Number(ob.discountValue),
+    discountAmountGross: ob.discountAmountGross == null ? null : Number(ob.discountAmountGross),
+    discountedTotalGross: ob.discountedTotalGross == null ? null : Number(ob.discountedTotalGross),
     paymentMethod: normalizePaymentMethod(ob.paymentMethod),
     items: (ob.items ?? []).map((item) => {
       const fallbackGross = Number(item.netPrice || 0) * (1 + billingTaxMultiplier(item.transactionService?.taxRate))
@@ -1324,6 +1335,81 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     String(ob?.billType || 'INVOICE').toUpperCase() === 'ADVANCE' ? advanceBillServices : openBillSelectableServices
   )
 
+  const normalizeDiscountType = (value: unknown): DiscountType => (String(value || '').toUpperCase() === 'AMOUNT' ? 'AMOUNT' : 'PERCENT')
+
+  const sanitizeDiscountValueInput = (value: string) => value.replace(/[^0-9.,]/g, '').replace(',', '.')
+
+  const discountValueNumber = (draft: DiscountDraft | null | undefined) => {
+    const parsed = Number(String(draft?.value ?? '').replace(',', '.'))
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return draft?.type === 'PERCENT' ? Math.min(100, parsed) : parsed
+  }
+
+  const calculateDiscountGross = (subtotalGross: number, draft: DiscountDraft | null | undefined) => {
+    const subtotal = Math.max(0, Number(subtotalGross || 0))
+    const value = discountValueNumber(draft)
+    if (subtotal <= 0 || value <= 0) return 0
+    const discount = draft?.type === 'PERCENT' ? subtotal * (value / 100) : value
+    return Number(Math.min(subtotal, Math.max(0, discount)).toFixed(2))
+  }
+
+  const payableGrossAfterDiscount = (subtotalGross: number, draft: DiscountDraft | null | undefined) => {
+    const subtotal = Math.max(0, Number(subtotalGross || 0))
+    return Number(Math.max(0, subtotal - calculateDiscountGross(subtotal, draft)).toFixed(2))
+  }
+
+  const getCreateBillDiscountDraft = (): DiscountDraft => ({
+    type: normalizeDiscountType(billForm.discountType),
+    value: billForm.discountValue ?? '0',
+  })
+
+  const getOpenBillDiscountDraft = (ob: OpenBill | null | undefined): DiscountDraft => {
+    if (!ob) return { type: 'PERCENT', value: '0' }
+    const edited = openBillDiscountEdits[ob.id]
+    if (edited) return edited
+    const type = normalizeDiscountType(ob.discountType)
+    const rawValue = ob.discountValue
+    const fallbackAmount = ob.discountAmountGross
+    const value = rawValue != null
+      ? String(rawValue)
+      : (type === 'AMOUNT' && fallbackAmount != null ? String(fallbackAmount) : '0')
+    return { type, value }
+  }
+
+  const setOpenBillDiscountDraft = (ob: OpenBill, patch: Partial<DiscountDraft>) => {
+    const current = getOpenBillDiscountDraft(ob)
+    setOpenBillDiscountEdits((prev) => ({
+      ...prev,
+      [ob.id]: {
+        type: patch.type ?? current.type,
+        value: patch.value ?? current.value,
+      },
+    }))
+  }
+
+  const openBillPayableGross = (ob: OpenBill, items = getOpenBillItems(ob)) => {
+    const subtotal = estimateGross(items)
+    return payableGrossAfterDiscount(subtotal, getOpenBillDiscountDraft(ob))
+  }
+
+  const discountPayloadFields = (draft: DiscountDraft, subtotalGross: number) => {
+    const value = discountValueNumber(draft)
+    const amountGross = calculateDiscountGross(subtotalGross, draft)
+    return {
+      discountType: draft.type,
+      discountValue: value,
+      discountAmountGross: amountGross,
+      discountedTotalGross: payableGrossAfterDiscount(subtotalGross, draft),
+    }
+  }
+
+  const createBillDiscountDraft = getCreateBillDiscountDraft()
+  const createBillDiscountGross = billForm.billType === 'INVOICE'
+    ? calculateDiscountGross(grossPreview, createBillDiscountDraft)
+    : 0
+  const createBillPayableGross = billForm.billType === 'INVOICE'
+    ? payableGrossAfterDiscount(grossPreview, createBillDiscountDraft)
+    : grossPreview
   useEffect(() => {
     const firstAllowed = availableBillServices[0]
     const allowedIds = new Set(availableBillServices.map((s) => s.id))
@@ -1552,7 +1638,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     overrides?: { paymentMethodId?: number | null; paymentTotalGross?: number },
   ) => {
     const detailsDraft = openBillDetailsEdits[ob.id]
-    const paymentSplits = buildPaymentSplitsPayload(getOpenBillPaymentSplits(ob, overrides?.paymentTotalGross ?? estimateGross(items)))
+    const subtotalGross = estimateGross(items)
+    const discountDraft = getOpenBillDiscountDraft(ob)
+    const effectiveTotalGross = overrides?.paymentTotalGross ?? payableGrossAfterDiscount(subtotalGross, discountDraft)
+    const paymentSplits = buildPaymentSplitsPayload(getOpenBillPaymentSplits(ob, effectiveTotalGross))
     const primaryPaymentMethodId = paymentSplits[0]?.paymentMethodId
       ?? (ob.paymentMethod?.id && !isDepositPaymentMethod(ob.paymentMethod) ? ob.paymentMethod.id : undefined)
     const payload: Record<string, unknown> = {
@@ -1561,6 +1650,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : primaryPaymentMethodId,
       paymentSplits,
       reference: ob.reference ?? '',
+      ...discountPayloadFields(discountDraft, subtotalGross),
       items: items
         .filter((i) => !isLegacyAdvanceOffsetDraftItem(i))
         .map((i) => ({
@@ -1845,7 +1935,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const updateCreateBillPaymentSplit = (key: string, patch: Partial<OpenBillPaymentSplitDraft>) => {
-    const current = getCreateBillPaymentSplits(grossPreview)
+    const current = getCreateBillPaymentSplits(createBillPayableGross)
     const next = current.map((split) => (split.key === key ? { ...split, ...patch } : split))
     setCreateBillPaymentSplits(next)
   }
@@ -1861,7 +1951,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const removeCreateBillPaymentSplit = (key: string) => {
-    const current = getCreateBillPaymentSplits(grossPreview)
+    const current = getCreateBillPaymentSplits(createBillPayableGross)
     setCreateBillPaymentSplits(current.filter((split) => split.key !== key))
   }
 
@@ -1985,7 +2075,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function openAdvancePaymentModalForCreate(splitKey: string) {
-    const split = getCreateBillPaymentSplits(grossPreview).find((entry) => entry.key === splitKey)
+    const split = getCreateBillPaymentSplits(createBillPayableGross).find((entry) => entry.key === splitKey)
     const initialSelections = normalizeAdvanceSelections(split?.advanceSelections)
     setAdvancePaymentDraftSelections(initialSelections)
     setAdvancePaymentInitialSelections(initialSelections)
@@ -1994,7 +2084,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function openAdvancePaymentModalForOpenBill(ob: OpenBill, splitKey: string) {
-    const split = getOpenBillPaymentSplits(ob, estimateGross(getOpenBillItems(ob))).find((entry) => entry.key === splitKey)
+    const split = getOpenBillPaymentSplits(ob, openBillPayableGross(ob)).find((entry) => entry.key === splitKey)
     const initialSelections = normalizeAdvanceSelections(split?.advanceSelections)
     setAdvancePaymentDraftSelections(initialSelections)
     setAdvancePaymentInitialSelections(initialSelections)
@@ -2623,7 +2713,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         clientId: billForm.clientId,
         consultantId: billForm.consultantId ?? me.id,
         paymentMethodId: billForm.paymentMethodId,
-        paymentSplits: buildCreatePaymentSplitsPayload(grossPreview),
+        paymentSplits: buildCreatePaymentSplitsPayload(createBillPayableGross),
+        ...(billForm.billType === 'INVOICE' ? discountPayloadFields(createBillDiscountDraft, grossPreview) : {}),
         billingTarget: billForm.billingTarget,
         recipientCompanyId: billForm.recipientCompanyId,
         bankTransferReference: billForm.bankTransferReference,
@@ -2654,7 +2745,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         a.remove()
         window.URL.revokeObjectURL(url)
       }
-      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE' })
+      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0' })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
       if (data?.id && shouldCreateCheckoutSession(data)) {
@@ -2679,6 +2770,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       billingTarget: 'PERSON',
       billType: 'INVOICE',
       consultantId: me.id,
+      discountType: 'PERCENT',
+      discountValue: '0',
     })
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
@@ -2700,7 +2793,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const closeCreateBillModal = () => {
     setShowCreateBillModal(false)
     setEditingCreateBillPayee(false)
-    setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE' })
+    setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0' })
     setRecipientCompanySearch('')
     setRecipientCompanyPickerOpen(false)
     setEditingRecipientCompanySearch(false)
@@ -2973,15 +3066,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     () => paymentMethods.filter((method) => !isDepositPaymentMethod(method)),
     [paymentMethods],
   )
-  const createPaymentSplits = getCreateBillPaymentSplits(grossPreview)
-  const createPaymentsMatchTotal = paymentSplitsMatchInvoiceTotal(createPaymentSplits, grossPreview)
+  const createPaymentSplits = getCreateBillPaymentSplits(createBillPayableGross)
+  const createPaymentsMatchTotal = paymentSplitsMatchInvoiceTotal(createPaymentSplits, createBillPayableGross)
   const detailOpenBillTransactionGross = useMemo(() => {
     if (!detailOpenBill) return 0
-    return estimateGross(getOpenBillItems(detailOpenBill).filter((item) => item.sourceAdvanceBillId == null))
-  }, [detailOpenBill, openBillEdits, services])
+    const transactionItems = getOpenBillItems(detailOpenBill).filter((item) => item.sourceAdvanceBillId == null)
+    return payableGrossAfterDiscount(estimateGross(transactionItems), getOpenBillDiscountDraft(detailOpenBill))
+  }, [detailOpenBill, openBillEdits, openBillDiscountEdits, services])
   const createAdvanceSelectionValid = createPaymentSplits.every((split) => (
     !isAdvancePaymentSplit(split)
-    || validateAdvanceSelections(getAdvanceSelectionsForSplit(split), createEligibleUnusedAdvances, grossPreview)
+    || validateAdvanceSelections(getAdvanceSelectionsForSplit(split), createEligibleUnusedAdvances, createBillPayableGross)
   ))
   const detailPaymentSelectionValid = !detailOpenBill || getOpenBillPaymentSplits(detailOpenBill, detailOpenBillTransactionGross).every((split) => (
     !isAdvancePaymentSplit(split)
@@ -3002,7 +3096,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       paymentMethodId: fallbackPaymentMethodId,
       paymentSplits: undefined,
     }))
-  }, [billForm.paymentMethodId, createAvailablePaymentMethods, grossPreview])
+  }, [billForm.paymentMethodId, createAvailablePaymentMethods, createBillPayableGross])
 
   const openAddCompanyModal = (target: { mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number }) => {
     setAddCompanyTarget(target)
@@ -3148,6 +3242,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       idSet.forEach((id) => { delete next[id] })
       return next
     })
+    setOpenBillDiscountEdits((prev) => {
+      const next = { ...prev }
+      idSet.forEach((id) => { delete next[id] })
+      return next
+    })
   }
 
   const saveOpenBillGroupAsOnePayee = async (target: OpenBill, relatedBills: OpenBill[]) => {
@@ -3200,6 +3299,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       Object.prototype.hasOwnProperty.call(openBillEdits, entry.id)
       || Object.prototype.hasOwnProperty.call(openBillDetailsEdits, entry.id)
       || Object.prototype.hasOwnProperty.call(openBillPaymentEdits, entry.id)
+      || Object.prototype.hasOwnProperty.call(openBillDiscountEdits, entry.id)
     ))
     if (dirtyBills.length === 0) return
 
@@ -3362,6 +3462,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setOpenBillEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
       setOpenBillDetailsEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
       setOpenBillPaymentEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
+      setOpenBillDiscountEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
       if (data?.id && data?.paymentStatus === 'paid') {
         const res = await api.get(`/billing/bills/${data.id}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
         const blob = new Blob([res.data], { type: 'application/pdf' })
@@ -3409,6 +3510,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setOpenBillEdits({})
       setOpenBillDetailsEdits({})
       setOpenBillPaymentEdits({})
+      setOpenBillDiscountEdits({})
       setDetailOpenBill(normalized.find((entry: OpenBill) => entry.id === ob.id) || null)
     } finally {
       setSplittingSessionKey(null)
@@ -3428,9 +3530,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       showToast('error', 'Select client first.')
       return null
     }
-    const paymentSplits = buildCreatePaymentSplitsPayload(grossPreview)
+    const paymentSplits = buildCreatePaymentSplitsPayload(createBillPayableGross)
     const primaryPaymentMethodId = paymentSplits[0]?.paymentMethodId ?? billForm.paymentMethodId
-    if (!primaryPaymentMethodId || !paymentSplitsMatchInvoiceTotal(getCreateBillPaymentSplits(grossPreview), grossPreview)) {
+    if (!primaryPaymentMethodId || !paymentSplitsMatchInvoiceTotal(getCreateBillPaymentSplits(createBillPayableGross), createBillPayableGross)) {
       showToast('error', billingCopy.openBillNeedsConsultantPayment)
       return null
     }
@@ -3441,6 +3543,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     payload.consultantId = billForm.consultantId ?? me.id
     payload.paymentMethodId = primaryPaymentMethodId
     payload.paymentSplits = paymentSplits
+    if (billForm.billType === 'INVOICE') Object.assign(payload, discountPayloadFields(createBillDiscountDraft, grossPreview))
     payload.reference = billForm.bankTransferReference
     payload.sessionId = billForm.sessionId
     payload.billType = billForm.billType
@@ -3472,6 +3575,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
       showToast('success', 'Open bill created.')
+    } catch (error: any) {
+      showToast(
+        'error',
+        error?.response?.data?.message
+          || error?.message
+          || (locale === 'sl' ? 'Odprtega računa ni bilo mogoče ustvariti.' : 'Unable to create open bill.'),
+      )
     } finally {
       setCreatingManualOpenBill(false)
     }
@@ -3511,7 +3621,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         await api.post(`/billing/bills/${bill.id}/checkout-session`)
       }
       notifyBillCreationResult(bill)
-      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', consultantId: me.id })
+      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', consultantId: me.id, discountType: 'PERCENT', discountValue: '0' })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
       await load()
@@ -4139,7 +4249,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ? (locale === 'sl' ? 'Plačila so usklajena' : 'Payments matched')
       : isOver
         ? (locale === 'sl' ? 'Preplačano' : 'Overpaid by')
-        : (locale === 'sl' ? 'Remaining to match' : 'Remaining to match')
+        : (locale === 'sl' ? 'Preostanek do ujemanja' : 'Remaining to match')
     const helper = isMatched
       ? (locale === 'sl' ? 'Vsota plačil se ujema s skupnim zneskom.' : 'Payment total matches the bill total.')
       : (locale === 'sl' ? 'Dopolnite razliko na eni od metod plačila zgoraj.' : 'Auto-fill the remaining balance to match the total.')
@@ -4157,6 +4267,64 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
   }
 
+  const renderDiscountCard = (
+    draft: DiscountDraft,
+    subtotalGross: number,
+    onTypeChange: (type: DiscountType) => void,
+    onValueChange: (value: string) => void,
+  ) => {
+    const type = normalizeDiscountType(draft.type)
+    const discountGross = calculateDiscountGross(subtotalGross, draft)
+    const suffix = type === 'PERCENT' ? '%' : '€'
+    return (
+      <section className="billing-invoice-discount-card">
+        <div className="billing-invoice-discount-head">
+          <div className="billing-invoice-discount-title">
+            <span className="billing-invoice-discount-dot" aria-hidden>◈</span>
+            <h3>{locale === 'sl' ? 'Popust' : 'Discount'}</h3>
+            <span className="billing-invoice-info-dot">i</span>
+          </div>
+        </div>
+        <div className="billing-invoice-discount-controls">
+          <div className="billing-invoice-discount-segmented" role="group" aria-label={locale === 'sl' ? 'Vrsta popusta' : 'Discount type'}>
+            <button
+              type="button"
+              className={type === 'PERCENT' ? 'is-active' : ''}
+              aria-pressed={type === 'PERCENT'}
+              onClick={() => onTypeChange('PERCENT')}
+            >
+              %
+            </button>
+            <button
+              type="button"
+              className={type === 'AMOUNT' ? 'is-active' : ''}
+              aria-pressed={type === 'AMOUNT'}
+              onClick={() => onTypeChange('AMOUNT')}
+            >
+              €
+            </button>
+          </div>
+          <label className="billing-invoice-discount-input-wrap">
+            <span className="sr-only">{locale === 'sl' ? 'Vrednost popusta' : 'Discount value'}</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={draft.value}
+              onChange={(event) => onValueChange(sanitizeDiscountValueInput(event.target.value))}
+              onBlur={() => onValueChange(String(discountValueNumber(draft)))}
+              placeholder="0.00"
+            />
+            <em>{suffix}</em>
+          </label>
+        </div>
+        <div className="billing-invoice-discount-foot">
+          <span>{locale === 'sl' ? 'Popust bo izračunan od vmesnega seštevka.' : 'Discount is calculated from the subtotal.'}</span>
+          <strong>{discountGross > 0 ? `- ${currency(discountGross)}` : currency(0)}</strong>
+        </div>
+      </section>
+    )
+  }
+
   const renderOpenBillEditorPaymentMethods = (ob: OpenBill, totalGross: number) => {
     const splits = getOpenBillPaymentSplits(ob, totalGross)
     const effectiveType = resolveOpenBillEffectiveType(ob)
@@ -4166,8 +4334,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return (
       <section className="billing-invoice-payment-card">
         <div className="billing-invoice-section-title-row">
-          <h3>Payment methods</h3>
-          <span>{splits.length} {splits.length === 1 ? 'method' : 'methods'}</span>
+          <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
+          <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
         </div>
         <div className="billing-invoice-payment-list">
           {splits.length > 0 ? splits.map((split) => {
@@ -4287,7 +4455,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             disabled={availableMethods.length === 0}
             onClick={() => addOpenBillPaymentSplit(ob, totalGross)}
           >
-            + Add payment method
+            + {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}
           </button>
           {renderPaymentRemainingToMatch(splits, totalGross)}
         </div>
@@ -4382,7 +4550,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const targetLabel = (isCreateMode ? billForm.billingTarget : (targetDetails?.billingTarget ?? 'PERSON')) === 'COMPANY'
       ? (targetCompany?.name || (locale === 'sl' ? 'Izbrano podjetje' : 'Selected company'))
       : (targetClient ? fullName(targetClient) : (locale === 'sl' ? 'Izbrana stranka' : 'Selected client'))
-    const limitGross = isCreateMode ? grossPreview : detailOpenBillTransactionGross
+    const limitGross = isCreateMode ? createBillPayableGross : detailOpenBillTransactionGross
     const selectedTotal = sumAdvanceSelectionGross(advancePaymentDraftSelections)
     const canConfirm = validateAdvanceSelections(advancePaymentDraftSelections, modalUnusedAdvances, limitGross)
     const selectedCount = advancePaymentDraftSelections.length
@@ -5497,11 +5665,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const detailNet = estimateNet(totalsItems)
     const detailVatRows = vatBreakdownRowsForItems(totalsItems)
     const detailTax = detailVatRows.reduce((sum, row) => sum + row.taxTotal, 0)
-    const detailGross = detailNet + detailTax
+    const detailSubtotalGross = detailNet + detailTax
+    const detailDiscountDraft = getOpenBillDiscountDraft(activeBill)
+    const detailDiscountGross = calculateDiscountGross(detailSubtotalGross, detailDiscountDraft)
+    const detailGross = payableGrossAfterDiscount(detailSubtotalGross, detailDiscountDraft)
     const activeBillSelectableServices = selectableServicesForOpenBill(activeBill)
     const totalOpenBills = onePayeeForAll ? 1 : relatedOpenBills.length
     const totalLineItems = relatedOpenBills.reduce((sum, entry) => sum + getOpenBillItems(entry).length, 0)
-    const totalAcrossBills = relatedOpenBills.reduce((sum, entry) => sum + estimateGross(getOpenBillItems(entry)), 0)
+    const totalAcrossBills = relatedOpenBills.reduce((sum, entry) => sum + openBillPayableGross(entry), 0)
     const addBillSourceBill = baseRelatedOpenBills[0] ?? rootBill
     const addBillSessionId = addBillSourceBill.sessionId
       ?? getOpenBillIncludedSessions(addBillSourceBill).find((s) => Number(s.sessionId) > 0)?.sessionId
@@ -5850,17 +6021,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
           <div className="billing-invoice-payment-panel">
             {renderOpenBillEditorPaymentMethods(activeBill, detailGross)}
+            {renderDiscountCard(
+              detailDiscountDraft,
+              detailSubtotalGross,
+              (type) => setOpenBillDiscountDraft(activeBill, { type }),
+              (value) => setOpenBillDiscountDraft(activeBill, { value }),
+            )}
             <section className="billing-invoice-totals-card">
-              <div className="billing-bill-modal-summary-line"><span>Subtotal</span><strong>{currency(detailNet)}</strong></div>
+              <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(detailSubtotalGross)}</strong></div>
               {detailVatRows.map((row) => (
                 <div key={row.key} className="billing-bill-modal-summary-line">
                   <span>{row.label}</span>
                   <strong>{currency(row.taxTotal)}</strong>
                 </div>
               ))}
-              <div className="billing-bill-modal-summary-line"><span>Discount <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(0)}</strong></div>
+              <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(detailDiscountGross)}</strong></div>
               <div className="billing-bill-modal-summary-divider" />
-              <div className="billing-bill-modal-total-line"><span>Grand total</span><strong>{currency(detailGross)}</strong></div>
+              <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(detailGross)}</strong></div>
             </section>
           </div>
         </section>
@@ -6875,7 +7052,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const createNet = estimateNet(billForm.items)
         const createVatRows = vatBreakdownRowsForItems(billForm.items)
         const createTax = createVatRows.reduce((sum, row) => sum + row.taxTotal, 0)
-        const createGross = createNet + createTax
+        const createSubtotalGross = createNet + createTax
+        const createGross = billForm.billType === 'INVOICE' ? createBillPayableGross : createSubtotalGross
         const createRecipientLabel = billForm.billingTarget === 'COMPANY'
           ? (selectedRecipientCompany?.name || billingCopy.targetCompany)
           : (selectedClient ? fullName(selectedClient) : billingCopy.targetPerson)
@@ -7016,22 +7194,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
                   <div className="billing-invoice-payment-panel">
                     {renderCreateBillPaymentMethods(createGross)}
-                    {!createPaymentsMatchTotal && billForm.items.length > 0 && (
-                      <div className="billing-invoice-payment-warning">
-                        {locale === 'sl'
-                          ? `Vsota plačil se mora ujemati s skupnim zneskom. Razlika: ${currency(createPaymentDifference)}`
-                          : `Payment amounts must match the total. Difference: ${currency(createPaymentDifference)}`}
-                      </div>
+                    {!isCreateAdvanceBill && renderDiscountCard(
+                      createBillDiscountDraft,
+                      createSubtotalGross,
+                      (type) => setBillForm((prev) => ({ ...prev, discountType: type })),
+                      (value) => setBillForm((prev) => ({ ...prev, discountValue: value })),
                     )}
                     <section className="billing-invoice-totals-card">
-                      <div className="billing-bill-modal-summary-line"><span>Subtotal</span><strong>{currency(createNet)}</strong></div>
+                      <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
                       {createVatRows.map((row) => (
                         <div key={row.key} className="billing-bill-modal-summary-line">
                           <span>{row.label}</span>
                           <strong>{currency(row.taxTotal)}</strong>
                         </div>
                       ))}
-                      <div className="billing-bill-modal-summary-line"><span>Discount <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(0)}</strong></div>
+                      {!isCreateAdvanceBill && (
+                        <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(createBillDiscountGross)}</strong></div>
+                      )}
                       <div className="billing-bill-modal-summary-divider" />
                       <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
                     </section>

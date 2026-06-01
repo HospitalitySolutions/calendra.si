@@ -358,6 +358,10 @@ export type OpenBill = {
   paymentMethod?: PaymentMethod | null
   paymentSplits?: PaymentSplit[]
   reference?: string | null
+  discountType?: 'PERCENT' | 'AMOUNT' | string | null
+  discountValue?: number | null
+  discountAmountGross?: number | null
+  discountedTotalGross?: number | null
   items: OpenBillItem[]
   sessionDisplayId?: string
   sessionInfo?: string
