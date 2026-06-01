@@ -3,7 +3,6 @@ package com.example.app.guest.auth;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
 import jakarta.mail.internet.MimeMessage;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -22,16 +21,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class GuestPasswordResetService {
     private static final Logger log = LoggerFactory.getLogger(GuestPasswordResetService.class);
-    private static final long TOKEN_TTL_SECONDS = 60L * 60L;
+    private static final long CODE_TTL_SECONDS = 15L * 60L;
+    private static final long RESET_SESSION_TTL_SECONDS = 15L * 60L;
     private static final int TOKEN_BYTES = 32;
+    private static final int RESET_CODE_DIGITS = 6;
+    private static final int MAX_CODE_ATTEMPTS = 5;
 
     private final GuestUserRepository guestUsers;
     private final GuestPasswordResetTokenRepository resetTokens;
     private final GuestPasswordService passwords;
     private final JavaMailSender mailSender;
     private final String mailFrom;
-    private final String mobileResetScheme;
-    private final String webResetBaseUrl;
     private final boolean mailConfigured;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -42,17 +42,13 @@ public class GuestPasswordResetService {
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
             @Value("${spring.mail.host:}") String mailHost,
-            @Value("${spring.mail.username:}") String mailUsername,
-            @Value("${app.guest.auth.password-reset-mobile-scheme:calendra-guest}") String mobileResetScheme,
-            @Value("${app.guest.auth.password-reset-web-url:${app.auth.frontend-url:http://localhost:3000}}") String webResetBaseUrl
+            @Value("${spring.mail.username:}") String mailUsername
     ) {
         this.guestUsers = guestUsers;
         this.resetTokens = resetTokens;
         this.passwords = passwords;
         this.mailSender = mailSender;
         this.mailFrom = (mailFrom == null || mailFrom.isBlank()) ? (mailUsername == null ? "" : mailUsername) : mailFrom;
-        this.mobileResetScheme = sanitizeScheme(mobileResetScheme);
-        this.webResetBaseUrl = sanitizeBase(webResetBaseUrl);
         this.mailConfigured = mailSender != null
                 && mailHost != null && !mailHost.isBlank()
                 && mailUsername != null && !mailUsername.isBlank();
@@ -65,19 +61,66 @@ public class GuestPasswordResetService {
         Optional<GuestUser> candidate = guestUsers.findByEmailIgnoreCase(normalized)
                 .filter(GuestUser::isActive);
         if (candidate.isEmpty()) {
-            log.info("Guest password reset requested for non-active or unknown email={}", normalized);
+            log.info("Guest password reset code requested for non-active or unknown email={}", normalized);
             return;
         }
         GuestUser guestUser = candidate.get();
         invalidatePreviousTokens(guestUser);
-        String token = generateToken();
+
+        String code = generateNumericCode();
         GuestPasswordResetToken row = new GuestPasswordResetToken();
         row.setGuestUser(guestUser);
-        row.setToken(token);
-        row.setExpiresAt(Instant.now().plusSeconds(TOKEN_TTL_SECONDS));
+        // This token becomes the short-lived reset session after the verification code is accepted.
+        // It is not sent in the email, so users must prove email possession with the code first.
+        row.setToken(generateToken());
+        row.setVerificationCodeHash(passwords.hash(code));
+        row.setFailedAttempts(0);
+        row.setExpiresAt(Instant.now().plusSeconds(CODE_TTL_SECONDS));
         row.setActive(true);
         resetTokens.save(row);
-        sendResetEmail(guestUser, token, locale);
+        sendVerificationCodeEmail(guestUser, code, locale);
+    }
+
+    @Transactional
+    public Optional<VerifiedResetSession> verifyCode(String email, String code) {
+        String normalized = normalizeEmail(email);
+        String normalizedCode = normalizeCode(code);
+        if (normalized == null || normalizedCode == null) return Optional.empty();
+
+        Optional<GuestUser> candidate = guestUsers.findByEmailIgnoreCase(normalized)
+                .filter(GuestUser::isActive);
+        if (candidate.isEmpty()) return Optional.empty();
+
+        GuestPasswordResetToken row = latestActiveToken(candidate.get()).orElse(null);
+        if (row == null) return Optional.empty();
+        if (row.getUsedAt() != null || row.getExpiresAt() == null || row.getExpiresAt().isBefore(Instant.now())) {
+            row.setActive(false);
+            resetTokens.save(row);
+            return Optional.empty();
+        }
+        if (row.getCodeVerifiedAt() != null) {
+            return Optional.of(new VerifiedResetSession(row.getToken(), normalizeEmail(row.getGuestUser().getEmail())));
+        }
+        if (row.getFailedAttempts() >= MAX_CODE_ATTEMPTS) {
+            row.setActive(false);
+            resetTokens.save(row);
+            return Optional.empty();
+        }
+        if (!passwords.matches(normalizedCode, row.getVerificationCodeHash())) {
+            row.setFailedAttempts(row.getFailedAttempts() + 1);
+            if (row.getFailedAttempts() >= MAX_CODE_ATTEMPTS) {
+                row.setActive(false);
+                row.setUsedAt(Instant.now());
+            }
+            resetTokens.save(row);
+            return Optional.empty();
+        }
+
+        row.setCodeVerifiedAt(Instant.now());
+        row.setFailedAttempts(0);
+        row.setExpiresAt(Instant.now().plusSeconds(RESET_SESSION_TTL_SECONDS));
+        resetTokens.save(row);
+        return Optional.of(new VerifiedResetSession(row.getToken(), normalizeEmail(row.getGuestUser().getEmail())));
     }
 
     @Transactional(readOnly = true)
@@ -110,31 +153,39 @@ public class GuestPasswordResetService {
         resetTokens.deleteByExpiresAtBefore(Instant.now().minusSeconds(60L * 60L * 24L));
     }
 
+    private Optional<GuestPasswordResetToken> latestActiveToken(GuestUser guestUser) {
+        return resetTokens.findAllByGuestUser_IdAndActiveTrue(guestUser.getId())
+                .stream()
+                .filter(token -> token.getGuestUser() != null && token.getGuestUser().isActive())
+                .max((left, right) -> Long.compare(idOrZero(left), idOrZero(right)));
+    }
+
+    private static long idOrZero(GuestPasswordResetToken token) {
+        return token == null || token.getId() == null ? 0L : token.getId();
+    }
+
     private GuestPasswordResetToken resolveValidToken(String token) {
         if (token == null || token.isBlank()) return null;
         GuestPasswordResetToken row = resetTokens.findByTokenAndActiveTrue(token.trim()).orElse(null);
         if (row == null) return null;
         if (row.getUsedAt() != null) return null;
+        if (row.getCodeVerifiedAt() == null) return null;
         if (row.getExpiresAt() == null || row.getExpiresAt().isBefore(Instant.now())) return null;
         GuestUser guestUser = row.getGuestUser();
         if (guestUser == null || !guestUser.isActive()) return null;
         return row;
     }
 
-    private void sendResetEmail(GuestUser guestUser, String token, String locale) {
+    private void sendVerificationCodeEmail(GuestUser guestUser, String code, String locale) {
         if (!mailConfigured) {
-            log.warn("Guest password reset requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", guestUser.getEmail());
+            log.warn("Guest password reset code requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", guestUser.getEmail());
             return;
         }
-        String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
-        String encodedEmail = URLEncoder.encode(guestUser.getEmail(), StandardCharsets.UTF_8);
-        String mobileResetUrl = mobileResetScheme + "://reset-password?token=" + encodedToken + "&email=" + encodedEmail;
-        String webResetUrl = webResetBaseUrl + "/reset-password?guest=1&token=" + encodedToken + "&email=" + encodedEmail;
         boolean sl = locale == null || locale.isBlank() || locale.trim().toLowerCase(Locale.ROOT).startsWith("sl");
         String firstName = guestUser.getFirstName() == null || guestUser.getFirstName().isBlank()
                 ? (sl ? "" : "there")
                 : guestUser.getFirstName().trim();
-        String subject = sl ? "Ponastavitev gesla" : "Reset your password";
+        String subject = sl ? "Koda za ponastavitev gesla" : "Your password reset code";
         String greeting = sl
                 ? (firstName.isBlank() ? "Pozdravljeni," : "Pozdravljeni " + firstName + ",")
                 : "Hello " + firstName + ",";
@@ -142,29 +193,23 @@ public class GuestPasswordResetService {
                 %s
 
                 Prejeli smo zahtevo za ponastavitev gesla za vaš Calendra Book račun.
-                Odprite spodnjo povezavo na telefonu, da nastavite novo geslo:
+                V aplikaciji vnesite spodnjo potrditveno kodo:
 
                 %s
 
-                Če se aplikacija ne odpre samodejno, uporabite to rezervno povezavo:
-                %s
-
-                Povezava velja 60 minut.
+                Koda velja 15 minut.
                 Če tega niste zahtevali, lahko to sporočilo prezrete.
-                """.formatted(greeting, mobileResetUrl, webResetUrl) : """
+                """.formatted(greeting, code) : """
                 %s
 
                 We received a request to reset the password for your Calendra Book account.
-                Open this link on your phone to set a new password:
+                Enter this verification code in the app:
 
                 %s
 
-                If the app does not open automatically, use this fallback link:
-                %s
-
-                This link expires in 60 minutes.
+                This code expires in 15 minutes.
                 If you did not request this, you can safely ignore this email.
-                """.formatted(greeting, mobileResetUrl, webResetUrl);
+                """.formatted(greeting, code);
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
@@ -173,9 +218,9 @@ public class GuestPasswordResetService {
             helper.setSubject(subject);
             helper.setText(body, false);
             mailSender.send(message);
-            log.info("Guest password reset email sent to {}", guestUser.getEmail());
+            log.info("Guest password reset verification code email sent to {}", guestUser.getEmail());
         } catch (Exception ex) {
-            log.warn("Failed sending guest password reset email to {}: {}", guestUser.getEmail(), ex.getMessage());
+            log.warn("Failed sending guest password reset code email to {}: {}", guestUser.getEmail(), ex.getMessage());
         }
     }
 
@@ -185,18 +230,22 @@ public class GuestPasswordResetService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    private String generateNumericCode() {
+        int bound = (int) Math.pow(10, RESET_CODE_DIGITS);
+        int floor = bound / 10;
+        return String.valueOf(floor + secureRandom.nextInt(bound - floor));
+    }
+
     private static String normalizeEmail(String email) {
         if (email == null || email.isBlank()) return null;
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
-    private static String sanitizeScheme(String raw) {
-        String scheme = raw == null || raw.isBlank() ? "calendra-guest" : raw.trim();
-        return scheme.replace("://", "").replace(":", "");
+    private static String normalizeCode(String code) {
+        if (code == null) return null;
+        String normalized = code.replaceAll("\\D", "").trim();
+        return normalized.length() == RESET_CODE_DIGITS ? normalized : null;
     }
 
-    private static String sanitizeBase(String raw) {
-        String base = raw == null || raw.isBlank() ? "http://localhost:3000" : raw.trim();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-    }
+    public record VerifiedResetSession(String resetToken, String email) {}
 }

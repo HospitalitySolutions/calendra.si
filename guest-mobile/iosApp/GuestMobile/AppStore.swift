@@ -712,6 +712,11 @@ final class AppStore: ObservableObject {
         try await api.requestPasswordReset(email: email, locale: locale)
     }
 
+    func verifyPasswordResetCode(email: String, code: String) async throws -> ResetPasswordCodeModel {
+        if usePreviewData { return ResetPasswordCodeModel(verified: !code.isEmpty, email: email, resetToken: "preview-reset-token") }
+        return try await api.verifyPasswordResetCode(email: email, code: code)
+    }
+
     func validatePasswordResetToken(_ token: String) async throws -> ResetPasswordValidateModel {
         if usePreviewData { return ResetPasswordValidateModel(valid: !token.isEmpty, email: passwordResetLink?.email ?? user.email) }
         return try await api.validatePasswordResetToken(token)

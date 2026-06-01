@@ -768,6 +768,17 @@ struct ForgotPasswordPayload: Codable {
     let language: String?
 }
 
+struct VerifyPasswordResetCodePayload: Codable {
+    let email: String
+    let code: String
+}
+
+struct ResetPasswordCodeModel: Codable {
+    let verified: Bool
+    let email: String?
+    let resetToken: String?
+}
+
 struct ResetPasswordValidateModel: Codable {
     let valid: Bool
     let email: String?

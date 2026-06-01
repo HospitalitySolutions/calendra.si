@@ -47,9 +47,15 @@ struct ContentView: View {
                     onRequireJoin: { screen = .joinTenant }
                 )
             case .forgotPassword(let initialEmail):
-                ForgotPasswordView(initialEmail: initialEmail) {
-                    screen = .login
-                }
+                ForgotPasswordView(
+                    initialEmail: initialEmail,
+                    onCodeVerified: { token, email in
+                        screen = .resetPassword(token: token, email: email)
+                    },
+                    onBackToLogin: {
+                        screen = .login
+                    }
+                )
             case .resetPassword(let token, let email):
                 ResetPasswordView(token: token, initialEmail: email) {
                     store.passwordResetLink = nil

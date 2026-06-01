@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import si.calendra.guest.android.R
+import si.calendra.guest.shared.models.ResetPasswordCodeResponse
 import si.calendra.guest.shared.models.ResetPasswordValidateResponse
 
 @Composable
@@ -62,13 +63,17 @@ fun ForgotPasswordScreen(
     languageCode: String,
     initialEmail: String,
     onRequestReset: suspend (String) -> Unit,
+    onVerifyCode: suspend (String, String) -> ResetPasswordCodeResponse,
+    onCodeVerified: (String, String?) -> Unit,
     onBackToLogin: () -> Unit,
     onError: (String) -> Unit
 ) {
     val isSl = languageCode.equals("sl", ignoreCase = true)
     var email by remember(initialEmail) { mutableStateOf(initialEmail) }
+    var code by remember { mutableStateOf("") }
+    var codeSent by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
-    var sent by remember { mutableStateOf(false) }
+    var inlineError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val blue = Color(0xFF0568F5)
     val dark = Color(0xFF071735)
@@ -90,7 +95,7 @@ fun ForgotPasswordScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        if (!sent) {
+        if (!codeSent) {
             Text(
                 text = if (isSl) "PONASTAVITEV GESLA" else "PASSWORD RESET",
                 color = blue,
@@ -110,7 +115,11 @@ fun ForgotPasswordScreen(
                 modifier = Modifier.offset(x = contentInset, y = screenHeight * 0.302f)
             )
             Text(
-                text = if (isSl) "Vnesite e-poštni naslov, povezan z vašim\nračunom. Poslali vam bomo povezavo za\nponastavitev gesla." else "Enter the email address connected to\nyour account. We will send you a link\nto reset your password.",
+                text = if (isSl) "Vnesite e-poštni naslov, povezan z vašim
+računom. Poslali vam bomo 6-mestno
+kodo za ponastavitev gesla." else "Enter the email address connected to
+your account. We will send you a 6-digit
+code to reset your password.",
                 color = muted,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
@@ -131,18 +140,35 @@ fun ForgotPasswordScreen(
                     .height(fieldHeight),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done)
             )
+            inlineError?.let {
+                Text(
+                    text = it,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontFamily = appFont,
+                    modifier = Modifier
+                        .offset(x = contentInset, y = screenHeight * 0.59f)
+                        .width(contentWidth)
+                )
+            }
             Button(
                 onClick = {
                     val normalized = email.trim()
                     if (normalized.isNotEmpty()) {
                         submitting = true
+                        inlineError = null
                         scope.launch {
                             runCatching { onRequestReset(normalized) }
                                 .onSuccess {
                                     email = normalized
-                                    sent = true
+                                    code = ""
+                                    codeSent = true
                                 }
-                                .onFailure { onError(it.message ?: "Password reset failed") }
+                                .onFailure {
+                                    inlineError = it.message ?: if (isSl) "Kode ni bilo mogoče poslati." else "Could not send code."
+                                    onError(inlineError.orEmpty())
+                                }
                             submitting = false
                         }
                     }
@@ -156,7 +182,7 @@ fun ForgotPasswordScreen(
                     .width(contentWidth)
                     .height(buttonHeight)
             ) {
-                Text(if (submitting) (if (isSl) "Pošiljanje…" else "Sending…") else (if (isSl) "Pošlji povezavo" else "Send link"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = appFont)
+                Text(if (submitting) (if (isSl) "Pošiljanje…" else "Sending…") else (if (isSl) "Pošlji kodo" else "Send code"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = appFont)
             }
             Text(
                 text = if (isSl) "Nazaj na prijavo" else "Back to login",
@@ -173,7 +199,7 @@ fun ForgotPasswordScreen(
             )
         } else {
             Text(
-                text = if (isSl) "E-POŠTA POSLANA" else "EMAIL SENT",
+                text = if (isSl) "PREVERJANJE KODE" else "CODE VERIFICATION",
                 color = blue,
                 fontSize = 12.sp,
                 lineHeight = 15.sp,
@@ -182,58 +208,100 @@ fun ForgotPasswordScreen(
                 modifier = Modifier.offset(x = contentInset, y = screenHeight * 0.253f)
             )
             Text(
-                text = if (isSl) "Preverite e-pošto" else "Check your email",
+                text = if (isSl) "Vnesite kodo" else "Enter code",
                 color = dark,
-                fontSize = 33.sp,
+                fontSize = 34.sp,
                 lineHeight = 38.sp,
                 fontWeight = FontWeight.ExtraBold,
                 fontFamily = appFont,
                 modifier = Modifier.offset(x = contentInset, y = screenHeight * 0.302f)
             )
             Text(
-                text = (if (isSl) "Povezavo za ponastavitev gesla smo poslali na\n" else "We sent a reset link to\n") + email,
+                text = (if (isSl) "6-mestno kodo za ponastavitev gesla smo
+poslali na
+" else "We sent a 6-digit password reset code to
+") + email,
                 color = muted,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
                 fontWeight = FontWeight.Normal,
                 fontFamily = appFont,
                 modifier = Modifier
-                    .offset(x = contentInset, y = screenHeight * 0.378f)
+                    .offset(x = contentInset, y = screenHeight * 0.365f)
                     .width(contentWidth)
             )
-            Icon(
-                imageVector = Icons.Outlined.Email,
-                contentDescription = null,
-                tint = blue,
+            AuthResetField(
+                value = code,
+                onValueChange = { code = it.filter { char -> char.isDigit() }.take(6) },
+                placeholder = if (isSl) "Potrditvena koda" else "Verification code",
+                leadingIcon = Icons.Outlined.Lock,
                 modifier = Modifier
-                    .offset(x = contentInset + (contentWidth * 0.31f), y = screenHeight * 0.465f)
-                    .size(contentWidth * 0.38f)
+                    .offset(x = contentInset, y = screenHeight * 0.512f)
+                    .width(contentWidth)
+                    .height(fieldHeight),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done)
             )
             Text(
-                text = if (isSl) "Povezava bo veljavna 60 minut.\nČe je ne vidite, preverite mapo z vsiljeno pošto." else "The link is valid for 60 minutes.\nIf you do not see it, check your spam folder.",
+                text = if (isSl) "Koda velja 15 minut. Če je ne vidite, preverite mapo z vsiljeno pošto." else "The code is valid for 15 minutes. If you do not see it, check your spam folder.",
                 color = muted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
                 fontWeight = FontWeight.Normal,
                 fontFamily = appFont,
                 modifier = Modifier
-                    .offset(x = contentInset, y = screenHeight * 0.672f)
+                    .offset(x = contentInset, y = screenHeight * 0.606f)
                     .width(contentWidth)
             )
+            inlineError?.let {
+                Text(
+                    text = it,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontFamily = appFont,
+                    modifier = Modifier
+                        .offset(x = contentInset, y = screenHeight * 0.665f)
+                        .width(contentWidth)
+                )
+            }
             Button(
-                onClick = onBackToLogin,
+                onClick = {
+                    val normalized = email.trim()
+                    val normalizedCode = code.trim()
+                    if (normalized.isNotEmpty() && normalizedCode.length == 6) {
+                        submitting = true
+                        inlineError = null
+                        scope.launch {
+                            runCatching { onVerifyCode(normalized, normalizedCode) }
+                                .onSuccess { response ->
+                                    val resetToken = response.resetToken.orEmpty()
+                                    if (response.verified && resetToken.isNotBlank()) {
+                                        onCodeVerified(resetToken, response.email ?: normalized)
+                                    } else {
+                                        inlineError = if (isSl) "Koda ni veljavna ali je potekla." else "The code is invalid or expired."
+                                    }
+                                }
+                                .onFailure {
+                                    inlineError = if (isSl) "Koda ni veljavna ali je potekla." else "The code is invalid or expired."
+                                    onError(inlineError.orEmpty())
+                                }
+                            submitting = false
+                        }
+                    }
+                },
+                enabled = !submitting && code.trim().length == 6,
                 shape = RoundedCornerShape(6.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = blue, contentColor = Color.White),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
                 modifier = Modifier
-                    .offset(x = contentInset, y = screenHeight * 0.745f)
+                    .offset(x = contentInset, y = screenHeight * 0.704f)
                     .width(contentWidth)
                     .height(buttonHeight)
             ) {
-                Text(if (isSl) "Nazaj na prijavo" else "Back to login", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = appFont)
+                Text(if (submitting) (if (isSl) "Preverjanje…" else "Checking…") else (if (isSl) "Potrdi kodo" else "Confirm code"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = appFont)
             }
             Text(
-                text = if (isSl) "Niste prejeli sporočila? Pošlji znova" else "Did not receive it? Send again",
+                text = if (isSl) "Niste prejeli kode? Pošlji znova" else "Did not receive the code? Send again",
                 color = blue,
                 fontSize = 14.sp,
                 lineHeight = 18.sp,
@@ -241,16 +309,37 @@ fun ForgotPasswordScreen(
                 fontFamily = appFont,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .offset(x = contentInset, y = screenHeight * 0.845f)
+                    .offset(x = contentInset, y = screenHeight * 0.82f)
                     .width(contentWidth)
                     .clickable {
-                        submitting = true
-                        scope.launch {
-                            runCatching { onRequestReset(email.trim()) }
-                                .onFailure { onError(it.message ?: "Password reset failed") }
-                            submitting = false
+                        val normalized = email.trim()
+                        if (!submitting && normalized.isNotEmpty()) {
+                            submitting = true
+                            inlineError = null
+                            scope.launch {
+                                runCatching { onRequestReset(normalized) }
+                                    .onSuccess { code = "" }
+                                    .onFailure {
+                                        inlineError = it.message ?: if (isSl) "Kode ni bilo mogoče ponovno poslati." else "Could not resend code."
+                                        onError(inlineError.orEmpty())
+                                    }
+                                submitting = false
+                            }
                         }
                     }
+            )
+            Text(
+                text = if (isSl) "Nazaj na prijavo" else "Back to login",
+                color = blue,
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = appFont,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .offset(x = contentInset, y = screenHeight * 0.865f)
+                    .width(contentWidth)
+                    .clickable(onClick = onBackToLogin)
             )
         }
     }
@@ -289,11 +378,11 @@ fun ResetPasswordScreen(
             .onSuccess {
                 valid = it.valid
                 if (!it.email.isNullOrBlank()) email = it.email.orEmpty()
-                inlineError = if (it.valid) null else if (isSl) "Povezava ni veljavna ali je potekla." else "The reset link is invalid or expired."
+                inlineError = if (it.valid) null else if (isSl) "Ponastavitvena seja ni veljavna ali je potekla." else "The reset session is invalid or expired."
             }
             .onFailure {
                 valid = false
-                inlineError = it.message ?: if (isSl) "Povezava ni veljavna." else "The reset link is invalid."
+                inlineError = it.message ?: if (isSl) "Ponastavitvena seja ni veljavna." else "The reset session is invalid."
             }
         validating = false
     }
@@ -360,7 +449,7 @@ fun ResetPasswordScreen(
             }
             !valid -> {
                 Text(
-                    text = if (isSl) "POVEZAVA NI VELJAVNA" else "LINK INVALID",
+                    text = if (isSl) "KODA NI VELJAVNA" else "CODE INVALID",
                     color = blue,
                     fontSize = 12.sp,
                     lineHeight = 15.sp,
@@ -369,7 +458,7 @@ fun ResetPasswordScreen(
                     modifier = Modifier.offset(x = contentInset, y = screenHeight * 0.253f)
                 )
                 Text(
-                    text = if (isSl) "Povezava je potekla" else "Link expired",
+                    text = if (isSl) "Seja je potekla" else "Session expired",
                     color = dark,
                     fontSize = 32.sp,
                     lineHeight = 38.sp,
@@ -378,7 +467,7 @@ fun ResetPasswordScreen(
                     modifier = Modifier.offset(x = contentInset, y = screenHeight * 0.31f)
                 )
                 Text(
-                    text = inlineError ?: if (isSl) "Zahtevajte novo povezavo za ponastavitev gesla." else "Request a new password reset link.",
+                    text = inlineError ?: if (isSl) "Zahtevajte novo kodo za ponastavitev gesla." else "Request a new password reset code.",
                     color = muted,
                     fontSize = 15.sp,
                     lineHeight = 21.sp,

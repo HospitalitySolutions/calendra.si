@@ -6286,9 +6286,6 @@ export function ConfigurationPage() {
               }
             }
           `}</style>
-          {isCompactConfigViewport ? null : (
-            <h1 className="account-heading">Upravljanje računa</h1>
-          )}
           <div className="account-subtabs" role="tablist" aria-label="Account management subtabs">
             <button type="button" className={accountSubtab === 'company' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('company')}>Podjetje</button>
             <button type="button" className={accountSubtab === 'receivedInvoices' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('receivedInvoices')}>Prejeti računi</button>

@@ -15,6 +15,7 @@ class RemoteGuestRepository(
             .also { GuestSessionStore.authToken = it.token }
     override suspend fun resendSignupCode(challengeId: String): SignupChallenge = api.resendSignupCode(challengeId)
     override suspend fun requestPasswordReset(email: String, locale: String?) = api.requestPasswordReset(email, locale)
+    override suspend fun verifyPasswordResetCode(email: String, code: String): ResetPasswordCodeResponse = api.verifyPasswordResetCode(email, code)
     override suspend fun validatePasswordResetToken(token: String): ResetPasswordValidateResponse = api.validatePasswordResetToken(token)
     override suspend fun resetPassword(token: String, password: String) = api.resetPassword(token, password)
     override suspend fun loginWithGoogle(idToken: String): GuestSession = api.loginWithGoogle(idToken).also { GuestSessionStore.authToken = it.token }

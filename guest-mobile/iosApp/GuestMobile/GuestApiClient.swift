@@ -60,6 +60,13 @@ final class GuestApiClient {
         )
     }
 
+    func verifyPasswordResetCode(email: String, code: String) async throws -> ResetPasswordCodeModel {
+        try await post(
+            path: "api/guest/auth/forgot-password/verify-code",
+            body: VerifyPasswordResetCodePayload(email: email, code: code)
+        )
+    }
+
     func validatePasswordResetToken(_ token: String) async throws -> ResetPasswordValidateModel {
         try await get(
             path: "api/guest/auth/reset-password/validate",

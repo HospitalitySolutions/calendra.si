@@ -59,6 +59,19 @@ data class ForgotPasswordRequest(
 )
 
 @Serializable
+data class VerifyPasswordResetCodeRequest(
+    val email: String,
+    val code: String
+)
+
+@Serializable
+data class ResetPasswordCodeResponse(
+    val verified: Boolean = false,
+    val email: String? = null,
+    val resetToken: String? = null
+)
+
+@Serializable
 data class ResetPasswordValidateResponse(
     val valid: Boolean,
     val email: String? = null

@@ -96,6 +96,12 @@ class RemoteGuestApi(
         }
     }
 
+    suspend fun verifyPasswordResetCode(email: String, code: String): ResetPasswordCodeResponse =
+        parse(client.post("${config.baseUrl}/api/guest/auth/forgot-password/verify-code") {
+            jsonRequest()
+            setBody(VerifyPasswordResetCodeRequest(email = email, code = code))
+        })
+
     suspend fun validatePasswordResetToken(token: String): ResetPasswordValidateResponse =
         parse(client.get("${config.baseUrl}/api/guest/auth/reset-password/validate") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())

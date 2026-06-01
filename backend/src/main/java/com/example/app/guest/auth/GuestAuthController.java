@@ -58,7 +58,17 @@ public class GuestAuthController {
         String locale = request == null ? null : (request.locale() != null ? request.locale() : request.language());
         // Keep the response identical for existing and non-existing emails to avoid account enumeration.
         passwordResetService.requestReset(email, locale);
-        return java.util.Map.of("message", "If this email exists, a reset link has been sent.");
+        return java.util.Map.of("message", "If this email exists, a verification code has been sent.");
+    }
+
+    @PostMapping("/auth/forgot-password/verify-code")
+    public GuestDtos.GuestPasswordResetCodeResponse verifyForgotPasswordCode(@RequestBody GuestDtos.GuestVerifyPasswordResetCodeRequest request, HttpServletRequest httpRequest) {
+        String email = request == null ? null : request.email();
+        authRateLimiter.checkPasswordReset(httpRequest, email);
+        String code = request == null ? null : request.code();
+        GuestPasswordResetService.VerifiedResetSession session = passwordResetService.verifyCode(email, code)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid or expired verification code."));
+        return new GuestDtos.GuestPasswordResetCodeResponse(true, session.email(), session.resetToken());
     }
 
     @GetMapping("/auth/reset-password/validate")
@@ -75,9 +85,10 @@ public class GuestAuthController {
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, passwordValidationMessage);
         }
         String token = request == null ? null : request.token();
-        boolean ok = passwordResetService.resetPassword(token, request.password());
+        String password = request == null ? null : request.password();
+        boolean ok = passwordResetService.resetPassword(token, password);
         if (!ok) {
-            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid or expired reset link.");
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid or expired reset session.");
         }
         return java.util.Map.of("message", "Password has been reset.");
     }

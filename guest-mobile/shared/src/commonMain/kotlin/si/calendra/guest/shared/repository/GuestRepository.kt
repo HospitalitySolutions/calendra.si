@@ -9,6 +9,7 @@ interface GuestRepository {
     suspend fun verifySignupCode(challengeId: String, code: String): GuestSession
     suspend fun resendSignupCode(challengeId: String): SignupChallenge
     suspend fun requestPasswordReset(email: String, locale: String? = null)
+    suspend fun verifyPasswordResetCode(email: String, code: String): ResetPasswordCodeResponse
     suspend fun validatePasswordResetToken(token: String): ResetPasswordValidateResponse
     suspend fun resetPassword(token: String, password: String)
     suspend fun loginWithGoogle(idToken: String): GuestSession

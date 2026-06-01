@@ -50,9 +50,12 @@ struct ForgotPasswordView: View {
     @EnvironmentObject private var store: AppStore
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
     @State private var email: String
+    @State private var code: String = ""
     @State private var submitting = false
-    @State private var sent = false
+    @State private var codeSent = false
     @State private var hidden = false
+    @State private var errorText: String?
+    let onCodeVerified: (String, String?) -> Void
     let onBackToLogin: () -> Void
 
     private var isSl: Bool { appUiLocaleStorage.lowercased() == "sl" }
@@ -60,8 +63,9 @@ struct ForgotPasswordView: View {
     private let dark = Color(red: 0.03, green: 0.09, blue: 0.21)
     private let muted = Color(red: 0.38, green: 0.45, blue: 0.57)
 
-    init(initialEmail: String = "", onBackToLogin: @escaping () -> Void) {
+    init(initialEmail: String = "", onCodeVerified: @escaping (String, String?) -> Void, onBackToLogin: @escaping () -> Void) {
         _email = State(initialValue: initialEmail)
+        self.onCodeVerified = onCodeVerified
         self.onBackToLogin = onBackToLogin
     }
 
@@ -82,8 +86,8 @@ struct ForgotPasswordView: View {
                     .clipped()
                     .ignoresSafeArea()
 
-                if sent {
-                    sentState(width: width, height: height, inset: inset, contentWidth: contentWidth, buttonHeight: buttonHeight)
+                if codeSent {
+                    codeState(width: width, height: height, inset: inset, contentWidth: contentWidth, fieldHeight: fieldHeight, buttonHeight: buttonHeight)
                 } else {
                     requestState(width: width, height: height, inset: inset, contentWidth: contentWidth, fieldHeight: fieldHeight, buttonHeight: buttonHeight)
                 }
@@ -105,7 +109,7 @@ struct ForgotPasswordView: View {
                 .frame(width: contentWidth, alignment: .leading)
                 .position(x: inset + contentWidth / 2, y: height * 0.302)
 
-            Text(isSl ? "Vnesite e-poštni naslov, povezan z vašim\nračunom. Poslali vam bomo povezavo za\nponastavitev gesla." : "Enter the email address connected to\nyour account. We will send you a link\nto reset your password.")
+            Text(isSl ? "Vnesite e-poštni naslov, povezan z vašim\nračunom. Poslali vam bomo 6-mestno\nkodo za ponastavitev gesla." : "Enter the email address connected to\nyour account. We will send you a 6-digit\ncode to reset your password.")
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .lineSpacing(5)
                 .foregroundStyle(muted)
@@ -122,10 +126,18 @@ struct ForgotPasswordView: View {
             .frame(width: contentWidth, height: fieldHeight)
             .position(x: inset + contentWidth / 2, y: height * 0.508 + fieldHeight / 2)
 
+            if let errorText {
+                Text(errorText)
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundStyle(Color.red)
+                    .frame(width: contentWidth, alignment: .leading)
+                    .position(x: inset + contentWidth / 2, y: height * 0.59)
+            }
+
             Button {
-                submit()
+                submitEmail()
             } label: {
-                Text(submitting ? (isSl ? "Pošiljanje…" : "Sending…") : (isSl ? "Pošlji povezavo" : "Send link"))
+                Text(submitting ? (isSl ? "Pošiljanje…" : "Sending…") : (isSl ? "Pošlji kodo" : "Send code"))
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -148,88 +160,138 @@ struct ForgotPasswordView: View {
         }
     }
 
-    private func sentState(width: CGFloat, height: CGFloat, inset: CGFloat, contentWidth: CGFloat, buttonHeight: CGFloat) -> some View {
+    private func codeState(width: CGFloat, height: CGFloat, inset: CGFloat, contentWidth: CGFloat, fieldHeight: CGFloat, buttonHeight: CGFloat) -> some View {
         Group {
-            Text(isSl ? "E-POŠTA POSLANA" : "EMAIL SENT")
+            Text(isSl ? "PREVERJANJE KODE" : "CODE VERIFICATION")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(blue)
                 .frame(width: contentWidth, alignment: .leading)
                 .position(x: inset + contentWidth / 2, y: height * 0.253)
 
-            Text(isSl ? "Preverite e-pošto" : "Check your email")
-                .font(.system(size: 33, weight: .heavy, design: .rounded))
+            Text(isSl ? "Vnesite kodo" : "Enter code")
+                .font(.system(size: 34, weight: .heavy, design: .rounded))
                 .foregroundStyle(dark)
                 .frame(width: contentWidth, alignment: .leading)
                 .position(x: inset + contentWidth / 2, y: height * 0.302)
 
-            Text((isSl ? "Povezavo za ponastavitev gesla smo poslali na\n" : "We sent a reset link to\n") + email.trimmingCharacters(in: .whitespacesAndNewlines))
+            Text((isSl ? "6-mestno kodo za ponastavitev gesla smo\nposlali na\n" : "We sent a 6-digit password reset code to\n") + email.trimmingCharacters(in: .whitespacesAndNewlines))
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .lineSpacing(5)
                 .foregroundStyle(muted)
                 .frame(width: contentWidth, alignment: .leading)
-                .position(x: inset + contentWidth / 2, y: height * 0.384)
+                .position(x: inset + contentWidth / 2, y: height * 0.395)
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(Color.white.opacity(0.72))
-                    .frame(width: contentWidth * 0.55, height: contentWidth * 0.38)
-                    .shadow(color: blue.opacity(0.15), radius: 18, x: 0, y: 12)
-                Image(systemName: "envelope.open.fill")
-                    .font(.system(size: 78, weight: .regular, design: .rounded))
-                    .foregroundStyle(blue.opacity(0.20), blue)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.green)
-                    .offset(x: contentWidth * 0.23, y: -contentWidth * 0.16)
+            AuthResetTextField(
+                placeholder: isSl ? "Potrditvena koda" : "Verification code",
+                systemIcon: "lock",
+                text: $code,
+                visible: $hidden
+            )
+            .keyboardType(.numberPad)
+            .onChange(of: code) { value in
+                let digits = value.filter { $0.isNumber }
+                if digits != value || digits.count > 6 {
+                    code = String(digits.prefix(6))
+                }
             }
-            .position(x: inset + contentWidth / 2, y: height * 0.535)
+            .frame(width: contentWidth, height: fieldHeight)
+            .position(x: inset + contentWidth / 2, y: height * 0.512 + fieldHeight / 2)
 
-            Text(isSl ? "Povezava bo veljavna 60 minut.\nČe je ne vidite, preverite mapo z vsiljeno pošto." : "The link is valid for 60 minutes.\nIf you do not see it, check your spam folder.")
-                .font(.system(size: 14, weight: .regular, design: .rounded))
-                .lineSpacing(4)
+            Text(isSl ? "Koda velja 15 minut. Če je ne vidite, preverite mapo z vsiljeno pošto." : "The code is valid for 15 minutes. If you do not see it, check your spam folder.")
+                .font(.system(size: 12, weight: .regular, design: .rounded))
                 .foregroundStyle(muted)
                 .frame(width: contentWidth, alignment: .leading)
-                .position(x: inset + contentWidth / 2, y: height * 0.672)
+                .position(x: inset + contentWidth / 2, y: height * 0.625)
 
-            Button(action: onBackToLogin) {
-                Text(isSl ? "Nazaj na prijavo" : "Back to login")
+            if let errorText {
+                Text(errorText)
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                    .foregroundStyle(Color.red)
+                    .frame(width: contentWidth, alignment: .leading)
+                    .position(x: inset + contentWidth / 2, y: height * 0.675)
+            }
+
+            Button {
+                verifyCode()
+            } label: {
+                Text(submitting ? (isSl ? "Preverjanje…" : "Checking…") : (isSl ? "Potrdi kodo" : "Confirm code"))
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .buttonStyle(.plain)
+            .disabled(submitting || code.trimmingCharacters(in: .whitespacesAndNewlines).count != 6)
             .foregroundStyle(Color.white)
-            .background(blue)
+            .background(blue.opacity(submitting ? 0.65 : 1))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .frame(width: contentWidth, height: buttonHeight)
-            .position(x: inset + contentWidth / 2, y: height * 0.745 + buttonHeight / 2)
+            .position(x: inset + contentWidth / 2, y: height * 0.704 + buttonHeight / 2)
 
-            Button(action: submit) {
-                Text(isSl ? "Niste prejeli sporočila? Pošlji znova" : "Did not receive it? Send again")
+            Button(action: submitEmail) {
+                Text(isSl ? "Niste prejeli kode? Pošlji znova" : "Did not receive the code? Send again")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(blue)
             }
             .buttonStyle(.plain)
             .disabled(submitting)
             .frame(width: contentWidth)
-            .position(x: inset + contentWidth / 2, y: height * 0.845)
+            .position(x: inset + contentWidth / 2, y: height * 0.82)
+
+            Button(action: onBackToLogin) {
+                Text(isSl ? "Nazaj na prijavo" : "Back to login")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(blue)
+            }
+            .buttonStyle(.plain)
+            .frame(width: contentWidth)
+            .position(x: inset + contentWidth / 2, y: height * 0.865)
         }
     }
 
-    private func submit() {
+    private func submitEmail() {
         let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return }
         submitting = true
+        errorText = nil
         Task {
             do {
                 try await store.requestPasswordReset(email: normalized, locale: appUiLocaleStorage)
                 await MainActor.run {
                     email = normalized
-                    sent = true
+                    code = ""
+                    codeSent = true
                     submitting = false
                 }
             } catch {
                 await MainActor.run {
+                    errorText = error.localizedDescription
                     store.errorMessage = error.localizedDescription
+                    submitting = false
+                }
+            }
+        }
+    }
+
+    private func verifyCode() {
+        let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalizedCode.count == 6 else { return }
+        submitting = true
+        errorText = nil
+        Task {
+            do {
+                let result = try await store.verifyPasswordResetCode(email: normalized, code: normalizedCode)
+                await MainActor.run {
+                    submitting = false
+                    if result.verified, let token = result.resetToken, !token.isEmpty {
+                        onCodeVerified(token, result.email ?? normalized)
+                    } else {
+                        errorText = isSl ? "Koda ni veljavna ali je potekla." : "The code is invalid or expired."
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = isSl ? "Koda ni veljavna ali je potekla." : "The code is invalid or expired."
+                    store.errorMessage = errorText
                     submitting = false
                 }
             }

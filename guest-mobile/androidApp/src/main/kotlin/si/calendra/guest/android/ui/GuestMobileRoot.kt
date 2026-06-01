@@ -790,6 +790,13 @@ fun GuestMobileRoot() {
                     languageCode = appUiLocale,
                     initialEmail = initialEmail,
                     onRequestReset = { email -> repo.requestPasswordReset(email, appUiLocale) },
+                    onVerifyCode = { email, code -> repo.verifyPasswordResetCode(email, code) },
+                    onCodeVerified = { resetToken, verifiedEmail ->
+                        navController.navigate("reset-password?token=${Uri.encode(resetToken)}&email=${Uri.encode(verifiedEmail.orEmpty())}") {
+                            popUpTo(RootRoute.ForgotPassword.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
                     onBackToLogin = {
                         navController.navigate(RootRoute.Login.route) {
                             popUpTo(RootRoute.ForgotPassword.route) { inclusive = true }

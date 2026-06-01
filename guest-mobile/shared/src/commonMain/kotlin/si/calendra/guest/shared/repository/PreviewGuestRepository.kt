@@ -34,6 +34,9 @@ class PreviewGuestRepository : GuestRepository {
 
     override suspend fun requestPasswordReset(email: String, locale: String?) = Unit
 
+    override suspend fun verifyPasswordResetCode(email: String, code: String): ResetPasswordCodeResponse =
+        ResetPasswordCodeResponse(verified = code.isNotBlank(), email = email, resetToken = "preview-reset-token")
+
     override suspend fun validatePasswordResetToken(token: String): ResetPasswordValidateResponse =
         ResetPasswordValidateResponse(valid = token.isNotBlank(), email = "preview@calendra.si")
 

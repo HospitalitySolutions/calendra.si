@@ -94,6 +94,8 @@ public final class GuestDtos {
     public record VerifySignupCodeRequest(String challengeId, String code) {}
     public record ResendSignupCodeRequest(String challengeId) {}
     public record GuestForgotPasswordRequest(String email, String locale, String language) {}
+    public record GuestVerifyPasswordResetCodeRequest(String email, String code) {}
+    public record GuestPasswordResetCodeResponse(boolean verified, String email, String resetToken) {}
     public record GuestResetPasswordValidateResponse(boolean valid, String email) {}
     public record GuestResetPasswordRequest(String token, String password) {}
 

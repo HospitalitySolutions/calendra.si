@@ -170,17 +170,17 @@ struct ResetPasswordView: View {
 
     private func invalidState(width: CGFloat, height: CGFloat, inset: CGFloat, contentWidth: CGFloat, buttonHeight: CGFloat) -> some View {
         Group {
-            Text(isSl ? "POVEZAVA NI VELJAVNA" : "LINK INVALID")
+            Text(isSl ? "KODA NI VELJAVNA" : "CODE INVALID")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(blue)
                 .frame(width: contentWidth, alignment: .leading)
                 .position(x: inset + contentWidth / 2, y: height * 0.253)
-            Text(isSl ? "Povezava je potekla" : "Link expired")
+            Text(isSl ? "Seja je potekla" : "Session expired")
                 .font(.system(size: 34, weight: .heavy, design: .rounded))
                 .foregroundStyle(dark)
                 .frame(width: contentWidth, alignment: .leading)
                 .position(x: inset + contentWidth / 2, y: height * 0.31)
-            Text(errorText ?? (isSl ? "Zahtevajte novo povezavo za ponastavitev gesla." : "Request a new password reset link."))
+            Text(errorText ?? (isSl ? "Zahtevajte novo kodo za ponastavitev gesla." : "Request a new password reset code."))
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .lineSpacing(5)
                 .foregroundStyle(muted)
@@ -207,7 +207,7 @@ struct ResetPasswordView: View {
             await MainActor.run {
                 valid = result.valid
                 if let resultEmail = result.email, !resultEmail.isEmpty { email = resultEmail }
-                errorText = result.valid ? nil : (isSl ? "Povezava ni veljavna ali je potekla." : "The reset link is invalid or expired.")
+                errorText = result.valid ? nil : (isSl ? "Ponastavitvena seja ni veljavna ali je potekla." : "The reset session is invalid or expired.")
                 validating = false
             }
         } catch {

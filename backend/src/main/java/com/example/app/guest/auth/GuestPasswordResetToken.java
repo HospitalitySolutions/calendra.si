@@ -30,6 +30,15 @@ public class GuestPasswordResetToken extends BaseEntity {
     @Column
     private Instant usedAt;
 
+    @Column(name = "verification_code_hash", length = 128)
+    private String verificationCodeHash;
+
+    @Column(name = "failed_attempts")
+    private int failedAttempts = 0;
+
+    @Column(name = "code_verified_at")
+    private Instant codeVerifiedAt;
+
     @Column(nullable = false)
     private boolean active = true;
 }
