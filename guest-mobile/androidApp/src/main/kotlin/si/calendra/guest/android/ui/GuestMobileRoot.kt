@@ -74,6 +74,7 @@ import kotlinx.coroutines.withContext
 import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.R
 import si.calendra.guest.android.auth.GoogleSignInManager
+import si.calendra.guest.android.auth.PasswordResetDeepLinkBus
 import si.calendra.guest.android.files.GuestAttachmentManager
 import si.calendra.guest.android.payments.NativeCheckoutManager
 import si.calendra.guest.android.payments.PaymentRedirectBus
@@ -109,6 +110,8 @@ private sealed class RootRoute(val route: String) {
     data object Splash : RootRoute("splash")
     data object Welcome : RootRoute("welcome")
     data object Login : RootRoute("login")
+    data object ForgotPassword : RootRoute("forgot-password?email={email}")
+    data object ResetPassword : RootRoute("reset-password?token={token}&email={email}")
     data object Signup : RootRoute("signup")
     data object VerifyEmailCode : RootRoute("verify-email-code")
     data object JoinTenant : RootRoute("join-tenant")
@@ -332,6 +335,17 @@ fun GuestMobileRoot() {
         }
     }
 
+    fun navigateToResetPassword(uri: Uri) {
+        val token = uri.getQueryParameter("token").orEmpty().trim()
+        if (token.isEmpty()) return
+        val email = uri.getQueryParameter("email").orEmpty().trim()
+        val route = "reset-password?token=${Uri.encode(token)}&email=${Uri.encode(email)}"
+        navController.navigate(route) {
+            popUpTo(RootRoute.Splash.route) { inclusive = true }
+            launchSingleTop = true
+        }
+    }
+
     fun dial(phone: String) {
         context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${phone.filter { !it.isWhitespace() }}")))
     }
@@ -514,6 +528,12 @@ fun GuestMobileRoot() {
     }
 
     LaunchedEffect(Unit) {
+        PasswordResetDeepLinkBus.latest.value?.let { initialResetUri ->
+            navigateToResetPassword(initialResetUri)
+            PasswordResetDeepLinkBus.consume()
+            bootstrappingSession = false
+            return@LaunchedEffect
+        }
         val persistedToken = preferencesStore.loadAuthToken()
         if (persistedToken.isNullOrBlank()) {
             navController.navigate(RootRoute.Welcome.route) {
@@ -606,6 +626,14 @@ fun GuestMobileRoot() {
                 )
             )
         }
+    }
+
+    val passwordResetUri by PasswordResetDeepLinkBus.latest.collectAsState()
+
+    LaunchedEffect(passwordResetUri) {
+        val uri = passwordResetUri ?: return@LaunchedEffect
+        navigateToResetPassword(uri)
+        PasswordResetDeepLinkBus.consume()
     }
 
     val paymentRedirectUri by PaymentRedirectBus.latest.collectAsState()
@@ -750,7 +778,43 @@ fun GuestMobileRoot() {
                         preferencesStore.saveAppUiLocale(code)
                         appUiLocale = code
                     },
-                    onCreateAccount = { navController.navigate(RootRoute.Signup.route) }
+                    onCreateAccount = { navController.navigate(RootRoute.Signup.route) },
+                    onForgotPassword = { initialEmail ->
+                        navController.navigate("forgot-password?email=${Uri.encode(initialEmail)}")
+                    }
+                )
+            }
+            composable(RootRoute.ForgotPassword.route) { backStackEntry ->
+                val initialEmail = backStackEntry.arguments?.getString("email").orEmpty()
+                ForgotPasswordScreen(
+                    languageCode = appUiLocale,
+                    initialEmail = initialEmail,
+                    onRequestReset = { email -> repo.requestPasswordReset(email, appUiLocale) },
+                    onBackToLogin = {
+                        navController.navigate(RootRoute.Login.route) {
+                            popUpTo(RootRoute.ForgotPassword.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onError = { statusMessage = it }
+                )
+            }
+            composable(RootRoute.ResetPassword.route) { backStackEntry ->
+                val token = backStackEntry.arguments?.getString("token").orEmpty()
+                val email = backStackEntry.arguments?.getString("email")?.takeIf { it.isNotBlank() }
+                ResetPasswordScreen(
+                    languageCode = appUiLocale,
+                    token = token,
+                    initialEmail = email,
+                    onValidateToken = { resetToken -> repo.validatePasswordResetToken(resetToken) },
+                    onResetPassword = { resetToken, password -> repo.resetPassword(resetToken, password) },
+                    onBackToLogin = {
+                        navController.navigate(RootRoute.Login.route) {
+                            popUpTo(RootRoute.ResetPassword.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onError = { statusMessage = it }
                 )
             }
             composable(RootRoute.Signup.route) {

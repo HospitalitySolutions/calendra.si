@@ -762,6 +762,22 @@ struct ResendSignupCodePayload: Codable {
     let challengeId: String
 }
 
+struct ForgotPasswordPayload: Codable {
+    let email: String
+    let locale: String?
+    let language: String?
+}
+
+struct ResetPasswordValidateModel: Codable {
+    let valid: Bool
+    let email: String?
+}
+
+struct ResetPasswordPayload: Codable {
+    let token: String
+    let password: String
+}
+
 struct SocialTokenPayload: Codable {
     let idToken: String
 }

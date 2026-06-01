@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import si.calendra.guest.android.auth.PasswordResetDeepLinkBus
 import si.calendra.guest.android.payments.PaymentRedirectBus
 import si.calendra.guest.android.push.GuestBookingChangeBus
 import si.calendra.guest.android.push.GuestInboxDeepLinkBus
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
         GuestPushManager.initialize(applicationContext)
         GuestPushManager.requestNotificationPermission(this)
         PaymentRedirectBus.publish(intent?.data)
+        PasswordResetDeepLinkBus.publish(intent?.data)
         GuestBookingChangeBus.publishFromIntent(intent)
         GuestInboxDeepLinkBus.publishFromIntent(intent)
         setContent {
@@ -37,6 +39,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         PaymentRedirectBus.publish(intent.data)
+        PasswordResetDeepLinkBus.publish(intent.data)
         GuestBookingChangeBus.publishFromIntent(intent)
         GuestInboxDeepLinkBus.publishFromIntent(intent)
     }

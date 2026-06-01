@@ -12,11 +12,18 @@ public class GuestAuthController {
     private final GuestAuthService authService;
     private final GuestAuthContextService authContextService;
     private final AuthRateLimiter authRateLimiter;
+    private final GuestPasswordResetService passwordResetService;
 
-    public GuestAuthController(GuestAuthService authService, GuestAuthContextService authContextService, AuthRateLimiter authRateLimiter) {
+    public GuestAuthController(
+            GuestAuthService authService,
+            GuestAuthContextService authContextService,
+            AuthRateLimiter authRateLimiter,
+            GuestPasswordResetService passwordResetService
+    ) {
         this.authService = authService;
         this.authContextService = authContextService;
         this.authRateLimiter = authRateLimiter;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/auth/signup")
@@ -43,6 +50,38 @@ public class GuestAuthController {
         return authService.resendSignupCode(request);
     }
 
+
+    @PostMapping("/auth/forgot-password")
+    public java.util.Map<String, String> forgotPassword(@RequestBody GuestDtos.GuestForgotPasswordRequest request, HttpServletRequest httpRequest) {
+        String email = request == null ? null : request.email();
+        authRateLimiter.checkPasswordReset(httpRequest, email);
+        String locale = request == null ? null : (request.locale() != null ? request.locale() : request.language());
+        // Keep the response identical for existing and non-existing emails to avoid account enumeration.
+        passwordResetService.requestReset(email, locale);
+        return java.util.Map.of("message", "If this email exists, a reset link has been sent.");
+    }
+
+    @GetMapping("/auth/reset-password/validate")
+    public GuestDtos.GuestResetPasswordValidateResponse validateResetPasswordToken(@RequestParam("token") String token) {
+        return passwordResetService.findEmailForUsableResetToken(token)
+                .map(email -> new GuestDtos.GuestResetPasswordValidateResponse(true, email))
+                .orElseGet(() -> new GuestDtos.GuestResetPasswordValidateResponse(false, null));
+    }
+
+    @PostMapping("/auth/reset-password")
+    public java.util.Map<String, String> resetPassword(@RequestBody GuestDtos.GuestResetPasswordRequest request) {
+        String passwordValidationMessage = validatePasswordStrength(request == null ? null : request.password());
+        if (passwordValidationMessage != null) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, passwordValidationMessage);
+        }
+        String token = request == null ? null : request.token();
+        boolean ok = passwordResetService.resetPassword(token, request.password());
+        if (!ok) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Invalid or expired reset link.");
+        }
+        return java.util.Map.of("message", "Password has been reset.");
+    }
+
     @PostMapping("/auth/login")
     public GuestDtos.GuestSessionResponse login(@RequestBody GuestDtos.LoginRequest request, HttpServletRequest httpRequest) {
         authRateLimiter.checkGuestLogin(httpRequest, request.email());
@@ -65,5 +104,21 @@ public class GuestAuthController {
     public GuestDtos.GuestProfileResponse me(HttpServletRequest request) {
         GuestUser guestUser = authContextService.requireGuest(request);
         return authService.me(guestUser);
+    }
+
+    private static String validatePasswordStrength(String password) {
+        if (password == null || password.length() < 8) {
+            return "Password must contain at least 8 characters.";
+        }
+        if (!password.chars().anyMatch(Character::isDigit)) {
+            return "Password must contain at least one number.";
+        }
+        if (!password.chars().anyMatch(Character::isUpperCase)) {
+            return "Password must contain at least one uppercase letter.";
+        }
+        if (!password.chars().anyMatch(Character::isLowerCase)) {
+            return "Password must contain at least one lowercase letter.";
+        }
+        return null;
     }
 }

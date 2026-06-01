@@ -93,6 +93,9 @@ public final class GuestDtos {
     public record SignupChallengeResponse(String challengeId, String email, String expiresAt) {}
     public record VerifySignupCodeRequest(String challengeId, String code) {}
     public record ResendSignupCodeRequest(String challengeId) {}
+    public record GuestForgotPasswordRequest(String email, String locale, String language) {}
+    public record GuestResetPasswordValidateResponse(boolean valid, String email) {}
+    public record GuestResetPasswordRequest(String token, String password) {}
 
     public record TenantLookupRequest(String tenantCode) {}
     public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, String joinMethod, boolean canJoin, boolean employeeSelectionStep, boolean useEmployeeContact) {}

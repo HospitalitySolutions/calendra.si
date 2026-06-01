@@ -32,6 +32,13 @@ class PreviewGuestRepository : GuestRepository {
             expiresAt = "2099-01-01T00:00:00Z"
         )
 
+    override suspend fun requestPasswordReset(email: String, locale: String?) = Unit
+
+    override suspend fun validatePasswordResetToken(token: String): ResetPasswordValidateResponse =
+        ResetPasswordValidateResponse(valid = token.isNotBlank(), email = "preview@calendra.si")
+
+    override suspend fun resetPassword(token: String, password: String) = Unit
+
     override suspend fun loginWithGoogle(idToken: String): GuestSession = preview.session()
 
     override suspend fun loginWithApple(idToken: String): GuestSession = preview.session()

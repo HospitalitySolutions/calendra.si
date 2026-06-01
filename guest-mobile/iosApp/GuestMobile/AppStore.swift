@@ -2,6 +2,12 @@ import Foundation
 import ImageIO
 import UIKit
 
+struct PasswordResetLinkContext: Equatable {
+    let token: String
+    let email: String?
+    let sequence: Int
+}
+
 @MainActor
 final class AppStore: ObservableObject {
     @Published var user = GuestUserModel(id: "guest-1", email: "ana@example.com", firstName: "Ana", lastName: "Novak", phone: nil, language: "sl", profilePicturePath: nil)
@@ -19,6 +25,7 @@ final class AppStore: ObservableObject {
     @Published var lastPaymentReturnOrderId: String?
     @Published var lastPaymentReturnStatus: String?
     @Published var paymentReturnSequence: Int = 0
+    @Published var passwordResetLink: PasswordResetLinkContext?
 
     private static let guestAppBellNotificationTypes: Set<String> = [
         "BOOKING_CONFIRMED",
@@ -700,6 +707,21 @@ final class AppStore: ObservableObject {
         "\(companyId)|\(attachment.id)|\(attachment.fileName)|\(attachment.sizeBytes)"
     }
 
+    func requestPasswordReset(email: String, locale: String) async throws {
+        if usePreviewData { return }
+        try await api.requestPasswordReset(email: email, locale: locale)
+    }
+
+    func validatePasswordResetToken(_ token: String) async throws -> ResetPasswordValidateModel {
+        if usePreviewData { return ResetPasswordValidateModel(valid: !token.isEmpty, email: passwordResetLink?.email ?? user.email) }
+        return try await api.validatePasswordResetToken(token)
+    }
+
+    func resetPassword(token: String, password: String) async throws {
+        if usePreviewData { return }
+        try await api.resetPassword(token: token, password: password)
+    }
+
     func refreshOnAppBecameActive() async {
         guard !usePreviewData, !linkedTenants.isEmpty else { return }
         await refreshAllTenants()
@@ -731,6 +753,20 @@ final class AppStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func handleDeepLink(url: URL) {
+        guard url.scheme == "calendra-guest" else { return }
+        let host = (url.host ?? "").lowercased()
+        if host == "reset-password" {
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let token = components?.queryItems?.first(where: { $0.name == "token" })?.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !token.isEmpty else { return }
+            let email = components?.queryItems?.first(where: { $0.name == "email" })?.value?.trimmingCharacters(in: .whitespacesAndNewlines)
+            passwordResetLink = PasswordResetLinkContext(token: token, email: email?.isEmpty == false ? email : nil, sequence: passwordResetLink.map { $0.sequence + 1 } ?? 1)
+            return
+        }
+        handlePaymentReturn(url: url)
     }
 
     func handlePaymentReturn(url: URL) {

@@ -67,7 +67,8 @@ fun LoginScreen(
     onLogin: (String, String) -> Unit,
     onGoogleLogin: () -> Unit,
     onLanguageChange: (String) -> Unit,
-    onCreateAccount: () -> Unit
+    onCreateAccount: () -> Unit,
+    onForgotPassword: (String) -> Unit
 ) {
     val isSl = languageCode.equals("sl", ignoreCase = true)
     val welcomeBack = if (isSl) "DOBRODOŠLI NAZAJ" else "WELCOME BACK"
@@ -78,6 +79,7 @@ fun LoginScreen(
     val hidePassword = if (isSl) "Skrij geslo" else "Hide password"
     val showPassword = if (isSl) "Prikaži geslo" else "Show password"
     val loginCta = if (isSl) "Prijava" else "Sign in"
+    val forgotPassword = if (isSl) "Ste pozabili geslo?" else "Forgot password?"
     val continueWithGoogle = if (isSl) "Nadaljuj z Google" else "Continue with Google"
     val noAccount = if (isSl) "Nimate računa? " else "No account? "
     val createOne = if (isSl) "Ustvarite ga" else "Create one"
@@ -227,13 +229,27 @@ fun LoginScreen(
             )
         )
 
+        Text(
+            text = forgotPassword,
+            color = blue,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = appFont,
+            textAlign = TextAlign.End,
+            modifier = Modifier
+                .offset(x = contentInset, y = screenHeight * 0.592f)
+                .width(contentWidth)
+                .clickable { onForgotPassword(email.trim()) }
+        )
+
         Button(
             onClick = { onLogin(email.trim(), password) },
             shape = RoundedCornerShape(6.dp),
             colors = ButtonDefaults.buttonColors(containerColor = blue, contentColor = Color.White),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
             modifier = Modifier
-                .offset(x = contentInset, y = screenHeight * 0.612f)
+                .offset(x = contentInset, y = screenHeight * 0.628f)
                 .width(contentWidth)
                 .height(buttonHeight)
         ) {
@@ -243,7 +259,7 @@ fun LoginScreen(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .offset(x = contentInset, y = screenHeight * 0.711f)
+                .offset(x = contentInset, y = screenHeight * 0.724f)
                 .width(contentWidth)
         ) {
             Spacer(
@@ -275,7 +291,7 @@ fun LoginScreen(
             shape = RoundedCornerShape(4.dp),
             border = BorderStroke(1.5.dp, blue),
             modifier = Modifier
-                .offset(x = contentInset, y = screenHeight * 0.740f)
+                .offset(x = contentInset, y = screenHeight * 0.753f)
                 .width(contentWidth)
                 .height(buttonHeight)
         ) {
@@ -308,7 +324,7 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .offset(x = contentInset, y = screenHeight * 0.840f)
+                .offset(x = contentInset, y = screenHeight * 0.852f)
                 .width(contentWidth)
         ) {
             Text(noAccount, color = Color(0xFF697794), fontSize = 15.sp, lineHeight = 20.sp, fontFamily = appFont)

@@ -53,6 +53,27 @@ final class GuestApiClient {
         )
     }
 
+    func requestPasswordReset(email: String, locale: String) async throws {
+        let _: EmptyResponse = try await post(
+            path: "api/guest/auth/forgot-password",
+            body: ForgotPasswordPayload(email: email, locale: locale, language: locale)
+        )
+    }
+
+    func validatePasswordResetToken(_ token: String) async throws -> ResetPasswordValidateModel {
+        try await get(
+            path: "api/guest/auth/reset-password/validate",
+            query: [URLQueryItem(name: "token", value: token)]
+        )
+    }
+
+    func resetPassword(token: String, password: String) async throws {
+        let _: EmptyResponse = try await post(
+            path: "api/guest/auth/reset-password",
+            body: ResetPasswordPayload(token: token, password: password)
+        )
+    }
+
     func loginWithApple(idToken: String) async throws -> GuestSessionModel {
         try await post(path: "api/guest/auth/apple/token", body: SocialTokenPayload(idToken: idToken))
     }

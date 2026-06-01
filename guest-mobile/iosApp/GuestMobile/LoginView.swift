@@ -103,6 +103,7 @@ struct LoginView: View {
     let onLoginSuccess: () -> Void
     let onRequireJoin: () -> Void
     let onCreateAccount: () -> Void
+    let onForgotPassword: (String) -> Void
     private var isSl: Bool { appUiLocaleStorage.lowercased() == "sl" }
 
     private let blue = Color(red: 0.02, green: 0.41, blue: 0.96)
@@ -179,6 +180,17 @@ struct LoginView: View {
                 .position(x: inset + contentWidth / 2, y: height * 0.508 + fieldHeight / 2)
 
                 Button {
+                    onForgotPassword(email.trimmingCharacters(in: .whitespacesAndNewlines))
+                } label: {
+                    Text(isSl ? "Ste pozabili geslo?" : "Forgot password?")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(blue)
+                }
+                .buttonStyle(.plain)
+                .frame(width: contentWidth, alignment: .trailing)
+                .position(x: inset + contentWidth / 2, y: height * 0.596)
+
+                Button {
                     Task {
                         await store.login(email: email, password: password)
                         if store.linkedTenants.isEmpty { onRequireJoin() } else { onLoginSuccess() }
@@ -193,7 +205,7 @@ struct LoginView: View {
                 .background(blue)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .frame(width: contentWidth, height: buttonHeight)
-                .position(x: inset + contentWidth / 2, y: height * 0.612 + buttonHeight / 2)
+                .position(x: inset + contentWidth / 2, y: height * 0.628 + buttonHeight / 2)
 
                 HStack(spacing: 22) {
                     Rectangle().fill(Color(red: 0.87, green: 0.90, blue: 0.94)).frame(height: 1)
@@ -203,7 +215,7 @@ struct LoginView: View {
                     Rectangle().fill(Color(red: 0.87, green: 0.90, blue: 0.94)).frame(height: 1)
                 }
                 .frame(width: contentWidth)
-                .position(x: inset + contentWidth / 2, y: height * 0.711 + 12)
+                .position(x: inset + contentWidth / 2, y: height * 0.724 + 12)
 
                 Button {
                 } label: {
@@ -224,7 +236,7 @@ struct LoginView: View {
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(blue, lineWidth: 1.5))
                 .clipShape(RoundedRectangle(cornerRadius: 4))
                 .frame(width: contentWidth, height: buttonHeight)
-                .position(x: inset + contentWidth / 2, y: height * 0.740 + buttonHeight / 2)
+                .position(x: inset + contentWidth / 2, y: height * 0.753 + buttonHeight / 2)
 
                 HStack(spacing: 0) {
                     Text(isSl ? "Nimate računa? " : "No account? ")
@@ -236,7 +248,7 @@ struct LoginView: View {
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .onTapGesture { onCreateAccount() }
                 .frame(width: contentWidth, alignment: .center)
-                .position(x: inset + contentWidth / 2, y: height * 0.840 + 12)
+                .position(x: inset + contentWidth / 2, y: height * 0.852 + 12)
             }
         }
     }

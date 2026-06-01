@@ -50,3 +50,23 @@ data class VerifySignupCodeRequest(
 data class ResendSignupCodeRequest(
     val challengeId: String
 )
+
+@Serializable
+data class ForgotPasswordRequest(
+    val email: String,
+    val locale: String? = null,
+    val language: String? = null
+)
+
+@Serializable
+data class ResetPasswordValidateResponse(
+    val valid: Boolean,
+    val email: String? = null
+)
+
+@Serializable
+data class ResetPasswordRequest(
+    val token: String,
+    val password: String
+)
+

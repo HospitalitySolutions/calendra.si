@@ -85,6 +85,34 @@ class RemoteGuestApi(
             setBody(ResendSignupCodeRequest(challengeId))
         })
 
+    suspend fun requestPasswordReset(email: String, locale: String? = null) {
+        val response = client.post("${config.baseUrl}/api/guest/auth/forgot-password") {
+            jsonRequest()
+            setBody(ForgotPasswordRequest(email = email, locale = locale, language = locale))
+        }
+        if (!response.status.isSuccess()) {
+            val payload = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
+            throw IllegalStateException(errorMessageFor(response.status.value, payload))
+        }
+    }
+
+    suspend fun validatePasswordResetToken(token: String): ResetPasswordValidateResponse =
+        parse(client.get("${config.baseUrl}/api/guest/auth/reset-password/validate") {
+            header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            parameter("token", token)
+        })
+
+    suspend fun resetPassword(token: String, password: String) {
+        val response = client.post("${config.baseUrl}/api/guest/auth/reset-password") {
+            jsonRequest()
+            setBody(ResetPasswordRequest(token = token, password = password))
+        }
+        if (!response.status.isSuccess()) {
+            val payload = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
+            throw IllegalStateException(errorMessageFor(response.status.value, payload))
+        }
+    }
+
     suspend fun me(): GuestProfile =
         parse(client.get("${config.baseUrl}/api/guest/me") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())

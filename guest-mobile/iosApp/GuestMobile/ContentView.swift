@@ -7,6 +7,8 @@ struct ContentView: View {
         case login
         case signup
         case verifyEmailCode
+        case forgotPassword(initialEmail: String)
+        case resetPassword(token: String, email: String?)
         case joinTenant
         case main
     }
@@ -30,7 +32,8 @@ struct ContentView: View {
                 LoginView(
                     onLoginSuccess: { screen = store.linkedTenants.isEmpty ? .joinTenant : .main },
                     onRequireJoin: { screen = .joinTenant },
-                    onCreateAccount: { screen = .signup }
+                    onCreateAccount: { screen = .signup },
+                    onForgotPassword: { initialEmail in screen = .forgotPassword(initialEmail: initialEmail) }
                 )
             case .signup:
                 SignupView(
@@ -43,6 +46,15 @@ struct ContentView: View {
                     onVerificationSuccess: { screen = .main },
                     onRequireJoin: { screen = .joinTenant }
                 )
+            case .forgotPassword(let initialEmail):
+                ForgotPasswordView(initialEmail: initialEmail) {
+                    screen = .login
+                }
+            case .resetPassword(let token, let email):
+                ResetPasswordView(token: token, initialEmail: email) {
+                    store.passwordResetLink = nil
+                    screen = .login
+                }
             case .joinTenant:
                 JoinTenantView { screen = .main }
             case .main:
@@ -51,7 +63,9 @@ struct ContentView: View {
         }
         .task {
             let restored = await store.restoreSessionIfPossible()
-            if restored {
+            if let link = store.passwordResetLink {
+                screen = .resetPassword(token: link.token, email: link.email)
+            } else if restored {
                 screen = store.linkedTenants.isEmpty ? .joinTenant : .main
             } else {
                 screen = .welcome
@@ -63,6 +77,10 @@ struct ContentView: View {
                 screen = .login
                 store.didRequestLogout = false
             }
+        }
+        .onChange(of: store.passwordResetLink) { link in
+            guard let link = link else { return }
+            screen = .resetPassword(token: link.token, email: link.email)
         }
         .alert("Error", isPresented: Binding(get: { store.errorMessage != nil }, set: { _ in store.errorMessage = nil })) {
             Button("OK", role: .cancel) { }

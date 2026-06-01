@@ -44,6 +44,9 @@ export function ResetPasswordPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const token = params.get('token')?.trim() ?? ''
+  const isGuestReset = params.get('guest') === '1'
+  const resetValidateEndpoint = isGuestReset ? '/guest/auth/reset-password/validate' : '/auth/reset-password/validate'
+  const resetSubmitEndpoint = isGuestReset ? '/guest/auth/reset-password' : '/auth/reset-password'
   const initialEmail = useMemo(() => params.get('email')?.trim().toLowerCase() ?? '', [params])
   const [email, setEmail] = useState(initialEmail)
   const [validating, setValidating] = useState(true)
@@ -64,7 +67,7 @@ export function ResetPasswordPage() {
       setError(t('resetPasswordMissingToken'))
       return
     }
-    api.get<{ valid?: boolean; email?: string }>('/auth/reset-password/validate', { params: { token } })
+    api.get<{ valid?: boolean; email?: string }>(resetValidateEndpoint, { params: { token } })
       .then(({ data }) => {
         setValid(Boolean(data?.valid))
         setError('')
@@ -76,7 +79,7 @@ export function ResetPasswordPage() {
         setError(t('resetPasswordInvalidLink'))
       })
       .finally(() => setValidating(false))
-  }, [initialEmail, t, token])
+  }, [initialEmail, resetValidateEndpoint, t, token])
 
   const goToLogin = () => {
     const q = new URLSearchParams()
@@ -98,7 +101,7 @@ export function ResetPasswordPage() {
     }
     setSubmitting(true)
     try {
-      await api.post('/auth/reset-password', { token, password })
+      await api.post(resetSubmitEndpoint, { token, password })
       setSuccess(true)
     } catch (err: any) {
       setError(err?.response?.data?.message || t('resetPasswordFailedGeneric'))

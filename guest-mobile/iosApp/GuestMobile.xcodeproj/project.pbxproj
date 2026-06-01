@@ -19,6 +19,8 @@
 		A10000050000000000000001 /* PreviewStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000150000000000000001 /* PreviewStore.swift */; };
 		A10000060000000000000001 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000160000000000000001 /* WelcomeView.swift */; };
 		A10000070000000000000001 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000170000000000000001 /* LoginView.swift */; };
+		A10000510000000000000001 /* ResetPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000610000000000000001 /* ResetPasswordView.swift */; };
+		A10000500000000000000001 /* ForgotPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000600000000000000001 /* ForgotPasswordView.swift */; };
 		A10000080000000000000001 /* JoinTenantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000180000000000000001 /* JoinTenantView.swift */; };
 		A10000090000000000000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000190000000000000001 /* MainTabView.swift */; };
 		A100000A0000000000000001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001A0000000000000001 /* HomeView.swift */; };
@@ -56,6 +58,8 @@
 		A10000150000000000000001 /* PreviewStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewStore.swift; sourceTree = "<group>"; };
 		A10000160000000000000001 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		A10000170000000000000001 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		A10000610000000000000001 /* ResetPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetPasswordView.swift; sourceTree = "<group>"; };
+		A10000600000000000000001 /* ForgotPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgotPasswordView.swift; sourceTree = "<group>"; };
 		A10000180000000000000001 /* JoinTenantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinTenantView.swift; sourceTree = "<group>"; };
 		A10000190000000000000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A100001A0000000000000001 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -125,6 +129,8 @@
 				F3B9A2012F9A000000000002 /* SignupBackground.png */,
 				B1C1D1E1F1A1B1C1D1E1F1A1 /* SigninBackground.png */,
 				A10000170000000000000001 /* LoginView.swift */,
+				A10000610000000000000001 /* ResetPasswordView.swift */,
+				A10000600000000000000001 /* ForgotPasswordView.swift */,
 				A10000180000000000000001 /* JoinTenantView.swift */,
 				A10000190000000000000001 /* MainTabView.swift */,
 				A100001A0000000000000001 /* HomeView.swift */,
@@ -246,6 +252,8 @@
 				A10000060000000000000001 /* WelcomeView.swift in Sources */,
 				F3B994192F935416005A7895 /* AppStore.swift in Sources */,
 				A10000070000000000000001 /* LoginView.swift in Sources */,
+				A10000510000000000000001 /* ResetPasswordView.swift in Sources */,
+				A10000500000000000000001 /* ForgotPasswordView.swift in Sources */,
 				A10000080000000000000001 /* JoinTenantView.swift in Sources */,
 				A10000090000000000000001 /* MainTabView.swift in Sources */,
 				A100000A0000000000000001 /* HomeView.swift in Sources */,
