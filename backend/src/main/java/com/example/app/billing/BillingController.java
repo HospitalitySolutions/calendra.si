@@ -319,7 +319,26 @@ public class BillingController {
             Integer discountItemIndex,
             List<PaymentSplitRequest> paymentSplits,
             List<OpenBillItemRequest> items
-    ) {}
+    ) {
+        public OpenBillUpdateRequest(
+                Long paymentMethodId,
+                String reference,
+                String billingTarget,
+                Long clientId,
+                Long recipientCompanyId,
+                Long consultantId,
+                Long sessionId,
+                String discountType,
+                BigDecimal discountValue,
+                BigDecimal discountAmountGross,
+                BigDecimal discountedTotalGross,
+                List<PaymentSplitRequest> paymentSplits,
+                List<OpenBillItemRequest> items
+        ) {
+            this(paymentMethodId, reference, billingTarget, clientId, recipientCompanyId, consultantId, sessionId,
+                    discountType, discountValue, discountAmountGross, discountedTotalGross, null, paymentSplits, items);
+        }
+    }
     public record SplitOpenBillSessionRequest(Long sessionId) {}
     public record MergeOpenBillsRequest(List<Long> openBillIds) {}
     public record ManualOpenBillLineRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {}
@@ -339,7 +358,26 @@ public class BillingController {
             Integer discountItemIndex,
             List<PaymentSplitRequest> paymentSplits,
             List<ManualOpenBillLineRequest> items
-    ) {}
+    ) {
+        public ManualOpenBillRequest(
+                Long clientId,
+                Long recipientCompanyId,
+                Long consultantId,
+                Long paymentMethodId,
+                Long sessionId,
+                String billType,
+                String reference,
+                String discountType,
+                BigDecimal discountValue,
+                BigDecimal discountAmountGross,
+                BigDecimal discountedTotalGross,
+                List<PaymentSplitRequest> paymentSplits,
+                List<ManualOpenBillLineRequest> items
+        ) {
+            this(clientId, recipientCompanyId, consultantId, paymentMethodId, sessionId, billType, reference,
+                    discountType, discountValue, discountAmountGross, discountedTotalGross, null, paymentSplits, items);
+        }
+    }
     public record AdditionalOpenBillRequest(
             Long clientId,
             Long recipientCompanyId,
