@@ -687,6 +687,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     historyBillTypeAll: 'Vsi dokumenti',
     historyBillTypeInvoice: 'Račun',
     historyBillTypeAdvance: 'Avans',
+    historyInvoiceTypeColumn: 'Vrsta računa',
     historyBillTypeColumn: 'Vrsta',
     historyEmptyTitle: 'Ni še računov',
     historyEmptyText:
@@ -785,6 +786,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     historyBillTypeAll: 'All',
     historyBillTypeInvoice: 'Invoice',
     historyBillTypeAdvance: 'Advance',
+    historyInvoiceTypeColumn: 'Invoice type',
     historyBillTypeColumn: 'Type',
     historyEmptyTitle: 'No bills yet',
     historyEmptyText: 'Use New under Open bills to create a bill, or convert an open bill.',
@@ -6851,6 +6853,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <thead>
                         <tr>
                           <th>Folio No.</th>
+                          <th>{billingCopy.historyInvoiceTypeColumn}</th>
                           <th>Order ID</th>
                           <th>Session Id</th>
                           <th>{billingCopy.client} / Company</th>
@@ -6867,6 +6870,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         {historyPagination.slice.map((bill) => (
                           <tr key={bill.id} className="billing-history-row" onClick={() => { void openFolioPanel(bill) }}>
                             <td className="billing-modern-link-cell">{bill.billNumber}{bill.refundReference ? <div className="billing-modern-muted">{bill.refundReference}</div> : null}</td>
+                            <td>{normalizeBillType(bill) === 'ADVANCE' ? billingCopy.billTypeAdvance : billingCopy.billTypeInvoice}</td>
                             <td>{displayInvoiceOrderId(bill)}</td>
                             <td>{formatBillingSessionIdDisplay(bill.sessionId)}</td>
                             <td>{bill.billingTarget === 'COMPANY' ? (bill.recipientCompany?.name || '—') : (bill.client ? fullName(bill.client) : '—')}</td>
