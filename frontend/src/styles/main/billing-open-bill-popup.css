@@ -4601,6 +4601,39 @@
     font-weight: 900;
 }
 
+.billing-invoice-discount-item-select {
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.20);
+}
+
+.billing-invoice-discount-item-select span {
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 850;
+}
+
+.billing-invoice-discount-item-select select {
+    width: 100%;
+    min-height: 40px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    background: #ffffff;
+    color: #0f172a;
+    font-weight: 800;
+    padding: 0 12px;
+    box-shadow: none;
+}
+
+.billing-invoice-discount-item-select select:focus {
+    outline: none;
+    border-color: rgba(37, 99, 235, 0.48);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+}
+
 .billing-invoice-discount-foot {
     display: flex;
     align-items: center;
@@ -4671,7 +4704,14 @@
 }
 
 [data-theme="dark"] .billing-invoice-discount-controls,
-[data-theme="dark"] .billing-invoice-discount-input-wrap {
+[data-theme="dark"] .billing-invoice-discount-input-wrap,
+[data-theme="dark"] .billing-invoice-discount-item-select {
     background: rgba(15, 23, 42, 0.68);
     border-color: rgba(148, 163, 184, 0.24);
+}
+
+[data-theme="dark"] .billing-invoice-discount-item-select select {
+    background: rgba(15, 23, 42, 0.88);
+    border-color: rgba(148, 163, 184, 0.24);
+    color: var(--color-text);
 }

@@ -750,7 +750,6 @@ public class GuestOrderService {
         SessionBooking booking = maybeCreateConfirmedBooking(order);
         maybeCreateEntitlement(order);
         if (booking != null
-                && guestSettings.advanceBillingEnabled(order.getCompany().getId())
                 && (paymentMethodType == GuestPaymentMethodType.CARD
                 || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
             try {
@@ -762,7 +761,7 @@ public class GuestOrderService {
             }
         }
         // Wallet product purchases (no booking) should also land in the web-app Billing
-        // UI as a PAID invoice. Session-linked orders now receive an ADVANCE invoice at booking time.
+        // UI as a PAID invoice. Session-linked paid guest bookings always receive an ADVANCE bill.
         if (booking == null
                 && (paymentMethodType == GuestPaymentMethodType.CARD
                         || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {

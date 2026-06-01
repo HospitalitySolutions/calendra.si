@@ -73,6 +73,7 @@ public class BillFolioPdfService {
     private FolioPdfRequest buildFolioPdfRequest(Bill bill, Long companyId, String locale) {
         var req = new FolioPdfRequest();
         req.setFolioNumber(bill.getBillNumber());
+        req.setFolioNumberLabel(documentNumberPrefix(bill, locale));
         req.setFolioDate(formatIssueDateTime(bill));
         req.setFiscalZoi(bill.getFiscalZoi());
         req.setFiscalEor(bill.getFiscalEor());
@@ -205,6 +206,25 @@ public class BillFolioPdfService {
             return stripLeadingServiceCode(description, code);
         }
         return code;
+    }
+
+    private String documentNumberPrefix(Bill bill, String locale) {
+        boolean slovenian = isSlovenian(locale);
+        if (isRefundBill(bill)) {
+            return slovenian ? "Dobropis:" : "Refund:";
+        }
+        BillType type = bill == null || bill.getBillType() == null ? BillType.INVOICE : bill.getBillType();
+        if (type == BillType.ADVANCE) {
+            return slovenian ? "Predplačilo:" : "Advance:";
+        }
+        return slovenian ? "Račun:" : "Invoice:";
+    }
+
+    private boolean isRefundBill(Bill bill) {
+        if (bill == null) return false;
+        if (bill.getRefundOfBillId() != null) return true;
+        if (bill.getRefundReference() != null && !bill.getRefundReference().isBlank()) return true;
+        return bill.getTotalGross() != null && bill.getTotalGross().compareTo(BigDecimal.ZERO) < 0;
     }
 
     private String stripLeadingServiceCode(String description, String code) {

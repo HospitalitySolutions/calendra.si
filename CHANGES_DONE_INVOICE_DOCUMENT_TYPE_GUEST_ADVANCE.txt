@@ -1,0 +1,22 @@
+Invoice document type and guest advance billing update
+
+Changes done:
+1. Dynamic folio number label in generated PDFs
+   - The folio/invoice number prefix is now rendered from the actual document type:
+     - Slovenian: Račun, Predplačilo, Dobropis
+     - English: Invoice, Advance, Refund
+   - Existing saved folio layouts that still have the legacy "Folio Number" / "Številka računa" prefix are migrated to the new default prefix in the layout config.
+   - Refund documents are detected by refund reference/original refund bill id/negative total and rendered as Dobropis/Refund.
+
+2. Folio layout editor preview
+   - The folioNumber preview now displays Račun/Invoice instead of Številka računa/Folio Number.
+   - Legacy saved prefixes are normalized in the frontend editor so old layouts no longer preview the old text.
+
+3. Guest booking payment billing
+   - Session-linked paid guest orders from guest mobile apps and public website checkout now always create an ADVANCE bill (Predplačilo) for card/PayPal payments.
+   - Bank-transfer session bookings were already using ADVANCE bills and remain unchanged.
+   - Wallet product purchases without a session booking remain standard invoices.
+
+Validation notes:
+- Backend Maven compile could not be executed in this sandbox because the Maven wrapper could not download Maven from repo.maven.apache.org.
+- Frontend build could not be executed because node_modules are not included in the uploaded zip.

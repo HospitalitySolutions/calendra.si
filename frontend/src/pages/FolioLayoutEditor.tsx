@@ -175,7 +175,7 @@ const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
 const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate', 'recipientVatId'])
 const DATE_FORMAT_OPTIONS: DateFormat[] = ['YYYY-MM-DD', 'DD-MM-YYYY', 'DD.MM.YYYY', 'YYYY-MM-DD HH:mm', 'DD-MM-YYYY HH:mm', 'DD.MM.YYYY HH:mm']
 const DOCUMENT_PREFIX_DEFAULTS: Record<string, LocalizedText> = {
-  folioNumber: { en: 'Folio Number:', sl: 'Številka računa:' },
+  folioNumber: { en: 'Invoice:', sl: 'Račun:' },
   folioDate: { en: 'Issue date and time:', sl: 'Datum in ura izdaje:' },
   dateOfService: { en: 'Date of Service:', sl: 'Datum storitve:' },
   dueDate: { en: 'Due Date:', sl: 'Rok plačila:' },
@@ -201,6 +201,21 @@ function isPrefixField(field: FieldConfig) {
 
 function defaultDateFormatForField(key: string): DateFormat {
   return key === 'folioDate' ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD'
+}
+
+function isLegacyFolioNumberPrefix(value: string | undefined): boolean {
+  const normalized = (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[:]/g, '')
+    .replace(/č/g, 'c')
+    .replace(/š/g, 's')
+    .trim()
+  return normalized === 'folio number' || normalized === 'stevilka racuna' || normalized === 'st racuna'
+}
+
+function folioNumberSamplePrefix(locale: AppLocale): string {
+  return locale === 'sl' ? 'Račun:' : 'Invoice:'
 }
 
 function resolveLocalizedText(i18n: LocalizedText | undefined, legacy: string | undefined, locale: AppLocale): string {
@@ -357,6 +372,10 @@ function isValidLayout(data: any): data is LayoutConfig {
       field.prefixI18n = {
         en: (field.prefixI18n?.en || '').trim() || defaults.en,
         sl: (field.prefixI18n?.sl || '').trim() || defaults.sl,
+      }
+      if (field.key === 'folioNumber') {
+        if (isLegacyFolioNumberPrefix(field.prefixI18n.en)) field.prefixI18n.en = defaults.en
+        if (isLegacyFolioNumberPrefix(field.prefixI18n.sl)) field.prefixI18n.sl = defaults.sl
       }
       if (field.key === 'folioDate' && (!field.label || field.label === 'Issue Date')) field.label = 'Issue date and time'
       if (field.key === 'folioDate') {
@@ -1039,7 +1058,9 @@ export function FolioLayoutEditor() {
               const displayLabel = f.type === 'custom'
                 ? resolveLocalizedText(f.textI18n, f.text || f.label, locale)
                 : (FIELD_SAMPLE_VALUES[f.key] || resolveLocalizedText(f.labelI18n, f.label, locale))
-              const prefixText = isPrefixField(f) ? resolveLocalizedText(f.prefixI18n, DOCUMENT_PREFIX_DEFAULTS[f.key]?.en || '', locale) : '' 
+              const prefixText = f.key === 'folioNumber'
+                ? folioNumberSamplePrefix(locale)
+                : (isPrefixField(f) ? resolveLocalizedText(f.prefixI18n, DOCUMENT_PREFIX_DEFAULTS[f.key]?.en || '', locale) : '') 
               return (
                 <div
                   key={f.key}

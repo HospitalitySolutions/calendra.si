@@ -18,6 +18,8 @@ public class FolioPdfRequest {
 
     /* ── header: document meta ── */
     private String folioNumber;
+    /** Localized document type label rendered before the folio number (Invoice/Advance/Refund). */
+    private String folioNumberLabel;
     private String folioDate;
     private String dateOfService;
     private String dueDate;
@@ -116,6 +118,8 @@ public class FolioPdfRequest {
     public void setCompanyTaxId(String companyTaxId) { this.companyTaxId = companyTaxId; }
     public String getFolioNumber() { return folioNumber; }
     public void setFolioNumber(String folioNumber) { this.folioNumber = folioNumber; }
+    public String getFolioNumberLabel() { return folioNumberLabel; }
+    public void setFolioNumberLabel(String folioNumberLabel) { this.folioNumberLabel = folioNumberLabel; }
     public String getFolioDate() { return folioDate; }
     public void setFolioDate(String folioDate) { this.folioDate = folioDate; }
     public String getDateOfService() { return dateOfService; }

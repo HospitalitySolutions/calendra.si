@@ -270,6 +270,12 @@ public class FolioPdfService {
             PDFont font = field.isBold() ? fonts.bold() : fonts.regular();
             float pdfY = pageH - field.getY() - field.getFontSize();
             String prefix = safe(resolveLocalized(field.getPrefixI18n(), "", locale));
+            if ("folioNumber".equals(field.getKey())) {
+                String dynamicPrefix = safe(req.getFolioNumberLabel());
+                if (dynamicPrefix != null && !dynamicPrefix.isBlank()) {
+                    prefix = dynamicPrefix;
+                }
+            }
 
             if (prefix != null && !prefix.isBlank()) {
                 drawText(ctx, font, field.getFontSize(), field.getX(), pdfY, prefix);

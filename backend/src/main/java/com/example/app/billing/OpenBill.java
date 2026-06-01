@@ -83,6 +83,10 @@ public class OpenBill extends BaseEntity {
     @Column(name = "discount_value", precision = 19, scale = 4)
     private BigDecimal discountValue;
 
+    /** For fixed-amount discounts, the 0-based bill-item row that receives the discount. */
+    @Column(name = "discount_item_index")
+    private Integer discountItemIndex;
+
     /** Guest wallet order created from Client > Wallet > Kupi ugodnost. */
     @Column(name = "source_guest_order_id")
     private Long sourceGuestOrderId;

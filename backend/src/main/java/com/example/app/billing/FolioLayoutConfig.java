@@ -3,6 +3,7 @@ package com.example.app.billing;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Configurable layout for the folio PDF generator.
@@ -463,13 +464,25 @@ public class FolioLayoutConfig {
 
     private static LocalizedText defaultFieldPrefix(String key) {
         return switch (key) {
-            case "folioNumber" -> new LocalizedText("Folio Number:", "Številka računa:");
+            case "folioNumber" -> new LocalizedText("Invoice:", "Račun:");
             case "folioDate" -> new LocalizedText("Issue date and time:", "Datum in ura izdaje:");
             case "dateOfService" -> new LocalizedText("Date of Service:", "Datum storitve:");
             case "dueDate" -> new LocalizedText("Due Date:", "Rok plačila:");
             case "recipientVatId" -> new LocalizedText("Recipient VAT ID:", "Davčna številka prejemnika (ID za DDV):");
             default -> new LocalizedText("", "");
         };
+    }
+
+    private static boolean isLegacyFolioNumberPrefix(String value) {
+        if (value == null || value.isBlank()) return false;
+        String normalized = value.trim().toLowerCase(Locale.ROOT)
+                .replace('č', 'c')
+                .replace('š', 's')
+                .replace(":", "")
+                .trim();
+        return "folio number".equals(normalized)
+                || "stevilka racuna".equals(normalized)
+                || "st racuna".equals(normalized);
     }
 
     private static String slFieldLabel(String key, String fallback) {
@@ -648,6 +661,10 @@ public class FolioLayoutConfig {
                     if (current == null) {
                         field.setPrefixI18n(def);
                     } else {
+                        if ("folioNumber".equals(field.getKey())) {
+                            if (isLegacyFolioNumberPrefix(current.getEn())) current.setEn(def.getEn());
+                            if (isLegacyFolioNumberPrefix(current.getSl())) current.setSl(def.getSl());
+                        }
                         if (current.getEn() == null || current.getEn().isBlank()) current.setEn(def.getEn());
                         if (current.getSl() == null || current.getSl().isBlank()) current.setSl(def.getSl());
                     }
