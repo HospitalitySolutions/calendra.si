@@ -30,6 +30,7 @@ const adminConsoleStyles = `:root {
     .catalog-ladder-arrow{display:grid;place-items:center;color:var(--primary);font-weight:950;font-size:1.35rem;opacity:.85}
     @media(max-width:720px){.catalog-ladder{grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto}.catalog-ladder-arrow{transform:rotate(90deg);padding:4px 0}}
     .hero{display:grid;grid-template-columns:minmax(320px,.8fr) minmax(620px,1.2fr);gap:22px;align-items:start}.panel{background:var(--panel);border:1px solid rgba(223,231,245,.95);border-radius:var(--radius-xl);backdrop-filter:blur(10px);box-shadow:0 10px 28px rgba(58,89,150,.06)}.panel-pad{padding:24px}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:22px;flex-wrap:wrap}.page-head.platform-admin-head{flex-direction:column;align-items:stretch;gap:16px}.page-title{display:grid;gap:8px}.eyebrow{display:inline-flex;align-self:start;padding:8px 12px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:.86rem;font-weight:950}.page-title h1{margin:0;font-size:clamp(2rem,3vw,3.25rem);line-height:.96;letter-spacing:-.065em}.page-title p{margin:0;max-width:820px;color:var(--muted);line-height:1.55}.search-wrap{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;flex-direction:column}.search-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%}.search-input{height:44px;min-width:0;flex:1 1 280px;border:1px solid var(--border);border-radius:999px;padding:0 16px;background:rgba(255,255,255,.92);outline:none;color:var(--text);font-weight:700}.search-input:disabled{opacity:.55;cursor:not-allowed}.button{border:0;border-radius:15px;padding:13px 16px;font-weight:950;cursor:pointer;transition:transform var(--transition),filter var(--transition),box-shadow var(--transition)}.button:hover{transform:translateY(-1px)}.button.primary{background:linear-gradient(90deg,var(--primary),var(--primary-dark));color:#fff;box-shadow:0 12px 28px rgba(47,109,246,.18)}.button.secondary{background:#fff;color:var(--text);border:1px solid var(--border)}.button.danger{background:var(--danger-soft);color:var(--danger-text);border:1px solid #f4c8c3}.button.small{padding:9px 12px;border-radius:12px;font-size:.85rem}.button:disabled{opacity:.55;cursor:not-allowed;transform:none}
+    .admin-setting-switch{display:inline-grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;cursor:pointer;user-select:none}.admin-setting-switch input{position:absolute;opacity:0;pointer-events:none}.admin-setting-switch-slider{width:54px;height:30px;border-radius:999px;border:1px solid #d5dfef;background:#dfe7f5;position:relative;transition:background .18s,border-color .18s,box-shadow .18s}.admin-setting-switch-slider:after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:999px;background:#fff;box-shadow:0 4px 12px rgba(23,37,61,.18);transition:transform .18s}.admin-setting-switch input:checked + .admin-setting-switch-slider{background:linear-gradient(90deg,var(--primary),var(--primary-dark));border-color:#b8cffc;box-shadow:0 10px 24px rgba(47,109,246,.16)}.admin-setting-switch input:checked + .admin-setting-switch-slider:after{transform:translateX(24px)}.admin-setting-switch-copy{display:grid;gap:3px}.admin-setting-switch-copy strong{font-size:1rem;letter-spacing:-.02em}.admin-setting-switch-copy span{font-size:.9rem;color:var(--muted);font-weight:750;line-height:1.4}
     .tenant-card{display:grid;gap:18px;position:sticky;top:24px}.tenant-head{display:grid;gap:12px}.tenant-avatar{width:64px;height:64px;border-radius:22px;background:linear-gradient(135deg,#fff,var(--primary-soft));border:1px solid #d6e3fb;display:grid;place-items:center;color:var(--primary);font-weight:950;font-size:1.35rem}.tenant-title{display:grid;gap:4px}.tenant-title h2{margin:0;font-size:1.65rem;letter-spacing:-.05em}.tenant-title span{color:var(--muted);font-size:.92rem;font-weight:750;word-break:break-word}.status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{padding:14px;border-radius:18px;background:rgba(255,255,255,.82);border:1px solid #e5edf9;display:grid;gap:4px}.stat strong{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.stat span{font-size:1rem;font-weight:950;color:var(--text);word-break:break-word}.progress{height:9px;background:#e8eef9;border-radius:999px;overflow:hidden}.progress > div{height:100%;background:linear-gradient(90deg,var(--primary),var(--primary-dark));border-radius:999px}.nav-list{display:grid;gap:8px}.nav-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;border:1px solid #e6edf9;background:rgba(255,255,255,.72);color:#40506c;font-weight:900;cursor:pointer}.nav-item.active{background:var(--primary-soft);border-color:#cddcff;color:var(--primary)}
     .main-grid{display:grid;gap:18px}.kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.kpi{padding:18px;border-radius:22px;border:1px solid #dbe6f7;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,245,255,.94));box-shadow:0 12px 26px rgba(47,109,246,.08);display:grid;gap:7px}.kpi span{color:var(--muted);font-size:.82rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.kpi strong{font-size:1.55rem;letter-spacing:-.05em}.kpi small{color:var(--muted);font-weight:700;line-height:1.35}
     .section-card{border-radius:24px;border:1px solid #dbe6f7;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,245,255,.94));box-shadow:0 16px 34px rgba(47,109,246,.10);padding:18px;display:grid;gap:16px}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.section-title{display:grid;gap:4px}.section-title strong{font-size:1.05rem;letter-spacing:-.03em}.section-title span{color:var(--muted);font-size:.9rem;line-height:1.45}.field-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.field-card{padding:14px;border-radius:18px;background:rgba(255,255,255,.9);border:1px solid #e6edf9;display:grid;gap:9px}.field-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.field-label{display:grid;gap:3px}.field-label strong{font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.045em}.field-label span{font-weight:950;color:var(--text);line-height:1.3;word-break:break-word}.muted{color:var(--muted)}.empty-hint{padding:22px;border-radius:18px;border:1px dashed #dbe6f7;color:var(--muted);line-height:1.5}
@@ -1250,6 +1251,7 @@ function PlanPricesAdminPanel() {
 type MessagingProviderKey = 'GLOBAL_MESSAGING_WHATSAPP_ENABLED' | 'GLOBAL_MESSAGING_VIBER_ENABLED'
 type PaymentProviderKey = 'GLOBAL_PAYMENTS_STRIPE_ENABLED' | 'GLOBAL_PAYMENTS_PAYPAL_ENABLED'
 type AjpesProviderKey = 'GLOBAL_AJPES_PRS_ENABLED'
+type OtherGlobalFeatureKey = 'GLOBAL_CONSUMABLES_ENABLED'
 type FiscalUrlKey =
   | 'GLOBAL_FISCAL_TEST_INVOICE_URL'
   | 'GLOBAL_FISCAL_TEST_PREMISE_URL'
@@ -1955,6 +1957,103 @@ function AjpesAdminPanel() {
   )
 }
 
+function OtherAdminPanel() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [ok, setOk] = useState<string | null>(null)
+  const [flags, setFlags] = useState<Record<OtherGlobalFeatureKey, boolean>>({
+    GLOBAL_CONSUMABLES_ENABLED: true,
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setLoading(true)
+      setErr(null)
+      try {
+        const { data } = await api.get<PlatformGlobalSettingsDto>('/platform-admin/settings')
+        if (cancelled || !data) return
+        setFlags({
+          GLOBAL_CONSUMABLES_ENABLED: parseEnabledFlag(data.GLOBAL_CONSUMABLES_ENABLED, true),
+        })
+      } catch {
+        if (!cancelled) setErr('Could not load other global settings.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    setErr(null)
+    setOk(null)
+    try {
+      await api.put('/platform-admin/settings', {
+        GLOBAL_CONSUMABLES_ENABLED: String(flags.GLOBAL_CONSUMABLES_ENABLED),
+      })
+      window.dispatchEvent(new Event('settings-updated'))
+      setOk('Other settings saved.')
+    } catch {
+      setErr('Could not save other settings.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const enabled = flags.GLOBAL_CONSUMABLES_ENABLED
+
+  return (
+    <div className="panel panel-pad">
+      <div className="plan-price-head">
+        <div className="eyebrow">Global controls</div>
+        <h2>Other</h2>
+        <p className="muted" style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}>
+          Turn optional platform features ON or OFF globally. Platform Admin keeps access, while disabled features are
+          hidden from all non-platform-admin tenants and blocked on the backend.
+        </p>
+      </div>
+
+      {loading ? <p className="muted">Loading other settings…</p> : null}
+      {err ? <p className="search-err">{err}</p> : null}
+      {ok ? <p style={{ margin: 0, color: 'var(--success-text)', fontWeight: 800, fontSize: '0.92rem' }}>{ok}</p> : null}
+
+      {!loading ? (
+        <div className="section-card" style={{ marginTop: 12 }}>
+          <div className="section-head">
+            <div className="section-title">
+              <strong>Consumables</strong>
+              <span>{enabled ? 'Consumables are visible and usable for tenant admins.' : 'Consumables are hidden and blocked for non-platform-admin tenants.'}</span>
+            </div>
+          </div>
+          <label className="admin-setting-switch">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setFlags({ GLOBAL_CONSUMABLES_ENABLED: e.target.checked })}
+            />
+            <span className="admin-setting-switch-slider" aria-hidden />
+            <span className="admin-setting-switch-copy">
+              <strong>{enabled ? 'ON' : 'OFF'}</strong>
+              <span>{enabled ? 'Show Porabni material / Consumables.' : 'Hide Porabni material / Consumables.'}</span>
+            </span>
+          </label>
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 18 }} className="top-actions">
+        <button className="button primary" type="button" onClick={() => void save()} disabled={saving || loading}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 type AdminWorkspaceTab =
   | 'tenants'
   | 'plans'
@@ -1965,6 +2064,7 @@ type AdminWorkspaceTab =
   | 'zoom'
   | 'payments'
   | 'messaging'
+  | 'other'
 
 const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: 'tenants', label: 'Tenant management' },
@@ -1976,6 +2076,7 @@ const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: 'zoom', label: 'Zoom' },
   { id: 'payments', label: 'Payment providers' },
   { id: 'messaging', label: 'Messaging providers' },
+  { id: 'other', label: 'Other' },
 ]
 
 function AdminComingSoon({ title }: { title: string }) {
@@ -2801,6 +2902,8 @@ export function PlatformAdminPage() {
                   <PaymentProvidersAdminPanel />
                 ) : workspace === 'ajpes' ? (
                   <AjpesAdminPanel />
+                ) : workspace === 'other' ? (
+                  <OtherAdminPanel />
                 ) : (
                   <AdminComingSoon title={ADMIN_TABS.find((t) => t.id === workspace)?.label ?? 'Section'} />
                 )}

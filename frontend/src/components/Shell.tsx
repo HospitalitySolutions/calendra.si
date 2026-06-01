@@ -157,7 +157,9 @@ function ShellInner({ children }: PropsWithChildren) {
   const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
+  const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
   const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
+  const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
   const inboxAllowed = hasInboxAccess(user.packageType)
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
@@ -251,6 +253,10 @@ function ShellInner({ children }: PropsWithChildren) {
         setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
       })
       .catch(() => {})
+    api
+      .get('/settings/module-capabilities')
+      .then((r) => setConsumablesModuleEnabled(r.data?.consumablesEnabled !== false))
+      .catch(() => setConsumablesModuleEnabled(true))
   }
 
   useEffect(() => {
@@ -561,7 +567,7 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="mobile-nav-overlay-link-label">{t('navBilling')}</span>
               </NavLink>
             )}
-            {isAdmin && (
+            {consumablesAllowed && (
               <NavLink
                 to="/consumables"
                 className={({ isActive }) => `mobile-nav-overlay-link${isActive ? ' active' : ''}`}
@@ -1114,7 +1120,7 @@ function ShellInner({ children }: PropsWithChildren) {
                 <span className="sidebar-rail-link-label">{t('navBilling')}</span>
               </NavLink>
             )}
-            {isAdmin && (
+            {consumablesAllowed && (
               <NavLink
                 className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
                 to="/consumables"

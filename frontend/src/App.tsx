@@ -96,6 +96,7 @@ export default function App() {
   }
   const handledRef = useRef(false)
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
+  const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
 
 
   useEffect(() => {
@@ -133,6 +134,32 @@ export default function App() {
     return () => {
       cancelled = true
       window.removeEventListener('settings-updated', loadBillingModuleState)
+    }
+  }, [user])
+
+
+  useEffect(() => {
+    if (!user) {
+      setConsumablesModuleEnabled(true)
+      return
+    }
+
+    let cancelled = false
+    const loadModuleCapabilities = () => {
+      api.get('/settings/module-capabilities')
+        .then((res) => {
+          if (!cancelled) setConsumablesModuleEnabled(res.data?.consumablesEnabled !== false)
+        })
+        .catch(() => {
+          if (!cancelled) setConsumablesModuleEnabled(true)
+        })
+    }
+
+    loadModuleCapabilities()
+    window.addEventListener('settings-updated', loadModuleCapabilities)
+    return () => {
+      cancelled = true
+      window.removeEventListener('settings-updated', loadModuleCapabilities)
     }
   }, [user])
 
@@ -262,6 +289,7 @@ export default function App() {
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
   const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
+  const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
   const inboxAllowed = hasInboxAccess(user.packageType)
   const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const fallbackRoute = getDefaultAllowedRoute(user.packageType)
@@ -291,7 +319,7 @@ export default function App() {
           <Route path="/billing" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/consumables" element={isAdmin ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/consumables" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/inbox" element={inboxAllowed ? <InboxPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/configuration" element={<ConfigurationPage />} />

@@ -19,4 +19,6 @@ public interface SessionTypeRepository extends JpaRepository<SessionType, Long> 
     @Query("SELECT DISTINCT t FROM SessionType t LEFT JOIN FETCH t.linkedServices ls LEFT JOIN FETCH ls.transactionService " +
             "WHERE t.id = :id AND t.company.id = :companyId")
     Optional<SessionType> findByIdAndCompanyIdWithLinkedServices(@Param("id") Long id, @Param("companyId") Long companyId);
+
+    Optional<SessionType> findByCompanyIdAndNameIgnoreCase(Long companyId, String name);
 }

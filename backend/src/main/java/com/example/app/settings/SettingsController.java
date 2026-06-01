@@ -23,6 +23,7 @@ public class SettingsController {
     private final SettingsCryptoService crypto;
     private final TenantFileS3Service fileStorage;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final GlobalConsumablesFeatureService globalConsumablesFeatureService;
     private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
 
     public SettingsController(
@@ -30,16 +31,19 @@ public class SettingsController {
             SettingsCryptoService crypto,
             TenantFileS3Service fileStorage,
             GlobalPaymentProviderService globalPaymentProviders,
+            GlobalConsumablesFeatureService globalConsumablesFeatureService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
         this.repository = repository;
         this.crypto = crypto;
         this.fileStorage = fileStorage;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.globalConsumablesFeatureService = globalConsumablesFeatureService;
         this.platformTenantAccountLinkService = platformTenantAccountLinkService;
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
+    public record ModuleCapabilitiesResponse(boolean consumablesEnabled) {}
 
     @GetMapping
     public Map<String, String> all(@AuthenticationPrincipal User me) {
@@ -97,6 +101,11 @@ public class SettingsController {
     public PaymentProviderCapabilitiesResponse paymentCapabilities(@AuthenticationPrincipal User me) {
         var caps = globalPaymentProviders.capabilities();
         return new PaymentProviderCapabilitiesResponse(caps.stripeEnabled(), caps.paypalEnabled());
+    }
+
+    @GetMapping("/module-capabilities")
+    public ModuleCapabilitiesResponse moduleCapabilities(@AuthenticationPrincipal User me) {
+        return new ModuleCapabilitiesResponse(globalConsumablesFeatureService.isEnabledForUser(me));
     }
 
     private String encodeForSave(SettingKey key, String value) {

@@ -66,6 +66,7 @@ public class BillingController {
     /** Must match the frontend sentinel range used for invoice-editor lines added manually. */
     private static final long MANUAL_OPEN_BILL_LINE_SOURCE_ID_LIMIT = -900_000_000_000L;
     private static final String COMPANY_BILL_PROXY_EMAIL_DOMAIN = "calendra.invalid";
+    private static final int TRANSACTION_SERVICE_CODE_MAX_LENGTH = 12;
     private static final Set<String> GUEST_PRODUCT_TYPES = Set.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
     private static final List<String> DEFAULT_ALLOWED_FOR_CARD = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
     private static final List<String> DEFAULT_ALLOWED_FOR_BANK_TRANSFER = List.of("PACK", "MEMBERSHIP", "GIFT_CARD");
@@ -348,7 +349,11 @@ public class BillingController {
     @PreAuthorize("hasRole('ADMIN')") 
     @PostMapping("/services")
     public TransactionService createService(@RequestBody TransactionService s, @AuthenticationPrincipal User me) {
+        Long companyId = me.getCompany().getId();
+        String normalizedCode = requireValidTransactionServiceCode(s.getCode());
+        ensureTransactionServiceCodeUnique(companyId, normalizedCode, null);
         s.setCompany(me.getCompany());
+        s.setCode(normalizedCode);
         s.setActive(s.isActive());
         return txRepo.save(s);
     }
@@ -359,7 +364,9 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var existing = txRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        existing.setCode(s.getCode());
+        String validatedCode = requireValidTransactionServiceCode(s.getCode());
+        ensureTransactionServiceCodeUnique(companyId, validatedCode, existing.getId());
+        existing.setCode(validatedCode);
         existing.setDescription(s.getDescription());
         existing.setTaxRate(s.getTaxRate());
         existing.setNetPrice(s.getNetPrice());
@@ -388,6 +395,33 @@ public class BillingController {
             );
         }
         txRepo.delete(existing);
+    }
+
+    private String normalizeTransactionServiceCode(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (normalized.isEmpty()) return null;
+        String alnum = normalized.replaceAll("[^A-Z0-9]", "");
+        if (alnum.isEmpty()) return null;
+        if (alnum.length() > TRANSACTION_SERVICE_CODE_MAX_LENGTH) {
+            return alnum.substring(0, TRANSACTION_SERVICE_CODE_MAX_LENGTH);
+        }
+        return alnum;
+    }
+
+    private String requireValidTransactionServiceCode(String raw) {
+        String normalized = normalizeTransactionServiceCode(raw);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction service code is required.");
+        }
+        return normalized;
+    }
+
+    private void ensureTransactionServiceCodeUnique(Long companyId, String code, Long currentId) {
+        var existing = txRepo.findByCompanyIdAndCodeIgnoreCase(companyId, code);
+        if (existing.isPresent() && !Objects.equals(existing.get().getId(), currentId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Transaction service code already exists for this tenant.");
+        }
     }
 
     @GetMapping("/payment-methods")

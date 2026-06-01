@@ -4,6 +4,7 @@ import com.example.app.consumables.ConsumableEnums.PurchaseOrderStatus;
 import com.example.app.consumables.ConsumableEnums.QuantityMode;
 import com.example.app.consumables.ConsumableEnums.StockMovementType;
 import com.example.app.consumables.ConsumableEnums.SupplierStatus;
+import com.example.app.settings.GlobalConsumablesFeatureService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/consumables")
 public class ConsumableController {
     private final ConsumableService service;
+    private final GlobalConsumablesFeatureService consumablesFeatureService;
 
-    public ConsumableController(ConsumableService service) {
+    public ConsumableController(ConsumableService service, GlobalConsumablesFeatureService consumablesFeatureService) {
         this.service = service;
+        this.consumablesFeatureService = consumablesFeatureService;
     }
 
     public record CategoryRequest(String name, String color, Boolean active) {}
@@ -195,59 +198,73 @@ public class ConsumableController {
             String notes
     ) {}
 
+    private Long enabledCompanyId(User me) {
+        consumablesFeatureService.assertEnabledForUser(me);
+        return me.getCompany().getId();
+    }
+
+    private void assertConsumablesEnabled(User me) {
+        consumablesFeatureService.assertEnabledForUser(me);
+    }
+
     @GetMapping("/overview")
     public OverviewResponse overview(@AuthenticationPrincipal User me) {
-        return service.overview(me.getCompany().getId());
+        return service.overview(enabledCompanyId(me));
     }
 
     @GetMapping("/items")
     public List<ItemResponse> items(@AuthenticationPrincipal User me) {
-        return service.listItems(me.getCompany().getId()).stream().map(ConsumableController::toItemResponse).toList();
+        return service.listItems(enabledCompanyId(me)).stream().map(ConsumableController::toItemResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/items")
     public ItemResponse createItem(@RequestBody ItemRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toItemResponse(service.createItem(me, req));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/items/{id}")
     public ItemResponse updateItem(@PathVariable Long id, @RequestBody ItemRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toItemResponse(service.updateItem(me, id, req));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/items/{id}/adjust")
     public MovementResponse adjustStock(@PathVariable Long id, @RequestBody StockAdjustmentRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toMovementResponse(service.adjustStock(me, id, req));
     }
 
     @GetMapping("/categories")
     public List<CategoryResponse> categories(@AuthenticationPrincipal User me) {
-        return service.listCategories(me.getCompany().getId()).stream().map(ConsumableController::toCategoryResponse).toList();
+        return service.listCategories(enabledCompanyId(me)).stream().map(ConsumableController::toCategoryResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/categories")
     public CategoryResponse createCategory(@RequestBody CategoryRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toCategoryResponse(service.saveCategory(me, null, req));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/categories/{id}")
     public CategoryResponse updateCategory(@PathVariable Long id, @RequestBody CategoryRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toCategoryResponse(service.saveCategory(me, id, req));
     }
 
     @GetMapping("/movements")
     public List<MovementResponse> movements(@AuthenticationPrincipal User me) {
-        return service.listMovements(me.getCompany().getId()).stream().map(ConsumableController::toMovementResponse).toList();
+        return service.listMovements(enabledCompanyId(me)).stream().map(ConsumableController::toMovementResponse).toList();
     }
 
     @GetMapping("/service-types/{typeId}/defaults")
     public List<ServiceTypeConsumableResponse> serviceTypeDefaults(@PathVariable Long typeId, @AuthenticationPrincipal User me) {
-        return service.listServiceTypeDefaults(me.getCompany().getId(), typeId).stream().map(ConsumableController::toServiceTypeResponse).toList();
+        return service.listServiceTypeDefaults(enabledCompanyId(me), typeId).stream().map(ConsumableController::toServiceTypeResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -257,11 +274,13 @@ public class ConsumableController {
             @RequestBody List<ServiceTypeConsumableRequest> req,
             @AuthenticationPrincipal User me
     ) {
+        assertConsumablesEnabled(me);
         return service.replaceServiceTypeDefaults(me, typeId, req).stream().map(ConsumableController::toServiceTypeResponse).toList();
     }
 
     @GetMapping("/bookings/{bookingId}/session-consumables")
     public List<SessionConsumableResponse> sessionConsumables(@PathVariable Long bookingId, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return service.listSessionConsumables(me, bookingId).stream().map(ConsumableController::toSessionConsumableResponse).toList();
     }
 
@@ -272,46 +291,52 @@ public class ConsumableController {
             @RequestBody List<SessionConsumableRequest> req,
             @AuthenticationPrincipal User me
     ) {
+        assertConsumablesEnabled(me);
         return service.replaceSessionConsumables(me, bookingId, req).stream().map(ConsumableController::toSessionConsumableResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/bookings/{bookingId}/session-consumables/reset-defaults")
     public List<SessionConsumableResponse> resetSessionConsumables(@PathVariable Long bookingId, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return service.resetSessionDefaults(me, bookingId).stream().map(ConsumableController::toSessionConsumableResponse).toList();
     }
 
     @GetMapping("/suppliers")
     public List<SupplierResponse> suppliers(@AuthenticationPrincipal User me) {
-        return service.listSuppliers(me.getCompany().getId()).stream().map(ConsumableController::toSupplierResponse).toList();
+        return service.listSuppliers(enabledCompanyId(me)).stream().map(ConsumableController::toSupplierResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/suppliers")
     public SupplierResponse createSupplier(@RequestBody SupplierRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toSupplierResponse(service.saveSupplier(me, null, req));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/suppliers/{id}")
     public SupplierResponse updateSupplier(@PathVariable Long id, @RequestBody SupplierRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toSupplierResponse(service.saveSupplier(me, id, req));
     }
 
     @GetMapping("/purchase-orders")
     public List<PurchaseOrderResponse> purchaseOrders(@AuthenticationPrincipal User me) {
-        return service.listPurchaseOrders(me.getCompany().getId()).stream().map(ConsumableController::toPurchaseOrderResponse).toList();
+        return service.listPurchaseOrders(enabledCompanyId(me)).stream().map(ConsumableController::toPurchaseOrderResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/purchase-orders")
     public PurchaseOrderResponse createPurchaseOrder(@RequestBody PurchaseOrderRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toPurchaseOrderResponse(service.savePurchaseOrder(me, null, req));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/purchase-orders/{id}")
     public PurchaseOrderResponse updatePurchaseOrder(@PathVariable Long id, @RequestBody PurchaseOrderRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
         return toPurchaseOrderResponse(service.savePurchaseOrder(me, id, req));
     }
 

@@ -4,6 +4,8 @@ import com.example.app.billing.PriceMath;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.user.User;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,6 +24,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/types")
 public class SessionTypeController {
+    private static final int SESSION_TYPE_CODE_MAX_LENGTH = 12;
     private final SessionTypeRepository repo;
     private final TransactionServiceRepository txRepo;
     private final SessionBookingRepository bookingRepo;
@@ -38,7 +41,7 @@ public class SessionTypeController {
 
     public record TypeServiceItem(Long transactionServiceId, BigDecimal price) {}
     public record TypeRequest(
-            String name,
+            @JsonProperty("name") @JsonAlias("code") String code,
             String description,
             Integer durationMinutes,
             Integer breakMinutes,
@@ -62,7 +65,7 @@ public class SessionTypeController {
     ) {}
     public record TypeResponse(
             Long id,
-            String name,
+            @JsonProperty("name") String code,
             String description,
             Integer durationMinutes,
             Integer breakMinutes,
@@ -88,8 +91,11 @@ public class SessionTypeController {
     @Transactional
     public TypeResponse create(@RequestBody TypeRequest req, @AuthenticationPrincipal User me) {
         var type = new SessionType();
+        Long companyId = me.getCompany().getId();
+        String normalizedCode = requireValidSessionTypeCode(req.code());
+        ensureSessionTypeCodeUnique(companyId, normalizedCode, null);
         type.setCompany(me.getCompany());
-        type.setName(req.name());
+        type.setName(normalizedCode);
         type.setDescription(req.description());
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         type.setBreakMinutes(req.breakMinutes() != null ? req.breakMinutes() : 0);
@@ -101,9 +107,9 @@ public class SessionTypeController {
         type.setGuestLimitUserEmails(serializeGuestLimitUserEmails(req.guestLimitUserEmails()));
         type.setActive(req.active() == null || Boolean.TRUE.equals(req.active()));
         type = repo.save(type);
-        saveLinkedServices(type, req.services(), me.getCompany().getId());
+        saveLinkedServices(type, req.services(), companyId);
         final Long createdId = type.getId();
-        return toResponse(repo.findAllWithLinkedServicesByCompanyId(me.getCompany().getId()).stream()
+        return toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(x -> x.getId().equals(createdId))
                 .findFirst()
                 .orElseThrow());
@@ -114,10 +120,13 @@ public class SessionTypeController {
     @Transactional
     public TypeResponse update(@PathVariable Long id, @RequestBody TypeRequest req, @AuthenticationPrincipal User me) {
         var type = repo.findById(id).orElseThrow();
-        if (!type.getCompany().getId().equals(me.getCompany().getId())) {
+        Long companyId = me.getCompany().getId();
+        if (!type.getCompany().getId().equals(companyId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        type.setName(req.name());
+        String normalizedCode = requireValidSessionTypeCode(req.code());
+        ensureSessionTypeCodeUnique(companyId, normalizedCode, id);
+        type.setName(normalizedCode);
         type.setDescription(req.description());
         type.setDurationMinutes(req.durationMinutes() != null ? req.durationMinutes() : 60);
         type.setBreakMinutes(req.breakMinutes() != null ? req.breakMinutes() : 0);
@@ -128,17 +137,17 @@ public class SessionTypeController {
         type.setPriceCalculationMode(normalizePriceCalculationMode(req.priceCalculationMode()));
         type.setGuestLimitUserEmails(serializeGuestLimitUserEmails(req.guestLimitUserEmails()));
         boolean nextActive = req.active() == null || Boolean.TRUE.equals(req.active());
-        if (type.isActive() && !nextActive && bookingRepo.existsUpcomingOrOngoingForType(me.getCompany().getId(), id, LocalDateTime.now())) {
+        if (type.isActive() && !nextActive && bookingRepo.existsUpcomingOrOngoingForType(companyId, id, LocalDateTime.now())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "This service type has upcoming or ongoing bookings and cannot be inactivated."
+                    "This service code has upcoming or ongoing bookings and cannot be inactivated."
             );
         }
         type.setActive(nextActive);
         type.getLinkedServices().clear();
         repo.saveAndFlush(type);
-        saveLinkedServices(type, req.services() != null ? req.services() : List.of(), me.getCompany().getId());
-        return toResponse(repo.findAllWithLinkedServicesByCompanyId(me.getCompany().getId()).stream()
+        saveLinkedServices(type, req.services() != null ? req.services() : List.of(), companyId);
+        return toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(t -> t.getId().equals(id))
                 .findFirst()
                 .orElseThrow());
@@ -154,7 +163,7 @@ public class SessionTypeController {
         if (bookingRepo.existsUpcomingOrOngoingForType(me.getCompany().getId(), id, LocalDateTime.now())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "This service type has upcoming or ongoing bookings and cannot be deleted. Set it inactive instead."
+                    "This service code has upcoming or ongoing bookings and cannot be deleted. Set it inactive instead."
             );
         }
         repo.delete(type);
@@ -168,7 +177,7 @@ public class SessionTypeController {
             if (!tx.isActive()) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        "Inactive transaction services cannot be linked to service types."
+                        "Inactive transaction services cannot be linked to service codes."
                 );
             }
             resolvedServices.add(tx);
@@ -188,7 +197,7 @@ public class SessionTypeController {
         repo.save(type);
     }
 
-    private void validateSingleVatRate(String serviceTypeName, List<TransactionService> services) {
+    private void validateSingleVatRate(String serviceCode, List<TransactionService> services) {
         if (services == null || services.size() <= 1) return;
         Set<String> vatRates = new HashSet<>();
         for (TransactionService service : services) {
@@ -196,13 +205,40 @@ public class SessionTypeController {
             vatRates.add(service.getTaxRate().name());
         }
         if (vatRates.size() > 1) {
-            String name = serviceTypeName == null || serviceTypeName.isBlank()
-                    ? "service type"
-                    : "'" + serviceTypeName.trim() + "'";
+            String label = serviceCode == null || serviceCode.isBlank()
+                    ? "service code"
+                    : "'" + serviceCode.trim() + "'";
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "All linked transaction services for " + name + " must use the same DDV rate."
+                    "All linked transaction services for " + label + " must use the same DDV rate."
             );
+        }
+    }
+
+    private String normalizeSessionTypeCode(String raw) {
+        if (raw == null) return null;
+        String upper = raw.trim().toUpperCase(Locale.ROOT);
+        if (upper.isEmpty()) return null;
+        String alnum = upper.replaceAll("[^A-Z0-9]", "");
+        if (alnum.isEmpty()) return null;
+        if (alnum.length() > SESSION_TYPE_CODE_MAX_LENGTH) {
+            return alnum.substring(0, SESSION_TYPE_CODE_MAX_LENGTH);
+        }
+        return alnum;
+    }
+
+    private String requireValidSessionTypeCode(String raw) {
+        String normalized = normalizeSessionTypeCode(raw);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service code is required.");
+        }
+        return normalized;
+    }
+
+    private void ensureSessionTypeCodeUnique(Long companyId, String code, Long currentId) {
+        var existing = repo.findByCompanyIdAndNameIgnoreCase(companyId, code);
+        if (existing.isPresent() && !existing.get().getId().equals(currentId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Service code already exists for this tenant.");
         }
     }
 

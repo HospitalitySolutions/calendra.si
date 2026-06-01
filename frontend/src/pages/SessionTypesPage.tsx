@@ -98,7 +98,7 @@ function guestBookingOptionMeta(mode: GuestBookingMode, locale: AppLocale) {
   const options =
     locale === "sl" ? GUEST_BOOKING_OPTIONS_SL : GUEST_BOOKING_OPTIONS_EN;
   return (
-    options.find((o) => o.value === mode) ?? options[2]
+    options.find((o) => o.value === mode) ?? options[0]
   );
 }
 
@@ -229,6 +229,9 @@ type ServiceFormState = {
   noShow: boolean;
 };
 
+const SERVICE_TYPE_CODE_MAX_LENGTH = 12;
+const TRANSACTION_SERVICE_CODE_MAX_LENGTH = 12;
+
 function taxRateMultiplier(taxRate: TaxRate): number {
   if (taxRate === "VAT_22") return 0.22;
   if (taxRate === "VAT_9_5") return 0.095;
@@ -259,6 +262,20 @@ function parseDecimalInput(raw: string): number {
   const normalized = raw.trim().replace(",", ".");
   const n = Number(normalized);
   return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeServiceTypeCode(raw: string): string {
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, SERVICE_TYPE_CODE_MAX_LENGTH);
+}
+
+function normalizeTransactionServiceCode(raw: string): string {
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, TRANSACTION_SERVICE_CODE_MAX_LENGTH);
 }
 
 function normalizeGuestLimitUserEmailsText(raw: string): string {
@@ -651,7 +668,7 @@ export function SessionTypesPage() {
     breakMinutes: 0,
     maxParticipantsPerSession: "",
     groupBookingEnabled: false,
-    guestBookingMode: "GUEST",
+    guestBookingMode: "ALL",
     priceCalculationMode: "PER_CLIENT",
     guestLimitUserEmailsText: "",
     serviceLines: [],
@@ -1077,6 +1094,11 @@ export function SessionTypesPage() {
     e.preventDefault();
     if (!isAdmin) return;
     if (!isTypeFormDirty) return;
+    const normalizedTypeCode = normalizeServiceTypeCode(typeForm.name);
+    if (!normalizedTypeCode) {
+      window.alert("Service code is required.");
+      return;
+    }
     const { widgetGroupBookingEnabled, guestBookingEnabled } =
       flagsFromGuestBookingMode(typeForm.guestBookingMode);
     const maxParticipantsTrimmed = typeForm.maxParticipantsPerSession.trim();
@@ -1090,7 +1112,7 @@ export function SessionTypesPage() {
           })();
 
     const payload = {
-      name: typeForm.name,
+      name: normalizedTypeCode,
       description: typeForm.description,
       durationMinutes: clampSessionTypeInt0to999(typeForm.durationMinutes),
       breakMinutes: clampSessionTypeInt0to999(typeForm.breakMinutes),
@@ -1132,7 +1154,7 @@ export function SessionTypesPage() {
         breakMinutes: 0,
         maxParticipantsPerSession: "",
         groupBookingEnabled: false,
-        guestBookingMode: "GUEST",
+        guestBookingMode: "ALL",
         priceCalculationMode: "PER_CLIENT",
         guestLimitUserEmailsText: "",
         serviceLines: [],
@@ -1163,7 +1185,7 @@ export function SessionTypesPage() {
     setActivatingSessionTypeId(type.id);
     try {
       await api.put(`/types/${type.id}`, {
-        name: type.name,
+        name: normalizeServiceTypeCode(type.name),
         description: type.description || "",
         active: nextActive,
         durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
@@ -1194,12 +1216,17 @@ export function SessionTypesPage() {
     e.preventDefault();
     if (!isAdmin) return;
     if (!isServiceFormDirty) return;
+    const normalizedCode = normalizeTransactionServiceCode(serviceForm.code);
+    if (!normalizedCode) {
+      window.alert("Transaction service code is required.");
+      return;
+    }
     const netPrice = netFromGross(
       parseDecimalInput(serviceForm.grossPrice),
       serviceForm.taxRate,
     );
     const payload = {
-      code: serviceForm.code,
+      code: normalizedCode,
       description: serviceForm.description,
       taxRate: serviceForm.taxRate,
       netPrice,
@@ -2001,7 +2028,7 @@ export function SessionTypesPage() {
       breakMinutes: 0,
       maxParticipantsPerSession: "",
       groupBookingEnabled: false,
-      guestBookingMode: "GUEST",
+      guestBookingMode: "ALL",
       priceCalculationMode: "PER_CLIENT",
       guestLimitUserEmailsText: "",
       serviceLines: [],
@@ -2433,13 +2460,17 @@ export function SessionTypesPage() {
 
                 <div className="session-type-config-grid session-type-config-grid--two">
                   <Field
-                    label={locale === "sl" ? "Naziv storitve" : "Type name"}
+                    label={locale === "sl" ? "Koda storitve" : "Service code"}
                   >
                     <input
                       required
+                      maxLength={SERVICE_TYPE_CODE_MAX_LENGTH}
                       value={typeForm.name}
                       onChange={(e) =>
-                        setTypeForm({ ...typeForm, name: e.target.value })
+                        setTypeForm({
+                          ...typeForm,
+                          name: normalizeServiceTypeCode(e.target.value),
+                        })
                       }
                     />
                   </Field>
@@ -3182,9 +3213,13 @@ export function SessionTypesPage() {
                 <Field label={t("sessionTypesTxFieldCode")}>
                   <input
                     required
+                    maxLength={TRANSACTION_SERVICE_CODE_MAX_LENGTH}
                     value={serviceForm.code}
                     onChange={(e) =>
-                      setServiceForm({ ...serviceForm, code: e.target.value })
+                      setServiceForm({
+                        ...serviceForm,
+                        code: normalizeTransactionServiceCode(e.target.value),
+                      })
                     }
                   />
                 </Field>

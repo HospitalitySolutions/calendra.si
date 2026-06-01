@@ -362,25 +362,27 @@ public class PlatformAdminController {
     @GetMapping("/settings")
     public Map<String, String> settings(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        return Map.of(
-                SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL.name(),
-                get(companyId, SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL, TEST_INVOICE_DEFAULT),
-                SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL.name(),
-                get(companyId, SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL, TEST_PREMISE_DEFAULT),
-                SettingKey.GLOBAL_FISCAL_PROD_INVOICE_URL.name(),
-                get(companyId, SettingKey.GLOBAL_FISCAL_PROD_INVOICE_URL, PROD_INVOICE_DEFAULT),
-                SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL.name(),
-                get(companyId, SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL, PROD_PREMISE_DEFAULT),
-                SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED.name(),
-                get(companyId, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, "false"),
-                SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED.name(),
-                get(companyId, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "false"),
-                SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name(),
-                get(companyId, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, "true"),
-                SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name(),
-                get(companyId, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false"),
-                SettingKey.GLOBAL_AJPES_PRS_ENABLED.name(),
-                get(companyId, SettingKey.GLOBAL_AJPES_PRS_ENABLED, "false")
+        return Map.ofEntries(
+                Map.entry(SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL.name(),
+                        get(companyId, SettingKey.GLOBAL_FISCAL_TEST_INVOICE_URL, TEST_INVOICE_DEFAULT)),
+                Map.entry(SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL.name(),
+                        get(companyId, SettingKey.GLOBAL_FISCAL_TEST_PREMISE_URL, TEST_PREMISE_DEFAULT)),
+                Map.entry(SettingKey.GLOBAL_FISCAL_PROD_INVOICE_URL.name(),
+                        get(companyId, SettingKey.GLOBAL_FISCAL_PROD_INVOICE_URL, PROD_INVOICE_DEFAULT)),
+                Map.entry(SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL.name(),
+                        get(companyId, SettingKey.GLOBAL_FISCAL_PROD_PREMISE_URL, PROD_PREMISE_DEFAULT)),
+                Map.entry(SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED.name(),
+                        get(companyId, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, "false")),
+                Map.entry(SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED.name(),
+                        get(companyId, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "false")),
+                Map.entry(SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name(),
+                        get(companyId, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, "true")),
+                Map.entry(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name(),
+                        get(companyId, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false")),
+                Map.entry(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name(),
+                        get(companyId, SettingKey.GLOBAL_AJPES_PRS_ENABLED, "false")),
+                Map.entry(SettingKey.GLOBAL_CONSUMABLES_ENABLED.name(),
+                        get(companyId, SettingKey.GLOBAL_CONSUMABLES_ENABLED, "true"))
         );
     }
 
@@ -396,6 +398,7 @@ public class PlatformAdminController {
         save(companyId, me, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_AJPES_PRS_ENABLED, payload.get(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name()));
+        save(companyId, me, SettingKey.GLOBAL_CONSUMABLES_ENABLED, payload.get(SettingKey.GLOBAL_CONSUMABLES_ENABLED.name()));
         return settings(me);
     }
 

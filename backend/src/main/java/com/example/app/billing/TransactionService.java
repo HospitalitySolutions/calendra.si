@@ -26,7 +26,7 @@ public class TransactionService extends BaseEntity {
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 12)
     private String code;
     @Column(nullable = false)
     private String description;
