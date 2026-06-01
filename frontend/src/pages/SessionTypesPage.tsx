@@ -1046,14 +1046,18 @@ export function SessionTypesPage() {
 
   const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
   const groupBookingModuleEnabled = settings.GROUP_BOOKING_ENABLED === "true";
+  const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== "false";
+  const advanceModuleEnabled = settings.BILLING_ADVANCE_ENABLED !== "false";
   const advanceDeductionIds = useMemo(
     () =>
-      parseAdvanceDeductionServiceIds(
-        settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID,
-      ),
-    [settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID],
+      advanceModuleEnabled
+        ? parseAdvanceDeductionServiceIds(
+            settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID,
+          )
+        : new Set<number>(),
+    [advanceModuleEnabled, settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID],
   );
-  const noShowServiceId = useMemo(
+  const configuredNoShowServiceId = useMemo(
     () => parseSingleTransactionServiceId(settings.NO_SHOW_TRANSACTION_SERVICE_ID),
     [settings.NO_SHOW_TRANSACTION_SERVICE_ID],
   );
@@ -1061,15 +1065,15 @@ export function SessionTypesPage() {
   const transactionServiceCategoryLabel = useCallback(
     (service: BillingService) => {
       const labels: string[] = [];
-      if (advanceDeductionIds.has(service.id)) labels.push(t("sessionTypesTxAdvanceBadge"));
-      if (noShowServiceId === service.id) labels.push(t("sessionTypesTxNoShowBadge"));
+      if (advanceModuleEnabled && advanceDeductionIds.has(service.id)) labels.push(t("sessionTypesTxAdvanceBadge"));
+      if (noShowModuleEnabled && configuredNoShowServiceId === service.id) labels.push(t("sessionTypesTxNoShowBadge"));
       return labels.length
         ? labels.join(" · ")
         : locale === "sl"
           ? "Transakcijska storitev"
           : "Transaction service";
     },
-    [advanceDeductionIds, noShowServiceId, t, locale],
+    [advanceDeductionIds, advanceModuleEnabled, configuredNoShowServiceId, noShowModuleEnabled, t, locale],
   );
 
   const isTypeFormDirty = useMemo(() => {
@@ -1260,8 +1264,8 @@ export function SessionTypesPage() {
       taxRate: serviceForm.taxRate,
       netPrice,
     };
-    const wantAdvance = serviceForm.advanceDeduction === true;
-    const wantNoShow = serviceForm.noShow === true;
+    const wantAdvance = advanceModuleEnabled && serviceForm.advanceDeduction === true;
+    const wantNoShow = noShowModuleEnabled && serviceForm.noShow === true;
 
     let savedId: number;
     try {
@@ -1296,23 +1300,25 @@ export function SessionTypesPage() {
         setSettings(nextSettings);
       }
 
-      const nextNoShowId = wantNoShow
-        ? savedId
-        : noShowServiceId === savedId
-          ? null
-          : noShowServiceId;
-      if (
-        serializeSingleTransactionServiceId(nextNoShowId) !==
-        serializeSingleTransactionServiceId(noShowServiceId)
-      ) {
-        const { data: nextSettings } = await api.put<Record<string, string>>(
-          "/settings",
-          {
-            NO_SHOW_TRANSACTION_SERVICE_ID:
-              serializeSingleTransactionServiceId(nextNoShowId),
-          },
-        );
-        setSettings(nextSettings);
+      if (noShowModuleEnabled) {
+        const nextNoShowId = wantNoShow
+          ? savedId
+          : configuredNoShowServiceId === savedId
+            ? null
+            : configuredNoShowServiceId;
+        if (
+          serializeSingleTransactionServiceId(nextNoShowId) !==
+          serializeSingleTransactionServiceId(configuredNoShowServiceId)
+        ) {
+          const { data: nextSettings } = await api.put<Record<string, string>>(
+            "/settings",
+            {
+              NO_SHOW_TRANSACTION_SERVICE_ID:
+                serializeSingleTransactionServiceId(nextNoShowId),
+            },
+          );
+          setSettings(nextSettings);
+        }
       }
 
       setEditingServiceId(null);
@@ -1352,10 +1358,10 @@ export function SessionTypesPage() {
         );
         setSettings(nextSettings);
       }
-      const nextNoShowId = noShowServiceId === id ? null : noShowServiceId;
+      const nextNoShowId = configuredNoShowServiceId === id ? null : configuredNoShowServiceId;
       if (
         serializeSingleTransactionServiceId(nextNoShowId) !==
-        serializeSingleTransactionServiceId(noShowServiceId)
+        serializeSingleTransactionServiceId(configuredNoShowServiceId)
       ) {
         const { data: nextSettings } = await api.put<Record<string, string>>(
           "/settings",
@@ -1470,7 +1476,7 @@ export function SessionTypesPage() {
       taxRate: s.taxRate,
       grossPrice: grossPriceStringFromNet(Number(s.netPrice), s.taxRate),
       advanceDeduction: advanceDeductionIds.has(s.id),
-      noShow: noShowServiceId === s.id,
+      noShow: noShowModuleEnabled && configuredNoShowServiceId === s.id,
     };
     setServiceForm(next);
     setServiceFormSnapshot({ ...next });
@@ -3363,6 +3369,7 @@ export function SessionTypesPage() {
                 </Field>
               </div>
 
+              {advanceModuleEnabled && (
               <label className="transaction-service-advance-card">
                 <span className="transaction-service-advance-icon" aria-hidden>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -3404,49 +3411,52 @@ export function SessionTypesPage() {
                   </span>
                 </span>
               </label>
+              )}
 
-              <label className="transaction-service-advance-card transaction-service-no-show-card">
-                <span className="transaction-service-advance-icon" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="8.2"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
+              {noShowModuleEnabled && (
+                <label className="transaction-service-advance-card transaction-service-no-show-card">
+                  <span className="transaction-service-advance-icon" aria-hidden>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="8.2"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                      <path
+                        d="M12 7.8v5.3M12 16.4h.01"
+                        stroke="currentColor"
+                        strokeWidth="1.9"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <span className="transaction-service-advance-copy">
+                    <strong>{t("sessionTypesTxNoShowSwitch")}</strong>
+                    <span>{t("sessionTypesTxNoShowHint")}</span>
+                  </span>
+                  <span className="session-type-config-switch transaction-service-advance-switch">
+                    <input
+                      type="checkbox"
+                      checked={serviceForm.noShow}
+                      onChange={(e) =>
+                        setServiceForm({
+                          ...serviceForm,
+                          noShow: e.target.checked,
+                        })
+                      }
+                      aria-label={t("sessionTypesTxNoShowSwitch")}
                     />
-                    <path
-                      d="M12 7.8v5.3M12 16.4h.01"
-                      stroke="currentColor"
-                      strokeWidth="1.9"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span className="transaction-service-advance-copy">
-                  <strong>{t("sessionTypesTxNoShowSwitch")}</strong>
-                  <span>{t("sessionTypesTxNoShowHint")}</span>
-                </span>
-                <span className="session-type-config-switch transaction-service-advance-switch">
-                  <input
-                    type="checkbox"
-                    checked={serviceForm.noShow}
-                    onChange={(e) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        noShow: e.target.checked,
-                      })
-                    }
-                    aria-label={t("sessionTypesTxNoShowSwitch")}
-                  />
-                  <span className="session-type-config-switch-track" aria-hidden>
-                    <span className="session-type-config-switch-thumb">
-                      {serviceForm.noShow ? "✓" : ""}
+                    <span className="session-type-config-switch-track" aria-hidden>
+                      <span className="session-type-config-switch-thumb">
+                        {serviceForm.noShow ? "✓" : ""}
+                      </span>
                     </span>
                   </span>
-                </span>
-              </label>
+                </label>
+              )}
 
               <div className="transaction-service-net-field">
                 <Field label={t("sessionTypesTxLabelNet")}>

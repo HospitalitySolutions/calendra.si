@@ -320,6 +320,7 @@ public class GuestOrderService {
             );
         }
 
+
         if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE) {
             // PAID clears pending-order noise in the app; amount is informational until collected at venue.
             order.setStatus(OrderStatus.PAID);
@@ -625,11 +626,20 @@ public class GuestOrderService {
     private void assertPaymentMethodAllowed(Long companyId, GuestPaymentMethodType paymentMethodType, String productType, PaymentChannel channel) {
         GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
+        boolean advanceBillingEnabled = guestSettings.advanceBillingEnabled(companyId);
 
         if (!billingEnabled) {
             if (paymentMethodType != GuestPaymentMethodType.PAY_AT_VENUE || !isSessionLikeProductType(productType)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Billing is disabled for this tenant.");
             }
+        }
+
+        if (!advanceBillingEnabled
+                && isSessionLikeProductType(productType)
+                && paymentMethodType != GuestPaymentMethodType.PAY_AT_VENUE
+                && paymentMethodType != GuestPaymentMethodType.ENTITLEMENT
+                && paymentMethodType != GuestPaymentMethodType.GIFT_CARD) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Advance payments are disabled for this tenant.");
         }
 
         if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE) {
@@ -740,6 +750,7 @@ public class GuestOrderService {
         SessionBooking booking = maybeCreateConfirmedBooking(order);
         maybeCreateEntitlement(order);
         if (booking != null
+                && guestSettings.advanceBillingEnabled(order.getCompany().getId())
                 && (paymentMethodType == GuestPaymentMethodType.CARD
                 || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
             try {

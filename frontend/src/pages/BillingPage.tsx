@@ -991,7 +991,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setBills((billsRes.data || []).map((b: Bill) => normalizeBill(b)))
     setOpenBills((openBillsRes.data || []).map((ob: OpenBill) => normalizeOpenBill(ob)))
     setBookings(bookingsRes.data || [])
-    setUnusedAdvances(unusedAdvancesRes.data || [])
+    setUnusedAdvances(settingsRes.data?.BILLING_ADVANCE_ENABLED === 'false' ? [] : (unusedAdvancesRes.data || []))
     setClients(clientsRes.data)
     setCompanies(companiesRes.data || [])
     setUsers(usersRes.data)
@@ -1005,6 +1005,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const interval = window.setInterval(() => { void load() }, 30000)
     return () => window.clearInterval(interval)
   }, [])
+
+  const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
+  const visiblePaymentMethods = useMemo(
+    () => advanceBillingEnabled ? paymentMethods : paymentMethods.filter((method) => !isDepositPaymentMethod(method)),
+    [advanceBillingEnabled, paymentMethods],
+  )
+
+  useEffect(() => {
+    if (!advanceBillingEnabled && billingTab === 'unusedAdvances') {
+      setBillingTab('open')
+      setSelectedUnusedAdvanceId(null)
+    }
+  }, [advanceBillingEnabled, billingTab])
 
   const embeddedCreateKey = embeddedCreateBill
     ? [
@@ -1020,9 +1033,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const embeddedCreateKeyRef = useRef('')
 
   useEffect(() => {
-    if (!embeddedCreateBill || embeddedCreateKeyRef.current === embeddedCreateKey) return
+    if (!embeddedCreateBill) return
+    if (embeddedCreateBill.billType === 'ADVANCE' && !advanceBillingEnabled) {
+      embeddedCreateKeyRef.current = ''
+      setShowCreateBillModal(false)
+      onEmbeddedClose?.()
+      return
+    }
+    if (embeddedCreateKeyRef.current === embeddedCreateKey) return
     embeddedCreateKeyRef.current = embeddedCreateKey
-    const defaultPaymentMethodId = paymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? paymentMethods[0]?.id
+    const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
     const normalizedBillingTarget = embeddedCreateBill.billingTarget === 'COMPANY' ? 'COMPANY' : 'PERSON'
     const embeddedClientIds = Array.from(new Set([embeddedCreateBill.clientId, ...(embeddedCreateBill.clientIds ?? [])]
       .map((value) => Number(value ?? 0))
@@ -1037,10 +1057,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       consultantId: embeddedCreateBill.consultantId ?? me.id,
       recipientCompanyId: normalizedBillingTarget === 'COMPANY' ? (embeddedCreateBill.recipientCompanyId ?? undefined) : undefined,
     })
-    setBillingTab(embeddedCreateBill.billType === 'ADVANCE' ? 'unusedAdvances' : 'open')
+    setBillingTab(embeddedCreateBill.billType === 'ADVANCE' && advanceBillingEnabled ? 'unusedAdvances' : 'open')
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
-  }, [embeddedCreateBill, embeddedCreateKey, paymentMethods, me.id])
+  }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, me.id])
   /** Keep the side panel in sync when open bills reload (e.g. apply advance, polling) unless there are unsaved line edits. */
   useEffect(() => {
     setDetailOpenBill((prev) => {
@@ -1316,8 +1336,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return sum + (Number.isFinite(gross) ? gross : 0) * Number(item.quantity || 0)
   }, 0), [billForm.items])
   const advanceDeductionIds = useMemo(
-    () => parseAdvanceDeductionServiceIds(settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID),
-    [settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID],
+    () => advanceBillingEnabled ? parseAdvanceDeductionServiceIds(settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID) : new Set<number>(),
+    [advanceBillingEnabled, settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID],
   )
   const advanceBillServices = useMemo(
     () => services.filter((s) => advanceDeductionIds.has(s.id)),
@@ -1713,6 +1733,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function findAdvancePaymentMethodForOpenBill(ob: OpenBill) {
+    if (!advanceBillingEnabled) return null
     if (ob.paymentMethod && isDepositPaymentMethod(ob.paymentMethod)) return ob.paymentMethod
     return paymentMethods.find((method) => isDepositPaymentMethod(method)) || null
   }
@@ -1862,8 +1883,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
    */
   function resolveOpenBillEffectiveType(ob: OpenBill | null | undefined): 'INVOICE' | 'ADVANCE' {
     if (!ob) return 'INVOICE'
-    if (ob.billType === 'ADVANCE') return 'ADVANCE'
+    if (ob.billType === 'ADVANCE') return advanceBillingEnabled ? 'ADVANCE' : 'INVOICE'
     if (ob.billType === 'INVOICE') return 'INVOICE'
+    if (!advanceBillingEnabled) return 'INVOICE'
     const sessions = ob.sessions ?? []
     const anyReserved = sessions.some((session) => {
       if (Number(session.sessionId) < 0) return false
@@ -1901,8 +1923,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const usedIds = new Set(current.map((split) => split.paymentMethodId).filter(Boolean))
     const effectiveType = resolveOpenBillEffectiveType(ob)
     const eligibleMethods = effectiveType === 'ADVANCE'
-      ? paymentMethods.filter((entry) => !isDepositPaymentMethod(entry))
-      : paymentMethods
+      ? visiblePaymentMethods.filter((entry) => !isDepositPaymentMethod(entry))
+      : visiblePaymentMethods
     const method = eligibleMethods.find((entry) => !usedIds.has(entry.id)) || eligibleMethods[0]
     if (!method) return
     const assigned = current.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
@@ -2763,7 +2785,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const openCreateBillModal = () => {
-    const defaultPaymentMethodId = paymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? paymentMethods[0]?.id
+    const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
     setBillForm({
       items: [],
       paymentMethodId: defaultPaymentMethodId,
@@ -2778,7 +2800,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const openCreateAdvanceBillModal = () => {
-    const defaultPaymentMethodId = paymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? paymentMethods[0]?.id
+    if (!advanceBillingEnabled) return
+    const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
     setBillForm({
       items: [],
       paymentMethodId: defaultPaymentMethodId,
@@ -3059,12 +3082,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const billItemsAllowedByType = billForm.items.length === 0
     || (availableBillServices.length > 0 && billForm.items.every((item) => availableBillServices.some((service) => service.id === item.transactionServiceId)))
   const createAvailablePaymentMethods = useMemo(
-    () => billForm.billType === 'INVOICE' ? paymentMethods : paymentMethods.filter((method) => !isDepositPaymentMethod(method)),
-    [paymentMethods, billForm.billType],
+    () => billForm.billType === 'INVOICE' ? visiblePaymentMethods : visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method)),
+    [visiblePaymentMethods, billForm.billType],
   )
   const nonDepositPaymentMethods = useMemo(
-    () => paymentMethods.filter((method) => !isDepositPaymentMethod(method)),
-    [paymentMethods],
+    () => visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method)),
+    [visiblePaymentMethods],
   )
   const createPaymentSplits = getCreateBillPaymentSplits(createBillPayableGross)
   const createPaymentsMatchTotal = paymentSplitsMatchInvoiceTotal(createPaymentSplits, createBillPayableGross)
@@ -4329,8 +4352,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const splits = getOpenBillPaymentSplits(ob, totalGross)
     const effectiveType = resolveOpenBillEffectiveType(ob)
     const availableMethods = effectiveType === 'ADVANCE'
-      ? paymentMethods.filter((method) => !isDepositPaymentMethod(method))
-      : paymentMethods
+      ? visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method))
+      : visiblePaymentMethods
     return (
       <section className="billing-invoice-payment-card">
         <div className="billing-invoice-section-title-row">
@@ -6261,10 +6284,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {billingTabIcon('openPayments')}
                   <span>{t('billingTabOpenPayments')}</span>
                 </button>
-                <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('unusedAdvances')}>
-                  {billingTabIcon('unusedAdvances')}
-                  <span>{t('billingTabUnusedAdvances')}</span>
-                </button>
+                {advanceBillingEnabled && (
+                  <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('unusedAdvances')}>
+                    {billingTabIcon('unusedAdvances')}
+                    <span>{t('billingTabUnusedAdvances')}</span>
+                  </button>
+                )}
                 <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>
                   {billingTabIcon('history')}
                   <span>{t('billingTabFolioHistory')}</span>
@@ -6651,7 +6676,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
             )}
 
-            {billingTab === 'unusedAdvances' && (
+            {advanceBillingEnabled && billingTab === 'unusedAdvances' && (
               <div className="billing-modern-content">
                 <div className="billing-modern-filter-row">
                   <div className="billing-modern-search-wrap">

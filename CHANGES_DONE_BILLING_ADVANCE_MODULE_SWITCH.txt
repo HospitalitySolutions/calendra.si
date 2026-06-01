@@ -1,0 +1,17 @@
+Changes done:
+
+- Added a new Billing module switch named Predplačilo / Advance in Configuration > Module templates.
+- Added backend setting key BILLING_ADVANCE_ENABLED with default ON for seeded and newly registered tenants.
+- When Predplačilo is OFF:
+  - Billing payment method list hides Advance / Predplačilo payment methods.
+  - Advance payment methods are blocked server-side for create/update bills and payment splits.
+  - Default payment method resolution skips Advance / Predplačilo methods.
+  - Neizkoriščena predplačila tab and Novo predplačilo action are hidden in Billing.
+  - Booked-session Predplačilo icon/actions and advance creation options are hidden/blocked.
+  - Transaction service Predplačilo switch and advance badge are hidden.
+  - Guest booking rules disable online payment for Book flow so mobile booking no longer creates Predplačilo invoices.
+- Added backend guards so ADVANCE bills, unused-advance APIs, advance allocations, and guest online session payments cannot be used when the module is disabled.
+
+Build check:
+- Frontend build was not run because node_modules are not present in the sandbox.
+- Backend compile could not complete because Maven wrapper needed to download Maven from repo.maven.apache.org and internet access is unavailable in this sandbox.

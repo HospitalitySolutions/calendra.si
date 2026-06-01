@@ -14,6 +14,9 @@ import com.example.app.billing.OpenBillRepository;
 import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.reminder.ReminderService;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.example.app.security.SecurityUtils;
 import com.example.app.user.Role;
 import com.example.app.user.User;
@@ -56,6 +59,7 @@ public class SessionBookingController {
     private final BillRepository bills;
     private final GuestEntitlementUsageRepository entitlementUsages;
     private final ConsumableService consumableService;
+    private final AppSettingRepository settings;
 
     public SessionBookingController(SessionBookingRepository repo,
                                     BookableSlotRepository bookableSlots,
@@ -69,7 +73,8 @@ public class SessionBookingController {
                                     OpenBillRepository openBills,
                                     BillRepository bills,
                                     GuestEntitlementUsageRepository entitlementUsages,
-                                    ConsumableService consumableService) {
+                                    ConsumableService consumableService,
+                                    AppSettingRepository settings) {
         this.repo = repo;
         this.bookableSlots = bookableSlots;
         this.personalBlocks = personalBlocks;
@@ -84,6 +89,7 @@ public class SessionBookingController {
         this.bills = bills;
         this.entitlementUsages = entitlementUsages;
         this.consumableService = consumableService;
+        this.settings = settings;
     }
 
     public record BookingRequest(
@@ -387,6 +393,9 @@ public class SessionBookingController {
         if (selectedClientIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select at least one client.");
         }
+        if (!isNoShowStatusEnabled(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "NO SHOW status is disabled for this tenant.");
+        }
 
         Map<Long, SessionBooking> rowsByClientId = new LinkedHashMap<>();
         for (SessionBooking row : grouped) {
@@ -439,6 +448,15 @@ public class SessionBookingController {
             refreshed = grouped;
         }
         return withPaymentStatuses(toGroupedResponse(refreshed), refreshed, companyId);
+    }
+
+
+    private boolean isNoShowStatusEnabled(Long companyId) {
+        if (companyId == null) return true;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.NO_SHOW_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> !"false".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(true);
     }
 
     private boolean hasClosedInvoiceForSession(Long companyId, Long sessionBookingId) {

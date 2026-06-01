@@ -137,6 +137,14 @@ public class BillingController {
         billingModuleAccess.assertBillingEnabled(me);
     }
 
+    private void assertAdvanceBillingEnabled(Long companyId) {
+        billingModuleAccess.assertAdvanceEnabled(companyId);
+    }
+
+    private boolean isAdvanceBillingEnabled(Long companyId) {
+        return billingModuleAccess.isAdvanceEnabled(companyId);
+    }
+
     public record BillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {}
     public record BillRequest(
             Long clientId,
@@ -428,9 +436,13 @@ public class BillingController {
     @Transactional
     public List<PaymentMethodResponse> paymentMethods(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        ensureAdvancePaymentMethod(companyId, me.getCompany());
+        boolean advanceEnabled = isAdvanceBillingEnabled(companyId);
+        if (advanceEnabled) {
+            ensureAdvancePaymentMethod(companyId, me.getCompany());
+        }
         var capabilities = globalPaymentProviders.capabilities();
         return paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(pm -> advanceEnabled || !isAdvanceLikePaymentMethod(pm))
                 .filter(pm -> isPaymentMethodAllowedByGlobalSettings(pm, capabilities))
                 .map(pm -> new PaymentMethodResponse(
                         pm.getId(),
@@ -494,6 +506,9 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and paymentType are required.");
         }
         validatePaymentMethodAgainstGlobalSettings(req.paymentType());
+        if (req.paymentType() == PaymentType.ADVANCE && !isAdvanceBillingEnabled(me.getCompany().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance billing is disabled for this tenant.");
+        }
         var pm = new PaymentMethod();
         pm.setCompany(me.getCompany());
         pm.setName(req.name().trim());
@@ -522,6 +537,9 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and paymentType are required.");
         }
         validatePaymentMethodAgainstGlobalSettings(req.paymentType());
+        if (req.paymentType() == PaymentType.ADVANCE && !isAdvanceBillingEnabled(me.getCompany().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance billing is disabled for this tenant.");
+        }
         pm.setName(req.name().trim());
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req);
@@ -1001,8 +1019,11 @@ public class BillingController {
             open.setBillType(BillType.INVOICE);
         }
         open.setReference(req.reference() == null ? null : req.reference().trim());
-        if (open.getBillType() == BillType.ADVANCE && resolveAdvanceDeductionServiceIds(companyId).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+        if (open.getBillType() == BillType.ADVANCE) {
+            assertAdvanceBillingEnabled(companyId);
+            if (resolveAdvanceDeductionServiceIds(companyId).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            }
         }
         addInitialLinesToManualOpenBill(open, companyId, selectedSessionId, nextManualSessionNo, req.items());
         applyOpenBillDiscountDraft(
@@ -1105,6 +1126,9 @@ public class BillingController {
             }
             var method = paymentMethodRepo.findByIdAndCompanyId(split.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
+            if (isAdvanceLikePaymentMethod(method) && !isAdvanceBillingEnabled(companyId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
+            }
             Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
             if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
@@ -1136,6 +1160,9 @@ public class BillingController {
             }
             var method = paymentMethodRepo.findByIdAndCompanyId(split.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
+            if (isAdvanceLikePaymentMethod(method) && !isAdvanceBillingEnabled(companyId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
+            }
             Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
             if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
@@ -1176,6 +1203,7 @@ public class BillingController {
 
     private Bill resolvePaymentSplitSourceAdvance(PaymentSplitRequest split, Long companyId) {
         if (split == null || split.sourceAdvanceBillId() == null) return null;
+        assertAdvanceBillingEnabled(companyId);
         Bill advance = billRepo.findByIdAndCompanyId(split.sourceAdvanceBillId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid source advance bill."));
         if (advance.getBillType() != BillType.ADVANCE) {
@@ -1260,6 +1288,7 @@ public class BillingController {
     }
 
     private PaymentMethod resolveAdvancePaymentMethodForOpenBill(OpenBill openBill, Long companyId) {
+        assertAdvanceBillingEnabled(companyId);
         if (openBill != null && isAdvanceLikePaymentMethod(openBill.getPaymentMethod())) {
             return openBill.getPaymentMethod();
         }
@@ -1346,8 +1375,11 @@ public class BillingController {
         }
         BillType openBillType = open.getBillType() == null ? BillType.INVOICE : open.getBillType();
         Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
-        if (openBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+        if (openBillType == BillType.ADVANCE) {
+            assertAdvanceBillingEnabled(companyId);
+            if (advanceServiceIds.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            }
         }
         Long syntheticSessionId = selectedSessionId != null ? selectedSessionId : -manualSessionNo;
         for (ManualOpenBillLineRequest line : lines) {
@@ -1432,6 +1464,9 @@ public class BillingController {
         if (req.paymentMethodId() != null) {
             var paymentMethod = paymentMethodRepo.findByIdAndCompanyId(req.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method"));
+            if (isAdvanceLikePaymentMethod(paymentMethod) && !isAdvanceBillingEnabled(companyId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
+            }
             open.setPaymentMethod(paymentMethod);
         }
         if (req.paymentSplits() != null) {
@@ -1447,8 +1482,11 @@ public class BillingController {
         if (req.items() != null) {
             BillType openBillType = open.getBillType() == null ? BillType.INVOICE : open.getBillType();
             Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
-            if (openBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            if (openBillType == BillType.ADVANCE) {
+                assertAdvanceBillingEnabled(companyId);
+                if (advanceServiceIds.isEmpty()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+                }
             }
             int idx = 0;
             for (var item : req.items()) {
@@ -1816,6 +1854,9 @@ public class BillingController {
                 : deriveBillTypeFromSessions(companyId, linkedSessionIds);
         boolean explicitAdvanceOpenBill = open.getBillType() == BillType.ADVANCE;
         Set<Long> allowedAdvanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
+        if (explicitAdvanceOpenBill) {
+            assertAdvanceBillingEnabled(companyId);
+        }
         if (explicitAdvanceOpenBill && allowedAdvanceServiceIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
         }
@@ -1949,8 +1990,11 @@ public class BillingController {
         if (requestedItems != null) {
             BillType previewBillType = bill.getBillType() == null ? BillType.INVOICE : bill.getBillType();
             Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
-            if (previewBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            if (previewBillType == BillType.ADVANCE) {
+                assertAdvanceBillingEnabled(companyId);
+                if (advanceServiceIds.isEmpty()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+                }
             }
             int idx = 0;
             List<OpenBillItem> existingItems = open.getItems() == null ? List.of() : new ArrayList<>(open.getItems());
@@ -1986,8 +2030,11 @@ public class BillingController {
         } else if (open.getItems() != null) {
             BillType previewBillType = bill.getBillType() == null ? BillType.INVOICE : bill.getBillType();
             Set<Long> advanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
-            if (previewBillType == BillType.ADVANCE && advanceServiceIds.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+            if (previewBillType == BillType.ADVANCE) {
+                assertAdvanceBillingEnabled(companyId);
+                if (advanceServiceIds.isEmpty()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
+                }
             }
             for (OpenBillItem openItem : open.getItems()) {
                 if (openItem == null || openItem.getTransactionService() == null || isLegacyAdvanceOffsetItem(openItem)) continue;
@@ -3091,6 +3138,9 @@ public class BillingController {
         String billNumber = nextInvoiceNumber(companyId);
         bill.setBillNumber(billNumber);
         BillType requestedBillType = resolveRequestedBillType(request.billType());
+        if (requestedBillType == BillType.ADVANCE) {
+            assertAdvanceBillingEnabled(companyId);
+        }
         bill.setBillType(requestedBillType);
         Set<Long> allowedAdvanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
         if (requestedBillType == BillType.ADVANCE && allowedAdvanceServiceIds.isEmpty()) {
@@ -3307,6 +3357,9 @@ public class BillingController {
     @Transactional(readOnly = true)
     public List<UnusedAdvanceResponse> unusedAdvances(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        if (!isAdvanceBillingEnabled(companyId)) {
+            return List.of();
+        }
         return billRepo.findAllByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(companyId, BillType.ADVANCE).stream()
                 .map(advance -> toUnusedAdvanceResponse(companyId, advance))
                 .filter(advance -> advance.remainingNet().compareTo(BigDecimal.ZERO) > 0)
@@ -3321,6 +3374,7 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "advanceBillId, openBillId, sessionId and applyAmountGross are required.");
         }
         Long companyId = me.getCompany().getId();
+        assertAdvanceBillingEnabled(companyId);
 
         Bill advance = billRepo.findByIdAndCompanyId(request.advanceBillId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Advance bill not found."));
@@ -3656,6 +3710,9 @@ public class BillingController {
     }
 
     private Set<Long> resolveAdvanceDeductionServiceIds(Long companyId) {
+        if (!isAdvanceBillingEnabled(companyId)) {
+            return Set.of();
+        }
         String raw = settingValue(companyId, SettingKey.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID);
         if (raw == null || raw.isBlank()) {
             return Set.of();
@@ -4047,14 +4104,23 @@ public class BillingController {
 
     private PaymentMethod resolvePaymentMethod(Long paymentMethodId, Long companyId) {
         if (paymentMethodId != null) {
-            return paymentMethodRepo.findByIdAndCompanyId(paymentMethodId, companyId)
+            PaymentMethod method = paymentMethodRepo.findByIdAndCompanyId(paymentMethodId, companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method"));
+            if (isAdvanceLikePaymentMethod(method) && !isAdvanceBillingEnabled(companyId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance billing is disabled for this tenant.");
+            }
+            return method;
         }
         return resolveDefaultPaymentMethod(companyId);
     }
 
     private PaymentMethod resolveDefaultPaymentMethod(Long companyId) {
         var all = paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId);
+        if (!isAdvanceBillingEnabled(companyId)) {
+            all = all.stream()
+                    .filter(method -> !isAdvanceLikePaymentMethod(method))
+                    .toList();
+        }
         if (all.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No payment methods configured. Add one in Configuration > Billing.");
         }

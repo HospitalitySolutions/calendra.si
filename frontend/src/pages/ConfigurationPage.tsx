@@ -430,6 +430,7 @@ type ModulesDesignIconKind =
   | 'security'
   | 'spaces'
   | 'availability'
+  | 'noShow'
   | 'spark'
   | 'personal'
   | 'todo'
@@ -494,6 +495,8 @@ function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
         <><path d="M5 10.5 12 5l7 5.5" {...common} /><path d="M7 10v9h10v-9" {...common} /><path d="M10 19v-5h4v5" {...common} /></>
       ) : kind === 'availability' || kind === 'calendar' ? (
         <><circle cx="12" cy="12" r="8" {...common} /><path d="M12 8v4l3 2" {...common} /></>
+      ) : kind === 'noShow' ? (
+        <><circle cx="12" cy="12" r="8.2" {...common} /><path d="M12 7.8v5.2M12 16.4h.01" {...common} /></>
       ) : kind === 'spark' ? (
         <><path d="M12 3.5 13.8 9l5.2 1.8-5.2 1.8L12 18l-1.8-5.4L5 10.8 10.2 9 12 3.5Z" {...common} /></>
       ) : kind === 'personal' ? (
@@ -3178,6 +3181,7 @@ type ModulesDraft = {
   MODULE_CONFIG_TYPE: TenantConfigType
   SPACES_ENABLED: string
   BOOKABLE_ENABLED: string
+  NO_SHOW_ENABLED: string
   ONLINE_SESSION_BOOKING_ENABLED: string
   AI_BOOKING_ENABLED: string
   PERSONAL_ENABLED: string
@@ -3191,6 +3195,7 @@ type ModulesDraft = {
   BILLING_BANK_TRANSFER_ENABLED: string
   BILLING_PAYPAL_ENABLED: string
   BILLING_GIFT_CARDS_ENABLED: string
+  BILLING_ADVANCE_ENABLED: string
   COMMUNICATION_ENABLED: string
   NOTIFICATIONS_ENABLED: string
   NOTIFICATIONS_EMAIL_ALERTS_ENABLED: string
@@ -3223,6 +3228,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(s.MODULE_CONFIG_TYPE || g.tenantType),
   SPACES_ENABLED: s.SPACES_ENABLED === 'true' ? 'true' : 'false',
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === 'true' ? 'true' : 'false',
+  NO_SHOW_ENABLED: modulesStringSetting(s, 'NO_SHOW_ENABLED', true),
   ONLINE_SESSION_BOOKING_ENABLED: modulesStringSetting(s, 'ONLINE_SESSION_BOOKING_ENABLED', true),
   AI_BOOKING_ENABLED: s.AI_BOOKING_ENABLED === 'true' ? 'true' : 'false',
   PERSONAL_ENABLED: s.PERSONAL_ENABLED === 'false' ? 'false' : 'true',
@@ -3236,6 +3242,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   BILLING_BANK_TRANSFER_ENABLED: modulesStringSetting(s, 'BILLING_BANK_TRANSFER_ENABLED', true),
   BILLING_PAYPAL_ENABLED: modulesStringSetting(s, 'BILLING_PAYPAL_ENABLED', true),
   BILLING_GIFT_CARDS_ENABLED: modulesStringSetting(s, 'BILLING_GIFT_CARDS_ENABLED', false),
+  BILLING_ADVANCE_ENABLED: modulesStringSetting(s, 'BILLING_ADVANCE_ENABLED', true),
   COMMUNICATION_ENABLED: modulesStringSetting(s, 'COMMUNICATION_ENABLED', true),
   NOTIFICATIONS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_ENABLED', true),
   NOTIFICATIONS_EMAIL_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_EMAIL_ALERTS_ENABLED', true),
@@ -3283,6 +3290,29 @@ type ModulesPresetRule = {
 }
 
 const MODULE_CONFIG_PRESET_RULES: ModulesPresetRule[] = [
+  {
+    key: 'NO_SHOW_ENABLED',
+    minPackage: 'BASIC',
+    values: {
+      therapy: 'on',
+      gym: 'on',
+      salon: 'on',
+      spa: 'on',
+      personal_training: 'on',
+    },
+  },
+
+  {
+    key: 'BILLING_ADVANCE_ENABLED',
+    minPackage: 'BASIC',
+    values: {
+      therapy: 'on',
+      gym: 'on',
+      salon: 'on',
+      spa: 'on',
+      personal_training: 'on',
+    },
+  },
   {
     key: 'ONLINE_SESSION_BOOKING_ENABLED',
     minPackage: 'BASIC',
@@ -4260,12 +4290,14 @@ export function ConfigurationPage() {
           modulesDraftForSave.BILLING_BANK_TRANSFER_ENABLED = 'false'
           modulesDraftForSave.BILLING_PAYPAL_ENABLED = 'false'
           modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED = 'false'
+          modulesDraftForSave.BILLING_ADVANCE_ENABLED = 'false'
         }
         effectiveSettings = {
           ...settings,
           MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
+          NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
           ONLINE_SESSION_BOOKING_ENABLED: modulesDraftForSave.ONLINE_SESSION_BOOKING_ENABLED,
           AI_BOOKING_ENABLED: modulesDraftForSave.AI_BOOKING_ENABLED,
           PERSONAL_ENABLED: modulesDraftForSave.PERSONAL_ENABLED,
@@ -4279,6 +4311,7 @@ export function ConfigurationPage() {
           BILLING_BANK_TRANSFER_ENABLED: modulesDraftForSave.BILLING_BANK_TRANSFER_ENABLED,
           BILLING_PAYPAL_ENABLED: modulesDraftForSave.BILLING_PAYPAL_ENABLED,
           BILLING_GIFT_CARDS_ENABLED: modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED,
+          BILLING_ADVANCE_ENABLED: modulesDraftForSave.BILLING_ADVANCE_ENABLED,
           COMMUNICATION_ENABLED: modulesDraftForSave.COMMUNICATION_ENABLED,
           NOTIFICATIONS_ENABLED: modulesDraftForSave.NOTIFICATIONS_ENABLED,
           NOTIFICATIONS_EMAIL_ALERTS_ENABLED: modulesDraftForSave.NOTIFICATIONS_EMAIL_ALERTS_ENABLED,
@@ -5154,6 +5187,7 @@ export function ConfigurationPage() {
     'BILLING_BANK_TRANSFER_ENABLED',
     'BILLING_PAYPAL_ENABLED',
     'BILLING_GIFT_CARDS_ENABLED',
+    'BILLING_ADVANCE_ENABLED',
   ]
   const guestModuleKeys: ModulesBooleanKey[] = [
     'guestAppEnabled',
@@ -5215,6 +5249,7 @@ export function ConfigurationPage() {
           checked: moduleOn('ONLINE_SESSION_BOOKING_ENABLED'),
           onChange: (checked) => setModuleStringSetting('ONLINE_SESSION_BOOKING_ENABLED', checked),
         },
+        { id: 'booking-no-show', icon: 'noShow', title: t('configModulesNoShowLabel'), checked: moduleOn('NO_SHOW_ENABLED'), onChange: (checked) => setModuleStringSetting('NO_SHOW_ENABLED', checked) },
         { id: 'booking-ai', icon: 'spark', title: `${t('configModulesAiLabel')} (Prihaja kmalu)`, checked: false, disabled: true, onChange: () => setModuleStringSetting('AI_BOOKING_ENABLED', false) },
         { id: 'booking-personal', icon: 'personal', title: t('configModulesPersonalLabel'), checked: moduleOn('PERSONAL_ENABLED'), onChange: (checked) => setModuleStringSetting('PERSONAL_ENABLED', checked) },
         { id: 'booking-todos', icon: 'todo', title: t('configModulesTodosLabel'), checked: moduleOn('TODOS_ENABLED'), onChange: (checked) => setModuleStringSetting('TODOS_ENABLED', checked) },
@@ -5252,6 +5287,7 @@ export function ConfigurationPage() {
             { id: 'billing-bank-transfer', icon: 'billing', title: 'Bank transfer', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_BANK_TRANSFER_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_BANK_TRANSFER_ENABLED', checked) },
             { id: 'billing-paypal', icon: 'billing', title: 'PayPal', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_PAYPAL_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_PAYPAL_ENABLED', checked) },
             { id: 'billing-gift-cards', icon: 'wallet', title: 'Gift cards', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_GIFT_CARDS_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_GIFT_CARDS_ENABLED', checked) },
+            { id: 'billing-advance', icon: 'wallet', title: locale === 'sl' ? 'Predplačilo' : 'Advance', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_ADVANCE_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ADVANCE_ENABLED', checked) },
           ],
         },
       ],

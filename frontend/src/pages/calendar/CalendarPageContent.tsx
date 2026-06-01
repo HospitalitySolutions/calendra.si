@@ -161,6 +161,7 @@ export default function CalendarPage() {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
   const todosModuleEnabled = settings.TODOS_ENABLED !== 'false'
+  const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== 'false'
   const [meta, setMeta] = useState({ clients: [], users: [], spaces: [], types: [] } as any)
   const EMPTY_ARR: any[] = useMemo(() => [], [])
   const metaUsers: any[] = Array.isArray(meta.users) ? meta.users : EMPTY_ARR
@@ -6642,6 +6643,7 @@ export default function CalendarPage() {
   const bookedStatusTransitionTargets = useMemo(() => {
     if (!selectedBookedSession) return []
     const targets = allowedStoredTargetsForDerivedStatus(selectedBookedDerivedStatus)
+      .filter((target) => noShowModuleEnabled || target !== 'NO_SHOW')
       .filter((target) => {
         if (target !== 'CHECKED_OUT') return true
         return getStatusTransitionValidation(
@@ -6655,7 +6657,7 @@ export default function CalendarPage() {
       return targets
     }
     return targets.filter((target) => target !== 'CANCELLED' && target !== 'NO_SHOW')
-  }, [getStatusTransitionValidation, selectedBookedDerivedStatus, selectedBookedSession, selectedBookedSessionHasClosedOpenBill])
+  }, [getStatusTransitionValidation, noShowModuleEnabled, selectedBookedDerivedStatus, selectedBookedSession, selectedBookedSessionHasClosedOpenBill])
 
   const paymentManagerPaymentStatuses: BookingPaymentStatus[] = useMemo(() => {
     if (paymentManagerIsNewBooking) return []
@@ -6864,6 +6866,8 @@ export default function CalendarPage() {
   }, [bookedPaymentPayeeDrafts, isGroupedSingleInvoiceMode])
 
   const openBookedPaymentAdvanceEditor = useCallback((status: BookingPaymentStatus | null | undefined, explicitClient?: any | null) => {
+    if (settings.BILLING_ADVANCE_ENABLED === 'false') return false
+
     const clientIdRaw = Number(
       explicitClient?.id
         ?? status?.clientId
@@ -6914,6 +6918,7 @@ export default function CalendarPage() {
     paymentManagerSessionClients,
     selectedBookedClientIds,
     selectedBookedPaymentClient?.id,
+    settings.BILLING_ADVANCE_ENABLED,
     selectedBookedSession?.client?.id,
     selectedBookedSession?.consultant?.id,
     selectedBookedSession?.id,
@@ -7541,6 +7546,10 @@ export default function CalendarPage() {
   }, [bookedPaymentMenuOpen])
 
   const markBookedClientsNoShow = useCallback(async (clientIds: number[]) => {
+    if (!noShowModuleEnabled) {
+      showToast('error', locale === 'sl' ? 'NO SHOW je izklopljen v modulih.' : 'NO SHOW is disabled in modules.')
+      return false
+    }
     if (!selectedBookedSession?.id) return false
     const selectedClientIds = Array.from(new Set((clientIds ?? [])
       .map((clientId) => Number(clientId))
@@ -7610,10 +7619,14 @@ export default function CalendarPage() {
     } finally {
       setSaveBookingLoading(false)
     }
-  }, [createOpenBillForPaymentStatus, loadCalendarRangeOnly, locale, openBookedPaymentOpenBillEditor, selectedBookedSession, showToast])
+  }, [createOpenBillForPaymentStatus, loadCalendarRangeOnly, locale, noShowModuleEnabled, openBookedPaymentOpenBillEditor, selectedBookedSession, showToast])
 
   const transitionBookedStatus = async (targetStatus: StoredBookingStatus) => {
     if (!selectedBookedSession?.id) return
+    if (targetStatus === 'NO_SHOW' && !noShowModuleEnabled) {
+      showToast('error', locale === 'sl' ? 'NO SHOW je izklopljen v modulih.' : 'NO SHOW is disabled in modules.')
+      return
+    }
     const alreadySet = selectedBookedStoredStatus === targetStatus
     setBookedStatusMenuOpen(false)
     setBookedPaymentMenuOpen(false)

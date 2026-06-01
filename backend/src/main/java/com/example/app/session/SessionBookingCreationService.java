@@ -12,6 +12,7 @@ import com.example.app.group.ClientGroupRepository;
 import com.example.app.google.GoogleMeetService;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.reminder.ReminderService;
+import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.security.SecurityUtils;
@@ -129,7 +130,7 @@ public class SessionBookingCreationService {
         var companyId = me.getCompany().getId();
         LocalDateTime start = parseToLocalDateTime(req.startTime());
         LocalDateTime end = parseToLocalDateTime(req.endTime());
-        String targetStoredStatus = resolveRequestedStoredStatusForCreate(req.bookingStatus());
+        String targetStoredStatus = resolveRequestedStoredStatusForCreate(companyId, req.bookingStatus());
         Long consultantId = resolveConsultantId(req, me);
         companies.findByIdForUpdate(companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found"));
@@ -239,7 +240,7 @@ public class SessionBookingCreationService {
         var representative = existingRows.get(0);
         LocalDateTime start = parseToLocalDateTime(req.startTime());
         LocalDateTime end = parseToLocalDateTime(req.endTime());
-        String targetStoredStatus = resolveRequestedStoredStatusForUpdate(req.bookingStatus(), representative, start, end);
+        String targetStoredStatus = resolveRequestedStoredStatusForUpdate(companyId, req.bookingStatus(), representative, start, end);
         if (!SecurityUtils.isAdmin(me)
                 && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
@@ -506,7 +507,7 @@ public class SessionBookingCreationService {
                 SessionBookingStatus.RESERVED
         );
         booking.setClient(client);
-        applyChannelMetadata(booking, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
+        applyChannelMetadata(booking, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
         booking = repo.save(booking);
         if (request.sendConfirmation()) {
             reminderService.sendBookingConfirmation(booking);
@@ -607,7 +608,7 @@ public class SessionBookingCreationService {
             joined.setPayeeType("COMPANY");
             joined.setPayeeCompany(representative.getPayeeCompany());
         }
-        applyChannelMetadata(joined, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
+        applyChannelMetadata(joined, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
         joined = repo.save(joined);
         if (request.sendConfirmation()) {
             reminderService.sendBookingConfirmation(joined);
@@ -815,11 +816,11 @@ public class SessionBookingCreationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No admin user available for tenancy."));
     }
 
-    private void applyChannelMetadata(SessionBooking booking, String sourceChannel, String sourceOrderId, String guestUserId, String bookingStatus) {
+    private void applyChannelMetadata(SessionBooking booking, Long companyId, String sourceChannel, String sourceOrderId, String guestUserId, String bookingStatus) {
         booking.setSourceChannel(sourceChannel == null || sourceChannel.isBlank() ? "STAFF" : sourceChannel.trim());
         booking.setSourceOrderId(sourceOrderId == null || sourceOrderId.isBlank() ? null : sourceOrderId.trim());
         booking.setGuestUserId(guestUserId == null || guestUserId.isBlank() ? null : guestUserId.trim());
-        booking.setBookingStatus(resolveRequestedStoredStatusForCreate(bookingStatus));
+        booking.setBookingStatus(resolveRequestedStoredStatusForCreate(companyId, bookingStatus));
     }
 
     private void applySharedFields(
@@ -1231,12 +1232,15 @@ public class SessionBookingCreationService {
         return response;
     }
 
-    private String resolveRequestedStoredStatusForCreate(String requestedStatus) {
+    private String resolveRequestedStoredStatusForCreate(Long companyId, String requestedStatus) {
         String normalized = SessionBookingStatus.normalizeRequestedStored(requestedStatus);
-        return normalized == null ? SessionBookingStatus.RESERVED : normalized;
+        String target = normalized == null ? SessionBookingStatus.RESERVED : normalized;
+        ensureNoShowStatusEnabled(companyId, target);
+        return target;
     }
 
     private String resolveRequestedStoredStatusForUpdate(
+            Long companyId,
             String requestedStatus,
             SessionBooking existingRepresentative,
             LocalDateTime effectiveStart,
@@ -1249,6 +1253,7 @@ public class SessionBookingCreationService {
         }
         LocalDateTime start = effectiveStart != null ? effectiveStart : existingRepresentative.getStartTime();
         LocalDateTime end = effectiveEnd != null ? effectiveEnd : existingRepresentative.getEndTime();
+        ensureNoShowStatusEnabled(companyId, targetStored);
         if (!SessionBookingStatus.allowsStoredStatusUpdate(
                 start,
                 end,
@@ -1259,5 +1264,22 @@ public class SessionBookingCreationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Unsupported booking status transition.");
         }
         return targetStored;
+    }
+
+    private void ensureNoShowStatusEnabled(Long companyId, String targetStoredStatus) {
+        if (!SessionBookingStatus.NO_SHOW.equals(SessionBookingStatus.normalizeStored(targetStoredStatus))) {
+            return;
+        }
+        if (!isNoShowStatusEnabled(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "NO SHOW status is disabled for this tenant.");
+        }
+    }
+
+    private boolean isNoShowStatusEnabled(Long companyId) {
+        if (companyId == null) return true;
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.NO_SHOW_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> !"false".equalsIgnoreCase(value == null ? "" : value.trim()))
+                .orElse(true);
     }
 }

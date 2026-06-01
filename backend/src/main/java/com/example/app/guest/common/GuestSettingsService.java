@@ -60,6 +60,13 @@ public class GuestSettingsService {
         return settingEnabled(values, SettingKey.BILLING_ENABLED, true);
     }
 
+    public boolean advanceBillingEnabled(Long companyId) {
+        Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
+                .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
+        return settingEnabled(values, SettingKey.BILLING_ENABLED, true)
+                && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
+    }
+
     /**
      * Runtime payment methods enabled for the tenant in the guest app.
      * Returned values are runtime ids: {@code CARD}, {@code BANK_TRANSFER}, {@code PAYPAL}, {@code GIFT_CARD}.
@@ -127,7 +134,9 @@ public class GuestSettingsService {
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name()));
         JsonNode guestAppRoot = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
-        if (!settingEnabled(values, SettingKey.BILLING_ENABLED, true)) {
+        boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
+        boolean advanceBillingEnabled = billingEnabled && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
+        if (!billingEnabled || !advanceBillingEnabled) {
             return new GuestBookingRules(
                     root.path("cancelUntilHours").asInt(24),
                     root.path("rescheduleUntilHours").asInt(12),

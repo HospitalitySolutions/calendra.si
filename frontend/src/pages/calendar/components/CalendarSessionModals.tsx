@@ -11,6 +11,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [noShowSelectedClientIds, setNoShowSelectedClientIds] = useState<number[]>([])
   const [noShowSubmitting, setNoShowSubmitting] = useState(false)
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
+  const advanceBillingEnabled = settings?.BILLING_ADVANCE_ENABLED !== 'false'
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
   const bookedSessionTypeFromMeta = metaTypes.find((type: any) => Number(type?.id) === bookedSessionSelectedTypeId)
   const bookedSessionSelectableMetaTypes = bookedSessionIsGroup
@@ -57,6 +58,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
   const openBookedAdvanceForm = (statusArg?: any, clientArg?: any) => {
+    if (!advanceBillingEnabled) return false
     const clientId = Number(clientArg?.id ?? statusArg?.clientId ?? getBookedPaymentActionClientId() ?? 0)
     if (Number.isInteger(clientId) && clientId > 0) setSelectedBookedPaymentClientId(clientId)
     setBookedClientDropdownOpen(false)
@@ -112,6 +114,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
   const toggleBookedBillingActionMenu = (kind: 'advance' | 'invoice') => {
+    if (kind === 'advance' && !advanceBillingEnabled) return
     setBookedClientDropdownOpen(false)
     setBookedStatusMenuOpen(false)
     setBookedPaymentMenuOpen(false)
@@ -119,6 +122,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
   const openBookedBillingView = (kind: 'advances' | 'invoices') => {
+    if (kind === 'advances' && !advanceBillingEnabled) return
     setBookedClientDropdownOpen(false)
     setBookedStatusMenuOpen(false)
     setBookedPaymentMenuOpen(false)
@@ -203,7 +207,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     && !bookedPaymentActionHasInvoice
     && !bookedPaymentActionStatus?.openBillId
     && bookedPaymentActionStatus?.status === 'UNPAID'
-  const bookingServiceBillingButtonIsAdvance = !canShowOpenBillForBookedStatus
+  const bookingServiceBillingButtonIsAdvance = advanceBillingEnabled && !canShowOpenBillForBookedStatus
 
   const bookingStatusOptionIsActionable = (option: any) => {
     if (!option?.targetStatus || option.key === currentBookingStatusKey) return false
@@ -505,7 +509,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     </svg>
   )
 
-  const renderBillingActionMenu = (kind: 'advance' | 'invoice') => bookedBillingActionMenu === kind ? (
+  const renderBillingActionMenu = (kind: 'advance' | 'invoice') => (kind !== 'advance' || advanceBillingEnabled) && bookedBillingActionMenu === kind ? (
     <div className="calendar-session-billing-action-menu" role="menu" onClick={(event) => event.stopPropagation()}>
       {kind === 'advance' ? (
         <>
@@ -1232,6 +1236,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       ))}
                     </select>
                     <div className="calendar-session-billing-actions">
+                      {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
                       <div className="calendar-session-billing-action-wrap">
                         <button
                           type="button"
@@ -1265,7 +1270,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </button>
                         {renderBillingActionMenu(bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice')}
                       </div>
-                      {canShowOpenBillForBookedStatus && (
+                      )}
+                      {advanceBillingEnabled && canShowOpenBillForBookedStatus && (
                         <button
                           type="button"
                           className="secondary calendar-client-picker__invoice-btn calendar-client-picker__payee-tab-btn calendar-booking-service-invoice-btn calendar-client-picker__advance-btn"
@@ -1711,7 +1717,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         && (status?.status === 'UNPAID' || status?.status === 'PARTIALLY_PAID')
                         && hasUnbilledParticipant
                         && !invoiceAllocation
-                      const canCreateAdvanceBill = isReservedBookingStatus && !advanceAllocation && !invoiceAllocation && status?.status !== 'PAID'
+                      const canCreateAdvanceBill = advanceBillingEnabled && isReservedBookingStatus && !advanceAllocation && !invoiceAllocation && status?.status !== 'PAID'
                       const canUseInvoiceActions = !!invoiceAllocation?.billId && (status?.status === 'PARTIALLY_PAID' || status?.status === 'PAYMENT_PENDING' || status?.status === 'PAID')
                       const invoiceLabel = invoiceAllocation
                         ? (invoiceAllocation.billNumber || `#${invoiceAllocation.billId}`)
@@ -2145,7 +2151,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           const advanceAllocation = (status?.allocations ?? []).find((allocation: any) => allocation.source === 'ADVANCE')
                           const entitlementAllocation = (status?.allocations ?? []).find((allocation: any) => allocation.source === 'ENTITLEMENT')
                           const canCreateOpenBill = canShowOpenBillForBookedStatus && status?.status === 'UNPAID' && !status?.openBillId
-                          const canCreateAdvanceBill = isReservedBookingStatus && !advanceAllocation && !invoiceAllocation && !entitlementAllocation && status?.status !== 'PAID'
+                          const canCreateAdvanceBill = advanceBillingEnabled && isReservedBookingStatus && !advanceAllocation && !invoiceAllocation && !entitlementAllocation && status?.status !== 'PAID'
                           const canUseInvoiceActions = !!invoiceAllocation?.billId && (status?.status === 'PARTIALLY_PAID' || status?.status === 'PAYMENT_PENDING' || status?.status === 'PAID')
                           const canScanEntitlementPayment = !isReservedBookingStatus && !isGroupedSingleInvoiceMode && !!status?.bookingId && !invoiceAllocation && !entitlementAllocation && !status?.openBillId && status?.status !== 'PAID'
                           const invoiceLabel = invoiceAllocation

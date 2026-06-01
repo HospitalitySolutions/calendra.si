@@ -17,10 +17,33 @@ public class BillingModuleAccessService {
         if (user == null || user.getCompany() == null || user.getCompany().getId() == null) {
             return true;
         }
-        return settings.findByCompanyIdAndKey(user.getCompany().getId(), SettingKey.BILLING_ENABLED)
+        return isEnabled(user.getCompany().getId(), SettingKey.BILLING_ENABLED, true);
+    }
+
+    public boolean isAdvanceEnabled(Long companyId) {
+        if (companyId == null) {
+            return true;
+        }
+        return isEnabled(companyId, SettingKey.BILLING_ENABLED, true)
+                && isEnabled(companyId, SettingKey.BILLING_ADVANCE_ENABLED, true);
+    }
+
+    public void assertAdvanceEnabled(Long companyId) {
+        if (!isAdvanceEnabled(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance billing is disabled for this tenant.");
+        }
+    }
+
+    private boolean isEnabled(Long companyId, SettingKey key, boolean defaultValue) {
+        return settings.findByCompanyIdAndKey(companyId, key)
                 .map(AppSetting::getValue)
-                .map(value -> !"false".equalsIgnoreCase(String.valueOf(value).trim()))
-                .orElse(true);
+                .map(value -> {
+                    String normalized = String.valueOf(value == null ? "" : value).trim();
+                    if ("true".equalsIgnoreCase(normalized)) return true;
+                    if ("false".equalsIgnoreCase(normalized)) return false;
+                    return defaultValue;
+                })
+                .orElse(defaultValue);
     }
 
     public void assertBillingEnabled(User user) {
