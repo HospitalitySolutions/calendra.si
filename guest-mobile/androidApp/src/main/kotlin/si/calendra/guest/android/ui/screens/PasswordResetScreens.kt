@@ -115,11 +115,7 @@ fun ForgotPasswordScreen(
                 modifier = Modifier.offset(x = contentInset, y = screenHeight * 0.302f)
             )
             Text(
-                text = if (isSl) "Vnesite e-poštni naslov, povezan z vašim
-računom. Poslali vam bomo 6-mestno
-kodo za ponastavitev gesla." else "Enter the email address connected to
-your account. We will send you a 6-digit
-code to reset your password.",
+                text = if (isSl) "Vnesite e-poštni naslov, povezan z vašim\nračunom. Poslali vam bomo 6-mestno\nkodo za ponastavitev gesla." else "Enter the email address connected to\nyour account. We will send you a 6-digit\ncode to reset your password.",
                 color = muted,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
@@ -217,10 +213,7 @@ code to reset your password.",
                 modifier = Modifier.offset(x = contentInset, y = screenHeight * 0.302f)
             )
             Text(
-                text = (if (isSl) "6-mestno kodo za ponastavitev gesla smo
-poslali na
-" else "We sent a 6-digit password reset code to
-") + email,
+                text = (if (isSl) "6-mestno kodo za ponastavitev gesla smo\nposlali na\n" else "We sent a 6-digit password reset code to\n") + email,
                 color = muted,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,

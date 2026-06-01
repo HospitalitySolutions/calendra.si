@@ -7,6 +7,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.Getter;
@@ -33,12 +35,28 @@ public class GuestPasswordResetToken extends BaseEntity {
     @Column(name = "verification_code_hash", length = 128)
     private String verificationCodeHash;
 
-    @Column(name = "failed_attempts")
-    private int failedAttempts = 0;
+    @Column(name = "failed_attempts", nullable = false)
+    private Integer failedAttempts = 0;
 
     @Column(name = "code_verified_at")
     private Instant codeVerifiedAt;
 
     @Column(nullable = false)
     private boolean active = true;
+
+    public int getFailedAttempts() {
+        return failedAttempts == null ? 0 : failedAttempts;
+    }
+
+    public void setFailedAttempts(Integer failedAttempts) {
+        this.failedAttempts = failedAttempts == null ? 0 : failedAttempts;
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void normalizeNullDefaults() {
+        if (failedAttempts == null) {
+            failedAttempts = 0;
+        }
+    }
 }
