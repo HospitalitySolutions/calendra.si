@@ -168,7 +168,6 @@ fun GuestMobileRoot() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val preferencesStore = remember(context) { GuestPreferencesStore(context) }
-    var savedCards by remember { mutableStateOf(preferencesStore.loadSavedCards()) }
     var headerAvatarBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val headerAvatarInitials = headerProfileInitials(state.uiState.session?.guestUser)
     val activity = context as? ComponentActivity
@@ -1139,18 +1138,7 @@ fun GuestMobileRoot() {
                             )
                         },
                         services = aggregatedServices(state.uiState),
-                        savedCards = savedCards,
                         redeemableEntitlements = aggregatedRedeemableEntitlements(state.uiState),
-                        onSaveCard = { card ->
-                            val updated = savedCards.filterNot { it.id == card.id } + card
-                            savedCards = updated
-                            preferencesStore.saveSavedCards(updated)
-                        },
-                        onRemoveSavedCard = { id ->
-                            val updated = savedCards.filterNot { it.id == id }
-                            savedCards = updated
-                            preferencesStore.saveSavedCards(updated)
-                        },
                         onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                         onLoadAvailability = { service, date, consultantId -> repo.availability(service.companyId, service.sessionTypeId, date.toString(), consultantId).slots },
                         onLoadConsultants = { service ->
@@ -1175,7 +1163,7 @@ fun GuestMobileRoot() {
                                         locale = appUiLocale
                                     )
                                 )
-                                repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = paymentMethodType == "CARD", locale = appUiLocale))
+                                repo.checkout(order.order.orderId, CheckoutRequest(paymentMethodType = paymentMethodType, saveCard = false, locale = appUiLocale))
                             }.getOrElse {
                                 statusMessage = it.message ?: "Checkout failed"
                                 return@onCheckout
@@ -1256,18 +1244,7 @@ fun GuestMobileRoot() {
                                 )
                             },
                             services = aggregatedServices(state.uiState),
-                            savedCards = savedCards,
                             redeemableEntitlements = aggregatedRedeemableEntitlements(state.uiState),
-                            onSaveCard = { card ->
-                                val updated = savedCards.filterNot { it.id == card.id } + card
-                                savedCards = updated
-                                preferencesStore.saveSavedCards(updated)
-                            },
-                            onRemoveSavedCard = { id ->
-                                val updated = savedCards.filterNot { it.id == id }
-                                savedCards = updated
-                                preferencesStore.saveSavedCards(updated)
-                            },
                             onOpenNotifications = { navController.navigate(RootRoute.Notifications.route) { launchSingleTop = true } },
                             onLoadAvailability = { service, date, consultantId -> repo.availability(service.companyId, service.sessionTypeId, date.toString(), consultantId).slots },
                             onLoadConsultants = { service ->
@@ -1407,7 +1384,7 @@ fun GuestMobileRoot() {
                                             order.order.orderId,
                                             CheckoutRequest(
                                                 paymentMethodType = paymentMethod,
-                                                saveCard = paymentMethod == "CARD",
+                                                saveCard = false,
                                                 locale = appUiLocale
                                             )
                                         )
@@ -2641,9 +2618,9 @@ private fun BottomNavBar(
     val isSl = languageCode.lowercase().startsWith("sl")
     val sideItems = listOf(
         Triple(RootRoute.Home.route, if (isSl) "Domov" else "Home", Icons.Rounded.Home),
-        Triple(RootRoute.Calendar.route, if (isSl) "Koledar" else "Calendar", Icons.Rounded.CalendarMonth),
         Triple(RootRoute.Wallet.route, if (isSl) "Denarnica" else "Wallet", Icons.Rounded.Wallet),
-        Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum)
+        Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum),
+        Triple(RootRoute.Calendar.route, if (isSl) "Koledar" else "Calendar", Icons.Rounded.CalendarMonth)
     )
 
     Surface(

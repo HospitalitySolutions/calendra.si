@@ -1,11 +1,12 @@
 package si.calendra.guest.android.ui
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Base64
-import org.json.JSONArray
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import org.json.JSONObject
 import si.calendra.guest.shared.models.GuestUser
-import java.util.UUID
 
 
 data class StoredPendingExternalCheckoutUi(
@@ -23,13 +24,21 @@ data class SavedCardUi(
     val last4: String,
     val expiryMonth: String,
     val expiryYear: String,
-    val encodedNumber: String
+    /** Provider/tokenized payment method id only. Never store a full card number in the app. */
+    val providerPaymentMethodId: String? = null
 ) {
     val label: String get() = "$brand •••• $last4"
 }
 
 class GuestPreferencesStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val securePrefs: SharedPreferences = createEncryptedPrefs(appContext)
+
+    init {
+        migrateLegacyAuthTokenToEncryptedPrefs()
+        purgeLegacySavedCards()
+    }
 
     fun loadProfileOverride(): GuestUser? {
         val encoded = prefs.getString(KEY_PROFILE, null) ?: return null
@@ -59,54 +68,32 @@ class GuestPreferencesStore(context: Context) {
         prefs.edit().putString(KEY_PROFILE, encode(json.toString())).apply()
     }
 
+    /**
+     * Local saved-card storage is intentionally disabled until card saving is backed by a
+     * tokenized provider payment method (Stripe/PayPal). Existing legacy card data is
+     * purged so full PAN values that were previously Base64-obfuscated are removed.
+     */
     fun loadSavedCards(): List<SavedCardUi> {
-        val encoded = prefs.getString(KEY_SAVED_CARDS, null) ?: return emptyList()
-        return runCatching {
-            val raw = JSONArray(decode(encoded))
-            buildList {
-                for (index in 0 until raw.length()) {
-                    val item = raw.getJSONObject(index)
-                    add(
-                        SavedCardUi(
-                            id = item.optString("id").ifBlank { UUID.randomUUID().toString() },
-                            holderName = item.optString("holderName"),
-                            brand = item.optString("brand").ifBlank { "Card" },
-                            last4 = item.optString("last4"),
-                            expiryMonth = item.optString("expiryMonth"),
-                            expiryYear = item.optString("expiryYear"),
-                            encodedNumber = item.optString("encodedNumber")
-                        )
-                    )
-                }
-            }
-        }.getOrDefault(emptyList())
+        purgeLegacySavedCards()
+        return emptyList()
     }
 
     fun saveSavedCards(cards: List<SavedCardUi>) {
-        val raw = JSONArray()
-        cards.forEach { card ->
-            raw.put(
-                JSONObject()
-                    .put("id", card.id)
-                    .put("holderName", card.holderName)
-                    .put("brand", card.brand)
-                    .put("last4", card.last4)
-                    .put("expiryMonth", card.expiryMonth)
-                    .put("expiryYear", card.expiryYear)
-                    .put("encodedNumber", card.encodedNumber)
-            )
-        }
-        prefs.edit().putString(KEY_SAVED_CARDS, encode(raw.toString())).apply()
+        // Never persist raw card details locally. Safe tokenized card metadata can be
+        // reintroduced here only after providerPaymentMethodId is populated by backend/Stripe.
+        purgeLegacySavedCards()
     }
 
     fun saveAuthToken(token: String) {
-        prefs.edit().putString(KEY_AUTH_TOKEN, token.trim()).apply()
+        securePrefs.edit().putString(KEY_AUTH_TOKEN, token.trim()).apply()
+        prefs.edit().remove(KEY_AUTH_TOKEN).apply()
     }
 
     fun loadAuthToken(): String? =
-        prefs.getString(KEY_AUTH_TOKEN, null)?.trim()?.takeIf { it.isNotBlank() }
+        securePrefs.getString(KEY_AUTH_TOKEN, null)?.trim()?.takeIf { it.isNotBlank() }
 
     fun clearAuthToken() {
+        securePrefs.edit().remove(KEY_AUTH_TOKEN).apply()
         prefs.edit().remove(KEY_AUTH_TOKEN).apply()
     }
 
@@ -152,15 +139,43 @@ class GuestPreferencesStore(context: Context) {
         prefs.edit().remove(KEY_PENDING_EXTERNAL_CHECKOUT).apply()
     }
 
+    private fun migrateLegacyAuthTokenToEncryptedPrefs() {
+        val legacyToken = prefs.getString(KEY_AUTH_TOKEN, null)?.trim()?.takeIf { it.isNotBlank() }
+        if (legacyToken != null && securePrefs.getString(KEY_AUTH_TOKEN, null).isNullOrBlank()) {
+            securePrefs.edit().putString(KEY_AUTH_TOKEN, legacyToken).apply()
+        }
+        prefs.edit().remove(KEY_AUTH_TOKEN).apply()
+    }
+
+    private fun purgeLegacySavedCards() {
+        prefs.edit().remove(KEY_SAVED_CARDS).apply()
+        securePrefs.edit().remove(KEY_SAVED_CARDS).apply()
+    }
+
     private fun encode(raw: String): String = Base64.encodeToString(raw.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
     private fun decode(raw: String): String = String(Base64.decode(raw, Base64.DEFAULT), Charsets.UTF_8)
 
     private companion object {
         const val PREFS_NAME = "guest_mobile_settings"
+        const val SECURE_PREFS_NAME = "guest_mobile_secure_settings"
         const val KEY_PROFILE = "profile_override"
         const val KEY_SAVED_CARDS = "saved_cards"
         const val KEY_AUTH_TOKEN = "auth_token"
         const val KEY_APP_UI_LOCALE = "app_ui_locale"
         const val KEY_PENDING_EXTERNAL_CHECKOUT = "pending_external_checkout"
+
+        fun createEncryptedPrefs(context: Context): SharedPreferences {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+
+            return EncryptedSharedPreferences.create(
+                context,
+                SECURE_PREFS_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }
     }
 }

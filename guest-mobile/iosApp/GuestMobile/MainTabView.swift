@@ -602,10 +602,10 @@ struct MainTabView: View {
             Divider().opacity(0.25)
             HStack(alignment: .center, spacing: 4) {
                 navItem(.home, icon: "house", selectedIcon: "house.fill", title: isSl ? "Domov" : "Home")
-                navItem(.calendar, icon: "calendar", selectedIcon: "calendar", title: isSl ? "Koledar" : "Calendar")
-                bookTabItem
                 navItem(.wallet, icon: "wallet.pass", selectedIcon: "wallet.pass.fill", title: isSl ? "Denarnica" : "Wallet")
+                bookTabItem
                 navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: isSl ? "Prejeto" : "Inbox")
+                navItem(.calendar, icon: "calendar", selectedIcon: "calendar", title: isSl ? "Koledar" : "Calendar")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

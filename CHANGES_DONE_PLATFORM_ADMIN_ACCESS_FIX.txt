@@ -1,7 +1,7 @@
 Platform admin tenant access fix
 
 Cause:
-- dmirc@calendra.si is a SUPER_ADMIN user on the Platform Admin tenancy.
+- info@calendra.si is a SUPER_ADMIN user on the Platform Admin tenancy.
 - Several frontend pages only treated role ADMIN as an admin user, even though the router/sidebar already allowed SUPER_ADMIN.
 - Backend method security annotations commonly use @PreAuthorize("hasRole('ADMIN')"), so a SUPER_ADMIN JWT only carrying ROLE_SUPER_ADMIN could receive 403 on endpoints such as settings, service types, billing services, users, fiscal settings, spaces, guest products, etc.
 
@@ -23,7 +23,7 @@ Changes:
   - frontend/src/pages/calendar/CalendarPageContent.tsx
 
 Result:
-- dmirc@calendra.si / SUPER_ADMIN can access Configuration, Service types, Cards & Memberships, Clients/Companies, Employees, Billing, Analytics, and admin calendar features inside the Platform Admin tenancy.
+- info@calendra.si / SUPER_ADMIN can access Configuration, Service types, Cards & Memberships, Clients/Companies, Employees, Billing, Analytics, and admin calendar features inside the Platform Admin tenancy.
 
 Note:
 - I could not run a full frontend/backend build in this sandbox because dependencies/Maven wrapper artifacts are not available offline. The changes are small role-check/auth changes and are isolated to the files listed above.

@@ -589,6 +589,7 @@ private fun MonthDayCell(
             Text(
                 date.dayOfMonth.toString(),
                 fontSize = if (selected) 12.sp else 11.sp,
+                lineHeight = if (selected) 14.sp else 13.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = when {
                     selected -> Color.White
@@ -702,41 +703,6 @@ private fun WeekCalendarView(
             largeSelected = true
         )
         TimelineCard(bookings = dayBookings, isSl = isSl)
-        ElevatedCard(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(shape = CircleShape, color = Color(0xFFE8F1FF), modifier = Modifier.size(34.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Spacer(Modifier.width(6.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (isSl) "${dayBookings.size} termini ta dan" else "${dayBookings.size} sessions today",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = BrandBlueDark
-                    )
-                    Text(
-                        nextSessionLine(dayBookings, isSl),
-                        fontSize = 10.sp,
-                        color = TextMuted
-                    )
-                }
-                Text(if (isSl) "Poglej vse" else "View all", color = BrandBlue, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
-            }
-        }
     }
 }
 
@@ -809,15 +775,19 @@ private fun WeekDayPill(
         Text(
             shortWeekday(date, isSl).uppercase(Locale.getDefault()),
             fontSize = 7.sp,
+            lineHeight = 8.sp,
             fontWeight = FontWeight.Bold,
             color = if (selected) Color.White else TextMuted,
+            textAlign = TextAlign.Center,
             maxLines = 1
         )
         Text(
             date.dayOfMonth.toString(),
             fontSize = if (selected) 12.sp else 11.sp,
+            lineHeight = if (selected) 14.sp else 13.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) Color.White else BrandBlueDark,
+            textAlign = TextAlign.Center,
             maxLines = 1
         )
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 1.dp)) {
@@ -920,8 +890,25 @@ private fun TimelineCard(bookings: List<CalendarBooking>, isSl: Boolean) {
                                     .padding(top = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(shape = RoundedCornerShape(99.dp), color = BrandBlue) {
-                                    Text("09:32", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(99.dp),
+                                    color = BrandBlue,
+                                    modifier = Modifier.height(24.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = 9.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "09:32",
+                                            color = Color.White,
+                                            fontSize = 10.sp,
+                                            lineHeight = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                                 Box(Modifier.height(1.5.dp).weight(1f).background(BrandBlue.copy(alpha = 0.65f)))
                             }

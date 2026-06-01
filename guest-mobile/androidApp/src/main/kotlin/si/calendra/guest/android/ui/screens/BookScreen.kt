@@ -35,7 +35,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.LocationOn
@@ -46,7 +45,6 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Assignment
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.TaskAlt
@@ -63,7 +61,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -93,9 +90,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.R
-import si.calendra.guest.android.ui.PaymentCardBrand
-import si.calendra.guest.android.ui.PaymentCardBrandMark
-import si.calendra.guest.android.ui.SavedCardUi
 import si.calendra.guest.shared.models.AvailabilitySlot
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -261,10 +255,7 @@ fun BookScreen(
     languageCode: String = "en",
     providers: List<ProviderOption>,
     services: List<ServiceOption>,
-    savedCards: List<SavedCardUi> = emptyList(),
     redeemableEntitlements: List<RedeemableEntitlementOption> = emptyList(),
-    onSaveCard: (SavedCardUi) -> Unit = {},
-    onRemoveSavedCard: (String) -> Unit = {},
     onOpenNotifications: () -> Unit,
     onLoadAvailability: suspend (ServiceOption, LocalDate, String?) -> List<AvailabilitySlot>,
     onLoadConsultants: suspend (ServiceOption) -> List<ConsultantOption> = { _ -> emptyList() },
@@ -289,13 +280,10 @@ fun BookScreen(
     var slots by remember { mutableStateOf<List<AvailabilitySlot>>(emptyList()) }
     var selectedSlotId by remember { mutableStateOf<String?>(null) }
     var selectedPaymentMethod by remember { mutableStateOf(PaymentMethodUi.CARD) }
-    var selectedSavedCardId by remember { mutableStateOf<String?>(savedCards.firstOrNull()?.id) }
     var loadingSlots by remember { mutableStateOf(false) }
     var availabilityLoadError by remember { mutableStateOf<String?>(null) }
     var entitlementLaunchMode by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
-    var showAddCardDialog by remember { mutableStateOf(false) }
-    var showCardChooserDialog by remember { mutableStateOf(false) }
     var showPaymentMethodChooserDialog by rememberSaveable { mutableStateOf(false) }
     var showEntitlementChooserSheet by rememberSaveable { mutableStateOf(false) }
     var selectedEntitlementId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -329,14 +317,6 @@ fun BookScreen(
         if (providerScopedServices.none { it.id == selectedServiceId }) {
             selectedServiceId = providerScopedServices.firstOrNull()?.id
             selectedSlotId = null
-        }
-    }
-
-    LaunchedEffect(savedCards) {
-        if (savedCards.isEmpty()) {
-            selectedSavedCardId = null
-        } else if (savedCards.none { it.id == selectedSavedCardId }) {
-            selectedSavedCardId = savedCards.first().id
         }
     }
 
@@ -442,10 +422,11 @@ fun BookScreen(
     }.sortedBy { it.remainingValueGross ?: 0.0 }
     val matchingGiftCardsTotal = matchingGiftCards.sumOf { it.remainingValueGross ?: 0.0 }
     val hasGiftCardCoverage = selectedService != null && matchingGiftCardsTotal + 0.0001 >= amountDueNow
-    val activeCard = savedCards.firstOrNull { it.id == selectedSavedCardId }
-    val cardSubtitle = activeCard?.let {
-        bookTr(languageCode, "Card ending in ${it.last4}", "Kartica se konča z ${it.last4}")
-    } ?: bookTr(languageCode, "Add a card to pay by credit card", "Dodajte kartico za plačilo s kreditno kartico")
+    val cardSubtitle = bookTr(
+        languageCode,
+        "Pay securely with card after confirmation",
+        "Po potrditvi plačajte varno s kartico"
+    )
     val entitlementSubtitle = selectedEntitlement?.let {
         buildString {
             append(it.productName)
@@ -580,37 +561,6 @@ fun BookScreen(
         }
     }
 
-    if (showAddCardDialog) {
-        AddCardDialog(
-            languageCode = languageCode,
-            onDismiss = { showAddCardDialog = false },
-            onSave = { card ->
-                onSaveCard(card)
-                selectedSavedCardId = card.id
-                selectedPaymentMethod = PaymentMethodUi.CARD
-                showAddCardDialog = false
-            }
-        )
-    }
-
-    if (showCardChooserDialog) {
-        CardChooserDialog(
-            cards = savedCards,
-            languageCode = languageCode,
-            selectedCardId = selectedSavedCardId,
-            onDismiss = { showCardChooserDialog = false },
-            onSelect = {
-                selectedSavedCardId = it
-                showCardChooserDialog = false
-            },
-            onRemove = { id -> onRemoveSavedCard(id) },
-            onAddNew = {
-                showCardChooserDialog = false
-                showAddCardDialog = true
-            }
-        )
-    }
-
     if (showPaymentMethodChooserDialog) {
         PaymentMethodChooserDialog(
             methods = availablePaymentMethods,
@@ -628,7 +578,6 @@ fun BookScreen(
                         }
                         showEntitlementChooserSheet = true
                     }
-                    method == PaymentMethodUi.CARD && savedCards.isEmpty() -> showAddCardDialog = true
                 }
             }
         )
@@ -930,8 +879,7 @@ fun BookScreen(
                             (skipsOnlinePayment && !usesEntitlementPayment) || (
                                 selectedPaymentMethod.enabled &&
                                     (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || selectedEntitlement != null) &&
-                                    (selectedPaymentMethod != PaymentMethodUi.GIFT_CARD || hasGiftCardCoverage) &&
-                                    (selectedPaymentMethod != PaymentMethodUi.CARD || selectedSavedCardId != null)
+                                    (selectedPaymentMethod != PaymentMethodUi.GIFT_CARD || hasGiftCardCoverage)
                                 )
                             ),
                         loading = submitting,
@@ -2167,89 +2115,6 @@ private fun BrandPill(text: String) {
 }
 
 @Composable
-private fun CardChooserDialog(
-    cards: List<SavedCardUi>,
-    languageCode: String,
-    selectedCardId: String?,
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit,
-    onRemove: (String) -> Unit,
-    onAddNew: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(bookTr(languageCode, "Choose a card", "Izberite kartico")) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (cards.isEmpty()) {
-                    Text(bookTr(languageCode, "No stored cards yet.", "Shranjenih kartic še ni."), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    cards.forEach { card ->
-                        val brand = PaymentCardBrand.fromDisplayName(card.brand)
-                        OutlinedCard(
-                            onClick = { onSelect(card.id) },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = if (card.id == selectedCardId)
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                                else MaterialTheme.colorScheme.surface
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                PaymentCardBrandMark(brand = brand)
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(
-                                        "${card.brand} · •••• ${card.last4}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        bookTr(languageCode, "valid thru ${card.expiryMonth}/${card.expiryYear}", "velja do ${card.expiryMonth}/${card.expiryYear}"),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { onRemove(card.id) },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Rounded.DeleteOutline,
-                                        contentDescription = bookTr(languageCode, "Remove card", "Odstrani kartico"),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (card.id == selectedCardId) {
-                                    Icon(
-                                        Icons.Rounded.TaskAlt,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onAddNew) {
-                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(bookTr(languageCode, "Add new card", "Dodaj novo kartico"))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(bookTr(languageCode, "Close", "Zapri")) } }
-    )
-}
-
-@Composable
 private fun SummaryHeader(total: String) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
@@ -2376,58 +2241,6 @@ private fun TagPillCompact(text: String) {
     ) {
         Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-}
-
-@Composable
-private fun AddCardDialog(languageCode: String, onDismiss: () -> Unit, onSave: (SavedCardUi) -> Unit) {
-    var holderName by rememberSaveable { mutableStateOf("") }
-    var cardNumber by rememberSaveable { mutableStateOf("") }
-    var expiryMonth by rememberSaveable { mutableStateOf("") }
-    var expiryYear by rememberSaveable { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(bookTr(languageCode, "Add card", "Dodaj kartico")) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = holderName, onValueChange = { holderName = it }, modifier = Modifier.fillMaxWidth(), label = { Text(bookTr(languageCode, "Cardholder name", "Ime imetnika kartice")) })
-                OutlinedTextField(value = cardNumber, onValueChange = { cardNumber = it.filter(Char::isDigit).take(19) }, modifier = Modifier.fillMaxWidth(), label = { Text(bookTr(languageCode, "Card number", "Številka kartice")) })
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(value = expiryMonth, onValueChange = { expiryMonth = it.filter(Char::isDigit).take(2) }, modifier = Modifier.weight(1f), label = { Text("MM") })
-                    OutlinedTextField(value = expiryYear, onValueChange = { expiryYear = it.filter(Char::isDigit).take(2) }, modifier = Modifier.weight(1f), label = { Text("YY") })
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val trimmedDigits = cardNumber.filter(Char::isDigit)
-                    if (trimmedDigits.length >= 12 && expiryMonth.length == 2 && expiryYear.length == 2) {
-                        onSave(
-                            SavedCardUi(
-                                id = UUID.randomUUID().toString(),
-                                holderName = holderName,
-                                brand = detectBrand(trimmedDigits),
-                                last4 = trimmedDigits.takeLast(4),
-                                expiryMonth = expiryMonth,
-                                expiryYear = expiryYear,
-                                encodedNumber = trimmedDigits
-                            )
-                        )
-                    }
-                }
-            ) {
-                Text(bookTr(languageCode, "Save", "Shrani"))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(bookTr(languageCode, "Cancel", "Prekliči")) } }
-    )
-}
-
-private fun detectBrand(cardNumber: String): String = when {
-    cardNumber.startsWith("4") -> "Visa"
-    cardNumber.startsWith("5") || cardNumber.startsWith("2") -> "Mastercard"
-    else -> "Card"
 }
 
 private fun Double.formatPrice(): String =
