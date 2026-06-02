@@ -83,9 +83,17 @@ public class OpenBill extends BaseEntity {
     @Column(name = "discount_value", precision = 19, scale = 4)
     private BigDecimal discountValue;
 
-    /** For fixed-amount discounts, the 0-based bill-item row that receives the discount. */
+    /** For legacy fixed-amount/item discounts, the 0-based bill-item row that receives the discount. */
     @Column(name = "discount_item_index")
     private Integer discountItemIndex;
+
+    /** Percentage discount applied to the remaining whole bill after item-level discounts. */
+    @Column(name = "whole_bill_discount_percent", precision = 19, scale = 4)
+    private BigDecimal wholeBillDiscountPercent;
+
+    /** JSON array of per-line discounts: [{ itemIndex, discountType, discountValue }]. */
+    @Column(name = "item_discounts_json", columnDefinition = "TEXT")
+    private String itemDiscountsJson;
 
     /** Guest wallet order created from Client > Wallet > Kupi ugodnost. */
     @Column(name = "source_guest_order_id")

@@ -1,0 +1,6 @@
+Changes made:
+1. Added a new folio footer/layout item "Discount" / "Popust" to the default folio layout.
+2. Added backend support to populate the discount footer value on generated folios/PDFs.
+3. Connected bill -> folio request mapping so discount amount is passed into folio generation.
+4. Added normalization/migration so older saved folio layouts automatically receive the new discount footer item.
+5. Updated the folio layout editor to show and preserve the new discount footer item for imported/existing layouts.

@@ -1,0 +1,32 @@
+Open bill / invoice discount update
+===================================
+
+Implemented the new discount flow from the approved preview:
+
+1. Whole-bill discount
+   - The right-side Popust card now supports percentage (%) only.
+   - The € option was removed from the whole-bill discount UI.
+   - Updating this card clears any item-level discount and applies the percentage to the whole bill.
+
+2. Item-level discount icon and popup
+   - Added a discount/tag icon immediately to the right of each bill item Amount and before the delete button.
+   - Clicking the icon opens a contextual Popust postavke popup anchored to that bill item.
+   - The popup supports both % and € discounts for only the selected bill item.
+   - The selected item discount is visually highlighted on the row icon.
+
+3. VAT/total calculation behavior
+   - Whole-bill % discount is still allocated across all bill items before VAT totals are calculated.
+   - Item-level % discount is calculated only from the selected bill item before VAT totals are calculated.
+   - Item-level € discount is capped to the selected bill item amount and VAT is calculated from the discounted item amount.
+   - Backend normalization now preserves discountItemIndex for percentage item discounts, while null discountItemIndex remains a whole-bill percentage discount.
+
+4. Responsive styling
+   - Updated the item rows grid to include the new discount icon column.
+   - Added desktop and mobile styles for the contextual line-item discount popup.
+   - Kept the existing visual style, rounded cards, blue/purple discount accents, and dark-mode support.
+
+Validation
+----------
+- Frontend TypeScript check passed with `./node_modules/.bin/tsc -b`.
+- Full Vite build could not be completed in this sandbox because it timed out during the transform phase.
+- Backend Maven package could not be completed in this sandbox because the Maven wrapper attempted to download Maven from repo.maven.apache.org and network access is unavailable.

@@ -163,6 +163,8 @@ public class BillingController {
             BigDecimal discountAmountGross,
             BigDecimal discountedTotalGross,
             Integer discountItemIndex,
+            BigDecimal wholeBillDiscountPercent,
+            List<ItemDiscountRequest> itemDiscounts,
             List<BillItemRequest> items
     ) {}
     public record PaymentMethodRequest(
@@ -237,6 +239,7 @@ public class BillingController {
     ) {}
 
     public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
+    public record ItemDiscountRequest(Integer itemIndex, String discountType, BigDecimal discountValue) {}
     public record OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
     public record OpenBillSessionSummary(
             Long sessionId,
@@ -268,6 +271,8 @@ public class BillingController {
             BigDecimal discountAmountGross,
             BigDecimal discountedTotalGross,
             Integer discountItemIndex,
+            BigDecimal wholeBillDiscountPercent,
+            List<ItemDiscountRequest> itemDiscounts,
             String billType,
             String bookingGroupKey,
             List<PaymentSplitResponse> paymentSplits,
@@ -317,6 +322,8 @@ public class BillingController {
             BigDecimal discountAmountGross,
             BigDecimal discountedTotalGross,
             Integer discountItemIndex,
+            BigDecimal wholeBillDiscountPercent,
+            List<ItemDiscountRequest> itemDiscounts,
             List<PaymentSplitRequest> paymentSplits,
             List<OpenBillItemRequest> items
     ) {
@@ -336,7 +343,7 @@ public class BillingController {
                 List<OpenBillItemRequest> items
         ) {
             this(paymentMethodId, reference, billingTarget, clientId, recipientCompanyId, consultantId, sessionId,
-                    discountType, discountValue, discountAmountGross, discountedTotalGross, null, paymentSplits, items);
+                    discountType, discountValue, discountAmountGross, discountedTotalGross, null, null, null, paymentSplits, items);
         }
     }
     public record SplitOpenBillSessionRequest(Long sessionId) {}
@@ -356,6 +363,8 @@ public class BillingController {
             BigDecimal discountAmountGross,
             BigDecimal discountedTotalGross,
             Integer discountItemIndex,
+            BigDecimal wholeBillDiscountPercent,
+            List<ItemDiscountRequest> itemDiscounts,
             List<PaymentSplitRequest> paymentSplits,
             List<ManualOpenBillLineRequest> items
     ) {
@@ -375,7 +384,7 @@ public class BillingController {
                 List<ManualOpenBillLineRequest> items
         ) {
             this(clientId, recipientCompanyId, consultantId, paymentMethodId, sessionId, billType, reference,
-                    discountType, discountValue, discountAmountGross, discountedTotalGross, null, paymentSplits, items);
+                    discountType, discountValue, discountAmountGross, discountedTotalGross, null, null, null, paymentSplits, items);
         }
     }
     public record AdditionalOpenBillRequest(
@@ -1077,6 +1086,8 @@ public class BillingController {
                 req.discountType(),
                 req.discountValue(),
                 req.discountItemIndex(),
+                req.wholeBillDiscountPercent(),
+                req.itemDiscounts(),
                 open.getBillType() == BillType.INVOICE
         );
         if (req.paymentSplits() != null) {
@@ -1565,11 +1576,15 @@ public class BillingController {
         String discountTypeForSave = req.discountType() != null ? req.discountType() : open.getDiscountType();
         BigDecimal discountValueForSave = req.discountValue() != null ? req.discountValue() : open.getDiscountValue();
         Integer discountItemIndexForSave = req.discountItemIndex() != null ? req.discountItemIndex() : open.getDiscountItemIndex();
+        BigDecimal wholeBillDiscountPercentForSave = req.wholeBillDiscountPercent() != null ? req.wholeBillDiscountPercent() : open.getWholeBillDiscountPercent();
+        List<ItemDiscountRequest> itemDiscountsForSave = req.itemDiscounts() != null ? req.itemDiscounts() : parseOpenBillItemDiscounts(open);
         applyOpenBillDiscountDraft(
                 open,
                 discountTypeForSave,
                 discountValueForSave,
                 discountItemIndexForSave,
+                wholeBillDiscountPercentForSave,
+                itemDiscountsForSave,
                 open.getBillType() == null || open.getBillType() == BillType.INVOICE
         );
         openBillRepo.save(open);
@@ -1960,6 +1975,8 @@ public class BillingController {
                 open.getDiscountType(),
                 open.getDiscountValue(),
                 open.getDiscountItemIndex(),
+                open.getWholeBillDiscountPercent(),
+                parseOpenBillItemDiscounts(open),
                 resolvedBillType == BillType.INVOICE
         );
         totalNet = discountedTotals.net();
@@ -2117,11 +2134,19 @@ public class BillingController {
         Integer discountItemIndexForPreview = req != null && req.discountItemIndex() != null
                 ? req.discountItemIndex()
                 : open.getDiscountItemIndex();
+        BigDecimal wholeBillDiscountPercentForPreview = req != null && req.wholeBillDiscountPercent() != null
+                ? req.wholeBillDiscountPercent()
+                : open.getWholeBillDiscountPercent();
+        List<ItemDiscountRequest> itemDiscountsForPreview = req != null && req.itemDiscounts() != null
+                ? req.itemDiscounts()
+                : parseOpenBillItemDiscounts(open);
         Totals previewTotals = applyDiscountToBillItems(
                 bill,
                 discountTypeForPreview,
                 discountValueForPreview,
                 discountItemIndexForPreview,
+                wholeBillDiscountPercentForPreview,
+                itemDiscountsForPreview,
                 bill.getBillType() == null || bill.getBillType() == BillType.INVOICE
         );
         totalNet = previewTotals.net();
@@ -3076,14 +3101,19 @@ public class BillingController {
         Long sessionId = sessions.isEmpty() ? null : sessions.getFirst().sessionId();
         String sessionDisplayId = sessions.isEmpty() ? "—" : sessions.getFirst().sessionDisplayId();
         String sessionInfo = sessions.isEmpty() ? "" : sessions.getFirst().sessionInfo();
-        BigDecimal subtotalGross = estimateOpenBillGross(o);
-        String resolvedDiscountType = normalizeOpenBillDiscountType(o.getDiscountType());
         List<BigDecimal> discountLineGrosses = openBillDiscountLineGrosses(o);
-        Integer resolvedDiscountItemIndex = normalizeDiscountItemIndex(resolvedDiscountType, o.getDiscountItemIndex(), discountLineGrosses.size());
-        BigDecimal discountMaxGross = "AMOUNT".equals(resolvedDiscountType) ? selectedLineGross(discountLineGrosses, resolvedDiscountItemIndex) : subtotalGross;
-        BigDecimal resolvedDiscountValue = normalizeOpenBillDiscountValue(resolvedDiscountType, o.getDiscountValue(), subtotalGross, discountMaxGross);
-        BigDecimal discountAmountGross = resolveOpenBillDiscountGross(resolvedDiscountType, resolvedDiscountValue, subtotalGross, discountMaxGross);
-        BigDecimal discountedTotalGross = resolveOpenBillDiscountedTotalGross(resolvedDiscountType, resolvedDiscountValue, subtotalGross, discountMaxGross);
+        List<ItemDiscountRequest> resolvedItemDiscounts = parseOpenBillItemDiscounts(o);
+        BigDecimal resolvedWholeBillDiscountPercent = o.getWholeBillDiscountPercent() != null
+                ? normalizeWholeBillDiscountPercent(o.getWholeBillDiscountPercent())
+                : resolveWholeBillPercent(null, o.getDiscountType(), o.getDiscountValue(), o.getDiscountItemIndex(), resolvedItemDiscounts.isEmpty() ? null : resolvedItemDiscounts);
+        if (resolvedItemDiscounts.isEmpty()) {
+            resolvedItemDiscounts = legacyItemDiscounts(o.getDiscountType(), o.getDiscountValue(), o.getDiscountItemIndex(), discountLineGrosses);
+        }
+        resolvedItemDiscounts = normalizeItemDiscounts(resolvedItemDiscounts, discountLineGrosses);
+        SequentialDiscountResult discountResult = calculateSequentialDiscounts(discountLineGrosses, resolvedWholeBillDiscountPercent, resolvedItemDiscounts);
+        BigDecimal discountAmountGross = discountResult.totalDiscountGross();
+        BigDecimal discountedTotalGross = discountResult.finalTotalGross();
+        Integer resolvedDiscountItemIndex = null;
         return new OpenBillResponse(
                 o.getId(),
                 sessionId,
@@ -3102,6 +3132,8 @@ public class BillingController {
                 discountAmountGross,
                 discountedTotalGross,
                 resolvedDiscountItemIndex,
+                resolvedWholeBillDiscountPercent,
+                resolvedItemDiscounts,
                 o.getBillType() == null ? null : o.getBillType().name(),
                 o.getBookingGroupKey(),
                 toOpenBillPaymentSplitResponses(o, discountedTotalGross),
@@ -3288,6 +3320,8 @@ public class BillingController {
                 request.discountType(),
                 request.discountValue(),
                 request.discountItemIndex(),
+                request.wholeBillDiscountPercent(),
+                request.itemDiscounts(),
                 requestedBillType == BillType.INVOICE
         );
         totalNet = discountedTotals.net();
@@ -4227,18 +4261,23 @@ public class BillingController {
     }
 
     private static Integer normalizeDiscountItemIndex(String discountType, Integer rawIndex, int lineCount) {
-        if (!"AMOUNT".equals(discountType) || lineCount <= 0) return null;
-        int safe = rawIndex == null ? 0 : rawIndex;
+        if (lineCount <= 0) return null;
+        if (rawIndex == null) {
+            // Legacy fixed-amount discounts were item-based and defaulted to the first line.
+            // Percentage discounts with a null index are whole-bill discounts.
+            return "AMOUNT".equals(discountType) ? 0 : null;
+        }
+        int safe = rawIndex;
         if (safe < 0) safe = 0;
         if (safe >= lineCount) safe = lineCount - 1;
         return safe;
     }
 
     private static BigDecimal selectedLineGross(List<BigDecimal> lineGrosses, Integer itemIndex) {
-        if (lineGrosses == null || lineGrosses.isEmpty()) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        int idx = normalizeDiscountItemIndex("AMOUNT", itemIndex, lineGrosses.size()) == null
-                ? 0
-                : normalizeDiscountItemIndex("AMOUNT", itemIndex, lineGrosses.size());
+        if (lineGrosses == null || lineGrosses.isEmpty() || itemIndex == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        int idx = itemIndex;
+        if (idx < 0) idx = 0;
+        if (idx >= lineGrosses.size()) idx = lineGrosses.size() - 1;
         BigDecimal gross = lineGrosses.get(idx);
         return (gross == null ? BigDecimal.ZERO : gross.max(BigDecimal.ZERO)).setScale(2, RoundingMode.HALF_UP);
     }
@@ -4271,8 +4310,11 @@ public class BillingController {
             return discountValue.min(maxAmount).setScale(2, RoundingMode.HALF_UP);
         }
         BigDecimal percent = discountValue.min(new BigDecimal("100")).max(BigDecimal.ZERO);
-        BigDecimal gross = subtotal.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
-        return gross.min(subtotal).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal percentBase = maxAmountGross == null
+                ? subtotal
+                : maxAmountGross.setScale(2, RoundingMode.HALF_UP).max(BigDecimal.ZERO).min(subtotal);
+        BigDecimal gross = percentBase.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        return gross.min(percentBase).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal resolveOpenBillDiscountedTotalGross(String discountType, BigDecimal discountValue, BigDecimal subtotalGross) {
@@ -4286,24 +4328,183 @@ public class BillingController {
         return remaining.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : remaining;
     }
 
-    private static void applyOpenBillDiscountDraft(OpenBill open, String discountTypeRaw, BigDecimal discountValueRaw, Integer discountItemIndexRaw, boolean enabled) {
+    private static BigDecimal normalizeWholeBillDiscountPercent(BigDecimal rawValue) {
+        BigDecimal safeRaw = rawValue == null ? BigDecimal.ZERO : rawValue.max(BigDecimal.ZERO);
+        return safeRaw.min(new BigDecimal("100")).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static List<ItemDiscountRequest> parseOpenBillItemDiscounts(OpenBill open) {
+        if (open == null || open.getItemDiscountsJson() == null || open.getItemDiscountsJson().isBlank()) return List.of();
+        try {
+            ItemDiscountRequest[] parsed = JSON.readValue(open.getItemDiscountsJson(), ItemDiscountRequest[].class);
+            return parsed == null ? List.of() : List.of(parsed);
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private static String serializeItemDiscounts(List<ItemDiscountRequest> discounts) {
+        if (discounts == null || discounts.isEmpty()) return null;
+        try {
+            return JSON.writeValueAsString(discounts);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static List<ItemDiscountRequest> normalizeItemDiscounts(List<ItemDiscountRequest> raw, List<BigDecimal> lineGrosses) {
+        if (raw == null || raw.isEmpty() || lineGrosses == null || lineGrosses.isEmpty()) return List.of();
+        Map<Integer, ItemDiscountRequest> byIndex = new LinkedHashMap<>();
+        for (ItemDiscountRequest entry : raw) {
+            if (entry == null || entry.itemIndex() == null) continue;
+            int idx = entry.itemIndex();
+            if (idx < 0) idx = 0;
+            if (idx >= lineGrosses.size()) idx = lineGrosses.size() - 1;
+            String type = normalizeOpenBillDiscountType(entry.discountType());
+            BigDecimal lineGross = selectedLineGross(lineGrosses, idx);
+            BigDecimal value = normalizeOpenBillDiscountValue(type, entry.discountValue(), lineGross, lineGross);
+            if (value.compareTo(BigDecimal.ZERO) <= 0) {
+                byIndex.remove(idx);
+            } else {
+                byIndex.put(idx, new ItemDiscountRequest(idx, type, value));
+            }
+        }
+        return new ArrayList<>(byIndex.values());
+    }
+
+    private static List<ItemDiscountRequest> legacyItemDiscounts(String discountTypeRaw, BigDecimal discountValueRaw, Integer discountItemIndexRaw, List<BigDecimal> lineGrosses) {
+        if (discountItemIndexRaw == null || lineGrosses == null || lineGrosses.isEmpty()) return List.of();
+        String discountType = normalizeOpenBillDiscountType(discountTypeRaw);
+        Integer idx = normalizeDiscountItemIndex(discountType, discountItemIndexRaw, lineGrosses.size());
+        if (idx == null) return List.of();
+        BigDecimal lineGross = selectedLineGross(lineGrosses, idx);
+        BigDecimal value = normalizeOpenBillDiscountValue(discountType, discountValueRaw, lineGross, lineGross);
+        if (value.compareTo(BigDecimal.ZERO) <= 0) return List.of();
+        return List.of(new ItemDiscountRequest(idx, discountType, value));
+    }
+
+    private static BigDecimal resolveWholeBillPercent(BigDecimal wholeBillDiscountPercentRaw, String discountTypeRaw, BigDecimal discountValueRaw, Integer discountItemIndexRaw, List<ItemDiscountRequest> explicitItemDiscounts) {
+        if (wholeBillDiscountPercentRaw != null) return normalizeWholeBillDiscountPercent(wholeBillDiscountPercentRaw);
+        if (explicitItemDiscounts != null) return BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+        String type = normalizeOpenBillDiscountType(discountTypeRaw);
+        if (discountItemIndexRaw == null && "PERCENT".equals(type)) return normalizeWholeBillDiscountPercent(discountValueRaw);
+        return BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal lineItemDiscountGross(BigDecimal lineGrossRaw, ItemDiscountRequest discount) {
+        BigDecimal lineGross = lineGrossRaw == null ? BigDecimal.ZERO : lineGrossRaw.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        if (discount == null || discount.discountValue() == null || discount.discountValue().compareTo(BigDecimal.ZERO) <= 0 || lineGross.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        String type = normalizeOpenBillDiscountType(discount.discountType());
+        if ("AMOUNT".equals(type)) {
+            return discount.discountValue().max(BigDecimal.ZERO).min(lineGross).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal percent = discount.discountValue().max(BigDecimal.ZERO).min(new BigDecimal("100"));
+        return lineGross.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP).min(lineGross).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static List<BigDecimal> allocateWholeBillPercentDiscounts(List<BigDecimal> lineGrossesAfterItemDiscounts, BigDecimal wholeBillPercentRaw) {
+        List<BigDecimal> out = new ArrayList<>();
+        if (lineGrossesAfterItemDiscounts == null || lineGrossesAfterItemDiscounts.isEmpty()) return out;
+        for (int i = 0; i < lineGrossesAfterItemDiscounts.size(); i++) out.add(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        BigDecimal percent = normalizeWholeBillDiscountPercent(wholeBillPercentRaw);
+        if (percent.compareTo(BigDecimal.ZERO) <= 0) return out;
+        BigDecimal subtotal = lineGrossesAfterItemDiscounts.stream()
+                .filter(Objects::nonNull)
+                .map(value -> value.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP))
+                .reduce(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        if (subtotal.compareTo(BigDecimal.ZERO) <= 0) return out;
+        BigDecimal remaining = subtotal.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP).min(subtotal).setScale(2, RoundingMode.HALF_UP);
+        int lastPositive = -1;
+        for (int i = 0; i < lineGrossesAfterItemDiscounts.size(); i++) {
+            BigDecimal gross = (lineGrossesAfterItemDiscounts.get(i) == null ? BigDecimal.ZERO : lineGrossesAfterItemDiscounts.get(i)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            if (gross.compareTo(BigDecimal.ZERO) > 0) lastPositive = i;
+        }
+        for (int i = 0; i < lineGrossesAfterItemDiscounts.size(); i++) {
+            BigDecimal gross = (lineGrossesAfterItemDiscounts.get(i) == null ? BigDecimal.ZERO : lineGrossesAfterItemDiscounts.get(i)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            if (gross.compareTo(BigDecimal.ZERO) <= 0 || remaining.compareTo(BigDecimal.ZERO) <= 0) continue;
+            BigDecimal discount = i == lastPositive
+                    ? remaining.min(gross).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
+                    : gross.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP).min(gross).min(remaining).setScale(2, RoundingMode.HALF_UP);
+            out.set(i, discount);
+            remaining = remaining.subtract(discount).setScale(2, RoundingMode.HALF_UP);
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
+        }
+        return out;
+    }
+
+    private record SequentialDiscountResult(
+            List<BigDecimal> finalLineGrosses,
+            BigDecimal itemDiscountGross,
+            BigDecimal wholeBillDiscountGross,
+            BigDecimal totalDiscountGross,
+            BigDecimal finalTotalGross
+    ) {}
+
+    private static SequentialDiscountResult calculateSequentialDiscounts(List<BigDecimal> lineGrosses, BigDecimal wholeBillPercentRaw, List<ItemDiscountRequest> itemDiscountsRaw) {
+        List<BigDecimal> safeLineGrosses = lineGrosses == null ? List.of() : lineGrosses.stream()
+                .map(value -> (value == null ? BigDecimal.ZERO : value.max(BigDecimal.ZERO)).setScale(2, RoundingMode.HALF_UP))
+                .toList();
+        if (safeLineGrosses.isEmpty()) {
+            return new SequentialDiscountResult(List.of(), BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        }
+        List<ItemDiscountRequest> itemDiscounts = normalizeItemDiscounts(itemDiscountsRaw, safeLineGrosses);
+        Map<Integer, ItemDiscountRequest> byIndex = itemDiscounts.stream().collect(Collectors.toMap(ItemDiscountRequest::itemIndex, d -> d, (a, b) -> b, LinkedHashMap::new));
+        List<BigDecimal> afterItemDiscounts = new ArrayList<>();
+        BigDecimal itemDiscountGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        for (int i = 0; i < safeLineGrosses.size(); i++) {
+            BigDecimal lineGross = safeLineGrosses.get(i);
+            BigDecimal lineDiscount = lineItemDiscountGross(lineGross, byIndex.get(i));
+            itemDiscountGross = itemDiscountGross.add(lineDiscount).setScale(2, RoundingMode.HALF_UP);
+            afterItemDiscounts.add(lineGross.subtract(lineDiscount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
+        }
+        List<BigDecimal> wholeDiscounts = allocateWholeBillPercentDiscounts(afterItemDiscounts, wholeBillPercentRaw);
+        List<BigDecimal> finalLineGrosses = new ArrayList<>();
+        BigDecimal wholeDiscountGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal finalTotalGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        for (int i = 0; i < afterItemDiscounts.size(); i++) {
+            BigDecimal wholeLineDiscount = i < wholeDiscounts.size() && wholeDiscounts.get(i) != null ? wholeDiscounts.get(i) : BigDecimal.ZERO;
+            wholeDiscountGross = wholeDiscountGross.add(wholeLineDiscount).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal finalGross = afterItemDiscounts.get(i).subtract(wholeLineDiscount).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            finalLineGrosses.add(finalGross);
+            finalTotalGross = finalTotalGross.add(finalGross).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal totalDiscountGross = itemDiscountGross.add(wholeDiscountGross).setScale(2, RoundingMode.HALF_UP);
+        return new SequentialDiscountResult(finalLineGrosses, itemDiscountGross, wholeDiscountGross, totalDiscountGross, finalTotalGross);
+    }
+
+    private static void applyOpenBillDiscountDraft(
+            OpenBill open,
+            String discountTypeRaw,
+            BigDecimal discountValueRaw,
+            Integer discountItemIndexRaw,
+            BigDecimal wholeBillDiscountPercentRaw,
+            List<ItemDiscountRequest> itemDiscountsRaw,
+            boolean enabled
+    ) {
         if (open == null || !enabled) {
             if (open != null) {
                 open.setDiscountType(null);
                 open.setDiscountValue(null);
                 open.setDiscountItemIndex(null);
+                open.setWholeBillDiscountPercent(null);
+                open.setItemDiscountsJson(null);
             }
             return;
         }
-        String discountType = normalizeOpenBillDiscountType(discountTypeRaw);
-        BigDecimal subtotalGross = estimateOpenBillGross(open);
         List<BigDecimal> lineGrosses = openBillDiscountLineGrosses(open);
-        Integer itemIndex = normalizeDiscountItemIndex(discountType, discountItemIndexRaw, lineGrosses.size());
-        BigDecimal amountMax = "AMOUNT".equals(discountType) ? selectedLineGross(lineGrosses, itemIndex) : subtotalGross;
-        BigDecimal discountValue = normalizeOpenBillDiscountValue(discountType, discountValueRaw, subtotalGross, amountMax);
-        open.setDiscountType(discountType);
-        open.setDiscountValue(discountValue);
-        open.setDiscountItemIndex(itemIndex);
+        List<ItemDiscountRequest> normalizedItemDiscounts = itemDiscountsRaw != null
+                ? normalizeItemDiscounts(itemDiscountsRaw, lineGrosses)
+                : legacyItemDiscounts(discountTypeRaw, discountValueRaw, discountItemIndexRaw, lineGrosses);
+        BigDecimal wholeBillPercent = resolveWholeBillPercent(wholeBillDiscountPercentRaw, discountTypeRaw, discountValueRaw, discountItemIndexRaw, itemDiscountsRaw);
+        open.setWholeBillDiscountPercent(wholeBillPercent);
+        open.setItemDiscountsJson(serializeItemDiscounts(normalizedItemDiscounts));
+        // Keep legacy fields populated as a whole-bill % discount so older clients do not crash.
+        open.setDiscountType("PERCENT");
+        open.setDiscountValue(wholeBillPercent);
+        open.setDiscountItemIndex(null);
     }
 
     private static BigDecimal totalBillGross(List<BillItem> items) {
@@ -4330,14 +4531,20 @@ public class BillingController {
         if (subtotal.compareTo(BigDecimal.ZERO) <= 0 || discountValueRaw == null || discountValueRaw.compareTo(BigDecimal.ZERO) <= 0) {
             return discounts;
         }
+        Integer idx = normalizeDiscountItemIndex(discountType, discountItemIndex, lineGrosses.size());
         if ("AMOUNT".equals(discountType)) {
-            Integer idx = normalizeDiscountItemIndex(discountType, discountItemIndex, lineGrosses.size());
             if (idx == null) return discounts;
             BigDecimal selectedGross = (lineGrosses.get(idx) == null ? BigDecimal.ZERO : lineGrosses.get(idx)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
             discounts.set(idx, discountValueRaw.max(BigDecimal.ZERO).min(selectedGross).setScale(2, RoundingMode.HALF_UP));
             return discounts;
         }
         BigDecimal percent = discountValueRaw.max(BigDecimal.ZERO).min(new BigDecimal("100"));
+        if (idx != null) {
+            BigDecimal selectedGross = (lineGrosses.get(idx) == null ? BigDecimal.ZERO : lineGrosses.get(idx)).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal selectedDiscount = selectedGross.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            discounts.set(idx, selectedDiscount.min(selectedGross).setScale(2, RoundingMode.HALF_UP));
+            return discounts;
+        }
         BigDecimal targetDiscount = subtotal.multiply(percent).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
         BigDecimal remaining = targetDiscount;
         int lastPositive = -1;
@@ -4368,7 +4575,15 @@ public class BillingController {
         return safeGross.divide(divisor, 4, RoundingMode.HALF_UP);
     }
 
-    private static Totals applyDiscountToBillItems(Bill bill, String discountTypeRaw, BigDecimal discountValueRaw, Integer discountItemIndex, boolean enabled) {
+    private static Totals applyDiscountToBillItems(
+            Bill bill,
+            String discountTypeRaw,
+            BigDecimal discountValueRaw,
+            Integer discountItemIndex,
+            BigDecimal wholeBillDiscountPercentRaw,
+            List<ItemDiscountRequest> itemDiscountsRaw,
+            boolean enabled
+    ) {
         if (bill == null || bill.getItems() == null) return new Totals(BigDecimal.ZERO, BigDecimal.ZERO);
         if (!enabled) {
             return recalculateBillTotalsFromItems(bill);
@@ -4376,13 +4591,17 @@ public class BillingController {
         List<BigDecimal> lineGrosses = bill.getItems().stream()
                 .map(item -> item == null || item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice().max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP))
                 .toList();
-        List<BigDecimal> discounts = allocateLineDiscounts(lineGrosses, discountTypeRaw, discountValueRaw, discountItemIndex);
+        List<ItemDiscountRequest> normalizedItemDiscounts = itemDiscountsRaw != null
+                ? normalizeItemDiscounts(itemDiscountsRaw, lineGrosses)
+                : legacyItemDiscounts(discountTypeRaw, discountValueRaw, discountItemIndex, lineGrosses);
+        BigDecimal wholeBillPercent = resolveWholeBillPercent(wholeBillDiscountPercentRaw, discountTypeRaw, discountValueRaw, discountItemIndex, itemDiscountsRaw);
+        SequentialDiscountResult discounts = calculateSequentialDiscounts(lineGrosses, wholeBillPercent, normalizedItemDiscounts);
         for (int i = 0; i < bill.getItems().size(); i++) {
             BillItem item = bill.getItems().get(i);
             if (item == null) continue;
-            BigDecimal originalGross = item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice().setScale(2, RoundingMode.HALF_UP);
-            BigDecimal discount = i < discounts.size() ? discounts.get(i) : BigDecimal.ZERO;
-            BigDecimal discountedGross = originalGross.subtract(discount == null ? BigDecimal.ZERO : discount).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal discountedGross = i < discounts.finalLineGrosses().size()
+                    ? discounts.finalLineGrosses().get(i)
+                    : (item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice().setScale(2, RoundingMode.HALF_UP));
             if (discountedGross.compareTo(BigDecimal.ZERO) < 0) discountedGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             item.setGrossPrice(discountedGross);
             int qty = item.getQuantity() == null || item.getQuantity() <= 0 ? 1 : item.getQuantity();

@@ -48,6 +48,8 @@ public class FolioPdfRequest {
     private String paymentQrPayload;
     /** Gross amount still awaiting payment, normally the bank-transfer portion. */
     private BigDecimal toBePaidGross;
+    /** Total discount amount shown in the folio footer when greater than zero. */
+    private BigDecimal discountAmountGross;
     private String locale;
 
     public static class PaymentLine {
@@ -158,6 +160,8 @@ public class FolioPdfRequest {
     public void setPaymentQrPayload(String paymentQrPayload) { this.paymentQrPayload = paymentQrPayload; }
     public BigDecimal getToBePaidGross() { return toBePaidGross; }
     public void setToBePaidGross(BigDecimal toBePaidGross) { this.toBePaidGross = toBePaidGross; }
+    public BigDecimal getDiscountAmountGross() { return discountAmountGross; }
+    public void setDiscountAmountGross(BigDecimal discountAmountGross) { this.discountAmountGross = discountAmountGross; }
     public String getLocale() { return locale; }
     public void setLocale(String locale) { this.locale = locale; }
 }

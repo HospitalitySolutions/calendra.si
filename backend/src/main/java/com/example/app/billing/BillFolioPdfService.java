@@ -84,6 +84,7 @@ public class BillFolioPdfService {
         req.setCompanyCity(settingValue(companyId, SettingKey.COMPANY_CITY));
         req.setCompanyTaxId(settingValue(companyId, SettingKey.COMPANY_VAT_ID));
         req.setIban(settingValue(companyId, SettingKey.COMPANY_IBAN));
+        req.setDiscountAmountGross(resolveBillDiscountGross(bill));
 
         LocalDate serviceDate = null;
         Long srcSessionId = bill.getSourceSessionIdSnapshot();
@@ -186,6 +187,43 @@ public class BillFolioPdfService {
         }
         req.setServices(serviceLines);
         return req;
+    }
+
+    /**
+     * Best-effort discount detection for folio display.
+     *
+     * Bills currently persist the final discounted line totals, but not a dedicated
+     * discount footer amount. To support the configurable folio field, we reconstruct
+     * the nominal undiscounted line total from the linked transaction-service price
+     * snapshot that the tenant configured, and compare it with the stored billed total.
+     * If no positive difference exists, the discount field stays hidden.
+     */
+    private BigDecimal resolveBillDiscountGross(Bill bill) {
+        if (bill == null || bill.getItems() == null || bill.getItems().isEmpty()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal discount = BigDecimal.ZERO;
+        for (BillItem item : bill.getItems()) {
+            if (item == null) continue;
+            TransactionService ts = item.getTransactionService();
+            Integer qtyRaw = item.getQuantity();
+            int qty = qtyRaw == null || qtyRaw <= 0 ? 1 : qtyRaw;
+            BigDecimal billedGross = item.getGrossPrice() == null ? BigDecimal.ZERO : item.getGrossPrice();
+            BigDecimal nominalGross = nominalLineGross(ts, qty);
+            if (nominalGross.compareTo(billedGross) > 0) {
+                discount = discount.add(nominalGross.subtract(billedGross));
+            }
+        }
+        return discount.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal nominalLineGross(TransactionService ts, int qty) {
+        if (ts == null || ts.getNetPrice() == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal netUnit = ts.getNetPrice();
+        BigDecimal multiplier = BigDecimal.ONE.add(ts.getTaxRate() == null ? BigDecimal.ZERO : ts.getTaxRate().multiplier);
+        return netUnit.multiply(multiplier)
+                .multiply(BigDecimal.valueOf(Math.max(1, qty)))
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
 

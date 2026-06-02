@@ -516,6 +516,10 @@ public class FolioPdfService {
         Map<String, String> footerValues = new HashMap<>();
         footerValues.put("totalNett", fmtEur(totalNett));
         footerValues.put("totalGross", fmtEur(totalGross));
+        BigDecimal discountAmountGross = req == null ? null : req.getDiscountAmountGross();
+        if (discountAmountGross != null && discountAmountGross.compareTo(BigDecimal.ZERO) > 0) {
+            footerValues.put("discount", fmtEur(discountAmountGross));
+        }
         footerValues.put("toBePaid", fmtEur(resolveToBePaid(req)));
         List<VatBreakdownRow> vatRows = buildVatBreakdownRows(req == null ? null : req.getServices());
         footerValues.put("vat22", fmtEur(vatBreakdownAmount(vatRows, VatBreakdownBucket.VAT_22)));

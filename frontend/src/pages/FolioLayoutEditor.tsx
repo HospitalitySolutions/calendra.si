@@ -353,6 +353,49 @@ function migratePostalCityField(
   layout.fields.splice(Math.min(originalIndex, layout.fields.length), 0, combined)
 }
 
+function migrateLegacyFooterForDiscount(data: LayoutConfig) {
+  const items = data.footer?.items
+  if (!items) return
+  const hasDiscount = items.some((item) => item?.key === 'discount')
+  if (hasDiscount) return
+  items.forEach((item) => {
+    if (!item || item.key !== 'toBePaid') return
+    if (Math.abs((item.x ?? 0) - 395) <= 2 && Math.abs((item.y ?? 0) - 340) <= 2) {
+      item.y = 358
+    }
+  })
+}
+
+function addMissingFooterItemFront(data: LayoutConfig, key: string) {
+  const items = data.footer?.items
+  if (!items) return
+  if (items.some((item) => item?.key === key)) return
+  const defaults: FooterItem[] = [
+    { key: 'payment', label: 'Payment', labelI18n: { en: 'Payment', sl: 'Plačilo' }, fontSize: 10, bold: false, alignment: 'right', x: 395, y: 304, width: 150, height: 16 },
+    { key: 'totalGross', label: 'Total gross', labelI18n: { en: 'Total gross', sl: 'Skupaj bruto' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 322, width: 150, height: 16 },
+    { key: 'discount', label: 'Discount', labelI18n: { en: 'Discount', sl: 'Popust' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 340, width: 150, height: 16 },
+    { key: 'toBePaid', label: 'To be paid', labelI18n: { en: 'To be paid', sl: 'Za plačilo' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 358, width: 150, height: 16 },
+    { key: 'notes', label: 'Notes', labelI18n: { en: 'Notes', sl: 'Opombe' }, fontSize: 9, bold: false, alignment: 'left', x: 50, y: 362, width: 300, height: 16 },
+    { key: 'iban', label: 'IBAN', labelI18n: { en: 'IBAN', sl: 'IBAN' }, fontSize: 10, bold: false, alignment: 'left', x: 50, y: 380, width: 300, height: 16 },
+    { key: 'issuedBy', label: 'Issued by', labelI18n: { en: 'Issued by', sl: 'Izdal' }, fontSize: 10, bold: false, alignment: 'left', x: 50, y: 398, width: 200, height: 16 },
+    { key: 'fiscalZoi', label: 'ZOI', labelI18n: { en: 'ZOI', sl: 'ZOI' }, fontSize: 8, bold: false, alignment: 'left', x: 50, y: 418, width: 300, height: 14 },
+    { key: 'fiscalEor', label: 'EOR', labelI18n: { en: 'EOR', sl: 'EOR' }, fontSize: 8, bold: false, alignment: 'left', x: 50, y: 432, width: 300, height: 14 },
+  ]
+  const templateIndex = defaults.findIndex((item) => item.key === key)
+  if (templateIndex < 0) return
+  const template = defaults[templateIndex]
+  let insertAt = items.length
+  for (let i = 0; i < items.length; i += 1) {
+    const currentKey = items[i]?.key
+    const currentDefaultIndex = defaults.findIndex((item) => item.key === currentKey)
+    if (currentDefaultIndex > templateIndex) {
+      insertAt = i
+      break
+    }
+  }
+  items.splice(insertAt, 0, JSON.parse(JSON.stringify(template)) as FooterItem)
+}
+
 function isValidLayout(data: any): data is LayoutConfig {
   if (!data || Array.isArray(data) || !Array.isArray(data.fields) || !data.table || !data.footer) return false
   if (!data.pageSections) data.pageSections = { ...DEFAULT_PAGE_SECTIONS }
@@ -396,6 +439,12 @@ function isValidLayout(data: any): data is LayoutConfig {
     col.label = resolveLocalizedText(col.labelI18n, col.label, 'en')
     if (col.key === 'date' && !col.dateFormat) col.dateFormat = 'YYYY-MM-DD'
   }
+  // Migrate legacy footer totals block and ensure newly supported footer items exist.
+  migrateLegacyFooterForDiscount(data)
+  addMissingFooterItemFront(data, 'discount')
+  addMissingFooterItemFront(data, 'toBePaid')
+  addMissingFooterItemFront(data, 'fiscalZoi')
+  addMissingFooterItemFront(data, 'fiscalEor')
   // Migrate footer items without x/y to have default positions
   for (const item of data.footer?.items ?? []) {
     item.labelI18n = ensureLocalizedText(item.labelI18n, item.label)

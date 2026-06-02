@@ -425,7 +425,8 @@ public class FolioLayoutConfig {
         var items = new ArrayList<FooterItem>();
         items.add(new FooterItem("payment",    "Payment",     10, false, "right", 395, 304, 150, 16));
         items.add(new FooterItem("totalGross", "Total gross", 11, true,  "right", 395, 322, 150, 16));
-        items.add(new FooterItem("toBePaid",   "To be paid",  11, true,  "right", 395, 340, 150, 16));
+        items.add(new FooterItem("discount",   "Discount",    11, true,  "right", 395, 340, 150, 16));
+        items.add(new FooterItem("toBePaid",   "To be paid",  11, true,  "right", 395, 358, 150, 16));
         items.add(new FooterItem("notes",      "Notes",        9, false, "left",  50,  362, 300, 16));
         items.add(new FooterItem("iban",       "IBAN",        10, false, "left",  50,  380, 300, 16));
         items.add(new FooterItem("issuedBy",   "Issued by",   10, false, "left",  50,  398, 200, 16));
@@ -525,6 +526,7 @@ public class FolioLayoutConfig {
             case "payment" -> "Placilo";
             case "totalGross" -> "Skupaj bruto";
             case "toBePaid" -> "Za plačilo";
+            case "discount" -> "Popust";
             case "totalNett" -> "Skupaj neto";
             case "vat22" -> "DDV 22%";
             case "vat95" -> "DDV 9,5%";
@@ -695,6 +697,8 @@ public class FolioLayoutConfig {
             if (cfg.getFooter().getItems() == null) {
                 cfg.getFooter().setItems(defaults.getFooter().getItems());
             } else {
+                migrateLegacyFooterForDiscount(cfg);
+                addMissingFooterItem(cfg, defaults, "discount");
                 addMissingFooterItem(cfg, defaults, "toBePaid");
                 addMissingFooterItem(cfg, defaults, "fiscalZoi");
                 addMissingFooterItem(cfg, defaults, "fiscalEor");
@@ -777,6 +781,19 @@ public class FolioLayoutConfig {
 
     private static void shiftQrIfBelow(FolioLayoutConfig cfg, QrCodeConfig qr, float oldBottom, float delta) {
         if (qr != null && qr.getY() >= oldBottom && !isFixedPageSectionBlock(cfg, qr.getY(), qr.getHeight())) qr.setY(qr.getY() - delta);
+    }
+
+    private static void migrateLegacyFooterForDiscount(FolioLayoutConfig cfg) {
+        if (cfg == null || cfg.getFooter() == null || cfg.getFooter().getItems() == null) return;
+        boolean hasDiscount = cfg.getFooter().getItems().stream()
+                .anyMatch(item -> item != null && "discount".equals(item.getKey()));
+        if (hasDiscount) return;
+        for (FooterItem item : cfg.getFooter().getItems()) {
+            if (item == null || !"toBePaid".equals(item.getKey())) continue;
+            if (Math.abs(item.getX() - 395f) <= 2f && Math.abs(item.getY() - 340f) <= 2f) {
+                item.setY(358f);
+            }
+        }
     }
 
     private static void addMissingFooterItem(FolioLayoutConfig cfg, FolioLayoutConfig defaults, String key) {

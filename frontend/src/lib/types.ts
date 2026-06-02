@@ -363,6 +363,8 @@ export type OpenBill = {
   discountAmountGross?: number | null
   discountedTotalGross?: number | null
   discountItemIndex?: number | null
+  wholeBillDiscountPercent?: number | null
+  itemDiscounts?: { itemIndex: number; discountType: 'PERCENT' | 'AMOUNT' | string; discountValue: number }[] | null
   items: OpenBillItem[]
   sessionDisplayId?: string
   sessionInfo?: string

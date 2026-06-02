@@ -68,7 +68,9 @@ function grossStringFromService(service: BillingService | null | undefined): str
 import { currency, formatDate, fullName } from '../lib/format'
 type DiscountType = 'PERCENT' | 'AMOUNT'
 
-type DiscountDraft = { type: DiscountType; value: string; itemIndex?: number }
+type LineItemDiscountDraft = { type: DiscountType; value: string }
+
+type DiscountDraft = { wholeBillPercent: string; itemDiscounts: Record<number, LineItemDiscountDraft> }
 
 type BillForm = {
   clientId?: number
@@ -83,6 +85,8 @@ type BillForm = {
   discountType?: DiscountType
   discountValue?: string
   discountItemIndex?: number
+  wholeBillDiscountPercent?: string
+  itemDiscounts?: Record<number, LineItemDiscountDraft>
   items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string; sourceSessionBookingId?: number | null }[]
 }
 
@@ -876,7 +880,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [users, setUsers] = useState<User[]>([])
-  const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON', billType: 'INVOICE' })
+  const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', wholeBillDiscountPercent: '0', itemDiscounts: {} })
   const [showCreateBillModal, setShowCreateBillModal] = useState(false)
   const [editingCreateBillPayee, setEditingCreateBillPayee] = useState(false)
   const [creatingBill, setCreatingBill] = useState(false)
@@ -890,6 +894,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillDetailsEdits, setOpenBillDetailsEdits] = useState<Record<number, OpenBillDetailsDraft>>({})
   const [openBillPaymentEdits, setOpenBillPaymentEdits] = useState<Record<number, OpenBillPaymentSplitDraft[]>>({})
   const [openBillDiscountEdits, setOpenBillDiscountEdits] = useState<Record<number, DiscountDraft>>({})
+  const [openCreateItemDiscountIndex, setOpenCreateItemDiscountIndex] = useState<number | null>(null)
+  const [openOpenBillItemDiscount, setOpenOpenBillItemDiscount] = useState<{ openBillId: number; index: number } | null>(null)
   const [entitlementPaymentTarget, setEntitlementPaymentTarget] = useState<EntitlementPaymentTarget | null>(null)
   const [entitlementPaymentStep, setEntitlementPaymentStep] = useState<EntitlementPaymentStep>('choice')
   const [entitlementManualCode, setEntitlementManualCode] = useState('')
@@ -1121,6 +1127,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     discountAmountGross: ob.discountAmountGross == null ? null : Number(ob.discountAmountGross),
     discountedTotalGross: ob.discountedTotalGross == null ? null : Number(ob.discountedTotalGross),
     discountItemIndex: ob.discountItemIndex == null ? null : Number(ob.discountItemIndex),
+    wholeBillDiscountPercent: ob.wholeBillDiscountPercent == null ? null : Number(ob.wholeBillDiscountPercent),
+    itemDiscounts: Array.isArray(ob.itemDiscounts) ? ob.itemDiscounts.map((entry) => ({
+      ...entry,
+      itemIndex: Number(entry.itemIndex),
+      discountValue: Number(entry.discountValue),
+    })) : [],
     paymentMethod: normalizePaymentMethod(ob.paymentMethod),
     items: (ob.items ?? []).map((item) => {
       const fallbackGross = Number(item.netPrice || 0) * (1 + billingTaxMultiplier(item.transactionService?.taxRate))
@@ -1363,10 +1375,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const sanitizeDiscountValueInput = (value: string) => value.replace(/[^0-9.,]/g, '').replace(',', '.')
 
-  const discountValueNumber = (draft: DiscountDraft | null | undefined) => {
+  const discountValueNumber = (draft: LineItemDiscountDraft | null | undefined) => {
     const parsed = Number(String(draft?.value ?? '').replace(',', '.'))
     if (!Number.isFinite(parsed) || parsed <= 0) return 0
-    return draft?.type === 'PERCENT' ? Math.min(100, parsed) : parsed
+    return normalizeDiscountType(draft?.type) === 'PERCENT' ? Math.min(100, parsed) : parsed
+  }
+
+  const wholeBillPercentNumber = (draft: DiscountDraft | null | undefined) => {
+    const parsed = Number(String(draft?.wholeBillPercent ?? '').replace(',', '.'))
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0
+    return Math.min(100, parsed)
   }
 
   const discountLineGrossTotal = (item: { quantity: number; grossPrice: string }) => {
@@ -1377,13 +1395,87 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const normalizeDiscountItemIndex = (
-    draft: DiscountDraft | null | undefined,
+    rawIndex: number | string | null | undefined,
     items?: { quantity: number; grossPrice: string }[],
   ) => {
-    if (normalizeDiscountType(draft?.type) !== 'AMOUNT' || !items?.length) return undefined
-    const raw = Number(draft?.itemIndex ?? 0)
-    if (!Number.isFinite(raw)) return 0
+    if (rawIndex == null || !items?.length) return undefined
+    const raw = Number(rawIndex)
+    if (!Number.isFinite(raw)) return undefined
     return Math.min(items.length - 1, Math.max(0, Math.trunc(raw)))
+  }
+
+  const normalizeItemDiscountMap = (
+    raw: unknown,
+    options?: { keepZero?: boolean },
+  ): Record<number, LineItemDiscountDraft> => {
+    const keepZero = options?.keepZero === true
+    const next: Record<number, LineItemDiscountDraft> = {}
+    if (!raw) return next
+    const add = (indexRaw: unknown, typeRaw: unknown, valueRaw: unknown) => {
+      const index = Number(indexRaw)
+      if (!Number.isFinite(index) || index < 0) return
+      const value = sanitizeDiscountValueInput(String(valueRaw ?? '0'))
+      const draft = { type: normalizeDiscountType(typeRaw), value }
+      if (!keepZero && discountValueNumber(draft) <= 0) return
+      next[Math.trunc(index)] = draft
+    }
+    if (Array.isArray(raw)) {
+      raw.forEach((entry) => {
+        const row = entry as { itemIndex?: unknown; index?: unknown; discountType?: unknown; type?: unknown; discountValue?: unknown; value?: unknown }
+        add(row.itemIndex ?? row.index, row.discountType ?? row.type, row.discountValue ?? row.value)
+      })
+      return next
+    }
+    if (typeof raw === 'object') {
+      Object.entries(raw as Record<string, unknown>).forEach(([key, value]) => {
+        const row = value as { discountType?: unknown; type?: unknown; discountValue?: unknown; value?: unknown }
+        add(key, row?.discountType ?? row?.type, row?.discountValue ?? row?.value ?? value)
+      })
+    }
+    return next
+  }
+
+  const getLineItemDiscount = (draft: DiscountDraft | null | undefined, index: number): LineItemDiscountDraft => {
+    return draft?.itemDiscounts?.[index] ?? { type: 'PERCENT', value: '0' }
+  }
+
+  const calculateSingleLineDiscountGross = (lineGross: number, draft: LineItemDiscountDraft | null | undefined) => {
+    const value = discountValueNumber(draft)
+    const gross = Math.max(0, Number(lineGross || 0))
+    if (gross <= 0 || value <= 0) return 0
+    if (normalizeDiscountType(draft?.type) === 'AMOUNT') return Number(Math.min(gross, value).toFixed(2))
+    return Number(Math.min(gross, gross * (value / 100)).toFixed(2))
+  }
+
+  const calculateDiscountedLineStates = (
+    items: { quantity: number; grossPrice: string }[] | undefined,
+    draft: DiscountDraft | null | undefined,
+  ) => {
+    const lineGrosses = (items ?? []).map(discountLineGrossTotal)
+    const itemDiscountGrosses = lineGrosses.map((gross, index) => calculateSingleLineDiscountGross(gross, getLineItemDiscount(draft, index)))
+    const afterItemGrosses = lineGrosses.map((gross, index) => Number(Math.max(0, gross - itemDiscountGrosses[index]).toFixed(2)))
+    const pct = wholeBillPercentNumber(draft)
+    const subtotalAfterItem = afterItemGrosses.reduce((sum, gross) => sum + gross, 0)
+    const wholeDiscountGrosses = afterItemGrosses.map(() => 0)
+    if (pct > 0 && subtotalAfterItem > 0) {
+      let remaining = Number(Math.min(subtotalAfterItem, subtotalAfterItem * (pct / 100)).toFixed(2))
+      const lastPositiveIndex = afterItemGrosses.reduce((last, gross, idx) => (gross > 0 ? idx : last), -1)
+      afterItemGrosses.forEach((gross, index) => {
+        if (gross <= 0 || remaining <= 0) return
+        const discount = index === lastPositiveIndex
+          ? Math.min(gross, remaining)
+          : Math.min(gross, remaining, Number((gross * (pct / 100)).toFixed(2)))
+        wholeDiscountGrosses[index] = Number(discount.toFixed(2))
+        remaining = Number(Math.max(0, remaining - discount).toFixed(2))
+      })
+    }
+    return lineGrosses.map((gross, index) => ({
+      originalGross: Number(gross.toFixed(2)),
+      itemDiscountGross: Number((itemDiscountGrosses[index] || 0).toFixed(2)),
+      afterItemGross: Number((afterItemGrosses[index] || 0).toFixed(2)),
+      wholeBillDiscountGross: Number((wholeDiscountGrosses[index] || 0).toFixed(2)),
+      finalGross: Number(Math.max(0, (afterItemGrosses[index] || 0) - (wholeDiscountGrosses[index] || 0)).toFixed(2)),
+    }))
   }
 
   const calculateDiscountGross = (
@@ -1392,17 +1484,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     items?: { quantity: number; grossPrice: string }[],
   ) => {
     const subtotal = Math.max(0, Number(subtotalGross || 0))
-    const value = discountValueNumber(draft)
-    if (subtotal <= 0 || value <= 0) return 0
-    if (normalizeDiscountType(draft?.type) === 'AMOUNT') {
-      const selectedIndex = normalizeDiscountItemIndex(draft, items)
-      const selectedGross = selectedIndex == null || !items?.[selectedIndex]
-        ? subtotal
-        : discountLineGrossTotal(items[selectedIndex])
-      return Number(Math.min(selectedGross, Math.max(0, value)).toFixed(2))
+    if (items?.length) {
+      const states = calculateDiscountedLineStates(items, draft)
+      const finalGross = states.reduce((sum, row) => sum + row.finalGross, 0)
+      return Number(Math.max(0, subtotal - finalGross).toFixed(2))
     }
-    const discount = subtotal * (value / 100)
-    return Number(Math.min(subtotal, Math.max(0, discount)).toFixed(2))
+    const pct = wholeBillPercentNumber(draft)
+    if (subtotal <= 0 || pct <= 0) return 0
+    return Number(Math.min(subtotal, subtotal * (pct / 100)).toFixed(2))
+  }
+
+  const calculateWholeBillDiscountGross = (
+    subtotalGross: number,
+    draft: DiscountDraft | null | undefined,
+    items?: { quantity: number; grossPrice: string }[],
+  ) => {
+    const subtotal = Math.max(0, Number(subtotalGross || 0))
+    if (items?.length) {
+      return Number(calculateDiscountedLineStates(items, draft).reduce((sum, row) => sum + row.wholeBillDiscountGross, 0).toFixed(2))
+    }
+    const pct = wholeBillPercentNumber(draft)
+    if (subtotal <= 0 || pct <= 0) return 0
+    return Number(Math.min(subtotal, subtotal * (pct / 100)).toFixed(2))
   }
 
   const payableGrossAfterDiscount = (
@@ -1410,27 +1513,48 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     draft: DiscountDraft | null | undefined,
     items?: { quantity: number; grossPrice: string }[],
   ) => {
+    if (items?.length) {
+      return Number(calculateDiscountedLineStates(items, draft).reduce((sum, row) => sum + row.finalGross, 0).toFixed(2))
+    }
     const subtotal = Math.max(0, Number(subtotalGross || 0))
     return Number(Math.max(0, subtotal - calculateDiscountGross(subtotal, draft, items)).toFixed(2))
   }
 
-  const getCreateBillDiscountDraft = (): DiscountDraft => ({
-    type: normalizeDiscountType(billForm.discountType),
-    value: billForm.discountValue ?? '0',
-    itemIndex: billForm.discountItemIndex,
-  })
+  const shiftedItemDiscountsAfterRemoval = (current: Record<number, LineItemDiscountDraft> | undefined, removedIndex: number, nextLength: number) => {
+    const next: Record<number, LineItemDiscountDraft> = {}
+    Object.entries(current ?? {}).forEach(([key, value]) => {
+      const index = Number(key)
+      if (!Number.isFinite(index) || index === removedIndex) return
+      const shifted = index > removedIndex ? index - 1 : index
+      if (shifted >= 0 && shifted < nextLength) next[shifted] = value
+    })
+    return next
+  }
+
+  const getCreateBillDiscountDraft = (): DiscountDraft => {
+    const itemDiscounts = normalizeItemDiscountMap(billForm.itemDiscounts, { keepZero: true })
+    if (!Object.keys(itemDiscounts).length && billForm.discountItemIndex != null && billForm.discountValue) {
+      itemDiscounts[billForm.discountItemIndex] = { type: normalizeDiscountType(billForm.discountType), value: billForm.discountValue }
+    }
+    const wholeBillPercent = billForm.wholeBillDiscountPercent ?? (billForm.discountItemIndex == null ? (billForm.discountValue ?? '0') : '0')
+    return { wholeBillPercent, itemDiscounts }
+  }
 
   const getOpenBillDiscountDraft = (ob: OpenBill | null | undefined): DiscountDraft => {
-    if (!ob) return { type: 'PERCENT', value: '0' }
+    if (!ob) return { wholeBillPercent: '0', itemDiscounts: {} }
     const edited = openBillDiscountEdits[ob.id]
     if (edited) return edited
-    const type = normalizeDiscountType(ob.discountType)
-    const rawValue = ob.discountValue
-    const fallbackAmount = ob.discountAmountGross
-    const value = rawValue != null
-      ? String(rawValue)
-      : (type === 'AMOUNT' && fallbackAmount != null ? String(fallbackAmount) : '0')
-    return { type, value, itemIndex: ob.discountItemIndex ?? undefined }
+    const itemDiscounts = normalizeItemDiscountMap(ob.itemDiscounts, { keepZero: true })
+    if (!Object.keys(itemDiscounts).length && ob.discountItemIndex != null && ob.discountValue != null) {
+      itemDiscounts[ob.discountItemIndex] = { type: normalizeDiscountType(ob.discountType), value: String(ob.discountValue) }
+    }
+    const legacyWholeValue = ob.discountItemIndex == null && String(ob.discountType || 'PERCENT').toUpperCase() !== 'AMOUNT' && ob.discountValue != null
+      ? String(ob.discountValue)
+      : '0'
+    return {
+      wholeBillPercent: ob.wholeBillDiscountPercent == null ? legacyWholeValue : String(ob.wholeBillDiscountPercent),
+      itemDiscounts,
+    }
   }
 
   const setOpenBillDiscountDraft = (ob: OpenBill, patch: Partial<DiscountDraft>) => {
@@ -1438,11 +1562,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setOpenBillDiscountEdits((prev) => ({
       ...prev,
       [ob.id]: {
-        type: patch.type ?? current.type,
-        value: patch.value ?? current.value,
-        itemIndex: patch.itemIndex ?? current.itemIndex,
+        wholeBillPercent: Object.prototype.hasOwnProperty.call(patch, 'wholeBillPercent') ? (patch.wholeBillPercent ?? '0') : current.wholeBillPercent,
+        itemDiscounts: Object.prototype.hasOwnProperty.call(patch, 'itemDiscounts') ? (patch.itemDiscounts ?? {}) : current.itemDiscounts,
       },
     }))
+  }
+
+  const setOpenBillItemDiscountDraft = (ob: OpenBill, index: number, patch: Partial<LineItemDiscountDraft>) => {
+    const current = getOpenBillDiscountDraft(ob)
+    const existing = getLineItemDiscount(current, index)
+    const nextLine = {
+      type: patch.type ?? existing.type,
+      value: Object.prototype.hasOwnProperty.call(patch, 'value') ? (patch.value ?? '0') : existing.value,
+    }
+    const nextItemDiscounts = { ...(current.itemDiscounts ?? {}) }
+    nextItemDiscounts[index] = nextLine
+    setOpenBillDiscountDraft(ob, { itemDiscounts: nextItemDiscounts })
   }
 
   const openBillPayableGross = (ob: OpenBill, items = getOpenBillItems(ob)) => {
@@ -1455,16 +1590,24 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     subtotalGross: number,
     items?: { quantity: number; grossPrice: string }[],
   ) => {
-    const type = normalizeDiscountType(draft.type)
-    const itemIndex = normalizeDiscountItemIndex(draft, items)
-    const value = discountValueNumber(draft)
+    const wholeBillDiscountPercent = wholeBillPercentNumber(draft)
+    const normalizedItems = Object.entries(draft.itemDiscounts ?? {})
+      .map(([key, value]) => ({ index: normalizeDiscountItemIndex(key, items), value }))
+      .filter((entry): entry is { index: number; value: LineItemDiscountDraft } => entry.index != null && discountValueNumber(entry.value) > 0)
+      .map((entry) => ({
+        itemIndex: entry.index,
+        discountType: normalizeDiscountType(entry.value.type),
+        discountValue: discountValueNumber(entry.value),
+      }))
     const amountGross = calculateDiscountGross(subtotalGross, draft, items)
     return {
-      discountType: type,
-      discountValue: value,
+      discountType: 'PERCENT' as DiscountType,
+      discountValue: wholeBillDiscountPercent,
       discountAmountGross: amountGross,
       discountedTotalGross: payableGrossAfterDiscount(subtotalGross, draft, items),
-      discountItemIndex: type === 'AMOUNT' ? itemIndex ?? 0 : null,
+      discountItemIndex: null,
+      wholeBillDiscountPercent,
+      itemDiscounts: normalizedItems,
     }
   }
 
@@ -2812,7 +2955,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         a.remove()
         window.URL.revokeObjectURL(url)
       }
-      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0' })
+      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
       if (data?.id && shouldCreateCheckoutSession(data)) {
@@ -2839,6 +2982,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       consultantId: me.id,
       discountType: 'PERCENT',
       discountValue: '0',
+      wholeBillDiscountPercent: '0',
+      itemDiscounts: {},
     })
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
@@ -2853,6 +2998,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       billingTarget: 'PERSON',
       billType: 'ADVANCE',
       consultantId: me.id,
+      wholeBillDiscountPercent: '0',
+      itemDiscounts: {},
     })
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
@@ -2861,7 +3008,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const closeCreateBillModal = () => {
     setShowCreateBillModal(false)
     setEditingCreateBillPayee(false)
-    setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0' })
+    setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
     setRecipientCompanySearch('')
     setRecipientCompanyPickerOpen(false)
     setEditingRecipientCompanySearch(false)
@@ -3689,7 +3836,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         await api.post(`/billing/bills/${bill.id}/checkout-session`)
       }
       notifyBillCreationResult(bill)
-      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', consultantId: me.id, discountType: 'PERCENT', discountValue: '0' })
+      setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', consultantId: me.id, discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
       await load()
@@ -3818,33 +3965,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     draft: DiscountDraft | null | undefined,
   ): T[] => {
     if (!items.length) return items
-    const value = discountValueNumber(draft)
-    const type = normalizeDiscountType(draft?.type)
-    if (value <= 0) return items
-    const lineGrosses = items.map(discountLineGrossTotal)
-    const discounts = lineGrosses.map(() => 0)
-    if (type === 'AMOUNT') {
-      const idx = normalizeDiscountItemIndex(draft, items)
-      if (idx != null && items[idx]) {
-        discounts[idx] = Number(Math.min(value, lineGrosses[idx] || 0).toFixed(2))
-      }
-    } else {
-      const subtotal = lineGrosses.reduce((sum, gross) => sum + gross, 0)
-      let remaining = Number(Math.min(subtotal, subtotal * (value / 100)).toFixed(2))
-      const lastPositiveIndex = lineGrosses.reduce((last, gross, idx) => (gross > 0 ? idx : last), -1)
-      lineGrosses.forEach((gross, idx) => {
-        if (gross <= 0 || remaining <= 0) return
-        const discount = idx === lastPositiveIndex
-          ? Math.min(gross, remaining)
-          : Math.min(gross, remaining, Number((gross * (value / 100)).toFixed(2)))
-        discounts[idx] = Number(discount.toFixed(2))
-        remaining = Number(Math.max(0, remaining - discount).toFixed(2))
-      })
-    }
+    const states = calculateDiscountedLineStates(items, draft)
+    const hasDiscount = states.some((state) => state.itemDiscountGross > 0 || state.wholeBillDiscountGross > 0)
+    if (!hasDiscount) return items
     return items.map((item, idx) => {
       const qty = Math.max(1, Number(item.quantity || 1))
-      const grossTotal = Math.max(0, lineGrosses[idx] - (discounts[idx] || 0))
-      const unitGross = Number((grossTotal / qty).toFixed(4))
+      const unitGross = Number(((states[idx]?.finalGross ?? discountLineGrossTotal(item)) / qty).toFixed(4))
       const unitGrossText = unitGross.toFixed(4)
       return {
         ...item,
@@ -4392,25 +4518,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const renderDiscountCard = (
     draft: DiscountDraft,
     subtotalGross: number,
-    onTypeChange: (type: DiscountType) => void,
     onValueChange: (value: string) => void,
-    itemOptions: { index: number; label: string; gross: number }[] = [],
-    onItemIndexChange?: (index: number) => void,
+    items?: { quantity: number; grossPrice: string }[],
   ) => {
-    const type = normalizeDiscountType(draft.type)
-    const selectorItems = itemOptions.map((option) => ({ quantity: 1, grossPrice: String(option.gross) }))
-    const selectedItemIndex = normalizeDiscountItemIndex(draft, selectorItems) ?? 0
-    const realDiscountGross = calculateDiscountGross(subtotalGross, draft, selectorItems.length ? selectorItems : undefined)
-    const suffix = type === 'PERCENT' ? '%' : '€'
-    const discountText = type === 'PERCENT'
-      ? (locale === 'sl'
-        ? 'Popust se razdeli na vse postavke; DDV se izračuna od znižanih zneskov.'
-        : 'Discount is spread across all items; VAT is calculated from the discounted amounts.')
-      : (locale === 'sl'
-        ? 'Izberite postavko, od katere se odšteje znesek; DDV se izračuna od znižane postavke.'
-        : 'Select the item that receives the fixed discount; VAT is calculated from that discounted item.')
+    const realDiscountGross = calculateWholeBillDiscountGross(subtotalGross, draft, items)
+    const wholeBillValue = draft.wholeBillPercent ?? '0'
+    const discountText = locale === 'sl'
+      ? 'Popust za celoten račun je vedno v %. Najprej se upoštevajo popusti postavk, nato še ta popust.'
+      : 'Whole-bill discounts are percentage-only. Item discounts are applied first, then this discount.'
     return (
-      <section className="billing-invoice-discount-card">
+      <section className="billing-invoice-discount-card billing-invoice-discount-card--whole-bill">
         <div className="billing-invoice-discount-head">
           <div className="billing-invoice-discount-title">
             <span className="billing-invoice-discount-dot" aria-hidden>◈</span>
@@ -4418,60 +4535,82 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <span className="billing-invoice-info-dot">i</span>
           </div>
         </div>
-        <div className="billing-invoice-discount-controls">
-          <div className="billing-invoice-discount-segmented" role="group" aria-label={locale === 'sl' ? 'Vrsta popusta' : 'Discount type'}>
-            <button
-              type="button"
-              className={type === 'PERCENT' ? 'is-active' : ''}
-              aria-pressed={type === 'PERCENT'}
-              onClick={() => onTypeChange('PERCENT')}
-            >
-              %
-            </button>
-            <button
-              type="button"
-              className={type === 'AMOUNT' ? 'is-active' : ''}
-              aria-pressed={type === 'AMOUNT'}
-              onClick={() => {
-                onTypeChange('AMOUNT')
-                if (draft.itemIndex == null && onItemIndexChange) onItemIndexChange(0)
-              }}
-            >
-              €
-            </button>
-          </div>
+        <p className="billing-invoice-discount-subtitle">{locale === 'sl' ? 'Popust za celoten račun.' : 'Discount for the whole bill.'}</p>
+        <div className="billing-invoice-discount-controls billing-invoice-discount-controls--percent-only">
+          <span className="billing-invoice-discount-percent-badge" aria-hidden>%</span>
           <label className="billing-invoice-discount-input-wrap">
             <span className="sr-only">{locale === 'sl' ? 'Vrednost popusta' : 'Discount value'}</span>
             <input
               type="text"
               inputMode="decimal"
-              value={draft.value}
+              value={wholeBillValue}
               onChange={(event) => onValueChange(sanitizeDiscountValueInput(event.target.value))}
-              onBlur={() => onValueChange(String(discountValueNumber(draft)))}
-              placeholder="0.00"
+              onBlur={() => onValueChange(String(wholeBillPercentNumber({ ...draft, wholeBillPercent: wholeBillValue })))}
+              placeholder="0"
             />
-            <em>{suffix}</em>
+            <em>%</em>
           </label>
         </div>
-        {type === 'AMOUNT' && itemOptions.length > 0 && (
-          <label className="billing-invoice-discount-item-select">
-            <span>{locale === 'sl' ? 'Postavka za € popust' : 'Item for € discount'}</span>
-            <select
-              value={String(selectedItemIndex)}
-              onChange={(event) => onItemIndexChange?.(Number(event.target.value))}
-            >
-              {itemOptions.map((option) => (
-                <option key={option.index} value={option.index}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-        )}
         <div className="billing-invoice-discount-foot">
           <span>{discountText}</span>
           <strong>{realDiscountGross > 0 ? `- ${currency(realDiscountGross)}` : currency(0)}</strong>
         </div>
       </section>
     )
+  }
+
+  const discountIconSvg = () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20.6 13.2 13.2 20.6a2.1 2.1 0 0 1-3 0L3.4 13.8a2.1 2.1 0 0 1-.6-1.5V5.1A2.1 2.1 0 0 1 4.9 3h7.2c.56 0 1.1.22 1.5.62l7 7a2.1 2.1 0 0 1 0 2.98Z" />
+      <path d="M7.5 7.5h.01" />
+      <path d="M9 16l6-6" />
+      <path d="M9.2 10.1h.01" />
+      <path d="M14.8 15.9h.01" />
+    </svg>
+  )
+
+  const renderItemDiscountPopover = (
+    draft: LineItemDiscountDraft,
+    onPatch: (patch: Partial<LineItemDiscountDraft>) => void,
+    onClose: () => void,
+  ) => {
+    const type = normalizeDiscountType(draft.type)
+    const suffix = type === 'PERCENT' ? '%' : '€'
+    return (
+      <div className="billing-line-discount-popover" role="dialog" aria-label={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+        <div className="billing-line-discount-popover-head">
+          <div>
+            <strong>{locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}</strong>
+            <span>{locale === 'sl' ? 'Velja samo za to postavko.' : 'Applies only to this bill item.'}</span>
+          </div>
+          <button type="button" onClick={onClose} aria-label={locale === 'sl' ? 'Zapri popust postavke' : 'Close line discount'}>×</button>
+        </div>
+        <div className="billing-line-discount-segmented" role="group" aria-label={locale === 'sl' ? 'Vrsta popusta postavke' : 'Line discount type'}>
+          <button type="button" className={type === 'PERCENT' ? 'is-active' : ''} aria-pressed={type === 'PERCENT'} onClick={() => onPatch({ type: 'PERCENT', value: draft.value })}>%</button>
+          <button type="button" className={type === 'AMOUNT' ? 'is-active' : ''} aria-pressed={type === 'AMOUNT'} onClick={() => onPatch({ type: 'AMOUNT', value: draft.value })}>€</button>
+        </div>
+        <label className="billing-line-discount-input-wrap">
+          <span className="sr-only">{locale === 'sl' ? 'Vrednost popusta postavke' : 'Line discount value'}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={draft.value}
+            onChange={(event) => onPatch({ type, value: sanitizeDiscountValueInput(event.target.value) })}
+            onBlur={() => onPatch({ type, value: String(discountValueNumber(draft)) })}
+            placeholder="0"
+          />
+          <em>{suffix}</em>
+        </label>
+        <p>{locale === 'sl' ? 'Popust se uporabi samo na izbrano postavko.' : 'The discount is applied only to the selected item.'}</p>
+      </div>
+    )
+  }
+
+  const clampDiscountIndexAfterRemoval = (currentIndex: number | undefined, removedIndex: number, nextLength: number) => {
+    if (currentIndex == null) return undefined
+    if (currentIndex === removedIndex) return undefined
+    const shifted = currentIndex > removedIndex ? currentIndex - 1 : currentIndex
+    return nextLength > 0 ? Math.min(shifted, nextLength - 1) : undefined
   }
 
   const renderOpenBillEditorPaymentMethods = (ob: OpenBill, totalGross: number) => {
@@ -5104,6 +5243,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const lineKey = openBillEditorLineKey(rowBill, idx, item)
     const selectable = options?.selectable !== false
     const selected = Boolean(selectedOpenBillLines[lineKey])
+    const billItems = getOpenBillItems(rowBill)
+    const billDiscountDraft = getOpenBillDiscountDraft(rowBill)
+    const lineState = calculateDiscountedLineStates(billItems, billDiscountDraft)[idx]
+    const displayedLineGross = lineState?.finalGross ?? lineGrossTotal(item)
+    const displayedUnitGross = Number((displayedLineGross / Math.max(1, Number(item.quantity || 1))).toFixed(2))
+    const lineDraft = getLineItemDiscount(billDiscountDraft, idx)
+    const lineDiscountActive = discountValueNumber(lineDraft) > 0
+    const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === rowBill.id && openOpenBillItemDiscount.index === idx
+    const popupDraft = lineDraft
+    const removeLine = () => {
+      const currentItems = getOpenBillItems(rowBill)
+      const nextItems = currentItems.filter((_, i) => i !== idx)
+      setOpenBillItems(rowBill, nextItems)
+      const currentDraft = getOpenBillDiscountDraft(rowBill)
+      setOpenBillDiscountDraft(rowBill, { itemDiscounts: shiftedItemDiscountsAfterRemoval(currentDraft.itemDiscounts, idx, nextItems.length) })
+      if (openOpenBillItemDiscount?.openBillId === rowBill.id) setOpenOpenBillItemDiscount(null)
+    }
     return (
       <div
         key={lineKey}
@@ -5168,7 +5324,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             type="text"
             inputMode="numeric"
             autoComplete="off"
-            value={formatCashRegisterAmount(Number(item.grossPrice || 0), locale)}
+            value={formatCashRegisterAmount(displayedUnitGross, locale)}
             onChange={(e) => {
               const digits = cashRegisterDigitsFromRaw(e.target.value)
               const cents = digits ? Number.parseInt(digits, 10) : 0
@@ -5179,11 +5335,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             }}
           />
         </div>
-        <div className="billing-invoice-row-amount"><strong>{currency(lineGrossTotal(item))}</strong></div>
+        <div className="billing-invoice-row-amount"><strong>{currency(displayedLineGross)}</strong></div>
+        <div className={`billing-invoice-item-discount-cell${lineDiscountOpen ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            className={`billing-invoice-discount-mini${lineDiscountActive ? ' is-active' : ''}${lineDiscountOpen ? ' is-open' : ''}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: rowBill.id, index: idx })
+            }}
+            aria-label={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
+            title={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
+          >
+            {discountIconSvg()}
+          </button>
+          {lineDiscountOpen && renderItemDiscountPopover(
+            popupDraft,
+            (patch) => setOpenBillItemDiscountDraft(rowBill, idx, patch),
+            () => setOpenOpenBillItemDiscount(null),
+          )}
+        </div>
         <button
           type="button"
           className="billing-invoice-delete-mini"
-          onClick={() => setOpenBillItems(rowBill, getOpenBillItems(rowBill).filter((_, i) => i !== idx))}
+          onClick={removeLine}
           aria-label={billingCopy.removeBillLine}
           title={billingCopy.removeBillLine}
         >
@@ -5193,66 +5368,116 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
   }
 
-  const renderModernBillFormLineEditor = (item: BillForm['items'][number], index: number) => (
-    <div key={index} className="billing-invoice-item-row">
-      <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
-      <div className="billing-bill-modal-field billing-bill-modal-field--service">
-        <select
-          value={item.transactionServiceId}
-          onChange={(e) => {
-            const id = Number(e.target.value)
-            const service = services.find((entry) => entry.id === id)
-            const next = [...billForm.items]
-            next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0), grossPrice: grossStringFromService(service) }
-            setBillForm({ ...billForm, items: next })
-          }}
+  const renderModernBillFormLineEditor = (item: BillForm['items'][number], index: number) => {
+    const lineState = calculateDiscountedLineStates(billForm.items, createBillDiscountDraft)[index]
+    const displayedLineGross = lineState?.finalGross ?? lineGrossTotal(item)
+    const displayedUnitGross = Number((displayedLineGross / Math.max(1, Number(item.quantity || 1))).toFixed(2))
+    const lineDraft = getLineItemDiscount(createBillDiscountDraft, index)
+    const lineDiscountActive = discountValueNumber(lineDraft) > 0
+    const lineDiscountOpen = openCreateItemDiscountIndex === index
+    const popupDraft = lineDraft
+    const patchCreateItemDiscount = (patch: Partial<LineItemDiscountDraft>) => {
+      setBillForm((prev) => {
+        const existing = normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true })[index] ?? { type: 'PERCENT' as DiscountType, value: '0' }
+        const nextLine = {
+          type: patch.type ?? existing.type,
+          value: Object.prototype.hasOwnProperty.call(patch, 'value') ? (patch.value ?? '0') : existing.value,
+        }
+        const nextItemDiscounts = normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true })
+        nextItemDiscounts[index] = nextLine
+        return { ...prev, itemDiscounts: nextItemDiscounts }
+      })
+    }
+    const removeLine = () => {
+      const nextItems = billForm.items.filter((_, i) => i !== index)
+      setBillForm((prev) => ({
+        ...prev,
+        items: nextItems,
+        itemDiscounts: shiftedItemDiscountsAfterRemoval(normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true }), index, nextItems.length),
+        discountItemIndex: clampDiscountIndexAfterRemoval(prev.discountItemIndex, index, nextItems.length),
+      }))
+      if (openCreateItemDiscountIndex === index) setOpenCreateItemDiscountIndex(null)
+    }
+    return (
+      <div key={index} className="billing-invoice-item-row">
+        <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
+        <div className="billing-bill-modal-field billing-bill-modal-field--service">
+          <select
+            value={item.transactionServiceId}
+            onChange={(e) => {
+              const id = Number(e.target.value)
+              const service = services.find((entry) => entry.id === id)
+              const next = [...billForm.items]
+              next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0), grossPrice: grossStringFromService(service) }
+              setBillForm({ ...billForm, items: next })
+            }}
+          >
+            {availableBillServices.map((service) => (
+              <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
+            ))}
+          </select>
+        </div>
+        <div className="billing-bill-modal-field billing-bill-modal-field--qty">
+          <input
+            type="number"
+            min="1"
+            value={item.quantity}
+            onChange={(e) => {
+              const next = [...billForm.items]
+              next[index] = { ...next[index], quantity: Number(e.target.value) }
+              setBillForm({ ...billForm, items: next })
+            }}
+          />
+        </div>
+        <div className="billing-bill-modal-field billing-bill-modal-field--price">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            aria-label={billingCopy.grossUnitPrice}
+            value={formatCashRegisterAmount(displayedUnitGross, locale)}
+            onChange={(e) => {
+              const digits = cashRegisterDigitsFromRaw(e.target.value)
+              const cents = digits ? Number.parseInt(digits, 10) : 0
+              const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
+              const next = [...billForm.items]
+              next[index] = { ...next[index], grossPrice: grossStr, netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
+              setBillForm({ ...billForm, items: next })
+            }}
+          />
+        </div>
+        <div className="billing-invoice-row-amount"><strong>{currency(displayedLineGross)}</strong></div>
+        <div className={`billing-invoice-item-discount-cell${lineDiscountOpen ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            className={`billing-invoice-discount-mini${lineDiscountActive ? ' is-active' : ''}${lineDiscountOpen ? ' is-open' : ''}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index)
+            }}
+            aria-label={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
+            title={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
+          >
+            {discountIconSvg()}
+          </button>
+          {lineDiscountOpen && renderItemDiscountPopover(
+            popupDraft,
+            patchCreateItemDiscount,
+            () => setOpenCreateItemDiscountIndex(null),
+          )}
+        </div>
+        <button
+          type="button"
+          className="billing-invoice-delete-mini"
+          onClick={removeLine}
+          aria-label={billingCopy.removeBillLine}
+          title={billingCopy.removeBillLine}
         >
-          {availableBillServices.map((service) => (
-            <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
-          ))}
-        </select>
+          🗑
+        </button>
       </div>
-      <div className="billing-bill-modal-field billing-bill-modal-field--qty">
-        <input
-          type="number"
-          min="1"
-          value={item.quantity}
-          onChange={(e) => {
-            const next = [...billForm.items]
-            next[index] = { ...next[index], quantity: Number(e.target.value) }
-            setBillForm({ ...billForm, items: next })
-          }}
-        />
-      </div>
-      <div className="billing-bill-modal-field billing-bill-modal-field--price">
-        <input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          aria-label={billingCopy.grossUnitPrice}
-          value={formatCashRegisterAmount(Number(item.grossPrice || 0), locale)}
-          onChange={(e) => {
-            const digits = cashRegisterDigitsFromRaw(e.target.value)
-            const cents = digits ? Number.parseInt(digits, 10) : 0
-            const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
-            const next = [...billForm.items]
-            next[index] = { ...next[index], grossPrice: grossStr, netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
-            setBillForm({ ...billForm, items: next })
-          }}
-        />
-      </div>
-      <div className="billing-invoice-row-amount"><strong>{currency(lineGrossTotal(item))}</strong></div>
-      <button
-        type="button"
-        className="billing-invoice-delete-mini"
-        onClick={() => setBillForm({ ...billForm, items: billForm.items.filter((_, i) => i !== index) })}
-        aria-label={billingCopy.removeBillLine}
-        title={billingCopy.removeBillLine}
-      >
-        🗑
-      </button>
-    </div>
-  )
+    )
+  }
 
   const renderCreateBillPaymentMethods = (totalGross: number) => {
     const splits = getCreateBillPaymentSplits(totalGross)
@@ -6132,6 +6357,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
               <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
               <span />
+              <span />
             </div>
             <div className="billing-invoice-item-list">
               {displayedRows.length === 0 ? (
@@ -6172,13 +6398,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             {renderDiscountCard(
               detailDiscountDraft,
               detailSubtotalGross,
-              (type) => setOpenBillDiscountDraft(activeBill, {
-                type,
-                itemIndex: type === 'AMOUNT' ? (detailDiscountDraft.itemIndex ?? 0) : detailDiscountDraft.itemIndex,
-              }),
-              (value) => setOpenBillDiscountDraft(activeBill, { value }),
-              discountItemOptionsForItems(totalsItems),
-              (itemIndex) => setOpenBillDiscountDraft(activeBill, { itemIndex }),
+              (value) => {
+                setOpenOpenBillItemDiscount(null)
+                setOpenBillDiscountDraft(activeBill, { wholeBillPercent: value })
+              },
+              totalsItems,
             )}
             <section className="billing-invoice-totals-card">
               <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(detailSubtotalGross)}</strong></div>
@@ -7314,6 +7538,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <span>Price</span>
                       <span>Amount</span>
                       <span />
+                      <span />
                     </div>
                     <div className="billing-invoice-item-list">
                       {billForm.items.length === 0 ? (
@@ -7355,14 +7580,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     {!isCreateAdvanceBill && renderDiscountCard(
                       createBillDiscountDraft,
                       createSubtotalGross,
-                      (type) => setBillForm((prev) => ({
-                        ...prev,
-                        discountType: type,
-                        discountItemIndex: type === 'AMOUNT' ? (prev.discountItemIndex ?? 0) : prev.discountItemIndex,
-                      })),
-                      (value) => setBillForm((prev) => ({ ...prev, discountValue: value })),
-                      discountItemOptionsForItems(billForm.items),
-                      (itemIndex) => setBillForm((prev) => ({ ...prev, discountItemIndex: itemIndex })),
+                      (value) => {
+                        setOpenCreateItemDiscountIndex(null)
+                        setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined }))
+                      },
+                      billForm.items,
                     )}
                     <section className="billing-invoice-totals-card">
                       <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>

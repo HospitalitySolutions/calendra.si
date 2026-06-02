@@ -1,0 +1,43 @@
+Open bill stacked discount update
+=================================
+
+Implemented the requested behaviour where item-level discounts and whole-bill discounts can be used together, plus follow-up fixes for the item-discount popup.
+
+1. Stacked discounts
+   - A bill item can now have its own % or € discount.
+   - The whole-bill discount remains percentage-only.
+   - If both are used, the item discount is applied first, then the whole-bill % discount is applied to the already-discounted line amount.
+   - Example: €61 line + 10% item discount = €54.90; then 10% whole-bill discount = €49.41 final line amount.
+
+2. Bill item price/amount display
+   - Bill item Price and Amount display the discounted values, not the original undiscounted values.
+   - This applies to both item-level discounts and the additional whole-bill percentage discount.
+   - VAT/tax breakdown is calculated from the discounted item amounts.
+
+3. Follow-up popup fixes
+   - The item-level discount popup is now layered in front of the discount icon when opened.
+   - The % / € selector now works correctly even when the discount value is still 0.
+   - Zero-value line discount drafts are preserved in frontend editing state so the user can switch types before entering the amount/value.
+
+4. Frontend state and payload
+   - Whole-bill discount and item-level discounts are stored separately in the UI.
+   - Open bill save/create/preview payloads include:
+     - wholeBillDiscountPercent
+     - itemDiscounts [{ itemIndex, discountType, discountValue }]
+   - Legacy discount fields are still included for backward compatibility.
+   - Only positive item discounts are sent in the persisted payload; temporary 0-value editing drafts are frontend-only.
+
+5. Backend calculation
+   - Added persistent fields to OpenBill:
+     - wholeBillDiscountPercent
+     - itemDiscountsJson
+   - Backend applies discounts sequentially per line:
+     1) item-level discount
+     2) whole-bill percentage allocation
+     3) VAT/net recalculation from final gross amounts
+   - Final invoices created from open bills store the discounted gross/net item prices.
+
+Validation
+----------
+- This patch updates frontend files and the change log only.
+- Full frontend/backend builds were not run in this sandbox.
