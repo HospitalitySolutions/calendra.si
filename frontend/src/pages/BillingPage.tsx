@@ -3678,9 +3678,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const { target } = resolveOpenBillPreviewTarget(ob, onePayeeRelatedBills)
     const draft = getOpenBillDetailsDraft(target)
     const draftClient = draft.clientId != null ? clients.find((client) => client.id === draft.clientId) : null
+    const draftBillingCompany = draftClient?.billingCompany ?? null
+    let draftBillingCompanyEmail: string | undefined
+    if (draftBillingCompany && draftBillingCompany.id === draft.recipientCompanyId) {
+      draftBillingCompanyEmail = draftBillingCompany.email ?? undefined
+    }
     const rawEmail = draft.billingTarget === 'COMPANY'
-      ? (companies.find((company) => company.id === draft.recipientCompanyId)?.email
-        || (draftClient?.billingCompany?.id === draft.recipientCompanyId ? draftClient.billingCompany.email : undefined))
+      ? (companies.find((company) => company.id === draft.recipientCompanyId)?.email || draftBillingCompanyEmail)
       : (draftClient?.email || target.client?.email)
     return (rawEmail || '').trim()
   }

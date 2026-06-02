@@ -1,0 +1,20 @@
+Build fix: BillingPage draft client company email null safety
+
+Changed files:
+- frontend/src/pages/BillingPage.tsx
+
+What was fixed:
+- Fixed the TypeScript staging build error at BillingPage.tsx around resolveOpenBillPreviewRecipientEmail.
+- The previous code checked draftClient?.billingCompany?.id, but then accessed draftClient.billingCompany.email directly in the true branch.
+- TypeScript could not safely prove draftClient and billingCompany were non-null there, producing TS18049.
+
+Implementation:
+- Stores draftClient?.billingCompany in a local draftBillingCompany variable.
+- Safely derives draftBillingCompanyEmail only after confirming draftBillingCompany exists and matches recipientCompanyId.
+- Coalesces a nullable company email to undefined so it matches the expected string | undefined type.
+
+Validation:
+- Ran: npm ci --ignore-scripts
+- Ran: npx tsc -b --pretty false
+- TypeScript compile completed successfully.
+- Full npm run build:staging advanced past TypeScript into Vite transforming, but the sandbox command timed out during Vite bundling, so the TypeScript error shown in Docker is fixed.
