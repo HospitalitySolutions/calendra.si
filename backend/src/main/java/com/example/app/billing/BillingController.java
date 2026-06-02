@@ -346,6 +346,8 @@ public class BillingController {
                     discountType, discountValue, discountAmountGross, discountedTotalGross, null, null, null, paymentSplits, items);
         }
     }
+    public record OpenBillPreviewEmailResponse(String recipientEmail) {}
+
     public record SplitOpenBillSessionRequest(Long sessionId) {}
     public record MergeOpenBillsRequest(List<Long> openBillIds) {}
     public record ManualOpenBillLineRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {}
@@ -1596,7 +1598,7 @@ public class BillingController {
     }
 
     @PostMapping(value = "/open-bills/{id}/preview-pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    @Transactional(readOnly = true)
+    @Transactional
     public ResponseEntity<byte[]> previewOpenBillPdf(@PathVariable Long id,
                                                      @RequestParam(value = "locale", required = false) String locale,
                                                      @RequestBody(required = false) OpenBillUpdateRequest req,
@@ -1606,13 +1608,75 @@ public class BillingController {
         if (!open.getCompany().getId().equals(companyId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
+        String proformaNumber = assignOpenBillProformaNumber(open, companyId);
         Bill preview = buildTransientOpenBillPreview(open, req, companyId, me);
+        preview.setBillNumber(proformaNumber);
+        preview.setOrderId("__OPEN_BILL_PROFORMA_PREVIEW__");
         byte[] pdf = billFolioPdfService.generate(preview, companyId, locale);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"invoice-preview-open-" + id + ".pdf\"")
+                        "inline; filename=\"predracun-" + safeFilenameToken(proformaNumber) + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    @PostMapping("/open-bills/{id}/preview-email")
+    @Transactional
+    public OpenBillPreviewEmailResponse emailOpenBillPreview(@PathVariable Long id,
+                                                             @RequestParam(value = "locale", required = false) String locale,
+                                                             @RequestBody(required = false) OpenBillUpdateRequest req,
+                                                             @AuthenticationPrincipal User me) {
+        var companyId = me.getCompany().getId();
+        var open = openBillRepo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!open.getCompany().getId().equals(companyId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        String proformaNumber = assignOpenBillProformaNumber(open, companyId);
+        Bill preview = buildTransientOpenBillPreview(open, req, companyId, me);
+        preview.setBillNumber(proformaNumber);
+        preview.setOrderId("__OPEN_BILL_PROFORMA_PREVIEW__");
+        byte[] pdf = billFolioPdfService.generate(preview, companyId, locale);
+        try {
+            String recipient = billingEmailService.sendOpenBillPreviewFolio(preview, pdf, locale);
+            if (recipient == null || recipient.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected payee does not have an email address.");
+            }
+            return new OpenBillPreviewEmailResponse(recipient);
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (IllegalStateException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage(), ex);
+        }
+    }
+
+    private String assignOpenBillProformaNumber(OpenBill open, Long companyId) {
+        if (open == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        String existing = open.getProformaNumber() == null ? "" : open.getProformaNumber().trim();
+        if (!existing.isBlank()) {
+            return existing;
+        }
+        Long max = openBillRepo.findMaxProformaSequenceNumberByCompanyId(companyId);
+        long next = (max == null ? 0L : max) + 1L;
+        String prefix = normalizeProformaTenantPrefix(open.getCompany() == null ? null : open.getCompany().getTenantCode(), companyId);
+        String number = prefix + "-" + next;
+        open.setProformaSequenceNumber(next);
+        open.setProformaNumber(number);
+        openBillRepo.saveAndFlush(open);
+        return number;
+    }
+
+    private String normalizeProformaTenantPrefix(String tenantCode, Long companyId) {
+        String raw = tenantCode == null || tenantCode.isBlank() ? String.valueOf(companyId == null ? "TENANT" : companyId) : tenantCode;
+        String normalized = raw.trim().toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        return normalized.isBlank() ? "TENANT" : normalized;
+    }
+
+    private String safeFilenameToken(String value) {
+        String raw = value == null || value.isBlank() ? "predracun" : value;
+        String cleaned = raw.trim().replaceAll("[^A-Za-z0-9._-]", "-");
+        return cleaned.isBlank() ? "predracun" : cleaned;
     }
 
     @DeleteMapping("/open-bills/{id}")
@@ -2021,7 +2085,8 @@ public class BillingController {
         }
         var bill = new Bill();
         bill.setCompany(me.getCompany());
-        bill.setBillNumber("PREVIEW-OPEN-" + open.getId());
+        bill.setBillNumber(open.getProformaNumber() != null && !open.getProformaNumber().isBlank() ? open.getProformaNumber() : "PREVIEW-OPEN-" + open.getId());
+        bill.setOrderId("__OPEN_BILL_PROFORMA_PREVIEW__");
         bill.setBillType(open.getBillType() != null ? open.getBillType() : BillType.INVOICE);
 
         Client client = resolvePreviewClient(open, req, companyId);

@@ -1,0 +1,6 @@
+Updated folio/invoice PDF summary rendering for credit notes (Dobropis / Refund).
+
+Changes made:
+1. The Popust field is no longer shown on Dobropis / Refund invoice types.
+2. When Popust is hidden on Dobropis, the summary fields below it move up so there is no empty gap.
+3. The double line above Za plačilo follows the shifted layout correctly.

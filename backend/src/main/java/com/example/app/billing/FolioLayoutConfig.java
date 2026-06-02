@@ -423,10 +423,12 @@ public class FolioLayoutConfig {
         footer.setGapAfterTable(4);
         footer.setLineSpacing(16);
         var items = new ArrayList<FooterItem>();
-        items.add(new FooterItem("payment",    "Payment",     10, false, "right", 395, 304, 150, 16));
-        items.add(new FooterItem("totalGross", "Total gross", 11, true,  "right", 395, 322, 150, 16));
-        items.add(new FooterItem("discount",   "Discount",    11, true,  "right", 395, 340, 150, 16));
-        items.add(new FooterItem("toBePaid",   "To be paid",  11, true,  "right", 395, 358, 150, 16));
+        items.add(new FooterItem("totalNett",    "Total excl. VAT", 11, true,  "right", 395, 304, 150, 16));
+        items.add(new FooterItem("discount",     "Discount",        11, true,  "right", 395, 322, 150, 16));
+        items.add(new FooterItem("totalGross",   "Total incl. VAT", 11, true,  "right", 395, 340, 150, 16));
+        items.add(new FooterItem("usedAdvances", "Used advances",   10, false, "right", 395, 358, 150, 16));
+        items.add(new FooterItem("toBePaid",     "To be paid",      11, true,  "right", 395, 376, 150, 16));
+        items.add(new FooterItem("payment",      "Payment",         10, false, "right", 395, 400, 150, 16));
         items.add(new FooterItem("notes",      "Notes",        9, false, "left",  50,  362, 300, 16));
         items.add(new FooterItem("iban",       "IBAN",        10, false, "left",  50,  380, 300, 16));
         items.add(new FooterItem("issuedBy",   "Issued by",   10, false, "left",  50,  398, 200, 16));
@@ -524,10 +526,11 @@ public class FolioLayoutConfig {
     private static String slFooterLabel(String key, String fallback) {
         return switch (key) {
             case "payment" -> "Placilo";
-            case "totalGross" -> "Skupaj bruto";
+            case "totalGross" -> "Skupaj z DDV";
             case "toBePaid" -> "Za plačilo";
             case "discount" -> "Popust";
-            case "totalNett" -> "Skupaj neto";
+            case "usedAdvances" -> "Uporabljena predplačila";
+            case "totalNett" -> "Skupaj brez DDV";
             case "vat22" -> "DDV 22%";
             case "vat95" -> "DDV 9,5%";
             case "vat0" -> "DDV 0%";
@@ -698,7 +701,9 @@ public class FolioLayoutConfig {
                 cfg.getFooter().setItems(defaults.getFooter().getItems());
             } else {
                 migrateLegacyFooterForDiscount(cfg);
+                addMissingFooterItem(cfg, defaults, "totalNett");
                 addMissingFooterItem(cfg, defaults, "discount");
+                addMissingFooterItem(cfg, defaults, "usedAdvances");
                 addMissingFooterItem(cfg, defaults, "toBePaid");
                 addMissingFooterItem(cfg, defaults, "fiscalZoi");
                 addMissingFooterItem(cfg, defaults, "fiscalEor");
@@ -773,10 +778,12 @@ public class FolioLayoutConfig {
 
     private static float servicesTableBottom(FolioLayoutConfig cfg, int rows) {
         var table = cfg.getTable();
+        // Match the visual services-table block to the raised bottom double line.
+        // Do not include the old footerSpacing gap after the line.
         return table.getStartY()
                 + table.getHeaderHeight()
                 + table.getRowHeight() * Math.max(0, rows)
-                + table.getFooterSpacing();
+                - 7f;
     }
 
     private static void shiftQrIfBelow(FolioLayoutConfig cfg, QrCodeConfig qr, float oldBottom, float delta) {
@@ -787,11 +794,21 @@ public class FolioLayoutConfig {
         if (cfg == null || cfg.getFooter() == null || cfg.getFooter().getItems() == null) return;
         boolean hasDiscount = cfg.getFooter().getItems().stream()
                 .anyMatch(item -> item != null && "discount".equals(item.getKey()));
-        if (hasDiscount) return;
+        boolean hasUsedAdvances = cfg.getFooter().getItems().stream()
+                .anyMatch(item -> item != null && "usedAdvances".equals(item.getKey()));
         for (FooterItem item : cfg.getFooter().getItems()) {
-            if (item == null || !"toBePaid".equals(item.getKey())) continue;
-            if (Math.abs(item.getX() - 395f) <= 2f && Math.abs(item.getY() - 340f) <= 2f) {
+            if (item == null) continue;
+            if (!hasDiscount && "toBePaid".equals(item.getKey())
+                    && Math.abs(item.getX() - 395f) <= 2f && Math.abs(item.getY() - 340f) <= 2f) {
                 item.setY(358f);
+            }
+            if (!hasUsedAdvances && "toBePaid".equals(item.getKey())
+                    && Math.abs(item.getX() - 395f) <= 2f && Math.abs(item.getY() - 358f) <= 2f) {
+                item.setY(376f);
+            }
+            if (!hasUsedAdvances && "payment".equals(item.getKey())
+                    && Math.abs(item.getX() - 395f) <= 2f && Math.abs(item.getY() - 382f) <= 2f) {
+                item.setY(400f);
             }
         }
     }

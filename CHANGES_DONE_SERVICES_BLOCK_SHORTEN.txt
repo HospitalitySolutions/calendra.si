@@ -1,0 +1,15 @@
+Updated services-table layout height.
+
+Changes made:
+1. The services table block now ends immediately after the bottom double line, without the old invisible gap below it.
+2. The folio layout editor preview uses the shortened services table block height.
+3. Backend folio layout normalization uses the shortened visual services table bottom when moving fields below the services table.
+4. PDF rendering keeps the bottom services-table double line higher, matching the shortened block size.
+
+Additional adjustments:
+- Moved the bottom Services table double line lower.
+- Moved the Za plačilo double line slightly higher.
+
+- Shortened the Za plačilo double line on both the left and right sides.
+
+- Slightly lengthened the Za plačilo double line on both the left and right sides.

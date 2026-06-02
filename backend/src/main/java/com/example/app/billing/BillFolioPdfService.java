@@ -126,6 +126,9 @@ public class BillFolioPdfService {
         } else if (bill.getPaymentMethod() != null) {
             req.setPaymentMethod(bill.getPaymentMethod().getName());
         }
+        List<FolioPdfRequest.AdvancePaymentLine> advancePaymentLines = buildAdvancePaymentLines(bill);
+        req.setAdvancePayments(advancePaymentLines);
+        req.setUsedAdvancePaymentsGross(totalUsedAdvancePayments(advancePaymentLines));
         BigDecimal bankTransferDue = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
         req.setToBePaidGross(bankTransferDue.setScale(2, RoundingMode.HALF_UP));
         if (bankTransferDue.compareTo(BigDecimal.ZERO) > 0) {
@@ -248,6 +251,9 @@ public class BillFolioPdfService {
 
     private String documentNumberPrefix(Bill bill, String locale) {
         boolean slovenian = isSlovenian(locale);
+        if (isOpenBillPreview(bill)) {
+            return slovenian ? "Predračun:" : "Proforma invoice:";
+        }
         if (isRefundBill(bill)) {
             return slovenian ? "Dobropis:" : "Refund:";
         }
@@ -256,6 +262,12 @@ public class BillFolioPdfService {
             return slovenian ? "Predplačilo:" : "Advance:";
         }
         return slovenian ? "Račun:" : "Invoice:";
+    }
+
+    private boolean isOpenBillPreview(Bill bill) {
+        if (bill == null) return false;
+        if ("__OPEN_BILL_PROFORMA_PREVIEW__".equals(bill.getOrderId())) return true;
+        return bill.getBillNumber() != null && bill.getBillNumber().startsWith("PREVIEW-OPEN-");
     }
 
     private boolean isRefundBill(Bill bill) {
@@ -289,6 +301,69 @@ public class BillFolioPdfService {
             return ISSUE_DATE_TIME_FORMAT.format(bill.getIssueDate().atStartOfDay());
         }
         return "";
+    }
+
+    private List<FolioPdfRequest.AdvancePaymentLine> buildAdvancePaymentLines(Bill bill) {
+        var rows = new ArrayList<FolioPdfRequest.AdvancePaymentLine>();
+        if (bill == null || bill.getPaymentSplits() == null) return rows;
+        for (BillPayment split : bill.getPaymentSplits()) {
+            if (split == null || split.getSourceAdvanceBill() == null) continue;
+            BigDecimal usedGross = split.getAmountGross() == null ? BigDecimal.ZERO : split.getAmountGross().abs();
+            if (usedGross.compareTo(BigDecimal.ZERO) == 0) continue;
+            Bill advance = split.getSourceAdvanceBill();
+            var line = new FolioPdfRequest.AdvancePaymentLine();
+            line.setAdvanceNumber(firstNonBlank(advance.getBillNumber(), advance.getOrderId(), advance.getId() == null ? null : String.valueOf(advance.getId())));
+            line.setDate(advance.getIssueDate() == null ? "" : advance.getIssueDate().toString());
+            line.setTaxPercent(resolveAdvanceTaxPercentLabel(advance));
+            BigDecimal netBasis = (advance.getTotalNet() == null ? resolveAdvanceNetTotal(advance) : advance.getTotalNet())
+                    .abs()
+                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalGross = (advance.getTotalGross() == null ? usedGross : advance.getTotalGross()).abs().setScale(2, RoundingMode.HALF_UP);
+            BigDecimal taxAmount = totalGross.subtract(netBasis).setScale(2, RoundingMode.HALF_UP);
+            line.setNetBasis(netBasis);
+            line.setTaxAmount(taxAmount);
+            line.setTotalGross(totalGross);
+            line.setUsedGross(usedGross.setScale(2, RoundingMode.HALF_UP));
+            rows.add(line);
+        }
+        return rows;
+    }
+
+    private BigDecimal totalUsedAdvancePayments(List<FolioPdfRequest.AdvancePaymentLine> rows) {
+        BigDecimal total = BigDecimal.ZERO;
+        if (rows == null) return total.setScale(2, RoundingMode.HALF_UP);
+        for (FolioPdfRequest.AdvancePaymentLine row : rows) {
+            if (row == null || row.getUsedGross() == null) continue;
+            total = total.add(row.getUsedGross().abs());
+        }
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveAdvanceNetTotal(Bill advance) {
+        if (advance == null || advance.getItems() == null || advance.getItems().isEmpty()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (BillItem item : advance.getItems()) {
+            if (item == null) continue;
+            BigDecimal net = item.getNetPrice() == null ? BigDecimal.ZERO : item.getNetPrice();
+            int qty = item.getQuantity() == null || item.getQuantity() <= 0 ? 1 : item.getQuantity();
+            total = total.add(net.multiply(BigDecimal.valueOf(qty)));
+        }
+        return total.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String resolveAdvanceTaxPercentLabel(Bill advance) {
+        if (advance == null || advance.getItems() == null || advance.getItems().isEmpty()) return "";
+        String first = null;
+        for (BillItem item : advance.getItems()) {
+            if (item == null || item.getTransactionService() == null || item.getTransactionService().getTaxRate() == null) continue;
+            String label = item.getTransactionService().getTaxRate().label;
+            if (label == null || label.isBlank()) continue;
+            if (first == null) first = label;
+            else if (!first.equals(label)) return "";
+        }
+        return first == null ? "" : first;
     }
 
     private List<FolioPdfRequest.PaymentLine> buildPaymentLines(Bill bill, String locale) {

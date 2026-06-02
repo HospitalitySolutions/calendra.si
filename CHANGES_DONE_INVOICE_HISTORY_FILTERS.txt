@@ -1,0 +1,32 @@
+Invoice history filter update
+=============================
+
+Implemented filters on the invoice / folio history tab:
+
+1. Payment status filter
+   - All payment statuses
+   - Paid / Plačano
+   - Partially paid / Delno plačano
+   - Open / Odprto
+   - Archived / Arhivirano
+
+2. Fiscal status filter
+   - All fiscal statuses
+   - Invoiced / Izdano
+   - Failed / Napaka
+   - Not sent / Ni poslano
+
+3. Invoice type filter (Vrsta računa)
+   - All invoice types
+   - Invoice / Račun
+   - Advance / Predplačilo
+   - Credit note / Dobropis
+
+4. Filtering logic
+   - The three new dropdown filters combine with the existing search and date range filters.
+   - Refund/credit-note rows are detected from refund metadata/negative total and can be filtered separately as Dobropis.
+   - Fiscal status remains separate from invoice type.
+
+Files changed:
+- frontend/src/pages/BillingPage.tsx
+- frontend/src/styles/main/billing-tabs.css

@@ -1,0 +1,6 @@
+Updated new/edit open invoice VAT summary display.
+
+Changes made:
+1. The right-side totals card no longer shows the "Brez DDV" / "No VAT" tax row when bill items use the NO_VAT tax level.
+2. This applies to both new open invoice and edit open invoice views.
+3. Other VAT rows, such as DDV 22%, DDV 9,5%, and DDV 0%, remain unchanged.

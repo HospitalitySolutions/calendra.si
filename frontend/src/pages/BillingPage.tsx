@@ -547,6 +547,9 @@ const billingTabIcon = (tab: 'open' | 'openPayments' | 'unusedAdvances' | 'histo
   )
 }
 type BillDocumentType = 'INVOICE' | 'ADVANCE'
+type HistoryInvoiceTypeFilter = 'all' | BillDocumentType | 'REFUND'
+type HistoryFiscalStatusFilter = 'all' | NonNullable<Bill['fiscalStatus']>
+type HistoryPaymentStatusFilter = 'all' | NonNullable<Bill['paymentStatus']>
 type UnusedAdvance = {
   advanceBillId: number
   billNumber: string
@@ -568,6 +571,16 @@ function normalizeBillType(bill: Bill): BillDocumentType {
   const raw = String(bill.billType ?? '').toUpperCase().trim()
   if (raw === 'ADVANCE') return 'ADVANCE'
   return 'INVOICE'
+}
+
+function isRefundBill(bill: Pick<Bill, 'refundOfBillId' | 'refundReference' | 'totalGross'> | null | undefined): boolean {
+  if (!bill) return false
+  return Boolean(bill.refundOfBillId) || Boolean(bill.refundReference) || Number(bill.totalGross || 0) < 0
+}
+
+function historyInvoiceTypeForBill(bill: Bill): Exclude<HistoryInvoiceTypeFilter, 'all'> {
+  if (isRefundBill(bill)) return 'REFUND'
+  return normalizeBillType(bill)
 }
 
 function billingServiceDisplayLabel(service: Pick<BillingService, 'id' | 'code' | 'description'> | null | undefined): string {
@@ -681,17 +694,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     create: 'Ustvari',
     historySearchPlaceholder:
       'Iskanje po številki računa, ID seje, stranki, zaposlenem, načinu plačila …',
-    historyStatusAll: 'Vsi statusi',
+    historyStatusAll: 'Vsi statusi plačila',
     historyStatusPaid: 'Plačano',
-    historyStatusPending: 'Čaka na plačilo',
-    historyStatusOpen: 'Odprt',
-    historyStatusCancelled: 'Preklicano',
+    historyStatusPending: 'Delno plačano',
+    historyStatusOpen: 'Odprto',
+    historyStatusCancelled: 'Arhivirano',
+    historyFiscalStatusAll: 'Vsi fiskalni statusi',
+    historyFiscalStatusSent: 'Izdano',
+    historyFiscalStatusFailed: 'Napaka',
+    historyFiscalStatusNotSent: 'Ni poslano',
     historyFilterStatusAria: 'Filtriraj po statusu plačila',
+    historyFilterFiscalStatusAria: 'Filtriraj po fiskalnem statusu',
     historyFilterDateAria: 'Filtriraj po datumu izdaje',
-    historyFilterBillTypeAria: 'Filtriraj po vrsti dokumenta',
-    historyBillTypeAll: 'Vsi dokumenti',
+    historyFilterBillTypeAria: 'Filtriraj po vrsti računa',
+    historyBillTypeAll: 'Vse vrste računa',
     historyBillTypeInvoice: 'Račun',
-    historyBillTypeAdvance: 'Avans',
+    historyBillTypeAdvance: 'Predplačilo',
+    historyBillTypeRefund: 'Dobropis',
     historyInvoiceTypeColumn: 'Vrsta računa',
     historyBillTypeColumn: 'Vrsta',
     historyEmptyTitle: 'Ni še računov',
@@ -780,17 +799,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     creating: 'Creating…',
     create: 'Create',
     historySearchPlaceholder: 'Search folio by bill no., session ID, client, consultant, payment method...',
-    historyStatusAll: 'All statuses',
+    historyStatusAll: 'All payment statuses',
     historyStatusPaid: 'Paid',
-    historyStatusPending: 'Payment pending',
+    historyStatusPending: 'Partially paid',
     historyStatusOpen: 'Open',
-    historyStatusCancelled: 'Cancelled',
+    historyStatusCancelled: 'Archived',
+    historyFiscalStatusAll: 'All fiscal statuses',
+    historyFiscalStatusSent: 'Invoiced',
+    historyFiscalStatusFailed: 'Failed',
+    historyFiscalStatusNotSent: 'Not sent',
     historyFilterStatusAria: 'Filter by payment status',
+    historyFilterFiscalStatusAria: 'Filter by fiscal status',
     historyFilterDateAria: 'Filter by issued date',
-    historyFilterBillTypeAria: 'Filter by document type',
-    historyBillTypeAll: 'All',
+    historyFilterBillTypeAria: 'Filter by invoice type',
+    historyBillTypeAll: 'All invoice types',
     historyBillTypeInvoice: 'Invoice',
     historyBillTypeAdvance: 'Advance',
+    historyBillTypeRefund: 'Credit note',
     historyInvoiceTypeColumn: 'Invoice type',
     historyBillTypeColumn: 'Type',
     historyEmptyTitle: 'No bills yet',
@@ -886,6 +911,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [creatingBill, setCreatingBill] = useState(false)
   const [creatingFromOpenId, setCreatingFromOpenId] = useState<number | null>(null)
   const [previewingOpenBillId, setPreviewingOpenBillId] = useState<number | null>(null)
+  const [emailingOpenBillPreviewId, setEmailingOpenBillPreviewId] = useState<number | null>(null)
+  const [openBillPreviewChoice, setOpenBillPreviewChoice] = useState<{ openBill: OpenBill; relatedBills?: OpenBill[]; recipientEmail: string } | null>(null)
   const [deletingOpenId, setDeletingOpenId] = useState<number | null>(null)
   const [detailOpenBill, setDetailOpenBill] = useState<OpenBill | null>(null)
   const [editPayeePopupOpen, setEditPayeePopupOpen] = useState(false)
@@ -932,8 +959,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [historyDateTo, setHistoryDateTo] = useState('')
   const historyDateFromInputRef = useRef<HTMLInputElement | null>(null)
   const historyDateToInputRef = useRef<HTMLInputElement | null>(null)
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'paid' | 'payment_pending' | 'open' | 'cancelled'>('all')
-  const [historyBillTypeFilter, setHistoryBillTypeFilter] = useState<'all' | BillDocumentType>('all')
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryPaymentStatusFilter>('all')
+  const [historyFiscalStatusFilter, setHistoryFiscalStatusFilter] = useState<HistoryFiscalStatusFilter>('all')
+  const [historyBillTypeFilter, setHistoryBillTypeFilter] = useState<HistoryInvoiceTypeFilter>('all')
   const [billingTab, setBillingTab] = useState<'open' | 'openPayments' | 'unusedAdvances' | 'history'>('open')
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
   const [selectedApplyTarget, setSelectedApplyTarget] = useState<{ openBillId: number; sessionId: number } | null>(null)
@@ -1347,6 +1375,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return () => document.removeEventListener('mousedown', onDocPointerDown)
   }, [openBillsSortMenuOpen, historySortMenuOpen])
 
+  useEffect(() => {
+    if (!openBillPreviewChoice) return
+    const onDocPointerDown = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el?.closest('.billing-preview-choice-anchor')) return
+      setOpenBillPreviewChoice(null)
+    }
+    document.addEventListener('mousedown', onDocPointerDown)
+    return () => document.removeEventListener('mousedown', onDocPointerDown)
+  }, [openBillPreviewChoice])
+
   const grossPreview = useMemo(() => billForm.items.reduce((sum, item) => {
     const gross = Number(item.grossPrice || 0)
     return sum + (Number.isFinite(gross) ? gross : 0) * Number(item.quantity || 0)
@@ -1717,10 +1756,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const byStatus = historyStatusFilter === 'all'
       ? byDate
       : byDate.filter((bill) => (bill.paymentStatus || 'open') === historyStatusFilter)
+    const byFiscalStatus = historyFiscalStatusFilter === 'all'
+      ? byStatus
+      : byStatus.filter((bill) => (bill.fiscalStatus || 'NOT_SENT') === historyFiscalStatusFilter)
     const byBillType =
       historyBillTypeFilter === 'all'
-        ? byStatus
-        : byStatus.filter((bill) => normalizeBillType(bill) === historyBillTypeFilter)
+        ? byFiscalStatus
+        : byFiscalStatus.filter((bill) => historyInvoiceTypeForBill(bill) === historyBillTypeFilter)
     if (!q) return byBillType
     return byBillType.filter((bill) => {
       const billNo = String(bill.billNumber || '').toLowerCase()
@@ -1743,7 +1785,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         method.includes(q)
       )
     })
-  }, [bills, historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyBillTypeFilter])
+  }, [bills, historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter])
 
   const sortedHistoryBills = useMemo(() => {
     const list = [...filteredHistoryBills]
@@ -1768,7 +1810,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   useEffect(() => {
     setHistoryPage(1)
-  }, [historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyBillTypeFilter, historySortField, historySortDir])
+  }, [historySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir])
 
   const historyPagination = useMemo(() => {
     const total = sortedHistoryBills.length
@@ -2806,7 +2848,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return {
       thisMonthCount: thisMonth.length,
       paidCount: sortedHistoryBills.filter((bill) => bill.paymentStatus === 'paid').length,
-      refundsCount: sortedHistoryBills.filter((bill) => Boolean(bill.refundOfBillId) || Boolean(bill.refundReference) || Number(bill.totalGross || 0) < 0).length,
+      refundsCount: sortedHistoryBills.filter((bill) => isRefundBill(bill)).length,
       advancesCount: sortedHistoryBills.filter((bill) => normalizeBillType(bill) === 'ADVANCE').length,
       totalAmount: sortedHistoryBills.reduce((sum, bill) => sum + Number(bill.totalGross || 0), 0),
     }
@@ -2857,15 +2899,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return 'open'
   }
 
+  const historyBillTypeLabel = (bill: Bill) => {
+    if (isRefundBill(bill)) return locale === 'sl' ? 'Dobropis' : 'Credit note'
+    return normalizeBillType(bill) === 'ADVANCE' ? billingCopy.billTypeAdvance : billingCopy.billTypeInvoice
+  }
+
   const fiscalStatusLabel = (bill: Bill) => {
-    if (bill.refundOfBillId || bill.refundReference) return locale === 'sl' ? 'Dobropis' : 'Credit Note'
     if (bill.fiscalStatus === 'SENT') return locale === 'sl' ? 'Izdano' : 'Invoiced'
     if (bill.fiscalStatus === 'FAILED') return locale === 'sl' ? 'Napaka' : 'Failed'
     return locale === 'sl' ? 'Ni poslano' : 'Not Sent'
   }
 
   const fiscalStatusClass = (bill: Bill) => {
-    if (bill.refundOfBillId || bill.refundReference) return 'credit'
     if (bill.fiscalStatus === 'SENT') return 'invoiced'
     if (bill.fiscalStatus === 'FAILED') return 'failed'
     return 'not-sent'
@@ -3596,11 +3641,69 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const previewOpenBillInvoice = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+  const resolveOpenBillPreviewTarget = (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
     const related = onePayeeRelatedBills && onePayeeRelatedBills.length > 1
       ? Array.from(new Map(onePayeeRelatedBills.map((entry) => [entry.id, entry])).values())
       : []
     const target = related.length > 1 ? (related[0] ?? ob) : ob
+    return { target, related }
+  }
+
+  const buildOpenBillPreviewRequestPayload = (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+    const { target, related } = resolveOpenBillPreviewTarget(ob, onePayeeRelatedBills)
+    const previewItems = related.length > 1
+      ? related.flatMap((entry) => getOpenBillItems(entry))
+      : getOpenBillItems(target)
+    const combinedGross = estimateGross(previewItems)
+    const payload = buildOpenBillUpdatePayload(
+      target,
+      previewItems,
+      related.length > 1 ? { paymentTotalGross: combinedGross } : undefined,
+    )
+    const payloadPaymentSplits = Array.isArray(payload.paymentSplits) ? payload.paymentSplits : []
+    if (related.length > 1 && payloadPaymentSplits.length === 0 && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, target.id)) {
+      const fallbackMethod = target.paymentMethod && !isDepositPaymentMethod(target.paymentMethod)
+        ? target.paymentMethod
+        : paymentMethods.find((method) => !isDepositPaymentMethod(method))
+      const methodId = Number(fallbackMethod?.id || 0)
+      if (methodId > 0) {
+        payload.paymentMethodId = methodId
+        payload.paymentSplits = [{ paymentMethodId: methodId, amountGross: Number(combinedGross.toFixed(2)) }]
+      }
+    }
+    return { target, payload }
+  }
+
+  const resolveOpenBillPreviewRecipientEmail = (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+    const { target } = resolveOpenBillPreviewTarget(ob, onePayeeRelatedBills)
+    const draft = getOpenBillDetailsDraft(target)
+    const draftClient = draft.clientId != null ? clients.find((client) => client.id === draft.clientId) : null
+    const rawEmail = draft.billingTarget === 'COMPANY'
+      ? (companies.find((company) => company.id === draft.recipientCompanyId)?.email
+        || (draftClient?.billingCompany?.id === draft.recipientCompanyId ? draftClient.billingCompany.email : undefined))
+      : (draftClient?.email || target.client?.email)
+    return (rawEmail || '').trim()
+  }
+
+  const openOpenBillPreviewChoice = (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+    const { target } = resolveOpenBillPreviewTarget(ob, onePayeeRelatedBills)
+    if (previewingOpenBillId || emailingOpenBillPreviewId) return
+    const detailsDraft = openBillDetailsEdits[target.id]
+    if (!validateOpenBillDetailsDraft(detailsDraft)) return
+    const recipientEmail = resolveOpenBillPreviewRecipientEmail(ob, onePayeeRelatedBills)
+    if (!recipientEmail) {
+      void previewOpenBillInvoice(ob, onePayeeRelatedBills)
+      return
+    }
+    setOpenBillPreviewChoice({
+      openBill: ob,
+      relatedBills: onePayeeRelatedBills,
+      recipientEmail,
+    })
+  }
+
+  const previewOpenBillInvoice = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+    const { target, payload } = buildOpenBillPreviewRequestPayload(ob, onePayeeRelatedBills)
     if (previewingOpenBillId) return
 
     const detailsDraft = openBillDetailsEdits[target.id]
@@ -3608,32 +3711,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
     const previewWindow = window.open('', '_blank')
     if (previewWindow) {
-      previewWindow.document.write(`<p style="font-family: system-ui, sans-serif; padding: 24px; color: #475569;">${locale === 'sl' ? 'Pripravljam predogled računa…' : 'Preparing invoice preview…'}</p>`)
+      previewWindow.document.write(`<p style="font-family: system-ui, sans-serif; padding: 24px; color: #475569;">${locale === 'sl' ? 'Pripravljam predračun…' : 'Preparing proforma invoice…'}</p>`)
     }
 
     setPreviewingOpenBillId(target.id)
     try {
-      const previewItems = related.length > 1
-        ? related.flatMap((entry) => getOpenBillItems(entry))
-        : getOpenBillItems(target)
-      const combinedGross = estimateGross(previewItems)
-      const payload = buildOpenBillUpdatePayload(
-        target,
-        previewItems,
-        related.length > 1 ? { paymentTotalGross: combinedGross } : undefined,
-      )
-      const payloadPaymentSplits = Array.isArray(payload.paymentSplits) ? payload.paymentSplits : []
-      if (related.length > 1 && payloadPaymentSplits.length === 0 && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, target.id)) {
-        const fallbackMethod = target.paymentMethod && !isDepositPaymentMethod(target.paymentMethod)
-          ? target.paymentMethod
-          : paymentMethods.find((method) => !isDepositPaymentMethod(method))
-        const methodId = Number(fallbackMethod?.id || 0)
-        if (methodId > 0) {
-          payload.paymentMethodId = methodId
-          payload.paymentSplits = [{ paymentMethodId: methodId, amountGross: Number(combinedGross.toFixed(2)) }]
-        }
-      }
-
       const res = await api.post(`/billing/open-bills/${target.id}/preview-pdf?locale=${locale}`, payload, { responseType: 'blob' })
       const blob = new Blob([res.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
@@ -3645,10 +3727,87 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
     } catch (error) {
       if (previewWindow && !previewWindow.closed) previewWindow.close()
-      showToast('error', locale === 'sl' ? 'Predogleda računa ni bilo mogoče pripraviti.' : 'Unable to prepare invoice preview.')
+      showToast('error', locale === 'sl' ? 'Predračuna ni bilo mogoče pripraviti.' : 'Unable to prepare proforma invoice preview.')
     } finally {
       setPreviewingOpenBillId(null)
     }
+  }
+
+  const emailOpenBillPreview = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+    const { target, payload } = buildOpenBillPreviewRequestPayload(ob, onePayeeRelatedBills)
+    if (emailingOpenBillPreviewId) return
+
+    const detailsDraft = openBillDetailsEdits[target.id]
+    if (!validateOpenBillDetailsDraft(detailsDraft)) return
+
+    setEmailingOpenBillPreviewId(target.id)
+    try {
+      const { data } = await api.post(`/billing/open-bills/${target.id}/preview-email?locale=${locale}`, payload)
+      const sentTo = (data?.recipientEmail || resolveOpenBillPreviewRecipientEmail(ob, onePayeeRelatedBills) || '').trim()
+      setOpenBillPreviewChoice(null)
+      showToast('success', sentTo
+        ? (locale === 'sl' ? `Predračun je bil poslan na ${sentTo}.` : `Proforma invoice sent to ${sentTo}.`)
+        : (locale === 'sl' ? 'Predračun je bil poslan.' : 'Proforma invoice sent.'))
+    } catch (error) {
+      showToast('error', locale === 'sl' ? 'Predračuna ni bilo mogoče poslati po e-pošti.' : 'Unable to email the proforma invoice.')
+    } finally {
+      setEmailingOpenBillPreviewId(null)
+    }
+  }
+
+  const renderOpenBillPreviewChoicePopover = (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+    if (!openBillPreviewChoice || openBillPreviewChoice.openBill.id !== ob.id) return null
+    const { openBill, relatedBills, recipientEmail } = openBillPreviewChoice
+    const { target } = resolveOpenBillPreviewTarget(openBill, relatedBills)
+    const busy = previewingOpenBillId === target.id || emailingOpenBillPreviewId === target.id
+    return (
+      <div
+        className="billing-preview-choice-popover"
+        onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label={locale === 'sl' ? 'Izberi način predračuna' : 'Choose proforma invoice action'}
+      >
+        <div className="billing-preview-choice-popover-head">
+          <span className="billing-preview-choice-popover-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
+          <div>
+            <h3>{locale === 'sl' ? 'Predračun' : 'Proforma invoice'}</h3>
+            <p>{locale === 'sl' ? 'Odprite predogled ali predračun pošljite po e-pošti.' : 'Open preview or send the proforma invoice by email.'}</p>
+          </div>
+          <button
+            type="button"
+            className="billing-preview-choice-popover-close"
+            onClick={() => setOpenBillPreviewChoice(null)}
+            disabled={busy}
+            aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
+          >×</button>
+        </div>
+        <div className="billing-preview-choice-popover-email">
+          <span>{locale === 'sl' ? 'Prejemnik' : 'Recipient'}</span>
+          <strong>{recipientEmail}</strong>
+        </div>
+        <div className="billing-preview-choice-popover-actions">
+          <button
+            type="button"
+            className="billing-preview-choice-popover-secondary"
+            disabled={busy}
+            onClick={() => {
+              setOpenBillPreviewChoice(null)
+              void previewOpenBillInvoice(openBill, relatedBills)
+            }}
+          >
+            {previewingOpenBillId === target.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Predogled' : 'Preview')}
+          </button>
+          <button
+            type="button"
+            className="billing-preview-choice-popover-primary"
+            disabled={busy}
+            onClick={() => void emailOpenBillPreview(openBill, relatedBills)}
+          >
+            {emailingOpenBillPreviewId === target.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Pošlji po e-pošti' : 'Email')}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const createBillFromOpen = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
@@ -4029,7 +4188,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         taxTotal: grouped.get(key)?.taxTotal ?? 0,
         lineCount: grouped.get(key)?.lineCount ?? 0,
       }))
-      .filter((row) => row.lineCount > 0)
+      .filter((row) => row.lineCount > 0 && row.key !== 'NO_VAT')
   }
 
   const isOpenBillBatchPayment = (ob: OpenBill) => (ob.batchScope ?? 'NONE') !== 'NONE'
@@ -7174,6 +7333,40 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </button>
                     </div>
                   </div>
+                  <select
+                    className="billing-history-filter-select"
+                    aria-label={billingCopy.historyFilterStatusAria}
+                    value={historyStatusFilter}
+                    onChange={(e) => setHistoryStatusFilter(e.target.value as HistoryPaymentStatusFilter)}
+                  >
+                    <option value="all">{billingCopy.historyStatusAll}</option>
+                    <option value="paid">{billingCopy.historyStatusPaid}</option>
+                    <option value="payment_pending">{billingCopy.historyStatusPending}</option>
+                    <option value="open">{billingCopy.historyStatusOpen}</option>
+                    <option value="cancelled">{billingCopy.historyStatusCancelled}</option>
+                  </select>
+                  <select
+                    className="billing-history-filter-select"
+                    aria-label={billingCopy.historyFilterFiscalStatusAria}
+                    value={historyFiscalStatusFilter}
+                    onChange={(e) => setHistoryFiscalStatusFilter(e.target.value as HistoryFiscalStatusFilter)}
+                  >
+                    <option value="all">{billingCopy.historyFiscalStatusAll}</option>
+                    <option value="SENT">{billingCopy.historyFiscalStatusSent}</option>
+                    <option value="FAILED">{billingCopy.historyFiscalStatusFailed}</option>
+                    <option value="NOT_SENT">{billingCopy.historyFiscalStatusNotSent}</option>
+                  </select>
+                  <select
+                    className="billing-history-filter-select"
+                    aria-label={billingCopy.historyFilterBillTypeAria}
+                    value={historyBillTypeFilter}
+                    onChange={(e) => setHistoryBillTypeFilter(e.target.value as HistoryInvoiceTypeFilter)}
+                  >
+                    <option value="all">{billingCopy.historyBillTypeAll}</option>
+                    <option value="INVOICE">{billingCopy.historyBillTypeInvoice}</option>
+                    <option value="ADVANCE">{billingCopy.historyBillTypeAdvance}</option>
+                    <option value="REFUND">{billingCopy.historyBillTypeRefund}</option>
+                  </select>
                 </div>
 
                 <div className="billing-modern-stats billing-modern-stats--five">
@@ -7222,7 +7415,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         {historyPagination.slice.map((bill) => (
                           <tr key={bill.id} className="billing-history-row" onClick={() => { void openFolioPanel(bill) }}>
                             <td className="billing-modern-link-cell">{bill.billNumber}{bill.refundReference ? <div className="billing-modern-muted">{bill.refundReference}</div> : null}</td>
-                            <td>{normalizeBillType(bill) === 'ADVANCE' ? billingCopy.billTypeAdvance : billingCopy.billTypeInvoice}</td>
+                            <td>{historyBillTypeLabel(bill)}</td>
                             <td>{displayInvoiceOrderId(bill)}</td>
                             <td>{formatBillingSessionIdDisplay(bill.sessionId)}</td>
                             <td>{bill.billingTarget === 'COMPANY' ? (bill.recipientCompany?.name || '—') : (bill.client ? fullName(bill.client) : '—')}</td>
@@ -7388,15 +7581,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" className="billing-bill-modal-delete" onClick={() => deleteOpenBill(detailOpenBill)} disabled={deletingOpenId === detailOpenBill.id}>
                   🗑 {deletingOpenId === detailOpenBill.id ? 'Deleting…' : 'Delete'}
                 </button>
-                <button
-                  type="button"
-                  className="billing-bill-modal-preview-btn"
-                  onClick={() => previewOpenBillInvoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                  disabled={previewingOpenBillId === detailActionOpenBill.id || detailActionItems.length === 0}
-                >
-                  <span className="billing-bill-modal-preview-btn__icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
-                  <span>{previewingOpenBillId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}</span>
-                </button>
+                <div className="billing-preview-choice-anchor">
+                  <button
+                    type="button"
+                    className="billing-bill-modal-preview-btn"
+                    onClick={() => openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                    disabled={previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                  >
+                    <span className="billing-bill-modal-preview-btn__icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
+                    <span>{previewingOpenBillId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : emailingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}</span>
+                  </button>
+                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                </div>
                 <div className="billing-bill-modal-footer-actions">
                   <button type="button" className="billing-bill-modal-save-btn" onClick={() => saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)} disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}>
                     <span className="billing-bill-modal-save-btn__icon" aria-hidden>
@@ -7656,6 +7852,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       {renderAdvancePaymentModal()}
 
       {renderEntitlementPaymentModal()}
+
 
       {showAddCompanyModal && (
         <div className="modal-backdrop billing-add-company-modal-backdrop" onClick={closeAddCompanyModal}>

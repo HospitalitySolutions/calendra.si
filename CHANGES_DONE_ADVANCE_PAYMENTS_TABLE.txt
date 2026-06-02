@@ -1,0 +1,17 @@
+Implemented advance-payment display on closed bill folios.
+
+Changes made:
+1. Added a dedicated "Predplačila" / "Advance payments" table to the PDF when one or more advance/deposit bills are used as payment methods.
+2. The table uses the same width and font sizing as the services table and contains these columns:
+   - Predplačilo št.
+   - Datum
+   - Stopnja DDV
+   - Osnova
+   - DDV
+   - Skupaj
+   - Uporabljeno
+3. Each used advance/deposit payment split with a linked source advance bill renders as a separate row.
+4. Added the folio summary/footer field "Uporabljena predplačila" / "Used advances" below "Skupaj z DDV".
+5. The new field shows the total amount of all used advance/deposit payment methods as a negative amount in the totals summary.
+6. When there are no used advances, the new field is hidden and the fields below it move up automatically.
+7. Updated folio layout defaults and folio layout editor normalization so existing layouts receive the new footer item without overlapping Za plačilo/payment fields.

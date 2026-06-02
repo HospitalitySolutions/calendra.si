@@ -1,0 +1,12 @@
+Updated folio / invoice payment-summary rendering and layout defaults.
+
+Changes made:
+1. Added a dedicated totals block on the right side of the invoice footer, similar to a table block.
+2. Added the footer field "Skupaj brez DDV" / "Total excl. VAT".
+3. Kept the existing discount field inside the same block.
+4. Renamed "Skupaj bruto" to "Skupaj z DDV" / "Total incl. VAT".
+5. Kept "Za plačilo" in the same block.
+6. Changed footer/block amount formatting so the currency is shown after the amount (example: 225.70 EUR).
+7. Payment types are now rendered outside the totals block.
+8. Multiple payment types continue to render one below another and elements below them are pushed downward to avoid overlap.
+9. Updated folio layout defaults and folio layout editor normalization so existing and new layouts receive the new total-excl-VAT footer item and the payment anchor moves below the totals block.

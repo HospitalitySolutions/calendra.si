@@ -1,0 +1,11 @@
+Implemented stable proforma (Predračun) numbering for open-bill previews.
+
+Changes made:
+1. The first time Predogled is selected for an open bill, the backend assigns a persistent proforma number.
+2. Proforma numbers use the tenant code as prefix and a tenant-local counter starting at 1, e.g. {TENANT_CODE}-1.
+3. The same open bill keeps the same proforma number on later preview/email actions instead of generating a new number every time.
+4. Preview PDFs no longer show PREVIEW-OPEN-{id}; they show the assigned proforma number.
+5. Preview email uses the same assigned proforma number as the PDF preview.
+6. Added OpenBill fields and schema backfill for:
+   - proforma_number
+   - proforma_sequence_number

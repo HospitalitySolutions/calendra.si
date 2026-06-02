@@ -1,0 +1,11 @@
+Updated Predplačila table flow in folio/invoice PDF generation.
+
+Changes made:
+1. When no predplačilo payment method is used, the reserved Predplačila table area is collapsed.
+2. VAT breakdown, summary totals, QR/signature/payment lines, and fields below the Predplačila table move up automatically.
+3. When one predplačilo row exists, the existing reserved table space is used.
+4. Additional predplačilo rows still push lower content down row-by-row to avoid overlap.
+
+Additional update:
+- Services table, Predplačila table, and summary totals now use the same compact font size.
+- The shared font size is slightly smaller for a cleaner folio layout.

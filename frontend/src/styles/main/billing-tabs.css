@@ -114,8 +114,9 @@
 }
 
 .billing-modern-filter-row--history {
-    grid-template-columns: minmax(320px, 0.42fr) minmax(250px, max-content);
+    grid-template-columns: minmax(300px, 0.8fr) minmax(250px, max-content) repeat(3, minmax(150px, 185px));
     justify-content: start;
+    align-items: center;
 }
 
 .billing-modern-search-wrap {
@@ -1133,7 +1134,8 @@
         min-width: 0;
     }
 
-    .billing-date-range-picker {
+    .billing-date-range-picker,
+    .billing-history-filter-select {
         width: 100%;
         justify-content: space-between;
     }
@@ -1445,3 +1447,397 @@
     background: #eff6ff;
     color: #0b63f6;
 }
+
+.billing-history-filter-select {
+    height: 46px;
+    min-width: 150px;
+    padding: 0 36px 0 14px;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    border-radius: 12px;
+    background: #fff;
+    color: #334155;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    font-size: 0.86rem;
+    font-weight: 800;
+    outline: none;
+}
+
+.billing-history-filter-select:focus {
+    border-color: rgba(37, 99, 235, 0.42);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+}
+
+[data-theme="dark"] .billing-history-filter-select {
+    background: rgba(15, 23, 42, 0.74);
+    border-color: rgba(148, 163, 184, 0.18);
+    color: #cbd5e1;
+}
+
+.billing-preview-choice-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(4px);
+}
+
+.billing-preview-choice-modal {
+    position: relative;
+    width: min(440px, 100%);
+    padding: 26px;
+    border-radius: 24px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: #ffffff;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.26);
+    text-align: center;
+}
+
+.billing-preview-choice-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.06);
+    color: #0f172a;
+    font-size: 1.15rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.billing-preview-choice-close:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.billing-preview-choice-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: #fff;
+    box-shadow: 0 14px 32px rgba(37, 99, 235, 0.24);
+}
+
+.billing-preview-choice-modal h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.25rem;
+    font-weight: 900;
+}
+
+.billing-preview-choice-modal p {
+    margin: 8px auto 18px;
+    max-width: 340px;
+    color: #64748b;
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+.billing-preview-choice-email {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 18px;
+    padding: 13px 14px;
+    border-radius: 16px;
+    background: rgba(37, 99, 235, 0.06);
+    border: 1px solid rgba(37, 99, 235, 0.12);
+    text-align: left;
+}
+
+.billing-preview-choice-email span {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.billing-preview-choice-email strong {
+    color: #0f172a;
+    font-size: 0.9rem;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.billing-preview-choice-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.billing-preview-choice-secondary,
+.billing-preview-choice-primary {
+    min-height: 46px;
+    border-radius: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.billing-preview-choice-secondary {
+    border: 1px solid rgba(37, 99, 235, 0.20);
+    background: #ffffff;
+    color: #2563eb;
+}
+
+.billing-preview-choice-primary {
+    border: 1px solid rgba(37, 99, 235, 0.88);
+    background: linear-gradient(135deg, #2563eb, #0b63f6);
+    color: #ffffff;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.22);
+}
+
+.billing-preview-choice-secondary:disabled,
+.billing-preview-choice-primary:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+@media (max-width: 520px) {
+    .billing-preview-choice-backdrop {
+        align-items: flex-end;
+        padding: 14px;
+    }
+
+    .billing-preview-choice-modal {
+        padding: 24px 18px 18px;
+        border-radius: 22px;
+    }
+
+    .billing-preview-choice-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+[data-theme="dark"] .billing-preview-choice-modal {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.20);
+}
+
+[data-theme="dark"] .billing-preview-choice-modal h3,
+[data-theme="dark"] .billing-preview-choice-email strong,
+[data-theme="dark"] .billing-preview-choice-close {
+    color: #e5e7eb;
+}
+
+[data-theme="dark"] .billing-preview-choice-modal p,
+[data-theme="dark"] .billing-preview-choice-email span {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .billing-preview-choice-close {
+    background: rgba(148, 163, 184, 0.14);
+}
+
+[data-theme="dark"] .billing-preview-choice-email {
+    background: rgba(37, 99, 235, 0.12);
+    border-color: rgba(96, 165, 250, 0.18);
+}
+
+
+/* Compact popover for open-bill proforma preview/email action. It is anchored to
+   the Predogled računa button, matching the inline discount popover pattern. */
+.billing-preview-choice-anchor {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.billing-preview-choice-popover {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 12px);
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(37, 99, 235, 0.20);
+    background: #ffffff;
+    box-shadow: 0 24px 54px rgba(15, 23, 42, 0.22);
+    z-index: 1300;
+    text-align: left;
+}
+
+.billing-preview-choice-popover::after {
+    content: '';
+    position: absolute;
+    left: 34px;
+    bottom: -9px;
+    width: 16px;
+    height: 16px;
+    transform: rotate(45deg);
+    background: inherit;
+    border-right: 1px solid rgba(37, 99, 235, 0.20);
+    border-bottom: 1px solid rgba(37, 99, 235, 0.20);
+}
+
+.billing-preview-choice-popover-head {
+    display: grid;
+    grid-template-columns: 40px 1fr 30px;
+    gap: 12px;
+    align-items: start;
+}
+
+.billing-preview-choice-popover-icon {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: #ffffff;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.22);
+}
+
+.billing-preview-choice-popover h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.98rem;
+    font-weight: 900;
+}
+
+.billing-preview-choice-popover p {
+    margin: 3px 0 0;
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.billing-preview-choice-popover-close {
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.06);
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.billing-preview-choice-popover-close:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.billing-preview-choice-popover-email {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(37, 99, 235, 0.12);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.billing-preview-choice-popover-email span {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.billing-preview-choice-popover-email strong {
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.billing-preview-choice-popover-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.billing-preview-choice-popover-secondary,
+.billing-preview-choice-popover-primary {
+    min-height: 42px;
+    border-radius: 13px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.billing-preview-choice-popover-secondary {
+    border: 1px solid rgba(37, 99, 235, 0.20);
+    background: #ffffff;
+    color: #2563eb;
+}
+
+.billing-preview-choice-popover-primary {
+    border: 1px solid rgba(37, 99, 235, 0.88);
+    background: linear-gradient(135deg, #2563eb, #0b63f6);
+    color: #ffffff;
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.20);
+}
+
+.billing-preview-choice-popover-secondary:disabled,
+.billing-preview-choice-popover-primary:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+@media (max-width: 520px) {
+    .billing-preview-choice-anchor {
+        display: flex;
+        width: 100%;
+    }
+
+    .billing-preview-choice-popover {
+        left: 0;
+        right: 0;
+        width: min(100%, calc(100vw - 28px));
+    }
+
+    .billing-preview-choice-popover-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+[data-theme="dark"] .billing-preview-choice-popover {
+    background: #0f172a;
+    border-color: rgba(96, 165, 250, 0.22);
+}
+
+[data-theme="dark"] .billing-preview-choice-popover h3,
+[data-theme="dark"] .billing-preview-choice-popover-email strong,
+[data-theme="dark"] .billing-preview-choice-popover-close {
+    color: #e5e7eb;
+}
+
+[data-theme="dark"] .billing-preview-choice-popover p,
+[data-theme="dark"] .billing-preview-choice-popover-email span {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .billing-preview-choice-popover-close {
+    background: rgba(148, 163, 184, 0.14);
+}
+
+[data-theme="dark"] .billing-preview-choice-popover-email {
+    background: rgba(37, 99, 235, 0.12);
+    border-color: rgba(96, 165, 250, 0.18);
+}
+

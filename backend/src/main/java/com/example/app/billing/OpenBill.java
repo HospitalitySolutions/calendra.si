@@ -95,6 +95,14 @@ public class OpenBill extends BaseEntity {
     @Column(name = "item_discounts_json", columnDefinition = "TEXT")
     private String itemDiscountsJson;
 
+    /** Stable proforma invoice number assigned the first time the open-bill preview is opened. */
+    @Column(name = "proforma_number", length = 80)
+    private String proformaNumber;
+
+    /** Tenant-local sequence number used to build {@link #proformaNumber}. */
+    @Column(name = "proforma_sequence_number")
+    private Long proformaSequenceNumber;
+
     /** Guest wallet order created from Client > Wallet > Kupi ugodnost. */
     @Column(name = "source_guest_order_id")
     private Long sourceGuestOrderId;

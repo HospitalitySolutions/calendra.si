@@ -1,0 +1,8 @@
+Updated folio / invoice payment-summary block rendering.
+
+Changes made:
+1. Removed the outer box and all row separator lines from the totals/payment-summary block.
+2. Kept only a double horizontal line directly above the "Za plačilo" row.
+3. Rendered summary labels on the left side of the block and values on the right side.
+4. Kept the existing formatting where EUR is shown after the amount.
+5. Payment types remain outside the summary block and continue to flow downward without overlap.

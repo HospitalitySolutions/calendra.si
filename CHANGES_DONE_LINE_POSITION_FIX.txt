@@ -1,0 +1,5 @@
+Updated folio/invoice PDF line positioning.
+
+Changes made:
+1. Moved the bottom double line of the Services table higher, so it sits closer to the last service row.
+2. Moved the double line above Za plačilo slightly lower, closer to the Za plačilo total row.

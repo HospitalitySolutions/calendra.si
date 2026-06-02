@@ -150,6 +150,7 @@ type Selection =
   | { type: 'paymentQr' }
   | { type: 'fiscalQr' }
   | { type: 'vatBreakdownTable' }
+  | { type: 'advancePaymentsTable' }
   | { type: 'pageSections' }
   | null
 
@@ -170,6 +171,7 @@ const DEFAULT_VAT_BREAKDOWN_TABLE: VatBreakdownTableConfig = { x: 50, y: 286, wi
 const SERVICE_TABLE_PREVIEW_ROWS = 1
 const LEGACY_SERVICE_TABLE_PREVIEW_ROWS = 3
 const VAT_SAMPLE_ROWS = 3
+const ADVANCE_PAYMENT_SAMPLE_ROWS = 1
 const OTHER_LOCALE: Record<AppLocale, AppLocale> = { en: 'sl', sl: 'en' }
 const DATE_FIELD_KEYS = new Set(['folioDate', 'dateOfService', 'dueDate'])
 const PREFIX_FIELD_KEYS = new Set(['folioNumber', 'folioDate', 'dateOfService', 'dueDate', 'recipientVatId'])
@@ -240,9 +242,23 @@ function migratePostalCityFields(layout: LayoutConfig) {
   migratePostalCityField(layout, 'recipientPostalCode', 'recipientCity', 'recipientPostalCodeCity', 'recipient', 'Recipient Postal Code & City')
 }
 
+function servicesTableVisualHeight(table: TableConfig, rows: number) {
+  // End the services-table block at the bottom double line instead of keeping
+  // the old invisible footer-spacing gap below it.
+  return Math.max(0, table.headerHeight + table.rowHeight * Math.max(0, rows) - 7)
+}
+
 function servicesTableBottom(layout: LayoutConfig, rows: number) {
   const table = layout.table
-  return table.startY + table.headerHeight + table.rowHeight * Math.max(0, rows) + table.footerSpacing
+  return table.startY + servicesTableVisualHeight(table, rows)
+}
+
+function advancePaymentsPreviewTop(layout: LayoutConfig) {
+  return servicesTableBottom(layout, SERVICE_TABLE_PREVIEW_ROWS) + 16
+}
+
+function advancePaymentsPreviewHeight(table: TableConfig, rows: number) {
+  return 18 + table.headerHeight + table.rowHeight * Math.max(1, rows) + 6
 }
 
 function normalizePageSections(layout: LayoutConfig) {
@@ -357,11 +373,30 @@ function migrateLegacyFooterForDiscount(data: LayoutConfig) {
   const items = data.footer?.items
   if (!items) return
   const hasDiscount = items.some((item) => item?.key === 'discount')
-  if (hasDiscount) return
+  const hasUsedAdvances = items.some((item) => item?.key === 'usedAdvances')
+  if (!hasDiscount) {
+    items.forEach((item) => {
+      if (!item || item.key !== 'toBePaid') return
+      if (Math.abs((item.x ?? 0) - 395) <= 2 && Math.abs((item.y ?? 0) - 340) <= 2) {
+        item.y = 358
+      }
+    })
+  }
+  if (!hasUsedAdvances) {
+    items.forEach((item) => {
+      if (!item) return
+      if (item.key === 'toBePaid' && Math.abs((item.x ?? 0) - 395) <= 2 && Math.abs((item.y ?? 0) - 358) <= 2) {
+        item.y = 376
+      }
+      if (item.key === 'payment' && Math.abs((item.x ?? 0) - 395) <= 2 && Math.abs((item.y ?? 0) - 382) <= 2) {
+        item.y = 400
+      }
+    })
+  }
   items.forEach((item) => {
-    if (!item || item.key !== 'toBePaid') return
-    if (Math.abs((item.x ?? 0) - 395) <= 2 && Math.abs((item.y ?? 0) - 340) <= 2) {
-      item.y = 358
+    if (!item || item.key !== 'payment') return
+    if (Math.abs((item.x ?? 0) - 395) <= 2 && Math.abs((item.y ?? 0) - 304) <= 2) {
+      item.y = 400
     }
   })
 }
@@ -371,10 +406,12 @@ function addMissingFooterItemFront(data: LayoutConfig, key: string) {
   if (!items) return
   if (items.some((item) => item?.key === key)) return
   const defaults: FooterItem[] = [
-    { key: 'payment', label: 'Payment', labelI18n: { en: 'Payment', sl: 'Plačilo' }, fontSize: 10, bold: false, alignment: 'right', x: 395, y: 304, width: 150, height: 16 },
-    { key: 'totalGross', label: 'Total gross', labelI18n: { en: 'Total gross', sl: 'Skupaj bruto' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 322, width: 150, height: 16 },
-    { key: 'discount', label: 'Discount', labelI18n: { en: 'Discount', sl: 'Popust' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 340, width: 150, height: 16 },
-    { key: 'toBePaid', label: 'To be paid', labelI18n: { en: 'To be paid', sl: 'Za plačilo' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 358, width: 150, height: 16 },
+    { key: 'totalNett', label: 'Total excl. VAT', labelI18n: { en: 'Total excl. VAT', sl: 'Skupaj brez DDV' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 304, width: 150, height: 16 },
+    { key: 'discount', label: 'Discount', labelI18n: { en: 'Discount', sl: 'Popust' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 322, width: 150, height: 16 },
+    { key: 'totalGross', label: 'Total incl. VAT', labelI18n: { en: 'Total incl. VAT', sl: 'Skupaj z DDV' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 340, width: 150, height: 16 },
+    { key: 'usedAdvances', label: 'Used advances', labelI18n: { en: 'Used advances', sl: 'Uporabljena predplačila' }, fontSize: 10, bold: false, alignment: 'right', x: 395, y: 358, width: 150, height: 16 },
+    { key: 'toBePaid', label: 'To be paid', labelI18n: { en: 'To be paid', sl: 'Za plačilo' }, fontSize: 11, bold: true, alignment: 'right', x: 395, y: 376, width: 150, height: 16 },
+    { key: 'payment', label: 'Payment', labelI18n: { en: 'Payment', sl: 'Plačilo' }, fontSize: 10, bold: false, alignment: 'right', x: 395, y: 400, width: 150, height: 16 },
     { key: 'notes', label: 'Notes', labelI18n: { en: 'Notes', sl: 'Opombe' }, fontSize: 9, bold: false, alignment: 'left', x: 50, y: 362, width: 300, height: 16 },
     { key: 'iban', label: 'IBAN', labelI18n: { en: 'IBAN', sl: 'IBAN' }, fontSize: 10, bold: false, alignment: 'left', x: 50, y: 380, width: 300, height: 16 },
     { key: 'issuedBy', label: 'Issued by', labelI18n: { en: 'Issued by', sl: 'Izdal' }, fontSize: 10, bold: false, alignment: 'left', x: 50, y: 398, width: 200, height: 16 },
@@ -441,7 +478,9 @@ function isValidLayout(data: any): data is LayoutConfig {
   }
   // Migrate legacy footer totals block and ensure newly supported footer items exist.
   migrateLegacyFooterForDiscount(data)
+  addMissingFooterItemFront(data, 'totalNett')
   addMissingFooterItemFront(data, 'discount')
+  addMissingFooterItemFront(data, 'usedAdvances')
   addMissingFooterItemFront(data, 'toBePaid')
   addMissingFooterItemFront(data, 'fiscalZoi')
   addMissingFooterItemFront(data, 'fiscalEor')
@@ -1150,7 +1189,7 @@ export function FolioLayoutEditor() {
               const t = layout.table
               const isSel = selection?.type === 'table'
               const sampleRows = SERVICE_TABLE_PREVIEW_ROWS
-              const tableH = t.headerHeight + t.rowHeight * sampleRows + t.footerSpacing
+              const tableH = servicesTableVisualHeight(t, sampleRows)
               return (
                 <div
                   className={`fle-table-region ${isSel ? 'fle-table-region--selected' : ''}`}
@@ -1204,6 +1243,72 @@ export function FolioLayoutEditor() {
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, { type: 'table' }, 'resize') }}
                     />
                   )}
+                </div>
+              )
+            })()}
+
+            {/* Advance payments table preview */}
+            {(() => {
+              const t = layout.table
+              const isSel = selection?.type === 'advancePaymentsTable'
+              const x = t.startX
+              const y = advancePaymentsPreviewTop(layout)
+              const w = t.width
+              const titleH = 18
+              const headerH = Math.max(14, t.headerHeight)
+              const rowH = Math.max(14, t.rowHeight)
+              const h = advancePaymentsPreviewHeight(t, ADVANCE_PAYMENT_SAMPLE_ROWS)
+              const headers = locale === 'sl'
+                ? ['Predplačilo št.', 'Datum', 'Stopnja DDV', 'Osnova', 'DDV', 'Skupaj', 'Uporabljeno']
+                : ['Advance no.', 'Date', 'Tax rate', 'Basis', 'VAT', 'Total', 'Used']
+              const colRatios = [0, 0.19, 0.34, 0.50, 0.64, 0.77, 0.90]
+              const colWidths = [0.18, 0.14, 0.15, 0.13, 0.12, 0.13, 0.10]
+              return (
+                <div
+                  className={`fle-vat-table ${isSel ? 'fle-vat-table--selected' : ''}`}
+                  style={{
+                    left: x * scale,
+                    top: y * scale,
+                    width: w * scale,
+                    height: h * scale,
+                    borderColor: 'rgba(249, 115, 22, 0.75)',
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setSelection({ type: 'advancePaymentsTable' }) }}
+                >
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: titleH * scale, display: 'flex', alignItems: 'center', paddingLeft: 4 * scale, fontWeight: 700, fontSize: Math.max(7, (t.headerFontSize + 1) * scale * 0.7), pointerEvents: 'none' }}>
+                    {locale === 'sl' ? 'Predplačila' : 'Advance payments'}
+                  </div>
+                  <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: titleH * scale, borderTop: '1px solid rgba(249, 115, 22, 0.7)' }} />
+                  <div className="fle-vat-table-header" style={{ height: headerH * scale, top: titleH * scale }}>
+                    {headers.map((label, idx) => (
+                      <span key={label} className="fle-vat-table-cell fle-vat-table-cell--header" style={{
+                        left: (w * colRatios[idx]) * scale,
+                        width: (w * colWidths[idx]) * scale,
+                        textAlign: idx <= 2 ? 'left' : 'right',
+                        fontSize: Math.max(6, t.headerFontSize * scale * 0.62),
+                      }}>
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  {Array.from({ length: ADVANCE_PAYMENT_SAMPLE_ROWS }, (_, r) => (
+                    <div key={r} className="fle-vat-table-row fle-vat-table-row--last" style={{ height: rowH * scale, top: (titleH + headerH + rowH * r) * scale }}>
+                      {(locale === 'sl'
+                        ? ['AV-2026-0007', '2026-05-20', '22%', '24.59', '5.41', '30.00', '30.00']
+                        : ['AV-2026-0007', '2026-05-20', '22%', '24.59', '5.41', '30.00', '30.00']
+                      ).map((value, idx) => (
+                        <span key={idx} className="fle-vat-table-cell" style={{
+                          left: (w * colRatios[idx]) * scale,
+                          width: (w * colWidths[idx]) * scale,
+                          textAlign: idx <= 2 ? 'left' : 'right',
+                          fontSize: Math.max(6, t.bodyFontSize * scale * 0.62),
+                        }}>
+                          {value}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                  <span className="fle-vat-table-label">{locale === 'sl' ? 'Predplačila' : 'Advance payments'}</span>
                 </div>
               )
             })()}
@@ -1419,7 +1524,7 @@ export function FolioLayoutEditor() {
         <div className="fle-panel">
           {selection === null && (
             <div className="fle-panel-empty">
-              <p className="muted">Click a field, page space, services table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.</p>
+              <p className="muted">Click a field, page space, services table, advance payments table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.</p>
               <button type="button" className="fle-btn" onClick={() => setSelection({ type: 'pageSections' })}>Edit page spaces</button>
             </div>
           )}
@@ -1779,6 +1884,21 @@ export function FolioLayoutEditor() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {selection?.type === 'advancePaymentsTable' && (
+            <div className="fle-panel-content">
+              <PageHeader title="Predplačila" subtitle="Advance payments table preview" />
+              <p className="muted" style={{ fontSize: 12, lineHeight: 1.45 }}>
+                This table is shown on generated invoices only when one or more predplačilo payment methods are used. It follows the Services table width and font sizes, and each used predplačilo is rendered as a separate row.
+              </p>
+              <div className="fle-panel-coords">
+                Position: {Math.round(layout.table.startX)}, {Math.round(advancePaymentsPreviewTop(layout))} pt · Width: {Math.round(layout.table.width)} pt
+              </div>
+              <p className="muted" style={{ fontSize: 12, lineHeight: 1.45, marginTop: 12 }}>
+                To change its width or text size, adjust the Services table. The columns match the generated PDF: Predplačilo št., Datum, Stopnja DDV, Osnova, DDV, Skupaj, Uporabljeno.
+              </p>
             </div>
           )}
 

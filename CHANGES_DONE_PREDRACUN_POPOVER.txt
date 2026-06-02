@@ -1,0 +1,8 @@
+Updated open-bill proforma preview/email action UI.
+
+Changes made:
+1. Replaced the full-screen Predračun choice modal with a compact anchored popover.
+2. The popover opens directly above the Predogled računa button, matching the contextual style used by bill-item discount popups.
+3. The popover still shows Predogled and Pošlji po e-pošti when the selected payee has an email.
+4. If the selected payee does not have an email, Predogled računa continues to open the preview directly.
+5. Added outside-click handling so the popover closes when clicking away.

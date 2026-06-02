@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,6 +162,49 @@ public class BillingEmailService {
         }
     }
 
+    public String sendOpenBillPreviewFolio(Bill bill, byte[] pdfBytes, String locale) {
+        if (!isInvoiceDeliveryEnabled(bill)) {
+            throw new IllegalStateException("Invoice email delivery is disabled.");
+        }
+        String recipient = resolveRecipientEmail(bill);
+        if (recipient == null || recipient.isBlank()) {
+            return null;
+        }
+        if (!mailConfigured) {
+            throw new IllegalStateException("Mail is not configured.");
+        }
+        boolean slovenian = locale != null && locale.toLowerCase(Locale.ROOT).startsWith("sl");
+        String docLabel = slovenian ? "Predračun" : "Proforma invoice";
+        String companyName = resolveCompanyName(bill);
+        String subject = docLabel + " " + safeBillNumber(bill) + " - " + companyName;
+        String guestName = resolveGuestName(bill);
+        String body = slovenian
+                ? "Pozdravljeni" + (guestName.isBlank() ? "" : " " + guestName) + ",\n\n" +
+                  "v priponki vam pošiljamo predračun " + safeBillNumber(bill) + ".\n" +
+                  "Znesek za plačilo: " + fmtAmount(bill.getTotalGross()) + "\n\n" +
+                  "Lep pozdrav,\n" + companyName
+                : "Hello" + (guestName.isBlank() ? "" : " " + guestName) + ",\n\n" +
+                  "your proforma invoice " + safeBillNumber(bill) + " is attached.\n" +
+                  "Amount due: " + fmtAmount(bill.getTotalGross()) + "\n\n" +
+                  "Thank you,\n" + companyName;
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+            helper.setFrom(resolveFromAddress());
+            helper.setTo(recipient);
+            helper.setSubject(subject);
+            helper.setText(body, false);
+            String filenamePrefix = slovenian ? "predracun-" : "proforma-";
+            helper.addAttachment(filenamePrefix + safeBillNumber(bill) + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
+            mailSender.send(message);
+            log.info("Open-bill preview folio emailed for bill {} to {}", bill.getId(), recipient);
+            return recipient;
+        } catch (Exception ex) {
+            log.warn("Failed to send open-bill preview folio for bill {}: {}", bill.getId(), ex.getMessage());
+            throw new IllegalStateException("Failed to send preview email.", ex);
+        }
+    }
+
 
     private void sendPaymentLink(Bill bill, String url, String subject, String body, String logLabel) {
         String recipient = resolveRecipientEmail(bill);
@@ -217,6 +261,35 @@ public class BillingEmailService {
         }
     }
 
+
+    private String resolveCompanyName(Bill bill) {
+        Long companyId = bill != null && bill.getCompany() != null ? bill.getCompany().getId() : null;
+        String configured = settingValue(companyId, SettingKey.COMPANY_NAME);
+        if (configured != null && !configured.isBlank()) return configured.trim();
+        return bill != null && bill.getCompany() != null && bill.getCompany().getName() != null
+                ? bill.getCompany().getName()
+                : "Calendra";
+    }
+
+    private String resolveGuestName(Bill bill) {
+        if (bill == null) return "";
+        String first = bill.getClientFirstNameSnapshot() == null ? "" : bill.getClientFirstNameSnapshot().trim();
+        String last = bill.getClientLastNameSnapshot() == null ? "" : bill.getClientLastNameSnapshot().trim();
+        String name = (first + " " + last).trim();
+        if (!name.isBlank()) return name;
+        if (bill.getRecipientCompanyNameSnapshot() != null) return bill.getRecipientCompanyNameSnapshot().trim();
+        return "";
+    }
+
+    private String safeBillNumber(Bill bill) {
+        if (bill == null || bill.getBillNumber() == null || bill.getBillNumber().isBlank()) return "PREVIEW";
+        return bill.getBillNumber().trim();
+    }
+
+    private String fmtAmount(java.math.BigDecimal amount) {
+        java.math.BigDecimal normalized = amount == null ? java.math.BigDecimal.ZERO : amount.setScale(2, java.math.RoundingMode.HALF_UP);
+        return normalized.toPlainString() + " EUR";
+    }
 
     private boolean isInvoiceDeliveryEnabled(Bill bill) {
         Long companyId = bill.getCompany() != null ? bill.getCompany().getId() : null;

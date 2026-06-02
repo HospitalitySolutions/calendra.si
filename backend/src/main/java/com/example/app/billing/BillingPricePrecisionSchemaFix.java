@@ -33,6 +33,9 @@ public class BillingPricePrecisionSchemaFix {
             jdbc.execute("ALTER TABLE IF EXISTS open_bill_items ALTER COLUMN net_price TYPE NUMERIC(12,4)");
             jdbc.execute("ALTER TABLE IF EXISTS bill_item ALTER COLUMN net_price TYPE NUMERIC(12,4)");
             jdbc.execute("ALTER TABLE IF EXISTS open_bill_items ADD COLUMN IF NOT EXISTS unit_gross_price NUMERIC(12,2)");
+            jdbc.execute("ALTER TABLE IF EXISTS open_bills ADD COLUMN IF NOT EXISTS proforma_number VARCHAR(80)");
+            jdbc.execute("ALTER TABLE IF EXISTS open_bills ADD COLUMN IF NOT EXISTS proforma_sequence_number BIGINT");
+            jdbc.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_open_bills_company_proforma_number ON open_bills(company_id, proforma_number) WHERE proforma_number IS NOT NULL");
             jdbc.execute("""
                     UPDATE open_bill_items obi
                     SET unit_gross_price = ROUND((COALESCE(

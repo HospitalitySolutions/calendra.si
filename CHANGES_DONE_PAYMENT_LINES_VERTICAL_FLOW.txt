@@ -1,0 +1,7 @@
+Updated folio/invoice PDF payment footer rendering.
+
+Changes made:
+1. When multiple payment methods exist, the payment lines now render downward, one below another, starting from the Payment anchor field.
+2. Footer items positioned below the Payment field in the right-side payment column are now automatically pushed downward by the extra height created by additional payment lines.
+3. The same downward offset is also applied to right-side elements below the payment block such as the payment QR and any other right-column footer elements, preventing overlap.
+4. This preserves the existing layout for single-payment invoices and only adds vertical shifting when multiple payment lines are present.

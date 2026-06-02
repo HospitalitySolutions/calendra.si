@@ -102,4 +102,7 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
 
     @Query("SELECT COALESCE(MAX(o.manualSessionNumberMax), 0) FROM OpenBill o WHERE o.company.id = :companyId")
     Long findMaxManualSessionNumberByCompanyId(Long companyId);
+
+    @Query("SELECT COALESCE(MAX(o.proformaSequenceNumber), 0) FROM OpenBill o WHERE o.company.id = :companyId")
+    Long findMaxProformaSequenceNumberByCompanyId(@Param("companyId") Long companyId);
 }

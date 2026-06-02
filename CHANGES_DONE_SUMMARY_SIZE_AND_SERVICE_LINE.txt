@@ -1,0 +1,5 @@
+Updated folio / invoice PDF layout.
+
+Changes made:
+1. The summary rows (Skupaj brez DDV, Skupaj bruto / Skupaj z DDV, Za plačilo, and Popust when visible) now render using the same font size as the Services table body text.
+2. The bottom Services table double line was moved higher, closer to the service rows.

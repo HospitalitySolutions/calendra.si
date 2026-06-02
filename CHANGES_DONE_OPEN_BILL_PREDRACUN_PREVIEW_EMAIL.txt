@@ -1,0 +1,17 @@
+Open bill preview / proforma invoice update
+==========================================
+
+Implemented:
+1. Open-bill PDF preview now renders the document title as "Predračun:" / "Proforma invoice:" instead of "Račun:" / "Invoice:".
+2. The generated preview filename was renamed from invoice-preview-open-*.pdf to predracun-preview-open-*.pdf.
+3. Clicking "Predogled računa" now checks whether the currently selected payee has an email address.
+4. If the selected guest/company has an email address, a popup opens with two actions:
+   - Predogled: opens the PDF preview as before.
+   - Pošlji po e-pošti: emails the PDF preview to the selected payee.
+5. If the selected payee has no email address, the popup is skipped and the preview opens directly.
+6. Added backend endpoint POST /api/billing/open-bills/{id}/preview-email that builds the current open-bill draft as a transient preview and emails the generated PDF without closing the open bill or creating an invoice.
+7. Added a dedicated preview/proforma email method with localized Slovenian/English subject/body and PDF attachment.
+
+Validation:
+- Frontend TypeScript build could not be completed in this sandbox because node_modules dependencies are not installed.
+- Backend Maven compile could not be completed because Maven wrapper needs to download Maven from Maven Central and network access is unavailable.

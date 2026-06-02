@@ -1,0 +1,10 @@
+Predračun preview popover position fix
+====================================
+
+Fixed the Predogled računa / Predračun action UI after the counter update.
+
+Changes:
+1. Restored the compact anchored popover styling.
+2. The popover now opens above the Predogled računa button instead of rendering as inline content below the footer.
+3. Kept existing Predogled and Pošlji po e-pošti actions.
+4. No backend changes were required for this visual/placement fix.

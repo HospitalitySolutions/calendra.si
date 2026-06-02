@@ -50,6 +50,10 @@ public class FolioPdfRequest {
     private BigDecimal toBePaidGross;
     /** Total discount amount shown in the folio footer when greater than zero. */
     private BigDecimal discountAmountGross;
+    /** Total amount of advance/deposit payments used on this folio. */
+    private BigDecimal usedAdvancePaymentsGross;
+    /** Advance/deposit payments consumed by this folio, rendered in a dedicated table. */
+    private List<AdvancePaymentLine> advancePayments;
     private String locale;
 
     public static class PaymentLine {
@@ -67,6 +71,33 @@ public class FolioPdfRequest {
         public void setName(String name) { this.name = name; }
         public BigDecimal getAmountGross() { return amountGross; }
         public void setAmountGross(BigDecimal amountGross) { this.amountGross = amountGross; }
+    }
+
+    public static class AdvancePaymentLine {
+        private String advanceNumber;
+        private String date;
+        private String taxPercent;
+        private BigDecimal netBasis;
+        private BigDecimal taxAmount;
+        private BigDecimal totalGross;
+        private BigDecimal usedGross;
+
+        public AdvancePaymentLine() {}
+
+        public String getAdvanceNumber() { return advanceNumber; }
+        public void setAdvanceNumber(String advanceNumber) { this.advanceNumber = advanceNumber; }
+        public String getDate() { return date; }
+        public void setDate(String date) { this.date = date; }
+        public String getTaxPercent() { return taxPercent; }
+        public void setTaxPercent(String taxPercent) { this.taxPercent = taxPercent; }
+        public BigDecimal getNetBasis() { return netBasis; }
+        public void setNetBasis(BigDecimal netBasis) { this.netBasis = netBasis; }
+        public BigDecimal getTaxAmount() { return taxAmount; }
+        public void setTaxAmount(BigDecimal taxAmount) { this.taxAmount = taxAmount; }
+        public BigDecimal getTotalGross() { return totalGross; }
+        public void setTotalGross(BigDecimal totalGross) { this.totalGross = totalGross; }
+        public BigDecimal getUsedGross() { return usedGross; }
+        public void setUsedGross(BigDecimal usedGross) { this.usedGross = usedGross; }
     }
 
     public static class ServiceLine {
@@ -162,6 +193,10 @@ public class FolioPdfRequest {
     public void setToBePaidGross(BigDecimal toBePaidGross) { this.toBePaidGross = toBePaidGross; }
     public BigDecimal getDiscountAmountGross() { return discountAmountGross; }
     public void setDiscountAmountGross(BigDecimal discountAmountGross) { this.discountAmountGross = discountAmountGross; }
+    public BigDecimal getUsedAdvancePaymentsGross() { return usedAdvancePaymentsGross; }
+    public void setUsedAdvancePaymentsGross(BigDecimal usedAdvancePaymentsGross) { this.usedAdvancePaymentsGross = usedAdvancePaymentsGross; }
+    public List<AdvancePaymentLine> getAdvancePayments() { return advancePayments; }
+    public void setAdvancePayments(List<AdvancePaymentLine> advancePayments) { this.advancePayments = advancePayments; }
     public String getLocale() { return locale; }
     public void setLocale(String locale) { this.locale = locale; }
 }

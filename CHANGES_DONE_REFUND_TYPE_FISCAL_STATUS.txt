@@ -1,0 +1,20 @@
+Refund bill type / fiscal status fix
+======================================
+
+Implemented:
+1. Refund bills now show "Dobropis" / "Credit note" in the "Vrsta računa" / bill type column.
+   - A bill is treated as a refund if it has refundOfBillId, refundReference, or a negative totalGross.
+
+2. Fiscal status no longer shows "Dobropis" for refund rows.
+   - It now stays a real fiscal status:
+     - SENT -> Izdano / Invoiced
+     - FAILED -> Napaka / Failed
+     - otherwise -> Ni poslano / Not Sent
+
+3. Refund statistic detection now uses the same refund helper logic as the bill type column.
+
+Files changed:
+- frontend/src/pages/BillingPage.tsx
+
+Validation:
+- Full frontend build was not run in this sandbox.

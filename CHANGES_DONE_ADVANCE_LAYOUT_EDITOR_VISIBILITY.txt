@@ -1,0 +1,8 @@
+Updated folio layout editor visibility for predplačila support.
+
+Changes made:
+1. Added a visible Predplačila / Advance payments table preview to the folio layout editor canvas.
+2. The preview uses the same width and font sizing as the Services table, matching the generated PDF table behaviour.
+3. The preview shows the same columns used on generated invoices: Predplačilo št., Datum, Stopnja DDV, Osnova, DDV, Skupaj, Uporabljeno.
+4. Added an editor panel entry when clicking the Predplačila preview, explaining that it appears only on invoices where predplačilo payment methods are used.
+5. The existing footer field Uporabljena predplačila remains available in the footer items and is auto-added when older layouts are loaded.
