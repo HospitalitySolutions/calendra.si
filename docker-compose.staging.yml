@@ -19,7 +19,9 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-calendra_staging}
       POSTGRES_USER: ${POSTGRES_USER:-calendra}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-staging}
+      # Intentionally no default: load from AWS Secrets Manager before starting compose.
+      # Recommended: scripts/docker-compose-with-aws-secrets.sh staging up -d --build
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be loaded from AWS Secrets Manager for staging}
     volumes:
       - postgres_staging_data:/var/lib/postgresql/data
     healthcheck:
@@ -49,9 +51,8 @@ services:
       SPRING_PROFILES_ACTIVE: staging
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: 4000
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-calendra_staging}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-calendra}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me-staging}
+      # Datasource URL/username/password are loaded by Spring from AWS Secrets Manager.
+      # Keep SPRING_DATASOURCE_* out of docker-compose so the secret remains the source of truth.
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       APP_RATE_LIMIT_BACKEND: ${APP_RATE_LIMIT_BACKEND:-auto}

@@ -19,13 +19,15 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: calendradb
-      POSTGRES_USER: calendra
-      POSTGRES_PASSWORD: calendra
+      POSTGRES_DB: ${POSTGRES_DB:-calendradb}
+      POSTGRES_USER: ${POSTGRES_USER:-calendra}
+      # Intentionally no default: load from AWS Secrets Manager before starting compose.
+      # Recommended: scripts/docker-compose-with-aws-secrets.sh production up -d --build
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be loaded from AWS Secrets Manager for production}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U calendra -d calendradb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calendra} -d ${POSTGRES_DB:-calendradb}"]
       interval: 5s
       timeout: 5s
       retries: 20
