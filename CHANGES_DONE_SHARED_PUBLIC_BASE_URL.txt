@@ -1,0 +1,29 @@
+Shared public base URL consolidation
+
+What changed:
+- Added APP_PUBLIC_BASE_URL as the shared public app/base URL used for frontend redirects and public backend /api return URLs.
+- Updated auth/frontend URL resolution so APP_AUTH_FRONTEND_URL is now only a legacy override; if it is not set, APP_PUBLIC_BASE_URL is used.
+- Updated Zoom, Google Meet, and Google Calendar frontend URL defaults so they inherit APP_PUBLIC_BASE_URL unless their old feature-specific override is set.
+- Updated Stripe guest checkout and manual bill payment return/cancel URL generation to prefer APP_PUBLIC_BASE_URL before the older APP_STRIPE_* callback variables.
+- Updated PayPal public callback URL fallback to also use APP_PUBLIC_BASE_URL when APP_PAYPAL_PUBLIC_BASE_URL is not set.
+- Updated local/staging env examples and Docker Compose examples to expose APP_PUBLIC_BASE_URL instead of requiring APP_AUTH_FRONTEND_URL.
+- Updated Stripe and Zoom setup documentation.
+
+Recommended production/staging env setup:
+APP_PUBLIC_BASE_URL=https://app.calendra.si
+
+Optional legacy overrides still supported when needed:
+- APP_AUTH_FRONTEND_URL
+- ZOOM_FRONTEND_URL
+- GOOGLE_MEET_FRONTEND_URL
+- GOOGLE_CALENDAR_FRONTEND_URL
+- APP_STRIPE_GUEST_PUBLIC_BASE_URL
+- APP_STRIPE_BILLING_PUBLIC_BASE_URL
+- APP_PAYPAL_PUBLIC_BASE_URL
+
+Note:
+For local development, one shared URL only works if that URL can serve both frontend routes and backend /api routes. If frontend and backend run on different localhost ports, keep the old optional overrides for local only.
+
+Build check:
+- Tried to run ./mvnw -q -DskipTests compile.
+- It could not run because the Maven wrapper tried to download Maven from repo.maven.apache.org and internet access is blocked in this environment.

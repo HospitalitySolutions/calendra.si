@@ -220,7 +220,7 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
     }
 
     private String frontendBaseUrl() {
-        return environment.getProperty("APP_AUTH_FRONTEND_URL", "http://localhost:3000");
+        return environment.getProperty("APP_AUTH_FRONTEND_URL", environment.getProperty("APP_PUBLIC_BASE_URL", "http://localhost:3000"));
     }
 
     private void redirectWithError(HttpServletResponse response, String error) throws IOException {

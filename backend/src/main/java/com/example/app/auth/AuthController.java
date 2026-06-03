@@ -164,7 +164,7 @@ public class AuthController {
 
         private void redirectOauthError(HttpServletResponse response, String message) throws IOException {
                 String encoded = URLEncoder.encode(message, StandardCharsets.UTF_8);
-                String frontendBaseUrl = environment.getProperty("APP_AUTH_FRONTEND_URL", "http://localhost:3000");
+                String frontendBaseUrl = environment.getProperty("APP_AUTH_FRONTEND_URL", environment.getProperty("APP_PUBLIC_BASE_URL", "http://localhost:3000"));
                 response.sendRedirect(frontendBaseUrl + "/login?oauth_error=" + encoded);
         }
 

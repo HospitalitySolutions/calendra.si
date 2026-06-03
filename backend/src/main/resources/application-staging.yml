@@ -27,11 +27,12 @@ spring:
       region:
         static: ${AWS_REGION:eu-central-1}
 app:
+  public-base-url: ${APP_PUBLIC_BASE_URL:}
   security:
     rate-limit:
       backend: ${APP_RATE_LIMIT_BACKEND:auto}
   auth:
-    frontend-url: ${APP_AUTH_FRONTEND_URL:}
+    frontend-url: ${APP_AUTH_FRONTEND_URL:${APP_PUBLIC_BASE_URL:}}
   widget:
     security:
       require-allowed-origin: ${APP_WIDGET_REQUIRE_ALLOWED_ORIGIN:false}

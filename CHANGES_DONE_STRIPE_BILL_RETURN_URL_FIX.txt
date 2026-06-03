@@ -1,0 +1,13 @@
+Stripe manual bill payment return URL fix
+
+Changes done:
+- Manual bill Stripe Checkout links now use backend-hosted return/cancel URLs instead of the generic Platform Admin success/cancel URL fields.
+- Added public billing return pages under /api/guest/stripe/billing/return and /api/guest/stripe/billing/cancel so clients see a clean payment completed/cancelled page after Stripe Checkout.
+- Success/cancel URLs now include the real bill id/bill number and only leave Stripe's supported {CHECKOUT_SESSION_ID} placeholder for Stripe to replace.
+- Added APP_STRIPE_BILLING_PUBLIC_BASE_URL as an optional public backend base URL for manually emailed bill payment return pages.
+- Updated Platform Admin Stripe settings defaults/help text so the guest-app deep link is no longer suggested as a generic Stripe success/cancel URL.
+- Updated Stripe billing setup docs and affected StripeBillingService unit test mock.
+
+Why:
+- Stripe only replaces {CHECKOUT_SESSION_ID}. Custom placeholders such as {STATUS} and {ORDER_ID} are not replaced by Stripe.
+- Using calendra-guest://... as a generic/manual bill success URL can be transformed by the browser/Stripe redirect into a broken URL like https://calendra-guest//stripe/return?status={STATUS}&orderId={ORDER_ID}.

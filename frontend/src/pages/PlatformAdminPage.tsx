@@ -1415,8 +1415,8 @@ const emptyStripeModeSettings = (): StripeAdminModeSettings => ({
   secretKeyMissing: true,
   publishableKey: '',
   webhookSecretMissing: true,
-  successUrl: 'calendra-guest://stripe/return?status={STATUS}&orderId={ORDER_ID}&session_id={CHECKOUT_SESSION_ID}',
-  cancelUrl: 'calendra-guest://stripe/return?status={STATUS}&orderId={ORDER_ID}&session_id={CHECKOUT_SESSION_ID}',
+  successUrl: '',
+  cancelUrl: '',
   currency: 'EUR',
   applicationFeePercent: '0',
   applicationFeeFixedMinor: '0',
@@ -1682,7 +1682,7 @@ function PaymentProvidersAdminPanel() {
             </div>
 
             <p className="muted" style={{ margin: '14px 0 0', fontWeight: 700, lineHeight: 1.5 }}>
-              Supported URL placeholders: {'{STATUS}'}, {'{ORDER_ID}'}, {'{TENANT_ID}'}, {'{ORDER_REFERENCE}'}, {'{CHECKOUT_SESSION_ID}'}.
+              Manual bill links and guest checkout now generate safe backend return URLs automatically. Leave these legacy fallback URLs blank unless you intentionally need a custom Stripe return URL. Stripe only replaces {'{CHECKOUT_SESSION_ID}'}.
             </p>
           </div>
         </>

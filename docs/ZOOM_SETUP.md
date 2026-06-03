@@ -55,7 +55,8 @@ Set these in Configuration → Online Meetings (or environment variables):
 - `ZOOM_CLIENT_ID` – From your Zoom app
 - `ZOOM_CLIENT_SECRET` – From your Zoom app
 - `ZOOM_REDIRECT_URI` – Must match exactly what's in Zoom
-- `ZOOM_FRONTEND_URL` – Where users land after OAuth (e.g. `http://localhost:5173`)
+- `APP_PUBLIC_BASE_URL` – Shared frontend/app URL where users land after OAuth, used unless `ZOOM_FRONTEND_URL` is set as a legacy override.
+- `ZOOM_FRONTEND_URL` – Optional legacy override when Zoom should redirect to a different frontend URL.
 
 ## Summary: Users from Different Zoom Accounts
 

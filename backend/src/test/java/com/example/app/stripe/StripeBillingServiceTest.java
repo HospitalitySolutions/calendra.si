@@ -50,7 +50,7 @@ class StripeBillingServiceTest {
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
         bill.setCheckoutSessionId("cs_old");
         bill.setCheckoutSessionExpiresAt(OffsetDateTime.now().minusHours(1));
-        when(client.createOneTimeSession(any(), any(), any(), any(), any()))
+        when(client.createOneTimeSession(any(StripeCheckoutClient.StripeCheckoutSessionCreateRequest.class)))
                 .thenReturn(new StripeCheckoutSessionResult("cs_new", "https://checkout.stripe.com/c/pay", "open", OffsetDateTime.now().plusHours(24)));
 
         StripeCheckoutSessionResult created = service.createCheckoutSessionForBill(bill);

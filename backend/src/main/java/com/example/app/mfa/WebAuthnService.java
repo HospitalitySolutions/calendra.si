@@ -540,7 +540,7 @@ public class WebAuthnService {
         if (c != null && c.getMessage() != null && !c.getMessage().isBlank()) {
             return c.getMessage();
         }
-        return "WebAuthn registration was rejected. For local dev, set APP_AUTH_FRONTEND_URL to the same origin as in the browser (including localhost vs 127.0.0.1) and port; optionally set APP_WEBAUTHN_ALLOWED_ORIGINS.";
+        return "WebAuthn registration was rejected. For local dev, set APP_PUBLIC_BASE_URL (or legacy APP_AUTH_FRONTEND_URL) to the same origin as in the browser (including localhost vs 127.0.0.1) and port; optionally set APP_WEBAUTHN_ALLOWED_ORIGINS.";
     }
 
     private String normalizePackageType(String rawValue, String fallback) {

@@ -87,6 +87,8 @@ public class StripeGuestCheckoutService {
 
     private String publicBaseUrl() {
         String value = firstNonBlank(
+                environment.getProperty("APP_PUBLIC_BASE_URL"),
+                environment.getProperty("app.public-base-url"),
                 environment.getProperty("APP_STRIPE_GUEST_PUBLIC_BASE_URL"),
                 environment.getProperty("app.stripe.guest-public-base-url"),
                 environment.getProperty("APP_PAYPAL_PUBLIC_BASE_URL"),

@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,6 +25,7 @@ public class StripeBillingService {
     private final StripeConfig stripeConfig;
     private final StripeConnectService stripeConnectService;
     private final StripePlatformSettingsService stripePlatformSettingsService;
+    private final Environment environment;
 
     @Autowired
     public StripeBillingService(
@@ -32,7 +34,8 @@ public class StripeBillingService {
             StripeInvoiceClient stripeInvoiceClient,
             StripeConfig stripeConfig,
             StripeConnectService stripeConnectService,
-            StripePlatformSettingsService stripePlatformSettingsService
+            StripePlatformSettingsService stripePlatformSettingsService,
+            Environment environment
     ) {
         this.bills = bills;
         this.stripeCheckoutClient = stripeCheckoutClient;
@@ -40,11 +43,12 @@ public class StripeBillingService {
         this.stripeConfig = stripeConfig;
         this.stripeConnectService = stripeConnectService;
         this.stripePlatformSettingsService = stripePlatformSettingsService;
+        this.environment = environment;
     }
 
     /** Backwards-compatible constructor for older unit tests. */
     StripeBillingService(BillRepository bills, StripeCheckoutClient stripeCheckoutClient, StripeInvoiceClient stripeInvoiceClient, StripeConfig stripeConfig) {
-        this(bills, stripeCheckoutClient, stripeInvoiceClient, stripeConfig, null, null);
+        this(bills, stripeCheckoutClient, stripeInvoiceClient, stripeConfig, null, null, null);
     }
 
     public StripeCheckoutSessionResult createCheckoutSessionForBill(Bill bill) {
@@ -78,8 +82,8 @@ public class StripeBillingService {
             long applicationFee = stripePlatformSettingsService.applicationFeeAmountMinor(routing.mode(), bill.getTotalGross());
             session = stripeCheckoutClient.createOneTimeSession(new StripeCheckoutClient.StripeCheckoutSessionCreateRequest(
                     routing.modeSettings().secretKey(),
-                    firstNonBlank(stripeConfig.successUrl(), routing.modeSettings().successUrl()),
-                    firstNonBlank(stripeConfig.cancelUrl(), routing.modeSettings().cancelUrl()),
+                    billingReturnUrl(bill, "success"),
+                    billingCancelUrl(bill),
                     "Calendra invoice " + bill.getBillNumber(),
                     bill.getTotalGross(),
                     routing.modeSettings().currency(),
@@ -91,13 +95,20 @@ public class StripeBillingService {
                     "bill-checkout-" + bill.getId() + "-" + routing.mode().apiValue() + "-" + System.currentTimeMillis()
             ));
         } else {
-            session = stripeCheckoutClient.createOneTimeSession(
-                    bill.getBillNumber(),
+            session = stripeCheckoutClient.createOneTimeSession(new StripeCheckoutClient.StripeCheckoutSessionCreateRequest(
+                    stripeConfig.secretKey(),
+                    billingReturnUrl(bill, "success"),
+                    billingCancelUrl(bill),
+                    "Calendra invoice " + bill.getBillNumber(),
                     bill.getTotalGross(),
                     stripeConfig.currency(),
                     bill.getClient() == null ? null : bill.getClient().getEmail(),
-                    metadata
-            );
+                    metadata,
+                    Map.of(),
+                    null,
+                    0L,
+                    "bill-checkout-" + bill.getId() + "-legacy-" + System.currentTimeMillis()
+            ));
         }
         bill.setCheckoutSessionId(session.id());
         bill.setCheckoutSessionExpiresAt(session.expiresAt());
@@ -217,6 +228,48 @@ public class StripeBillingService {
         return stripeConnectService.routingForCompany(bill.getCompany());
     }
 
+
+    private String billingReturnUrl(Bill bill, String status) {
+        return publicBaseUrl()
+                + "/api/guest/stripe/billing/return?status=" + url(status == null || status.isBlank() ? "success" : status)
+                + "&billId=" + (bill.getId() == null ? "" : bill.getId())
+                + "&billNumber=" + url(bill.getBillNumber())
+                + "&session_id={CHECKOUT_SESSION_ID}";
+    }
+
+    private String billingCancelUrl(Bill bill) {
+        return publicBaseUrl()
+                + "/api/guest/stripe/billing/cancel?billId=" + (bill.getId() == null ? "" : bill.getId())
+                + "&billNumber=" + url(bill.getBillNumber())
+                + "&session_id={CHECKOUT_SESSION_ID}";
+    }
+
+    private String publicBaseUrl() {
+        String value = firstNonBlank(
+                environment == null ? null : environment.getProperty("APP_PUBLIC_BASE_URL"),
+                environment == null ? null : environment.getProperty("app.public-base-url"),
+                environment == null ? null : environment.getProperty("APP_STRIPE_BILLING_PUBLIC_BASE_URL"),
+                environment == null ? null : environment.getProperty("app.stripe.billing-public-base-url"),
+                environment == null ? null : environment.getProperty("APP_STRIPE_GUEST_PUBLIC_BASE_URL"),
+                environment == null ? null : environment.getProperty("app.stripe.guest-public-base-url"),
+                environment == null ? null : environment.getProperty("APP_PAYPAL_PUBLIC_BASE_URL"),
+                environment == null ? null : environment.getProperty("app.paypal.public-base-url"),
+                environment == null ? null : environment.getProperty("APP_AUTH_FRONTEND_URL"),
+                environment == null ? null : environment.getProperty("app.auth.frontend-url")
+        );
+        if (value == null || value.isBlank()) {
+            value = "http://localhost:4000";
+        }
+        value = value.trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    private String url(String value) {
+        return java.net.URLEncoder.encode(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8);
+    }
 
     private void validateBillAmount(Bill bill) {
         if (bill.getTotalGross() == null || bill.getTotalGross().compareTo(BigDecimal.ZERO) <= 0) {

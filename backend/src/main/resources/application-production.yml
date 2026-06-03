@@ -25,6 +25,7 @@ spring:
       password: ${SPRING_DATA_REDIS_PASSWORD:}
       timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
 app:
+  public-base-url: ${APP_PUBLIC_BASE_URL:}
   security:
     rate-limit:
       backend: ${APP_RATE_LIMIT_BACKEND:redis}
@@ -42,7 +43,7 @@ app:
       secret-key: ${APP_WIDGET_TURNSTILE_SECRET_KEY:}
       required-for-public-actions: ${APP_WIDGET_TURNSTILE_REQUIRED_FOR_PUBLIC_ACTIONS:true}
   auth:
-    frontend-url: ${APP_AUTH_FRONTEND_URL:https://app.calendra.si}
+    frontend-url: ${APP_AUTH_FRONTEND_URL:${APP_PUBLIC_BASE_URL:https://app.calendra.si}}
     cookie:
       secure: ${APP_AUTH_COOKIE_SECURE:true}
       same-site: ${APP_AUTH_COOKIE_SAME_SITE:Lax}

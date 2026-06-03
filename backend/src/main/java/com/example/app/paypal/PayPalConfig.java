@@ -14,7 +14,7 @@ public class PayPalConfig {
     @Value("${app.paypal.base-url:${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}}")
     private String baseUrl;
 
-    @Value("${app.paypal.public-base-url:${APP_PAYPAL_PUBLIC_BASE_URL:}}")
+    @Value("${app.paypal.public-base-url:${APP_PAYPAL_PUBLIC_BASE_URL:${APP_PUBLIC_BASE_URL:}}}")
     private String publicBaseUrl;
 
     @Value("${app.paypal.mobile-success-url:${APP_PAYPAL_MOBILE_SUCCESS_URL:calendra-guest://paypal/return?status=success}}")
