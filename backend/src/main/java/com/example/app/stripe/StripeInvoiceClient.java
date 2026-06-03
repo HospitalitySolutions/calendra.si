@@ -34,32 +34,79 @@ public class StripeInvoiceClient {
     }
 
     public StripeBankTransferInvoiceResult createBankTransferInvoice(Bill bill, int daysUntilDue) {
-        validateConfig();
-        String customerId = createCustomer(bill);
-        String invoiceId = createDraftInvoice(bill, customerId, daysUntilDue);
-        createInvoiceItems(bill, customerId, invoiceId);
-        JsonNode finalized = finalizeInvoice(invoiceId);
-        JsonNode funding = createOrRetrieveFundingInstructions(customerId);
-        return toInvoiceResult(customerId, finalized, funding);
+        return createBankTransferInvoice(bill, daysUntilDue, legacyContext());
+    }
+
+    public StripeBankTransferInvoiceResult createBankTransferInvoice(
+            Bill bill,
+            int daysUntilDue,
+            String secretKey,
+            String currency,
+            String euBankTransferCountry,
+            String connectedAccountId
+    ) {
+        return createBankTransferInvoice(
+                bill,
+                daysUntilDue,
+                new StripeInvoiceRequestContext(secretKey, currency, euBankTransferCountry, connectedAccountId)
+        );
     }
 
     public StripeBankTransferInvoiceResult retrieveBankTransferInvoice(String customerId, String invoiceId) {
-        validateConfig();
+        return retrieveBankTransferInvoice(customerId, invoiceId, legacyContext());
+    }
+
+    public StripeBankTransferInvoiceResult retrieveBankTransferInvoice(
+            String customerId,
+            String invoiceId,
+            String secretKey,
+            String currency,
+            String euBankTransferCountry,
+            String connectedAccountId
+    ) {
+        return retrieveBankTransferInvoice(
+                customerId,
+                invoiceId,
+                new StripeInvoiceRequestContext(secretKey, currency, euBankTransferCountry, connectedAccountId)
+        );
+    }
+
+    private StripeBankTransferInvoiceResult createBankTransferInvoice(Bill bill, int daysUntilDue, StripeInvoiceRequestContext context) {
+        validateConfig(context);
+        String customerId = createCustomer(bill, context);
+        String invoiceId = createDraftInvoice(bill, customerId, daysUntilDue, context);
+        createInvoiceItems(bill, customerId, invoiceId, context);
+        JsonNode finalized = finalizeInvoice(invoiceId, context);
+        JsonNode funding = createOrRetrieveFundingInstructions(customerId, context);
+        return toInvoiceResult(customerId, finalized, funding);
+    }
+
+    private StripeBankTransferInvoiceResult retrieveBankTransferInvoice(String customerId, String invoiceId, StripeInvoiceRequestContext context) {
+        validateConfig(context);
         if (customerId == null || customerId.isBlank() || invoiceId == null || invoiceId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing Stripe customer/invoice for bank transfer retrieval.");
         }
-        JsonNode invoice = get("/v1/invoices/" + invoiceId);
-        JsonNode funding = createOrRetrieveFundingInstructions(customerId);
+        JsonNode invoice = get("/v1/invoices/" + invoiceId, context);
+        JsonNode funding = createOrRetrieveFundingInstructions(customerId, context);
         return toInvoiceResult(customerId, invoice, funding);
     }
 
-    private void validateConfig() {
-        if (config.secretKey().isBlank()) {
+    private StripeInvoiceRequestContext legacyContext() {
+        return new StripeInvoiceRequestContext(
+                config.secretKey(),
+                config.currency(),
+                config.euBankTransferCountry(),
+                ""
+        );
+    }
+
+    private void validateConfig(StripeInvoiceRequestContext context) {
+        if (context.secretKey().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe secret key is not configured.");
         }
     }
 
-    private String createCustomer(Bill bill) {
+    private String createCustomer(Bill bill, StripeInvoiceRequestContext context) {
         Map<String, String> form = new LinkedHashMap<>();
         String email = resolveCustomerEmail(bill);
         String phone = resolveCustomerPhone(bill);
@@ -73,10 +120,12 @@ public class StripeInvoiceClient {
         if (bill.getClient() != null) {
             form.put("metadata[client_id]", String.valueOf(bill.getClient().getId()));
         }
+        addConnectMetadata(form, bill);
         JsonNode node = postForm(
                 "/v1/customers",
                 form,
-                "bill-bank-transfer-customer-" + bill.getId()
+                "bill-bank-transfer-customer-" + bill.getId(),
+                context
         );
         String id = node.path("id").asText("");
         if (id.isBlank()) {
@@ -85,7 +134,7 @@ public class StripeInvoiceClient {
         return id;
     }
 
-    private String createDraftInvoice(Bill bill, String customerId, int daysUntilDue) {
+    private String createDraftInvoice(Bill bill, String customerId, int daysUntilDue, StripeInvoiceRequestContext context) {
         Map<String, String> form = new LinkedHashMap<>();
         form.put("customer", customerId);
         form.put("collection_method", "send_invoice");
@@ -93,17 +142,19 @@ public class StripeInvoiceClient {
         form.put("payment_settings[payment_method_types][]", "customer_balance");
         form.put("payment_settings[payment_method_options][customer_balance][funding_type]", "bank_transfer");
         form.put("payment_settings[payment_method_options][customer_balance][bank_transfer][type]", "eu_bank_transfer");
-        form.put("payment_settings[payment_method_options][customer_balance][bank_transfer][eu_bank_transfer][country]", config.euBankTransferCountry());
-        form.put("currency", config.currency());
+        form.put("payment_settings[payment_method_options][customer_balance][bank_transfer][eu_bank_transfer][country]", context.euBankTransferCountry());
+        form.put("currency", context.currency());
         form.put("metadata[bill_id]", String.valueOf(bill.getId()));
         form.put("metadata[bill_number]", safe(bill.getBillNumber()));
         if (bill.getSourceSessionIdSnapshot() != null) {
             form.put("metadata[session_id]", String.valueOf(bill.getSourceSessionIdSnapshot()));
         }
+        addConnectMetadata(form, bill);
         JsonNode node = postForm(
                 "/v1/invoices",
                 form,
-                "bill-bank-transfer-invoice-" + bill.getId()
+                "bill-bank-transfer-invoice-" + bill.getId(),
+                context
         );
         String id = node.path("id").asText("");
         if (id.isBlank()) {
@@ -112,7 +163,7 @@ public class StripeInvoiceClient {
         return id;
     }
 
-    private void createInvoiceItems(Bill bill, String customerId, String invoiceId) {
+    private void createInvoiceItems(Bill bill, String customerId, String invoiceId, StripeInvoiceRequestContext context) {
         List<BillItem> items = bill.getItems() == null ? List.of() : bill.getItems();
         if (items.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bill has no items for Stripe invoice creation.");
@@ -122,22 +173,24 @@ public class StripeInvoiceClient {
             Map<String, String> form = new LinkedHashMap<>();
             form.put("customer", customerId);
             form.put("invoice", invoiceId);
-            form.put("currency", config.currency());
+            form.put("currency", context.currency());
             form.put("amount", String.valueOf(toMinorUnits(item.getGrossPrice())));
             form.put("description", buildLineDescription(item));
             postForm(
                     "/v1/invoiceitems",
                     form,
-                    "bill-bank-transfer-item-" + bill.getId() + "-" + i
+                    "bill-bank-transfer-item-" + bill.getId() + "-" + i,
+                    context
             );
         }
     }
 
-    private JsonNode finalizeInvoice(String invoiceId) {
+    private JsonNode finalizeInvoice(String invoiceId, StripeInvoiceRequestContext context) {
         JsonNode node = postForm(
                 "/v1/invoices/" + invoiceId + "/finalize",
                 Map.of(),
-                "bill-bank-transfer-finalize-" + invoiceId
+                "bill-bank-transfer-finalize-" + invoiceId,
+                context
         );
         String id = node.path("id").asText("");
         String hostedInvoiceUrl = node.path("hosted_invoice_url").asText("");
@@ -147,17 +200,18 @@ public class StripeInvoiceClient {
         return node;
     }
 
-    private JsonNode createOrRetrieveFundingInstructions(String customerId) {
+    private JsonNode createOrRetrieveFundingInstructions(String customerId, StripeInvoiceRequestContext context) {
         Map<String, String> form = new LinkedHashMap<>();
         form.put("funding_type", "bank_transfer");
-        form.put("currency", config.currency());
+        form.put("currency", context.currency());
         form.put("bank_transfer[type]", "eu_bank_transfer");
-        form.put("bank_transfer[eu_bank_transfer][country]", config.euBankTransferCountry());
+        form.put("bank_transfer[eu_bank_transfer][country]", context.euBankTransferCountry());
         form.put("bank_transfer[requested_address_types][]", "iban");
         return postForm(
                 "/v1/customers/" + customerId + "/funding_instructions",
                 form,
-                "bill-bank-transfer-funding-" + customerId + "-" + config.currency() + "-" + config.euBankTransferCountry()
+                "bill-bank-transfer-funding-" + customerId + "-" + context.currency() + "-" + context.euBankTransferCountry(),
+                context
         );
     }
 
@@ -200,50 +254,67 @@ public class StripeInvoiceClient {
         return null;
     }
 
-    private JsonNode get(String path) {
+    private JsonNode get(String path, StripeInvoiceRequestContext context) {
         String url = normalizeUrl(path);
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("Authorization", "Bearer " + config.secretKey())
-                .GET()
-                .build();
+                .header("Authorization", "Bearer " + context.secretKey())
+                .GET();
+        addStripeAccountHeader(requestBuilder, context);
+        HttpRequest request = requestBuilder.build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
-                log.error("Stripe GET failed url={} status={} body={}", url, response.statusCode(), response.body());
+                log.error("Stripe GET failed url={} connectedAccount={} status={} body={}", url, context.connectedAccountId(), response.statusCode(), response.body());
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Stripe bank transfer lookup failed.");
             }
             return JSON.readTree(response.body());
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("Stripe GET failed url={}", url, ex);
+            log.error("Stripe GET failed url={} connectedAccount={}", url, context.connectedAccountId(), ex);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to fetch Stripe bank transfer invoice.");
         }
     }
 
-    private JsonNode postForm(String path, Map<String, String> form, String idempotencyKey) {
+    private JsonNode postForm(String path, Map<String, String> form, String idempotencyKey, StripeInvoiceRequestContext context) {
         String body = toFormData(form);
         String url = normalizeUrl(path);
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("Authorization", "Bearer " + config.secretKey())
+                .header("Authorization", "Bearer " + context.secretKey())
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Idempotency-Key", idempotencyKey)
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+        addStripeAccountHeader(requestBuilder, context);
+        HttpRequest request = requestBuilder.build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
-                log.error("Stripe POST failed url={} status={} body={}", url, response.statusCode(), response.body());
+                log.error("Stripe POST failed url={} connectedAccount={} status={} body={}", url, context.connectedAccountId(), response.statusCode(), response.body());
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Stripe bank transfer request failed.");
             }
             return JSON.readTree(response.body());
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("Stripe POST failed url={}", url, ex);
+            log.error("Stripe POST failed url={} connectedAccount={}", url, context.connectedAccountId(), ex);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to create Stripe bank transfer invoice.");
+        }
+    }
+
+    private void addStripeAccountHeader(HttpRequest.Builder requestBuilder, StripeInvoiceRequestContext context) {
+        if (context.connectedAccountId() != null && !context.connectedAccountId().isBlank()) {
+            requestBuilder.header("Stripe-Account", context.connectedAccountId());
+        }
+    }
+
+    private void addConnectMetadata(Map<String, String> form, Bill bill) {
+        if (bill.getStripeConnectMode() != null && !bill.getStripeConnectMode().isBlank()) {
+            form.put("metadata[stripe_connect_mode]", bill.getStripeConnectMode().trim());
+        }
+        if (bill.getStripeConnectedAccountId() != null && !bill.getStripeConnectedAccountId().isBlank()) {
+            form.put("metadata[stripe_connected_account_id]", bill.getStripeConnectedAccountId().trim());
         }
     }
 
@@ -308,6 +379,7 @@ public class StripeInvoiceClient {
         return base + (path.startsWith("/") ? path : "/" + path);
     }
 
+
     private String toFormData(Map<String, String> form) {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, String> entry : form.entrySet()) {
@@ -317,5 +389,19 @@ public class StripeInvoiceClient {
             sb.append(URLEncoder.encode(entry.getValue() == null ? "" : entry.getValue(), StandardCharsets.UTF_8));
         }
         return sb.toString();
+    }
+
+    private record StripeInvoiceRequestContext(
+            String secretKey,
+            String currency,
+            String euBankTransferCountry,
+            String connectedAccountId
+    ) {
+        private StripeInvoiceRequestContext {
+            secretKey = secretKey == null ? "" : secretKey.trim();
+            currency = currency == null || currency.isBlank() ? "eur" : currency.trim().toLowerCase();
+            euBankTransferCountry = euBankTransferCountry == null || euBankTransferCountry.isBlank() ? "NL" : euBankTransferCountry.trim().toUpperCase();
+            connectedAccountId = connectedAccountId == null ? "" : connectedAccountId.trim();
+        }
     }
 }

@@ -86,21 +86,26 @@ public class StripeCheckoutClient {
         form.put("line_items[0][price_data][product_data][name]", input.productName() == null || input.productName().isBlank() ? "Calendra payment" : input.productName().trim());
         metadata.forEach((k, v) -> form.put("metadata[" + k + "]", v == null ? "" : v));
         paymentIntentMetadata.forEach((k, v) -> form.put("payment_intent_data[metadata][" + k + "]", v == null ? "" : v));
-        if (input.connectedAccountId() != null && !input.connectedAccountId().isBlank()) {
-            form.put("payment_intent_data[transfer_data][destination]", input.connectedAccountId().trim());
-            form.put("payment_intent_data[on_behalf_of]", input.connectedAccountId().trim());
-            if (input.applicationFeeAmount() != null && input.applicationFeeAmount() > 0) {
-                form.put("payment_intent_data[application_fee_amount]", String.valueOf(Math.min(input.applicationFeeAmount(), amountInMinorUnits)));
-            }
+        String connectedAccountId = input.connectedAccountId() == null ? "" : input.connectedAccountId().trim();
+        if (!connectedAccountId.isBlank() && input.applicationFeeAmount() != null && input.applicationFeeAmount() > 0) {
+            form.put("payment_intent_data[application_fee_amount]", String.valueOf(Math.min(input.applicationFeeAmount(), amountInMinorUnits)));
         }
 
         String body = toFormData(form);
         String sessionsUrl = normalizeSessionsUrl(config.baseUrl());
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(sessionsUrl))
                 .header("Authorization", "Bearer " + input.secretKey().trim())
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .header("Idempotency-Key", input.idempotencyKey() == null || input.idempotencyKey().isBlank() ? "checkout-" + UUID.randomUUID() : input.idempotencyKey())
+                .header("Idempotency-Key", input.idempotencyKey() == null || input.idempotencyKey().isBlank() ? "checkout-" + UUID.randomUUID() : input.idempotencyKey());
+        if (!connectedAccountId.isBlank()) {
+            // Direct charge: the Checkout Session and resulting charge are created on the
+            // connected Stripe account, so that account is responsible for Stripe fees.
+            // Keep application_fee_amount to collect the platform fee without falling back
+            // to destination charges on the platform account.
+            requestBuilder.header("Stripe-Account", connectedAccountId);
+        }
+        HttpRequest request = requestBuilder
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
 

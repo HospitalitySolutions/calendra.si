@@ -1,0 +1,22 @@
+Stripe direct-charge update
+
+Changed files:
+- backend/src/main/java/com/example/app/stripe/StripeCheckoutClient.java
+- backend/src/main/java/com/example/app/stripe/StripeInvoiceClient.java
+- backend/src/main/java/com/example/app/stripe/StripeBillingService.java
+- backend/src/main/java/com/example/app/billing/Bill.java
+- backend/STRIPE_CHECKOUT_SETUP.md
+
+What changed:
+- Connected-account Checkout Sessions are now created as Stripe Connect direct charges by sending the Stripe-Account header on the session creation request.
+- Removed the destination-charge parameters payment_intent_data[transfer_data][destination] and payment_intent_data[on_behalf_of] from connected Checkout requests.
+- Kept payment_intent_data[application_fee_amount] for connected-account Checkout sessions so the platform can still collect the configured Calendra/application fee.
+- Stripe BANK TRANSFER/TRR hosted invoices for tenants are now created/retrieved on the connected Stripe account when Stripe Connect is ready for that bill's company.
+- Bills now store stripe_connected_account_id and stripe_connect_mode so invoice retrieval/hydration uses the same Stripe account that created the invoice.
+- Documented the direct-charge behavior and Stripe Connect webhook requirement in backend/STRIPE_CHECKOUT_SETUP.md.
+
+Effect:
+- Card payments for onboarded connected accounts are created on the connected Stripe account instead of on the platform account.
+- Bank-transfer hosted invoice objects for onboarded tenants are also created on the connected Stripe account.
+- The connected Stripe account is the fee payer for Stripe processing fees on these direct connected-account payments.
+- Existing non-connected/legacy platform Stripe behavior remains unchanged for code paths constructed without Stripe Connect services, and older platform-created bank-transfer invoices can still be retrieved through the legacy platform invoice client if they do not have a stored connected account.

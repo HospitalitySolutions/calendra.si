@@ -79,6 +79,10 @@ public class Bill extends BaseEntity {
     private String checkoutSessionId;
     private OffsetDateTime checkoutSessionExpiresAt;
     private String paymentIntentId;
+    @Column(name = "stripe_connected_account_id", length = 255)
+    private String stripeConnectedAccountId;
+    @Column(name = "stripe_connect_mode", length = 32)
+    private String stripeConnectMode;
     private String stripeCustomerId;
     private String stripeInvoiceId;
     private String stripeInvoiceNumber;

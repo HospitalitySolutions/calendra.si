@@ -44,3 +44,12 @@ Subscribe at minimum to:
 - When `invoice.paid` arrives, the bill is marked `paid`, the folio history reflects the change, and the paid PDF email flow runs.
 - Stripe-enabled BANK TRANSFER/TRR flows now email the client a folio PDF attachment with an embedded payment QR instead of emailing the hosted Stripe invoice link directly.
 - The folio layout editor includes a `Payment QR` element so you can choose its position and size on the template.
+
+## Stripe Connect charge mode
+
+- Tenant CARD payments with a connected account are created as **direct charges** by sending the Checkout Session request with the `Stripe-Account` header.
+- The previous destination-charge fields (`payment_intent_data[transfer_data][destination]` and `payment_intent_data[on_behalf_of]`) are intentionally not used for connected Checkout payments.
+- `payment_intent_data[application_fee_amount]` is still sent when Platform Admin configures an application fee, so Calendra can collect the platform fee while the connected account remains the Stripe fee payer for the direct charge.
+- Tenant Stripe BANK TRANSFER/TRR hosted invoices are also created on the connected account when Stripe Connect is ready for the tenant, using the same `Stripe-Account` header.
+- Bills store the Stripe Connect mode/account used for the Stripe payment so later invoice hydration can query the correct Stripe account.
+- Make sure the platform webhook endpoint is configured as a Stripe Connect webhook endpoint for connected-account checkout and invoice events.

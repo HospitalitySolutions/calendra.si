@@ -411,7 +411,7 @@ private fun UpcomingBookingsCarousel(
             state = pagerState,
             contentPadding = PaddingValues(horizontal = 26.dp),
             pageSpacing = 12.dp,
-            modifier = Modifier.fillMaxWidth().height(448.dp)
+            modifier = Modifier.fillMaxWidth().height(466.dp)
         ) { page ->
             val booking = bookings[page]
             val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
@@ -450,19 +450,21 @@ fun UpcomingBookingFocusCard(
 
     Box(modifier = modifier) {
         ElevatedCard(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter),
             shape = RoundedCornerShape(30.dp),
             colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 7.dp)
         ) {
-            Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxWidth()) {
                 BookingHeroHeader(booking = booking, isSl = isSl)
                 BookingDateTimeStrip(booking = booking, isSl = isSl)
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 13.dp, vertical = 6.dp)
+                        .padding(horizontal = 13.dp, vertical = 5.dp)
                 ) {
                     BookingInfoLine(
                         icon = Icons.Rounded.Person,
@@ -586,8 +588,8 @@ private fun BookingHeroHeader(booking: UpcomingBookingCard, isSl: Boolean) {
                 Text(
                     text = booking.title,
                     color = Color.White,
-                    fontSize = 19.sp,
-                    lineHeight = 23.sp,
+                    fontSize = 22.sp,
+                    lineHeight = 26.sp,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -654,7 +656,7 @@ private fun BookingDateTimeStrip(booking: UpcomingBookingCard, isSl: Boolean) {
             Text(
                 text = formatBookingDateCompact(booking.startsAt, isSl),
                 color = BrandText,
-                fontSize = 13.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -667,7 +669,7 @@ private fun BookingDateTimeStrip(booking: UpcomingBookingCard, isSl: Boolean) {
             Text(
                 text = formatBookingTimeRange(booking.startsAt, booking.endsAt, isSl),
                 color = BrandText,
-                fontSize = 13.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -689,12 +691,12 @@ private fun BookingInfoLine(
     ) {
         Icon(icon, contentDescription = null, tint = Color(0xFF6F7D91), modifier = Modifier.size(20.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = MutedText, fontSize = 8.sp, lineHeight = 10.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = MutedText, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold)
             Text(
                 value,
                 color = BrandText,
-                fontSize = 10.sp,
-                lineHeight = 14.sp,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -714,18 +716,18 @@ private fun BookingPrimaryActionButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(39.dp),
+        modifier = Modifier.fillMaxWidth().height(44.dp),
         shape = RoundedCornerShape(9.dp),
         colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
         border = BorderStroke(1.dp, border),
         contentPadding = PaddingValues(horizontal = 12.dp)
     ) {
         Spacer(Modifier.weight(1f))
-        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
         Spacer(Modifier.width(5.dp))
-        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(6.dp))
-        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp))
+        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(17.dp))
         Spacer(Modifier.weight(1f))
     }
 }
@@ -817,7 +819,7 @@ private fun SheetOptionButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(32.dp),
+        modifier = modifier.height(38.dp),
         shape = RoundedCornerShape(9.dp),
         border = BorderStroke(1.dp, SoftBorder),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -828,9 +830,9 @@ private fun SheetOptionButton(
         ),
         contentPadding = PaddingValues(horizontal = 5.dp)
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
         Spacer(Modifier.width(5.dp))
-        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -915,7 +917,7 @@ private fun StatusPill(status: String, isSl: Boolean, modifier: Modifier = Modif
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = Color(0xFF219653), modifier = Modifier.size(12.dp))
-        Text(pretty, color = Color(0xFF219653), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+        Text(pretty, color = Color(0xFF219653), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

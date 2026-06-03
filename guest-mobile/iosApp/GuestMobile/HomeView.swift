@@ -335,7 +335,7 @@ struct HomeBookingCard: View {
             dateTimeStrip
             detailsAndActions
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .top)
         .background(
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(Color.white)
@@ -382,11 +382,11 @@ struct HomeBookingCard: View {
                     logoBubble
                     VStack(alignment: .leading, spacing: 5) {
                         Text(booking.title)
-                            .font(.system(size: 26, weight: .heavy))
+                            .font(.system(size: 27, weight: .heavy))
                             .foregroundColor(.white)
                             .lineLimit(2)
                         Text(booking.tenantName)
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white.opacity(0.92))
                             .lineLimit(1)
                     }
@@ -449,7 +449,7 @@ struct HomeBookingCard: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 17, weight: .bold))
             Text(bookingStatus(booking.status, isSl: isSl))
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
         }
         .foregroundColor(Color(red: 0.129, green: 0.588, blue: 0.325))
         .padding(.horizontal, 14)
@@ -461,10 +461,10 @@ struct HomeBookingCard: View {
         HStack(spacing: 0) {
             HStack(spacing: 12) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 25, weight: .bold))
                     .foregroundColor(brandBlue)
                 Text(bookingDateCompact(booking.startsAt, isSl: isSl))
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.system(size: 21, weight: .heavy))
                     .foregroundColor(brandText)
                     .lineLimit(1)
             }
@@ -476,10 +476,10 @@ struct HomeBookingCard: View {
 
             HStack(spacing: 12) {
                 Image(systemName: "clock")
-                    .font(.system(size: 25, weight: .bold))
+                    .font(.system(size: 26, weight: .bold))
                     .foregroundColor(brandBlue)
                 Text(bookingTimeRange(start: booking.startsAt, end: booking.endsAt, isSl: isSl))
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.system(size: 21, weight: .heavy))
                     .foregroundColor(brandText)
                     .lineLimit(1)
             }
@@ -487,7 +487,7 @@ struct HomeBookingCard: View {
             .padding(.leading, 18)
         }
         .padding(.horizontal, 20)
-        .frame(height: 74)
+        .frame(height: 78)
         .background(Color(red: 0.918, green: 0.949, blue: 1.0))
     }
 
@@ -530,22 +530,23 @@ struct HomeBookingCard: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
         .background(Color.white)
     }
 
     private func infoLine(icon: String, label: String, value: String) -> some View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 26, weight: .medium))
+                .font(.system(size: 27, weight: .medium))
                 .foregroundColor(Color(red: 0.435, green: 0.490, blue: 0.569))
                 .frame(width: 32, height: 32)
             VStack(alignment: .leading, spacing: 1) {
                 Text(label)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(mutedText)
                 Text(value)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundColor(brandText)
                     .lineLimit(2)
             }
@@ -557,16 +558,16 @@ struct HomeBookingCard: View {
         HStack(spacing: 8) {
             Spacer()
             Image(systemName: systemName)
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
             Text(title)
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 17, weight: .bold))
             Image(systemName: "chevron.down")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 16, weight: .bold))
             Spacer()
         }
         .foregroundColor(filled ? .white : brandBlue)
         .frame(maxWidth: .infinity)
-        .frame(height: 52)
+        .frame(height: 56)
         .background(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(filled ? brandBlue : Color.white)

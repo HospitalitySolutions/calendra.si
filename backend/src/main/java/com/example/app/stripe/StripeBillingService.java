@@ -71,6 +71,8 @@ public class StripeBillingService {
         StripeCheckoutSessionResult session;
         if (stripeConnectService != null && stripePlatformSettingsService != null && bill.getCompany() != null) {
             StripeConnectService.ConnectedAccountRouting routing = stripeConnectService.routingForCompany(bill.getCompany());
+            bill.setStripeConnectMode(routing.mode().apiValue());
+            bill.setStripeConnectedAccountId(routing.accountId());
             metadata.put("stripe_connect_mode", routing.mode().apiValue());
             metadata.put("stripe_connected_account_id", routing.accountId());
             long applicationFee = stripePlatformSettingsService.applicationFeeAmountMinor(routing.mode(), bill.getTotalGross());
@@ -128,7 +130,7 @@ public class StripeBillingService {
                         bill.getStripeBankTransferAccountHolderCountry()
                 );
             }
-            StripeBankTransferInvoiceResult hydrated = stripeInvoiceClient.retrieveBankTransferInvoice(bill.getStripeCustomerId(), bill.getStripeInvoiceId());
+            StripeBankTransferInvoiceResult hydrated = retrieveBankTransferInvoiceForBill(bill);
             applyBankTransferInvoiceDetails(bill, hydrated);
             if (bill.getStripeBankTransferReference() == null || bill.getStripeBankTransferReference().isBlank()) {
                 bill.setStripeBankTransferReference(UpnQrPayloadBuilder.toRfReference(hydrated.invoiceNumber()));
@@ -137,7 +139,7 @@ public class StripeBillingService {
             bills.save(bill);
             return hydrated;
         }
-        StripeBankTransferInvoiceResult invoice = stripeInvoiceClient.createBankTransferInvoice(bill, daysUntilDue);
+        StripeBankTransferInvoiceResult invoice = createBankTransferInvoiceForBill(bill, daysUntilDue);
         applyBankTransferInvoiceDetails(bill, invoice);
         bill.setStripeBankTransferReference(UpnQrPayloadBuilder.toRfReference(invoice.invoiceNumber()));
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
@@ -172,6 +174,49 @@ public class StripeBillingService {
         bill.setStripeBankTransferAccountHolderCity(invoice.accountHolderCity());
         bill.setStripeBankTransferAccountHolderCountry(invoice.accountHolderCountry());
     }
+
+    private StripeBankTransferInvoiceResult createBankTransferInvoiceForBill(Bill bill, int daysUntilDue) {
+        StripeConnectService.ConnectedAccountRouting routing = stripeConnectRoutingForNewStripePayment(bill);
+        if (routing == null) {
+            return stripeInvoiceClient.createBankTransferInvoice(bill, daysUntilDue);
+        }
+        bill.setStripeConnectMode(routing.mode().apiValue());
+        bill.setStripeConnectedAccountId(routing.accountId());
+        return stripeInvoiceClient.createBankTransferInvoice(
+                bill,
+                daysUntilDue,
+                routing.modeSettings().secretKey(),
+                routing.modeSettings().currency(),
+                stripeConfig.euBankTransferCountry(),
+                routing.accountId()
+        );
+    }
+
+    private StripeBankTransferInvoiceResult retrieveBankTransferInvoiceForBill(Bill bill) {
+        if (bill.getStripeConnectedAccountId() == null || bill.getStripeConnectedAccountId().isBlank()
+                || bill.getStripeConnectMode() == null || bill.getStripeConnectMode().isBlank()
+                || stripePlatformSettingsService == null) {
+            return stripeInvoiceClient.retrieveBankTransferInvoice(bill.getStripeCustomerId(), bill.getStripeInvoiceId());
+        }
+        StripeConnectMode mode = StripeConnectMode.fromRaw(bill.getStripeConnectMode());
+        StripePlatformSettingsService.StripeModeSettings modeSettings = stripePlatformSettingsService.modeSettings(mode);
+        return stripeInvoiceClient.retrieveBankTransferInvoice(
+                bill.getStripeCustomerId(),
+                bill.getStripeInvoiceId(),
+                modeSettings.secretKey(),
+                modeSettings.currency(),
+                stripeConfig.euBankTransferCountry(),
+                bill.getStripeConnectedAccountId()
+        );
+    }
+
+    private StripeConnectService.ConnectedAccountRouting stripeConnectRoutingForNewStripePayment(Bill bill) {
+        if (stripeConnectService == null || stripePlatformSettingsService == null || bill.getCompany() == null) {
+            return null;
+        }
+        return stripeConnectService.routingForCompany(bill.getCompany());
+    }
+
 
     private void validateBillAmount(Bill bill) {
         if (bill.getTotalGross() == null || bill.getTotalGross().compareTo(BigDecimal.ZERO) <= 0) {
