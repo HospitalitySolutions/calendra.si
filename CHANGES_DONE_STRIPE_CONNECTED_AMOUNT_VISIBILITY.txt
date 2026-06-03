@@ -1,0 +1,19 @@
+Changes done
+============
+
+1. backend/src/main/java/com/example/app/stripe/StripeBillingService.java
+   - Manual bill Stripe Checkout links now create direct charges on the connected account with application_fee_amount = 0.
+   - Added metadata application_fee_amount_minor=0 for bill checkout sessions.
+   - This prevents Platform Admin application-fee settings from consuming the bill amount on manual bill payment links.
+   - Connected accounts still pay Stripe processing fees because StripeCheckoutClient creates the session with the Stripe-Account header.
+
+2. backend/STRIPE_CHECKOUT_SETUP.md
+   - Documented that manual bill CARD payment links do not deduct an application fee.
+   - Clarified that guest mobile checkout may still use configured Platform Admin application fees.
+
+Notes
+=====
+
+After deployment, create a new Stripe bill payment link and pay it in test mode.
+The connected account should show the direct charge/payment and receive the payment amount minus Stripe processing fees.
+Old already-created Checkout Sessions keep the application_fee_amount that was sent when they were created, so test with a fresh link.

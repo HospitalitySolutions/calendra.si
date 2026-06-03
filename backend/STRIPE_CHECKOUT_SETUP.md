@@ -33,7 +33,6 @@ Set these variables in local `.env.local`, staging AWS secret, and production se
 ## Return URLs
 
 - Manually emailed bill payment links now use backend-hosted return pages under `/api/guest/stripe/billing/**`.
-- On successful return from Stripe, the backend retrieves the Checkout Session directly from Stripe and marks the bill `paid` when `payment_status=paid`. This acts as a safety net if the Stripe webhook is delayed or the connected-account webhook is not delivered.
 - Guest mobile order checkout still uses `/api/guest/stripe/**`, which then deep-links back into the native guest app.
 - Do not configure `calendra-guest://...` as the generic Platform Admin Stripe success/cancel URL for manual bill links. Stripe only substitutes `{CHECKOUT_SESSION_ID}`; custom placeholders like `{STATUS}` and `{ORDER_ID}` are not replaced by Stripe.
 
@@ -58,7 +57,8 @@ Subscribe at minimum to:
 
 - Tenant CARD payments with a connected account are created as **direct charges** by sending the Checkout Session request with the `Stripe-Account` header.
 - The previous destination-charge fields (`payment_intent_data[transfer_data][destination]` and `payment_intent_data[on_behalf_of]`) are intentionally not used for connected Checkout payments.
-- `payment_intent_data[application_fee_amount]` is still sent when Platform Admin configures an application fee, so Calendra can collect the platform fee while the connected account remains the Stripe fee payer for the direct charge.
+- Manual bill CARD payment links do **not** send `payment_intent_data[application_fee_amount]`. The full payment is tenant-owned, and the connected account receives the payment less Stripe processing fees.
+- Guest mobile checkout can still send `payment_intent_data[application_fee_amount]` when Platform Admin configures an application fee, so Calendra can collect a platform fee on guest-order checkout while the connected account remains the Stripe fee payer for the direct charge.
 - Tenant Stripe BANK TRANSFER/TRR hosted invoices are also created on the connected account when Stripe Connect is ready for the tenant, using the same `Stripe-Account` header.
 - Bills store the Stripe Connect mode/account used for the Stripe payment so later invoice hydration can query the correct Stripe account.
 - Make sure the platform webhook endpoint is configured as a Stripe Connect webhook endpoint for connected-account checkout and invoice events.

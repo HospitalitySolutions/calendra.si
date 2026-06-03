@@ -79,7 +79,13 @@ public class StripeBillingService {
             bill.setStripeConnectedAccountId(routing.accountId());
             metadata.put("stripe_connect_mode", routing.mode().apiValue());
             metadata.put("stripe_connected_account_id", routing.accountId());
-            long applicationFee = stripePlatformSettingsService.applicationFeeAmountMinor(routing.mode(), bill.getTotalGross());
+            // Manual bill payment links are tenant-owned payments. Do not deduct the
+            // Platform Admin application fee here; otherwise the connected account can
+            // show little/no net amount if the fee is configured high. The connected
+            // account still pays Stripe processing fees because this is a direct charge
+            // created with the Stripe-Account header in StripeCheckoutClient.
+            long applicationFee = 0L;
+            metadata.put("application_fee_amount_minor", "0");
             session = stripeCheckoutClient.createOneTimeSession(new StripeCheckoutClient.StripeCheckoutSessionCreateRequest(
                     routing.modeSettings().secretKey(),
                     billingReturnUrl(bill, "success"),
