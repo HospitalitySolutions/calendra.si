@@ -9,6 +9,7 @@ import { useLocale } from '../locale'
 import { ensureRegisterCatalogLoaded } from '../lib/registerCatalogBootstrap'
 import { useRegisterFooterClickOutside } from '../lib/useRegisterFooterClickOutside'
 import { storeAuthenticatedSession } from '../lib/session'
+import { markOnboardingTourPending } from '../lib/onboardingTour'
 import { registerPageStyles } from './registerPageStyles'
 import { getBillingInterval, getEstimatedUserCount, parseRegisterSelection, selectionToSearch, type RegisterSelection } from './registerFlow'
 import { RegisterFooterChevron, RegisterFooterListIcon } from './RegisterPage'
@@ -1189,6 +1190,7 @@ export function RegisterAccountPage() {
       })
 
       if (data?.token && data?.user) {
+        markOnboardingTourPending()
         storeAuthenticatedSession(data)
         window.location.reload()
         return
@@ -1309,6 +1311,7 @@ export function RegisterAccountPage() {
       })
       // Web signup verify succeeds via auth cookie and may omit JSON token.
       if (data?.user) {
+        markOnboardingTourPending()
         storeAuthenticatedSession({ token: data.token, user: data.user })
         const nextSearch = resolveRegisterSelectionSearch(data, location.search, selection)
         storeRegisterSelectionSearch(nextSearch)
@@ -1377,6 +1380,7 @@ export function RegisterAccountPage() {
       setError(copy.sessionSaveFailed)
       return
     }
+    markOnboardingTourPending()
     window.location.assign('/api/auth/google?register=1')
   }
 

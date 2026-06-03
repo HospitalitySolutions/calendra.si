@@ -10,6 +10,7 @@ import { hasBillingAccess, hasInboxAccess } from '../lib/packageAccess'
 import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
+import { OnboardingTour } from './OnboardingTour'
 
 const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
 
@@ -169,6 +170,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [todos, setTodos] = useState<any[]>([])
   const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
   const [typesModuleEnabled, setTypesModuleEnabled] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -253,6 +255,7 @@ function ShellInner({ children }: PropsWithChildren) {
         setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
       })
       .catch(() => {})
+      .finally(() => setSettingsLoaded(true))
     api
       .get('/settings/module-capabilities')
       .then((r) => setConsumablesModuleEnabled(r.data?.consumablesEnabled !== false))
@@ -1260,6 +1263,15 @@ function ShellInner({ children }: PropsWithChildren) {
       {mobileNavOverlay}
       {globalVoiceButton}
       {languageModalOpen && <LanguageModal onClose={() => setLanguageModalOpen(false)} />}
+      <OnboardingTour
+        user={user}
+        billingModuleEnabled={billingModuleEnabled}
+        inboxModuleEnabled
+        servicesModuleEnabled={isAdmin && typesModuleEnabled}
+        employeesModuleEnabled={isAdmin}
+        configurationModuleEnabled={isAdmin}
+        ready={settingsLoaded}
+      />
     </div>
   )
 }

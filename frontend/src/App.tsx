@@ -340,7 +340,7 @@ export default function App() {
               )
             }
           />
-          <Route path="/settings" element={<Navigate to="/configuration" replace />} />
+          <Route path="/settings" element={<Navigate to={user.role === 'CONSULTANT' ? '/configuration?tab=integrations' : '/configuration'} replace />} />
           <Route path="/sessions/spaces" element={<Navigate to="/configuration?tab=booking" replace />} />
           <Route path="/sessions/types" element={<Navigate to="/session-types" replace />} />
           <Route path="*" element={<Navigate to={fallbackRoute} replace />} />

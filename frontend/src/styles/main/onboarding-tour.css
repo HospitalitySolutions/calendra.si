@@ -1,0 +1,258 @@
+.onboarding-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: auto;
+  color: var(--color-text);
+}
+
+.onboarding-tour__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at var(--tour-spotlight-x, 51%) var(--tour-spotlight-y, 48%), rgba(255, 255, 255, 0.08) 0 17%, rgba(255, 255, 255, 0.02) 29%, rgba(12, 18, 30, 0.62) 58%, rgba(12, 18, 30, 0.72) 100%),
+    rgba(12, 18, 30, 0.48);
+  backdrop-filter: blur(1.4px);
+}
+
+.onboarding-tour--calendar { --tour-spotlight-x: 52%; --tour-spotlight-y: 46%; }
+.onboarding-tour--clients { --tour-spotlight-x: 49%; --tour-spotlight-y: 52%; }
+.onboarding-tour--billing { --tour-spotlight-x: 55%; --tour-spotlight-y: 52%; }
+.onboarding-tour--inbox { --tour-spotlight-x: 54%; --tour-spotlight-y: 50%; }
+.onboarding-tour--analytics { --tour-spotlight-x: 56%; --tour-spotlight-y: 43%; }
+.onboarding-tour--services { --tour-spotlight-x: 55%; --tour-spotlight-y: 50%; }
+.onboarding-tour--employees { --tour-spotlight-x: 55%; --tour-spotlight-y: 50%; }
+.onboarding-tour--configuration { --tour-spotlight-x: 57%; --tour-spotlight-y: 49%; }
+
+.onboarding-tour__card {
+  position: absolute;
+  right: clamp(24px, 8vw, 168px);
+  top: 50%;
+  width: min(380px, calc(100vw - 32px));
+  transform: translateY(-50%);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.94)),
+    var(--color-surface);
+  box-shadow: 0 28px 80px rgba(2, 8, 23, 0.26), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  padding: 28px;
+}
+
+[data-theme='dark'] .onboarding-tour__card {
+  border-color: rgba(51, 65, 85, 0.92);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.94)),
+    var(--color-surface);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.52), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.onboarding-tour__card--welcome,
+.onboarding-tour__card--calendar {
+  right: clamp(24px, 11vw, 210px);
+}
+
+.onboarding-tour__card--clients,
+.onboarding-tour__card--billing,
+.onboarding-tour__card--inbox,
+.onboarding-tour__card--analytics,
+.onboarding-tour__card--services,
+.onboarding-tour__card--employees,
+.onboarding-tour__card--configuration {
+  right: clamp(20px, 12vw, 250px);
+}
+
+.onboarding-tour__progress-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 26px;
+}
+
+.onboarding-tour__step-badge {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(22, 114, 243, 0.16), rgba(22, 114, 243, 0.08));
+  color: var(--color-primary);
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(22, 114, 243, 0.14);
+}
+
+.onboarding-tour__progress-track {
+  display: flex;
+  flex: 1;
+  gap: 7px;
+}
+
+.onboarding-tour__progress-segment {
+  flex: 1 1 18px;
+  height: 5px;
+  border-radius: 999px;
+  background: #d9dde4;
+}
+
+[data-theme='dark'] .onboarding-tour__progress-segment {
+  background: #334155;
+}
+
+.onboarding-tour__progress-segment.is-complete {
+  background: linear-gradient(90deg, var(--color-primary), #0b5edc);
+}
+
+.onboarding-tour__headline-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.onboarding-tour__headline-row h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(22px, 2.2vw, 28px);
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.onboarding-tour__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.11);
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 5px 9px;
+}
+
+.onboarding-tour__badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.onboarding-tour__card p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.onboarding-tour__step-label {
+  margin-top: 24px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.onboarding-tour__divider {
+  height: 1px;
+  margin: 18px 0;
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0), rgba(148, 163, 184, 0.36), rgba(148, 163, 184, 0));
+}
+
+.onboarding-tour__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.onboarding-tour__button {
+  min-height: 42px;
+  border-radius: 12px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.onboarding-tour__button:hover {
+  transform: translateY(-1px);
+}
+
+.onboarding-tour__button:focus-visible {
+  outline: 3px solid rgba(22, 114, 243, 0.28);
+  outline-offset: 2px;
+}
+
+.onboarding-tour__button--secondary {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: var(--border);
+  color: var(--color-text);
+}
+
+[data-theme='dark'] .onboarding-tour__button--secondary {
+  background: rgba(15, 23, 42, 0.74);
+}
+
+.onboarding-tour__button--primary {
+  min-width: 118px;
+  background: linear-gradient(135deg, var(--color-primary), #0757ce);
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(22, 114, 243, 0.28);
+}
+
+@media (max-width: 780px) {
+  .onboarding-tour__veil {
+    background: rgba(12, 18, 30, 0.62);
+    backdrop-filter: blur(2px);
+  }
+
+  .onboarding-tour__card,
+  .onboarding-tour__card--welcome,
+  .onboarding-tour__card--calendar,
+  .onboarding-tour__card--clients,
+  .onboarding-tour__card--billing,
+  .onboarding-tour__card--inbox,
+  .onboarding-tour__card--analytics,
+  .onboarding-tour__card--services,
+  .onboarding-tour__card--employees,
+  .onboarding-tour__card--configuration {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    transform: none;
+    border-radius: 22px;
+    padding: 22px;
+  }
+
+  .onboarding-tour__progress-row {
+    margin-bottom: 20px;
+  }
+
+  .onboarding-tour__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .onboarding-tour__button--primary {
+    min-width: 0;
+  }
+
+  .onboarding-tour__actions .onboarding-tour__button:last-child:nth-child(3) {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 460px) {
+  .onboarding-tour__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-tour__actions .onboarding-tour__button:last-child:nth-child(3) {
+    grid-column: auto;
+  }
+}

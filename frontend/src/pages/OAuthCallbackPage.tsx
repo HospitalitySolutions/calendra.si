@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ensureCsrfToken } from '../api'
 import { MfaChallengeCard } from '../components/MfaChallengeCard'
 import { consumePostLoginRedirect, storeAuthenticatedSession } from '../lib/session'
+import { clearOnboardingTourPending } from '../lib/onboardingTour'
 
 /**
  * Handles redirect from Google OAuth: backend sets the auth cookie, frontend loads the user profile.
@@ -20,6 +21,7 @@ export function OAuthCallbackPage() {
     const mfaToken = searchParams.get('mfa_token')
 
     if (oauthError) {
+      clearOnboardingTourPending()
       const err = decodeURIComponent(oauthError)
       console.error('OAuth error:', err)
       setError(err)

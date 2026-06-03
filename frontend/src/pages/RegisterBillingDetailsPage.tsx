@@ -6,6 +6,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { useToast } from '../components/Toast'
 import { ensureRegisterCatalogLoaded } from '../lib/registerCatalogBootstrap'
+import { markOnboardingTourPending } from '../lib/onboardingTour'
 import { useLocale } from '../locale'
 import { registerPageStyles } from './registerPageStyles'
 import {
@@ -971,6 +972,7 @@ export function RegisterBillingDetailsPage() {
         paymentMethod,
       })
       clearPendingBillingDetailsRedirect()
+      markOnboardingTourPending()
       showToast('success', copy.saved)
       if (data?.checkoutUrl) {
         window.location.assign(String(data.checkoutUrl))

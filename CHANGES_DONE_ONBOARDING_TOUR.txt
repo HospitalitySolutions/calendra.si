@@ -1,0 +1,33 @@
+Implemented new-account onboarding tour popups
+
+Changed files:
+- frontend/src/components/OnboardingTour.tsx
+- frontend/src/lib/onboardingTour.ts
+- frontend/src/styles/main/onboarding-tour.css
+- frontend/src/styles.css
+- frontend/src/components/Shell.tsx
+- frontend/src/pages/RegisterAccountPage.tsx
+- frontend/src/pages/RegisterBillingDetailsPage.tsx
+- frontend/src/pages/OAuthCallbackPage.tsx
+
+What changed:
+1. Added a guided onboarding tour that appears after a new tenant/account completes registration and reaches the calendar workspace.
+2. Added step-by-step popup cards for:
+   - Welcome to Calendra
+   - Calendar page
+   - Clients page
+   - Billing page, only when the current package/module allows billing access
+   - Inbox page, only when the current package allows inbox access
+   - Analytics page
+   - Services page, only when service types are enabled for the tenant/admin
+   - Employees page, only for admins
+   - Configuration page, only for admins
+3. The tour automatically navigates to each relevant page as the user clicks Next/Back.
+4. The popup includes a modern dark overlay, spotlight-style background, progress segments, step counter, Back/Skip/Next buttons, and a Finish button on the last step.
+5. The tour is stored as completed per company/user in localStorage so it does not show again after Skip or Finish.
+6. Registration, Google signup start, and billing-details completion now mark the onboarding tour as pending before redirecting to /calendar or checkout.
+7. OAuth errors clear the pending onboarding flag so failed Google signup attempts do not show the tour later by mistake.
+8. Added responsive mobile styling so the popup becomes a bottom sheet on small screens.
+
+Build note:
+- I attempted to run the frontend build, but this extracted zip did not include node_modules, so TypeScript/Vite could not resolve React, Axios, and other project dependencies. No build verification was possible in this sandbox without installing dependencies.

@@ -3401,12 +3401,14 @@ const applyModuleConfigPreset = (draft: ModulesDraft, rawConfigType: TenantConfi
 export function ConfigurationPage() {
   const me = getStoredUser()!
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
+  const isConsultant = me.role === 'CONSULTANT'
+  const canAccessConfiguration = isAdmin || isConsultant
   const navigate = useNavigate()
   const query = useQuery()
   const { t, locale } = useLocale()
   const { showToast } = useToast()
 
-  const [tab, setTab] = useState<Tab>('company')
+  const [tab, setTab] = useState<Tab>(isConsultant ? 'integrations' : 'company')
   const [accountSubtab, setAccountSubtab] = useState<'company' | 'receivedInvoices' | 'subscription' | 'security'>('company')
   const [accountReceivedInvoices, setAccountReceivedInvoices] = useState<AccountReceivedInvoice[]>([])
   const [accountReceivedInvoicesLoading, setAccountReceivedInvoicesLoading] = useState(false)
@@ -3912,6 +3914,7 @@ export function ConfigurationPage() {
   const billingEnabledCommitted = settings.BILLING_ENABLED !== 'false'
 
   const isConfigTabAvailable = (tabId: Tab) => {
+    if (!isAdmin) return tabId === 'integrations'
     if (tabId === 'billing') return billingEnabledCommitted
     if (tabId === 'whatsapp') return inboxGlobalCapabilities.whatsappEnabled
     if (tabId === 'viber') return inboxGlobalCapabilities.viberEnabled
@@ -3925,13 +3928,30 @@ export function ConfigurationPage() {
   }
 
   const firstAvailableConfigTab = (): Tab => {
-    if (isConfigTabAvailable('company')) return 'company'
-    return 'company'
+    return CONFIG_TAB_IDS.find((tabId) => isConfigTabAvailable(tabId)) ?? 'company'
   }
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!canAccessConfiguration) return
     const q = query.get('tab')
+    if (!isAdmin) {
+      if (q !== 'integrations') {
+        setTab('integrations')
+        setIntegrationSubtab('status')
+        navigate('/configuration?tab=integrations', { replace: true })
+        return
+      }
+      const subtabQuery = query.get('subtab')
+      if (subtabQuery === 'googleCalendar') {
+        setIntegrationSubtab('googleCalendar')
+        return
+      }
+      setIntegrationSubtab('status')
+      if (subtabQuery) {
+        navigate('/configuration?tab=integrations', { replace: true })
+      }
+      return
+    }
     if (q === 'sessionTypes') {
       navigate('/session-types', { replace: true })
       return
@@ -3986,7 +4006,7 @@ export function ConfigurationPage() {
     if (q === 'guestApp' && (subtabQuery === 'general' || subtabQuery === 'bookingRules' || subtabQuery === 'paymentMethods' || subtabQuery === 'qrCode')) {
       setGuestAppSubtab(subtabQuery)
     }
-  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, guestAppEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
+  }, [query, navigate, isAdmin, canAccessConfiguration, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, guestAppEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -4242,8 +4262,11 @@ export function ConfigurationPage() {
       { id: 'viber', icon: 'viber' },
       { id: 'modules', icon: 'modules' },
     ]
+    if (!isAdmin) {
+      return items.filter((entry) => entry.id === 'integrations')
+    }
     return items.filter((entry) => isConfigTabAvailable(entry.id))
-  }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted])
+  }, [isAdmin, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted])
 
   useEffect(() => {
     const order: BookingSubtab[] = ['general']
@@ -4491,10 +4514,11 @@ export function ConfigurationPage() {
   }, [me.companyId])
 
   const refreshIntegrationStatuses = async () => {
-    await Promise.all([
-      refreshGoogleCalendarStatusSummary(),
-      api.get('/stripe/connect/config').then(({ data }) => setStripeConnectStatus(data || null)).catch(() => undefined),
-    ])
+    const tasks: Array<Promise<unknown>> = [refreshGoogleCalendarStatusSummary()]
+    if (isAdmin) {
+      tasks.push(api.get('/stripe/connect/config').then(({ data }) => setStripeConnectStatus(data || null)).catch(() => undefined))
+    }
+    await Promise.all(tasks)
   }
 
   const setIntegrationSubtabAndUrl = (next: IntegrationSubtab) => {
@@ -4521,10 +4545,9 @@ export function ConfigurationPage() {
   }
 
   useEffect(() => {
-    if (!isAdmin) return
     if (tab !== 'integrations') return
     void refreshGoogleCalendarStatusSummary()
-  }, [isAdmin, tab, refreshGoogleCalendarStatusSummary])
+  }, [tab, refreshGoogleCalendarStatusSummary])
 
   const saveStripePreference = async (patch: Partial<{ mode: string; country: string; businessType: string }>) => {
     const nextMode = patch.mode ?? stripeConnectStatus?.activeMode ?? 'sandbox'
@@ -5367,12 +5390,15 @@ export function ConfigurationPage() {
     },
   ]
 
-  if (!isAdmin) {
+  if (!canAccessConfiguration) {
     return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />
+  }
+  if (isConsultant && query.get('tab') !== 'integrations') {
+    return <Navigate to="/configuration?tab=integrations" replace />
   }
 
   const tabQuery = query.get('tab')
-  const showCompactConfigOverview = isCompactConfigViewport && !isConfigTab(tabQuery)
+  const showCompactConfigOverview = !isConsultant && isCompactConfigViewport && !isConfigTab(tabQuery)
   const configDetailTitle = t(CONFIG_TAB_LABEL_KEY[tab])
   const configShellClassName = showCompactConfigOverview
     ? 'config-shell config-shell--overview'
@@ -9711,41 +9737,43 @@ export function ConfigurationPage() {
                     ) : null}
                   </article>
 
-                  <article className={expandedIntegrationCard === 'stripe' ? 'integrations-mobile-connection-card is-open' : 'integrations-mobile-connection-card'}>
-                    <button
-                      type="button"
-                      className="integrations-mobile-card-trigger"
-                      onClick={() => toggleIntegrationDetails('stripe')}
-                      aria-expanded={expandedIntegrationCard === 'stripe'}
-                    >
-                      <span className="integrations-mobile-logo integrations-mobile-logo--stripe" aria-hidden>S</span>
-                      <span className="integrations-mobile-card-copy">
-                        <span className="integrations-mobile-card-title">Stripe</span>
-                        <span className="integrations-mobile-card-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in upravljanje naročnin prek Stripe.' : 'Connection for online payments and subscription management through Stripe.'}</span>
-                      </span>
-                      <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeCompactStatusLabel}</span>
-                      <span className="integrations-mobile-chevron" aria-hidden>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </button>
-                    {expandedIntegrationCard === 'stripe' ? (
-                      <div className="integrations-mobile-details">
-                        <div className="integrations-mobile-detail-row">
-                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
-                          <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
+                  {isAdmin ? (
+                    <article className={expandedIntegrationCard === 'stripe' ? 'integrations-mobile-connection-card is-open' : 'integrations-mobile-connection-card'}>
+                      <button
+                        type="button"
+                        className="integrations-mobile-card-trigger"
+                        onClick={() => toggleIntegrationDetails('stripe')}
+                        aria-expanded={expandedIntegrationCard === 'stripe'}
+                      >
+                        <span className="integrations-mobile-logo integrations-mobile-logo--stripe" aria-hidden>S</span>
+                        <span className="integrations-mobile-card-copy">
+                          <span className="integrations-mobile-card-title">Stripe</span>
+                          <span className="integrations-mobile-card-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in upravljanje naročnin prek Stripe.' : 'Connection for online payments and subscription management through Stripe.'}</span>
+                        </span>
+                        <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeCompactStatusLabel}</span>
+                        <span className="integrations-mobile-chevron" aria-hidden>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m6 9 6 6 6-6" />
+                          </svg>
+                        </span>
+                      </button>
+                      {expandedIntegrationCard === 'stripe' ? (
+                        <div className="integrations-mobile-details">
+                          <div className="integrations-mobile-detail-row">
+                            <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                            <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
+                          </div>
+                          <div className="integrations-mobile-detail-row">
+                            <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
+                            <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
+                          </div>
+                          <button type="button" className="integrations-mobile-manage-button" onClick={openStripeIntegration}>
+                            {locale === 'sl' ? 'Upravljaj povezavo' : 'Manage connection'}
+                          </button>
                         </div>
-                        <div className="integrations-mobile-detail-row">
-                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
-                          <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
-                        </div>
-                        <button type="button" className="integrations-mobile-manage-button" onClick={openStripeIntegration}>
-                          {locale === 'sl' ? 'Upravljaj povezavo' : 'Manage connection'}
-                        </button>
-                      </div>
-                    ) : null}
-                  </article>
+                      ) : null}
+                    </article>
+                  ) : null}
                 </div>
 
                 <div className="integrations-desktop-status-layout">
@@ -9758,7 +9786,7 @@ export function ConfigurationPage() {
                     <div className="integrations-section-heading">
                       <span>
                         <h3 className="integrations-section-title">{locale === 'sl' ? 'Status integracij' : 'Integration status'}</h3>
-                        <span className="integrations-section-kicker">{locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.'}</span>
+                        <span className="integrations-section-kicker">{locale === 'sl' ? (isAdmin ? 'Stripe in Google Calendar za ta tenant.' : 'Google Calendar za ta tenant.') : (isAdmin ? 'Stripe and Google Calendar for this tenant.' : 'Google Calendar for this tenant.')}</span>
                       </span>
                       <button type="button" className="integrations-secondary-button" onClick={() => void refreshIntegrationStatuses()} disabled={googleCalendarStatusLoading}>
                         {googleCalendarStatusLoading ? (locale === 'sl' ? 'Osvežujem…' : 'Refreshing…') : (locale === 'sl' ? 'Osveži status' : 'Refresh status')}
@@ -9785,25 +9813,27 @@ export function ConfigurationPage() {
                       <span className="integrations-row-arrow" aria-hidden>›</span>
                     </button>
 
-                    <button type="button" className="integrations-status-row" onClick={openStripeIntegration}>
-                      <span className="integrations-row-main">
-                        <span className="integrations-row-icon"><ConfigTabIcon kind="billing" /></span>
-                        <span>
-                          <span className="integrations-row-title">Stripe</span>
-                          <span className="integrations-row-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in Stripe Connect onboarding.' : 'Connection for online payments and Stripe Connect onboarding.'}</span>
+                    {isAdmin ? (
+                      <button type="button" className="integrations-status-row" onClick={openStripeIntegration}>
+                        <span className="integrations-row-main">
+                          <span className="integrations-row-icon"><ConfigTabIcon kind="billing" /></span>
+                          <span>
+                            <span className="integrations-row-title">Stripe</span>
+                            <span className="integrations-row-subtitle">{locale === 'sl' ? 'Povezava za spletna plačila in Stripe Connect onboarding.' : 'Connection for online payments and Stripe Connect onboarding.'}</span>
+                          </span>
                         </span>
-                      </span>
-                      <span>
-                        <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
-                        <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
-                      </span>
-                      <span>
-                        <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
-                        <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
-                      </span>
-                      <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeStatusLabel}</span>
-                      <span className="integrations-row-arrow" aria-hidden>›</span>
-                    </button>
+                        <span>
+                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Račun' : 'Account'}</span>
+                          <span className="integrations-row-meta-value">{activeStripeAccount?.accountId || '—'}</span>
+                        </span>
+                        <span>
+                          <span className="integrations-row-meta-label">{locale === 'sl' ? 'Način' : 'Mode'}</span>
+                          <span className="integrations-row-meta-value">{stripeConnectStatus?.activeMode === 'production' ? 'Production' : 'Sandbox'}</span>
+                        </span>
+                        <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeStatusLabel}</span>
+                        <span className="integrations-row-arrow" aria-hidden>›</span>
+                      </button>
+                    ) : null}
                   </div>
                 </div>              </>
             ) : (
