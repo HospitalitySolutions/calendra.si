@@ -21,6 +21,8 @@ public class StripeConfig {
     private String cancelUrl;
     @Value("${app.stripe.webhook-url:}")
     private String webhookUrl;
+    @Value("${app.stripe.webhook-tolerance-seconds:300}")
+    private long webhookToleranceSeconds;
     @Value("${app.stripe.eu-bank-transfer-country:NL}")
     private String euBankTransferCountry;
     @Value("${app.auth.frontend-url:}")
@@ -34,6 +36,7 @@ public class StripeConfig {
     public String successUrl() { return successUrl == null ? "" : successUrl.trim(); }
     public String cancelUrl() { return cancelUrl == null ? "" : cancelUrl.trim(); }
     public String webhookUrl() { return webhookUrl == null ? "" : webhookUrl.trim(); }
+    public long webhookToleranceSeconds() { return webhookToleranceSeconds <= 0 ? 300L : webhookToleranceSeconds; }
     public String euBankTransferCountry() {
         String value = euBankTransferCountry == null ? "NL" : euBankTransferCountry.trim().toUpperCase();
         return value.isBlank() ? "NL" : value;

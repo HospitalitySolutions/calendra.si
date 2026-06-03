@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -271,6 +272,7 @@ public class PlatformSubscriptionBillingService {
 
     /** Refresh open subscription bills from the tenant settings until they are converted into invoices. */
     @Scheduled(cron = "${app.platform-subscription-billing.daily-cron:0 10 0 * * *}")
+    @SchedulerLock(name = "platformSubscriptionBillingService_refreshOpenSubscriptionBills", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional
     public void refreshOpenSubscriptionBills() {
         Company platformCompany = resolvePlatformCompany().orElse(null);

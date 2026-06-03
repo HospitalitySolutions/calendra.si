@@ -1,7 +1,10 @@
 package si.calendra.guest.shared.config
 
 data class GuestApiConfig(
-    /** Default matches local backend port 4000; Android app overrides via `BuildConfig.API_BASE_URL`. */
-    val baseUrl: String = "http://192.168.1.83:4000",
+    /**
+     * Safe default for non-platform callers. Android and iOS release apps should still inject
+     * their build-time environment value explicitly so accidental local/private URLs never ship.
+     */
+    val baseUrl: String = "https://app.calendra.si",
     val usePreviewData: Boolean = false
 )

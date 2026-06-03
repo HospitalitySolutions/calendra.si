@@ -51,6 +51,10 @@ app:
   webauthn:
     rp-id: ${APP_WEBAUTHN_RP_ID:app.calendra.si}
     allowed-origins: ${APP_WEBAUTHN_ALLOWED_ORIGINS:https://app.calendra.si}
+  realtime:
+    redis:
+      enabled: ${APP_REALTIME_REDIS_ENABLED:true}
+      channel: ${APP_REALTIME_REDIS_CHANNEL:calendra:session-bookings:events}
 
 
 management:

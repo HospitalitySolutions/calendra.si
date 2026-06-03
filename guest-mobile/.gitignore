@@ -7,3 +7,8 @@ build/
 /local.properties
 /androidApp/build/
 /shared/build/
+.kotlin/
+/androidApp/local.properties
+/androidApp/release/
+*.aab
+*.apk

@@ -2,6 +2,7 @@ package com.example.app.stripe;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import javax.crypto.Mac;
@@ -10,7 +11,13 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class StripeWebhookVerifier {
+    private static final long DEFAULT_TOLERANCE_SECONDS = 300L;
+
     public boolean isValid(String payload, String stripeSignatureHeader, String webhookSecret) {
+        return isValid(payload, stripeSignatureHeader, webhookSecret, DEFAULT_TOLERANCE_SECONDS);
+    }
+
+    public boolean isValid(String payload, String stripeSignatureHeader, String webhookSecret, long toleranceSeconds) {
         if (payload == null || stripeSignatureHeader == null || webhookSecret == null || webhookSecret.isBlank()) {
             return false;
         }
@@ -25,6 +32,19 @@ public class StripeWebhookVerifier {
             if ("v1".equals(key)) signatures.add(val);
         }
         if (timestamp == null || signatures.isEmpty()) return false;
+
+        long eventTimestamp;
+        try {
+            eventTimestamp = Long.parseLong(timestamp);
+        } catch (NumberFormatException ex) {
+            return false;
+        }
+        long safeToleranceSeconds = toleranceSeconds <= 0 ? DEFAULT_TOLERANCE_SECONDS : toleranceSeconds;
+        long now = Instant.now().getEpochSecond();
+        if (Math.abs(now - eventTimestamp) > safeToleranceSeconds) {
+            return false;
+        }
+
         String signedPayload = timestamp + "." + payload;
         String expected = hmacSha256Hex(webhookSecret, signedPayload);
         for (String candidate : signatures) {

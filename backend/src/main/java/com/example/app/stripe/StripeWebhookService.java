@@ -320,10 +320,11 @@ public class StripeWebhookService {
     }
 
     private boolean isValidSignature(String payload, String signatureHeader) {
-        if (verifier.isValid(payload, signatureHeader, config.webhookSecret())) return true;
+        long toleranceSeconds = config.webhookToleranceSeconds();
+        if (verifier.isValid(payload, signatureHeader, config.webhookSecret(), toleranceSeconds)) return true;
         if (platformSettings != null) {
             for (String secret : platformSettings.webhookSecrets()) {
-                if (verifier.isValid(payload, signatureHeader, secret)) return true;
+                if (verifier.isValid(payload, signatureHeader, secret, toleranceSeconds)) return true;
             }
         }
         return false;

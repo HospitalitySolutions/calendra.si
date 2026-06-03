@@ -7,15 +7,46 @@ fun esc(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"
 fun envOrProp(name: String, defaultValue: String = ""): String = (project.findProperty(name) as String?) ?: System.getenv(name) ?: defaultValue
 fun quoted(value: String): String = "\"${esc(value)}\""
 fun quotedEnv(name: String, defaultValue: String = ""): String = quoted(envOrProp(name, defaultValue))
-fun apiBaseUrl(): String {
-    val explicit = envOrProp("API_BASE_URL")
-    if (explicit.isNotBlank()) return explicit
 
-    val protocol = envOrProp("API_BASE_PROTOCOL", "http")
-    val host = envOrProp("API_BASE_HOST", "https://app.calendra.si")
-    val port = envOrProp("API_BASE_PORT", "4000")
-    return if (port.isBlank()) "$protocol://$host" else "$protocol://$host:$port"
+fun normalizeApiBaseUrl(value: String): String = value.trim().trimEnd('/')
+
+fun apiBaseUrl(): String {
+    val explicit = envOrProp("API_BASE_URL").trim()
+    if (explicit.isNotBlank()) return normalizeApiBaseUrl(explicit)
+
+    val rawHost = envOrProp("API_BASE_HOST", "app.calendra.si").trim()
+    if (rawHost.startsWith("http://") || rawHost.startsWith("https://")) {
+        // Accept a fully-qualified host for backwards compatibility, but do not prepend another protocol.
+        return normalizeApiBaseUrl(rawHost)
+    }
+
+    val protocol = envOrProp("API_BASE_PROTOCOL", "https").trim().removeSuffix("://")
+    val port = envOrProp("API_BASE_PORT", "").trim().trimStart(':')
+    val host = rawHost.trim('/').substringBefore('/')
+    return normalizeApiBaseUrl(if (port.isBlank()) "$protocol://$host" else "$protocol://$host:$port")
 }
+
+fun validateReleaseApiBaseUrl(value: String) {
+    val url = normalizeApiBaseUrl(value)
+    val allowNonProduction = envOrProp("ALLOW_NON_PRODUCTION_API_BASE_URL", "false").equals("true", ignoreCase = true)
+    require(url.startsWith("https://")) {
+        "Release Android guest app builds must use an HTTPS API_BASE_URL. Current value: $url"
+    }
+    if (!allowNonProduction) {
+        require(url == "https://app.calendra.si") {
+            "Release Android guest app builds must point to https://app.calendra.si. Current value: $url. " +
+                "Set ALLOW_NON_PRODUCTION_API_BASE_URL=true only for an intentional staging/internal release."
+        }
+    }
+    require(!url.contains(":4000")) {
+        "Release Android guest app API_BASE_URL must not include the backend development port 4000. Current value: $url"
+    }
+    require(!Regex("localhost|127\\.0\\.0\\.1|10\\.0\\.2\\.2|192\\.168\\.").containsMatchIn(url)) {
+        "Release Android guest app API_BASE_URL must not point to a local/private development host. Current value: $url"
+    }
+}
+
+val resolvedApiBaseUrl = apiBaseUrl()
 
 android {
     namespace = "si.calendra.guest.android"
@@ -27,9 +58,11 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "0.1.1"
-        // Switch API target by setting API_BASE_HOST (or full API_BASE_URL) before building.
-        // Android emulator default: 10.0.2.2 → host machine.
-        buildConfigField("String", "API_BASE_URL", quoted(apiBaseUrl()))
+        // Production default: https://app.calendra.si.
+        // For local debug builds use, for example:
+        //   API_BASE_HOST=10.0.2.2 API_BASE_PROTOCOL=http API_BASE_PORT=4000 ./gradlew :androidApp:assembleDebug
+        // Or provide a full override with API_BASE_URL.
+        buildConfigField("String", "API_BASE_URL", quoted(resolvedApiBaseUrl))
         buildConfigField("String", "FCM_PROJECT_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID"))
         buildConfigField("String", "FCM_APPLICATION_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID"))
         buildConfigField("String", "FCM_API_KEY", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_API_KEY"))
@@ -44,6 +77,16 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+tasks.configureEach {
+    val releasePackagingTask = (name.startsWith("assemble") || name.startsWith("bundle") || name.startsWith("package")) &&
+        name.contains("Release", ignoreCase = true)
+    if (releasePackagingTask) {
+        doFirst {
+            validateReleaseApiBaseUrl(resolvedApiBaseUrl)
         }
     }
 }

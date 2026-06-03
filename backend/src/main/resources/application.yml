@@ -118,6 +118,10 @@ app:
   reminders:
     enabled: ${APP_REMINDERS_ENABLED:true}
     timezone: ${APP_REMINDERS_TIMEZONE:Europe/Ljubljana}
+  realtime:
+    redis:
+      enabled: ${APP_REALTIME_REDIS_ENABLED:false}
+      channel: ${APP_REALTIME_REDIS_CHANNEL:calendra:session-bookings:events}
   mail:
     from: ${APP_MAIL_FROM:}
   auth:
@@ -204,6 +208,7 @@ app:
     success-url: ${STRIPE_SUCCESS_URL:}
     cancel-url: ${STRIPE_CANCEL_URL:}
     webhook-url: ${STRIPE_WEBHOOK_URL:}
+    webhook-tolerance-seconds: ${STRIPE_WEBHOOK_TOLERANCE_SECONDS:300}
     eu-bank-transfer-country: ${STRIPE_EU_BANK_TRANSFER_COUNTRY:NL}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4000}

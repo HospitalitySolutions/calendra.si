@@ -1,5 +1,7 @@
 package com.example.app.guest.common;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -33,6 +35,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -97,6 +101,44 @@ class GuestBookingActionsControllerTest {
         controller.cancel(booking.getId(), null, request);
 
         verify(openBillSyncService, never()).removeSessionRowsFromOpenBills(eq(booking.getCompany().getId()), any());
+    }
+
+    @Test
+    void cancelRejectsBookingWhenGuestIsLinkedToDifferentClient() {
+        SessionBooking booking = buildBooking();
+        GuestUser guestUser = new GuestUser();
+        guestUser.setId(99L);
+
+        Client differentLinkedClient = new Client();
+        differentLinkedClient.setId(999L);
+        differentLinkedClient.setCompany(booking.getCompany());
+        GuestTenantLink link = new GuestTenantLink();
+        link.setClient(differentLinkedClient);
+
+        when(authContextService.requireGuest(request)).thenReturn(guestUser);
+        when(bookings.findById(booking.getId())).thenReturn(Optional.of(booking));
+        when(tenantService.requireLink(guestUser, booking.getCompany().getId())).thenReturn(link);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.cancel(booking.getId(), null, request));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(bookings, never()).save(any(SessionBooking.class));
+        verify(openBillSyncService, never()).removeSessionRowsFromOpenBills(any(), any());
+        verify(bookingChangePublisher, never()).publish(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void streamRequiresTenantLinkBeforeSubscribingToCompanyRealtimeEvents() {
+        GuestUser guestUser = new GuestUser();
+        guestUser.setId(99L);
+        when(authContextService.requireGuest(request)).thenReturn(guestUser);
+        when(tenantService.requireLink(guestUser, 123L))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant link not found."));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.stream(123L, request));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        verify(bookingRealtimeService, never()).subscribe(any());
     }
 
     private void stubCancelFlow(SessionBooking booking) {

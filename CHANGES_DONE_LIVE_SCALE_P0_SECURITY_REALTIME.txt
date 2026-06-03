@@ -1,0 +1,36 @@
+Implemented go-live P0 hardening items:
+
+1. Android guest mobile production API URL
+- Updated guest-mobile/androidApp/build.gradle.kts so the default API base URL is https://app.calendra.si.
+- Fixed the old protocol/host/port concatenation risk that could produce invalid URLs such as http://https://app.calendra.si:4000.
+- Added release-build validation: release packaging fails unless API_BASE_URL is HTTPS, not local/private, not :4000, and points to https://app.calendra.si unless ALLOW_NON_PRODUCTION_API_BASE_URL=true is explicitly set for staging/internal builds.
+- Updated shared GuestApiConfig default to https://app.calendra.si so shared/non-platform callers do not silently fall back to a private LAN URL.
+- Removed committed Android local.properties, .kotlin cache, and generated release artifacts from the returned project; updated guest-mobile/.gitignore to keep them out.
+
+2. Tenant isolation / BOLA tests
+- Extended GuestBookingActionsControllerTest with BOLA guard tests:
+  - a guest linked to a different client cannot cancel another client's booking;
+  - guest booking SSE stream requires an active tenant link before subscribing to company events.
+- These complement the existing TenantIsolationControllerAccessTest coverage for clients, wallets, files, billing PDFs, open bills, guest receipts, product admin, settings, and platform invoices.
+
+3. Stripe webhook verification hardening
+- StripeWebhookVerifier now rejects replayed events outside a configurable timestamp tolerance.
+- Added app.stripe.webhook-tolerance-seconds / STRIPE_WEBHOOK_TOLERANCE_SECONDS, default 300 seconds.
+- StripeWebhookService now applies the same tolerance to the legacy webhook secret and all Stripe Connect mode webhook secrets.
+- Added StripeWebhookVerifierTest for valid signatures, stale replay rejection, and malformed timestamps.
+
+4. Multi-instance realtime/SSE support
+- Reworked SessionBookingRealtimeService so local SSE clients still receive events immediately, while Redis Pub/Sub fans booking updates out to other backend instances.
+- Added app.realtime.redis.enabled and app.realtime.redis.channel.
+- Production profile enables Redis fan-out by default through APP_REALTIME_REDIS_ENABLED=true; local/default profile leaves it disabled unless explicitly enabled.
+- Added a Redis listener container that subscribes all backend instances to the shared booking realtime channel.
+- Added source instance IDs so an instance ignores its own Redis messages and avoids duplicate SSE events.
+
+5. Subscription billing scheduler locking
+- Added @SchedulerLock to PlatformSubscriptionBillingService.refreshOpenSubscriptionBills so multiple backend replicas do not run the subscription open-bill refresh at the same time.
+
+Validation notes:
+- I attempted backend compilation with Maven, but this environment does not have system Maven and the Maven wrapper could not download Maven from repo.maven.apache.org because external network access is unavailable here.
+- Please run these locally/CI after applying the ZIP:
+  cd backend && chmod +x mvnw && ./mvnw test
+  cd guest-mobile && ./gradlew :androidApp:assembleRelease

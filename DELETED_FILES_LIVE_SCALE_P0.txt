@@ -1,0 +1,8 @@
+Generated/local files removed from the returned project and now ignored:
+- guest-mobile/androidApp/local.properties
+- guest-mobile/androidApp/release/androidApp-release.aab
+- guest-mobile/.kotlin/
+
+If you apply only the changed-files ZIP over an existing checkout, delete those files/folders manually or run:
+  rm -f guest-mobile/androidApp/local.properties
+  rm -rf guest-mobile/androidApp/release guest-mobile/.kotlin
