@@ -1,0 +1,11 @@
+Changes done for the invoice Predplačila / advance-payment print layout:
+
+1. Renamed the Slovenian advance-payment table column from "Uporabljeno" to "Porabljeno" in the generated PDF and folio layout editor preview.
+2. Moved the "Skupaj" / total column in the Predplačila table left so it no longer visually touches the Porabljeno column.
+3. Changed the top rule above the Predplačila column names and the bottom rule of the Predplačila table from a single line to a double line.
+4. Formatted Popust as a deduction in the invoice summary using a leading minus sign, for example "- 12.20 EUR".
+5. Formatted Uporabljena predplačila as "- 45.00 EUR", which keeps the amount aligned while moving the minus sign slightly left from the number.
+
+Files changed:
+- backend/src/main/java/com/example/app/billing/FolioPdfService.java
+- frontend/src/pages/FolioLayoutEditor.tsx

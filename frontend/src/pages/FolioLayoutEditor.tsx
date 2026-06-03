@@ -1259,10 +1259,10 @@ export function FolioLayoutEditor() {
               const rowH = Math.max(14, t.rowHeight)
               const h = advancePaymentsPreviewHeight(t, ADVANCE_PAYMENT_SAMPLE_ROWS)
               const headers = locale === 'sl'
-                ? ['Predplačilo št.', 'Datum', 'Stopnja DDV', 'Osnova', 'DDV', 'Skupaj', 'Uporabljeno']
+                ? ['Predplačilo št.', 'Datum', 'Stopnja DDV', 'Osnova', 'DDV', 'Skupaj', 'Porabljeno']
                 : ['Advance no.', 'Date', 'Tax rate', 'Basis', 'VAT', 'Total', 'Used']
-              const colRatios = [0, 0.19, 0.34, 0.50, 0.64, 0.77, 0.90]
-              const colWidths = [0.18, 0.14, 0.15, 0.13, 0.12, 0.13, 0.10]
+              const colRatios = [0, 0.19, 0.34, 0.50, 0.64, 0.72, 0.90]
+              const colWidths = [0.18, 0.14, 0.15, 0.13, 0.12, 0.11, 0.10]
               return (
                 <div
                   className={`fle-vat-table ${isSel ? 'fle-vat-table--selected' : ''}`}
@@ -1897,7 +1897,7 @@ export function FolioLayoutEditor() {
                 Position: {Math.round(layout.table.startX)}, {Math.round(advancePaymentsPreviewTop(layout))} pt · Width: {Math.round(layout.table.width)} pt
               </div>
               <p className="muted" style={{ fontSize: 12, lineHeight: 1.45, marginTop: 12 }}>
-                To change its width or text size, adjust the Services table. The columns match the generated PDF: Predplačilo št., Datum, Stopnja DDV, Osnova, DDV, Skupaj, Uporabljeno.
+                To change its width or text size, adjust the Services table. The columns match the generated PDF: Predplačilo št., Datum, Stopnja DDV, Osnova, DDV, Skupaj, Porabljeno.
               </p>
             </div>
           )}

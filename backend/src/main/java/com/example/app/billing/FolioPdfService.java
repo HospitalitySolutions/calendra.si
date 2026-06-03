@@ -393,31 +393,35 @@ public class FolioPdfService {
         float headerTop = titleY - 10f;
         float headerBaseline = headerTop - 11f;
         float firstRowBaseline = headerBaseline - rowH;
-        drawHLine(ctx, x, right, headerTop, 0.5f);
+        drawDoubleHLine(ctx, x, right, headerTop, 0.5f);
         drawHLine(ctx, x, right, headerBaseline - 5f, 0.5f);
 
         float[] colX = new float[] { x + 6f, x + 98f, x + 170f, x + 250f, x + 320f, x + 390f, x + 480f };
+        float advanceBasisRight = colX[3] + 55f;
+        float advanceVatRight = colX[4] + 45f;
+        float advanceTotalRight = colX[5] + 30f;
+        float advanceUsedRight = right - 6f;
         String[] headers = localizedAdvancePaymentHeaders(locale);
         drawText(ctx, fonts.bold(), headerFs, colX[0], headerBaseline, headers[0]);
         drawText(ctx, fonts.bold(), headerFs, colX[1], headerBaseline, headers[1]);
         drawText(ctx, fonts.bold(), headerFs, colX[2], headerBaseline, headers[2]);
-        drawTextRight(ctx, fonts.bold(), headerFs, colX[3] + 55f, headerBaseline, headers[3]);
-        drawTextRight(ctx, fonts.bold(), headerFs, colX[4] + 45f, headerBaseline, headers[4]);
-        drawTextRight(ctx, fonts.bold(), headerFs, colX[5] + 55f, headerBaseline, headers[5]);
-        drawTextRight(ctx, fonts.bold(), headerFs, right - 6f, headerBaseline, headers[6]);
+        drawTextRight(ctx, fonts.bold(), headerFs, advanceBasisRight, headerBaseline, headers[3]);
+        drawTextRight(ctx, fonts.bold(), headerFs, advanceVatRight, headerBaseline, headers[4]);
+        drawTextRight(ctx, fonts.bold(), headerFs, advanceTotalRight, headerBaseline, headers[5]);
+        drawTextRight(ctx, fonts.bold(), headerFs, advanceUsedRight, headerBaseline, headers[6]);
 
         float y = firstRowBaseline;
         for (FolioPdfRequest.AdvancePaymentLine row : rows) {
             drawText(ctx, fonts.regular(), bodyFs, colX[0], y, safe(row.getAdvanceNumber()));
             drawText(ctx, fonts.regular(), bodyFs, colX[1], y, formatDateValue(safe(row.getDate()), "YYYY-MM-DD"));
             drawText(ctx, fonts.regular(), bodyFs, colX[2], y, displayTaxPercent(row.getTaxPercent()));
-            drawTextRight(ctx, fonts.regular(), bodyFs, colX[3] + 55f, y, fmt(row.getNetBasis()));
-            drawTextRight(ctx, fonts.regular(), bodyFs, colX[4] + 45f, y, fmt(row.getTaxAmount()));
-            drawTextRight(ctx, fonts.regular(), bodyFs, colX[5] + 55f, y, fmt(row.getTotalGross()));
-            drawTextRight(ctx, fonts.regular(), bodyFs, right - 6f, y, fmt(row.getUsedGross()));
+            drawTextRight(ctx, fonts.regular(), bodyFs, advanceBasisRight, y, fmt(row.getNetBasis()));
+            drawTextRight(ctx, fonts.regular(), bodyFs, advanceVatRight, y, fmt(row.getTaxAmount()));
+            drawTextRight(ctx, fonts.regular(), bodyFs, advanceTotalRight, y, fmt(row.getTotalGross()));
+            drawTextRight(ctx, fonts.regular(), bodyFs, advanceUsedRight, y, fmt(row.getUsedGross()));
             y -= rowH;
         }
-        drawHLine(ctx, x, right, y + rowH - 5f, 0.5f);
+        drawDoubleHLine(ctx, x, right, y + rowH - 5f, 0.5f);
         return advancePaymentsTableFlowOffset(layout, req);
     }
 
@@ -453,7 +457,7 @@ public class FolioPdfService {
 
     private String[] localizedAdvancePaymentHeaders(String locale) {
         if ("sl".equals(normalizeLocale(locale))) {
-            return new String[] { "Predplačilo št.", "Datum", "Stopnja DDV", "Osnova", "DDV", "Skupaj", "Uporabljeno" };
+            return new String[] { "Predplačilo št.", "Datum", "Stopnja DDV", "Osnova", "DDV", "Skupaj", "Porabljeno" };
         }
         return new String[] { "Advance no.", "Date", "Tax rate", "Basis", "VAT", "Total", "Used" };
     }
@@ -625,11 +629,11 @@ public class FolioPdfService {
                 ? BigDecimal.ZERO
                 : req.getUsedAdvancePaymentsGross().abs().setScale(2, RoundingMode.HALF_UP);
         if (usedAdvancePaymentsGross.compareTo(BigDecimal.ZERO) > 0) {
-            footerValues.put("usedAdvances", fmtEurSuffix(usedAdvancePaymentsGross.negate()));
+            footerValues.put("usedAdvances", fmtEurDeductionSuffix(usedAdvancePaymentsGross));
         }
         BigDecimal discountAmountGross = req == null ? null : req.getDiscountAmountGross();
         if (!isCreditNoteRequest(req) && discountAmountGross != null && discountAmountGross.compareTo(BigDecimal.ZERO) > 0) {
-            footerValues.put("discount", fmtEurSuffix(discountAmountGross));
+            footerValues.put("discount", fmtEurDeductionSuffix(discountAmountGross));
         }
         footerValues.put("toBePaid", fmtEurSuffix(resolveToBePaid(req)));
         List<VatBreakdownRow> vatRows = buildVatBreakdownRows(req == null ? null : req.getServices());
@@ -1110,6 +1114,11 @@ public class FolioPdfService {
 
     private static String fmtEurSuffix(BigDecimal v) {
         return fmt(v) + " EUR";
+    }
+
+    private static String fmtEurDeductionSuffix(BigDecimal v) {
+        BigDecimal absolute = v == null ? BigDecimal.ZERO : v.abs();
+        return "- " + fmt(absolute) + " EUR";
     }
 
     private static List<VatBreakdownRow> buildVatBreakdownRows(List<FolioPdfRequest.ServiceLine> lines) {
