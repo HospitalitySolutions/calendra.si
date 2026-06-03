@@ -673,7 +673,7 @@ export function AnalyticsPage() {
             <Card className="analytics-kpi-card analytics-kpi-card--modern"><span>{text.kpiAvgRevenue}</span><strong>{revenueFormatter(avgRevenuePerSession)}</strong></Card>
           </div>
 
-          <div className="analytics-grid analytics-grid--modern">
+          <div className="analytics-grid analytics-grid--modern" data-onboarding-panel="analytics">
             <Card className="analytics-chart-card analytics-chart-card--modern">
               <div className="analytics-card-heading">
                 <h3>{text.sessionsTrendTitle}</h3>

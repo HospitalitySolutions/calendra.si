@@ -2125,7 +2125,7 @@ export function SessionTypesPage() {
   return (
     <div className={sessionTypesPageClass}>
       {typesModuleEnabled ? (
-        <Card className={sessionTypesCardClass}>
+        <Card data-onboarding-panel="services" className={sessionTypesCardClass}>
           <div className={sessionTypesHeaderClass}>
             <div className="clients-page-header__entity clients-entity-tabs-shell">
               <div
@@ -2306,7 +2306,7 @@ export function SessionTypesPage() {
           )}
         </Card>
       ) : (
-        <Card className={sessionTypesCardClass}>
+        <Card data-onboarding-panel="services" className={sessionTypesCardClass}>
           <div className={sessionTypesHeaderClass}>
             <div className="clients-page-header__entity clients-entity-tabs-shell">
               <div

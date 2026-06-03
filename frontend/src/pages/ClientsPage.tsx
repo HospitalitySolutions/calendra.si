@@ -2750,7 +2750,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   return (
     <div className={`stack gap-lg clients-modern-page${isClientsMobile ? ' clients-modern-page--mobile' : ''}${embeddedDetailMode ? ' clients-modern-page--embedded-detail' : ''}`}>
       {!embeddedDetailMode && (
-      <Card className={`clients-modern-card${isClientsMobile ? ' clients-mobile-shell' : ''}`}>
+      <Card data-onboarding-panel="clients" className={`clients-modern-card${isClientsMobile ? ' clients-mobile-shell' : ''}`}>
         <div className={`clients-page-header${isClientsMobile ? ' clients-page-header--sticky-mobile' : ''}`}>
           <div className="clients-page-header__entity clients-entity-tabs-shell">
             <div className="clients-session-tabs clients-entity-tabs" style={{ marginBottom: 0 }} role="tablist" aria-label={locale === 'sl' ? 'Zavihki upravljanja podatkov' : 'Data management tabs'}>

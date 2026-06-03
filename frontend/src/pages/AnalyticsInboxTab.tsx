@@ -1340,7 +1340,7 @@ export function AnalyticsInboxTab() {
         </div>
       </Card>
 
-      <div className="analytics-inbox-layout analytics-inbox-layout--preview-a">
+      <div className="analytics-inbox-layout analytics-inbox-layout--preview-a" data-onboarding-panel="inbox">
         <Card className="analytics-inbox-threads-card analytics-inbox-threads-card--preview-a">
           <div className="analytics-inbox-panel-header analytics-inbox-panel-header--preview-a">
             <div>

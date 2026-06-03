@@ -9651,7 +9651,7 @@ export default function CalendarPage() {
 
   return (
     <div className={isNativeAndroid ? 'calendar-page-android-root' : 'calendar-page-web-root'}>
-      <Card className={isNativeAndroid ? 'calendar-card-android' : 'calendar-web-flush'}>
+      <Card data-onboarding-panel="calendar" className={isNativeAndroid ? 'calendar-card-android' : 'calendar-web-flush'}>
         {voiceReviewOpen && (
           <div
             className="modal-backdrop"

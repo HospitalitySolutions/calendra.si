@@ -6789,7 +6789,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
-      <div className="stack gap-lg billing-page-main-stack">
+      <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
           <Card className={billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell billing-modern-card' : 'billing-modern-card'}>
             <div className="billing-modern-header">
               <div className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>

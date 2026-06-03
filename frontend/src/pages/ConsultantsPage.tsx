@@ -567,7 +567,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       {selfService && !loadingSelfProfile && !showFormPanel && errorMessage && <div className="error">{errorMessage}</div>}
       {!selfService && (
         <div>
-          <Card className={`clients-modern-card employees-modern-card${isConsultantsMobile ? ' clients-mobile-shell' : ''}`}>
+          <Card data-onboarding-panel="employees" className={`clients-modern-card employees-modern-card${isConsultantsMobile ? ' clients-mobile-shell' : ''}`}>
             <div className="clients-toolbar clients-modern-toolbar employees-modern-toolbar">
               <div className="clients-search-wrap">
                 <EmployeeModernIcon name="search" />

@@ -134,16 +134,51 @@ function getPathnameWithoutTrailingSlash(pathname: string) {
   return pathname
 }
 
+function getOnboardingHighlightTarget(stepId: OnboardingStepId): Exclude<OnboardingStepId, 'welcome'> | 'calendar' {
+  return stepId === 'welcome' ? 'calendar' : stepId
+}
+
+type HighlightRect = {
+  top: number
+  left: number
+  width: number
+  height: number
+  radius: number
+}
+
+function getHighlightRect(element: Element | null, padding: number, minRadius = 18): HighlightRect | null {
+  if (!(element instanceof HTMLElement)) return null
+  const rect = element.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  const computed = window.getComputedStyle(element)
+  const parsedRadius = Number.parseFloat(computed.borderTopLeftRadius || '')
+  const radius = Number.isFinite(parsedRadius) ? Math.max(minRadius, parsedRadius + Math.min(padding, 12)) : minRadius
+  const left = Math.max(8, rect.left - padding)
+  const top = Math.max(8, rect.top - padding)
+  const right = Math.min(window.innerWidth - 8, rect.right + padding)
+  const bottom = Math.min(window.innerHeight - 8, rect.bottom + padding)
+  return {
+    top,
+    left,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+    radius,
+  }
+}
+
 export function OnboardingTour(props: OnboardingTourProps) {
   const { user, billingModuleEnabled, inboxModuleEnabled, servicesModuleEnabled, employeesModuleEnabled, configurationModuleEnabled, ready = true } = props
   const navigate = useNavigate()
   const location = useLocation()
   const [active, setActive] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
+  const [navHighlightRect, setNavHighlightRect] = useState<HighlightRect | null>(null)
+  const [panelHighlightRect, setPanelHighlightRect] = useState<HighlightRect | null>(null)
   const steps = useMemo(() => buildSteps(props), [user.packageType, billingModuleEnabled, inboxModuleEnabled, servicesModuleEnabled, employeesModuleEnabled, configurationModuleEnabled])
   const step = steps[stepIndex]
   const total = steps.length
   const currentNumber = stepIndex + 1
+  const highlightTarget = step ? getOnboardingHighlightTarget(step.id) : 'calendar'
 
   useEffect(() => {
     if (!ready) return
@@ -169,6 +204,63 @@ export function OnboardingTour(props: OnboardingTourProps) {
       navigate(step.path, { replace: true })
     }
   }, [active, location.pathname, navigate, step])
+
+  useEffect(() => {
+    if (!active || !step) {
+      delete document.body.dataset.onboardingTourActive
+      delete document.body.dataset.onboardingTourStep
+      return
+    }
+
+    document.body.dataset.onboardingTourActive = 'true'
+    document.body.dataset.onboardingTourStep = highlightTarget
+
+    return () => {
+      delete document.body.dataset.onboardingTourActive
+      delete document.body.dataset.onboardingTourStep
+    }
+  }, [active, step, highlightTarget])
+
+  useEffect(() => {
+    if (!active || !step) {
+      setNavHighlightRect(null)
+      setPanelHighlightRect(null)
+      return
+    }
+
+    let raf1 = 0
+    let raf2 = 0
+    let timeoutId = 0
+
+    const updateHighlights = () => {
+      const navElement = document.querySelector(`[data-onboarding-nav="${highlightTarget}"]`)
+      const panelElement = document.querySelector(`[data-onboarding-panel="${highlightTarget}"]`)
+      setNavHighlightRect(getHighlightRect(navElement, 8, 16))
+      setPanelHighlightRect(getHighlightRect(panelElement, 12, 22))
+    }
+
+    const scheduleUpdate = () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      raf1 = window.requestAnimationFrame(() => {
+        updateHighlights()
+        raf2 = window.requestAnimationFrame(updateHighlights)
+      })
+    }
+
+    scheduleUpdate()
+    timeoutId = window.setTimeout(updateHighlights, 240)
+    window.addEventListener('resize', updateHighlights)
+    window.addEventListener('scroll', scheduleUpdate, true)
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('resize', updateHighlights)
+      window.removeEventListener('scroll', scheduleUpdate, true)
+    }
+  }, [active, step, highlightTarget, location.pathname])
 
   useEffect(() => {
     if (!active) return
@@ -204,6 +296,32 @@ export function OnboardingTour(props: OnboardingTourProps) {
   return createPortal(
     <div className={`onboarding-tour onboarding-tour--${step.spotlight}`} role="dialog" aria-modal="true" aria-labelledby="onboarding-tour-title">
       <div className="onboarding-tour__veil" />
+      {navHighlightRect && (
+        <div
+          className="onboarding-tour__highlight onboarding-tour__highlight--nav"
+          style={{
+            top: navHighlightRect.top,
+            left: navHighlightRect.left,
+            width: navHighlightRect.width,
+            height: navHighlightRect.height,
+            borderRadius: navHighlightRect.radius,
+          }}
+          aria-hidden
+        />
+      )}
+      {panelHighlightRect && (
+        <div
+          className="onboarding-tour__highlight onboarding-tour__highlight--panel"
+          style={{
+            top: panelHighlightRect.top,
+            left: panelHighlightRect.left,
+            width: panelHighlightRect.width,
+            height: panelHighlightRect.height,
+            borderRadius: panelHighlightRect.radius,
+          }}
+          aria-hidden
+        />
+      )}
       <section className={`onboarding-tour__card onboarding-tour__card--${step.id}`}>
         <div className="onboarding-tour__progress-row" aria-label={`Step ${currentNumber} of ${total}`}>
           <span className="onboarding-tour__step-badge">{currentNumber}</span>

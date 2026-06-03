@@ -839,6 +839,7 @@ function ShellInner({ children }: PropsWithChildren) {
         <button
           type="button"
           className="config-cog"
+          data-onboarding-nav="configuration"
           onClick={() => { setConfigOpen((o) => !o); setBellOpen(false); setAccountOpen(false) }}
           title={t('settingsGroup')}
           aria-label={t('settingsGroup')}
@@ -1091,6 +1092,7 @@ function ShellInner({ children }: PropsWithChildren) {
             <NavLink
               className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
               to="/calendar"
+              data-onboarding-nav="calendar"
               title={t('navCalendar')}
               aria-label={t('navCalendar')}
             >
@@ -1102,6 +1104,7 @@ function ShellInner({ children }: PropsWithChildren) {
             <NavLink
               className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
               to="/clients"
+              data-onboarding-nav="clients"
               title={t('navClients')}
               aria-label={t('navClients')}
             >
@@ -1114,6 +1117,7 @@ function ShellInner({ children }: PropsWithChildren) {
               <NavLink
                 className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
                 to="/billing"
+                data-onboarding-nav="billing"
                 title={t('navBilling')}
                 aria-label={t('navBilling')}
               >
@@ -1140,6 +1144,7 @@ function ShellInner({ children }: PropsWithChildren) {
               <NavLink
                 className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
                 to="/inbox"
+                data-onboarding-nav="inbox"
                 title={t('navInbox')}
                 aria-label={t('navInbox')}
               >
@@ -1152,6 +1157,7 @@ function ShellInner({ children }: PropsWithChildren) {
             <NavLink
               className={({ isActive }) => `sidebar-rail-link${isActive ? ' active' : ''}`}
               to="/analytics"
+              data-onboarding-nav="analytics"
               title={t('navAnalytics')}
               aria-label={t('navAnalytics')}
             >
@@ -1166,6 +1172,7 @@ function ShellInner({ children }: PropsWithChildren) {
               {isAdmin && typesModuleEnabled && (
                 <NavLink
                   to="/session-types"
+                  data-onboarding-nav="services"
                   title={t('tabSessionServiceTypes')}
                   aria-label={t('tabSessionServiceTypes')}
                   className={({ isActive }) =>
@@ -1184,6 +1191,7 @@ function ShellInner({ children }: PropsWithChildren) {
                     `sidebar-consultants sidebar-rail-link${isActive ? ' active' : ''}`
                   }
                   to="/consultants"
+                  data-onboarding-nav="employees"
                   title={t('tabConsultants')}
                   aria-label={t('tabConsultants')}
                 >

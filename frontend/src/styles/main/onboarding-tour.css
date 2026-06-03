@@ -24,6 +24,38 @@
 .onboarding-tour--employees { --tour-spotlight-x: 55%; --tour-spotlight-y: 50%; }
 .onboarding-tour--configuration { --tour-spotlight-x: 57%; --tour-spotlight-y: 49%; }
 
+.onboarding-tour__highlight {
+  position: fixed;
+  pointer-events: none;
+  border: 1.5px solid rgba(96, 165, 250, 0.95);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24) inset, 0 18px 48px rgba(15, 23, 42, 0.24);
+  z-index: 1;
+  transition: top 0.22s ease, left 0.22s ease, width 0.22s ease, height 0.22s ease, border-radius 0.22s ease;
+}
+
+.onboarding-tour__highlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.08), 0 0 32px rgba(59, 130, 246, 0.16);
+}
+
+.onboarding-tour__highlight--nav {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.18), rgba(59, 130, 246, 0.08));
+}
+
+.onboarding-tour__highlight--panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+}
+
+[data-theme='dark'] .onboarding-tour__highlight {
+  border-color: rgba(125, 211, 252, 0.95);
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.18), rgba(14, 165, 233, 0.08));
+  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.12) inset, 0 18px 52px rgba(2, 6, 23, 0.52);
+}
+
 .onboarding-tour__card {
   position: absolute;
   right: clamp(24px, 8vw, 168px);
@@ -37,6 +69,7 @@
     var(--color-surface);
   box-shadow: 0 28px 80px rgba(2, 8, 23, 0.26), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
   padding: 28px;
+  z-index: 2;
 }
 
 [data-theme='dark'] .onboarding-tour__card {

@@ -1,0 +1,37 @@
+Onboarding tour highlight improvements
+====================================
+
+Implemented:
+- Added dynamic highlight overlay for the current sidebar/header navigation target during the onboarding tour.
+- Added dynamic highlight overlay for the main content block on each tour page.
+- Highlights now follow the active onboarding step and update on navigation, resize, and scroll.
+- Added onboarding markers for these pages/areas:
+  - Calendar
+  - Clients
+  - Billing
+  - Inbox
+  - Analytics
+  - Services
+  - Employees
+  - Configuration
+- Configuration step now highlights the settings cog trigger plus the configuration page content area.
+
+Updated files include:
+- frontend/src/components/OnboardingTour.tsx
+- frontend/src/components/Shell.tsx
+- frontend/src/styles/main/onboarding-tour.css
+- frontend/src/pages/calendar/CalendarPageContent.tsx
+- frontend/src/pages/ClientsPage.tsx
+- frontend/src/pages/BillingPage.tsx
+- frontend/src/pages/AnalyticsInboxTab.tsx
+- frontend/src/pages/AnalyticsPage.tsx
+- frontend/src/pages/SessionTypesPage.tsx
+- frontend/src/pages/ConsultantsPage.tsx
+- frontend/src/pages/ConfigurationPage.tsx
+
+Also included again for completeness from the onboarding implementation:
+- frontend/src/lib/onboardingTour.ts
+- frontend/src/styles.css
+- frontend/src/pages/RegisterAccountPage.tsx
+- frontend/src/pages/RegisterBillingDetailsPage.tsx
+- frontend/src/pages/OAuthCallbackPage.tsx
