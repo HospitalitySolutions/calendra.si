@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.zip.CRC32;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +71,7 @@ public class PlatformSubscriptionBillingService {
     private static final String PLATFORM_ADMIN_COMPANY_NAME = "Platform Admin";
     private static final String OPEN_BILL_REFERENCE_PREFIX = "CALENDRA-SUBSCRIPTION:";
     private static final int BASIC_MONTHLY_TRIAL_DAYS = 14;
+    private static final int TRANSACTION_SERVICE_CODE_MAX_LENGTH = 12;
 
     private final CompanyRepository companies;
     private final UserRepository users;
@@ -508,26 +510,26 @@ public class PlatformSubscriptionBillingService {
         BigDecimal business = money(prices.getOrDefault("business", 59.90));
 
         Map<String, PlatformPlan> plans = new LinkedHashMap<>();
-        plans.put("BASIC:MONTHLY", plan(platformCompany, "basicMonthly", "BASICMONTHLY", "Basic Package - Monthly", PackageType.BASIC, BillingInterval.MONTHLY, basic, planMappings));
-        plans.put("BASIC:YEARLY", plan(platformCompany, "basicAnnual", "BASICANNUAL", "Basic Package - Annual", PackageType.BASIC, BillingInterval.YEARLY, annualGross(basic, annualDiscount), planMappings));
-        plans.put("PROFESSIONAL:MONTHLY", plan(platformCompany, "proMonthly", "PROMONTHLY", "Pro Package - Monthly", PackageType.PROFESSIONAL, BillingInterval.MONTHLY, pro, planMappings));
-        plans.put("PROFESSIONAL:YEARLY", plan(platformCompany, "proAnnual", "PROANNUAL", "Pro Package - Annual", PackageType.PROFESSIONAL, BillingInterval.YEARLY, annualGross(pro, annualDiscount), planMappings));
-        plans.put("PREMIUM:MONTHLY", plan(platformCompany, "businessMonthly", "BUSINESSMONTHLY", "Business Package - Monthly", PackageType.PREMIUM, BillingInterval.MONTHLY, business, planMappings));
-        plans.put("PREMIUM:YEARLY", plan(platformCompany, "businessAnnual", "BUSINESSANNUAL", "Business Package - Annual", PackageType.PREMIUM, BillingInterval.YEARLY, annualGross(business, annualDiscount), planMappings));
+        plans.put("BASIC:MONTHLY", plan(platformCompany, "basicMonthly", "BASIC_M", "Basic Package - Monthly", PackageType.BASIC, BillingInterval.MONTHLY, basic, planMappings));
+        plans.put("BASIC:YEARLY", plan(platformCompany, "basicAnnual", "BASIC_Y", "Basic Package - Annual", PackageType.BASIC, BillingInterval.YEARLY, annualGross(basic, annualDiscount), planMappings));
+        plans.put("PROFESSIONAL:MONTHLY", plan(platformCompany, "proMonthly", "PRO_M", "Pro Package - Monthly", PackageType.PROFESSIONAL, BillingInterval.MONTHLY, pro, planMappings));
+        plans.put("PROFESSIONAL:YEARLY", plan(platformCompany, "proAnnual", "PRO_Y", "Pro Package - Annual", PackageType.PROFESSIONAL, BillingInterval.YEARLY, annualGross(pro, annualDiscount), planMappings));
+        plans.put("PREMIUM:MONTHLY", plan(platformCompany, "businessMonthly", "BUS_M", "Business Package - Monthly", PackageType.PREMIUM, BillingInterval.MONTHLY, business, planMappings));
+        plans.put("PREMIUM:YEARLY", plan(platformCompany, "businessAnnual", "BUS_Y", "Business Package - Annual", PackageType.PREMIUM, BillingInterval.YEARLY, annualGross(business, annualDiscount), planMappings));
 
         BigDecimal additionalUserMonthly = money(catalog == null || catalog.getAdditionalUserMonthly() == null ? 9.9 : catalog.getAdditionalUserMonthly());
         BigDecimal smsPerMessage = money4(catalog == null || catalog.getSmsPerMessage() == null ? 0.05 : catalog.getSmsPerMessage());
         TransactionService additionalUserService = resolveBillingTransactionService(
                 platformCompany,
                 catalog == null ? null : catalog.getAdditionalUserTransactionServiceId(),
-                "ADDITIONALUSER",
+                "ADDUSER",
                 "Additional user / month",
                 additionalUserMonthly
         );
         TransactionService smsService = resolveBillingTransactionService(
                 platformCompany,
                 catalog == null ? null : catalog.getSmsTransactionServiceId(),
-                "SMSMESSAGE",
+                "SMSMSG",
                 "SMS message",
                 smsPerMessage
         );
@@ -573,11 +575,12 @@ public class PlatformSubscriptionBillingService {
                 return mapped;
             }
         }
-        TransactionService tx = txServices.findByCompanyIdAndCodeIgnoreCase(platformCompany.getId(), fallbackCode)
+        String serviceCode = normalizeBillingTransactionServiceCode(fallbackCode);
+        TransactionService tx = txServices.findByCompanyIdAndCodeIgnoreCase(platformCompany.getId(), serviceCode)
                 .orElseGet(() -> {
                     TransactionService created = new TransactionService();
                     created.setCompany(platformCompany);
-                    created.setCode(fallbackCode);
+                    created.setCode(serviceCode);
                     return created;
                 });
         boolean dirty = false;
@@ -602,6 +605,29 @@ public class PlatformSubscriptionBillingService {
             tx = txServices.save(tx);
         }
         return tx;
+    }
+
+    private String normalizeBillingTransactionServiceCode(String raw) {
+        String normalized = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        if (normalized.isBlank()) {
+            normalized = "SERVICE";
+        }
+        if (normalized.length() <= TRANSACTION_SERVICE_CODE_MAX_LENGTH) {
+            return normalized;
+        }
+        String hash = compactCodeHash(normalized);
+        int prefixLength = Math.max(1, TRANSACTION_SERVICE_CODE_MAX_LENGTH - hash.length());
+        return normalized.substring(0, prefixLength) + hash;
+    }
+
+    private String compactCodeHash(String value) {
+        CRC32 crc = new CRC32();
+        crc.update(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String hash = Long.toString(crc.getValue(), 36).toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        if (hash.length() < 4) {
+            hash = ("0000" + hash);
+        }
+        return hash.substring(hash.length() - 4);
     }
 
     private String settingValueOrDefault(Long companyId, SettingKey key, String fallback) {

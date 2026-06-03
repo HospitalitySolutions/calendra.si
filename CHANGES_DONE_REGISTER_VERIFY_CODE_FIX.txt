@@ -1,0 +1,26 @@
+Register verify-code 500 fix
+
+Issue fixed:
+- /api/auth/signup/verify-code could fail with:
+  "null id in com.example.app.billing.TransactionService entry (don't flush the Session after an exception occurs)"
+
+Root cause:
+- During signup verification, platform subscription open-bill seeding creates fallback TransactionService records for platform billing.
+- Some fallback service codes were longer than the TransactionService.code database limit of 12 characters, for example BUSINESSMONTHLY, BUSINESSANNUAL and ADDITIONALUSER.
+- Hibernate encountered a persistence exception while creating those services, and the signup flow continued in the same poisoned session, resulting in the confusing null-id error.
+
+Changes:
+- Shortened all built-in platform subscription fallback transaction service codes so they fit the 12-character DB limit:
+  - BASIC_M, BASIC_Y
+  - PRO_M, PRO_Y
+  - BUS_M, BUS_Y
+  - ADDUSER
+  - SMSMSG
+- Added defensive normalization for any generated fallback transaction service code.
+- Add-on fallback service codes are now compacted to a safe 12-character value using a stable hash suffix when needed.
+
+Files changed:
+- backend/src/main/java/com/example/app/register/PlatformSubscriptionBillingService.java
+
+Validation:
+- Attempted backend compile with Maven wrapper, but the sandbox could not download Maven from repo.maven.apache.org because internet access is unavailable.
