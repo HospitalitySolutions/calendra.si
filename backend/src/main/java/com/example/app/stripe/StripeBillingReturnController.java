@@ -1,5 +1,7 @@
 package com.example.app.stripe;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +12,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/guest/stripe/billing")
 public class StripeBillingReturnController {
+    private static final Logger log = LoggerFactory.getLogger(StripeBillingReturnController.class);
+
+    private final StripeWebhookService stripeWebhookService;
+
+    public StripeBillingReturnController(StripeWebhookService stripeWebhookService) {
+        this.stripeWebhookService = stripeWebhookService;
+    }
+
     @GetMapping(value = "/return", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> paymentReturn(
             @RequestParam(defaultValue = "success") String status,
@@ -18,11 +28,17 @@ public class StripeBillingReturnController {
             @RequestParam(name = "session_id", required = false) String checkoutSessionId
     ) {
         String normalized = normalizeStatus(status);
-        String title = "success".equals(normalized) ? "Payment completed" : "Payment status updated";
-        String message = "success".equals(normalized)
-                ? "Thank you. Your card payment was completed successfully. You can close this window."
-                : "Your payment status was updated. You can close this window.";
-        return ResponseEntity.ok(renderPage(title, message, billNumber, checkoutSessionId));
+        PageCopy copy;
+        if ("success".equals(normalized)) {
+            copy = reconcileAndBuildSuccessCopy(billId, billNumber, checkoutSessionId);
+        } else {
+            copy = new PageCopy(
+                    "Payment status updated",
+                    "Your payment status was updated. You can close this window.",
+                    null
+            );
+        }
+        return ResponseEntity.ok(renderPage(copy.title(), copy.message(), billNumber, checkoutSessionId, copy.detail()));
     }
 
     @GetMapping(value = "/cancel", produces = MediaType.TEXT_HTML_VALUE)
@@ -35,8 +51,34 @@ public class StripeBillingReturnController {
                 "Payment cancelled",
                 "The card payment was cancelled. You can close this window and use the payment link again if needed.",
                 billNumber,
-                checkoutSessionId
+                checkoutSessionId,
+                null
         ));
+    }
+
+    private PageCopy reconcileAndBuildSuccessCopy(String billId, String billNumber, String checkoutSessionId) {
+        try {
+            StripeWebhookService.BillCheckoutReconcileResult result = stripeWebhookService.reconcileBillCheckoutReturn(billId, checkoutSessionId);
+            if (result.paid()) {
+                return new PageCopy(
+                        "Payment completed",
+                        "Thank you. Your card payment was completed successfully. You can close this window.",
+                        result.alreadyPaid() ? "This bill was already marked as paid." : "The bill has been marked as paid."
+                );
+            }
+            return new PageCopy(
+                    "Payment processing",
+                    "Thank you. Stripe confirmed the checkout return, but the payment is still being finalized. You can close this window.",
+                    result.paymentStatus() == null || result.paymentStatus().isBlank() ? result.status() : "Stripe payment status: " + result.paymentStatus()
+            );
+        } catch (Exception ex) {
+            log.warn("Unable to reconcile Stripe billing return billId={} billNumber={} sessionId={}", billId, billNumber, checkoutSessionId, ex);
+            return new PageCopy(
+                    "Payment received",
+                    "Thank you. Stripe returned you after payment. The bill will be finalized shortly.",
+                    "If it remains pending, please check the Stripe webhook or server logs."
+            );
+        }
     }
 
     private static String normalizeStatus(String status) {
@@ -48,8 +90,9 @@ public class StripeBillingReturnController {
         };
     }
 
-    private static String renderPage(String title, String message, String billNumber, String checkoutSessionId) {
+    private static String renderPage(String title, String message, String billNumber, String checkoutSessionId, String detail) {
         String safeBill = billNumber == null || billNumber.isBlank() ? "" : "<p class=\"muted\">Bill: " + escapeHtml(billNumber) + "</p>";
+        String safeDetail = detail == null || detail.isBlank() ? "" : "<p class=\"detail\">" + escapeHtml(detail) + "</p>";
         String safeSession = checkoutSessionId == null || checkoutSessionId.isBlank() ? "" : "<p class=\"tiny\">Stripe session: " + escapeHtml(checkoutSessionId) + "</p>";
         return """
                 <!doctype html>
@@ -64,6 +107,7 @@ public class StripeBillingReturnController {
                     h1 { margin: 0 0 12px; font-size: 1.7rem; }
                     p { line-height: 1.55; margin: 0 0 10px; }
                     .muted { color: #475569; font-weight: 700; }
+                    .detail { color: #64748b; }
                     .tiny { color: #94a3b8; font-size: .78rem; word-break: break-all; margin-top: 18px; }
                   </style>
                 </head>
@@ -73,10 +117,11 @@ public class StripeBillingReturnController {
                     <p>%s</p>
                     %s
                     %s
+                    %s
                   </div>
                 </body>
                 </html>
-                """.formatted(escapeHtml(title), escapeHtml(title), escapeHtml(message), safeBill, safeSession);
+                """.formatted(escapeHtml(title), escapeHtml(title), escapeHtml(message), safeBill, safeDetail, safeSession);
     }
 
     private static String escapeHtml(String value) {
@@ -87,4 +132,6 @@ public class StripeBillingReturnController {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;");
     }
+
+    private record PageCopy(String title, String message, String detail) {}
 }

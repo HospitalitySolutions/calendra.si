@@ -33,6 +33,7 @@ Set these variables in local `.env.local`, staging AWS secret, and production se
 ## Return URLs
 
 - Manually emailed bill payment links now use backend-hosted return pages under `/api/guest/stripe/billing/**`.
+- On successful return from Stripe, the backend retrieves the Checkout Session directly from Stripe and marks the bill `paid` when `payment_status=paid`. This acts as a safety net if the Stripe webhook is delayed or the connected-account webhook is not delivered.
 - Guest mobile order checkout still uses `/api/guest/stripe/**`, which then deep-links back into the native guest app.
 - Do not configure `calendra-guest://...` as the generic Platform Admin Stripe success/cancel URL for manual bill links. Stripe only substitutes `{CHECKOUT_SESSION_ID}`; custom placeholders like `{STATUS}` and `{ORDER_ID}` are not replaced by Stripe.
 

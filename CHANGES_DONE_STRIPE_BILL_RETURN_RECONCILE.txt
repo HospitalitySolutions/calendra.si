@@ -1,0 +1,21 @@
+Stripe bill payment return reconciliation fix
+
+Changed files:
+- backend/src/main/java/com/example/app/stripe/StripeBillingReturnController.java
+- backend/src/main/java/com/example/app/stripe/StripeWebhookService.java
+- backend/src/main/java/com/example/app/stripe/StripeCheckoutClient.java
+- backend/STRIPE_CHECKOUT_SETUP.md
+
+What changed:
+- The manual bill Stripe return page no longer only displays a static "Payment completed" page.
+- When Stripe redirects the customer back to /api/guest/stripe/billing/return, the backend now retrieves the Checkout Session from Stripe using the returned session_id.
+- For direct charges on connected accounts, the retrieve request uses the stored connected account with the Stripe-Account header.
+- If Stripe reports payment_status=paid, the bill is marked as paid immediately and the existing paid-bill finalization flow is executed.
+- The existing webhook flow remains unchanged and idempotently skips a bill that was already marked paid by the return reconciliation.
+- The return page now shows a more accurate status: completed, processing, or received/error fallback.
+
+Why:
+- With Stripe Connect direct charges, connected-account webhooks may be delayed or not configured correctly. The customer could see the successful return page while the bill stayed in payment_pending/open payments. The return endpoint now reconciles the Stripe session itself as a fallback.
+
+Build note:
+- Maven compile could not be run in this environment because the Maven wrapper tried to download Maven from repo.maven.apache.org and internet access is blocked.

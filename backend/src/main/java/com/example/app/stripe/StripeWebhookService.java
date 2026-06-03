@@ -33,6 +33,7 @@ public class StripeWebhookService {
     private final BillFolioPdfService billFolioPdfService;
     private final BillingEmailService billingEmailService;
     private final InvoicePdfS3Service invoicePdfS3Service;
+    private final StripeCheckoutClient checkoutClient;
     private final StripePlatformSettingsService platformSettings;
     private final StripeConnectService connectService;
     private final GuestOrderService guestOrderService;
@@ -47,6 +48,7 @@ public class StripeWebhookService {
             BillFolioPdfService billFolioPdfService,
             BillingEmailService billingEmailService,
             InvoicePdfS3Service invoicePdfS3Service,
+            StripeCheckoutClient checkoutClient,
             StripePlatformSettingsService platformSettings,
             StripeConnectService connectService,
             GuestOrderService guestOrderService
@@ -59,6 +61,7 @@ public class StripeWebhookService {
         this.billFolioPdfService = billFolioPdfService;
         this.billingEmailService = billingEmailService;
         this.invoicePdfS3Service = invoicePdfS3Service;
+        this.checkoutClient = checkoutClient;
         this.platformSettings = platformSettings;
         this.connectService = connectService;
         this.guestOrderService = guestOrderService;
@@ -75,7 +78,7 @@ public class StripeWebhookService {
             BillingEmailService billingEmailService,
             InvoicePdfS3Service invoicePdfS3Service
     ) {
-        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, null, null, null);
+        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, null, null, null, null);
     }
 
     @Transactional
@@ -134,6 +137,53 @@ public class StripeWebhookService {
             log.error("Stripe webhook processing failed eventId={} type={}", eventId, eventType, ex);
             throw ex;
         }
+    }
+
+    @Transactional
+    public BillCheckoutReconcileResult reconcileBillCheckoutReturn(String billIdRaw, String checkoutSessionId) {
+        if (billIdRaw == null || billIdRaw.isBlank()) {
+            return new BillCheckoutReconcileResult(false, false, "missing_bill_id", "", "Missing bill id.");
+        }
+        if (checkoutSessionId == null || checkoutSessionId.isBlank()) {
+            return new BillCheckoutReconcileResult(false, false, "missing_session_id", "", "Missing Stripe checkout session id.");
+        }
+        Long billId = parseLong(billIdRaw, "billId");
+        Bill bill = bills.findById(billId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bill not found for Stripe checkout return."));
+        if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
+            return new BillCheckoutReconcileResult(true, true, "already_paid", "paid", "Bill was already marked as paid.");
+        }
+        String expectedSessionId = bill.getCheckoutSessionId() == null ? "" : bill.getCheckoutSessionId().trim();
+        String returnedSessionId = checkoutSessionId.trim();
+        if (!expectedSessionId.isBlank() && !expectedSessionId.equals(returnedSessionId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Stripe session does not match current bill checkout session.");
+        }
+        if (checkoutClient == null) {
+            return new BillCheckoutReconcileResult(false, false, "client_unavailable", "", "Stripe checkout client is not available.");
+        }
+
+        StripeCheckoutClient.StripeCheckoutSessionDetails session = checkoutClient.retrieveSession(
+                secretKeyForBill(bill),
+                returnedSessionId,
+                connectedAccountForBill(bill)
+        );
+        if (!returnedSessionId.equals(session.id())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Stripe returned a different checkout session.");
+        }
+
+        String stripePaymentStatus = session.paymentStatus() == null ? "" : session.paymentStatus().trim().toLowerCase();
+        String stripeSessionStatus = session.status() == null ? "" : session.status().trim().toLowerCase();
+        if (!"paid".equals(stripePaymentStatus)) {
+            return new BillCheckoutReconcileResult(false, false, stripeSessionStatus.isBlank() ? "processing" : stripeSessionStatus, stripePaymentStatus, "Stripe payment is not paid yet.");
+        }
+
+        bill.setPaymentStatus(BillPaymentStatus.PAID);
+        if (session.paymentIntentId() != null && !session.paymentIntentId().isBlank()) {
+            bill.setPaymentIntentId(session.paymentIntentId());
+        }
+        bill.setPaidAt(OffsetDateTime.now());
+        finalizeBillPayment(bill);
+        return new BillCheckoutReconcileResult(true, false, stripeSessionStatus, stripePaymentStatus, "Bill marked as paid from Stripe checkout return.");
     }
 
     private void handleCheckoutCompleted(JsonNode eventNode) {
@@ -250,6 +300,25 @@ public class StripeWebhookService {
         log.warn("Stripe connected account deauthorized accountId={}", accountId);
     }
 
+    private String secretKeyForBill(Bill bill) {
+        if (bill != null
+                && bill.getStripeConnectMode() != null
+                && !bill.getStripeConnectMode().isBlank()
+                && platformSettings != null) {
+            StripeConnectMode mode = StripeConnectMode.fromRaw(bill.getStripeConnectMode());
+            String key = platformSettings.modeSettings(mode).secretKey();
+            if (key != null && !key.isBlank()) {
+                return key.trim();
+            }
+        }
+        return config.secretKey();
+    }
+
+    private String connectedAccountForBill(Bill bill) {
+        if (bill == null || bill.getStripeConnectedAccountId() == null) return "";
+        return bill.getStripeConnectedAccountId().trim();
+    }
+
     private boolean isValidSignature(String payload, String signatureHeader) {
         if (verifier.isValid(payload, signatureHeader, config.webhookSecret())) return true;
         if (platformSettings != null) {
@@ -292,4 +361,12 @@ public class StripeWebhookService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid " + label + " value.");
         }
     }
+
+    public record BillCheckoutReconcileResult(
+            boolean paid,
+            boolean alreadyPaid,
+            String status,
+            String paymentStatus,
+            String message
+    ) {}
 }

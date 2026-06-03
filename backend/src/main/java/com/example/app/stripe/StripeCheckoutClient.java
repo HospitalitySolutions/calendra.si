@@ -135,6 +135,47 @@ public class StripeCheckoutClient {
         }
     }
 
+
+    public StripeCheckoutSessionDetails retrieveSession(String secretKey, String checkoutSessionId, String connectedAccountId) {
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe secret key is not configured.");
+        }
+        if (checkoutSessionId == null || checkoutSessionId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe checkout session id is required.");
+        }
+        String sessionsUrl = normalizeSessionsUrl(config.baseUrl()) + "/" + pathSegment(checkoutSessionId.trim());
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(sessionsUrl))
+                .header("Authorization", "Bearer " + secretKey.trim())
+                .GET();
+        String connected = connectedAccountId == null ? "" : connectedAccountId.trim();
+        if (!connected.isBlank()) {
+            requestBuilder.header("Stripe-Account", connected);
+        }
+        try {
+            HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                log.error("Stripe retrieve session failed url={} status={} body={}", sessionsUrl, response.statusCode(), response.body());
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Stripe checkout session retrieval failed.");
+            }
+            JsonNode node = JSON.readTree(response.body());
+            String id = node.path("id").asText("");
+            String status = node.path("status").asText("");
+            String paymentStatus = node.path("payment_status").asText("");
+            String paymentIntentId = node.path("payment_intent").asText("");
+            String customerId = node.path("customer").asText("");
+            if (id.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Stripe checkout session response is missing id.");
+            }
+            return new StripeCheckoutSessionDetails(id, status, paymentStatus, paymentIntentId, customerId);
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Stripe retrieve session request failed sessionId={}", checkoutSessionId, ex);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to retrieve Stripe checkout session.");
+        }
+    }
+
     private String toFormData(Map<String, String> map) {
         StringBuilder sb = new StringBuilder();
         boolean first = true;
@@ -155,6 +196,10 @@ public class StripeCheckoutClient {
         return base + "/v1/checkout/sessions";
     }
 
+    private String pathSegment(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
     private String normalizeCurrency(String currency) {
         String value = currency == null ? "" : currency.trim().toLowerCase();
         return value.isBlank() ? config.currency() : value;
@@ -173,5 +218,13 @@ public class StripeCheckoutClient {
             String connectedAccountId,
             Long applicationFeeAmount,
             String idempotencyKey
+    ) {}
+
+    public record StripeCheckoutSessionDetails(
+            String id,
+            String status,
+            String paymentStatus,
+            String paymentIntentId,
+            String customerId
     ) {}
 }
