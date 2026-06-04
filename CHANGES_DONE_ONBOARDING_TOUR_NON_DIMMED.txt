@@ -1,0 +1,14 @@
+Onboarding tour non-dimmed page mode
+====================================
+
+Implemented:
+- Removed the dark dimmed backdrop from the onboarding tour.
+- The app page now remains fully visible while the onboarding popup is shown.
+- The tour is no longer modal in behavior: the full-screen wrapper does not block page pointer events.
+- Only the popup card itself captures clicks, so the user can still see and interact with the actual page behind it.
+- Kept lightweight outline highlights for the current navigation item and the main content block without covering or dimming the content.
+- Updated accessibility state from aria-modal=true to aria-modal=false because the tour is now an on-page helper instead of a blocking modal.
+
+Updated files:
+- frontend/src/components/OnboardingTour.tsx
+- frontend/src/styles/main/onboarding-tour.css

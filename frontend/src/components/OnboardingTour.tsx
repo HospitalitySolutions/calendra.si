@@ -294,7 +294,7 @@ export function OnboardingTour(props: OnboardingTourProps) {
   if (!active || !step) return null
 
   return createPortal(
-    <div className={`onboarding-tour onboarding-tour--${step.spotlight}`} role="dialog" aria-modal="true" aria-labelledby="onboarding-tour-title">
+    <div className={`onboarding-tour onboarding-tour--${step.spotlight}`} role="dialog" aria-modal="false" aria-labelledby="onboarding-tour-title">
       <div className="onboarding-tour__veil" />
       {navHighlightRect && (
         <div
