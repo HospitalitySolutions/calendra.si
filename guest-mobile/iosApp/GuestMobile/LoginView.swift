@@ -1,4 +1,5 @@
 import SwiftUI
+import AuthenticationServices
 
 private struct GoogleLogoMark: View {
     var size: CGFloat = 28
@@ -120,7 +121,7 @@ struct LoginView: View {
             let buttonHeight = height * 0.069
 
             ZStack(alignment: .topLeading) {
-                Image("SigninBackground")
+                Image(guestBundleResource: "SigninBackground")
                     .resizable()
                     .scaledToFill()
                     .frame(width: width, height: height)
@@ -152,7 +153,7 @@ struct LoginView: View {
                     .frame(width: contentWidth, alignment: .leading)
                     .position(x: inset + contentWidth / 2, y: height * 0.253 + 22)
 
-                Text(isSl ? "Uporabite e-pošto ali nadaljujte\nz Googlom." : "Use your email or continue\nwith Google.")
+                Text(isSl ? "Uporabite e-pošto ali nadaljujte\nz Applom ali Googlom." : "Use your email or continue\nwith Apple or Google.")
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .lineSpacing(5)
                     .foregroundStyle(muted)
@@ -217,12 +218,29 @@ struct LoginView: View {
                 .frame(width: contentWidth)
                 .position(x: inset + contentWidth / 2, y: height * 0.724 + 12)
 
+                GuestAppleSignInButton(
+                    label: .signIn,
+                    isDisabled: store.isLoading,
+                    onAuthorized: { idToken, firstName, lastName in
+                        await store.loginWithApple(idToken: idToken, firstName: firstName, lastName: lastName)
+                        guard store.errorMessage == nil else { return }
+                        if store.linkedTenants.isEmpty { onRequireJoin() } else { onLoginSuccess() }
+                    },
+                    onError: { message in
+                        store.errorMessage = message
+                    }
+                )
+                .frame(width: contentWidth, height: buttonHeight)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .position(x: inset + contentWidth / 2, y: height * 0.742 + buttonHeight / 2)
+
                 Button {
                 } label: {
                     HStack(spacing: 14) {
-                        Image("GoogleLogo")
+                        Image(guestBundleResource: "GoogleLogo")
                             .resizable()
                             .interpolation(.high)
+                            .scaledToFit()
                             .frame(width: 24, height: 24)
                             .offset(y: -3)
                         Text(isSl ? "Nadaljuj z Google" : "Continue with Google")
@@ -236,7 +254,7 @@ struct LoginView: View {
                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(blue, lineWidth: 1.5))
                 .clipShape(RoundedRectangle(cornerRadius: 4))
                 .frame(width: contentWidth, height: buttonHeight)
-                .position(x: inset + contentWidth / 2, y: height * 0.753 + buttonHeight / 2)
+                .position(x: inset + contentWidth / 2, y: height * 0.814 + buttonHeight / 2)
 
                 HStack(spacing: 0) {
                     Text(isSl ? "Nimate računa? " : "No account? ")
@@ -248,7 +266,7 @@ struct LoginView: View {
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .onTapGesture { onCreateAccount() }
                 .frame(width: contentWidth, alignment: .center)
-                .position(x: inset + contentWidth / 2, y: height * 0.852 + 12)
+                .position(x: inset + contentWidth / 2, y: height * 0.904 + 12)
             }
         }
     }

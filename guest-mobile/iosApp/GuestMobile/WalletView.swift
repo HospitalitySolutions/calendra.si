@@ -4561,3 +4561,39 @@ private func formatOrderDateShort(_ iso: String) -> String {
     guard let date = parseISO(iso) else { return iso.prefix(10).description }
     return _orderDateShortFormatter.string(from: date)
 }
+
+private func currencySymbol(_ currency: String) -> String {
+    switch currency.uppercased() {
+    case "EUR": return "€"
+    case "USD": return "$"
+    case "GBP": return "£"
+    case "CHF": return "CHF "
+    default: return "\(currency.uppercased()) "
+    }
+}
+
+private func formatCompactPrice(_ amount: Double) -> String {
+    let rounded = (amount * 100).rounded() / 100
+    if rounded.truncatingRemainder(dividingBy: 1) == 0 {
+        return String(format: "%.0f", rounded)
+    }
+    return String(format: "%.2f", rounded)
+}
+
+private func paymentMethodDisplayName(_ method: String, languageCode: String) -> String {
+    switch method.uppercased() {
+    case "CARD":          return walletTr(languageCode, "Credit / Debit card", "Kreditna / debetna kartica")
+    case "BANK_TRANSFER": return walletTr(languageCode, "Bank transfer", "Bančno nakazilo")
+    case "PAYPAL":        return "PayPal"
+    default:              return method
+    }
+}
+
+private func paymentMethodDescription(_ method: String, languageCode: String) -> String {
+    switch method.uppercased() {
+    case "CARD":          return walletTr(languageCode, "Pay securely with your card", "Plačajte varno s kartico")
+    case "BANK_TRANSFER": return walletTr(languageCode, "Receive bank details and pay manually", "Prejmite bančne podatke in plačajte ročno")
+    case "PAYPAL":        return walletTr(languageCode, "Pay with your PayPal account", "Plačajte s PayPal računom")
+    default:              return ""
+    }
+}

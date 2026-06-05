@@ -433,10 +433,10 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func loginWithApple(idToken: String) async {
+    func loginWithApple(idToken: String, firstName: String? = nil, lastName: String? = nil) async {
         guard !usePreviewData else { applyPreview(); return }
         await run {
-            let session = try await self.api.loginWithApple(idToken: idToken)
+            let session = try await self.api.loginWithApple(idToken: idToken, firstName: firstName, lastName: lastName)
             self.applySession(session)
             try await self.refreshAllTenantsThrowing()
         }
@@ -462,6 +462,28 @@ final class AppStore: ObservableObject {
             }
             try await self.refreshTenant(companyId: tenant.companyId)
         }
+    }
+
+    func unsubscribeTenant(companyId: String) async throws {
+        try await api.unsubscribeTenant(companyId: companyId)
+        removeTenantFromState(companyId: companyId)
+    }
+
+    func anonymizeTenant(companyId: String) async throws {
+        try await api.anonymizeTenant(companyId: companyId)
+        removeTenantFromState(companyId: companyId)
+    }
+
+    private func removeTenantFromState(companyId: String) {
+        linkedTenants.removeAll(where: { $0.id == companyId })
+        tenantDashboards.removeValue(forKey: companyId)
+        if selectedTenantId == companyId {
+            selectedTenantId = linkedTenants.first?.id
+        }
+        if walletSelectedTenantId == companyId {
+            walletSelectedTenantId = linkedTenants.first?.id
+        }
+        currentTenant = linkedTenants.first(where: { $0.id == selectedTenantId }) ?? linkedTenants.first ?? currentTenant
     }
 
     func refreshAllTenants() async {

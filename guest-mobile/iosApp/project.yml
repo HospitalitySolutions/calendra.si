@@ -12,3 +12,4 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: si.calendra.guest.mobile
       SWIFT_VERSION: "5.0"
       INFOPLIST_FILE: GuestMobile/Info.plist
+      CODE_SIGN_ENTITLEMENTS: GuestMobile/GuestMobile.entitlements

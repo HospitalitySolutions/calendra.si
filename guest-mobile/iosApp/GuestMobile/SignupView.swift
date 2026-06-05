@@ -1,4 +1,5 @@
 import SwiftUI
+import AuthenticationServices
 import UIKit
 
 struct SignupView: View {
@@ -15,6 +16,8 @@ struct SignupView: View {
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
     let onBackToLogin: () -> Void
     let onContinueToVerification: () -> Void
+    let onSocialAuthSuccess: () -> Void
+    let onSocialAuthRequireJoin: () -> Void
 
     private let accentBlue = Color(red: 0.078, green: 0.467, blue: 1.0)
     private let buttonBlueStart = Color(red: 0.000, green: 0.400, blue: 0.957)
@@ -39,9 +42,11 @@ struct SignupView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                Image("SignupBackground")
+                Image(guestBundleResource: "SignupBackground")
                     .resizable()
+                    .scaledToFill()
                     .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
                     .ignoresSafeArea()
 
                 Text(isSl ? "USTVARI RAČUN" : "CREATE ACCOUNT")
@@ -177,6 +182,52 @@ struct SignupView: View {
                 .buttonStyle(.plain)
                 .frameRect(proxy: proxy, x: 124, y: 1338, width: 680, height: 112)
 
+                HStack(spacing: 14) {
+                    Rectangle().fill(Color(red: 0.87, green: 0.89, blue: 0.93)).frame(height: 1)
+                    Text(isSl ? "ALI" : "OR")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.49, green: 0.54, blue: 0.64))
+                    Rectangle().fill(Color(red: 0.87, green: 0.89, blue: 0.93)).frame(height: 1)
+                }
+                .frameRect(proxy: proxy, x: 124, y: 1470, width: 680, height: 28)
+
+                GuestAppleSignInButton(
+                    label: .signUp,
+                    isDisabled: isSendingConfirmationCode || store.isLoading,
+                    onAuthorized: { idToken, firstName, lastName in
+                        await store.loginWithApple(idToken: idToken, firstName: firstName, lastName: lastName)
+                        guard store.errorMessage == nil else { return }
+                        if store.linkedTenants.isEmpty { onSocialAuthRequireJoin() } else { onSocialAuthSuccess() }
+                    },
+                    onError: { message in
+                        store.errorMessage = message
+                    }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .frameRect(proxy: proxy, x: 124, y: 1506, width: 330, height: 92)
+
+                Button {
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(guestBundleResource: "GoogleLogo")
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFit()
+                            .frame(width: 22, height: 22)
+                            .offset(y: -2)
+                        Text("Google")
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .foregroundStyle(navy)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .buttonStyle(.plain)
+                .background(Color.white.opacity(0.78))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(accentBlue, lineWidth: 1.5))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .disabled(isSendingConfirmationCode || store.isLoading)
+                .frameRect(proxy: proxy, x: 474, y: 1506, width: 330, height: 92)
+
                 HStack(spacing: 0) {
                     Text(isSl ? "Že imate račun? " : "Already have an account? ")
                         .foregroundStyle(muted)
@@ -191,7 +242,7 @@ struct SignupView: View {
                     guard !isSendingConfirmationCode, !store.isLoading else { return }
                     onBackToLogin()
                 }
-                .frameRect(proxy: proxy, x: 188, y: 1464, width: 565, height: 60)
+                .frameRect(proxy: proxy, x: 188, y: 1618, width: 565, height: 60)
             }
         }
     }

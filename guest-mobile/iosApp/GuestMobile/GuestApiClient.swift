@@ -81,8 +81,11 @@ final class GuestApiClient {
         )
     }
 
-    func loginWithApple(idToken: String) async throws -> GuestSessionModel {
-        try await post(path: "api/guest/auth/apple/token", body: SocialTokenPayload(idToken: idToken))
+    func loginWithApple(idToken: String, firstName: String? = nil, lastName: String? = nil) async throws -> GuestSessionModel {
+        try await post(
+            path: "api/guest/auth/apple/token",
+            body: SocialTokenPayload(idToken: idToken, firstName: firstName, lastName: lastName)
+        )
     }
 
     func me() async throws -> GuestProfileModel {
@@ -166,8 +169,16 @@ final class GuestApiClient {
     func joinTenant(code: String) async throws {
         let _: EmptyResponse = try await post(
             path: "api/guest/tenants/join",
-            body: JoinTenantPayload(joinMethod: "TENANT_CODE", tenantCode: code, inviteCode: nil, companyId: nil)
+            body: JoinTenantPayload(joinMethod: "TENANT_CODE", tenantCode: code, inviteCode: nil)
         )
+    }
+
+    func unsubscribeTenant(companyId: String) async throws {
+        try await postEmpty(path: "api/guest/tenants/\(companyId)/leave")
+    }
+
+    func anonymizeTenant(companyId: String) async throws {
+        try await postEmpty(path: "api/guest/tenants/\(companyId)/anonymize")
     }
 
     func home(companyId: String) async throws -> HomePayloadModel {

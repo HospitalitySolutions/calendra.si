@@ -343,7 +343,7 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
     let validUntil: String?
     let validityDays: Int?
     let status: String?
-    let sessionTypeId: String? = nil
+    let sessionTypeId: String?
     let sessionTypeName: String?
     let autoRenews: Bool?
     /// Short human-friendly ticket code like "CM8-425-001".
@@ -352,6 +352,26 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
     /// Remaining gift-card balance; nil for non-gift-card entitlements.
     let remainingValueGross: Double?
     let currency: String?
+
+    init(id: String, name: String, type: String, entitlementCode: String?, remainingUses: Int?, visitCount: Int?, totalUses: Int?, validUntil: String?, validityDays: Int?, status: String?, sessionTypeId: String?, sessionTypeName: String?, autoRenews: Bool?, displayCode: String?, priceGross: Double?, remainingValueGross: Double?, currency: String?) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.entitlementCode = entitlementCode
+        self.remainingUses = remainingUses
+        self.visitCount = visitCount
+        self.totalUses = totalUses
+        self.validUntil = validUntil
+        self.validityDays = validityDays
+        self.status = status
+        self.sessionTypeId = sessionTypeId
+        self.sessionTypeName = sessionTypeName
+        self.autoRenews = autoRenews
+        self.displayCode = displayCode
+        self.priceGross = priceGross
+        self.remainingValueGross = remainingValueGross
+        self.currency = currency
+    }
 
     enum CodingKeys: String, CodingKey {
         case id = "entitlementId"
@@ -438,7 +458,7 @@ struct ProductModel: Identifiable, Codable, Hashable {
     let productType: String
     let priceGross: Double
     let currency: String
-    let sessionTypeId: String? = nil
+    let sessionTypeId: String?
     let sessionTypeName: String?
     let bookable: Bool
     let description: String?
@@ -446,6 +466,22 @@ struct ProductModel: Identifiable, Codable, Hashable {
     let promoText: String?
     let validityDays: Int?
     let usageLimit: Int?
+
+    init(id: String, name: String, productType: String, priceGross: Double, currency: String, sessionTypeId: String?, sessionTypeName: String?, bookable: Bool, description: String?, durationMinutes: Int?, promoText: String?, validityDays: Int?, usageLimit: Int?) {
+        self.id = id
+        self.name = name
+        self.productType = productType
+        self.priceGross = priceGross
+        self.currency = currency
+        self.sessionTypeId = sessionTypeId
+        self.sessionTypeName = sessionTypeName
+        self.bookable = bookable
+        self.description = description
+        self.durationMinutes = durationMinutes
+        self.promoText = promoText
+        self.validityDays = validityDays
+        self.usageLimit = usageLimit
+    }
 
     enum CodingKeys: String, CodingKey {
         case id = "productId"
@@ -591,9 +627,15 @@ struct GuestInboxMessageModel: Identifiable, Codable, Hashable {
 }
 
 struct GuestInboxSendPayload: Codable {
-    let companyId: String = ""
+    let companyId: String
     let body: String
     let attachmentFileIds: [Int64]
+
+    init(companyId: String = "", body: String, attachmentFileIds: [Int64] = []) {
+        self.companyId = companyId
+        self.body = body
+        self.attachmentFileIds = attachmentFileIds
+    }
 }
 
 struct GuestInboxUploadedAttachmentModel: Codable, Hashable {
@@ -617,7 +659,7 @@ struct DeviceTokenResponseModel: Codable {
 struct TenantDashboardModel: Hashable {
     let tenant: TenantModel
     let upcomingBookings: [BookingModel]
-    let bookingHistory: [BookingModel] = []
+    let bookingHistory: [BookingModel]
     let entitlements: [EntitlementModel]
     let orders: [OrderModel]
     let notifications: [NotificationModel]
@@ -628,8 +670,8 @@ struct TenantDashboardModel: Hashable {
 
 struct BookingCardModel: Identifiable, Hashable {
     let id: String
-    let bookingId: String = ""
-    let companyId: String = ""
+    let bookingId: String
+    let companyId: String
     let title: String
     let startsAt: String
     let status: String
@@ -639,9 +681,9 @@ struct BookingCardModel: Identifiable, Hashable {
     let cardImageUrl: String?
     let logoImageUrl: String?
     let iconImageUrl: String?
-    let endsAt: String? = nil
-    let consultantName: String? = nil
-    let sessionTypeId: String? = nil
+    let endsAt: String?
+    let consultantName: String?
+    let sessionTypeId: String?
 }
 
 struct BookingActionResultModel: Codable {
@@ -653,7 +695,7 @@ struct BookingActionResultModel: Codable {
 }
 struct AccessCardModel: Identifiable, Hashable {
     let id: String
-    let companyId: String = ""
+    let companyId: String
     let entitlementId: String
     let name: String
     let type: String
@@ -664,20 +706,20 @@ struct AccessCardModel: Identifiable, Hashable {
     let totalUses: Int?
     let validUntil: String?
     let validityDays: Int?
-    let sessionTypeId: String? = nil
+    let sessionTypeId: String?
     let autoRenews: Bool
     let displayCode: String?
     let priceGross: Double?
     /// Remaining gift-card balance; nil for non-gift-card entitlements.
-    let remainingValueGross: Double? = nil
+    let remainingValueGross: Double?
     let currency: String?
     /// Mirrors backend `EntitlementStatus` (e.g. ACTIVE, EXPIRED).
-    let status: String = "ACTIVE"
+    let status: String
 }
 
 struct WalletOfferModel: Identifiable, Hashable {
     let id: String
-    let companyId: String = ""
+    let companyId: String
     let productId: String
     let name: String
     let productType: String
@@ -692,7 +734,7 @@ struct WalletOfferModel: Identifiable, Hashable {
 
 struct WalletOrderCardModel: Identifiable, Hashable {
     let id: String
-    let companyId: String = ""
+    let companyId: String
     let orderId: String
     let invoiceOrderId: String?
     let tenantName: String
@@ -713,7 +755,7 @@ struct WalletOrderCardModel: Identifiable, Hashable {
 
 struct ServiceOptionModel: Identifiable, Hashable {
     let id: String
-    let companyId: String = ""
+    let companyId: String
     let tenantName: String
     let tenantCity: String?
     let tenantPhone: String?
@@ -730,7 +772,7 @@ struct JoinTenantPayload: Codable {
     let joinMethod: String
     let tenantCode: String?
     let inviteCode: String?
-    let companyId: String = ""?
+    let companyId: String = ""
 }
 
 struct LoginPayload: Codable {
@@ -789,8 +831,22 @@ struct ResetPasswordPayload: Codable {
     let password: String
 }
 
+struct RescheduleBookingPayload: Codable {
+    let newSlotId: String
+}
+
+struct CancelBookingPayload: Codable {}
+
 struct SocialTokenPayload: Codable {
     let idToken: String
+    let firstName: String?
+    let lastName: String?
+
+    init(idToken: String, firstName: String? = nil, lastName: String? = nil) {
+        self.idToken = idToken
+        self.firstName = firstName
+        self.lastName = lastName
+    }
 }
 
 struct TenantCodePayload: Codable {
@@ -798,7 +854,7 @@ struct TenantCodePayload: Codable {
 }
 
 struct CreateOrderPayload: Codable {
-    let companyId: String = ""
+    let companyId: String
     let productId: String
     let slotId: String?
     let paymentMethodType: String

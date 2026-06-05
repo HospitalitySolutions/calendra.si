@@ -101,7 +101,7 @@ struct WelcomeView: View {
             let metrics = layoutMetrics(for: proxy.size)
 
             ZStack {
-                Image("WelcomeBookingBackground")
+                Image(guestBundleResource: "WelcomeBookingBackground")
                     .resizable()
                     .scaledToFill()
                     .frame(width: proxy.size.width, height: proxy.size.height)
@@ -134,10 +134,10 @@ struct WelcomeView: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Image("CalendraBookLogo")
+                        Image(guestBundleResource: "CalendraBookLogo")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: min(proxy.size.width * 0.58, 230), height: 66, alignment: .leading)
+                            .frame(maxWidth: 230, maxHeight: 66, alignment: .leading)
                             .accessibilityLabel("Calendra Book")
                             .padding(.top, metrics.topPadding)
 
@@ -193,6 +193,7 @@ struct WelcomeView: View {
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func featureLine(symbol: String, title: String, description: String, metrics: WelcomeMetrics) -> some View {

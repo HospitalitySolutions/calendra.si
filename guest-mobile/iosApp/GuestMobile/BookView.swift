@@ -1610,7 +1610,7 @@ private enum BookFlowStep: Int, CaseIterable, Identifiable {
     }
 }
 
-private enum GuestBookingPaymentChoice: String {
+enum GuestBookingPaymentChoice: String {
     case card
     case bankTransfer
     case entitlement

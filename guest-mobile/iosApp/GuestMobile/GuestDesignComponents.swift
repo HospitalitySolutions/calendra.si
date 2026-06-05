@@ -1,4 +1,87 @@
 import SwiftUI
+import UIKit
+import AuthenticationServices
+
+extension Image {
+    /// Loads PNGs copied into the app target (Copy Bundle Resources).
+    /// SwiftUI `Image(_:)` only resolves Asset Catalog images; loose bundle files need a path lookup.
+    init(guestBundleResource name: String, fileExtension: String = "png") {
+        if let path = Bundle.main.path(forResource: name, ofType: fileExtension),
+           let uiImage = UIImage(contentsOfFile: path) {
+            self.init(uiImage: uiImage)
+        } else if let uiImage = UIImage(named: name, in: .main, compatibleWith: nil) {
+            self.init(uiImage: uiImage)
+        } else {
+            self.init(systemName: "photo")
+        }
+    }
+}
+
+
+struct GuestAppleSignInButton: View {
+    let label: SignInWithAppleButton.Label
+    let isDisabled: Bool
+    let onAuthorized: @MainActor (String, String?, String?) async -> Void
+    let onError: @MainActor (String) -> Void
+
+    init(
+        label: SignInWithAppleButton.Label = .signIn,
+        isDisabled: Bool = false,
+        onAuthorized: @escaping @MainActor (String, String?, String?) async -> Void,
+        onError: @escaping @MainActor (String) -> Void
+    ) {
+        self.label = label
+        self.isDisabled = isDisabled
+        self.onAuthorized = onAuthorized
+        self.onError = onError
+    }
+
+    var body: some View {
+        SignInWithAppleButton(label) { request in
+            request.requestedScopes = [.fullName, .email]
+        } onCompletion: { result in
+            switch result {
+            case .success(let authorization):
+                handleAuthorization(authorization)
+            case .failure(let error):
+                if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+                    return
+                }
+                Task { @MainActor in
+                    onError(error.localizedDescription)
+                }
+            }
+        }
+        .signInWithAppleButtonStyle(.black)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.55 : 1.0)
+    }
+
+    private func handleAuthorization(_ authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            Task { @MainActor in onError("Apple sign-in did not return a valid credential.") }
+            return
+        }
+        guard
+            let tokenData = credential.identityToken,
+            let idToken = String(data: tokenData, encoding: .utf8),
+            !idToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            Task { @MainActor in onError("Apple sign-in did not return an identity token.") }
+            return
+        }
+
+        let firstName = credential.fullName?.givenName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastName = credential.fullName?.familyName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task { @MainActor in
+            await onAuthorized(
+                idToken,
+                firstName?.isEmpty == false ? firstName : nil,
+                lastName?.isEmpty == false ? lastName : nil
+            )
+        }
+    }
+}
 
 struct GuestSurfaceCard<Content: View>: View {
     var background: Color = Color(.systemBackground)

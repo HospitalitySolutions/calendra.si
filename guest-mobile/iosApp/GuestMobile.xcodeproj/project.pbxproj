@@ -30,6 +30,11 @@
 		A100000E0000000000000001 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001E0000000000000001 /* ProfileView.swift */; };
 		A100000F0000000000000001 /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000200000000000000001 /* NotificationsView.swift */; };
 		F3B994192F935416005A7895 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B994182F935416005A7895 /* AppStore.swift */; };
+		AA0001010000000000000001 /* SignupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0001110000000000000001 /* SignupView.swift */; };
+		AA0002010000000000000001 /* EmailCodeVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0002110000000000000001 /* EmailCodeVerificationView.swift */; };
+		AA0003010000000000000001 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0003110000000000000001 /* CalendarView.swift */; };
+		AA0004010000000000000001 /* RescheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0004110000000000000001 /* RescheduleView.swift */; };
+		AA0005010000000000000001 /* GuestAuthKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0005110000000000000001 /* GuestAuthKeychainStore.swift */; };
 		F3B9941F2F93546D005A7895 /* GuestDesignComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941D2F93546D005A7895 /* GuestDesignComponents.swift */; };
 		F3B994202F93546D005A7895 /* DateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941B2F93546D005A7895 /* DateFormatting.swift */; };
 		F3B994212F93546D005A7895 /* LocalProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941E2F93546D005A7895 /* LocalProfileStore.swift */; };
@@ -43,6 +48,7 @@
 		D1E2F3020000000000000001 /* WalletEmptyBuyIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */; };
 		D1E2F3030000000000000001 /* WalletEmptyOrdersIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */; };
 		E2C0A1000000000000000001 /* CalendarEmptyIllustration.png in Resources */ = {isa = PBXBuildFile; fileRef = E2C0A1010000000000000001 /* CalendarEmptyIllustration.png */; };
+		G0G0E0010000000000000001 /* GoogleLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = G0G0E0110000000000000001 /* GoogleLogo.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +75,12 @@
 		A100001E0000000000000001 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		A10000200000000000000001 /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		A100001F0000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		APPLENT1000000000000001 /* GuestMobile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GuestMobile.entitlements; sourceTree = "<group>"; };
+		AA0001110000000000000001 /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
+		AA0002110000000000000001 /* EmailCodeVerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailCodeVerificationView.swift; sourceTree = "<group>"; };
+		AA0003110000000000000001 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		AA0004110000000000000001 /* RescheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RescheduleView.swift; sourceTree = "<group>"; };
+		AA0005110000000000000001 /* GuestAuthKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestAuthKeychainStore.swift; sourceTree = "<group>"; };
 		A10001000000000000000001 /* GuestMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GuestMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3B994182F935416005A7895 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		F3B9941B2F93546D005A7895 /* DateFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatting.swift; sourceTree = "<group>"; };
@@ -84,6 +96,7 @@
 		D1E2F3120000000000000001 /* WalletEmptyBuyIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyBuyIllustration.png; sourceTree = "<group>"; };
 		D1E2F3130000000000000001 /* WalletEmptyOrdersIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WalletEmptyOrdersIllustration.png; sourceTree = "<group>"; };
 		E2C0A1010000000000000001 /* CalendarEmptyIllustration.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = CalendarEmptyIllustration.png; sourceTree = "<group>"; };
+		G0G0E0110000000000000001 /* GoogleLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = GoogleLogo.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,6 +141,7 @@
 				A9D0E1010000000000000001 /* HomeBookingBackground.png */,
 				F3B9A2012F9A000000000002 /* SignupBackground.png */,
 				B1C1D1E1F1A1B1C1D1E1F1A1 /* SigninBackground.png */,
+				G0G0E0110000000000000001 /* GoogleLogo.png */,
 				A10000170000000000000001 /* LoginView.swift */,
 				A10000610000000000000001 /* ResetPasswordView.swift */,
 				A10000600000000000000001 /* ForgotPasswordView.swift */,
@@ -139,11 +153,17 @@
 				A100001D0000000000000001 /* InboxView.swift */,
 				A100001E0000000000000001 /* ProfileView.swift */,
 				A10000200000000000000001 /* NotificationsView.swift */,
+				AA0001110000000000000001 /* SignupView.swift */,
+				AA0002110000000000000001 /* EmailCodeVerificationView.swift */,
+				AA0003110000000000000001 /* CalendarView.swift */,
+				AA0004110000000000000001 /* RescheduleView.swift */,
+				AA0005110000000000000001 /* GuestAuthKeychainStore.swift */,
 				C0A000110000000000000001 /* BookStepProviderBackground.png */,
 				C0A000120000000000000001 /* BookStepServiceBackground.png */,
 				C0A000130000000000000001 /* BookStepEmployeeBackground.png */,
 				C0A000140000000000000001 /* BookStepDateTimeBackground.png */,
 				C0A000150000000000000001 /* BookStepPaymentReviewBackground.png */,
+				APPLENT1000000000000001 /* GuestMobile.entitlements */,
 				A100001F0000000000000001 /* Info.plist */,
 			);
 			path = GuestMobile;
@@ -231,6 +251,7 @@
 				D1E2F3020000000000000001 /* WalletEmptyBuyIllustration.png in Resources */,
 				D1E2F3030000000000000001 /* WalletEmptyOrdersIllustration.png in Resources */,
 				E2C0A1000000000000000001 /* CalendarEmptyIllustration.png in Resources */,
+				G0G0E0010000000000000001 /* GoogleLogo.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,6 +306,11 @@
 				A100000D0000000000000001 /* InboxView.swift in Sources */,
 				A100000E0000000000000001 /* ProfileView.swift in Sources */,
 				A100000F0000000000000001 /* NotificationsView.swift in Sources */,
+				AA0001010000000000000001 /* SignupView.swift in Sources */,
+				AA0002010000000000000001 /* EmailCodeVerificationView.swift in Sources */,
+				AA0003010000000000000001 /* CalendarView.swift in Sources */,
+				AA0004010000000000000001 /* RescheduleView.swift in Sources */,
+				AA0005010000000000000001 /* GuestAuthKeychainStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -297,6 +323,7 @@
 				API_BASE_URL = "http://localhost:4000";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U33F379JSJ;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -310,17 +337,18 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
+			SWIFT_VERSION = 5.9;
+			TARGETED_DEVICE_FAMILY = "1,2";
 		};
-		A10008010000000000000001 /* Release */ = {
+		name = Debug;
+	};
+	A10008010000000000000001 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				API_BASE_URL = "https://app.calendra.si";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U33F379JSJ;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -334,12 +362,12 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
+			SWIFT_VERSION = 5.9;
+			TARGETED_DEVICE_FAMILY = "1,2";
 		};
-		A10008020000000000000001 /* Debug */ = {
+		name = Release;
+	};
+	A10008020000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -376,12 +404,12 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
+			STRING_CATALOG_GENERATE_SYMBOLS = YES;
+			SWIFT_VERSION = 5.9;
 		};
-		A10008030000000000000001 /* Release */ = {
+		name = Debug;
+	};
+	A10008030000000000000001 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -417,10 +445,10 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
+			SWIFT_COMPILATION_MODE = wholemodule;
+			SWIFT_VERSION = 5.9;
+		};
+		name = Release;
 		};
 /* End XCBuildConfiguration section */
 

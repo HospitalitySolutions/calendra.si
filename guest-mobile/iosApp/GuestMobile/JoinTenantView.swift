@@ -132,7 +132,7 @@ struct JoinTenantView: View {
             TextField(
                 "",
                 text: $tenantQuery,
-                prompt: Text(isSl ? "Poišči ponudnika" : "Search tenant").foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576).opacity(0.92))
+                prompt: Text(isSl ? "Poišči ponudnika" : "Search tenant").foregroundColor(Color(red: 0.400, green: 0.463, blue: 0.576).opacity(0.92))
             )
             .font(.system(size: 14))
             .textInputAutocapitalization(.words)

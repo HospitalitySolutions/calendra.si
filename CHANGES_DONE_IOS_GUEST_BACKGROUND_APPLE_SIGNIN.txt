@@ -1,0 +1,58 @@
+Changes done: iOS guest app background fit + Sign in with Apple
+
+1. Updated iOS guest app authentication screens
+   - Added native Sign in with Apple support to the iOS guest mobile login screen.
+   - Added native Sign up with Apple support to the iOS guest mobile create-account screen.
+   - The Apple flow requests full name + email from Apple and sends the identity token to the backend.
+   - Existing users are linked by Apple subject, or by verified Apple email when available.
+   - New Apple users are provisioned as guest users and routed to tenant join if they are not linked to a tenant yet.
+
+2. Backend Apple identity-token support improvements
+   - Extended the guest social token payload to optionally include firstName and lastName from Apple native sign-in.
+   - Apple sign-in now uses the names returned by iOS on the first authorization when Apple provides them.
+   - APP_GUEST_AUTH_APPLE_CLIENT_ID now supports comma-separated audiences, so the backend can accept the native iOS bundle id and, if needed, another Apple Service ID.
+
+3. iOS Sign in with Apple capability
+   - Added GuestMobile.entitlements with com.apple.developer.applesignin = Default.
+   - Wired CODE_SIGN_ENTITLEMENTS into GuestMobile.xcodeproj and project.yml.
+
+4. Background image fit update
+   - Rebuilt the guest app welcome, sign-in and sign-up backgrounds to the taller iOS app aspect used by the screenshots: 946 x 2048.
+   - Re-imported them under the existing bundle resource names:
+     * WelcomeBookingBackground.png
+     * SigninBackground.png
+     * SignupBackground.png
+   - Added a white full-screen fallback background in ContentView to avoid black safe-area gaps.
+
+Files changed:
+- guest-mobile/iosApp/GuestMobile/WelcomeBookingBackground.png
+- guest-mobile/iosApp/GuestMobile/SigninBackground.png
+- guest-mobile/iosApp/GuestMobile/SignupBackground.png
+- guest-mobile/iosApp/GuestMobile/GuestDesignComponents.swift
+- guest-mobile/iosApp/GuestMobile/LoginView.swift
+- guest-mobile/iosApp/GuestMobile/SignupView.swift
+- guest-mobile/iosApp/GuestMobile/ContentView.swift
+- guest-mobile/iosApp/GuestMobile/AppStore.swift
+- guest-mobile/iosApp/GuestMobile/GuestApiClient.swift
+- guest-mobile/iosApp/GuestMobile/Models.swift
+- guest-mobile/iosApp/GuestMobile/GuestMobile.entitlements
+- guest-mobile/iosApp/GuestMobile.xcodeproj/project.pbxproj
+- guest-mobile/iosApp/project.yml
+- backend/src/main/java/com/example/app/guest/common/GuestDtos.java
+- backend/src/main/java/com/example/app/guest/auth/GuestAuthController.java
+- backend/src/main/java/com/example/app/guest/auth/GuestAuthService.java
+- backend/src/main/java/com/example/app/guest/auth/GuestSocialTokenVerifier.java
+- .env.example
+- .env.staging.example
+
+What you must do on your end:
+1. In Apple Developer, enable "Sign in with Apple" for the iOS app identifier / bundle id:
+   si.calendra.guest.mobile
+2. In Xcode, confirm Signing & Capabilities shows "Sign in with Apple" for the GuestMobile target.
+3. Set backend env variable APP_GUEST_AUTH_APPLE_CLIENT_ID to the iOS bundle id:
+   APP_GUEST_AUTH_APPLE_CLIENT_ID=si.calendra.guest.mobile
+   If you also use another Apple Service ID for web login, comma-separate the values.
+4. Rebuild and deploy the backend, then rebuild the iOS guest app.
+
+Validation note:
+- I could not run the backend Maven build in this sandbox because the Maven wrapper tried to download Maven from repo.maven.apache.org and outbound download failed here.

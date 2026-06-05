@@ -400,7 +400,7 @@ struct MainTabView: View {
 
     private func refreshBookTenantIfNeeded() {
         let selected = store.selectedTenantId?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let fallback = store.linkedTenants.first?.id?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = store.linkedTenants.first?.id.trimmingCharacters(in: .whitespacesAndNewlines)
         let companyId = (selected?.isEmpty == false ? selected : fallback)
         guard let companyId, companyId.isEmpty == false else { return }
         Task { try? await store.refreshTenant(companyId: companyId) }
@@ -900,7 +900,7 @@ private struct TenantSelectionAllBottomSheetRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(isSl ? "Vsi ponudniki" : "All providers")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(ink)
+                        .foregroundColor(Color(red: 0.06, green: 0.10, blue: 0.18))
                         .lineLimit(1)
                     Text(isSl ? "Prikaži termine vseh povezanih ponudnikov" : "Show sessions from every linked provider")
                         .font(.system(size: 12, weight: .medium))

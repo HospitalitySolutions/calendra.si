@@ -38,7 +38,9 @@ struct ContentView: View {
             case .signup:
                 SignupView(
                     onBackToLogin: { screen = .login },
-                    onContinueToVerification: { screen = .verifyEmailCode }
+                    onContinueToVerification: { screen = .verifyEmailCode },
+                    onSocialAuthSuccess: { screen = store.linkedTenants.isEmpty ? .joinTenant : .main },
+                    onSocialAuthRequireJoin: { screen = .joinTenant }
                 )
             case .verifyEmailCode:
                 EmailCodeVerificationView(
@@ -67,6 +69,7 @@ struct ContentView: View {
                 MainTabView()
             }
         }
+        .background(Color.white.ignoresSafeArea())
         .task {
             let restored = await store.restoreSessionIfPossible()
             if let link = store.passwordResetLink {
