@@ -88,6 +88,13 @@ final class GuestApiClient {
         )
     }
 
+    func loginWithGoogle(idToken: String) async throws -> GuestSessionModel {
+        try await post(
+            path: "api/guest/auth/google/token",
+            body: SocialTokenPayload(idToken: idToken)
+        )
+    }
+
     func me() async throws -> GuestProfileModel {
         try await get(path: "api/guest/me")
     }
@@ -169,7 +176,22 @@ final class GuestApiClient {
     func joinTenant(code: String) async throws {
         let _: EmptyResponse = try await post(
             path: "api/guest/tenants/join",
-            body: JoinTenantPayload(joinMethod: "TENANT_CODE", tenantCode: code, inviteCode: nil)
+            body: JoinTenantPayload(joinMethod: "TENANT_CODE", tenantCode: code, inviteCode: nil, companyId: nil)
+        )
+    }
+
+    func searchTenants(query: String, tenantType: String? = nil) async throws -> [TenantSummaryModel] {
+        var queryItems = [URLQueryItem(name: "q", value: query)]
+        if let tenantType, !tenantType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            queryItems.append(URLQueryItem(name: "type", value: tenantType))
+        }
+        return try await get(path: "api/guest/tenants/search", query: queryItems)
+    }
+
+    func joinPublicTenant(companyId: String) async throws {
+        let _: EmptyResponse = try await post(
+            path: "api/guest/tenants/join",
+            body: JoinTenantPayload(joinMethod: "PUBLIC_SEARCH", tenantCode: nil, inviteCode: nil, companyId: companyId)
         )
     }
 

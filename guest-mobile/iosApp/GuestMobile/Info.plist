@@ -28,9 +28,21 @@
                 <string>calendra-guest</string>
             </array>
         </dict>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>si.calendra.guest.mobile.google</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
+            </array>
+        </dict>
     </array>
     <key>API_BASE_URL</key>
     <string>$(API_BASE_URL)</string>
+    <key>GOOGLE_IOS_CLIENT_ID</key>
+    <string>$(GOOGLE_IOS_CLIENT_ID)</string>
+    <key>GOOGLE_REVERSED_CLIENT_ID</key>
+    <string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UIRequiresFullScreen</key>

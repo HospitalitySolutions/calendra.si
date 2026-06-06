@@ -11,56 +11,75 @@ struct JoinTenantView: View {
     @State private var selectedCategory: JoinTenantCategory = .all
     @State private var tenantQuery: String = ""
     @State private var selectedCardIndex: Int = 0
+    @State private var publicTenants: [TenantSummaryModel] = []
+    @State private var isTenantSearchLoading = false
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
     let onJoin: () -> Void
+    let onClose: (() -> Void)?
+
+    init(onClose: (() -> Void)? = nil, onJoin: @escaping () -> Void) {
+        self.onClose = onClose
+        self.onJoin = onJoin
+    }
 
     private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
 
-    private var previewTenants: [JoinTenantPreviewTenant] {
+    private var searchTaskKey: String {
         [
-            JoinTenantPreviewTenant(name: "Luxe Salon", type: .salon, location: isSl ? "Pritličje, lokal G-12" : "Ground Floor, Shop G-12", description: isSl ? "Premium lepotne in frizerske storitve v sodobnem prostoru." : "Premium beauty and hair care services in a modern luxury space."),
-            JoinTenantPreviewTenant(name: "Power Fit", type: .gym, location: isSl ? "1. nadstropje, studio 8" : "Level 1, Studio 8", description: isSl ? "Vadba za moč, kardio in osebni treningi na enem mestu." : "Strength, cardio and personal training sessions in one place."),
-            JoinTenantPreviewTenant(name: "Serene Spa", type: .spa, location: isSl ? "1. nadstropje, soba 5" : "First Floor, Suite 5", description: isSl ? "Sproščujoči wellness rituali, masaže in skrb zase." : "Relaxing wellness rituals, massages and self-care experiences."),
-            JoinTenantPreviewTenant(name: "Calm Therapy", type: .therapy, location: isSl ? "2. nadstropje, pisarna 3" : "Second Floor, Office 3", description: isSl ? "Strokovni terapevtski in podporni termini v mirnem okolju." : "Professional therapy and support appointments in a calm environment.")
-        ]
-    }
-
-    private var filteredTenants: [JoinTenantPreviewTenant] {
-        previewTenants.filter { tenant in
-            let matchesCategory = selectedCategory == .all || tenant.type == selectedCategory
-            let query = tenantQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-            let matchesQuery = query.isEmpty || tenant.name.localizedCaseInsensitiveContains(query) || tenant.location.localizedCaseInsensitiveContains(query)
-            return matchesCategory && matchesQuery
-        }
+            tenantQuery.trimmingCharacters(in: .whitespacesAndNewlines),
+            selectedCategory.tenantTypeId ?? "all",
+            store.linkedTenants.map(\.id).sorted().joined(separator: ",")
+        ].joined(separator: "|")
     }
 
     var body: some View {
-        ZStack {
-            Color(red: 0.961, green: 0.968, blue: 0.984)
-                .ignoresSafeArea()
+        GeometryReader { geo in
+            // GeometryReader can sometimes receive a wider proposed width when this page is
+            // opened from the app shell/full-screen cover. If we center against that wider
+            // proposed width, the whole Add Tenant page appears shifted to the right on iPhone.
+            // Anchor the page to the actual portrait screen width instead.
+            let screenWidth = max(1, min(UIScreen.main.bounds.width, UIScreen.main.bounds.height))
+            let viewportWidth = max(1, min(geo.size.width, screenWidth))
+            let horizontalPadding = max(18, min(24, viewportWidth * 0.055))
+            let contentWidth = max(1, min(viewportWidth - (horizontalPadding * 2), 420))
 
-            Image("AddTenantBackground")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
+            ZStack(alignment: .topLeading) {
+                Color(red: 0.961, green: 0.968, blue: 0.984)
+                    .ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    brandHeader
-                        .padding(.horizontal, 16)
+                Image("AddTenantBackground")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: viewportWidth, height: geo.size.height)
+                    .clipped()
+                    .ignoresSafeArea()
 
-                    VStack(alignment: .leading, spacing: 16) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .center, spacing: 16) {
+                        brandHeader
+                            .frame(width: contentWidth, alignment: .leading)
+
                         modeButtons
+                            .frame(width: contentWidth, alignment: .center)
                         searchField
+                            .frame(width: contentWidth, alignment: .center)
                         categoryChips
+                            .frame(width: contentWidth, alignment: .leading)
                         tenantCarousel
+                            .frame(width: contentWidth, alignment: .center)
                     }
-                    .padding(.horizontal, 28)
+                    .frame(width: viewportWidth, alignment: .center)
+                    .padding(.top, 12)
+                    .padding(.bottom, max(24, geo.safeAreaInsets.bottom + 18))
                 }
-                .padding(.top, 16)
-                .padding(.bottom, 24)
+                .frame(width: viewportWidth, height: geo.size.height, alignment: .topLeading)
             }
+            .frame(width: viewportWidth, height: geo.size.height, alignment: .topLeading)
+        }
+        .dismissKeyboardOnTap()
+        .task(id: searchTaskKey) {
+            await loadPublicTenants()
         }
         .sheet(isPresented: $showCodePopup) {
             JoinCodePopup(
@@ -98,6 +117,24 @@ struct JoinTenantView: View {
         }
     }
 
+    @MainActor
+    private func loadPublicTenants() async {
+        isTenantSearchLoading = true
+        defer { isTenantSearchLoading = false }
+
+        try? await Task.sleep(nanoseconds: 220_000_000)
+        guard !Task.isCancelled else { return }
+
+        let results = await store.searchPublicTenants(
+            query: tenantQuery,
+            tenantType: selectedCategory.tenantTypeId
+        )
+        guard !Task.isCancelled else { return }
+
+        publicTenants = results
+        selectedCardIndex = min(selectedCardIndex, max(results.count - 1, 0))
+    }
+
     private var brandHeader: some View {
         HStack {
             Image("CalendraBookLogo")
@@ -105,13 +142,25 @@ struct JoinTenantView: View {
                 .scaledToFit()
                 .frame(maxWidth: 128, maxHeight: 34, alignment: .leading)
             Spacer(minLength: 0)
+            if let onClose {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Color(red: 0.055, green: 0.145, blue: 0.345))
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.white.opacity(0.92)))
+                        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isSl ? "Zapri" : "Close")
+            }
         }
         .frame(height: 56)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var modeButtons: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             JoinTenantModeButton(title: isSl ? "Vnesi kodo" : "Enter tenant code", mode: .code, selected: selectedMode == .code) {
                 selectedMode = .code
                 showCodePopup = true
@@ -120,8 +169,11 @@ struct JoinTenantView: View {
                 selectedMode = .scan
                 showScanPopup = true
             }
-            JoinTenantModeButton(title: isSl ? "Brskaj ponudnike" : "Browse tenant", mode: .browse, selected: selectedMode == .browse) { selectedMode = .browse }
+            JoinTenantModeButton(title: isSl ? "Brskaj ponudnike" : "Browse tenants", mode: .browse, selected: selectedMode == .browse) {
+                selectedMode = .browse
+            }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var searchField: some View {
@@ -190,6 +242,7 @@ struct JoinTenantView: View {
                                 .stroke(selectedCategory == category ? Color.clear : Color(red: 0.867, green: 0.890, blue: 0.937), lineWidth: 1)
                         )
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 2)
@@ -197,56 +250,38 @@ struct JoinTenantView: View {
     }
 
     private var tenantCarousel: some View {
-        let screenWidth = UIScreen.main.bounds.width
-        let cardWidth = screenWidth * 0.56
-        let sidePadding = (screenWidth - cardWidth) / 2
-
-        return VStack(spacing: 10) {
-            if filteredTenants.isEmpty {
-                GuestSurfaceCard(background: .white, contentPadding: 18, cornerRadius: 30) {
-                    VStack(spacing: 0) {
-                        Image("AddTenantEmptyIllustration")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity)
-
-                        Text(isSl ? "Ni najdenih javnih ponudnikov" : "No public tenants found")
-                            .font(.system(size: 24, weight: .heavy))
-                            .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 14)
-
-                        Text(isSl ? "Trenutno ne najdemo javnih ponudnikov, ki bi ustrezali vašemu iskanju." : "We couldn’t find any public tenants matching your search right now.")
-                            .font(.system(size: 15, weight: .regular))
-                            .lineSpacing(5)
-                            .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 18)
-                            .padding(.top, 10)
-                            .padding(.bottom, 4)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
+        VStack(spacing: 10) {
+            if isTenantSearchLoading {
+                JoinTenantLoadingCard(isSl: isSl)
+            } else if publicTenants.isEmpty {
+                JoinTenantEmptyCard(isSl: isSl)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        ForEach(Array(filteredTenants.enumerated()), id: \.offset) { index, tenant in
+                TabView(selection: $selectedCardIndex) {
+                    ForEach(Array(publicTenants.enumerated()), id: \.offset) { index, tenant in
+                        HStack(spacing: 0) {
+                            Spacer(minLength: 0)
                             JoinTenantPreviewCard(tenant: tenant, isSl: isSl) {
-                                store.noticeMessage = isSl ? "Izbira ponudnika je trenutno pripravljena kot oblikovni predogled." : "Browse selection preview implemented for design alignment."
+                                Task {
+                                    await store.joinPublicTenant(companyId: tenant.companyId)
+                                    if store.errorMessage == nil {
+                                        onJoin()
+                                    }
+                                }
                             }
-                            .frame(width: cardWidth)
-                            .opacity(index == selectedCardIndex ? 1.0 : 0.62)
-                            .id(index)
+                            .frame(maxWidth: 330)
+                            Spacer(minLength: 0)
                         }
+                        .padding(.horizontal, 4)
+                        .tag(index)
                     }
-                    .padding(.horizontal, sidePadding)
                 }
-                .frame(width: screenWidth, height: 396)
-                .offset(x: -22)
-                .onAppear { selectedCardIndex = min(selectedCardIndex, max(filteredTenants.count - 1, 0)) }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(maxWidth: .infinity)
+                .frame(height: 392)
+                .clipped()
 
                 HStack(spacing: 8) {
-                    ForEach(Array(filteredTenants.enumerated()), id: \.offset) { index, _ in
+                    ForEach(Array(publicTenants.enumerated()), id: \.offset) { index, _ in
                         Capsule(style: .continuous)
                             .fill(index == selectedCardIndex ? Color(red: 0.086, green: 0.408, blue: 0.957) : Color(red: 0.843, green: 0.867, blue: 0.910))
                             .frame(width: index == selectedCardIndex ? 28 : 10, height: 6)
@@ -254,9 +289,11 @@ struct JoinTenantView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity)
+        .onChange(of: publicTenants.map(\.companyId)) { _ in
+            selectedCardIndex = min(selectedCardIndex, max(publicTenants.count - 1, 0))
+        }
     }
-
-
 }
 
 private struct JoinCodePopup: View {
@@ -331,6 +368,7 @@ private struct JoinCodePopup: View {
         }
         .padding(22)
         .background(Color(red: 0.961, green: 0.968, blue: 0.984))
+        .dismissKeyboardOnTap()
     }
 }
 
@@ -383,6 +421,57 @@ private struct ScanQrPopup: View {
         }
         .padding(22)
         .background(Color(red: 0.961, green: 0.968, blue: 0.984))
+    }
+}
+
+
+private struct JoinTenantLoadingCard: View {
+    let isSl: Bool
+
+    var body: some View {
+        GuestSurfaceCard(background: .white, contentPadding: 28, cornerRadius: 30) {
+            VStack(spacing: 18) {
+                ProgressView()
+                    .scaleEffect(1.12)
+                    .tint(Color(red: 0.086, green: 0.408, blue: 0.957))
+                Text(isSl ? "Nalaganje ponudnikov…" : "Loading tenants…")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
+            }
+            .frame(maxWidth: .infinity, minHeight: 260)
+        }
+    }
+}
+
+private struct JoinTenantEmptyCard: View {
+    let isSl: Bool
+
+    var body: some View {
+        GuestSurfaceCard(background: .white, contentPadding: 18, cornerRadius: 30) {
+            VStack(spacing: 0) {
+                Image("AddTenantEmptyIllustration")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 190)
+
+                Text(isSl ? "Ni najdenih javnih ponudnikov" : "No public tenants found")
+                    .font(.system(size: 23, weight: .heavy))
+                    .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 14)
+
+                Text(isSl ? "Trenutno ne najdemo javnih ponudnikov, ki bi ustrezali vašemu iskanju." : "We couldn’t find any public tenants matching your search right now.")
+                    .font(.system(size: 15, weight: .regular))
+                    .lineSpacing(5)
+                    .foregroundStyle(Color(red: 0.400, green: 0.463, blue: 0.576))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 }
 
@@ -539,6 +628,16 @@ private enum JoinTenantCategory: CaseIterable {
         }
     }
 
+    var tenantTypeId: String? {
+        switch self {
+        case .all: return nil
+        case .salon: return "salon"
+        case .gym: return "gym"
+        case .spa: return "spa"
+        case .therapy: return "therapy"
+        }
+    }
+
     var symbol: String? {
         switch self {
         case .all: return nil
@@ -548,14 +647,16 @@ private enum JoinTenantCategory: CaseIterable {
         case .therapy: return "cross.case"
         }
     }
-}
 
-private struct JoinTenantPreviewTenant: Identifiable {
-    let id = UUID()
-    let name: String
-    let type: JoinTenantCategory
-    let location: String
-    let description: String
+    static func from(tenantType: String?) -> JoinTenantCategory {
+        switch tenantType?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "salon": return .salon
+        case "gym", "fitness", "fitnes": return .gym
+        case "spa", "wellness": return .spa
+        case "therapy", "terapija": return .therapy
+        default: return .all
+        }
+    }
 }
 
 private struct JoinTenantModeButton: View {
@@ -592,6 +693,7 @@ private struct JoinTenantModeButton: View {
             )
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -704,19 +806,19 @@ private struct TopRoundedHeroShape: Shape {
 }
 
 private struct JoinTenantPreviewCard: View {
-    let tenant: JoinTenantPreviewTenant
+    let tenant: TenantSummaryModel
     let isSl: Bool
     let onSelect: () -> Void
+
+    private var category: JoinTenantCategory { JoinTenantCategory.from(tenantType: tenant.tenantType) }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottom) {
-                TopRoundedHeroShape(radius: 24)
-                    .fill(heroBackground)
+                heroContent
                     .frame(height: 174)
-                    .overlay { TenantHeroStorefrontIllustration(type: tenant.type, accent: accent) }
-                    .overlay { heroOverlay }
                     .clipShape(TopRoundedHeroShape(radius: 24))
+                    .overlay { heroOverlay }
                     .padding(.horizontal, 8)
                     .padding(.top, 8)
 
@@ -724,16 +826,7 @@ private struct JoinTenantPreviewCard: View {
                     .fill(Color.white)
                     .frame(width: 78, height: 78)
                     .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 5)
-                    .overlay {
-                        Circle()
-                            .fill(accent)
-                            .padding(9)
-                            .overlay {
-                                Image(systemName: heroSymbol)
-                                    .font(.system(size: 27, weight: .semibold))
-                                    .foregroundStyle(Color.white)
-                            }
-                    }
+                    .overlay { logoContent }
                     .offset(y: 32)
                     .zIndex(2)
             }
@@ -741,7 +834,7 @@ private struct JoinTenantPreviewCard: View {
 
             Spacer().frame(height: 36)
 
-            Text(tenant.name)
+            Text(tenant.companyName)
                 .font(.system(size: 18, weight: .heavy))
                 .tracking(-0.8)
                 .foregroundStyle(Color(red: 0.075, green: 0.149, blue: 0.290))
@@ -751,24 +844,26 @@ private struct JoinTenantPreviewCard: View {
 
             Spacer().frame(height: 7)
 
-            HStack(spacing: 6) {
-                Image(systemName: tenant.type.symbol ?? "tag")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(tenant.type.title(isSl: isSl))
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
+            if category != .all {
+                HStack(spacing: 6) {
+                    Image(systemName: category.symbol ?? "tag")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(category.title(isSl: isSl))
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule(style: .continuous).fill(Color(red: 0.918, green: 0.945, blue: 1.0)))
             }
-            .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Capsule(style: .continuous).fill(Color(red: 0.918, green: 0.945, blue: 1.0)))
 
-            Spacer().frame(height: 10)
+            Spacer().frame(height: category == .all ? 26 : 10)
 
             HStack(spacing: 6) {
                 Image(systemName: "mappin.and.ellipse")
                     .foregroundStyle(Color(red: 0.086, green: 0.408, blue: 0.957))
-                Text(tenant.location)
+                Text(locationText)
                     .lineLimit(1)
             }
             .font(.system(size: 11, weight: .regular))
@@ -805,15 +900,74 @@ private struct JoinTenantPreviewCard: View {
     }
 
     @ViewBuilder
+    private var heroContent: some View {
+        if let imageURL = imageURL(tenant.cardImageUrl) {
+            AsyncImage(url: imageURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                heroPlaceholder
+            }
+        } else {
+            heroPlaceholder
+        }
+    }
+
+    private var heroPlaceholder: some View {
+        TopRoundedHeroShape(radius: 24)
+            .fill(heroBackground)
+            .overlay { TenantHeroStorefrontIllustration(type: category, accent: accent) }
+    }
+
+    @ViewBuilder
+    private var logoContent: some View {
+        if let logoURL = imageURL(tenant.logoImageUrl ?? tenant.iconImageUrl) {
+            AsyncImage(url: logoURL) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                fallbackLogo
+            }
+            .padding(10)
+            .clipShape(Circle())
+        } else {
+            fallbackLogo
+        }
+    }
+
+    private var fallbackLogo: some View {
+        Circle()
+            .fill(accent)
+            .padding(9)
+            .overlay {
+                Image(systemName: heroSymbol)
+                    .font(.system(size: 27, weight: .semibold))
+                    .foregroundStyle(Color.white)
+            }
+    }
+
+    @ViewBuilder
     private var heroOverlay: some View {
         LinearGradient(colors: [Color.clear, Color.clear, Color.black.opacity(0.08)], startPoint: .top, endPoint: .bottom)
             .clipShape(TopRoundedHeroShape(radius: 24))
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
+    }
+
+    private var locationText: String {
+        nonBlank(tenant.publicCity)
+            ?? nonBlank(tenant.companyAddress)
+            ?? (isSl ? "Lokacija je na voljo v profilu" : "Location available on profile")
+    }
+
+    private func nonBlank(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func imageURL(_ value: String?) -> URL? {
+        guard let trimmed = nonBlank(value) else { return nil }
+        return URL(string: trimmed)
     }
 
     private var heroBackground: LinearGradient {
-        switch tenant.type {
+        switch category {
         case .salon: return LinearGradient(colors: [Color(red: 0.991, green: 0.936, blue: 0.949), Color(red: 0.955, green: 0.849, blue: 0.894)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .gym: return LinearGradient(colors: [Color(red: 0.874, green: 0.938, blue: 0.989), Color(red: 0.655, green: 0.816, blue: 0.967)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .spa: return LinearGradient(colors: [Color(red: 0.905, green: 0.955, blue: 0.880), Color(red: 0.729, green: 0.856, blue: 0.690)], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -823,7 +977,7 @@ private struct JoinTenantPreviewCard: View {
     }
 
     private var accent: Color {
-        switch tenant.type {
+        switch category {
         case .salon: return Color(red: 0.902, green: 0.435, blue: 0.580)
         case .gym: return Color(red: 0.078, green: 0.471, blue: 0.831)
         case .spa: return Color(red: 0.361, green: 0.549, blue: 0.345)
@@ -833,7 +987,7 @@ private struct JoinTenantPreviewCard: View {
     }
 
     private var heroSymbol: String {
-        switch tenant.type {
+        switch category {
         case .salon: return "scissors"
         case .gym: return "dumbbell"
         case .spa: return "leaf"

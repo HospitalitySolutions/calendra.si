@@ -229,10 +229,22 @@ struct WalletView: View {
     @State private var selectedOrderFilter: String = "All"
     @State private var selectedEntitlementFilter: String = "All"
     @State private var showInactiveEntitlements: Bool = false
+    @State private var showAllEntitlements: Bool = false
     @State private var receiptPreviewItem: WalletReceiptPreviewItem? = nil
     @State private var openingReceiptOrderId: String? = nil
     @State private var paymentInstructionsOrder: WalletOrderCardModel? = nil
     @State private var pendingExternalCheckout: PendingWalletExternalCheckout? = PendingWalletExternalCheckout.load()
+
+    private let walletSubTabSwipeThreshold: CGFloat = 54
+
+    private var walletSubTabOrder: [WalletSubTab] { [.entitlements, .buy, .orders] }
+
+    private var walletSubTabSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 30, coordinateSpace: .local)
+            .onEnded { value in
+                handleWalletSubTabSwipe(value)
+            }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -251,8 +263,11 @@ struct WalletView: View {
                     ordersPanel
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .simultaneousGesture(walletSubTabSwipeGesture)
         .background(
             LinearGradient(
                 colors: [Color(red: 0.95, green: 0.98, blue: 1.00), Color(red: 1.00, green: 0.97, blue: 0.93)],
@@ -338,6 +353,22 @@ struct WalletView: View {
                 pending.wasBackgrounded = true
                 setPendingExternalCheckout(pending)
             }
+        }
+    }
+
+    private func handleWalletSubTabSwipe(_ value: DragGesture.Value) {
+        guard selectedQRCode == nil else { return }
+
+        let horizontal = value.translation.width
+        let vertical = value.translation.height
+        guard abs(horizontal) >= walletSubTabSwipeThreshold, abs(horizontal) > abs(vertical) * 1.25 else { return }
+        guard let currentIndex = walletSubTabOrder.firstIndex(of: subTab) else { return }
+
+        let nextIndex = horizontal < 0 ? currentIndex + 1 : currentIndex - 1
+        guard walletSubTabOrder.indices.contains(nextIndex) else { return }
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            subTab = walletSubTabOrder[nextIndex]
         }
     }
 
@@ -436,26 +467,37 @@ struct WalletView: View {
         let activeCards = filteredByType.filter { !isInactiveEntitlement($0) }
         let inactiveCards = filteredByType.filter { isInactiveEntitlement($0) }
         let visibleCards = showInactiveEntitlements ? inactiveCards : activeCards
+        let previewCards = Array(visibleCards.prefix(4))
+        let canShowAll = visibleCards.count > 4
 
         return VStack(spacing: 0) {
             entitlementFilterRow(
                 activeCount: activeCards.count,
                 inactiveCount: inactiveCards.count,
                 selectedFilter: selectedEntitlementFilter,
-                onFilterSelected: { selectedEntitlementFilter = $0 },
+                onFilterSelected: { newFilter in
+                    selectedEntitlementFilter = newFilter
+                    showAllEntitlements = false
+                    focusedEntitlementId = nil
+                },
                 showInactive: showInactiveEntitlements,
-                onToggleStatusFilter: { showInactiveEntitlements.toggle() }
+                onToggleStatusFilter: {
+                    showInactiveEntitlements.toggle()
+                    showAllEntitlements = false
+                    focusedEntitlementId = nil
+                }
             )
                 .padding(.horizontal, 20)
-                .padding(.vertical, 8)
+                .padding(.top, 2)
+                .padding(.bottom, 4)
 
             if cards.isEmpty {
                 showcaseEmptyState(
                     kind: .entitlements,
                     title: walletTr(appUiLocaleStorage, "No entitlements yet", "Vstopnic še ni"),
                     subtitle: walletTr(appUiLocaleStorage, "Purchases from the Buy tab will appear here as tickets, packs and memberships.", "Nakupi iz zavihka Nakup bodo tukaj prikazani kot vstopnice, paketi in članarine."),
-                    primaryButtonTitle: walletTr(appUiLocaleStorage, "Browse offers", "Prebrskaj ponudbe"),
-                    footerText: walletTr(appUiLocaleStorage, "Looking for something? Explore offers and find what’s right for you.", "Iščete nekaj zase? Prebrskajte ponudbe in izberite pravo zase."),
+                    primaryButtonTitle: walletTr(appUiLocaleStorage, "Browse offers", "Oglejte si ponudbe"),
+                    footerText: "",
                     footerIcon: "ticket.fill",
                     primaryAction: {
                         subTab = .buy
@@ -463,20 +505,49 @@ struct WalletView: View {
                     }
                 )
                 .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 22)
+                .padding(.vertical, 12)
             } else if visibleCards.isEmpty {
                 emptyState(
                     iconName: "ticket",
                     title: showInactiveEntitlements ? walletTr(appUiLocaleStorage, "No inactive entitlements", "Ni neaktivnih vstopnic") : walletTr(appUiLocaleStorage, "No active entitlements", "Ni aktivnih vstopnic"),
-                    subtitle: walletTr(appUiLocaleStorage, "Switch filters or purchase a new pass from the Buy tab.", "Preklopite filtre ali kupite novo vstopnico v zavihku Nakup.")
+                    subtitle: walletTr(appUiLocaleStorage, "Switch filters or purchase a new pass from the Buy tab.", "Spremenite filter ali kupite novo vstopnico v zavihku Nakup.")
                 )
                 .padding(.top, 64)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 140)
+            } else if showAllEntitlements {
+                WalletEntitlementFullList(
+                    items: visibleCards,
+                    onQRCodeTap: { entitlement, code in
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            selectedQRCode = WalletQRCodePopupModel(
+                                title: walletTr(appUiLocaleStorage, "Scan access code", "Skeniraj dostopno kodo"),
+                                subtitle: walletTr(appUiLocaleStorage, "Show this at reception", "Pokažite to na recepciji"),
+                                code: code,
+                                entitlementId: entitlement.id
+                            )
+                        }
+                    },
+                    onToggleAutoRenew: { ent, newValue in
+                        Task {
+                            try? await store.toggleAutoRenew(
+                                companyId: ent.companyId,
+                                entitlementId: ent.entitlementId,
+                                autoRenews: newValue
+                            )
+                        }
+                    },
+                    onBookWithEntitlement: { entitlement in
+                        onBookWithEntitlement(entitlement)
+                    },
+                    onShowLess: {
+                        showAllEntitlements = false
+                        focusedEntitlementId = nil
+                    }
+                )
             } else {
                 WalletPullOutEntitlementDeck(
-                    items: visibleCards,
+                    items: previewCards,
                     focusedEntitlementId: $focusedEntitlementId,
                     onQRCodeTap: { entitlement, code in
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
@@ -499,6 +570,11 @@ struct WalletView: View {
                     },
                     onBookWithEntitlement: { entitlement in
                         onBookWithEntitlement(entitlement)
+                    },
+                    showAllEnabled: canShowAll,
+                    onShowAll: {
+                        showAllEntitlements = true
+                        focusedEntitlementId = nil
                     }
                 )
             }
@@ -701,18 +777,6 @@ struct WalletView: View {
 
         return ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(walletTr(appUiLocaleStorage, "Orders", "Naročila"))
-                        .font(.system(size: 38, weight: .heavy))
-                        .tracking(-1.1)
-                        .foregroundColor(Color(red: 0.03, green: 0.11, blue: 0.30))
-                    Text(walletTr(appUiLocaleStorage, "Track payments, receipts, and order references.", "Spremljajte plačila, račune in sklice naročil."))
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(Color(red: 0.33, green: 0.38, blue: 0.49))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 8)
-
                 orderFilterRow
 
                 if store.walletScopedOrderCards.isEmpty {
@@ -758,29 +822,30 @@ struct WalletView: View {
 
     private var orderFilterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ForEach(["All", "Paid", "Pending", "Refunded", "Cancelled"], id: \.self) { label in
                     let selected = selectedOrderFilter == label
                     Button {
                         selectedOrderFilter = label
                     } label: {
                         Text(walletFilterTitle(label, languageCode: appUiLocaleStorage))
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(selected ? Color(red: 0.0, green: 0.40, blue: 0.96) : Color(red: 0.30, green: 0.36, blue: 0.48))
+                            .font(.system(size: 12, weight: selected ? .bold : .medium))
+                            .foregroundColor(selected ? .white : walletInk.opacity(0.88))
                             .lineLimit(1)
-                            .frame(minWidth: 86)
-                            .frame(height: 48)
-                            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .padding(.horizontal, selected ? 12 : 10)
+                            .frame(height: 32)
+                            .background(selected ? walletBlueSoft : Color.white.opacity(0.94), in: Capsule(style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(selected ? Color(red: 0.0, green: 0.40, blue: 0.96) : walletLine, lineWidth: 1)
+                                Capsule(style: .continuous)
+                                    .stroke(selected ? walletBlueSoft.opacity(0.45) : walletLine.opacity(0.95), lineWidth: 1)
                             )
-                            .shadow(color: Color.black.opacity(selected ? 0.08 : 0.035), radius: selected ? 8 : 5, y: selected ? 4 : 2)
+                            .shadow(color: selected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: selected ? 8 : 5, y: selected ? 4 : 2)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.top, 2)
+            .padding(.bottom, 4)
         }
     }
 
@@ -894,15 +959,15 @@ struct WalletView: View {
                 } label: {
                     Text(walletFilterTitle(label, languageCode: appUiLocaleStorage))
                         .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                        .foregroundColor(isSelected ? walletBlue : walletInk.opacity(0.88))
+                        .foregroundColor(isSelected ? .white : walletInk.opacity(0.88))
                         .padding(.horizontal, isSelected ? 12 : 10)
-                        .frame(height: 34)
-                        .background(Capsule(style: .continuous).fill(Color.white))
+                        .frame(height: 32)
+                        .background(Capsule(style: .continuous).fill(isSelected ? walletBlueSoft : Color.white.opacity(0.94)))
                         .overlay(
                             Capsule(style: .continuous)
-                                .stroke(isSelected ? walletBlue.opacity(0.45) : walletLine.opacity(0.95), lineWidth: 1)
+                                .stroke(isSelected ? walletBlueSoft.opacity(0.45) : walletLine.opacity(0.95), lineWidth: 1)
                         )
-                        .shadow(color: isSelected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: 7, y: 3)
+                        .shadow(color: isSelected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: isSelected ? 8 : 5, y: isSelected ? 4 : 2)
                 }
                 .buttonStyle(.plain)
             }
@@ -913,7 +978,7 @@ struct WalletView: View {
                 HStack(spacing: 6) {
                     Circle().fill(showInactive ? Color.red : walletGreen).frame(width: 6, height: 6)
                     Text(showInactive ? walletTr(appUiLocaleStorage, "\(inactiveCount) inactive", "\(inactiveCount) neaktivnih") : walletTr(appUiLocaleStorage, "\(activeCount) active", "\(activeCount) aktivnih"))
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(walletInk)
                 }
                 .padding(.horizontal, 9)
@@ -1162,7 +1227,7 @@ private struct WalletQRCodePopup: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(walletInk.opacity(0.82))
                             .frame(width: 38, height: 38)
-                            .background(Color(.secondarySystemBackground).opacity(0.82), in: Circle())
+                            .background(Color.white.opacity(0.92), in: Circle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -1195,7 +1260,7 @@ private struct WalletQRCodePopup: View {
             .frame(maxWidth: 330)
             .background(
                 RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Color(.systemBackground).opacity(0.98))
+                    .fill(Color.white.opacity(0.98))
                     .shadow(color: Color.black.opacity(0.18), radius: 28, x: 0, y: 18)
             )
             .overlay(
@@ -1215,151 +1280,56 @@ private struct WalletQRCodePopup: View {
     }
 }
 
-private struct WalletPullOutEntitlementDeck: View {
+private struct WalletEntitlementFullList: View {
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
     let items: [AccessCardModel]
-    @Binding var focusedEntitlementId: String?
     let onQRCodeTap: (AccessCardModel, String) -> Void
     let onToggleAutoRenew: (AccessCardModel, Bool) -> Void
     let onBookWithEntitlement: (AccessCardModel) -> Void
-
-    private let focusedPocketDrop: CGFloat = 124
-    private let focusedLowerStackDrop: CGFloat = 204
-    private let focusedCardTopInset: CGFloat = 36
-
-    private var focusedIndex: Int? {
-        guard let focusedEntitlementId else { return nil }
-        return items.firstIndex { $0.id == focusedEntitlementId }
-    }
-
-    private var focusedItem: AccessCardModel? {
-        guard let focusedIndex else { return nil }
-        return items[focusedIndex]
-    }
+    let onShowLess: () -> Void
 
     var body: some View {
-        GeometryReader { proxy in
-            let pocketDrop = focusedItem == nil ? CGFloat(0) : focusedPocketDrop
-            let basePocketOffset: CGFloat = focusedItem == nil ? 22 : 14
-
-            ZStack(alignment: .bottom) {
-                if focusedItem == nil {
-                    tapHint
-                        .frame(maxWidth: .infinity)
-                        .position(x: proxy.size.width / 2, y: 42)
-                }
-
-                walletCards(proxy: proxy)
-                WalletLeatherPocket()
-                    .frame(height: 142)
-                    .padding(.horizontal, -8)
-                    .offset(y: basePocketOffset + pocketDrop)
-                    .zIndex(50)
-                    .allowsHitTesting(false)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-        .onAppear(perform: normalizeFocus)
-        .onChange(of: items) { _ in normalizeFocus() }
-    }
-
-    @ViewBuilder
-    private func walletCards(proxy: GeometryProxy) -> some View {
-        let visibleItems = Array(items.prefix(5))
-        let focused = focusedItem
-        let focusedOriginalIndex = focusedIndex ?? 0
-        let hasFocusedCard = focused != nil
-        let lowerStackDrop = hasFocusedCard ? focusedLowerStackDrop : CGFloat(0)
-
-        ForEach(Array(visibleItems.enumerated()).reversed(), id: \.element.id) { index, item in
-            let isFocused = item.id == focused?.id
-            let restingSlot = compactStackSlot(index: index, focused: false)
-            let pullOutSlot = compactStackSlot(index: index, focused: true)
-            let bodyExtension = hasFocusedCard && !isFocused ? max(0, pullOutSlot.y - restingSlot.y) : 0
-            let cardCode = displayCode(for: item)
-
-            WalletStackedPassCard(
-                entitlement: item,
-                index: index,
-                cardHeight: WalletStackedPassCard.baseHeight + bodyExtension,
-                onTap: {
-                    withAnimation(.spring(response: 0.48, dampingFraction: 0.82)) {
-                        focusedEntitlementId = item.id
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 14) {
+                Button(action: onShowLess) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 12, weight: .bold))
+                        Text(walletTr(appUiLocaleStorage, "Show less", "Prikaži manj"))
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                },
-                onQRCodeTap: { code in onQRCodeTap(item, code) },
-                onToggleAutoRenew: { newValue in onToggleAutoRenew(item, newValue) },
-                onBookWithEntitlement: { onBookWithEntitlement(item) }
-            )
-            .scaleEffect(isFocused ? 1.0 : restingSlot.scale, anchor: .top)
-            .rotationEffect(.degrees(isFocused ? 0 : restingSlot.rotation))
-            .offset(
-                x: isFocused ? 0 : restingSlot.x,
-                y: isFocused ? focusedOffsetY(proxy: proxy) : restingSlot.y + bodyExtension + lowerStackDrop
-            )
-            .opacity(focused == nil || isFocused || index < 4 ? 1 : 0)
-            .shadow(color: isFocused ? Color.black.opacity(0.16) : Color.clear, radius: isFocused ? 22 : 0, x: 0, y: isFocused ? 16 : 0)
-            .zIndex(isFocused ? 100 : Double(20 + index))
-            .accessibilityLabel("\(item.name) entitlement card")
-            .overlay(alignment: .top) {
-                if isFocused {
-                    pulledForwardBadge
-                        .offset(y: -34)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    .foregroundColor(walletBlueSoft)
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(Color.white.opacity(0.96), in: Capsule(style: .continuous))
+                    .overlay(Capsule(style: .continuous).stroke(walletLine.opacity(0.95), lineWidth: 1))
+                    .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
                 }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.bottom, 2)
+
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    let code = displayCode(for: item)
+                    WalletStackedPassCard(
+                        entitlement: item,
+                        index: index,
+                        cardHeight: WalletStackedPassCard.baseHeight,
+                        onTap: {},
+                        onQRCodeTap: { code in onQRCodeTap(item, code) },
+                        onToggleAutoRenew: { newValue in onToggleAutoRenew(item, newValue) },
+                        onBookWithEntitlement: { onBookWithEntitlement(item) }
+                    )
+                    .shadow(color: Color.black.opacity(0.08), radius: 14, y: 7)
+                    .id("full-\(item.id)-\(code)")
+                }
+
+                Spacer(minLength: 18)
             }
-            .animation(.spring(response: 0.48, dampingFraction: 0.82), value: focusedEntitlementId)
-            .id("\(item.id)-\(cardCode)-\(focusedOriginalIndex)")
-        }
-    }
-
-    private func compactStackSlot(index: Int, focused: Bool) -> (x: CGFloat, y: CGFloat, scale: CGFloat, rotation: Double) {
-        if focused {
-            let visibleIndex = min(index, 3)
-            return (0, -CGFloat(112 - visibleIndex * 60), 0.94 - CGFloat(visibleIndex) * 0.018, 0)
-        }
-        let visibleIndex = min(index, 4)
-        return (0, -CGFloat(156 - visibleIndex * 58), 0.96 + CGFloat(visibleIndex) * 0.006, 0)
-    }
-
-    private func focusedOffsetY(proxy: GeometryProxy) -> CGFloat {
-        let availableHeight = max(proxy.size.height, WalletStackedPassCard.baseHeight + focusedCardTopInset + 1)
-        return focusedCardTopInset - (availableHeight - WalletStackedPassCard.baseHeight)
-    }
-
-    private var tapHint: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "hand.tap")
-                .font(.system(size: 16, weight: .semibold))
-            Text(walletTr(appUiLocaleStorage, "Tap a card", "Tapnite kartico"))
-                .font(.system(size: 13, weight: .medium))
-        }
-        .foregroundColor(walletBlue.opacity(0.72))
-    }
-
-    private var pulledForwardBadge: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 11, weight: .bold))
-            Text(walletTr(appUiLocaleStorage, "Pulled forward", "V ospredju"))
-                .font(.system(size: 12, weight: .semibold))
-        }
-        .foregroundColor(walletBlueSoft)
-        .padding(.horizontal, 12)
-        .frame(height: 32)
-        .background(Color.white.opacity(0.96), in: Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous).stroke(walletLine.opacity(0.95), lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
-    }
-
-    private func normalizeFocus() {
-        guard let focusedEntitlementId else { return }
-        if !items.contains(where: { $0.id == focusedEntitlementId }) {
-            self.focusedEntitlementId = nil
+            .padding(.horizontal, 20)
+            .padding(.top, 2)
+            .padding(.bottom, 12)
         }
     }
 
@@ -1370,32 +1340,265 @@ private struct WalletPullOutEntitlementDeck: View {
     }
 }
 
+private struct WalletPullOutEntitlementDeck: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
+    let items: [AccessCardModel]
+    @Binding var focusedEntitlementId: String?
+    let onQRCodeTap: (AccessCardModel, String) -> Void
+    let onToggleAutoRenew: (AccessCardModel, Bool) -> Void
+    let onBookWithEntitlement: (AccessCardModel) -> Void
+    let showAllEnabled: Bool
+    let onShowAll: () -> Void
+
+    @State private var activeIndex: Int = 0
+    @State private var isPulledForward: Bool = true
+
+    private var walletCards: [AccessCardModel] { Array(items.prefix(4)) }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let cards = walletCards
+            let compactLayout = proxy.size.height < 560
+            let fullCardHeight: CGFloat = compactLayout ? 260 : 286
+            let pocketHeight: CGFloat = compactLayout ? 270 : 328
+            let pocketTopWhenStored = max(proxy.size.height - (compactLayout ? 178 : 214), fullCardHeight + 32)
+            let pocketVisibleSliceWhenPulled: CGFloat = compactLayout ? 26 : 34
+            let pocketTopWhenPulled = max(proxy.size.height - pocketVisibleSliceWhenPulled, fullCardHeight + 58)
+            let pocketTop = isPulledForward ? pocketTopWhenPulled : pocketTopWhenStored
+            let storedCardStep: CGFloat = isPulledForward ? (compactLayout ? 42 : 48) : (compactLayout ? 52 : 60)
+            let stackCards = orderedCards(cards)
+            let storedStackCards: [AccessCardModel] = isPulledForward ? Array(stackCards.dropFirst()) : stackCards
+            let storedCards = Array(storedStackCards.prefix(3))
+
+            ZStack(alignment: .top) {
+                if isPulledForward {
+                    EntitlementSwipeHint()
+                        .offset(y: max(fullCardHeight + 18, pocketTop - (storedCardStep * CGFloat(max(storedCards.count, 1))) - 36))
+                        .zIndex(110)
+                }
+
+                ForEach(Array(stackCards.reversed()), id: \.id) { card in
+                    let stackPosition = stackCards.firstIndex(where: { $0.id == card.id }) ?? 0
+                    let originalIndex = cards.firstIndex(where: { $0.id == card.id }) ?? 0
+                    let isActive = stackPosition == 0
+                    let cardHeight = isActive && isPulledForward ? fullCardHeight : (compactLayout ? CGFloat(148) : CGFloat(172))
+                    let cardTop: CGFloat = {
+                        if isPulledForward {
+                            if isActive { return 0 }
+                            let visibleIndex = max(stackPosition - 1, 0)
+                            let visibleCount = max(storedCards.count, 1)
+                            return pocketTop - (storedCardStep * CGFloat(visibleCount - visibleIndex)) - 8
+                        }
+                        let visibleCount = max(stackCards.count, 1)
+                        return pocketTop - (storedCardStep * CGFloat(visibleCount - stackPosition)) - 8
+                    }()
+                    let code = displayCode(for: card)
+
+                    WalletStackedPassCard(
+                        entitlement: card,
+                        index: originalIndex,
+                        cardHeight: cardHeight,
+                        onTap: { select(card: card, isActive: isActive) },
+                        onQRCodeTap: { code in onQRCodeTap(card, code) },
+                        onToggleAutoRenew: { newValue in onToggleAutoRenew(card, newValue) },
+                        onBookWithEntitlement: { onBookWithEntitlement(card) }
+                    )
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .offset(y: cardTop)
+                    .shadow(color: isActive && isPulledForward ? Color.black.opacity(0.18) : Color.black.opacity(0.08), radius: isActive && isPulledForward ? 24 : 12, y: isActive && isPulledForward ? 14 : 7)
+                    .zIndex(isActive && isPulledForward ? 120 : Double(40 + stackPosition))
+                    .animation(.spring(response: 0.46, dampingFraction: 0.84), value: activeIndex)
+                    .animation(.spring(response: 0.46, dampingFraction: 0.84), value: isPulledForward)
+                    .id("\(card.id)-\(code)-\(stackPosition)")
+                }
+
+                WalletLeatherPocket()
+                    .frame(height: pocketHeight)
+                    .offset(y: pocketTop)
+                    .zIndex(70)
+                    .allowsHitTesting(false)
+
+                if showAllEnabled && !isPulledForward {
+                    Button(action: onShowAll) {
+                        Text(walletTr(appUiLocaleStorage, "Show all entitlements", "Prikaži vse vstopnice"))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(walletBlueSoft)
+                            .padding(.horizontal, 14)
+                            .frame(height: 34)
+                            .background(Color.white.opacity(0.96), in: Capsule(style: .continuous))
+                            .overlay(Capsule(style: .continuous).stroke(walletLine.opacity(0.95), lineWidth: 1))
+                            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                    .offset(y: pocketTop + 14)
+                    .zIndex(95)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
+                    .onEnded { value in
+                        handleVerticalDrag(value.translation.height)
+                    }
+            )
+            .onAppear { syncInitialFocus() }
+            .onChange(of: items) { _ in syncInitialFocus() }
+            .onChange(of: focusedEntitlementId) { _ in syncFocusFromExternalSelection() }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 2)
+        .padding(.bottom, 8)
+    }
+
+    private func orderedCards(_ cards: [AccessCardModel]) -> [AccessCardModel] {
+        guard !cards.isEmpty else { return [] }
+        let safeIndex = min(max(activeIndex, 0), cards.count - 1)
+        return (0..<cards.count).map { cards[(safeIndex + $0) % cards.count] }
+    }
+
+    private func select(card: AccessCardModel, isActive: Bool) {
+        guard let index = walletCards.firstIndex(where: { $0.id == card.id }) else { return }
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.84)) {
+            if isActive && isPulledForward {
+                isPulledForward = false
+            } else {
+                activeIndex = index
+                isPulledForward = true
+            }
+            focusedEntitlementId = card.id
+        }
+    }
+
+    private func handleVerticalDrag(_ translation: CGFloat) {
+        guard !walletCards.isEmpty else { return }
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.84)) {
+            if translation < -28 {
+                if !isPulledForward {
+                    isPulledForward = true
+                    focusedEntitlementId = walletCards[min(activeIndex, walletCards.count - 1)].id
+                } else if walletCards.count > 1 {
+                    activeIndex = (activeIndex + 1) % walletCards.count
+                    focusedEntitlementId = walletCards[activeIndex].id
+                }
+            } else if translation > 28 {
+                if isPulledForward {
+                    isPulledForward = false
+                    focusedEntitlementId = walletCards[min(activeIndex, walletCards.count - 1)].id
+                } else if walletCards.count > 1 {
+                    activeIndex = (activeIndex - 1 + walletCards.count) % walletCards.count
+                    focusedEntitlementId = walletCards[activeIndex].id
+                }
+            }
+        }
+    }
+
+    private func syncInitialFocus() {
+        guard !walletCards.isEmpty else { return }
+        if activeIndex >= walletCards.count { activeIndex = 0 }
+        if let focusedEntitlementId,
+           let index = walletCards.firstIndex(where: { $0.id == focusedEntitlementId }) {
+            activeIndex = index
+        } else {
+            focusedEntitlementId = walletCards[activeIndex].id
+        }
+    }
+
+    private func syncFocusFromExternalSelection() {
+        guard let focusedEntitlementId,
+              let index = walletCards.firstIndex(where: { $0.id == focusedEntitlementId }) else { return }
+        activeIndex = index
+        isPulledForward = true
+    }
+
+    private func displayCode(for entitlement: AccessCardModel) -> String {
+        if let entitlementCode = entitlement.entitlementCode, !entitlementCode.isEmpty { return entitlementCode }
+        if let displayCode = entitlement.displayCode, !displayCode.isEmpty { return displayCode }
+        return entitlement.entitlementId
+    }
+}
+
+private struct EntitlementSwipeHint: View {
+    @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text("⌃")
+                .font(.system(size: 16, weight: .bold))
+            Text(walletTr(appUiLocaleStorage, "Swipe up to pull pass forward", "Povlecite navzgor za prikaz vstopnice"))
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .foregroundColor(walletInk.opacity(0.78))
+        .padding(.horizontal, 14)
+        .frame(height: 34)
+        .background(Color.white.opacity(0.94), in: Capsule(style: .continuous))
+        .overlay(Capsule(style: .continuous).stroke(walletLine.opacity(0.86), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.05), radius: 8, y: 4)
+    }
+}
+
 private struct WalletLeatherPocket: View {
     var body: some View {
+        let outerShape = RoundedRectangle(cornerRadius: 32, style: .continuous)
+
         ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            outerShape
                 .fill(
                     LinearGradient(
-                        colors: [Color(red: 1.0, green: 0.965, blue: 0.925), Color(red: 0.94, green: 0.88, blue: 0.78)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        colors: [Color(red: 0.06, green: 0.30, blue: 0.60), Color(red: 0.04, green: 0.20, blue: 0.45), Color(red: 0.03, green: 0.15, blue: 0.32)],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(0.62), lineWidth: 1.2)
-                )
-                .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: -2)
+                .overlay(outerShape.stroke(Color(red: 0.18, green: 0.45, blue: 0.79).opacity(0.88), lineWidth: 1.3))
+                .shadow(color: Color.black.opacity(0.14), radius: 28, y: -2)
 
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            WalletLeatherTexture()
+
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(Color.white.opacity(0.18))
+                    .frame(height: 1.2)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 18)
+                Spacer()
+            }
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(style: StrokeStyle(lineWidth: 1.2, dash: [5, 6]))
-                .foregroundColor(Color(red: 0.74, green: 0.61, blue: 0.48).opacity(0.34))
-                .padding(14)
+                .foregroundColor(Color.white.opacity(0.16))
+                .padding(18)
 
             Image(systemName: "building.2")
-                .font(.system(size: 42, weight: .light))
-                .foregroundColor(Color(red: 0.74, green: 0.61, blue: 0.48).opacity(0.20))
+                .font(.system(size: 56, weight: .light))
+                .foregroundColor(Color.white.opacity(0.12))
+                .offset(y: 18)
         }
+        .clipShape(outerShape)
+    }
+}
+
+private struct WalletLeatherTexture: View {
+    var body: some View {
+        Canvas { context, size in
+            for row in stride(from: CGFloat(18), through: size.height, by: 30) {
+                var path = Path()
+                path.move(to: CGPoint(x: 18, y: row))
+                path.addLine(to: CGPoint(x: size.width - 18, y: row + 4))
+                context.stroke(path, with: .color(Color.white.opacity(0.035)), lineWidth: 1)
+            }
+            for column in stride(from: CGFloat(32), through: size.width, by: 46) {
+                var path = Path()
+                path.move(to: CGPoint(x: column, y: 18))
+                path.addLine(to: CGPoint(x: column - 8, y: size.height - 18))
+                context.stroke(path, with: .color(Color.white.opacity(0.025)), lineWidth: 1)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -2252,7 +2455,7 @@ private struct WalletQRCodeView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.systemBackground).opacity(0.92))
+                .fill(Color.white.opacity(0.98))
                 .shadow(color: Color.black.opacity(0.08), radius: 8, y: 4)
             if let image = makeQRCode(content) {
                 Image(uiImage: image)
@@ -2848,15 +3051,15 @@ private struct BuyShowcaseCategoryChip: View {
             Text(category.localizedTitle(languageCode: appUiLocaleStorage))
                 .font(.system(size: 12, weight: selected ? .bold : .medium))
                 .lineLimit(1)
-                .foregroundColor(selected ? walletBlue : walletInk.opacity(0.88))
+                .foregroundColor(selected ? .white : walletInk.opacity(0.88))
                 .padding(.horizontal, selected ? 12 : 10)
-                .frame(height: 34)
-                .background(Capsule(style: .continuous).fill(Color.white))
+                .frame(height: 32)
+                .background(Capsule(style: .continuous).fill(selected ? walletBlueSoft : Color.white.opacity(0.94)))
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(selected ? walletBlue.opacity(0.45) : walletLine.opacity(0.95), lineWidth: 1)
+                        .stroke(selected ? walletBlueSoft.opacity(0.45) : walletLine.opacity(0.95), lineWidth: 1)
                 )
-                .shadow(color: selected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: 7, y: 3)
+                .shadow(color: selected ? Color.black.opacity(0.08) : Color.black.opacity(0.035), radius: selected ? 8 : 5, y: selected ? 4 : 2)
         }
         .buttonStyle(.plain)
     }

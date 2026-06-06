@@ -307,7 +307,7 @@ struct InboxView: View {
                     .padding(.vertical, 8)
             }
             .padding(.top, 18)
-            .padding(.bottom, 60)
+            .padding(.bottom, 10)
         }
         .task(id: activeTenantId) {
             if let activeTenantId {
@@ -396,10 +396,14 @@ struct InboxView: View {
             Spacer()
             Text(label)
                 .font(.caption2.weight(.semibold))
-                .foregroundColor(.secondary)
+                .foregroundColor(inboxMutedText)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
-                .background(Color(.systemBackground), in: Capsule())
+                .background(Color.white, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color(red: 0.82, green: 0.87, blue: 0.93).opacity(0.80), lineWidth: 1)
+                )
                 .shadow(color: Color.black.opacity(0.08), radius: 2, y: 1)
             Spacer()
         }
@@ -477,12 +481,18 @@ struct InboxView: View {
                     }
                 }
                 HStack(alignment: .center, spacing: 4) {
-                    TextField("", text: $draft, prompt: Text(inboxTr(appUiLocaleStorage, "Message", "Sporočilo")).foregroundColor(inboxMutedText))
+                    TextField(inboxTr(appUiLocaleStorage, "Message", "Sporočilo"), text: $draft)
                         .textFieldStyle(.plain)
+                        .foregroundColor(inboxDarkText)
+                        .tint(inboxBrandBlue)
+                        .keyboardType(.default)
+                        .textInputAutocapitalization(.sentences)
+                        .autocorrectionDisabled(false)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 12)
                         .padding(.vertical, 8)
+                        .environment(\.colorScheme, .light)
                     Button {
                         isFileImporterPresented = true
                     } label: {

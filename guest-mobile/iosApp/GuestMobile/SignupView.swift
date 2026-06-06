@@ -49,6 +49,11 @@ struct SignupView: View {
                     .clipped()
                     .ignoresSafeArea()
 
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea(.container, edges: .all)
+                    .onTapGesture { dismissKeyboard() }
+
                 Text(isSl ? "USTVARI RAČUN" : "CREATE ACCOUNT")
                     .font(.system(size: 11, weight: .black, design: .rounded))
                     .kerning(2.2)
@@ -207,6 +212,7 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 124, y: 1506, width: 330, height: 92)
 
                 Button {
+                    startGoogleSignIn()
                 } label: {
                     HStack(spacing: 10) {
                         Image(guestBundleResource: "GoogleLogo")
@@ -245,12 +251,33 @@ struct SignupView: View {
                 .frameRect(proxy: proxy, x: 188, y: 1618, width: 565, height: 60)
             }
         }
+        .dismissKeyboardOnTap()
     }
 
     private func titleSize(for width: CGFloat) -> CGFloat {
         if width < 360 { return 31 }
         if width < 410 { return 34 }
         return 36
+    }
+
+    private func startGoogleSignIn() {
+        guard !isSendingConfirmationCode, !store.isLoading else { return }
+        Task { @MainActor in
+            do {
+                let idToken = try await GuestGoogleSignInSession().signIn()
+                await store.loginWithGoogle(idToken: idToken)
+                guard store.errorMessage == nil else { return }
+                if store.linkedTenants.isEmpty { onSocialAuthRequireJoin() } else { onSocialAuthSuccess() }
+            } catch GuestGoogleSignInError.cancelled {
+                return
+            } catch {
+                store.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 

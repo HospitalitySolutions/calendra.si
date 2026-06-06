@@ -1,0 +1,32 @@
+Changes done - iOS Guest Mobile Add Tenant page
+
+Updated files:
+- guest-mobile/iosApp/GuestMobile/JoinTenantView.swift
+- guest-mobile/iosApp/GuestMobile/AppStore.swift
+- guest-mobile/iosApp/GuestMobile/GuestApiClient.swift
+- guest-mobile/iosApp/GuestMobile/Models.swift
+
+What changed:
+1. iOS Add Tenant page now uses the real tenant search flow, matching Android:
+   - Calls GET /api/guest/tenants/search with q and type filters.
+   - Filters out already linked/subscribed tenants locally.
+   - Shows loading, empty-state, and real tenant result cards.
+   - Selecting a public tenant calls POST /api/guest/tenants/join with joinMethod PUBLIC_SEARCH and companyId.
+   - After a successful public join, refreshes the guest profile and tenant dashboard data.
+
+2. Code/QR tenant join was hardened:
+   - Trims tenant codes before resolving/joining.
+   - Prevents empty QR/code joins and shows a clear error.
+   - Fixed TenantLookupModel.companyId so the iOS decoder actually reads companyId from the backend response.
+   - Carries tenant address and image metadata from code lookup into the temporary local tenant state before dashboard refresh.
+
+3. Visual fixes for iOS Add Tenant page:
+   - Removed screen-width carousel offsets that pushed content outside iPhone borders.
+   - Replaced the manual oversized carousel with a bounded SwiftUI TabView/page carousel.
+   - Kept cards within a max content width and safe horizontal padding.
+   - Added iOS loading and empty cards aligned with the Android visual flow.
+   - Public tenant cards now render remote card/logo/icon images when available, with styled fallbacks when not available.
+
+Notes:
+- No Apple Developer/Xcode capability changes are needed for this Add Tenant update.
+- I could not run an iOS Xcode build in this sandbox because xcodebuild is not available here. The changes were checked structurally and kept within existing project files, so no project file registration changes are required.

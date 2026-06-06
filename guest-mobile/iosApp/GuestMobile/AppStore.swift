@@ -442,11 +442,25 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func joinTenant(code: String) async {
+    func loginWithGoogle(idToken: String) async {
         guard !usePreviewData else { applyPreview(); return }
         await run {
-            let tenant = try await self.api.resolveTenant(code: code)
-            try await self.api.joinTenant(code: code)
+            let session = try await self.api.loginWithGoogle(idToken: idToken)
+            self.applySession(session)
+            try await self.refreshAllTenantsThrowing()
+        }
+    }
+
+    func joinTenant(code: String) async {
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedCode.isEmpty else {
+            errorMessage = "The QR code does not contain a tenancy code."
+            return
+        }
+        guard !usePreviewData else { applyPreview(); return }
+        await run {
+            let tenant = try await self.api.resolveTenant(code: normalizedCode)
+            try await self.api.joinTenant(code: normalizedCode)
             if self.linkedTenants.contains(where: { $0.id == tenant.companyId }) == false {
                 self.linkedTenants.append(
                     TenantModel(
@@ -456,11 +470,98 @@ final class AppStore: ObservableObject {
                         city: tenant.publicCity,
                         phone: tenant.publicPhone,
                         status: "ACTIVE",
-                        companyAddress: nil
+                        companyAddress: tenant.companyAddress,
+                        employeeSelectionStep: tenant.employeeSelectionStep,
+                        useEmployeeContact: tenant.useEmployeeContact,
+                        cardImageUrl: tenant.cardImageUrl,
+                        logoImageUrl: tenant.logoImageUrl,
+                        iconImageUrl: tenant.iconImageUrl
                     )
                 )
             }
             try await self.refreshTenant(companyId: tenant.companyId)
+        }
+    }
+
+    func searchPublicTenants(query: String, tenantType: String?) async -> [TenantSummaryModel] {
+        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedType = tenantType?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedType = (trimmedType?.isEmpty == false) ? trimmedType : nil
+
+        guard !usePreviewData else {
+            return previewPublicTenants(query: normalizedQuery, tenantType: normalizedType)
+                .filter { previewTenant in self.linkedTenants.contains(where: { $0.id == previewTenant.companyId }) == false }
+        }
+
+        do {
+            let tenants = try await api.searchTenants(query: normalizedQuery, tenantType: normalizedType)
+            return tenants.filter { candidate in
+                self.linkedTenants.contains(where: { $0.id == candidate.companyId }) == false
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            return []
+        }
+    }
+
+    func joinPublicTenant(companyId: String) async {
+        let normalizedCompanyId = companyId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedCompanyId.isEmpty else {
+            errorMessage = "Tenant not found."
+            return
+        }
+        guard !usePreviewData else { applyPreview(); return }
+        await run {
+            try await self.api.joinPublicTenant(companyId: normalizedCompanyId)
+            try await self.refreshAllTenantsThrowing()
+            self.selectedTenantId = nil
+            self.walletSelectedTenantId = self.linkedTenants.first?.id
+        }
+    }
+
+    private func previewPublicTenants(query: String, tenantType: String?) -> [TenantSummaryModel] {
+        let catalog = [
+            TenantSummaryModel(
+                companyId: "tenant-luxe-salon",
+                companyName: "Luxe Salon",
+                publicDescription: "Premium beauty and hair care services in a modern space.",
+                publicCity: "Ljubljana",
+                companyAddress: "Pritličje, lokal G-12",
+                tenantType: "salon"
+            ),
+            TenantSummaryModel(
+                companyId: "tenant-power-fit",
+                companyName: "Power Fit",
+                publicDescription: "Strength, cardio and personal training sessions in one place.",
+                publicCity: "Maribor",
+                companyAddress: "1. nadstropje, studio 8",
+                tenantType: "gym"
+            ),
+            TenantSummaryModel(
+                companyId: "tenant-serene-spa",
+                companyName: "Serene Spa",
+                publicDescription: "Relaxing wellness rituals, massages and self-care experiences.",
+                publicCity: "Celje",
+                companyAddress: "1. nadstropje, soba 5",
+                tenantType: "spa"
+            ),
+            TenantSummaryModel(
+                companyId: "tenant-calm-therapy",
+                companyName: "Calm Therapy",
+                publicDescription: "Professional therapy and support appointments in a calm environment.",
+                publicCity: "Koper",
+                companyAddress: "2. nadstropje, pisarna 3",
+                tenantType: "therapy"
+            )
+        ]
+        let loweredQuery = query.lowercased()
+        return catalog.filter { tenant in
+            let matchesType = tenantType == nil || tenant.tenantType?.lowercased() == tenantType?.lowercased()
+            let matchesQuery = loweredQuery.isEmpty
+                || tenant.companyName.lowercased().contains(loweredQuery)
+                || (tenant.publicCity?.lowercased().contains(loweredQuery) ?? false)
+                || (tenant.companyAddress?.lowercased().contains(loweredQuery) ?? false)
+            return matchesType && matchesQuery
         }
     }
 
@@ -1098,3 +1199,4 @@ final class AppStore: ObservableObject {
         return formatter
     }()
 }
+

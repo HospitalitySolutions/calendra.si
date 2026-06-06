@@ -121,11 +121,20 @@ struct HomeView: View {
                     Button(action: onOpenNotifications) {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: "bell")
-                                .font(.system(size: 19, weight: .medium))
-                                .foregroundColor(brandText)
+                                .font(.system(size: 19, weight: .semibold))
+                                .foregroundColor(brandBlue)
                                 .frame(width: 34, height: 34)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(0.94))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(brandBlue.opacity(0.16), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
                             Circle()
-                                .fill(brandBlue)
+                                .fill(brandOrange)
                                 .frame(width: 10, height: 10)
                                 .offset(x: -2, y: 6)
                         }

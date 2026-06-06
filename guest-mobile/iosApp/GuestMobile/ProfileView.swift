@@ -95,7 +95,7 @@ struct ProfileView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    GuestSurfaceCard(contentPadding: 18, cornerRadius: 28) {
+                    GuestSurfaceCard(background: .white, contentPadding: 18, cornerRadius: 28) {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
                                 PhotosPicker(selection: $photoPickerItem, matching: .images, photoLibrary: .shared()) {
@@ -208,7 +208,7 @@ struct ProfileView: View {
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                .fill(Color(.systemBackground))
+                                .fill(Color.white)
                                 .shadow(color: .black.opacity(0.055), radius: 20, x: 0, y: 10)
                         )
                     }

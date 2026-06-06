@@ -56,10 +56,12 @@ enum DateFormatting {
 
 
     static func prettyTime(_ raw: String) -> String {
-        if let date = inputFormatter.date(from: raw) {
-            return date.formatted(.dateTime.hour().minute())
-        }
-        return raw
+        guard let date = parseBookingInstant(raw) else { return raw }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 
     static func prettyRange(start: String, end: String) -> String {

@@ -5,9 +5,29 @@ final class AppEnvironment {
 
     let baseURL: URL = AppEnvironment.makeBaseURL()
     let usePreviewData: Bool = false
-    let googleClientId: String = "YOUR_GOOGLE_IOS_CLIENT_ID"
+    let googleClientId: String = AppEnvironment.makeGoogleClientId()
+    let googleReversedClientId: String = AppEnvironment.makeGoogleReversedClientId()
 
     private init() {}
+
+
+    private static func makeGoogleClientId() -> String {
+        let configured = Bundle.main.object(forInfoDictionaryKey: "GOOGLE_IOS_CLIENT_ID") as? String
+        let value = configured?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !value.isEmpty, !value.contains("$(") {
+            return value
+        }
+        return "YOUR_GOOGLE_IOS_CLIENT_ID"
+    }
+
+    private static func makeGoogleReversedClientId() -> String {
+        let configured = Bundle.main.object(forInfoDictionaryKey: "GOOGLE_REVERSED_CLIENT_ID") as? String
+        let value = configured?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !value.isEmpty, !value.contains("$(") {
+            return value
+        }
+        return ""
+    }
 
     private static func makeBaseURL() -> URL {
         let configured = Bundle.main.object(forInfoDictionaryKey: "API_BASE_URL") as? String

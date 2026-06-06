@@ -114,6 +114,70 @@ struct TenantModel: Identifiable, Hashable, Codable {
     }
 }
 
+
+struct TenantSummaryModel: Identifiable, Hashable, Codable {
+    let companyId: String
+    let companyName: String
+    let publicDescription: String?
+    let publicCity: String?
+    let publicPhone: String?
+    let companyAddress: String?
+    let tenantType: String?
+    let cardImageUrl: String?
+    let logoImageUrl: String?
+    let iconImageUrl: String?
+    let status: String?
+    let employeeSelectionStep: Bool?
+    let useEmployeeContact: Bool?
+    let billingEnabled: Bool?
+    let requireOnlinePayment: Bool?
+    let paymentRequirement: String?
+    let depositPercent: Int?
+    let acceptedPaymentMethods: [String]?
+
+    var id: String { companyId }
+
+    init(
+        companyId: String,
+        companyName: String,
+        publicDescription: String? = nil,
+        publicCity: String? = nil,
+        publicPhone: String? = nil,
+        companyAddress: String? = nil,
+        tenantType: String? = nil,
+        cardImageUrl: String? = nil,
+        logoImageUrl: String? = nil,
+        iconImageUrl: String? = nil,
+        status: String? = "ACTIVE",
+        employeeSelectionStep: Bool? = nil,
+        useEmployeeContact: Bool? = nil,
+        billingEnabled: Bool? = nil,
+        requireOnlinePayment: Bool? = nil,
+        paymentRequirement: String? = nil,
+        depositPercent: Int? = nil,
+        acceptedPaymentMethods: [String]? = nil
+    ) {
+        self.companyId = companyId
+        self.companyName = companyName
+        self.publicDescription = publicDescription
+        self.publicCity = publicCity
+        self.publicPhone = publicPhone
+        self.companyAddress = companyAddress
+        self.tenantType = tenantType
+        self.cardImageUrl = cardImageUrl
+        self.logoImageUrl = logoImageUrl
+        self.iconImageUrl = iconImageUrl
+        self.status = status
+        self.employeeSelectionStep = employeeSelectionStep
+        self.useEmployeeContact = useEmployeeContact
+        self.billingEnabled = billingEnabled
+        self.requireOnlinePayment = requireOnlinePayment
+        self.paymentRequirement = paymentRequirement
+        self.depositPercent = depositPercent
+        self.acceptedPaymentMethods = acceptedPaymentMethods
+    }
+}
+
 struct ConsultantSummaryModel: Identifiable, Hashable, Codable {
     let id: String
     let firstName: String
@@ -508,11 +572,16 @@ struct AvailabilityResponseModel: Codable {
 }
 
 struct TenantLookupModel: Codable {
-    let companyId: String = ""
+    let companyId: String
     let companyName: String
     let publicDescription: String?
     let publicCity: String?
     let publicPhone: String?
+    let companyAddress: String?
+    let tenantType: String?
+    let cardImageUrl: String?
+    let logoImageUrl: String?
+    let iconImageUrl: String?
     let joinMethod: String
     let canJoin: Bool
     let employeeSelectionStep: Bool?
@@ -772,7 +841,7 @@ struct JoinTenantPayload: Codable {
     let joinMethod: String
     let tenantCode: String?
     let inviteCode: String?
-    let companyId: String = ""
+    let companyId: String?
 }
 
 struct LoginPayload: Codable {

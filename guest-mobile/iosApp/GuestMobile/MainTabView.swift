@@ -3,7 +3,7 @@ import AVFoundation
 import UIKit
 
 struct MainTabView: View {
-    enum Tab: String {
+    enum Tab: String, CaseIterable, Equatable {
         case home, calendar, wallet, inbox, profile, book
     }
 
@@ -19,6 +19,7 @@ struct MainTabView: View {
     @State private var showAddOptions = false
     @State private var showManualCodeSheet = false
     @State private var showScannerSheet = false
+    @State private var showJoinTenantPage = false
     @State private var showWalletTenantPicker = false
     @State private var walletTenantDraftId: String?
     @State private var calendarScopedTenantId: String? = nil
@@ -35,6 +36,16 @@ struct MainTabView: View {
     private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
     private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
     private let walletOffersRefreshDebounceSeconds: TimeInterval = 1.5
+    private let appTabSwipeThreshold: CGFloat = 58
+
+    private var swipeableTabs: [Tab] { [.home, .wallet, .book, .inbox, .calendar] }
+
+    private var appTabSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 30, coordinateSpace: .local)
+            .onEnded { value in
+                handleAppTabSwipe(value)
+            }
+    }
 
     private var unreadNotifications: Int {
         store.guestAppNotificationUnreadCount
@@ -185,7 +196,7 @@ struct MainTabView: View {
                     switch selectedTab {
                     case .home:
                         HomeView(
-                            onChooseTenant: { showAddOptions = true },
+                            onChooseTenant: { openJoinTenantPage() },
                             onOpenNotifications: { isNotificationsPresented = true },
                             onBookNow: { selectedTab = .book },
                             onReschedule: { booking in
@@ -275,6 +286,7 @@ struct MainTabView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomBar
             }
+            .simultaneousGesture(appTabSwipeGesture)
         }
         .task {
             if store.tenantDashboards.isEmpty, !store.linkedTenants.isEmpty {
@@ -305,8 +317,7 @@ struct MainTabView: View {
             store.consumePendingInboxOpen()
         }
         .confirmationDialog(isSl ? "Dodaj ponudnika" : "Add tenancy", isPresented: $showAddOptions, titleVisibility: .visible) {
-            Button(isSl ? "Ročno dodaj kodo" : "Add code manually") { showManualCodeSheet = true }
-            Button(isSl ? "QR skeniranje" : "QR scan") { showScannerSheet = true }
+            Button(isSl ? "Odpri dodajanje ponudnika" : "Open add tenant") { openJoinTenantPage() }
             Button(isSl ? "Prekliči" : "Cancel", role: .cancel) { }
         }
         .sheet(isPresented: $showManualCodeSheet) {
@@ -320,6 +331,12 @@ struct MainTabView: View {
                 let code = extractTenantCode(from: raw)
                 Task { await store.joinTenant(code: code) }
             }
+        }
+        .fullScreenCover(isPresented: $showJoinTenantPage) {
+            JoinTenantView(onClose: { showJoinTenantPage = false }) {
+                showJoinTenantPage = false
+            }
+            .environmentObject(store)
         }
         .sheet(isPresented: $showWalletTenantPicker) {
             TenantSelectionBottomSheet(
@@ -354,7 +371,7 @@ struct MainTabView: View {
                 },
                 onAddTenant: {
                     showWalletTenantPicker = false
-                    showManualCodeSheet = true
+                    openJoinTenantPage()
                 }
             )
             .presentationDetents([.height(468), .large])
@@ -372,6 +389,49 @@ struct MainTabView: View {
             )
             .environmentObject(store)
         }
+    }
+
+    private func handleAppTabSwipe(_ value: DragGesture.Value) {
+        guard selectedTab != .wallet, selectedTab != .profile else { return }
+
+        let horizontal = value.translation.width
+        let vertical = value.translation.height
+        guard abs(horizontal) >= appTabSwipeThreshold, abs(horizontal) > abs(vertical) * 1.25 else { return }
+        guard let currentIndex = swipeableTabs.firstIndex(of: selectedTab) else { return }
+
+        let nextIndex = horizontal < 0 ? currentIndex + 1 : currentIndex - 1
+        guard swipeableTabs.indices.contains(nextIndex) else { return }
+        selectTabFromSwipe(swipeableTabs[nextIndex])
+    }
+
+    private func selectTabFromSwipe(_ target: Tab) {
+        guard target != selectedTab else { return }
+
+        bookLaunchRequest = nil
+        bookReturnTab = nil
+
+        switch target {
+        case .book:
+            rescheduleContext = nil
+            refreshBookTenantIfNeeded()
+        case .wallet:
+            rescheduleContext = nil
+            refreshWalletOffersIfNeeded()
+        default:
+            break
+        }
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            selectedTab = target
+        }
+    }
+
+    private func openJoinTenantPage() {
+        showAddOptions = false
+        showManualCodeSheet = false
+        showScannerSheet = false
+        showWalletTenantPicker = false
+        showJoinTenantPage = true
     }
 
     private func openWalletWithTenantSelection() {
@@ -484,7 +544,7 @@ struct MainTabView: View {
             HStack(spacing: 5) {
                 if isHome {
                     Button {
-                        showManualCodeSheet = true
+                        openJoinTenantPage()
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "person.badge.plus")
@@ -535,8 +595,17 @@ struct MainTabView: View {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(Color.primary)
+                            .foregroundColor(brandBlue)
                             .frame(width: 34, height: 34)
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(0.94))
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(brandBlue.opacity(0.16), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
                             .contentShape(Rectangle())
                         if unreadNotifications > 0 {
                             Text("\(min(unreadNotifications, 99))")

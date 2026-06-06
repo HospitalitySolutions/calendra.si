@@ -65,7 +65,6 @@ struct BookView: View {
     @State private var showingStoredCardSheet = false
     @State private var showingPaymentMethodsSheet = false
     @State private var showingEntitlementPickerSheet = false
-    @State private var showingAddCardSheet = false
     private let brandBlue = Color(red: 0.07, green: 0.30, blue: 0.62)
     private let brandOrange = Color(red: 0.95, green: 0.59, blue: 0.23)
 
@@ -230,6 +229,13 @@ struct BookView: View {
         }
     }
 
+    private func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
+
     private var continueDisabled: Bool {
         switch currentStep {
         case .provider:
@@ -243,7 +249,9 @@ struct BookView: View {
         case .paymentReview:
             if isSubmitting { return true }
             if skipsOnlinePaymentMethods && !usesEntitlementPayment { return false }
-            if selectedPaymentMethod == .card { return selectedStoredCard == nil }
+            // Credit-card payments are handled by Stripe Checkout after booking confirmation.
+            // The iOS guest app must not collect or store card details locally.
+            if selectedPaymentMethod == .card { return false }
             if selectedPaymentMethod == .entitlement { return selectedEntitlement == nil }
             if selectedPaymentMethod == .giftCard { return !hasGiftCardCoverage }
             return false
@@ -309,7 +317,7 @@ struct BookView: View {
                         .padding(.top, 6)
                         .padding(.bottom, 8)
                 }
-                .background(Color(.systemBackground).opacity(0.94))
+                .background(Color.white.opacity(0.96))
             }
         }
         .onAppear {
@@ -389,17 +397,6 @@ struct BookView: View {
                   currentIdx >= dateIdx else { return }
             await loadAvailability(for: selectedService)
         }
-        .sheet(isPresented: $showingStoredCardSheet) {
-            StoredCardPickerSheet(
-                languageCode: appUiLocaleStorage,
-                cards: storedProfile.cards,
-                selectedCard: $selectedStoredCard,
-                onAddNewCard: {
-                    showingStoredCardSheet = false
-                    showingAddCardSheet = true
-                }
-            )
-        }
         .sheet(isPresented: $showingPaymentMethodsSheet) {
             PaymentMethodPickerSheet(
                 languageCode: appUiLocaleStorage,
@@ -413,8 +410,6 @@ struct BookView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                             showingEntitlementPickerSheet = true
                         }
-                    } else if method == .card && storedProfile.cards.isEmpty {
-                        showingAddCardSheet = true
                     }
                 }
             )
@@ -430,13 +425,6 @@ struct BookView: View {
                     showingEntitlementPickerSheet = false
                 }
             )
-        }
-        .sheet(isPresented: $showingAddCardSheet) {
-            AddCardSheet(languageCode: appUiLocaleStorage) { card in
-                storedProfile.cards.append(card)
-                LocalProfileStore.shared.save(storedProfile)
-                selectedStoredCard = card
-            }
         }
         .alert(tr("Booking update", "Posodobitev rezervacije"), isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button(tr("OK", "V redu"), role: .cancel) { notice = nil }
@@ -481,6 +469,10 @@ struct BookView: View {
     private var stepper: some View {
         let steps = visibleSteps
         let currentIndex = steps.firstIndex(of: currentStep) ?? 0
+        let androidStepperBlue = Color(red: 15.0 / 255.0, green: 107.0 / 255.0, blue: 1.0)
+        let androidInactiveConnector = Color(red: 214.0 / 255.0, green: 225.0 / 255.0, blue: 240.0 / 255.0)
+        let androidInactiveNumber = Color(red: 115.0 / 255.0, green: 132.0 / 255.0, blue: 154.0 / 255.0)
+        let androidInactiveLabel = Color(red: 96.0 / 255.0, green: 114.0 / 255.0, blue: 138.0 / 255.0)
         return HStack(alignment: .top, spacing: 0) {
             ForEach(Array(steps.enumerated()), id: \.element.id) { idx, step in
                 let active = step == currentStep
@@ -498,19 +490,19 @@ struct BookView: View {
                         ZStack {
                             HStack(spacing: 0) {
                                 Rectangle()
-                                    .fill(isFirst ? Color.clear : (leftActive ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.84, green: 0.89, blue: 0.95)))
+                                    .fill(isFirst ? Color.clear : (leftActive ? androidStepperBlue : androidInactiveConnector))
                                     .frame(height: 2)
                                 Spacer().frame(width: 34)
                                 Rectangle()
-                                    .fill(isLast ? Color.clear : (rightActive ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.84, green: 0.89, blue: 0.95)))
+                                    .fill(isLast ? Color.clear : (rightActive ? androidStepperBlue : androidInactiveConnector))
                                     .frame(height: 2)
                             }
                             Circle()
-                                .fill(active || completed ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.97, green: 0.98, blue: 1.0))
+                                .fill(active || completed ? androidStepperBlue : Color(red: 247.0 / 255.0, green: 250.0 / 255.0, blue: 1.0))
                                 .frame(width: 34, height: 34)
                                 .shadow(color: active ? brandBlue.opacity(0.22) : Color.clear, radius: 5, y: 3)
                                 .overlay(
-                                    Circle().stroke(active || completed ? Color.clear : Color(red: 0.84, green: 0.89, blue: 0.95), lineWidth: 1)
+                                    Circle().stroke(active || completed ? Color.clear : androidInactiveConnector, lineWidth: 1)
                                 )
                                 .overlay(
                                     Group {
@@ -521,7 +513,7 @@ struct BookView: View {
                                         } else {
                                             Text("\(idx + 1)")
                                                 .font(.system(size: 14, weight: .bold))
-                                                .foregroundColor(active ? Color.white : Color.secondary)
+                                                .foregroundColor(active ? Color.white : androidInactiveNumber)
                                         }
                                     }
                                 )
@@ -529,8 +521,8 @@ struct BookView: View {
                         .frame(height: 34)
 
                         Text(stepDisplayTitle(step))
-                            .font(.system(size: 11, weight: active || completed ? .bold : .medium))
-                            .foregroundColor(active || completed ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color.secondary)
+                            .font(.system(size: 11, weight: active ? .bold : .medium))
+                            .foregroundColor(active || completed ? androidStepperBlue : androidInactiveLabel)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
@@ -695,7 +687,7 @@ struct BookView: View {
                                 .frame(height: 42)
                                 .background(
                                     RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                        .fill(selectedSlotId == slot.id ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(.systemBackground).opacity(0.96))
+                                        .fill(selectedSlotId == slot.id ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color.white.opacity(0.96))
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -849,7 +841,7 @@ struct BookView: View {
 
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(Color(.systemBackground))
+            .fill(Color.white)
             .shadow(color: Color.black.opacity(0.07), radius: 12, y: 6)
     }
 
@@ -1181,12 +1173,10 @@ struct BookView: View {
     }
 
     private var creditCardSubtitle: String {
-        if let card = selectedStoredCard, !card.isEmpty {
-            return card
-        }
-        return storedProfile.cards.isEmpty
-            ? tr("Add a card to pay by credit card", "Dodajte kartico za plačilo s kreditno kartico")
-            : tr("Tap to choose a stored card", "Tapnite za izbiro shranjene kartice")
+        tr(
+            "Card details are entered securely on Stripe. They are not stored in the app.",
+            "Podatke kartice vnesete varno na Stripe strani. V aplikaciji jih ne shranjujemo."
+        )
     }
 
     private var primaryActionButton: some View {
@@ -1342,6 +1332,7 @@ struct BookView: View {
             }
             isLoadingSlots = false
         } catch {
+            guard !isCancellation(error), !Task.isCancelled else { return }
             isLoadingSlots = false
             slots = []
             selectedSlotId = nil
@@ -1354,6 +1345,7 @@ struct BookView: View {
         do {
             consultants = try await store.loadConsultants(companyId: service.companyId, sessionTypeId: service.sessionTypeId)
         } catch {
+            guard !isCancellation(error), !Task.isCancelled else { return }
             consultants = []
             store.errorMessage = error.localizedDescription
         }
@@ -1456,7 +1448,7 @@ struct BookView: View {
             return compact ? .caption : .title3
         }()
 
-        return GuestSurfaceCard(background: Color(.systemBackground), contentPadding: pad, cornerRadius: radius) {
+        return GuestSurfaceCard(background: Color.white, contentPadding: pad, cornerRadius: radius) {
             HStack(spacing: (compact || extraCompact) ? 10 : 14) {
                 selectionIndicator(selected: selected, size: indicatorSize)
                 VStack(alignment: .leading, spacing: (compact || extraCompact) ? 2 : 4) {
@@ -1497,7 +1489,7 @@ struct BookView: View {
             .foregroundColor(.secondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
+            .background(Capsule(style: .continuous).fill(Color(red: 0.94, green: 0.97, blue: 1.0)))
     }
 
     private func bookInfoPillCompact(title: String) -> some View {
@@ -1506,7 +1498,7 @@ struct BookView: View {
             .foregroundColor(.secondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
+            .background(Capsule(style: .continuous).fill(Color(red: 0.94, green: 0.97, blue: 1.0)))
     }
 
     private func priceBadgeCompact(value: String) -> some View {
@@ -1515,7 +1507,7 @@ struct BookView: View {
             .foregroundColor(.primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
+            .background(Capsule(style: .continuous).fill(Color(red: 0.94, green: 0.97, blue: 1.0)))
     }
 
     private func priceBadge(value: String) -> some View {
@@ -1524,7 +1516,7 @@ struct BookView: View {
             .foregroundColor(.primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(Capsule(style: .continuous).fill(Color(.secondarySystemBackground)))
+            .background(Capsule(style: .continuous).fill(Color(red: 0.94, green: 0.97, blue: 1.0)))
     }
 
     private func paymentBrandBadge(_ title: String) -> some View {
@@ -1533,7 +1525,7 @@ struct BookView: View {
             .foregroundColor(.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Rectangle().fill(Color(.secondarySystemBackground)))
+            .background(Rectangle().fill(Color(red: 0.94, green: 0.97, blue: 1.0)))
     }
 
     private func paymentMethodCompactCard(
@@ -1545,7 +1537,7 @@ struct BookView: View {
         trailing: AnyView?,
         onChevronTap: (() -> Void)?
     ) -> some View {
-        GuestSurfaceCard(background: Color(.systemBackground), contentPadding: 12, cornerRadius: 20) {
+        GuestSurfaceCard(background: Color.white, contentPadding: 12, cornerRadius: 20) {
             HStack(alignment: .center, spacing: 10) {
                 Button {
                     guard !disabled else { return }
@@ -1714,7 +1706,7 @@ private struct EntitlementBenefitPickerSheet: View {
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 20)
-        .background(Color(.systemBackground))
+        .background(Color.white)
         .onAppear {
             if draftEntitlementId == nil {
                 draftEntitlementId = selectedEntitlementId ?? entitlements.first?.entitlementId
@@ -1972,6 +1964,7 @@ private struct MonthCalendarView: View {
     var languageCode: String = "en"
     private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
     private let calendarBlue = Color(red: 0.05, green: 0.42, blue: 1.0)
+    private let calendarText = Color(red: 0.07, green: 0.10, blue: 0.16)
 
     private var calendar: Calendar {
         var cal = Calendar(identifier: .gregorian)
@@ -2033,7 +2026,7 @@ private struct MonthCalendarView: View {
                         Text(monthName(-1))
                             .font(compact ? .caption : .subheadline)
                     }
-                    .foregroundColor(.secondary)
+                    .foregroundColor(calendarText.opacity(0.62))
                 }
                 .buttonStyle(.plain)
 
@@ -2041,7 +2034,7 @@ private struct MonthCalendarView: View {
 
                 Text(monthTitle)
                     .font(compact ? .headline.weight(.semibold) : .title3.weight(.semibold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(calendarText)
 
                 Spacer()
 
@@ -2056,7 +2049,7 @@ private struct MonthCalendarView: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: compact ? 11 : 13, weight: .semibold))
                     }
-                    .foregroundColor(.secondary)
+                    .foregroundColor(calendarText.opacity(0.62))
                 }
                 .buttonStyle(.plain)
             }
@@ -2065,7 +2058,7 @@ private struct MonthCalendarView: View {
                 ForEach(weekdaySymbols, id: \.self) { sym in
                     Text(sym)
                         .font(compact ? .caption2.weight(.medium) : .caption.weight(.medium))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(calendarText.opacity(0.58))
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -2093,7 +2086,7 @@ private struct MonthCalendarView: View {
                                     .foregroundColor(
                                         isSelected
                                         ? Color.white
-                                        : (isPast ? Color.secondary.opacity(0.5) : Color.primary)
+                                        : (isPast ? calendarText.opacity(0.35) : calendarText)
                                     )
                             }
                             .frame(maxWidth: .infinity)
@@ -2111,7 +2104,7 @@ private struct MonthCalendarView: View {
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(.systemBackground))
+                .fill(Color.white)
                 .shadow(color: Color.black.opacity(0.07), radius: 12, y: 6)
         )
     }
