@@ -26,9 +26,15 @@ public class GuestSocialTokenVerifier {
 
     public GuestSocialTokenVerifier(
             @Value("${app.guest.auth.google-client-ids:${app.guest.auth.google-client-id:}}") String googleClientIds,
+            @Value("${app.guest.auth.google-android-client-id:}") String googleAndroidClientId,
+            @Value("${app.guest.auth.google-ios-client-id:}") String googleIosClientId,
             @Value("${app.guest.auth.apple-client-id:}") String appleClientId
     ) {
-        this.googleClientIds = parseClientIds(googleClientIds);
+        this.googleClientIds = parseClientIds(String.join(",",
+                nullToBlank(googleClientIds),
+                nullToBlank(googleAndroidClientId),
+                nullToBlank(googleIosClientId)
+        ));
         this.appleClientId = appleClientId == null ? "" : appleClientId.trim();
     }
 
@@ -68,6 +74,10 @@ public class GuestSocialTokenVerifier {
                 .filter(value -> !value.isBlank())
                 .distinct()
                 .toList();
+    }
+
+    private static String nullToBlank(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private Jwt decode(String idToken, String issuer, List<String> audiences) {

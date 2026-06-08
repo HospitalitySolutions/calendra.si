@@ -1,0 +1,12 @@
+Google Android guest social token fix
+
+- Added platform-specific Google OAuth audience fallback properties for guest social login.
+- Backend now accepts the configured generic Google client IDs plus the Android web/server client ID and iOS client ID.
+- This prevents Android sign-in from failing when Secrets Manager only contains the iOS client ID or an incomplete APP_GUEST_AUTH_GOOGLE_CLIENT_IDS value.
+
+Runtime notes:
+- Android Credential Manager uses the web/server OAuth client ID as serverClientId:
+  773864552259-amsepvt8fs6tso2uado0ck4pj08179gp.apps.googleusercontent.com
+- iOS uses the iOS OAuth client ID:
+  773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com
+- You can still override either value from Secrets Manager with APP_GUEST_AUTH_GOOGLE_ANDROID_CLIENT_ID and APP_GUEST_AUTH_GOOGLE_IOS_CLIENT_ID.

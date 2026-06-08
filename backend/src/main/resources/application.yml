@@ -173,6 +173,10 @@ app:
     auth:
       google-client-id: ${APP_GUEST_AUTH_GOOGLE_CLIENT_ID:}
       google-client-ids: ${APP_GUEST_AUTH_GOOGLE_CLIENT_IDS:${APP_GUEST_AUTH_GOOGLE_CLIENT_ID:}}
+      # Android Credential Manager emits ID tokens for the web/server OAuth client ID.
+      # Keep these as public OAuth client IDs, not secrets; override through Secrets Manager/env if Google clients change.
+      google-android-client-id: ${APP_GUEST_AUTH_GOOGLE_ANDROID_CLIENT_ID:${GOOGLE_ANDROID_CLIENT_ID:773864552259-amsepvt8fs6tso2uado0ck4pj08179gp.apps.googleusercontent.com}}
+      google-ios-client-id: ${APP_GUEST_AUTH_GOOGLE_IOS_CLIENT_ID:${GOOGLE_IOS_CLIENT_ID:773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com}}
       apple-client-id: ${APP_GUEST_AUTH_APPLE_CLIENT_ID:}
 
     push:
