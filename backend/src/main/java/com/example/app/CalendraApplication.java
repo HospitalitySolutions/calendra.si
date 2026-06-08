@@ -6,7 +6,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-public class CalendraApplication {
+public class
+CalendraApplication {
     public static void main(String[] args) {
         DotenvLoader.load();
         SpringApplication.run(CalendraApplication.class, args);

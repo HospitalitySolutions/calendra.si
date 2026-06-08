@@ -7659,9 +7659,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       ? (locale === 'sl' ? 'Izbrana predplačila niso veljavna.' : 'The selected advances are not valid.')
                       : undefined
         return (
-          <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" onMouseDown={onCreateBillBackdropMouseDown} role="presentation">
-            <div className="modal large-modal booking-side-panel billing-create-panel billing-bill-modal" onMouseDown={(e) => e.stopPropagation()}>
+          <div className={`modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop${isCreateAdvanceBill ? ' billing-bill-modal-backdrop--advance-create' : ''}`} onMouseDown={onCreateBillBackdropMouseDown} role="presentation">
+            <div className={`modal large-modal booking-side-panel billing-create-panel billing-bill-modal${isCreateAdvanceBill ? ' billing-create-panel--advance' : ''}`} onMouseDown={(e) => e.stopPropagation()}>
               <div className="billing-bill-modal-header">
+                {isCreateAdvanceBill && (
+                  <button
+                    type="button"
+                    className="billing-bill-modal-mobile-back"
+                    onClick={closeCreateBillModal}
+                    aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  >
+                    ‹
+                  </button>
+                )}
                 <div>
                   <div className="billing-bill-modal-title-row">
                     <h2>{isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov odprti račun' : 'New open bill')}</h2>
@@ -7672,7 +7682,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" className="billing-bill-modal-close" onClick={closeCreateBillModal} aria-label="Close">×</button>
               </div>
 
-              <div className="billing-invoice-modern-body billing-invoice-modern-body--create">
+              <div className={`billing-invoice-modern-body billing-invoice-modern-body--create${isCreateAdvanceBill ? ' billing-invoice-modern-body--advance-create' : ''}`}>
                 <section className="billing-invoice-management-card">
                   <div className="billing-invoice-management-head">
                     <div>

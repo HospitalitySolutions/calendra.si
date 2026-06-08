@@ -1,0 +1,16 @@
+Implemented the second smaller-resolution design for Novo predplačilo.
+
+Changed files:
+- frontend/src/pages/BillingPage.tsx
+- frontend/src/styles/main/billing-open-bill-popup.css
+
+Summary:
+- Added advance-only mobile classes for the create bill modal so normal open-bill/invoice screens keep their existing desktop layout.
+- Added a mobile back control beside the close control for the advance create screen.
+- Converted the advance modal to a full-screen mobile layout at smaller resolutions.
+- Restyled the header, Predplačilo badge, guest/payee card, item section, payment method section, totals card, and sticky create button to match the second clean mobile preview.
+- Optimized spacing, card radii, button sizes, and payment row inputs for small screens.
+
+Validation:
+- Ran a focused TypeScript check on BillingPage.tsx with Vite client types successfully.
+- Full staging build was attempted but exceeded the execution timeout in this environment.
