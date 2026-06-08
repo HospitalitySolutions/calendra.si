@@ -4765,6 +4765,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <em>{suffix}</em>
         </label>
         <p>{locale === 'sl' ? 'Popust se uporabi samo na izbrano postavko.' : 'The discount is applied only to the selected item.'}</p>
+        <div className="billing-line-discount-actions">
+          <button type="button" className="billing-line-discount-action billing-line-discount-action--primary" onClick={onClose}>
+            {locale === 'sl' ? 'Uporabi' : 'Apply'}
+          </button>
+          <button type="button" className="billing-line-discount-action billing-line-discount-action--secondary" onClick={onClose}>
+            {locale === 'sl' ? 'Prekliči' : 'Cancel'}
+          </button>
+        </div>
       </div>
     )
   }

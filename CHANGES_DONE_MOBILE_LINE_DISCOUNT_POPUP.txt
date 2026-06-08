@@ -1,0 +1,5 @@
+Implemented mobile smaller-resolution design for the line item discount popup:
+- Converted the line discount editor into a bottom-sheet style mobile popup on small screens.
+- Added dimmed/blurred page overlay behind the popup.
+- Added mobile-friendly segmented % / € control, larger amount input, close button, helper text, and Apply/Cancel actions.
+- Kept existing desktop popover behaviour unchanged.
