@@ -830,45 +830,28 @@ private struct TenantSelectionBottomSheet: View {
                 .padding(.top, 6)
                 .padding(.bottom, 16)
 
-            HStack(spacing: 10) {
-                HStack(spacing: 9) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(brandBlue)
-                    TextField("", text: $searchText, prompt: Text(isSl ? "Išči ponudnika ..." : "Search tenant ...").foregroundColor(muted))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(ink)
-                        .tint(brandBlue)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                .padding(.horizontal, 13)
-                .frame(height: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(line, lineWidth: 1)
-                        )
-                )
-
-                Button {} label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(brandBlue)
-                        .frame(width: 38, height: 38)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color.white)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .stroke(line, lineWidth: 1)
-                                )
-                        )
-                }
-                .buttonStyle(.plain)
+            HStack(spacing: 9) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(brandBlue)
+                TextField("", text: $searchText, prompt: Text(isSl ? "Išči ponudnika ..." : "Search tenant ...").foregroundColor(muted))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(ink)
+                    .tint(brandBlue)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
             }
+            .padding(.horizontal, 13)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(line, lineWidth: 1)
+                    )
+            )
             .padding(.horizontal, 20)
             .padding(.bottom, 12)
 

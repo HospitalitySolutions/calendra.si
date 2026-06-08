@@ -962,48 +962,28 @@ private fun ListCalendarView(
         .filter { !it.start.toLocalDate().isBefore(selectedDate.minusDays(1)) }
         .take(10)
         .groupBy { it.start.toLocalDate() }
-    Box {
-        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            WeekStripCard(
-                selectedDate = selectedDate,
-                week = week,
-                bookings = bookings,
-                isSl = isSl,
-                onDateSelected = onDateSelected,
-                onPreviousWeek = onPreviousWeek,
-                onNextWeek = onNextWeek,
-                largeSelected = false
-            )
-            if (grouped.isEmpty()) {
-                EmptyCalendarCard(isSl)
-            } else {
-                grouped.forEach { (date, dateBookings) ->
-                    ListDayGroup(
-                        date = date,
-                        bookings = dateBookings,
-                        originalById = originalById,
-                        isSl = isSl,
-                        onOpenBooking = onOpenBooking
-                    )
-                }
-            }
-            Spacer(Modifier.height(34.dp))
-        }
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = BrandBlue,
-            shadowElevation = 12.dp,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 6.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(Icons.Rounded.FilterList, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                Text(if (isSl) "Filtri" else "Filters", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        WeekStripCard(
+            selectedDate = selectedDate,
+            week = week,
+            bookings = bookings,
+            isSl = isSl,
+            onDateSelected = onDateSelected,
+            onPreviousWeek = onPreviousWeek,
+            onNextWeek = onNextWeek,
+            largeSelected = false
+        )
+        if (grouped.isEmpty()) {
+            EmptyCalendarCard(isSl)
+        } else {
+            grouped.forEach { (date, dateBookings) ->
+                ListDayGroup(
+                    date = date,
+                    bookings = dateBookings,
+                    originalById = originalById,
+                    isSl = isSl,
+                    onOpenBooking = onOpenBooking
+                )
             }
         }
     }

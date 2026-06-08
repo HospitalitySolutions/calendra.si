@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -2239,68 +2238,47 @@ private fun TenantSelectionBottomSheetContent(
             color = muted
         )
         Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, line)
         ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White,
-                border = BorderStroke(1.dp, line)
+            Row(
+                modifier = Modifier.padding(horizontal = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(9.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = brandBlue
-                    )
-                    BasicTextField(
-                        value = searchState.value,
-                        onValueChange = { searchState.value = it },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            color = Color(0xFF0F172A),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        modifier = Modifier.weight(1f),
-                        decorationBox = { innerTextField ->
-                            if (searchState.value.isEmpty()) {
-                                Text(
-                                    text = if (isSl) "Išči ponudnika ..." else "Search tenant ...",
-                                    color = muted,
-                                    fontSize = 14.sp,
-                                    maxLines = 1
-                                )
-                            }
-                            innerTextField()
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = brandBlue
+                )
+                BasicTextField(
+                    value = searchState.value,
+                    onValueChange = { searchState.value = it },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = Color(0xFF0F172A),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { innerTextField ->
+                        if (searchState.value.isEmpty()) {
+                            Text(
+                                text = if (isSl) "Išči ponudnika ..." else "Search tenant ...",
+                                color = muted,
+                                fontSize = 14.sp,
+                                maxLines = 1
+                            )
                         }
-                    )
-                }
-            }
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White,
-                border = BorderStroke(1.dp, line)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.Tune,
-                        contentDescription = null,
-                        tint = brandBlue,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
+                        innerTextField()
+                    }
+                )
             }
         }
         Spacer(Modifier.height(12.dp))

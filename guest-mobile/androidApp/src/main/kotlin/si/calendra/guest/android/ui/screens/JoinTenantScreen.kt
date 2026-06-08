@@ -174,7 +174,9 @@ fun JoinTenantScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BrandHeader(
-                modifier = Modifier.padding(start = 12.dp, end = 4.dp)
+                isSl = isSl,
+                onClose = onBack,
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp)
             )
 
             Column(
@@ -273,7 +275,11 @@ fun JoinTenantScreen(
 }
 
 @Composable
-private fun BrandHeader(modifier: Modifier = Modifier) {
+private fun BrandHeader(
+    isSl: Boolean,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -290,6 +296,22 @@ private fun BrandHeader(modifier: Modifier = Modifier) {
             alignment = Alignment.CenterStart
         )
         Spacer(Modifier.weight(1f))
+        Surface(
+            onClick = onClose,
+            shape = CircleShape,
+            color = Color.White.copy(alpha = 0.92f),
+            shadowElevation = 8.dp,
+            modifier = Modifier.size(34.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = if (isSl) "Zapri" else "Close",
+                    tint = TitleText,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
     }
 }
 

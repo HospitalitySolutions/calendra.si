@@ -1,0 +1,17 @@
+Guest mobile UI updates completed
+
+1. Calendar tab
+   - Removed the floating "Filtri" / "Filters" button from the Android guest calendar list view.
+   - iOS CalendarView already had no Filtri/Filters floating button in the provided source, so no iOS calendar code change was required.
+
+2. Tenant selection popup
+   - Removed the filter/tune button from the tenant selection bottom sheet on Android.
+   - Removed the slider/filter button from the tenant selection bottom sheet on iOS.
+   - Extended the search field to fill the full bottom-sheet width so it aligns with the tenant row width below.
+
+3. Add tenant page
+   - Added the same upper-right circular X close button to the Android Add Tenant page header, using the existing back/close behavior.
+   - iOS already had this upper-right close button when opened with onClose.
+
+Validation note
+- I attempted to run the Android Gradle compile task, but the sandbox could not download the Gradle distribution because outbound internet/DNS is unavailable in this environment.
