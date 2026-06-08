@@ -1,0 +1,12 @@
+Google guest social audience fix
+
+- Backend guest Google ID token verification now accepts multiple configured Google OAuth client IDs via APP_GUEST_AUTH_GOOGLE_CLIENT_IDS.
+- Added backend warning log with issuer/audience context when social token verification fails.
+- Kept backward compatibility with APP_GUEST_AUTH_GOOGLE_CLIENT_ID for existing single-client deployments.
+- Updated application.yml and backend env example.
+
+For Calendra guest mobile apps, configure APP_GUEST_AUTH_GOOGLE_CLIENT_IDS with both the Android/web server client ID and the iOS client ID so both platforms pass ID token audience validation.
+
+Included iOS build config values previously requested:
+- GOOGLE_IOS_CLIENT_ID
+- GOOGLE_REVERSED_CLIENT_ID

@@ -172,6 +172,7 @@ app:
   guest:
     auth:
       google-client-id: ${APP_GUEST_AUTH_GOOGLE_CLIENT_ID:}
+      google-client-ids: ${APP_GUEST_AUTH_GOOGLE_CLIENT_IDS:${APP_GUEST_AUTH_GOOGLE_CLIENT_ID:}}
       apple-client-id: ${APP_GUEST_AUTH_APPLE_CLIENT_ID:}
 
     push:

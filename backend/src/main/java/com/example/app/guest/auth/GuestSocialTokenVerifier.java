@@ -1,6 +1,9 @@
 package com.example.app.guest.auth;
 
+import java.util.Arrays;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -16,22 +19,24 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class GuestSocialTokenVerifier {
-    private final String googleClientId;
+    private static final Logger log = LoggerFactory.getLogger(GuestSocialTokenVerifier.class);
+
+    private final List<String> googleClientIds;
     private final String appleClientId;
 
     public GuestSocialTokenVerifier(
-            @Value("${app.guest.auth.google-client-id:}") String googleClientId,
+            @Value("${app.guest.auth.google-client-ids:${app.guest.auth.google-client-id:}}") String googleClientIds,
             @Value("${app.guest.auth.apple-client-id:}") String appleClientId
     ) {
-        this.googleClientId = googleClientId == null ? "" : googleClientId.trim();
+        this.googleClientIds = parseClientIds(googleClientIds);
         this.appleClientId = appleClientId == null ? "" : appleClientId.trim();
     }
 
     public SocialClaims verifyGoogleIdToken(String idToken) {
-        if (googleClientId.isBlank()) {
+        if (googleClientIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Google guest sign-in is not configured.");
         }
-        Jwt jwt = decode(idToken, "https://accounts.google.com", List.of(googleClientId));
+        Jwt jwt = decode(idToken, "https://accounts.google.com", googleClientIds);
         return new SocialClaims(
                 jwt.getSubject(),
                 jwt.getClaimAsString("email"),
@@ -52,6 +57,17 @@ public class GuestSocialTokenVerifier {
                 jwt.getClaimAsString("given_name"),
                 jwt.getClaimAsString("family_name")
         );
+    }
+
+    private static List<String> parseClientIds(String configuredClientIds) {
+        if (configuredClientIds == null || configuredClientIds.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(configuredClientIds.split("[,;\\s]+"))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
     }
 
     private Jwt decode(String idToken, String issuer, List<String> audiences) {
@@ -80,6 +96,7 @@ public class GuestSocialTokenVerifier {
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
+            log.warn("Failed to verify guest social identity token for issuer {} and audiences {}: {}", issuer, audiences, ex.getMessage());
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid social identity token.");
         }
     }
