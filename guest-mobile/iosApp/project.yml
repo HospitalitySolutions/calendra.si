@@ -13,5 +13,5 @@ targets:
       SWIFT_VERSION: "5.0"
       INFOPLIST_FILE: GuestMobile/Info.plist
       CODE_SIGN_ENTITLEMENTS: GuestMobile/GuestMobile.entitlements
-      GOOGLE_IOS_CLIENT_ID: ""
-      GOOGLE_REVERSED_CLIENT_ID: ""
+      GOOGLE_IOS_CLIENT_ID: "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com"
+      GOOGLE_REVERSED_CLIENT_ID: "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc"

@@ -325,8 +325,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				API_BASE_URL = "http://localhost:4000";
-				GOOGLE_IOS_CLIENT_ID = "";
-				GOOGLE_REVERSED_CLIENT_ID = "";
+				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -353,8 +353,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				API_BASE_URL = "https://app.calendra.si";
-				GOOGLE_IOS_CLIENT_ID = "";
-				GOOGLE_REVERSED_CLIENT_ID = "";
+				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
