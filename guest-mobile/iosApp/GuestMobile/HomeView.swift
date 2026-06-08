@@ -248,16 +248,8 @@ struct HomeView: View {
                 .padding(.top, 22)
             }
 
-            HStack(spacing: 10) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(brandBlue)
-                Text(isSl ? "Raziščite razpoložljive termine v zavihku Rezervacije." : "Explore available sessions from the Book tab.")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(mutedText)
-            }
-            .padding(.top, 18)
-            .padding(.bottom, 24)
+            Spacer()
+                .frame(height: 24)
         }
         .frame(maxWidth: .infinity)
         .background(

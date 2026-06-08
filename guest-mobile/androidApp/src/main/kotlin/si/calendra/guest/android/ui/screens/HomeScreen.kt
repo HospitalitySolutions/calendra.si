@@ -385,12 +385,7 @@ private fun EmptyBookingsCard(selected: BookingTab, isSl: Boolean, onBookNow: ()
                 Spacer(Modifier.height(12.dp))
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(if (isSl) "Raziščite razpoložljive termine v zavihku Rezervacije." else "Explore available sessions from the Book tab.", color = MutedText, fontSize = 12.sp)
-            }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
