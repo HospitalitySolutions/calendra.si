@@ -311,6 +311,105 @@ extension Image {
 }
 
 
+private enum GuestAppleSignInError: LocalizedError {
+    case cancelled
+    case invalidCredential
+    case missingIdentityToken
+
+    var errorDescription: String? {
+        switch self {
+        case .cancelled:
+            return nil
+        case .invalidCredential:
+            return "Apple sign-in did not return a valid credential."
+        case .missingIdentityToken:
+            return "Apple sign-in did not return an identity token."
+        }
+    }
+}
+
+private final class GuestAppleSignInSession: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private var continuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>?
+    private var authorizationController: ASAuthorizationController?
+
+    @MainActor
+    func signIn() async throws -> ASAuthorizationAppleIDCredential {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+
+            let provider = ASAuthorizationAppleIDProvider()
+            let request = provider.createRequest()
+            request.requestedScopes = [.fullName, .email]
+
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            self.authorizationController = controller
+            controller.performRequests()
+        }
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            resume(throwing: GuestAppleSignInError.invalidCredential)
+            return
+        }
+        resume(returning: credential)
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+            resume(throwing: GuestAppleSignInError.cancelled)
+            return
+        }
+        resume(throwing: error)
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes where scene.activationState == .foregroundActive {
+            if let keyWindow = scene.windows.first(where: { $0.isKeyWindow }) {
+                return keyWindow
+            }
+            if let window = scene.windows.first {
+                return window
+            }
+        }
+        return ASPresentationAnchor()
+    }
+
+    private func resume(returning credential: ASAuthorizationAppleIDCredential) {
+        continuation?.resume(returning: credential)
+        cleanUp()
+    }
+
+    private func resume(throwing error: Error) {
+        continuation?.resume(throwing: error)
+        cleanUp()
+    }
+
+    private func cleanUp() {
+        continuation = nil
+        authorizationController = nil
+    }
+}
+
+private struct GuestAppleHighlightButtonStyle: ButtonStyle {
+    let isDisabled: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.white.opacity(configuration.isPressed && !isDisabled ? 0.16 : 0.0))
+                    .allowsHitTesting(false)
+            }
+            .scaleEffect(configuration.isPressed && !isDisabled ? 0.985 : 1.0)
+            .brightness(configuration.isPressed && !isDisabled ? 0.08 : 0.0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 struct GuestAppleSignInButton: View {
     let label: SignInWithAppleButton.Label
     let isDisabled: Bool
@@ -318,6 +417,7 @@ struct GuestAppleSignInButton: View {
     let onError: @MainActor (String) -> Void
     let customTitle: String?
     let customTextSize: CGFloat?
+    @State private var isAuthorizing = false
 
     init(
         label: SignInWithAppleButton.Label = .signIn,
@@ -335,78 +435,70 @@ struct GuestAppleSignInButton: View {
         self.onError = onError
     }
 
-    var body: some View {
-        if let customTitle, let customTextSize {
-            appleAuthorizationButton
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.black)
+    private var isButtonDisabled: Bool { isDisabled || isAuthorizing }
+    private var titleText: String { customTitle ?? "Sign in with Apple" }
+    private var titleSize: CGFloat { customTextSize ?? 14 }
 
-                        HStack(spacing: 10) {
-                            Image(systemName: "applelogo")
-                                .font(.system(size: max(customTextSize + 2, 14), weight: .semibold, design: .rounded))
-                            Text(customTitle)
-                                .font(.system(size: customTextSize, weight: .semibold, design: .rounded))
-                        }
-                        .foregroundStyle(Color.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                    .allowsHitTesting(false)
+    var body: some View {
+        Button {
+            startAppleSignIn()
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.black)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "applelogo")
+                        .font(.system(size: max(titleSize + 2, 13), weight: .semibold, design: .rounded))
+                    Text(titleText)
+                        .font(.system(size: titleSize, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
-                .disabled(isDisabled)
-                .opacity(isDisabled ? 0.55 : 1.0)
-        } else {
-            appleAuthorizationButton
+                .foregroundStyle(Color.white)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .disabled(isDisabled)
-                .opacity(isDisabled ? 0.55 : 1.0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
+        .buttonStyle(GuestAppleHighlightButtonStyle(isDisabled: isButtonDisabled))
+        .disabled(isButtonDisabled)
+        .opacity(isButtonDisabled ? 0.55 : 1.0)
     }
 
-    private var appleAuthorizationButton: some View {
-        SignInWithAppleButton(label) { request in
-            request.requestedScopes = [.fullName, .email]
-        } onCompletion: { result in
-            switch result {
-            case .success(let authorization):
-                handleAuthorization(authorization)
-            case .failure(let error):
-                if let authError = error as? ASAuthorizationError, authError.code == .canceled {
-                    return
-                }
-                Task { @MainActor in
-                    onError(error.localizedDescription)
-                }
+    private func startAppleSignIn() {
+        guard !isButtonDisabled else { return }
+        isAuthorizing = true
+        Task { @MainActor in
+            defer { isAuthorizing = false }
+            do {
+                let credential = try await GuestAppleSignInSession().signIn()
+                try await handleCredential(credential)
+            } catch GuestAppleSignInError.cancelled {
+                return
+            } catch {
+                onError(error.localizedDescription)
             }
         }
-        .signInWithAppleButtonStyle(.black)
     }
 
-    private func handleAuthorization(_ authorization: ASAuthorization) {
-        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-            Task { @MainActor in onError("Apple sign-in did not return a valid credential.") }
-            return
-        }
+    @MainActor
+    private func handleCredential(_ credential: ASAuthorizationAppleIDCredential) async throws {
         guard
             let tokenData = credential.identityToken,
             let idToken = String(data: tokenData, encoding: .utf8),
             !idToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
-            Task { @MainActor in onError("Apple sign-in did not return an identity token.") }
-            return
+            throw GuestAppleSignInError.missingIdentityToken
         }
 
         let firstName = credential.fullName?.givenName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let lastName = credential.fullName?.familyName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task { @MainActor in
-            await onAuthorized(
-                idToken,
-                firstName?.isEmpty == false ? firstName : nil,
-                lastName?.isEmpty == false ? lastName : nil
-            )
-        }
+        await onAuthorized(
+            idToken,
+            firstName?.isEmpty == false ? firstName : nil,
+            lastName?.isEmpty == false ? lastName : nil
+        )
     }
 }
 

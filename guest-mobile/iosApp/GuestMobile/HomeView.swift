@@ -25,6 +25,7 @@ struct HomeView: View {
     @State private var selectedBookingTab: HomeBookingTab = .future
     @State private var bookingPendingCancel: BookingCardModel?
     @State private var selectedPage: Int = 0
+    @State private var cardDragOffset: CGFloat = 0
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
     private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
@@ -267,31 +268,66 @@ struct HomeView: View {
     }
 
     private var bookingDeck: some View {
-        VStack(spacing: 12) {
-            TabView(selection: $selectedPage) {
-                ForEach(Array(filteredBookingCards.enumerated()), id: \.element.id) { index, booking in
-                    HomeBookingCard(
-                        booking: booking,
-                        onCall: openPhone,
-                        onMessage: openMessage,
-                        onReschedule: onReschedule,
-                        onCancel: { bookingPendingCancel = booking },
-                        isSl: isSl
-                    )
-                    .padding(.horizontal, 24)
-                    .tag(index)
-                }
-            }
-            .frame(height: 760)
-            .tabViewStyle(.page(indexDisplayMode: .never))
+        VStack(spacing: 14) {
+            GeometryReader { proxy in
+                // Android shows the focused card with ~26pt side margins and a small peek of
+                // the neighbouring card (HorizontalPager contentPadding 26 + pageSpacing 12).
+                let sideInset: CGFloat = 26
+                let spacing: CGFloat = 12
+                let fullWidth = proxy.size.width
+                let cardWidth = max(fullWidth - sideInset * 2, 0)
+                let step = cardWidth + spacing
+                let count = filteredBookingCards.count
 
-            HStack(spacing: 10) {
+                HStack(alignment: .top, spacing: spacing) {
+                    ForEach(Array(filteredBookingCards.enumerated()), id: \.element.id) { index, booking in
+                        HomeBookingCard(
+                            booking: booking,
+                            width: cardWidth,
+                            onCall: openPhone,
+                            onMessage: openMessage,
+                            onReschedule: onReschedule,
+                            onCancel: { bookingPendingCancel = booking },
+                            isSl: isSl
+                        )
+                        .scaleEffect(index == selectedPage ? 1.0 : 0.94)
+                        .opacity(index == selectedPage ? 1.0 : 0.82)
+                        .animation(.easeOut(duration: 0.2), value: selectedPage)
+                    }
+                }
+                .frame(width: fullWidth, alignment: .leading)
+                .offset(x: sideInset - CGFloat(selectedPage) * step + cardDragOffset)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 12)
+                        .onChanged { value in
+                            cardDragOffset = value.translation.width
+                        }
+                        .onEnded { value in
+                            let threshold = step / 3
+                            var newPage = selectedPage
+                            if value.translation.width < -threshold {
+                                newPage = min(selectedPage + 1, max(count - 1, 0))
+                            } else if value.translation.width > threshold {
+                                newPage = max(selectedPage - 1, 0)
+                            }
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                selectedPage = newPage
+                                cardDragOffset = 0
+                            }
+                        }
+                )
+            }
+            .frame(height: 470)
+
+            HStack(spacing: 8) {
                 ForEach(filteredBookingCards.indices, id: \.self) { index in
                     Circle()
                         .fill(index == selectedPage ? brandBlue : Color(red: 0.792, green: 0.816, blue: 0.855))
-                        .frame(width: index == selectedPage ? 10 : 8, height: index == selectedPage ? 10 : 8)
+                        .frame(width: index == selectedPage ? 9 : 7, height: index == selectedPage ? 9 : 7)
                 }
             }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -325,6 +361,7 @@ private enum HomeBookingActionMenu {
 
 struct HomeBookingCard: View {
     let booking: BookingCardModel
+    let width: CGFloat
     let onCall: (String?) -> Void
     let onMessage: (String?) -> Void
     let onReschedule: (BookingCardModel) -> Void
@@ -344,11 +381,11 @@ struct HomeBookingCard: View {
             dateTimeStrip
             detailsAndActions
         }
-        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(width: width, alignment: .top)
         .background(
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(Color.white)
-                .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
     }
@@ -368,7 +405,7 @@ struct HomeBookingCard: View {
                         .scaledToFill()
                 }
             }
-            .frame(height: 238)
+            .frame(width: width, height: 154)
             .clipped()
             .overlay(
                 LinearGradient(
@@ -383,29 +420,29 @@ struct HomeBookingCard: View {
                     statusPill
                     Spacer()
                 }
-                .padding(14)
+                .padding(10)
 
                 Spacer()
 
-                HStack(alignment: .center, spacing: 16) {
+                HStack(alignment: .center, spacing: 13) {
                     logoBubble
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(booking.title)
-                            .font(.system(size: 27, weight: .heavy))
+                            .font(.system(size: 22, weight: .heavy))
                             .foregroundColor(.white)
                             .lineLimit(2)
                         Text(booking.tenantName)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.white.opacity(0.92))
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 24)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
         }
-        .frame(height: 238)
+        .frame(width: width, height: 154)
     }
 
     private var logoBubble: some View {
@@ -413,7 +450,7 @@ struct HomeBookingCard: View {
             Circle()
                 .fill(brandText.opacity(0.82))
                 .overlay(Circle().stroke(Color.white.opacity(0.36), lineWidth: 1))
-                .frame(width: 82, height: 82)
+                .frame(width: 60, height: 60)
             Group {
                 if let url = booking.logoImageUrl, let imageURL = URL(string: url) {
                     AsyncImage(url: imageURL) { image in
@@ -421,12 +458,12 @@ struct HomeBookingCard: View {
                     } placeholder: {
                         fitLabFallbackLogo
                     }
-                    .padding(12)
+                    .padding(10)
                 } else {
                     fitLabFallbackLogo
                 }
             }
-            .frame(width: 82, height: 82)
+            .frame(width: 60, height: 60)
         }
     }
 
@@ -435,7 +472,7 @@ struct HomeBookingCard: View {
             Text("FIT")
             Text("LAB")
         }
-        .font(.system(size: 22, weight: .heavy))
+        .font(.system(size: 16, weight: .heavy))
         .foregroundColor(.white)
         .multilineTextAlignment(.center)
     }
@@ -454,58 +491,60 @@ struct HomeBookingCard: View {
     }
 
     private var statusPill: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 17, weight: .bold))
+                .font(.system(size: 12, weight: .bold))
             Text(bookingStatus(booking.status, isSl: isSl))
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
         }
         .foregroundColor(Color(red: 0.129, green: 0.588, blue: 0.325))
-        .padding(.horizontal, 14)
-        .frame(height: 36)
+        .padding(.horizontal, 10)
+        .frame(height: 28)
         .background(Capsule(style: .continuous).fill(Color(red: 0.898, green: 0.973, blue: 0.910)))
     }
 
     private var dateTimeStrip: some View {
         HStack(spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 25, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(brandBlue)
                 Text(bookingDateCompact(booking.startsAt, isSl: isSl))
-                    .font(.system(size: 21, weight: .heavy))
+                    .font(.system(size: 16, weight: .heavy))
                     .foregroundColor(brandText)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Rectangle()
                 .fill(Color(red: 0.796, green: 0.843, blue: 0.918))
-                .frame(width: 1, height: 42)
+                .frame(width: 1, height: 30)
 
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Image(systemName: "clock")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(brandBlue)
                 Text(bookingTimeRange(start: booking.startsAt, end: booking.endsAt, isSl: isSl))
-                    .font(.system(size: 21, weight: .heavy))
+                    .font(.system(size: 16, weight: .heavy))
                     .foregroundColor(brandText)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 18)
+            .padding(.leading, 14)
         }
-        .padding(.horizontal, 20)
-        .frame(height: 78)
+        .padding(.horizontal, 15)
+        .frame(height: 48)
         .background(Color(red: 0.918, green: 0.949, blue: 1.0))
     }
 
     private var detailsAndActions: some View {
         VStack(spacing: 0) {
             infoLine(icon: "person.fill", label: isSl ? "ZAPOSLENI" : "EMPLOYEE", value: booking.consultantName?.isEmpty == false ? booking.consultantName! : (isSl ? "Bo potrjeno" : "To be confirmed"))
-            Divider().overlay(softBorder).padding(.leading, 46).padding(.vertical, 9)
+            Divider().overlay(softBorder).padding(.leading, 36).padding(.vertical, 5)
             infoLine(icon: "location.fill", label: isSl ? "LOKACIJA" : "LOCATION", value: bookingLocationLine(booking: booking, isSl: isSl))
-            Divider().overlay(softBorder).padding(.leading, 46).padding(.vertical, 9)
+            Divider().overlay(softBorder).padding(.leading, 36).padding(.vertical, 5)
             infoLine(icon: "building.2.fill", label: isSl ? "PONUDNIK" : "TENANT", value: booking.tenantName)
 
             Button {
@@ -514,7 +553,7 @@ struct HomeBookingCard: View {
                 fullWidthActionLabel(title: isSl ? "Kontakt" : "Contact", systemName: "phone.connection", filled: true)
             }
             .buttonStyle(.plain)
-            .padding(.top, 16)
+            .padding(.top, 10)
 
             if activeActionMenu == .contact {
                 bookingActionSheet(menu: .contact)
@@ -529,7 +568,7 @@ struct HomeBookingCard: View {
                 fullWidthActionLabel(title: isSl ? "Upravljaj rezervacijo" : "Manage reservation", systemName: "bell", filled: false)
             }
             .buttonStyle(.plain)
-            .padding(.top, activeActionMenu == .contact ? 8 : 10)
+            .padding(.top, activeActionMenu == .contact ? 6 : 8)
 
             if activeActionMenu == .manage {
                 bookingActionSheet(menu: .manage)
@@ -538,24 +577,24 @@ struct HomeBookingCard: View {
                     .zIndex(2)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
+        .padding(.horizontal, 13)
+        .padding(.top, 10)
         .padding(.bottom, 8)
         .background(Color.white)
     }
 
     private func infoLine(icon: String, label: String, value: String) -> some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 27, weight: .medium))
+                .font(.system(size: 19, weight: .medium))
                 .foregroundColor(Color(red: 0.435, green: 0.490, blue: 0.569))
-                .frame(width: 32, height: 32)
+                .frame(width: 26, height: 26)
             VStack(alignment: .leading, spacing: 1) {
                 Text(label)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(mutedText)
                 Text(value)
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(brandText)
                     .lineLimit(2)
             }
@@ -567,22 +606,24 @@ struct HomeBookingCard: View {
         HStack(spacing: 8) {
             Spacer()
             Image(systemName: systemName)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
             Text(title)
-                .font(.system(size: 17, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
             Image(systemName: "chevron.down")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
             Spacer()
         }
         .foregroundColor(filled ? .white : brandBlue)
         .frame(maxWidth: .infinity)
-        .frame(height: 56)
+        .frame(height: 44)
         .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(filled ? brandBlue : Color.white)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(brandBlue, lineWidth: 1)
         )
     }
@@ -591,17 +632,17 @@ struct HomeBookingCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Capsule(style: .continuous)
                 .fill(Color(red: 0.847, green: 0.871, blue: 0.910))
-                .frame(width: 52, height: 5)
+                .frame(width: 42, height: 4)
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 14)
+                .padding(.bottom, 10)
 
             if menu == .contact {
                 Text(isSl ? "KONTAKT" : "CONTACT")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundColor(mutedText)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 8)
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     sheetButton(title: isSl ? "Kliči" : "Call", systemName: "phone", color: brandBlue, disabled: booking.tenantPhone?.isEmpty != false) {
                         onCall(booking.tenantPhone)
                         activeActionMenu = nil
@@ -613,11 +654,11 @@ struct HomeBookingCard: View {
                 }
             } else {
                 Text(isSl ? "MOŽNOSTI REZERVACIJE" : "RESERVATION OPTIONS")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundColor(mutedText)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 8)
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     sheetButton(title: isSl ? "Prestavi termin" : "Reschedule", systemName: "calendar.badge.clock", color: brandBlue, disabled: !booking.canManage) {
                         onReschedule(booking)
                         activeActionMenu = nil
@@ -629,39 +670,39 @@ struct HomeBookingCard: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
-        .padding(.bottom, 20)
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.white)
-                .shadow(color: .black.opacity(0.12), radius: 18, x: 0, y: 8)
+                .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 6)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(softBorder, lineWidth: 1)
         )
     }
 
     private func sheetButton(title: String, systemName: String, color: Color, disabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 9) {
+            HStack(spacing: 8) {
                 Image(systemName: systemName)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                 Text(title)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.74)
             }
             .foregroundColor(disabled ? mutedText.opacity(0.45) : color)
             .frame(maxWidth: .infinity)
-            .frame(height: 54)
+            .frame(height: 42)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .fill(Color.white)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .stroke(softBorder, lineWidth: 1)
             )
         }

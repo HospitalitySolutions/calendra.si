@@ -53,7 +53,6 @@ struct BookView: View {
     @State private var visibleMonth: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var slots: [AvailabilitySlotModel] = []
     @State private var selectedSlotId: String?
-    @State private var timePageIndex = 0
     @State private var selectedPaymentMethod: GuestBookingPaymentChoice = .card
     @State private var selectedEntitlementId: String?
     @State private var isLoadingSlots = false
@@ -666,132 +665,42 @@ struct BookView: View {
     }
 
     private var singleTimeSelector: some View {
-        let pages = timeSlotPages
-        let currentPage = min(max(timePageIndex, 0), max(pages.count - 1, 0))
-        let pageSlots = pages.isEmpty ? [] : pages[currentPage]
-        let canGoLeft = currentPage > 0
-        let canGoRight = currentPage < max(pages.count - 1, 0)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 7), count: 4)
 
-        return ZStack {
-            HStack(spacing: 7) {
-                ForEach(0..<4, id: \.self) { index in
-                    if index < pageSlots.count {
-                        let slot = pageSlots[index]
-                        Button {
-                            selectedSlotId = slot.id
-                        } label: {
-                            Text(DateFormatting.prettyTime(slot.startsAt))
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(selectedSlotId == slot.id ? Color.white : Color(red: 0.05, green: 0.42, blue: 1.0))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 42)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                        .fill(selectedSlotId == slot.id ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color.white.opacity(0.96))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                        .stroke(selectedSlotId == slot.id ? Color.clear : Color(red: 0.84, green: 0.89, blue: 0.95), lineWidth: 1)
-                                )
-                                .shadow(color: selectedSlotId == slot.id ? brandBlue.opacity(0.16) : Color.black.opacity(0.025), radius: selectedSlotId == slot.id ? 7 : 3, y: selectedSlotId == slot.id ? 4 : 2)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 42)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-
-            HStack {
+        return LazyVGrid(columns: columns, alignment: .center, spacing: 9) {
+            ForEach(slots) { slot in
                 Button {
-                    changeTimePage(-1)
+                    selectedSlotId = slot.id
                 } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 13, weight: .heavy))
-                        .foregroundColor(canGoLeft ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.62, green: 0.68, blue: 0.75).opacity(0.42))
-                        .frame(width: 18, height: 42)
+                    Text(DateFormatting.prettyTime(slot.startsAt))
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(selectedSlotId == slot.id ? Color.white : Color(red: 0.05, green: 0.42, blue: 1.0))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .background(
+                            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                .fill(selectedSlotId == slot.id ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color.white.opacity(0.96))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                .stroke(selectedSlotId == slot.id ? Color.clear : Color(red: 0.84, green: 0.89, blue: 0.95), lineWidth: 1)
+                        )
+                        .shadow(color: selectedSlotId == slot.id ? brandBlue.opacity(0.16) : Color.black.opacity(0.025), radius: selectedSlotId == slot.id ? 7 : 3, y: selectedSlotId == slot.id ? 4 : 2)
                 }
                 .buttonStyle(.plain)
-                .opacity(canGoLeft ? 1 : 0.45)
-                .disabled(!canGoLeft)
-                .offset(x: -2)
-
-                Spacer(minLength: 0)
-
-                Button {
-                    changeTimePage(1)
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .heavy))
-                        .foregroundColor(canGoRight ? Color(red: 0.05, green: 0.42, blue: 1.0) : Color(red: 0.62, green: 0.68, blue: 0.75).opacity(0.42))
-                        .frame(width: 18, height: 42)
-                }
-                .buttonStyle(.plain)
-                .opacity(canGoRight ? 1 : 0.45)
-                .disabled(!canGoRight)
-                .offset(x: 2)
             }
         }
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 24)
-                .onEnded { value in
-                    if value.translation.width < -34 {
-                        changeTimePage(1)
-                    } else if value.translation.width > 34 {
-                        changeTimePage(-1)
-                    }
-                }
-        )
         .onAppear {
             if selectedSlotId == nil {
                 selectedSlotId = slots.first?.id
             }
-            syncTimePageToSelected()
         }
         .onChange(of: slots.map(\.id)) { _ in
             if slots.contains(where: { $0.id == selectedSlotId }) == false {
                 selectedSlotId = slots.first?.id
             }
-            syncTimePageToSelected()
-        }
-        .onChange(of: selectedSlotId) { _ in
-            syncTimePageToSelected()
         }
         .padding(.vertical, 2)
-    }
-
-    private var timeSlotPages: [[AvailabilitySlotModel]] {
-        stride(from: 0, to: slots.count, by: 4).map { start in
-            Array(slots[start..<min(start + 4, slots.count)])
-        }
-    }
-
-    private var selectedSlotIndex: Int? {
-        guard let selectedSlotId else { return nil }
-        return slots.firstIndex(where: { $0.id == selectedSlotId })
-    }
-
-    private func changeTimePage(_ delta: Int) {
-        let pages = timeSlotPages
-        guard !pages.isEmpty else { return }
-        let nextPage = min(max(timePageIndex + delta, 0), pages.count - 1)
-        guard nextPage != timePageIndex else { return }
-        timePageIndex = nextPage
-        if let firstVisible = pages[nextPage].first {
-            selectedSlotId = firstVisible.id
-        }
-    }
-
-    private func syncTimePageToSelected() {
-        guard let index = selectedSlotIndex else {
-            timePageIndex = 0
-            return
-        }
-        timePageIndex = max(0, min(index / 4, max(timeSlotPages.count - 1, 0)))
     }
 
     private var paymentReviewStep: some View {

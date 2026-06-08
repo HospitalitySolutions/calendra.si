@@ -392,7 +392,9 @@ struct MainTabView: View {
     }
 
     private func handleAppTabSwipe(_ value: DragGesture.Value) {
-        guard selectedTab != .wallet, selectedTab != .profile else { return }
+        // Home uses horizontal swipes to page through the bookings carousel, so it must not
+        // also switch app tabs. Wallet/profile already opt out of tab-swiping.
+        guard selectedTab != .wallet, selectedTab != .profile, selectedTab != .home else { return }
 
         let horizontal = value.translation.width
         let vertical = value.translation.height

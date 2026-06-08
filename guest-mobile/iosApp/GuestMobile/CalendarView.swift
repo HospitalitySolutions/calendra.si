@@ -92,6 +92,7 @@ struct CalendarView: View {
 
             HomeBookingCard(
                 booking: booking,
+                width: max(UIScreen.main.bounds.width - 40, 0),
                 onCall: openPhone,
                 onMessage: openMessage,
                 onReschedule: { selectedBooking in
@@ -108,7 +109,7 @@ struct CalendarView: View {
                 },
                 isSl: isSl
             )
-            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity)
             .padding(.top, 20)
             .padding(.bottom, 18)
 
