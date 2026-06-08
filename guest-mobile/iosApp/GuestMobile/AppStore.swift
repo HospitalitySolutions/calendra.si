@@ -2,6 +2,16 @@ import Foundation
 import ImageIO
 import UIKit
 
+private func isWalletBuyOfferProduct(_ product: ProductModel) -> Bool {
+    guard product.bookable == false else { return false }
+    switch product.productType.uppercased() {
+    case "PACK", "MEMBERSHIP", "CLASS_TICKET", "GIFT_CARD":
+        return true
+    default:
+        return false
+    }
+}
+
 struct PasswordResetLinkContext: Equatable {
     let token: String
     let email: String?
@@ -184,7 +194,7 @@ final class AppStore: ObservableObject {
         guard let dashboard = tenantDashboards[tenantId] else { return [] }
         guard dashboard.tenant.billingEnabled != false else { return [] }
         return dashboard.products
-            .filter { !$0.bookable || $0.productType == "PACK" || $0.productType == "MEMBERSHIP" || $0.productType == "CLASS_TICKET" }
+            .filter { isWalletBuyOfferProduct($0) }
             .map {
                 WalletOfferModel(
                     id: "\(tenantId)-\($0.id)",
@@ -239,7 +249,7 @@ final class AppStore: ObservableObject {
             guard let dashboard = tenantDashboards[tenantId] else { return [] }
             guard dashboard.tenant.billingEnabled != false else { return [] }
             return dashboard.products
-                .filter { !$0.bookable || $0.productType == "PACK" || $0.productType == "MEMBERSHIP" || $0.productType == "CLASS_TICKET" }
+                .filter { isWalletBuyOfferProduct($0) }
                 .map {
                     WalletOfferModel(
                         id: "\(tenantId)-\($0.id)",

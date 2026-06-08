@@ -2933,7 +2933,7 @@ private fun walletAccessesForTenant(state: GuestUiState, tenantId: String): List
 
 private fun walletOffersForTenant(state: GuestUiState, tenantId: String): List<WalletOfferCard> =
     state.tenantDashboards[tenantId]?.products.orEmpty()
-        .filter { it.productType == "PACK" || it.productType == "MEMBERSHIP" || it.productType == "CLASS_TICKET" || it.productType == "GIFT_CARD" }
+        .filter { product -> isWalletBuyOfferProduct(product.bookable, product.productType) }
         .map { product ->
             WalletOfferCard(
                 companyId = tenantId,
@@ -2950,6 +2950,15 @@ private fun walletOffersForTenant(state: GuestUiState, tenantId: String): List<W
             )
         }
         .sortedBy { it.name }
+
+
+private fun isWalletBuyOfferProduct(bookable: Boolean, productType: String): Boolean {
+    if (bookable) return false
+    return when (productType.uppercase()) {
+        "PACK", "MEMBERSHIP", "CLASS_TICKET", "GIFT_CARD" -> true
+        else -> false
+    }
+}
 
 private fun selectedTenantIds(state: GuestUiState): List<String> = state.selectedTenantId?.let(::listOf) ?: state.linkedTenants.map { it.companyId }
 
@@ -3122,7 +3131,7 @@ private fun aggregatedRedeemableEntitlements(state: GuestUiState): List<Redeemab
 private fun aggregatedWalletOffers(state: GuestUiState): List<WalletOfferCard> =
     selectedTenantIds(state).flatMap { tenantId ->
         state.tenantDashboards[tenantId]?.products.orEmpty()
-            .filter { it.productType == "PACK" || it.productType == "MEMBERSHIP" || it.productType == "CLASS_TICKET" || it.productType == "GIFT_CARD" }
+            .filter { product -> isWalletBuyOfferProduct(product.bookable, product.productType) }
             .map { product ->
                 WalletOfferCard(
                     companyId = tenantId,
