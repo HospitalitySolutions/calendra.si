@@ -1,0 +1,16 @@
+Changes done:
+
+1. Android guest mobile app - Book tab date calendar sizing
+   - Reduced the compact month calendar height on Android to better match iOS.
+   - Compact calendar day cells now use 30dp circles and 32dp rows, matching the iOS compact calendar proportions more closely.
+   - Reduced compact calendar vertical padding/spacing so the calendar takes less screen height on Android.
+
+2. Android guest mobile app - Izberi uro / Select time layout
+   - Replaced the horizontal/paged time selector with an iOS-style fixed grid.
+   - Time fields now show 4 fields per row and continue onto multiple rows.
+   - Removed the Android-only swipe/page arrows from the time selector.
+   - Matched the time chip design more closely to iOS: 42dp height, 13dp corner radius, 16sp bold text, selected blue state, and subtle unselected border/shadow.
+
+Validation:
+- Updated Kotlin source was reviewed for syntax consistency.
+- Android Gradle compile could not be completed in this sandbox because the Gradle wrapper attempted to download the Gradle distribution and DNS/internet access is unavailable here.

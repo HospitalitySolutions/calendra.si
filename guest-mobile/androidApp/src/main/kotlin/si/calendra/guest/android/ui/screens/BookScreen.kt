@@ -3,7 +3,6 @@ package si.calendra.guest.android.ui.screens
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.ColumnScope
@@ -80,7 +79,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontWeight
@@ -278,6 +276,7 @@ fun BookScreen(
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now().plusDays(1)) }
     var slots by remember { mutableStateOf<List<AvailabilitySlot>>(emptyList()) }
+    var dateAvailability by remember { mutableStateOf<Map<LocalDate, Boolean>>(emptyMap()) }
     var selectedSlotId by remember { mutableStateOf<String?>(null) }
     var selectedPaymentMethod by remember { mutableStateOf(PaymentMethodUi.CARD) }
     var loadingSlots by remember { mutableStateOf(false) }
@@ -492,6 +491,7 @@ fun BookScreen(
             runCatching { onLoadAvailability(service, selectedDate, consultantIdForLoad) }
                 .onSuccess { list ->
                     slots = list
+                    dateAvailability = dateAvailability + (selectedDate to list.isNotEmpty())
                     selectedSlotId = list.firstOrNull()?.slotId
                     if (BuildConfig.DEBUG) {
                         Log.i(
@@ -502,6 +502,7 @@ fun BookScreen(
                 }
                 .onFailure { ex ->
                     slots = emptyList()
+                    dateAvailability = dateAvailability - selectedDate
                     availabilityLoadError = ex.message?.takeIf { it.isNotBlank() }
                         ?: bookTr(languageCode, "Could not load availability. Check API base URL and backend.", "Razpoložljivosti ni bilo mogoče naložiti. Preverite API osnovni URL in zaledje.")
                     if (BuildConfig.DEBUG) {
@@ -519,6 +520,34 @@ fun BookScreen(
     LaunchedEffect(selectedService?.id, selectedDate, selectedConsultantId, employeeStepActive) {
         if (selectedService != null) refreshSlots()
     }
+
+    LaunchedEffect(selectedService?.id, selectedMonth, selectedConsultantId, employeeStepActive, currentStep) {
+        val service = selectedService ?: run {
+            dateAvailability = emptyMap()
+            return@LaunchedEffect
+        }
+        if (currentStep != BookingFlowStep.DATE_TIME) return@LaunchedEffect
+        if (employeeStepActive && !entitlementLaunchMode && selectedConsultantId == null) {
+            dateAvailability = emptyMap()
+            return@LaunchedEffect
+        }
+
+        val today = LocalDate.now()
+        val monthDates = (1..selectedMonth.lengthOfMonth())
+            .map { selectedMonth.atDay(it) }
+            .filter { !it.isBefore(today) }
+        val consultantIdForLoad = if (employeeStepActive && !entitlementLaunchMode) selectedConsultantId else null
+        val loadedAvailability = mutableMapOf<LocalDate, Boolean>()
+        dateAvailability = emptyMap()
+        for (date in monthDates) {
+            val result = runCatching { onLoadAvailability(service, date, consultantIdForLoad) }.getOrNull()
+            if (result != null) {
+                loadedAvailability[date] = result.isNotEmpty()
+                dateAvailability = loadedAvailability.toMap()
+            }
+        }
+    }
+
 
     LaunchedEffect(selectedService?.id, employeeStepActive) {
         if (employeeStepActive && selectedService != null) {
@@ -723,7 +752,8 @@ fun BookScreen(
                                     selectedSlotId = null
                                 },
                                 compact = true,
-                                languageCode = languageCode
+                                languageCode = languageCode,
+                                dateAvailability = dateAvailability
                             )
                         }
                         item { StraightSectionHeader(bookTr(languageCode, "SELECT TIME", "IZBERI URO")) }
@@ -1725,7 +1755,7 @@ private fun ReviewSummaryLine(icon: ImageVector, label: String, value: String) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .height(42.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF0F6BFF))
@@ -1810,7 +1840,8 @@ private fun MonthCalendar(
     onMonthChange: (YearMonth) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     compact: Boolean = false,
-    languageCode: String = "en"
+    languageCode: String = "en",
+    dateAvailability: Map<LocalDate, Boolean> = emptyMap()
 ) {
     val today = remember { LocalDate.now() }
     val firstDay = selectedMonth.atDay(1)
@@ -1834,8 +1865,8 @@ private fun MonthCalendar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 14.dp, vertical = if (compact) 12.dp else 14.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1888,12 +1919,13 @@ private fun MonthCalendar(
             cells.chunked(7).forEach { week ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     week.forEach { date ->
+                        val hasAvailableSlots = date?.let { dateAvailability[it] } != false
                         CalendarDateCell(
                             date = date,
                             isSelected = date == selectedDate,
-                            isEnabled = date != null && !date.isBefore(today),
+                            isEnabled = date != null && !date.isBefore(today) && hasAvailableSlots,
                             compact = compact,
-                            onClick = { if (date != null && !date.isBefore(today)) onDateSelected(date) }
+                            onClick = { if (date != null && !date.isBefore(today) && hasAvailableSlots) onDateSelected(date) }
                         )
                     }
                 }
@@ -1910,11 +1942,11 @@ private fun RowScope.CalendarDateCell(
     compact: Boolean,
     onClick: () -> Unit
 ) {
-    val cellSize = if (compact) 34.dp else 42.dp
+    val cellSize = if (compact) 30.dp else 42.dp
     Box(
         modifier = Modifier
             .weight(1f)
-            .padding(vertical = 2.dp),
+            .height(if (compact) 32.dp else 46.dp),
         contentAlignment = Alignment.Center
     ) {
         if (date == null) {
@@ -1925,17 +1957,18 @@ private fun RowScope.CalendarDateCell(
                     .size(cellSize)
                     .clickable(enabled = isEnabled, onClick = onClick),
                 shape = CircleShape,
-                color = if (isSelected) Color(0xFF0F6BFF) else Color.Transparent
+                color = if (isSelected && isEnabled) Color(0xFF0F6BFF) else Color.Transparent
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         date.dayOfMonth.toString(),
                         color = when {
-                            isSelected -> Color.White
+                            isSelected && isEnabled -> Color.White
                             isEnabled -> Color(0xFF082143)
                             else -> Color(0xFF9CA9B8).copy(alpha = 0.55f)
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = if (compact) 14.sp else 16.sp,
+                        lineHeight = if (compact) 16.sp else 18.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         textAlign = TextAlign.Center
                     )
@@ -1953,108 +1986,42 @@ private fun SingleTimeSelector(
 ) {
     if (slots.isEmpty()) return
 
-    val pages = remember(slots) { slots.chunked(4) }
-    val selectedIndex = slots.indexOfFirst { it.slotId == selectedSlotId }.takeIf { it >= 0 } ?: 0
-    var pageIndex by rememberSaveable(slots.map { it.slotId }.joinToString("|")) {
-        mutableStateOf((selectedIndex / 4).coerceIn(0, (pages.size - 1).coerceAtLeast(0)))
-    }
-    var dragAmount by remember { mutableStateOf(0f) }
-
     LaunchedEffect(slots, selectedSlotId) {
-        if (selectedSlotId == null) {
+        if (selectedSlotId == null || slots.none { it.slotId == selectedSlotId }) {
             onSelectSlot(slots.first().slotId)
         }
-        val targetPage = ((slots.indexOfFirst { it.slotId == selectedSlotId }.takeIf { it >= 0 } ?: 0) / 4)
-            .coerceIn(0, (pages.size - 1).coerceAtLeast(0))
-        if (targetPage != pageIndex) {
-            pageIndex = targetPage
-        }
     }
 
-    fun changePage(delta: Int) {
-        val nextPage = (pageIndex + delta).coerceIn(0, pages.lastIndex)
-        if (nextPage != pageIndex) {
-            pageIndex = nextPage
-            onSelectSlot(pages[nextPage].first().slotId)
-        }
-    }
-
-    val currentPageSlots = pages[pageIndex]
-    val canGoLeft = pageIndex > 0
-    val canGoRight = pageIndex < pages.lastIndex
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .pointerInput(slots, pageIndex) {
-                detectHorizontalDragGestures(
-                    onDragStart = { dragAmount = 0f },
-                    onHorizontalDrag = { _, delta -> dragAmount += delta },
-                    onDragEnd = {
-                        when {
-                            dragAmount < -50f -> changePage(1)
-                            dragAmount > 50f -> changePage(-1)
-                        }
-                    }
-                )
-            }
+            .padding(vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            repeat(4) { index ->
-                if (index < currentPageSlots.size) {
-                    val slot = currentPageSlots[index]
-                    TimeChip(
-                        time = slot.startsAt.asSlotTime(),
-                        selected = slot.slotId == selectedSlotId,
-                        onClick = { onSelectSlot(slot.slotId) },
-                        modifier = Modifier.weight(1f)
-                    )
-                } else {
-                    Spacer(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                    )
+        slots.chunked(4).forEach { rowSlots ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(4) { index ->
+                    if (index < rowSlots.size) {
+                        val slot = rowSlots[index]
+                        TimeChip(
+                            time = slot.startsAt.asSlotTime(),
+                            selected = slot.slotId == selectedSlotId,
+                            onClick = { onSelectSlot(slot.slotId) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp)
+                        )
+                    }
                 }
             }
-        }
-
-        IconButton(
-            onClick = { changePage(-1) },
-            enabled = canGoLeft,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .offset(x = (-2).dp)
-                .size(width = 18.dp, height = 42.dp)
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                contentDescription = "Previous time page",
-                modifier = Modifier.size(17.dp),
-                tint = if (canGoLeft) Color(0xFF0F6BFF) else Color(0xFF9CA9B8).copy(alpha = 0.42f)
-            )
-        }
-
-        IconButton(
-            onClick = { changePage(1) },
-            enabled = canGoRight,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = 2.dp)
-                .size(width = 18.dp, height = 42.dp)
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = "Next time page",
-                modifier = Modifier.size(17.dp),
-                tint = if (canGoRight) Color(0xFF0F6BFF) else Color(0xFF9CA9B8).copy(alpha = 0.42f)
-            )
         }
     }
 }
@@ -2068,21 +2035,22 @@ private fun TimeChip(
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(13.dp),
         color = if (selected) Color(0xFF0F6BFF) else Color.White,
         border = if (selected) null else BorderStroke(1.dp, Color(0xFFDCE7F5)),
-        shadowElevation = if (selected) 3.dp else 1.dp
+        shadowElevation = if (selected) 4.dp else 2.dp
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .height(42.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 time,
                 color = if (selected) Color.White else Color(0xFF0F6BFF),
-                style = MaterialTheme.typography.labelLarge,
+                fontSize = 16.sp,
+                lineHeight = 18.sp,
                 fontWeight = FontWeight.Bold
             )
         }

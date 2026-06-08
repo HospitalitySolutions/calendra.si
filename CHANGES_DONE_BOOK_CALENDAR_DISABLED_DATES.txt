@@ -1,0 +1,16 @@
+Book tab calendar unavailable-date update
+
+Updated files:
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/screens/BookScreen.kt
+- guest-mobile/iosApp/GuestMobile/BookView.swift
+
+Changes done:
+1. Android Book tab calendar now checks availability for every future day in the visible month after a service/date-time step is active.
+2. iOS Book tab calendar now checks availability for every future day in the visible month after a service/date-time step is active.
+3. Dates that have no available Izberi uro / time-slot options are shown in the same disabled gray style as unavailable dates.
+4. Disabled no-slot dates cannot be tapped on either Android or iOS, so guests can only choose dates that still have available time fields.
+5. The selected day availability is kept in sync with the loaded Izberi uro slots, while failed availability checks are left as unknown instead of incorrectly disabling the day.
+
+Validation:
+- Swift syntax parse was run with swiftc -parse for BookView.swift.
+- Android full Gradle build was not run in the sandbox because the Gradle distribution/dependencies require internet/DNS access.

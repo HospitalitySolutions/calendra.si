@@ -52,6 +52,7 @@ struct BookView: View {
     @State private var selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
     @State private var visibleMonth: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     @State private var slots: [AvailabilitySlotModel] = []
+    @State private var dateAvailability: [String: Bool] = [:]
     @State private var selectedSlotId: String?
     @State private var selectedPaymentMethod: GuestBookingPaymentChoice = .card
     @State private var selectedEntitlementId: String?
@@ -344,6 +345,7 @@ struct BookView: View {
                 selectedSlotId = nil
                 consultants = []
                 slots = []
+                dateAvailability = [:]
             }
             applyRescheduleContextIfNeeded()
         }
@@ -360,6 +362,7 @@ struct BookView: View {
                 selectedServiceId = nil
                 selectedSlotId = nil
                 slots = []
+                dateAvailability = [:]
                 selectedConsultantId = nil
                 consultants = []
             }
@@ -370,6 +373,7 @@ struct BookView: View {
         }
         .onChange(of: selectedServiceId) { _ in
             selectedSlotId = nil
+            dateAvailability = [:]
             selectedConsultantId = nil
             consultants = []
             if employeeStepEnabled, let selectedService {
@@ -379,6 +383,7 @@ struct BookView: View {
         }
         .onChange(of: selectedConsultantId) { _ in
             selectedSlotId = nil
+            dateAvailability = [:]
         }
         .onChange(of: selectedDate) { newDate in
             selectedSlotId = nil
@@ -395,6 +400,17 @@ struct BookView: View {
                   let dateIdx = steps.firstIndex(of: .dateTime),
                   currentIdx >= dateIdx else { return }
             await loadAvailability(for: selectedService)
+        }
+        .task(id: monthAvailabilityTaskKey) {
+            guard let selectedService else {
+                dateAvailability = [:]
+                return
+            }
+            let steps = visibleSteps
+            guard let currentIdx = steps.firstIndex(of: currentStep),
+                  let dateIdx = steps.firstIndex(of: .dateTime),
+                  currentIdx >= dateIdx else { return }
+            await loadMonthAvailability(for: selectedService)
         }
         .sheet(isPresented: $showingPaymentMethodsSheet) {
             PaymentMethodPickerSheet(
@@ -644,7 +660,8 @@ struct BookView: View {
                     visibleMonth: $visibleMonth,
                     selectedDate: $selectedDate,
                     compact: true,
-                    languageCode: appUiLocaleStorage
+                    languageCode: appUiLocaleStorage,
+                    dateAvailability: dateAvailability
                 )
 
                 straightSectionHeader(tr("SELECT TIME", "IZBERI URO"))
@@ -1236,6 +1253,7 @@ struct BookView: View {
                 date: selectedDate,
                 consultantId: (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil
             )
+            dateAvailability[DateFormatting.dayString(selectedDate)] = !slots.isEmpty
             if slots.contains(where: { $0.id == selectedSlotId }) == false {
                 selectedSlotId = slots.first?.id
             }
@@ -1244,8 +1262,50 @@ struct BookView: View {
             guard !isCancellation(error), !Task.isCancelled else { return }
             isLoadingSlots = false
             slots = []
+            dateAvailability.removeValue(forKey: DateFormatting.dayString(selectedDate))
             selectedSlotId = nil
             store.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func loadMonthAvailability(for service: ServiceOptionModel) async {
+        let steps = visibleSteps
+        guard let currentIdx = steps.firstIndex(of: currentStep),
+              let dateIdx = steps.firstIndex(of: .dateTime),
+              currentIdx >= dateIdx else { return }
+        if employeeStepEnabled, !entitlementLaunchMode, selectedConsultantId == nil {
+            dateAvailability = [:]
+            return
+        }
+
+        let cal = Calendar.current
+        guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: visibleMonth)),
+              let range = cal.range(of: .day, in: .month, for: monthStart) else {
+            dateAvailability = [:]
+            return
+        }
+        let todayStart = cal.startOfDay(for: Date())
+        let consultantId = (employeeStepEnabled && !entitlementLaunchMode) ? selectedConsultantId : nil
+        var loaded: [String: Bool] = [:]
+        dateAvailability = [:]
+
+        for day in range {
+            guard !Task.isCancelled else { return }
+            guard let date = cal.date(byAdding: .day, value: day - 1, to: monthStart) else { continue }
+            if cal.startOfDay(for: date) < todayStart { continue }
+            do {
+                let daySlots = try await store.loadAvailability(
+                    companyId: service.companyId,
+                    sessionTypeId: service.sessionTypeId,
+                    date: date,
+                    consultantId: consultantId
+                )
+                loaded[DateFormatting.dayString(date)] = !daySlots.isEmpty
+                dateAvailability = loaded
+            } catch {
+                guard !isCancellation(error), !Task.isCancelled else { return }
+                continue
+            }
         }
     }
 
@@ -1306,6 +1366,10 @@ struct BookView: View {
 
     private var availabilityTaskKey: String {
         "\(selectedService?.id ?? "none")-\(DateFormatting.dayString(selectedDate))-\(selectedConsultantId ?? "any")"
+    }
+
+    private var monthAvailabilityTaskKey: String {
+        "\(selectedService?.id ?? "none")-\(DateFormatting.dayString(visibleMonth))-\(selectedConsultantId ?? "any")-\(currentStep.rawValue)"
     }
 
     private func priceString(_ value: Double) -> String {
@@ -1871,6 +1935,7 @@ private struct MonthCalendarView: View {
     @Binding var selectedDate: Date
     var compact: Bool = false
     var languageCode: String = "en"
+    var dateAvailability: [String: Bool] = [:]
     private var isSl: Bool { languageCode.lowercased().hasPrefix("sl") }
     private let calendarBlue = Color(red: 0.05, green: 0.42, blue: 1.0)
     private let calendarText = Color(red: 0.07, green: 0.10, blue: 0.16)
@@ -1977,32 +2042,35 @@ private struct MonthCalendarView: View {
                     if let date = dateOrNil {
                         let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
                         let isPast = calendar.startOfDay(for: date) < calendar.startOfDay(for: Date())
+                        let hasAvailableSlots = dateAvailability[DateFormatting.dayString(date)] != false
+                        let isEnabled = !isPast && hasAvailableSlots
+                        let isSelectedAndEnabled = isSelected && isEnabled
                         let circle: CGFloat = compact ? 30 : 36
                         let rowHeight: CGFloat = compact ? 32 : 38
                         Button {
-                            if !isPast {
+                            if isEnabled {
                                 selectedDate = date
                             }
                         } label: {
                             ZStack {
-                                if isSelected {
+                                if isSelectedAndEnabled {
                                     Circle()
                                         .fill(calendarBlue)
                                         .frame(width: circle, height: circle)
                                 }
                                 Text("\(calendar.component(.day, from: date))")
-                                    .font(.system(size: compact ? 14 : 16, weight: isSelected ? .semibold : .regular))
+                                    .font(.system(size: compact ? 14 : 16, weight: isSelectedAndEnabled ? .semibold : .regular))
                                     .foregroundColor(
-                                        isSelected
+                                        isSelectedAndEnabled
                                         ? Color.white
-                                        : (isPast ? calendarText.opacity(0.35) : calendarText)
+                                        : (isEnabled ? calendarText : calendarText.opacity(0.35))
                                     )
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: rowHeight)
                         }
                         .buttonStyle(.plain)
-                        .disabled(isPast)
+                        .disabled(!isEnabled)
                     } else {
                         Color.clear.frame(height: compact ? 32 : 38)
                     }
