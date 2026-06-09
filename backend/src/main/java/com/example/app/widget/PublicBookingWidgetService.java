@@ -138,6 +138,7 @@ public class PublicBookingWidgetService {
                 widgetTurnstileService.isEnabled(company),
                 widgetTurnstileService.siteKey(company),
                 websiteSettings.employeeSelectionStep(),
+                websiteSettings.paymentOnLocation(),
                 bookingRules.requireOnlinePayment(),
                 bookingRules.paymentRequirement(),
                 bookingRules.depositPercent(),

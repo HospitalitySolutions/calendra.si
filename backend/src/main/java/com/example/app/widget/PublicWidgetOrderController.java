@@ -5,10 +5,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -69,5 +73,23 @@ public class PublicWidgetOrderController {
             HttpServletRequest httpRequest
     ) {
         return service.checkout(tenantCode, orderId, request, httpRequest);
+    }
+
+
+    @GetMapping(value = "/stripe/return", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> stripeReturn(
+            @RequestParam Long orderId,
+            @RequestParam(defaultValue = "success") String status,
+            @RequestParam(name = "session_id", required = false) String checkoutSessionId
+    ) {
+        return ResponseEntity.ok(service.renderStripeReturnPage(orderId, status, checkoutSessionId));
+    }
+
+    @GetMapping(value = "/stripe/cancel", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> stripeCancel(
+            @RequestParam Long orderId,
+            @RequestParam(name = "session_id", required = false) String checkoutSessionId
+    ) {
+        return ResponseEntity.ok(service.renderStripeCancelPage(orderId, checkoutSessionId));
     }
 }

@@ -131,6 +131,11 @@ public class GuestBankTransferBillingService {
         if (bill.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no valid billing lines, so an advance invoice cannot be generated.");
         }
+
+        Totals adjustedTotals = applyOrderAdvanceAmountIfPartial(order, bill, totalNet, totalGross);
+        totalNet = adjustedTotals.net();
+        totalGross = adjustedTotals.gross();
+
         bill.setTotalNet(totalNet.setScale(2, RoundingMode.HALF_UP));
         bill.setTotalGross(totalGross.setScale(2, RoundingMode.HALF_UP));
         invoiceOrderIdService.assignIfMissing(bill);
@@ -170,6 +175,40 @@ public class GuestBankTransferBillingService {
         }
         deliverAdvance(saved, saved.getCompany().getId(), orderId);
         return saved;
+    }
+
+    private Totals applyOrderAdvanceAmountIfPartial(GuestOrder order, Bill bill, BigDecimal originalNet, BigDecimal originalGross) {
+        if (order == null || order.getTotalGross() == null || originalGross == null) {
+            return new Totals(originalNet, originalGross);
+        }
+        BigDecimal requestedGross = order.getTotalGross().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal fullGross = originalGross.setScale(2, RoundingMode.HALF_UP);
+        if (requestedGross.compareTo(BigDecimal.ZERO) <= 0 || requestedGross.compareTo(fullGross) >= 0) {
+            return new Totals(originalNet, originalGross);
+        }
+
+        BigDecimal remainingGross = requestedGross;
+        BigDecimal adjustedNet = BigDecimal.ZERO;
+        BigDecimal ratio = requestedGross.divide(fullGross, 8, RoundingMode.HALF_UP);
+        int count = bill.getItems().size();
+        for (int i = 0; i < count; i++) {
+            BillItem item = bill.getItems().get(i);
+            BigDecimal itemGross;
+            if (i == count - 1) {
+                itemGross = remainingGross.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+            } else {
+                itemGross = item.getGrossPrice().multiply(ratio).setScale(2, RoundingMode.HALF_UP);
+                remainingGross = remainingGross.subtract(itemGross);
+            }
+            BigDecimal taxMultiplier = item.getTransactionService() == null || item.getTransactionService().getTaxRate() == null
+                    ? BigDecimal.ZERO
+                    : item.getTransactionService().getTaxRate().multiplier;
+            BigDecimal itemNet = itemGross.divide(BigDecimal.ONE.add(taxMultiplier), 2, RoundingMode.HALF_UP);
+            item.setGrossPrice(itemGross);
+            item.setNetPrice(itemNet);
+            adjustedNet = adjustedNet.add(itemNet);
+        }
+        return new Totals(adjustedNet, requestedGross);
     }
 
     private void deliverAdvance(Bill bill, Long companyId, Long orderId) {
@@ -246,6 +285,8 @@ public class GuestBankTransferBillingService {
         }
         return null;
     }
+
+    private record Totals(BigDecimal net, BigDecimal gross) {}
 
     private User resolveBillConsultant(Long companyId, SessionBooking booking) {
         if (booking.getConsultant() != null) {

@@ -38,23 +38,26 @@ public class StripeGuestCheckoutService {
     }
 
     public StripeCheckoutSessionResult createCheckoutSession(GuestOrder order) {
+        return createCheckoutSession(order, guestReturnUrl(order, "success"), guestCancelUrl(order), "guest_order");
+    }
+
+    public StripeCheckoutSessionResult createWebsiteWidgetCheckoutSession(GuestOrder order) {
+        return createCheckoutSession(order, websiteWidgetReturnUrl(order, "success"), websiteWidgetCancelUrl(order), "website_widget_order");
+    }
+
+    private StripeCheckoutSessionResult createCheckoutSession(GuestOrder order, String successUrl, String cancelUrl, String source) {
         StripeConnectService.ConnectedAccountRouting routing = connectService.routingForCompany(order.getCompany());
         StripePlatformSettingsService.StripeModeSettings cfg = routing.modeSettings();
         order.setStripeConnectedAccountId(routing.accountId());
         order.setStripeConnectMode(routing.mode().apiValue());
         Map<String, String> metadata = new LinkedHashMap<>();
-        metadata.put("source", "guest_order");
+        metadata.put("source", source == null || source.isBlank() ? "guest_order" : source);
         metadata.put("guest_order_id", String.valueOf(order.getId()));
         metadata.put("company_id", String.valueOf(order.getCompany().getId()));
         metadata.put("client_id", String.valueOf(order.getClient().getId()));
         metadata.put("stripe_connect_mode", routing.mode().apiValue());
 
         long feeAmount = platformSettings.applicationFeeAmountMinor(routing.mode(), order.getTotalGross());
-        // Guest mobile checkout must not reuse the Platform Admin/Billing success/cancel URLs,
-        // because those point to the web app. Route Stripe back through public backend endpoints
-        // that update the guest order when needed and then deep-link into the native app.
-        String successUrl = guestReturnUrl(order, "success");
-        String cancelUrl = guestCancelUrl(order);
 
         return checkoutClient.createOneTimeSession(new StripeCheckoutClient.StripeCheckoutSessionCreateRequest(
                 cfg.secretKey(),
@@ -82,6 +85,19 @@ public class StripeGuestCheckoutService {
     private String guestCancelUrl(GuestOrder order) {
         return publicBaseUrl()
                 + "/api/guest/stripe/cancel?orderId=" + order.getId()
+                + "&session_id={CHECKOUT_SESSION_ID}";
+    }
+
+    private String websiteWidgetReturnUrl(GuestOrder order, String status) {
+        return publicBaseUrl()
+                + "/api/public/widget/stripe/return?status=" + status
+                + "&orderId=" + order.getId()
+                + "&session_id={CHECKOUT_SESSION_ID}";
+    }
+
+    private String websiteWidgetCancelUrl(GuestOrder order) {
+        return publicBaseUrl()
+                + "/api/public/widget/stripe/cancel?orderId=" + order.getId()
                 + "&session_id={CHECKOUT_SESSION_ID}";
     }
 

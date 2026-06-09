@@ -58,7 +58,9 @@
       paymentMethodPaypalSubtitle: 'Redirect to PayPal to approve the payment.',
       paymentMethodGiftCard: 'Gift card',
       paymentMethodGiftCardSubtitle: 'Use available gift card balance.',
-      paymentMethodsNone: 'No online payment methods are available for this tenant.',
+      paymentMethodVenue: 'Pay at venue',
+      paymentMethodVenueSubtitle: 'Book now without online payment and settle at the venue.',
+      paymentMethodsNone: 'No payment methods are available for this tenant.',
       summaryPayment: 'Payment',
       summaryFullPayment: 'Online payment',
       summaryPayAtVenue: 'Pay at venue',
@@ -187,7 +189,9 @@
       paymentMethodPaypalSubtitle: 'Preusmeritev na PayPal za potrditev plačila.',
       paymentMethodGiftCard: 'Darilni bon',
       paymentMethodGiftCardSubtitle: 'Uporabite razpoložljivo dobroimetje darilnega bona.',
-      paymentMethodsNone: 'Za to tenancy ni na voljo spletnih načinov plačila.',
+      paymentMethodVenue: 'Plačilo na lokaciji',
+      paymentMethodVenueSubtitle: 'Rezervirajte brez spletnega plačila in poravnajte na lokaciji.',
+      paymentMethodsNone: 'Za to tenancy ni na voljo načinov plačila.',
       summaryPayment: 'Plačilo',
       summaryFullPayment: 'Spletno plačilo',
       summaryPayAtVenue: 'Plačilo na lokaciji',
@@ -496,7 +500,7 @@
       return [
         { id: 'service', label: t.stepService },
         { id: 'datetime', label: t.stepDateTime },
-        { id: 'details', label: this.requiresOnlinePaymentChoice() ? t.stepGuest : t.stepGuestReviewOnly },
+        { id: 'details', label: t.stepGuest },
       ];
     }
 
@@ -506,6 +510,7 @@
       if (allowed?.bankTransfer) return 'BANK_TRANSFER';
       if (allowed?.paypal) return 'PAYPAL';
       if (allowed?.giftCard) return 'GIFT_CARD';
+      if (config?.paymentOnLocation) return 'PAY_AT_VENUE';
       return null;
     }
 
@@ -513,7 +518,7 @@
       const t = this.text();
       if (this.state.bookingSuccess) return t.confirmed;
       if (this.state.activeStep === 'datetime') return t.dateTitle || t.sectionDateTime;
-      if (this.state.activeStep === 'details') return this.requiresOnlinePaymentChoice() ? (t.detailsTitle || t.sectionGuest) : t.sectionGuestReviewOnly;
+      if (this.state.activeStep === 'details') return t.detailsTitle || t.sectionGuest;
       return t.title;
     }
 
@@ -807,9 +812,9 @@
       }
       if (stepId === 'details') {
         const hasGuestDetails = Boolean(form.firstName.trim() && form.lastName.trim() && form.email.trim() && form.phone.trim());
-        const hasPayment =
-          !this.requiresOnlinePaymentChoice()
-          || (Boolean(this.state.paymentMethod) && this.isPaymentMethodAvailable(this.state.paymentMethod));
+        const hasPayment = this.hasPaymentChoices()
+          && Boolean(this.state.paymentMethod)
+          && this.isPaymentMethodAvailable(this.state.paymentMethod);
         return hasGuestDetails && hasPayment && this.state.termsAccepted !== false;
       }
       return false;
@@ -819,9 +824,22 @@
       return this.state.config?.allowedPaymentMethods || { card: false, bankTransfer: false, paypal: false, giftCard: false };
     }
 
-    /** When false, widget books with PAY_AT_VENUE (session widget only; backend enforces). */
+    paymentOnLocationAllowed() {
+      return Boolean(this.state.config?.paymentOnLocation);
+    }
+
+    hasPaymentChoices() {
+      const allowed = this.allowedPaymentMethods();
+      return Boolean(allowed.card || allowed.bankTransfer || allowed.paypal || allowed.giftCard || this.paymentOnLocationAllowed());
+    }
+
+    /** True when the final step needs the guest to choose one of the configured payment options. */
     requiresOnlinePaymentChoice() {
-      return this.state.config?.requireOnlinePayment !== false;
+      return this.hasPaymentChoices();
+    }
+
+    selectedPaymentMethodRequiresOnlinePayment() {
+      return Boolean(this.state.paymentMethod && this.state.paymentMethod !== 'PAY_AT_VENUE');
     }
 
     paymentRequirement() {
@@ -873,7 +891,7 @@
         </div>
       ` : '';
       const requirement = this.paymentRequirement();
-      if (!this.requiresOnlinePaymentChoice() || requirement === 'none') {
+      if (this.state.paymentMethod === 'PAY_AT_VENUE' || !this.selectedPaymentMethodRequiresOnlinePayment() || requirement === 'none') {
         return `
           <div class="summary-divider" aria-hidden="true"></div>
           ${paymentRow(t.summaryPayment, t.summaryPayAtVenue, true)}
@@ -907,6 +925,7 @@
       if (method === 'BANK_TRANSFER') return Boolean(allowed.bankTransfer);
       if (method === 'PAYPAL') return Boolean(allowed.paypal);
       if (method === 'GIFT_CARD') return Boolean(allowed.giftCard);
+      if (method === 'PAY_AT_VENUE') return this.paymentOnLocationAllowed();
       return false;
     }
 
@@ -980,10 +999,9 @@
         if (!this.state.form.lastName.trim()) missing.push(t.lastName);
         if (!this.state.form.email.trim()) missing.push(t.email);
         if (!this.state.form.phone.trim()) missing.push(t.phone);
-        if (
-          this.requiresOnlinePaymentChoice()
-          && (!this.state.paymentMethod || !this.isPaymentMethodAvailable(this.state.paymentMethod))
-        ) {
+        if (!this.hasPaymentChoices()) {
+          missing.push(t.payment);
+        } else if (!this.state.paymentMethod || !this.isPaymentMethodAvailable(this.state.paymentMethod)) {
           missing.push(t.payment);
         }
 
@@ -1165,8 +1183,12 @@
       if (!this.validateCurrentStep()) return;
 
       const { selectedServiceId, selectedDate, selectedSlot, selectedConsultantId, form, config, paymentMethod } = this.state;
-      const effectivePaymentMethod = this.requiresOnlinePaymentChoice() ? paymentMethod : 'PAY_AT_VENUE';
+      const effectivePaymentMethod = paymentMethod || this.defaultPaymentMethod();
       const t = this.text();
+      if (!effectivePaymentMethod || !this.isPaymentMethodAvailable(effectivePaymentMethod)) {
+        this.setState({ error: `${t.completePrefix} ${t.payment}.`, activeStep: 'details' });
+        return;
+      }
 
       // Slot is required — the full flow is only intended for slot-based availability.
       if (!config?.availabilityEnabled || !selectedSlot) {
@@ -1220,6 +1242,7 @@
             productId,
             slotId,
             paymentMethodType: effectivePaymentMethod,
+            locale: this.options.locale || 'sl',
           },
         });
 
@@ -1235,12 +1258,12 @@
             ...authHeaders,
             'Idempotency-Key': (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2)),
           },
-          body: { paymentMethodType: effectivePaymentMethod },
+          body: { paymentMethodType: effectivePaymentMethod, locale: this.options.locale || 'sl' },
         });
 
-        // PayPal: redirect the user to the PayPal approval URL (returned as `checkoutUrl`).
-        if (effectivePaymentMethod === 'PAYPAL' && checkout?.checkoutUrl) {
-          this.setState({ saving: false, paymentResult: { type: 'PAYPAL', approveUrl: checkout.checkoutUrl } });
+        // External payment methods redirect the guest to the provider approval/checkout URL.
+        if ((effectivePaymentMethod === 'PAYPAL' || effectivePaymentMethod === 'CARD') && checkout?.checkoutUrl) {
+          this.setState({ saving: false, paymentResult: { type: effectivePaymentMethod, checkoutUrl: checkout.checkoutUrl } });
           window.location.href = checkout.checkoutUrl;
           return;
         }
@@ -1641,8 +1664,7 @@
       }
 
       const allowed = this.allowedPaymentMethods();
-      const skipOnlinePayment = !this.requiresOnlinePaymentChoice();
-      const hasAnyPaymentMethod = Boolean(allowed.giftCard || allowed.card || allowed.bankTransfer || allowed.paypal);
+      const hasAnyPaymentMethod = Boolean(allowed.giftCard || allowed.card || allowed.bankTransfer || allowed.paypal || this.paymentOnLocationAllowed());
       const cardVariant = (variant, title, subtitle, iconMarkup) => `
         <button
           class="payment-tile ${this.state.paymentMethod === 'CARD' && this.state.paymentMethodVariant === variant ? 'is-active' : ''}"
@@ -1688,17 +1710,16 @@
 
               <div class="payment-block">
                 <div class="block-title">${escapeHtml(t.paymentMethodTitle)}</div>
-                ${skipOnlinePayment ? `
-                  <p class="empty empty--left">${escapeHtml(t.payAtVenueNote)}</p>
-                ` : hasAnyPaymentMethod ? `
+                ${hasAnyPaymentMethod ? `
                   <div class="payment-grid">
                     ${allowed.card ? methodTile('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, this.uiIcon('card')) : ''}
                     ${allowed.bankTransfer ? methodTile('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, this.paymentMethodLogos('BANK_TRANSFER')) : ''}
                     ${allowed.paypal ? methodTile('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, this.paymentMethodLogos('PAYPAL')) : ''}
                     ${allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
+                    ${this.paymentOnLocationAllowed() ? methodTile('PAY_AT_VENUE', t.paymentMethodVenue, t.paymentMethodVenueSubtitle || t.payAtVenueNote, this.uiIcon('card')) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
-                ${this.paymentRequirement() === 'deposit' && !skipOnlinePayment ? `<p class="summary-payment-note summary-payment-note--checkout">${escapeHtml(t.depositPaymentNote)}</p>` : ''}
+                ${this.paymentRequirement() === 'deposit' && this.selectedPaymentMethodRequiresOnlinePayment() ? `<p class="summary-payment-note summary-payment-note--checkout">${escapeHtml(t.depositPaymentNote)}</p>` : ''}
                 ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap turnstile-wrap--under-payments"><slot name="turnstile-slot"></slot></div>` : ''}
               </div>
 

@@ -2727,6 +2727,11 @@ const normalizeGuestPaymentMethods = (value: any): GuestPaymentMethodId[] => {
   return normalized.length > 0 ? normalized : DEFAULT_GUEST_PAYMENT_METHOD_IDS
 }
 
+const normalizeWebsitePaymentMethods = (value: any): GuestPaymentMethodId[] => {
+  if (!Array.isArray(value)) return DEFAULT_GUEST_PAYMENT_METHOD_IDS
+  return value.map((row) => String(row || '')).filter(isGuestPaymentMethodId)
+}
+
 function guestAppSubtabs(t: (key: string) => string): { id: GuestAppSubtab; label: string }[] {
   return [
     { id: 'general', label: t('configGuestSubtabGeneral') },
@@ -2810,7 +2815,7 @@ const defaultWebsiteWidgetSettings = (): WebsiteWidgetSettingsForm => ({
 })
 
 const defaultWebsiteBookingRules = (): WebsiteBookingRulesForm => ({
-  paymentRequirement: 'none',
+  paymentRequirement: 'full',
   depositPercent: '20',
 })
 
@@ -3171,7 +3176,7 @@ const parseWebsiteWidgetSettings = (raw: string | undefined): WebsiteWidgetSetti
     const parsed = JSON.parse(raw)
     return {
       employeeSelectionStep: parsed?.employeeSelectionStep === true,
-      acceptedPaymentMethodIds: normalizeGuestPaymentMethods(parsed?.acceptedPaymentMethodIds),
+      acceptedPaymentMethodIds: normalizeWebsitePaymentMethods(parsed?.acceptedPaymentMethodIds),
       paymentDefaultMethodId: isGuestPaymentMethodId(String(parsed?.paymentDefaultMethodId || '')) ? parsed.paymentDefaultMethodId : 'online_card',
       paymentOnLocation: parsed?.paymentOnLocation !== false,
     }
@@ -3193,8 +3198,10 @@ const parseWebsiteBookingRules = (raw: string | undefined): WebsiteBookingRulesF
   }
 }
 
-const normalizeWebsiteBookingRulesForPaymentLocation = (rules: WebsiteBookingRulesForm, paymentOnLocation: boolean): WebsiteBookingRulesForm => {
-  if (paymentOnLocation) return { ...rules, paymentRequirement: 'none' }
+const normalizeWebsiteBookingRulesForPaymentLocation = (rules: WebsiteBookingRulesForm, _paymentOnLocation: boolean): WebsiteBookingRulesForm => {
+  // Website widget treats "Plačilo na lokaciji" as an additional selectable
+  // checkout method. It must not disable online card/bank/gift payments or the
+  // deposit/full-payment rule used when an online method is selected.
   const nextRequirement = rules.paymentRequirement === 'none' ? 'full' : rules.paymentRequirement
   return { ...rules, paymentRequirement: nextRequirement }
 }
@@ -3232,7 +3239,7 @@ const serializeGuestAppSettings = (value: GuestAppSettingsForm) => JSON.stringif
   defaultLanguage: value.defaultLanguage,
   employeeSelectionStep: value.employeeSelectionStep,
   useEmployeeContact: value.useEmployeeContact,
-  acceptedPaymentMethodIds: normalizeGuestPaymentMethods(value.acceptedPaymentMethodIds),
+  acceptedPaymentMethodIds: normalizeWebsitePaymentMethods(value.acceptedPaymentMethodIds),
   paymentDefaultMethodId: isGuestPaymentMethodId(String(value.paymentDefaultMethodId || '')) ? value.paymentDefaultMethodId : 'online_card',
   paymentCurrency: value.paymentCurrency.trim() || 'EUR',
   paymentTaxRate: value.paymentTaxRate.trim(),
@@ -4280,10 +4287,7 @@ export function ConfigurationPage() {
         paymentDefaultMethodId: nextGuestApp.paymentDefaultMethodId,
         paymentOnLocation: nextGuestApp.paymentOnLocation,
       }
-    const nextWebsiteSettings = {
-      ...parsedWebsiteSettings,
-      paymentOnLocation: parsedWebsiteBookingRules.paymentRequirement === 'none' ? true : parsedWebsiteSettings.paymentOnLocation,
-    }
+    const nextWebsiteSettings = parsedWebsiteSettings
     const nextWebsiteBookingRules = normalizeWebsiteBookingRulesForPaymentLocation(parsedWebsiteBookingRules, nextWebsiteSettings.paymentOnLocation)
     setSettings(nextSettings)
     setSubscriptionBillingInterval(String(nextSettings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY')
@@ -4809,10 +4813,7 @@ export function ConfigurationPage() {
       const { data } = await api.put('/settings', payload)
       const persistedSettings = parseWebsiteWidgetSettings(data?.[WEBSITE_WIDGET_SETTINGS_KEY] ?? payload[WEBSITE_WIDGET_SETTINGS_KEY])
       const persistedRules = parseWebsiteBookingRules(data?.[WEBSITE_BOOKING_RULES_KEY] ?? payload[WEBSITE_BOOKING_RULES_KEY])
-      const nextWebsiteSettings = {
-        ...persistedSettings,
-        paymentOnLocation: persistedRules.paymentRequirement === 'none' ? true : persistedSettings.paymentOnLocation,
-      }
+      const nextWebsiteSettings = persistedSettings
       setWebsiteSettings(nextWebsiteSettings)
       setWebsiteBookingRules(normalizeWebsiteBookingRulesForPaymentLocation(persistedRules, nextWebsiteSettings.paymentOnLocation))
       setSettings({
@@ -5289,7 +5290,9 @@ export function ConfigurationPage() {
       const acceptedPaymentMethodIds = has
         ? prev.acceptedPaymentMethodIds.filter((row) => row !== id)
         : [...prev.acceptedPaymentMethodIds, id]
-      return { ...prev, acceptedPaymentMethodIds: acceptedPaymentMethodIds.length > 0 ? acceptedPaymentMethodIds : prev.acceptedPaymentMethodIds }
+      return acceptedPaymentMethodIds.length > 0 || prev.paymentOnLocation
+        ? { ...prev, acceptedPaymentMethodIds }
+        : prev
     })
   }
 
@@ -9945,7 +9948,6 @@ export function ConfigurationPage() {
                           <GuestSwitch
                             checked={websiteBookingRules.paymentRequirement === 'deposit'}
                             onChange={(checked) => {
-                              if (checked) setWebsiteSettings((prev) => ({ ...prev, paymentOnLocation: false }))
                               setWebsiteBookingRules({ ...websiteBookingRules, paymentRequirement: checked ? 'deposit' : 'full' })
                             }}
                           />
@@ -9971,7 +9973,6 @@ export function ConfigurationPage() {
                             checked={websiteSettings.paymentOnLocation}
                             onChange={(checked) => {
                               setWebsiteSettings({ ...websiteSettings, paymentOnLocation: checked })
-                              setWebsiteBookingRules((prev) => normalizeWebsiteBookingRulesForPaymentLocation(prev, checked))
                             }}
                           />
                         </div>

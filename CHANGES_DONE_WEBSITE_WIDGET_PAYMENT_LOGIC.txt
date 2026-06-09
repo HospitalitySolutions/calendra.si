@@ -1,0 +1,24 @@
+Website booking widget payment logic update
+
+Implemented:
+- Payment method tiles on the widget final step now come from Configuration -> Website -> Sprejeti načini plačila.
+- Added Plačilo na lokaciji as a selectable widget payment option when enabled in Configuration -> Website.
+- Plačilo na lokaciji no longer hides online methods; it is now an additional option, so tenants can offer both online payment and pay-on-location.
+- Delno plačilo remains independent from Plačilo na lokaciji and applies only when an online payment method is selected.
+- When Delno plačilo is enabled, guest orders and advance invoices use the configured deposit percentage instead of requiring the full session price immediately.
+- Spletno plačilo s kartico now redirects the website widget user through Stripe Checkout, using website-widget return/cancel endpoints instead of native guest-app deep links.
+- Added public website-widget guest-session and order/checkout bridge endpoints so the widget uses the same GuestOrderService pipeline as the guest mobile app.
+- Website widget backend rules now read WEBSITE_WIDGET_SETTINGS_JSON and WEBSITE_BOOKING_RULES_JSON independently from guest mobile settings.
+- Saved empty Website payment-method arrays are preserved, so disabling all online methods does not silently re-enable defaults.
+
+Files changed:
+- backend/src/main/resources/static/widget/calendra-booking-widget.js
+- backend/src/main/java/com/example/app/widget/PublicBookingWidgetController.java
+- backend/src/main/java/com/example/app/widget/PublicBookingWidgetService.java
+- backend/src/main/java/com/example/app/widget/PublicWidgetOrderController.java
+- backend/src/main/java/com/example/app/widget/PublicWidgetOrderService.java
+- backend/src/main/java/com/example/app/widget/WebsiteWidgetSettingsService.java
+- backend/src/main/java/com/example/app/guest/order/GuestOrderService.java
+- backend/src/main/java/com/example/app/guest/order/GuestBankTransferBillingService.java
+- backend/src/main/java/com/example/app/stripe/StripeGuestCheckoutService.java
+- frontend/src/pages/ConfigurationPage.tsx

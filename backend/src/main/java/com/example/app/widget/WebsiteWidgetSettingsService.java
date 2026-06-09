@@ -87,8 +87,12 @@ public class WebsiteWidgetSettingsService {
         boolean paymentOnLocation = widgetRoot.has("paymentOnLocation")
                 ? widgetRoot.path("paymentOnLocation").asBoolean(true)
                 : "none".equalsIgnoreCase(root.path("paymentRequirement").asText(""));
-        boolean requireOnlinePayment = !paymentOnLocation;
+        List<String> acceptedOnlineMethods = parseAcceptedRuntimeTypes(widgetRoot.path("acceptedPaymentMethodIds"));
+        boolean requireOnlinePayment = !acceptedOnlineMethods.isEmpty() || !paymentOnLocation;
         String paymentRequirement = normalizePaymentRequirement(root.path("paymentRequirement").asText(null), requireOnlinePayment);
+        if (!requireOnlinePayment && paymentOnLocation) {
+            paymentRequirement = "none";
+        }
         int depositPercent = normalizeDepositPercent(root.path("depositPercent").asInt(20));
         return new GuestSettingsService.GuestBookingRules(
                 root.path("cancelUntilHours").asInt(24),
@@ -116,7 +120,15 @@ public class WebsiteWidgetSettingsService {
                 values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name())
         ));
         List<String> accepted = parseAcceptedRuntimeTypes(root.path("acceptedPaymentMethodIds"));
-        return GuestSettingsService.applyGlobalProviderCapabilities(accepted, globalPaymentProviders.capabilities());
+        return applyGlobalProviderCapabilitiesWithoutFallback(accepted);
+    }
+
+    private List<String> applyGlobalProviderCapabilitiesWithoutFallback(List<String> accepted) {
+        var capabilities = globalPaymentProviders.capabilities();
+        return (accepted == null ? List.<String>of() : accepted).stream()
+                .filter(method -> !"CARD".equals(method) || capabilities.stripeEnabled())
+                .filter(method -> !"PAYPAL".equals(method) || capabilities.paypalEnabled())
+                .toList();
     }
 
     public boolean billingEnabled(Long companyId) {
@@ -157,26 +169,25 @@ public class WebsiteWidgetSettingsService {
     }
 
     private static List<String> parseAcceptedConfigIds(JsonNode node) {
+        // Missing/legacy config keeps the previous permissive default. A saved empty
+        // array must stay empty so Configuration -> Website can intentionally hide
+        // all online methods and leave only pay-on-location, if enabled.
+        if (node == null || !node.isArray()) return DEFAULT_ACCEPTED_CONFIG_IDS;
         Set<String> out = new LinkedHashSet<>();
-        if (node != null && node.isArray()) {
-            for (JsonNode entry : node) {
-                String normalized = normalizeConfigId(entry.asText());
-                if (normalized != null) out.add(normalized);
-            }
+        for (JsonNode entry : node) {
+            String normalized = normalizeConfigId(entry.asText());
+            if (normalized != null) out.add(normalized);
         }
-        if (out.isEmpty()) return DEFAULT_ACCEPTED_CONFIG_IDS;
         return new ArrayList<>(out);
     }
 
     private static List<String> parseAcceptedRuntimeTypes(JsonNode node) {
+        if (node == null || !node.isArray()) return List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
         Set<String> out = new LinkedHashSet<>();
-        if (node != null && node.isArray()) {
-            for (JsonNode entry : node) {
-                String runtime = mapConfigIdToRuntimeType(entry.asText());
-                if (runtime != null) out.add(runtime);
-            }
+        for (JsonNode entry : node) {
+            String runtime = mapConfigIdToRuntimeType(entry.asText());
+            if (runtime != null) out.add(runtime);
         }
-        if (out.isEmpty()) return List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
         return new ArrayList<>(out);
     }
 

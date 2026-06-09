@@ -35,6 +35,7 @@ public class PublicBookingWidgetController {
             boolean turnstileEnabled,
             String turnstileSiteKey,
             boolean employeeSelectionStep,
+            boolean paymentOnLocation,
             boolean requireOnlinePayment,
             String paymentRequirement,
             Integer depositPercent,

@@ -233,6 +233,9 @@ public class GuestOrderService {
             return BigDecimal.ZERO;
         }
         BigDecimal fullPrice = product.priceGross() == null ? BigDecimal.ZERO : product.priceGross();
+        if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE) {
+            return fullPrice;
+        }
         if (!isSessionLikeProductType(product.productType())) {
             return fullPrice;
         }
@@ -412,7 +415,9 @@ public class GuestOrderService {
                         order.getCompany().getName()
                 );
             }
-            StripeCheckoutSessionResult session = stripeGuestCheckoutService.createCheckoutSession(order);
+            StripeCheckoutSessionResult session = channel == PaymentChannel.WEBSITE
+                    ? stripeGuestCheckoutService.createWebsiteWidgetCheckoutSession(order)
+                    : stripeGuestCheckoutService.createCheckoutSession(order);
             order.setStripeCheckoutSessionId(session.id());
             order = orders.save(order);
             return new GuestDtos.CheckoutResponse(
@@ -650,7 +655,10 @@ public class GuestOrderService {
             if (!isSessionLikeProductType(productType)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pay at venue is only allowed for session bookings.");
             }
-            if (rules.requireOnlinePayment()) {
+            boolean websitePayAtVenueAllowed = channel == PaymentChannel.WEBSITE
+                    && websiteWidgetSettings != null
+                    && websiteWidgetSettings.widgetSettings(companyId).paymentOnLocation();
+            if (rules.requireOnlinePayment() && !websitePayAtVenueAllowed) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This tenant requires online payment for bookings.");
             }
             return;

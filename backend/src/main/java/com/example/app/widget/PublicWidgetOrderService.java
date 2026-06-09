@@ -169,6 +169,88 @@ public class PublicWidgetOrderService {
         return guestOrderService.checkout(guestUser, orderId, request, GuestOrderService.PaymentChannel.WEBSITE);
     }
 
+
+
+    public String renderStripeReturnPage(Long orderId, String status, String checkoutSessionId) {
+        String normalized = normalizeStripeStatus(status);
+        String title = "success".equals(normalized) ? "Plačilo uspešno" : "Plačilo posodobljeno";
+        String message = "success".equals(normalized)
+                ? "Rezervacija je potrjena. Potrditev plačila se bo samodejno uskladila prek Stripe webhooka."
+                : "Status plačila je bil posodobljen.";
+        return renderStripePage(title, message, orderId, checkoutSessionId, true);
+    }
+
+    public String renderStripeCancelPage(Long orderId, String checkoutSessionId) {
+        try {
+            guestOrderService.onStripeCheckoutExpiredOrFailed(orderId, checkoutSessionId);
+        } catch (Exception ignored) {
+        }
+        return renderStripePage("Plačilo preklicano", "Stripe plačilo je bilo preklicano. Termin ni bil potrjen kot plačan.", orderId, checkoutSessionId, false);
+    }
+
+    private static String normalizeStripeStatus(String status) {
+        String value = status == null ? "success" : status.trim().toLowerCase(Locale.ROOT);
+        if (value.equals("success") || value.equals("completed") || value.equals("paid")) return "success";
+        if (value.equals("cancel") || value.equals("cancelled") || value.equals("canceled")) return "cancelled";
+        return value.isBlank() ? "success" : value;
+    }
+
+    private static String renderStripePage(String title, String message, Long orderId, String checkoutSessionId, boolean success) {
+        String accent = success ? "#0f6bff" : "#64748b";
+        String safeSession = checkoutSessionId == null || checkoutSessionId.isBlank()
+                ? ""
+                : "<p class=\"tiny\">Stripe session: " + escapeHtml(checkoutSessionId) + "</p>";
+        String safeOrder = orderId == null ? "" : "<p class=\"tiny\">Order ID: " + orderId + "</p>";
+        return """
+                <!doctype html>
+                <html lang="sl">
+                <head>
+                  <meta charset="utf-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1" />
+                  <title>%s</title>
+                  <style>
+                    body { margin:0; min-height:100vh; display:grid; place-items:center; background:#f8fafc; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#07122f; }
+                    .card { width:min(560px, calc(100vw - 32px)); background:#fff; border:1px solid #dfe6f1; border-radius:28px; box-shadow:0 28px 70px rgba(15,23,42,.10); padding:36px; text-align:center; }
+                    .mark { width:58px; height:58px; border-radius:999px; margin:0 auto 18px; display:grid; place-items:center; background:%s; color:white; font-size:28px; font-weight:900; }
+                    h1 { margin:0 0 10px; font-size:30px; }
+                    p { color:#66738d; line-height:1.55; margin:0 0 14px; }
+                    .tiny { font-size:12px; color:#94a3b8; word-break:break-all; }
+                    .brand { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:22px; color:#66738d; font-size:13px; font-weight:700; }
+                    .brand b { color:#0f6bff; }
+                  </style>
+                </head>
+                <body>
+                  <main class="card">
+                    <div class="mark">%s</div>
+                    <h1>%s</h1>
+                    <p>%s</p>
+                    %s
+                    %s
+                    <div class="brand"><b>calendra</b><span>Powered by Calendra</span></div>
+                  </main>
+                </body>
+                </html>
+                """.formatted(
+                escapeHtml(title),
+                accent,
+                success ? "✓" : "!",
+                escapeHtml(title),
+                escapeHtml(message),
+                safeOrder,
+                safeSession
+        );
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+
     private void ensureTenantLink(GuestUser guestUser, Company company, String firstName, String lastName, String email, String phone, String companyName) {
         GuestTenantLink existing = guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
         Client client;
