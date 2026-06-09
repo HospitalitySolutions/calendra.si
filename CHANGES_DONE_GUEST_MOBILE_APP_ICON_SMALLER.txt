@@ -1,0 +1,6 @@
+Guest mobile app icon size update
+
+- Made the Calendra icon mark smaller inside the white app icon background for iOS and Android.
+- Regenerated Android launcher icons in all mipmap densities.
+- Regenerated Android adaptive icon foreground with extra safe-zone padding.
+- Regenerated the iOS AppIcon asset catalog sizes with the smaller centered mark.
