@@ -1,0 +1,14 @@
+Restored the full-width modern website booking widget design after the website settings update.
+
+Changes done:
+- Recreated the previous full-width Calendra widget layout with the large rounded container, step progress header, modern service cards, wide calendar/time selection, final payment/review layout, and Powered by Calendra branding.
+- Preserved the new Website configuration logic:
+  - Configuration -> Website -> Splošno -> Korak izbire zaposlenega controls whether employee selection is shown.
+  - If OFF, the widget skips employee selection and shows merged available slots.
+  - If ON, employee selection is required before choosing a slot.
+- Kept the Website payment configuration support:
+  - Accepted payment methods from Website settings are reflected on the final Plačilo in pregled step.
+  - Card, bank transfer, PayPal, and gift card options render only when enabled.
+  - Plačilo na lokaciji hides online payment selection and displays a pay-at-venue note.
+  - Delno plačilo displays deposit/due-now/remaining-at-venue details in the booking summary.
+- Kept the backend/frontend Website tab files from the latest settings update so the configuration screen remains available.
