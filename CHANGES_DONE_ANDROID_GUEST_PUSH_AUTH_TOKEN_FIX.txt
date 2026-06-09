@@ -1,0 +1,26 @@
+Android guest push notification follow-up fix
+
+Root cause found:
+- The shared Ktor HttpClient was created before the guest auth token was restored/applied.
+- Authorization was added through DefaultRequest during client setup, which could leave later authenticated calls without the current token.
+- That can prevent /api/guest/device-tokens from registering the Android FCM token with the backend, so tenant -> guest messages are saved in the app inbox but no Android push notification can be delivered outside the app.
+
+Changes made:
+- Android and iOS shared HttpClient now add the Authorization header at request send-time, using the latest GuestSessionStore.authToken.
+- Device token registration now validates platform/token values and logs a safe token suffix when registration succeeds.
+- Guest push dispatch now logs a delivery summary at INFO level: attempted, delivered, invalidTokens, failed.
+- Firebase service-account JSON parsing now also supports JSON that was stored as a JSON-encoded string in secrets/CI, not only a raw JSON object.
+
+Files changed:
+- guest-mobile/shared/src/androidMain/kotlin/si/calendra/guest/shared/network/HttpClientFactory.android.kt
+- guest-mobile/shared/src/iosMain/kotlin/si/calendra/guest/shared/network/HttpClientFactory.ios.kt
+- backend/src/main/java/com/example/app/guest/notifications/GuestDeviceTokenController.java
+- backend/src/main/java/com/example/app/guest/notifications/GuestPushService.java
+
+After deploy:
+1. Rebuild/reinstall Android guest app.
+2. Restart/recreate backend so AWS Secrets Manager values and backend changes are loaded.
+3. Open the guest app and log in once.
+4. Check backend logs for: Registered guest push device guestUserId=..., platform=ANDROID, tokenSuffix=...
+5. Send tenant -> guest app message.
+6. Check backend logs for: Guest push delivery summary ..., delivered=1, failed=0
