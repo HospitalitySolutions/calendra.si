@@ -245,6 +245,15 @@ public class PlatformSubscriptionBillingService {
         }
 
         Bill saved = createBillFromSignupOpenBill(open, platformCompany);
+        return startSubscriptionBillPayment(saved, platformCompany);
+    }
+
+    /**
+     * Issues the configured payment flow for a freshly created platform subscription bill. Card bills go
+     * through Stripe Checkout; other methods are fiscalized/archived/emailed immediately. Shared by the
+     * initial signup invoice and the recurring renewal invoice.
+     */
+    private SignupBillingInvoiceResult startSubscriptionBillPayment(Bill saved, Company platformCompany) {
         PaymentMethod method = saved.getPaymentMethod();
         if (method != null && method.isStripeEnabled() && method.getPaymentType() == PaymentType.CARD) {
             StripeCheckoutSessionResult checkout = stripeBillingService.createCheckoutSessionForBill(saved);
@@ -270,6 +279,223 @@ public class PlatformSubscriptionBillingService {
             billingEmailService.sendInvoiceFolio(saved, pdf);
         }
         return new SignupBillingInvoiceResult(saved.getId(), saved.getBillNumber(), null, saved.getPaymentStatus());
+    }
+
+    /**
+     * Applies a self-serve package/interval change for a tenant.
+     *
+     * <p>Upgrades (to a higher tier or more expensive interval) take effect immediately for both
+     * functionality (via {@code SIGNUP_PACKAGE_NAME}) and the active billing interval; the price
+     * difference for the already-paid current cycle is deferred and charged on the next renewal
+     * invoice. Downgrades keep the current package functionality and price until the end of the
+     * current billing cycle and switch at the next renewal.</p>
+     */
+    @Transactional
+    public PackageChangeResult applyPackageChange(Company tenant, String requestedPackage, String requestedInterval) {
+        if (tenant == null || tenant.getId() == null) {
+            return PackageChangeResult.none("PROFESSIONAL", BillingInterval.MONTHLY.settingValue());
+        }
+        Long tenantId = tenant.getId();
+        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+
+        String currentPackage = normalizePackageType(settingValueOrDefault(tenantId, SettingKey.SIGNUP_PACKAGE_NAME, "PROFESSIONAL"));
+        BillingInterval currentInterval = normalizeInterval(settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, "MONTHLY"));
+        String targetPackage = normalizePackageType(requestedPackage);
+        BillingInterval targetInterval = (requestedInterval == null || requestedInterval.isBlank())
+                ? currentInterval
+                : normalizeInterval(requestedInterval);
+
+        BigDecimal existingDiff = parseAmountSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT);
+        BigDecimal currentGross = periodGrossFor(catalog, currentPackage, currentInterval);
+        BigDecimal targetGross = periodGrossFor(catalog, targetPackage, targetInterval);
+
+        boolean sameSelection = currentPackage.equals(targetPackage) && currentInterval == targetInterval;
+        if (sameSelection) {
+            // Re-selecting the active package cancels any pending downgrade.
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME, "");
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_INTERVAL, "");
+            return new PackageChangeResult(currentPackage, currentPackage, currentInterval.settingValue(), currentInterval.settingValue(), existingDiff, "NONE");
+        }
+
+        int currentRank = packageRank(currentPackage);
+        int targetRank = packageRank(targetPackage);
+        boolean upgrade = targetRank != currentRank
+                ? targetRank > currentRank
+                : targetGross.compareTo(currentGross) > 0;
+
+        if (upgrade) {
+            BigDecimal increment = targetGross.subtract(currentGross).max(BigDecimal.ZERO);
+            BigDecimal newDiff = existingDiff.add(increment).setScale(2, RoundingMode.HALF_UP);
+            upsertSetting(tenant, SettingKey.SIGNUP_PACKAGE_NAME, targetPackage);
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, targetInterval.settingValue());
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT, newDiff.toPlainString());
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME, "");
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_INTERVAL, "");
+            return new PackageChangeResult(targetPackage, targetPackage, targetInterval.settingValue(), targetInterval.settingValue(), newDiff, "UPGRADE");
+        }
+
+        // Downgrade: defer both functionality and price until the next renewal.
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME, targetPackage);
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_INTERVAL, targetInterval.settingValue());
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT, "0");
+        return new PackageChangeResult(currentPackage, targetPackage, currentInterval.settingValue(), targetInterval.settingValue(), BigDecimal.ZERO, "DOWNGRADE");
+    }
+
+    /**
+     * Daily renewal: for every tenant whose current billing period has ended, promote any deferred
+     * downgrade/interval change, advance the period, and issue the renewal invoice including the
+     * one-off upgrade difference accumulated during the previous cycle.
+     */
+    @Scheduled(cron = "${app.platform-subscription-billing.renewal-cron:0 20 0 * * *}")
+    @SchedulerLock(name = "platformSubscriptionBillingService_renewSubscriptionsDue", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
+    @Transactional
+    public void renewSubscriptionsDue() {
+        Company platformCompany = resolvePlatformCompany().orElse(null);
+        if (platformCompany == null || platformCompany.getId() == null) {
+            return;
+        }
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+        PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
+        for (AppSetting endSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_END)) {
+            Company tenant = endSetting == null ? null : endSetting.getCompany();
+            if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompany.getId())) {
+                continue;
+            }
+            LocalDate end = parseDateOrNull(endSetting.getValue());
+            if (end == null || end.isAfter(today)) {
+                continue;
+            }
+            try {
+                renewTenantSubscription(platformCompany, tenant, billingCatalog, end);
+            } catch (Exception e) {
+                log.warn("Failed to renew platform subscription for tenant {}", tenant.getId(), e);
+            }
+        }
+    }
+
+    private void renewTenantSubscription(Company platformCompany, Company tenant, PlatformBillingCatalog billingCatalog, LocalDate previousEnd) {
+        Long tenantId = tenant.getId();
+
+        // Promote deferred downgrade / interval change so it applies for the new cycle.
+        String pendingPackage = trimToNull(settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME, ""));
+        if (pendingPackage != null) {
+            upsertSetting(tenant, SettingKey.SIGNUP_PACKAGE_NAME, normalizePackageType(pendingPackage));
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME, "");
+        }
+        String pendingInterval = trimToNull(settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_INTERVAL, ""));
+        if (pendingInterval != null) {
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, normalizeInterval(pendingInterval).settingValue());
+            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_NEXT_INTERVAL, "");
+        }
+
+        String packageName = normalizePackageType(settingValueOrDefault(tenantId, SettingKey.SIGNUP_PACKAGE_NAME, "PROFESSIONAL"));
+        String interval = normalizeInterval(settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, "MONTHLY")).settingValue();
+        PlatformPlan plan = billingCatalog.resolvePlan(packageName, interval);
+        if (plan == null) {
+            return;
+        }
+
+        ClientCompany payee = clientCompanies.findFirstLinkedPlatformPayee(platformCompany.getId(), tenantId).orElse(null);
+        if (payee == null) {
+            log.warn("Skipping renewal for tenant {}: no platform payee company found.", tenantId);
+            return;
+        }
+        Client client = clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(platformCompany.getId(), payee.getId()).orElse(null);
+        User consultant = resolvePlatformConsultant(platformCompany).orElse(null);
+        if (client == null || consultant == null) {
+            log.warn("Skipping renewal for tenant {}: missing client/consultant.", tenantId);
+            return;
+        }
+
+        Integer baseUserCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
+        Integer baseSmsCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0);
+        Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, baseUserCount);
+        Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, baseSmsCount);
+        Integer currentUserAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, 0);
+        Integer currentSmsAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, 0);
+        List<String> signupAddonKeys = parseAddonKeyCsv(settingValueOrDefault(tenantId, SettingKey.SIGNUP_ADDON_KEYS, ""));
+        List<String> addonKeys = parseAddonKeyCsv(settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS, joinAddonKeys(signupAddonKeys)));
+        List<String> currentAddonKeys = parseAddonKeyCsv(settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, ""));
+        BigDecimal upgradeDiff = parseAmountSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT);
+
+        String reference = referenceForTenant(tenantId);
+        OpenBill open = openBills.findFirstByCompanyIdAndReferenceOrderByIdAsc(platformCompany.getId(), reference)
+                .orElseGet(() -> {
+                    OpenBill created = new OpenBill();
+                    created.setCompany(platformCompany);
+                    created.setReference(reference);
+                    return created;
+                });
+        open.setClient(client);
+        open.setConsultant(consultant);
+        open.setPaymentMethod(resolvePaymentMethod(platformCompany.getId(), settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, null)).orElse(null));
+        open.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
+        open.setBatchTargetClientId(null);
+        open.setBatchTargetCompanyId(payee.getId());
+        open.setSessionBooking(null);
+        open.setBookingGroupKey(null);
+        open.setBillType(BillType.INVOICE);
+
+        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys, currentUserAddCount, currentSmsAddCount, currentAddonKeys);
+        if (upgradeDiff.compareTo(BigDecimal.ZERO) > 0) {
+            TransactionService diffTx = resolveBillingTransactionService(platformCompany, null, "SUBUPGDIFF", "Subscription upgrade difference", upgradeDiff);
+            totalGross = totalGross.add(addOpenLine(open, diffTx, 1, upgradeDiff));
+        }
+        openBills.save(open);
+
+        LocalDate newStart = previousEnd;
+        LocalDate newEnd = periodEnd(newStart, plan.interval());
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, newStart.toString());
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, newEnd.toString());
+        upsertSetting(tenant, SettingKey.SIGNUP_USER_COUNT, String.valueOf(Math.max(1, userCount == null ? 1 : userCount)));
+        upsertSetting(tenant, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(Math.max(0, smsCount == null ? 0 : smsCount)));
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, "0");
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, "");
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT, "0");
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
+
+        if (totalGross.compareTo(BigDecimal.ZERO) > 0) {
+            Bill saved = createBillFromSignupOpenBill(open, platformCompany);
+            startSubscriptionBillPayment(saved, platformCompany);
+        }
+    }
+
+    private static int packageRank(String normalizedPackage) {
+        return switch (normalizedPackage) {
+            case "BASIC", "TRIAL" -> 1;
+            case "PROFESSIONAL" -> 2;
+            case "PREMIUM" -> 3;
+            default -> 2;
+        };
+    }
+
+    private BigDecimal periodGrossFor(RegisterPriceCatalog catalog, String packageName, BillingInterval interval) {
+        Map<String, Double> prices = catalog == null || catalog.getPlans() == null ? Map.of() : catalog.getPlans();
+        double annualDiscount = catalog == null || catalog.getAnnualDiscountPercent() == null ? 15.0 : catalog.getAnnualDiscountPercent();
+        String normalized = normalizePackageType(packageName);
+        BigDecimal monthly = switch (normalized) {
+            case "PREMIUM" -> money(prices.getOrDefault("business", 59.90));
+            case "PROFESSIONAL" -> money(prices.getOrDefault("pro", 34.90));
+            default -> money(prices.getOrDefault("basic", 18.90));
+        };
+        return interval == BillingInterval.YEARLY ? annualGross(monthly, annualDiscount) : monthly;
+    }
+
+    private BigDecimal parseAmountSetting(Long companyId, SettingKey key) {
+        return settings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(String::trim)
+                .filter(v -> !v.isBlank())
+                .map(v -> {
+                    try {
+                        return new BigDecimal(v).max(BigDecimal.ZERO);
+                    } catch (Exception e) {
+                        return BigDecimal.ZERO;
+                    }
+                })
+                .orElse(BigDecimal.ZERO);
     }
 
     /** Refresh open subscription bills from the tenant settings until they are converted into invoices. */
@@ -1021,6 +1247,20 @@ public class PlatformSubscriptionBillingService {
     public record SignupBillingInvoiceResult(Long billId, String billNumber, String checkoutUrl, String paymentStatus) {
         private static SignupBillingInvoiceResult empty() {
             return new SignupBillingInvoiceResult(null, null, null, null);
+        }
+    }
+
+    /** Outcome of a self-serve package/interval change. {@code changeKind} is UPGRADE, DOWNGRADE or NONE. */
+    public record PackageChangeResult(
+            String currentPackage,
+            String nextPackage,
+            String interval,
+            String nextInterval,
+            BigDecimal pendingUpgradeDiff,
+            String changeKind
+    ) {
+        private static PackageChangeResult none(String currentPackage, String interval) {
+            return new PackageChangeResult(currentPackage, currentPackage, interval, interval, BigDecimal.ZERO, "NONE");
         }
     }
 

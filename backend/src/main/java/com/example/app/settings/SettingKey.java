@@ -119,6 +119,12 @@ public enum SettingKey {
     BILLING_SUBSCRIPTION_NEXT_SMS_COUNT,
     /** Add-ons planned for the next subscription billing period. */
     BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS,
+    /** Package that takes effect at the next subscription renewal (deferred downgrade target). */
+    BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME,
+    /** Billing interval (MONTHLY/YEARLY) that takes effect at the next subscription renewal. */
+    BILLING_SUBSCRIPTION_NEXT_INTERVAL,
+    /** One-off gross amount charged on the next renewal invoice for a mid-cycle upgrade. */
+    BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT,
     /** Decimal amount string (e.g. EUR) still owed for subscription. */
     BILLING_SUBSCRIPTION_DUE_AMOUNT,
     /** Preferred payment method selected during self-serve signup billing details. */

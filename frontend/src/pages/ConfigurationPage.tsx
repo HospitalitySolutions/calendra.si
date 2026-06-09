@@ -3425,6 +3425,8 @@ export function ConfigurationPage() {
   const [currentCycleAddonKeys, setCurrentCycleAddonKeys] = useState<string[]>([])
   const [nextCycleAddonKeys, setNextCycleAddonKeys] = useState<string[]>([])
   const [savingSubscriptionAddons, setSavingSubscriptionAddons] = useState(false)
+  const [packageChangeTarget, setPackageChangeTarget] = useState<AccountPlanPackageKey | null>(null)
+  const [savingPackageChange, setSavingPackageChange] = useState(false)
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
   const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
@@ -3669,7 +3671,12 @@ export function ConfigurationPage() {
   const currentCycleSmsAddonAmount = roundAccountMoney(currentBillingCycleSmsAdd * smsAddonUnitPrice)
   const subscriptionSubtotal = roundAccountMoney(planPeriodAmount + usersAddonAmount + smsAddonAmount + currentCycleUserAddonAmount + currentCycleSmsAddonAmount + nextCycleAddonAmount + currentCycleAddonAmount)
   const subscriptionVat = roundAccountMoney(subscriptionSubtotal * 0.22)
-  const estimatedNextInvoice = roundAccountMoney(subscriptionSubtotal + subscriptionVat)
+  const pendingNextPackageKey = useMemo<AccountPlanPackageKey | null>(() => {
+    const normalized = normalizePackageType((settings.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME || '').trim())
+    return (normalized === 'BASIC' || normalized === 'PROFESSIONAL' || normalized === 'PREMIUM') ? normalized : null
+  }, [settings.BILLING_SUBSCRIPTION_NEXT_PACKAGE_NAME])
+  const pendingUpgradeDiff = roundAccountMoney(Math.max(0, positiveAccountNumber(settings.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT, 0)))
+  const estimatedNextInvoice = roundAccountMoney(subscriptionSubtotal + subscriptionVat + pendingUpgradeDiff)
   const accountUserLimit = currentEffectiveUserLimit
   const accountSmsLimit = currentEffectiveSmsLimit
   const companyOverviewCreatedAt = me.createdAt || '2024-03-15T00:00:00Z'
@@ -3767,6 +3774,50 @@ export function ConfigurationPage() {
       showToast('error', e?.response?.data?.message || 'Kapacitet naročnine ni bilo mogoče posodobiti.')
     } finally {
       setSavingSubscriptionAddons(false)
+    }
+  }
+
+  const storedSubscriptionInterval: AccountSubscriptionInterval = String(settings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY'
+  const planGrossForInterval = (planKey: AccountPlanPackageKey, interval: AccountSubscriptionInterval) =>
+    interval === 'YEARLY' ? accountPlanCatalog[planKey].annual : accountPlanCatalog[planKey].monthly
+  const accountPlanRank = (planKey: AccountPlanPackageKey) => planKey === 'PREMIUM' ? 3 : planKey === 'PROFESSIONAL' ? 2 : 1
+
+  const packageChangePreview = useMemo(() => {
+    if (!packageChangeTarget) return null
+    const current = activeSubscriptionPackage
+    const target = packageChangeTarget
+    const targetInterval = subscriptionBillingInterval
+    const currentGross = planGrossForInterval(current, storedSubscriptionInterval)
+    const targetGross = planGrossForInterval(target, targetInterval)
+    const isUpgrade = accountPlanRank(target) !== accountPlanRank(current)
+      ? accountPlanRank(target) > accountPlanRank(current)
+      : targetGross > currentGross
+    const diff = roundAccountMoney(Math.max(0, targetGross - currentGross))
+    return { current, target, targetInterval, currentGross, targetGross, isUpgrade, diff }
+  }, [packageChangeTarget, activeSubscriptionPackage, subscriptionBillingInterval, storedSubscriptionInterval, accountPlanCatalog])
+
+  const requestPackageChange = (target: AccountPlanPackageKey) => {
+    if (!isAdmin) return
+    if (target === activeSubscriptionPackage && subscriptionBillingInterval === storedSubscriptionInterval) return
+    setPackageChangeTarget(target)
+  }
+
+  const confirmPackageChange = async () => {
+    if (!packageChangeTarget) return
+    setSavingPackageChange(true)
+    try {
+      await api.post('/account-management/change-package', {
+        packageName: packageChangeTarget,
+        interval: subscriptionBillingInterval,
+      })
+      await load()
+      window.dispatchEvent(new Event('settings-updated'))
+      showToast('success', 'Paket je posodobljen.')
+      setPackageChangeTarget(null)
+    } catch (e: any) {
+      showToast('error', e?.response?.data?.message || 'Paketa ni bilo mogoče spremeniti.')
+    } finally {
+      setSavingPackageChange(false)
     }
   }
 
@@ -6285,6 +6336,50 @@ export function ConfigurationPage() {
                 width: 100%;
               }
             }
+            .account-plan-pending-note {
+              margin-top: 14px;
+              border-radius: 12px;
+              background: #fff7ed;
+              border: 1px solid #fed7aa;
+              color: #9a3412;
+              padding: 12px 14px;
+              font-size: 14px;
+              line-height: 1.45;
+            }
+            .account-modal-overlay {
+              position: fixed;
+              inset: 0;
+              background: rgba(7, 23, 59, 0.45);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 20px;
+              z-index: 1000;
+            }
+            .account-modal-card {
+              width: min(100%, 460px);
+              background: #fff;
+              border-radius: 18px;
+              padding: 24px;
+              box-shadow: 0 24px 60px rgba(7, 23, 59, 0.28);
+            }
+            .account-modal-card h3 {
+              margin: 0 0 12px;
+              font-size: 18px;
+              color: var(--account-ink);
+            }
+            .account-modal-card p {
+              margin: 0;
+              color: var(--account-muted);
+              font-size: 14px;
+              line-height: 1.55;
+            }
+            .account-modal-actions {
+              display: flex;
+              justify-content: flex-end;
+              gap: 12px;
+              margin-top: 22px;
+            }
           `}</style>
           <div className="account-subtabs" role="tablist" aria-label="Account management subtabs">
             <button type="button" className={accountSubtab === 'company' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('company')}>Podjetje</button>
@@ -6571,9 +6666,18 @@ export function ConfigurationPage() {
                       </div>
                     </div>
                   </div>
+                  {pendingNextPackageKey && (
+                    <div className="account-plan-pending-note">
+                      Od {formatDate(settings.BILLING_SUBSCRIPTION_END || '')} preide na paket <strong>{accountPlanCatalog[pendingNextPackageKey].label}</strong>.
+                    </div>
+                  )}
+                  {pendingUpgradeDiff > 0 && (
+                    <div className="account-plan-pending-note">
+                      Nadgradnja je aktivna. Razlika <strong>{formatAccountEuro(pendingUpgradeDiff)}</strong> bo zaračunana ob naslednjem obračunu.
+                    </div>
+                  )}
                   <div className="account-subscription-actions">
                     <button type="button" className="account-button-secondary">Podrobnosti paketa</button>
-                    <button type="button" className="account-button" onClick={() => setSubscriptionPackage(subscriptionPackage)}>Spremeni paket</button>
                   </div>
                 </section>
 
@@ -6609,7 +6713,7 @@ export function ConfigurationPage() {
                           <ul>
                             {plan.features.map((feature) => <li key={feature}><span className="account-check">✓</span><span>{feature}</span></li>)}
                           </ul>
-                          <button type="button" className={active ? 'account-button-secondary' : 'account-button-secondary'} onClick={() => setSubscriptionPackage(planKey)}>{active ? 'Izbran' : 'Izberi paket'}</button>
+                          <button type="button" className="account-button-secondary" disabled={!isAdmin} onClick={() => requestPackageChange(planKey)}>{active ? 'Izbran' : 'Izberi paket'}</button>
                         </section>
                       )
                     })}
@@ -6743,6 +6847,7 @@ export function ConfigurationPage() {
                   <div className="account-plan-header"><h3>Povzetek obračuna</h3></div>
                   <div className="account-summary-list">
                     <div className="account-summary-row"><span>Paket ({activePlanDetails.label})</span><strong>{formatAccountEuro(planPeriodAmount)}</strong></div>
+                    {pendingUpgradeDiff > 0 && <div className="account-summary-row"><span>Razlika ob nadgradnji</span><strong>{formatAccountEuro(pendingUpgradeDiff)}</strong></div>}
                     {currentBillingCycleUserAdd > 0 && <div className="account-summary-row"><span>Uporabniki tekoče obdobje (+{currentBillingCycleUserAdd})</span><strong>{formatAccountEuro(currentCycleUserAddonAmount)}</strong></div>}
                     <div className="account-summary-row"><span>Uporabniki naslednje obdobje ({selectedExtraUsersCount} max / {billableNextInvoiceUsers} dodatnih)</span><strong>{formatAccountEuro(usersAddonAmount)}</strong></div>
                     {currentBillingCycleSmsAdd > 0 && <div className="account-summary-row"><span>SMS tekoče obdobje (+{currentBillingCycleSmsAdd})</span><strong>{formatAccountEuro(currentCycleSmsAddonAmount)}</strong></div>}
@@ -6762,6 +6867,36 @@ export function ConfigurationPage() {
                   </div>
                 </section>
               </div>
+
+              {packageChangeTarget && packageChangePreview && (
+                <div
+                  className="account-modal-overlay"
+                  role="presentation"
+                  onClick={() => { if (!savingPackageChange) setPackageChangeTarget(null) }}
+                >
+                  <div className="account-modal-card" role="dialog" aria-modal="true" aria-label="Sprememba paketa" onClick={(event) => event.stopPropagation()}>
+                    <h3>Sprememba paketa</h3>
+                    {packageChangePreview.isUpgrade ? (
+                      <p>
+                        Paket nadgrajujete na <strong>{accountPlanCatalog[packageChangePreview.target].label}</strong> ({packageChangePreview.targetInterval === 'YEARLY' ? 'letno' : 'mesečno'}).
+                        Nadgradnja se uporabi <strong>takoj</strong>. Razliko{' '}
+                        <strong>{formatAccountEuro(packageChangePreview.diff)}</strong> bomo zaračunali ob naslednjem obračunu
+                        ({formatDate(settings.BILLING_SUBSCRIPTION_END || '')}) skupaj z novim paketom.
+                      </p>
+                    ) : (
+                      <p>
+                        Trenutni paket <strong>{accountPlanCatalog[packageChangePreview.current].label}</strong> ostane aktiven do konca obračunskega obdobja
+                        ({formatDate(settings.BILLING_SUBSCRIPTION_END || '')}). Nato preide na paket{' '}
+                        <strong>{accountPlanCatalog[packageChangePreview.target].label}</strong> ({packageChangePreview.targetInterval === 'YEARLY' ? 'letno' : 'mesečno'}) z nižjo ceno in funkcionalnostmi.
+                      </p>
+                    )}
+                    <div className="account-modal-actions">
+                      <button type="button" className="account-button-secondary" onClick={() => setPackageChangeTarget(null)} disabled={savingPackageChange}>Prekliči</button>
+                      <button type="button" className="account-button" onClick={confirmPackageChange} disabled={savingPackageChange}>{savingPackageChange ? 'Shranjujem…' : 'Potrdi spremembo'}</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ) : accountSubtab === 'security' ? (
             <SecurityPage embedded />
