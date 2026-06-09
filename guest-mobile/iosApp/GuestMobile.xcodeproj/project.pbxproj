@@ -325,15 +325,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				API_BASE_URL = "http://localhost:4000";
-				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
-				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U33F379JSJ;
 				GENERATE_INFOPLIST_FILE = NO;
+				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				INFOPLIST_FILE = GuestMobile/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Book";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -353,15 +355,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				API_BASE_URL = "https://app.calendra.si";
-				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
-				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = U33F379JSJ;
 				GENERATE_INFOPLIST_FILE = NO;
+				GOOGLE_IOS_CLIENT_ID = "773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com";
+				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				INFOPLIST_FILE = GuestMobile/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Book";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
