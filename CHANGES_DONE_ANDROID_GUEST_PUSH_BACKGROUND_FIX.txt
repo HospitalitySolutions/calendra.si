@@ -1,0 +1,32 @@
+Android guest push notifications background fix
+
+Changed files:
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/GuestMobileApplication.kt
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/push/GuestPushManager.kt
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/push/GuestFirebaseMessagingService.kt
+- guest-mobile/androidApp/src/main/AndroidManifest.xml
+- guest-mobile/androidApp/build.gradle.kts
+- backend/src/main/java/com/example/app/guest/notifications/GuestPushService.java
+- .env.example
+- .env.staging.example
+
+What was fixed:
+1. Android now initializes push notification channels from Application startup, not only MainActivity.
+2. Android now creates both required FCM channels: guest_messages and guest_reminders.
+3. Android manifest now defines the default FCM notification channel, so background notification messages have a valid fallback channel.
+4. Foreground reminder notifications now use the reminder channel, while inbox messages use the message channel.
+5. FCM token registration now runs on every authenticated app start and refreshes the backend mapping to the current guest user. This prevents tenant-to-guest messages appearing in Inbox but no Android system notification because the backend has no current device token.
+6. Release Android builds now fail fast if Firebase/FCM values are missing, preventing a Play/Internal build that cannot register push tokens.
+7. Backend FCM Android payload now explicitly requests default sound and high notification priority for Android notification display.
+
+Important production settings:
+- Android build must provide:
+  APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID
+  APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID
+  APP_GUEST_MOBILE_ANDROID_FCM_API_KEY
+  APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID
+- Backend must have:
+  APP_GUEST_PUSH_ENABLED=true
+  FCM service account/project credentials configured under app.guest.push.fcm.*
+- Guest must allow notifications on Android 13+.
+- Guest should log out/in or reopen the app after installing this version so the token is re-registered for the current guest account.

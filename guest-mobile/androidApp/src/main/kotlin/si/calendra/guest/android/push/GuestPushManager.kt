@@ -25,13 +25,13 @@ import java.util.Locale
 object GuestPushManager {
     private const val PREFS_NAME = "guest_push"
     private const val KEY_CACHED_TOKEN = "cached_token"
-    private const val KEY_REGISTERED_TOKEN = "registered_token"
-    const val MESSAGE_CHANNEL_ID = "guest_messages"
-    const val REMINDER_CHANNEL_ID = "guest_reminders"
-    const val CHANNEL_ID = MESSAGE_CHANNEL_ID
+    const val CHANNEL_MESSAGES = "guest_messages"
+    const val CHANNEL_REMINDERS = "guest_reminders"
+    const val CHANNEL_ID = CHANNEL_MESSAGES
     private const val PERMISSION_REQUEST_CODE = 7001
 
     fun initialize(context: Context): Boolean {
+        ensureNotificationChannel(context)
         if (BuildConfig.FCM_PROJECT_ID.isBlank() || BuildConfig.FCM_APPLICATION_ID.isBlank() || BuildConfig.FCM_API_KEY.isBlank() || BuildConfig.FCM_GCM_SENDER_ID.isBlank()) {
             return false
         }
@@ -44,7 +44,6 @@ object GuestPushManager {
                 .build()
             FirebaseApp.initializeApp(context, options)
         }
-        ensureNotificationChannels(context)
         return true
     }
 
@@ -61,8 +60,10 @@ object GuestPushManager {
         val fetchedToken = prefs.getString(KEY_CACHED_TOKEN, null)?.takeIf { it.isNotBlank() }
             ?: FirebaseMessaging.getInstance().token.await()
         if (fetchedToken.isBlank()) return
-        val alreadyRegistered = prefs.getString(KEY_REGISTERED_TOKEN, null)
-        if (alreadyRegistered == fetchedToken) return
+        // Register on every authenticated app start instead of relying only on a
+        // cached-token comparison. FCM tokens are device-scoped and may be reused after
+        // login changes, backend token cleanup, or reinstall/update flows. The backend
+        // endpoint is idempotent and refreshes the mapping to the current guest user.
         repository.registerDeviceToken(
             platform = "ANDROID",
             pushToken = fetchedToken,
@@ -70,7 +71,6 @@ object GuestPushManager {
         )
         prefs.edit()
             .putString(KEY_CACHED_TOKEN, fetchedToken)
-            .putString(KEY_REGISTERED_TOKEN, fetchedToken)
             .apply()
     }
 
@@ -88,9 +88,9 @@ object GuestPushManager {
         companyId: String? = null,
         clientId: String? = null,
         openInboxOnTap: Boolean = true,
-        channelId: String = MESSAGE_CHANNEL_ID
+        channelId: String = CHANNEL_MESSAGES
     ) {
-        ensureNotificationChannels(context)
+        ensureNotificationChannel(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -112,7 +112,7 @@ object GuestPushManager {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(context, channelId)
+        val notification = NotificationCompat.Builder(context, channelId.ifBlank { CHANNEL_MESSAGES })
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle(title)
             .setContentText(body)
@@ -124,34 +124,22 @@ object GuestPushManager {
         NotificationManagerCompat.from(context).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
     }
 
-    private fun ensureNotificationChannels(context: Context) {
+    private fun ensureNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createChannelIfMissing(
-            manager,
-            MESSAGE_CHANNEL_ID,
-            "Guest messages",
-            "Chat messages sent from the Calendra web inbox"
-        )
-        createChannelIfMissing(
-            manager,
-            REMINDER_CHANNEL_ID,
-            "Guest reminders",
-            "Booking confirmations, booking changes, and appointment reminders"
-        )
-    }
-
-    private fun createChannelIfMissing(
-        manager: NotificationManager,
-        channelId: String,
-        name: String,
-        description: String
-    ) {
-        if (manager.getNotificationChannel(channelId) != null) return
-        manager.createNotificationChannel(
-            NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_HIGH).apply {
-                this.description = description
-            }
-        )
+        if (manager.getNotificationChannel(CHANNEL_MESSAGES) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_MESSAGES, "Guest messages", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Chat messages sent from the Calendra web inbox"
+                }
+            )
+        }
+        if (manager.getNotificationChannel(CHANNEL_REMINDERS) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_REMINDERS, "Booking reminders", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Booking reminders and booking updates from Calendra"
+                }
+            )
+        }
     }
 }

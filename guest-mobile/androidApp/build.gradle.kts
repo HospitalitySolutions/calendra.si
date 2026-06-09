@@ -26,6 +26,20 @@ fun apiBaseUrl(): String {
     return normalizeApiBaseUrl(if (port.isBlank()) "$protocol://$host" else "$protocol://$host:$port")
 }
 
+fun validateReleaseFcmConfig() {
+    val required = listOf(
+        "APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID",
+        "APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID",
+        "APP_GUEST_MOBILE_ANDROID_FCM_API_KEY",
+        "APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID"
+    )
+    val missing = required.filter { envOrProp(it).isBlank() }
+    require(missing.isEmpty()) {
+        "Release Android guest app builds require Firebase/FCM config. Missing: ${missing.joinToString()}. " +
+            "Without these values the app cannot register an FCM token, so guests will not receive push notifications outside the app."
+    }
+}
+
 fun validateReleaseApiBaseUrl(value: String) {
     val url = normalizeApiBaseUrl(value)
     val allowNonProduction = envOrProp("ALLOW_NON_PRODUCTION_API_BASE_URL", "false").equals("true", ignoreCase = true)
@@ -43,25 +57,6 @@ fun validateReleaseApiBaseUrl(value: String) {
     }
     require(!Regex("localhost|127\\.0\\.0\\.1|10\\.0\\.2\\.2|192\\.168\\.").containsMatchIn(url)) {
         "Release Android guest app API_BASE_URL must not point to a local/private development host. Current value: $url"
-    }
-}
-
-
-fun validateReleasePushConfig() {
-    val allowMissingPush = envOrProp("ALLOW_MISSING_ANDROID_PUSH_CONFIG", "false").equals("true", ignoreCase = true)
-    if (allowMissingPush) return
-
-    val missing = listOf(
-        "APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID",
-        "APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID",
-        "APP_GUEST_MOBILE_ANDROID_FCM_API_KEY",
-        "APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID"
-    ).filter { envOrProp(it).isBlank() }
-
-    require(missing.isEmpty()) {
-        "Release Android guest app builds require Firebase Cloud Messaging config for push notifications. " +
-            "Missing: ${missing.joinToString()}. " +
-            "Set ALLOW_MISSING_ANDROID_PUSH_CONFIG=true only when intentionally building a release without push notifications."
     }
 }
 
@@ -129,7 +124,7 @@ tasks.configureEach {
     if (releasePackagingTask) {
         doFirst {
             validateReleaseApiBaseUrl(resolvedApiBaseUrl)
-            validateReleasePushConfig()
+            validateReleaseFcmConfig()
         }
     }
 }

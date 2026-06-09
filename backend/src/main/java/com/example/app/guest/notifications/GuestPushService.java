@@ -172,6 +172,7 @@ public class GuestPushService {
             return DeliveryAttempt.SKIPPED;
         }
         String accessToken = resolveGoogleAccessToken(serviceAccount);
+        String resolvedChannelId = channelId == null || channelId.isBlank() ? "guest_messages" : channelId;
         Map<String, Object> payload = Map.of(
                 "message", Map.of(
                         "token", device.getPushToken(),
@@ -179,7 +180,12 @@ public class GuestPushService {
                         "data", data,
                         "android", Map.of(
                                 "priority", "high",
-                                "notification", Map.of("channel_id", channelId == null || channelId.isBlank() ? "guest_messages" : channelId)
+                                "notification", Map.of(
+                                        "channel_id", resolvedChannelId,
+                                        "sound", "default",
+                                        "default_sound", true,
+                                        "notification_priority", "PRIORITY_HIGH"
+                                )
                         )
                 )
         );
