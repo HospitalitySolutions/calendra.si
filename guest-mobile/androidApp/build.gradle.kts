@@ -47,6 +47,7 @@ fun validateReleaseApiBaseUrl(value: String) {
 }
 
 val resolvedApiBaseUrl = apiBaseUrl()
+val enableReleaseR8 = envOrProp("ENABLE_ANDROID_RELEASE_R8", "false").equals("true", ignoreCase = true)
 
 android {
     namespace = "si.calendra.guest.android"
@@ -56,8 +57,8 @@ android {
         applicationId = "si.calendra.guest.mobile"
         minSdk = 28
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.2.0"
+        versionCode = 5
+        versionName = "0.2.1"
         // Production default: https://app.calendra.si.
         // For local debug builds use, for example:
         //   API_BASE_HOST=10.0.2.2 API_BASE_PROTOCOL=http API_BASE_PORT=4000 ./gradlew :androidApp:assembleDebug
@@ -72,6 +73,28 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    buildTypes {
+        release {
+            // Keep R8/ProGuard disabled by default so Play Console does not require a
+            // deobfuscation mapping file for the current release flow. If you intentionally
+            // enable obfuscation with ENABLE_ANDROID_RELEASE_R8=true, upload the generated
+            // androidApp/build/outputs/mapping/release/mapping.txt file with the App Bundle.
+            isMinifyEnabled = enableReleaseR8
+            isShrinkResources = enableReleaseR8
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+
+            // Include native symbol metadata in release App Bundles so Google Play can
+            // de-symbolicate native crashes/ANRs from Android/Kotlin/Compose dependencies
+            // and bundled native libraries.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
+        }
     }
 
     packaging {

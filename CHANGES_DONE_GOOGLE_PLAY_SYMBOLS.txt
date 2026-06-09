@@ -1,0 +1,21 @@
+Implemented Google Play release diagnostics fixes for the Android guest mobile app.
+
+Changed files:
+- guest-mobile/androidApp/build.gradle.kts
+- guest-mobile/androidApp/proguard-rules.pro
+
+What changed:
+1. Added release native debug symbol generation with ndk.debugSymbolLevel = "SYMBOL_TABLE".
+   This makes new release App Bundles include native symbol metadata so Google Play can produce clearer native crash/ANR traces.
+
+2. Added explicit release R8/ProGuard configuration guarded by ENABLE_ANDROID_RELEASE_R8.
+   R8 remains OFF by default to avoid changing production behaviour without full regression testing.
+   If R8 is intentionally enabled, Gradle will generate the mapping file at:
+   guest-mobile/androidApp/build/outputs/mapping/release/mapping.txt
+   Upload that matching mapping.txt to Google Play Console as the deobfuscation file.
+
+3. Added guest-mobile/androidApp/proguard-rules.pro as the app-specific place for future keep rules before enabling R8 permanently.
+
+Notes:
+- The native debug symbols warning should be resolved after uploading a newly built release AAB from this updated project.
+- The deobfuscation warning is only actionable when R8/ProGuard obfuscation is enabled. With the current safe default, no mapping file is required.
