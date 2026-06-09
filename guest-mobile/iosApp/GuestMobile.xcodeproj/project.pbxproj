@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FIREBASERES00000000000001 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FIREBASEPLIST0000000001 /* GoogleService-Info.plist */; };
+		FIREBASECOREBUILD00000001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = FIREBASECOREPROD00000001 /* FirebaseCore */; };
+		FIREBASEMSGBUILD000000001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = FIREBASEMSGPROD000000001 /* FirebaseMessaging */; };
 		A10000010000000000000001 /* GuestMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000001 /* GuestMobileApp.swift */; };
 		A10000020000000000000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000120000000000000001 /* ContentView.swift */; };
 		A10000030000000000000001 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000130000000000000001 /* AppEnvironment.swift */; };
@@ -53,6 +56,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		FIREBASEPLIST0000000001 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A10000110000000000000001 /* GuestMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestMobileApp.swift; sourceTree = "<group>"; };
 		A10000120000000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000130000000000000001 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
@@ -106,6 +110,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FIREBASECOREBUILD00000001 /* FirebaseCore in Frameworks */,
+				FIREBASEMSGBUILD000000001 /* FirebaseMessaging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -167,6 +173,7 @@
 				C0A000140000000000000001 /* BookStepDateTimeBackground.png */,
 				C0A000150000000000000001 /* BookStepPaymentReviewBackground.png */,
 				APPLENT1000000000000001 /* GuestMobile.entitlements */,
+				FIREBASEPLIST0000000001 /* GoogleService-Info.plist */,
 				A100001F0000000000000001 /* Info.plist */,
 			);
 			path = GuestMobile;
@@ -197,6 +204,10 @@
 			dependencies = (
 			);
 			name = GuestMobile;
+			packageProductDependencies = (
+				FIREBASECOREPROD00000001 /* FirebaseCore */,
+				FIREBASEMSGPROD000000001 /* FirebaseMessaging */,
+			);
 			productName = GuestMobile;
 			productReference = A10001000000000000000001 /* GuestMobile.app */;
 			productType = "com.apple.product-type.application";
@@ -226,6 +237,9 @@
 				Base,
 			);
 			mainGroup = A10003000000000000000001;
+			packageReferences = (
+				FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			productRefGroup = A10003020000000000000001 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -240,6 +254,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FIREBASERES00000000000001 /* GoogleService-Info.plist in Resources */,
 				A5A5A5A50000000000000001 /* Assets.xcassets in Resources */,
 				CB0A00010000000000000001 /* CalendraBookLogo.png in Resources */,
 				F3B9A1002F9A000000000001 /* WelcomeBookingBackground.png in Resources */,
@@ -319,6 +334,30 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FIREBASECOREPROD00000001 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		FIREBASEMSGPROD000000001 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A10008000000000000000001 /* Debug */ = {

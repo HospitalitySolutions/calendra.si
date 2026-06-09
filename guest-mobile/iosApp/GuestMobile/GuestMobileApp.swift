@@ -1,6 +1,8 @@
 import SwiftUI
 import UIKit
 import UserNotifications
+import FirebaseCore
+import FirebaseMessaging
 
 extension Notification.Name {
     static let guestPushTokenUpdated = Notification.Name("guestPushTokenUpdated")
@@ -25,10 +27,18 @@ enum GuestPushInboxRouter {
     }
 }
 
-final class GuestPushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class GuestPushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
+        Messaging.messaging().delegate = self
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            #if DEBUG
+            if let error { print("Notification authorization failed: \(error.localizedDescription)") }
+            if !granted { print("Notification authorization was not granted.") }
+            #endif
             guard granted else { return }
             DispatchQueue.main.async {
                 application.registerForRemoteNotifications()
@@ -41,14 +51,25 @@ final class GuestPushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotific
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        NotificationCenter.default.post(name: .guestPushTokenUpdated, object: token)
+        Messaging.messaging().apnsToken = deviceToken
+        Messaging.messaging().token { token, error in
+            #if DEBUG
+            if let error { print("FCM registration token fetch failed: \(error.localizedDescription)") }
+            #endif
+            guard let token, !token.isEmpty else { return }
+            NotificationCenter.default.post(name: .guestPushTokenUpdated, object: token)
+        }
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         #if DEBUG
         print("APNS registration failed: \(error.localizedDescription)")
         #endif
+    }
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let fcmToken, !fcmToken.isEmpty else { return }
+        NotificationCenter.default.post(name: .guestPushTokenUpdated, object: fcmToken)
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {

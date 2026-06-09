@@ -1,6 +1,10 @@
 name: GuestMobile
 options:
   bundleIdPrefix: si.calendra.guest
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: 11.0.0
 targets:
   GuestMobile:
     type: application
@@ -8,6 +12,11 @@ targets:
     deploymentTarget: "16.0"
     sources:
       - GuestMobile
+    dependencies:
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseMessaging
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: si.calendra.guest.mobile
       SWIFT_VERSION: "5.0"

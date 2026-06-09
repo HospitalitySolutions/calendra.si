@@ -147,7 +147,7 @@ public class GuestPushService {
             try {
                 DeliveryAttempt attempt = switch (device.getPlatform()) {
                     case ANDROID -> sendFcm(device, title, body, data, androidChannelId);
-                    case IOS -> sendApns(device, title, body, data);
+                    case IOS -> sendIosPush(device, title, body, data);
                 };
                 if (attempt == DeliveryAttempt.DELIVERED) deliveredCount++;
                 else if (attempt == DeliveryAttempt.INVALID_TOKEN) invalidTokenCount++;
@@ -171,24 +171,63 @@ public class GuestPushService {
             log.debug("FCM delivery skipped because FCM credentials are not configured tokenSuffix={}", tokenSuffix(device.getPushToken()));
             return DeliveryAttempt.SKIPPED;
         }
-        String accessToken = resolveGoogleAccessToken(serviceAccount);
         String resolvedChannelId = channelId == null || channelId.isBlank() ? "guest_messages" : channelId;
-        Map<String, Object> payload = Map.of(
-                "message", Map.of(
-                        "token", device.getPushToken(),
-                        "notification", Map.of("title", title, "body", body),
-                        "data", data,
-                        "android", Map.of(
-                                "priority", "high",
-                                "notification", Map.of(
-                                        "channel_id", resolvedChannelId,
-                                        "sound", "default",
-                                        "default_sound", true,
-                                        "notification_priority", "PRIORITY_HIGH"
+        Map<String, Object> message = Map.of(
+                "token", device.getPushToken(),
+                "notification", Map.of("title", title, "body", body),
+                "data", data,
+                "android", Map.of(
+                        "priority", "high",
+                        "notification", Map.of(
+                                "channel_id", resolvedChannelId,
+                                "sound", "default",
+                                "default_sound", true,
+                                "notification_priority", "PRIORITY_HIGH"
+                        )
+                )
+        );
+        return postFcmMessage(serviceAccount, device, message);
+    }
+
+    private DeliveryAttempt sendIosPush(GuestDeviceToken device, String title, String body, Map<String, String> data) throws Exception {
+        DeliveryAttempt fcmAttempt = sendFcmIos(device, title, body, data);
+        if (fcmAttempt != DeliveryAttempt.SKIPPED) return fcmAttempt;
+        return sendApns(device, title, body, data);
+    }
+
+    private DeliveryAttempt sendFcmIos(GuestDeviceToken device, String title, String body, Map<String, String> data) throws Exception {
+        ServiceAccount serviceAccount = resolveServiceAccount();
+        if (serviceAccount == null) {
+            log.debug("FCM iOS delivery skipped because FCM credentials are not configured tokenSuffix={}", tokenSuffix(device.getPushToken()));
+            return DeliveryAttempt.SKIPPED;
+        }
+        Map<String, String> apnsHeaders = new LinkedHashMap<>();
+        apnsHeaders.put("apns-push-type", "alert");
+        apnsHeaders.put("apns-priority", "10");
+        String bundleId = properties.getApns().getBundleId();
+        if (!isBlank(bundleId)) {
+            apnsHeaders.put("apns-topic", bundleId.trim());
+        }
+        Map<String, Object> message = Map.of(
+                "token", device.getPushToken(),
+                "notification", Map.of("title", title, "body", body),
+                "data", data,
+                "apns", Map.of(
+                        "headers", apnsHeaders,
+                        "payload", Map.of(
+                                "aps", Map.of(
+                                        "alert", Map.of("title", title, "body", body),
+                                        "sound", "default"
                                 )
                         )
                 )
         );
+        return postFcmMessage(serviceAccount, device, message);
+    }
+
+    private DeliveryAttempt postFcmMessage(ServiceAccount serviceAccount, GuestDeviceToken device, Map<String, Object> message) throws Exception {
+        String accessToken = resolveGoogleAccessToken(serviceAccount);
+        Map<String, Object> payload = Map.of("message", message);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://fcm.googleapis.com/v1/projects/" + serviceAccount.projectId() + "/messages:send"))
                 .timeout(Duration.ofSeconds(Math.max(5, properties.getConnectTimeoutSeconds())))
@@ -198,12 +237,12 @@ public class GuestPushService {
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() >= 200 && response.statusCode() < 300) {
-            log.debug("FCM delivered tokenSuffix={} status={}", tokenSuffix(device.getPushToken()), response.statusCode());
+            log.debug("FCM delivered platform={} tokenSuffix={} status={}", device.getPlatform(), tokenSuffix(device.getPushToken()), response.statusCode());
             return DeliveryAttempt.DELIVERED;
         }
         if (isFcmTokenInvalid(response.body())) {
             deviceTokens.deleteByPushToken(device.getPushToken());
-            log.info("Removed invalid FCM token tokenSuffix={} status={} body={}", tokenSuffix(device.getPushToken()), response.statusCode(), truncate(response.body(), 400));
+            log.info("Removed invalid FCM token platform={} tokenSuffix={} status={} body={}", device.getPlatform(), tokenSuffix(device.getPushToken()), response.statusCode(), truncate(response.body(), 400));
             return DeliveryAttempt.INVALID_TOKEN;
         }
         throw new IOException("FCM returned " + response.statusCode() + ": " + truncate(response.body(), 600));

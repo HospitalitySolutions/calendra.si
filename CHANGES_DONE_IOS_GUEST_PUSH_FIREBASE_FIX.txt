@@ -1,0 +1,23 @@
+Changes done for iOS guest push notifications:
+
+1. iOS app now initializes Firebase on app startup.
+2. Added Firebase Messaging integration so iOS registers an FCM token, not a raw APNs token.
+3. iOS APNs token is now passed to Firebase Messaging and the resolved FCM token is registered with the backend using platform=IOS.
+4. Added FirebaseCore and FirebaseMessaging Swift Package dependencies in both project.yml and GuestMobile.xcodeproj/project.pbxproj.
+5. Added GoogleService-Info.plist to the Xcode project resources so FirebaseApp.configure() can find it in the app bundle.
+6. Backend now sends iOS notifications through Firebase Cloud Messaging with APNs alert/sound payload, using the same Firebase service account already configured for Android.
+7. Direct APNs sending remains as a fallback only if FCM credentials are not configured.
+
+Required after applying:
+- Keep GoogleService-Info.plist at guest-mobile/iosApp/GuestMobile/GoogleService-Info.plist.
+- In Firebase Cloud Messaging, keep APNs auth key configured for both Development and Production.
+- Rebuild/reinstall the iOS app on the iPhone.
+- Open the iOS guest app and log in once so it can register the new FCM token.
+- Restart/rebuild backend.
+
+Useful log checks:
+- Registered guest push device guestUserId=..., platform=IOS
+- Guest push delivery summary ..., delivered=1, failed=0
+
+Note:
+Old iOS APNs tokens saved in the database may fail when sent through FCM. After the updated app registers a new FCM token, delivery should work. Invalid old tokens are removed automatically when FCM returns them as invalid.
