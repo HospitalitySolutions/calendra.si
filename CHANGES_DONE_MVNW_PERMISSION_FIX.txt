@@ -1,0 +1,13 @@
+Maven wrapper CI permission fix
+
+Changed files:
+- .github/workflows/ci.yml
+  - Added an explicit chmod +x ./mvnw step before running backend tests.
+  - This prevents GitHub Actions from failing with Permission denied / exit code 126 when the Maven wrapper executable bit is missing.
+
+- backend/mvnw
+  - Marked the Maven wrapper script as executable in the returned ZIP.
+
+Notes:
+- The CI job already uses working-directory: backend, so ./mvnw correctly resolves to backend/mvnw.
+- I attempted to run ./mvnw --batch-mode test locally after fixing permissions, but this sandbox cannot download Maven from repo.maven.apache.org, so the test run could not complete here.

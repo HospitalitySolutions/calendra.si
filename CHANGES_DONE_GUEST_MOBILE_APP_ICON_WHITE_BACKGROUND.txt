@@ -1,0 +1,6 @@
+Guest mobile app icon update
+
+- Replaced Android launcher icon PNGs with the Calendra calendar icon centered on a white background.
+- Updated Android adaptive icon background color to pure white (#FFFFFF).
+- Added an iOS AppIcon asset catalog with all iPhone, iPad, and App Store marketing icon sizes.
+- Configured the iOS Xcode project and project.yml to use the AppIcon asset catalog.
