@@ -1,0 +1,24 @@
+Android guest push notification FCM OAuth audience fix
+
+Problem found from production logs:
+- Guest Android device tokens are registering correctly.
+- Tenant -> guest message push delivery reaches the backend FCM sender.
+- Delivery fails before sending to FCM because Google OAuth token exchange returns:
+  invalid_grant / Invalid JWT: Failed audience check.
+
+Root cause fixed:
+- The backend was creating the service-account JWT using JJWT audience collection syntax.
+- That can serialize the aud claim as a JSON array. Google OAuth expects the service-account JWT aud claim to be the token URI as a plain string: https://oauth2.googleapis.com/token.
+
+Changed files:
+- backend/src/main/java/com/example/app/guest/notifications/GuestPushService.java
+
+Implementation:
+- Changed FCM OAuth service-account assertion to set aud explicitly with claim("aud", serviceAccount.tokenUri()).
+- Kept issuer, subject, scope, iat, exp and RS256 signing unchanged.
+
+Deployment notes:
+- Rebuild/recreate backend only.
+- Mobile app rebuild is not required for this specific fix.
+- After deploy, the backend logs should change from failed audience check to Guest push delivery summary delivered=1.
+- Because the Firebase private key was pasted in chat, rotate the key in Firebase and update AWS Secrets Manager after push is confirmed working.

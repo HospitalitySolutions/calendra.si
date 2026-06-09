@@ -162,14 +162,6 @@ public class GuestPushService {
                         safeMessage(ex));
             }
         }
-        log.info("Guest push delivery summary guestUserId={}, companyId={}, clientId={}, attempted={}, delivered={}, invalidTokens={}, failed={}",
-                guestUser.getId(),
-                company == null ? null : company.getId(),
-                client == null ? null : client.getId(),
-                devices.size(),
-                deliveredCount,
-                invalidTokenCount,
-                failedCount);
         return new DeliveryResult(devices.size(), deliveredCount, invalidTokenCount, failedCount);
     }
 
@@ -265,7 +257,10 @@ public class GuestPushService {
         String assertion = Jwts.builder()
                 .issuer(serviceAccount.clientEmail())
                 .subject(serviceAccount.clientEmail())
-                .audience().add(serviceAccount.tokenUri()).and()
+                // Google OAuth service-account JWTs require aud to be the token URI as a plain string.
+                // Using the JJWT audience collection can serialize aud as an array, which Google rejects
+                // with: "Invalid JWT: Failed audience check".
+                .claim("aud", serviceAccount.tokenUri())
                 .claim("scope", serviceAccount.scope())
                 .issuedAt(Date.from(issuedAt))
                 .expiration(Date.from(expiresAt))
@@ -319,7 +314,7 @@ public class GuestPushService {
                     readFileOrNull(cfg.getServiceAccountFile())
             );
             if (isBlank(rawJson)) return null;
-            JsonNode root = parseJsonObject(rawJson);
+            JsonNode root = objectMapper.readTree(rawJson);
             String clientEmail = text(root, "client_email");
             String privateKeyPem = text(root, "private_key");
             String projectId = firstNonBlank(cfg.getProjectId(), text(root, "project_id"));
@@ -351,19 +346,6 @@ public class GuestPushService {
             log.warn("Unable to load APNS private key: {}", safeMessage(ex));
             return null;
         }
-    }
-
-    private JsonNode parseJsonObject(String rawJson) throws IOException {
-        String trimmed = rawJson == null ? "" : rawJson.trim();
-        JsonNode root = objectMapper.readTree(trimmed);
-        // AWS Secrets Manager key/value editing or CI scripts can sometimes pass the
-        // service-account JSON as a JSON-encoded string instead of a JSON object. Unwrap
-        // that form so both APP_FIREBASE_SERVICE_ACCOUNT_JSON={...} and
-        // APP_FIREBASE_SERVICE_ACCOUNT_JSON="{...}" work.
-        if (root != null && root.isTextual()) {
-            root = objectMapper.readTree(root.asText());
-        }
-        return root;
     }
 
     private PrivateKey parsePrivateKey(String pem, String algorithm) throws Exception {
