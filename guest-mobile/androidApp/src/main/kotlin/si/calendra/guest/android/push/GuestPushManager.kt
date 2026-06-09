@@ -8,21 +8,21 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
-import si.calendra.guest.android.BuildConfig
 import si.calendra.guest.android.MainActivity
 import si.calendra.guest.shared.network.GuestSessionStore
 import si.calendra.guest.shared.repository.GuestRepository
 import java.util.Locale
 
 object GuestPushManager {
+    private const val TAG = "GuestPushManager"
     private const val PREFS_NAME = "guest_push"
     private const val KEY_CACHED_TOKEN = "cached_token"
     const val CHANNEL_MESSAGES = "guest_messages"
@@ -32,17 +32,11 @@ object GuestPushManager {
 
     fun initialize(context: Context): Boolean {
         ensureNotificationChannel(context)
-        if (BuildConfig.FCM_PROJECT_ID.isBlank() || BuildConfig.FCM_APPLICATION_ID.isBlank() || BuildConfig.FCM_API_KEY.isBlank() || BuildConfig.FCM_GCM_SENDER_ID.isBlank()) {
-            return false
-        }
         if (FirebaseApp.getApps(context).isEmpty()) {
-            val options = FirebaseOptions.Builder()
-                .setProjectId(BuildConfig.FCM_PROJECT_ID)
-                .setApplicationId(BuildConfig.FCM_APPLICATION_ID)
-                .setApiKey(BuildConfig.FCM_API_KEY)
-                .setGcmSenderId(BuildConfig.FCM_GCM_SENDER_ID)
-                .build()
-            FirebaseApp.initializeApp(context, options)
+            val app = runCatching { FirebaseApp.initializeApp(context) }
+                .onFailure { Log.w(TAG, "Firebase default app could not be initialized. Check guest-mobile/androidApp/google-services.json.", it) }
+                .getOrNull()
+            if (app == null) return false
         }
         return true
     }

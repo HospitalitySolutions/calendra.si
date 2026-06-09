@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("com.google.gms.google-services")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -26,17 +27,11 @@ fun apiBaseUrl(): String {
     return normalizeApiBaseUrl(if (port.isBlank()) "$protocol://$host" else "$protocol://$host:$port")
 }
 
-fun validateReleaseFcmConfig() {
-    val required = listOf(
-        "APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID",
-        "APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID",
-        "APP_GUEST_MOBILE_ANDROID_FCM_API_KEY",
-        "APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID"
-    )
-    val missing = required.filter { envOrProp(it).isBlank() }
-    require(missing.isEmpty()) {
-        "Release Android guest app builds require Firebase/FCM config. Missing: ${missing.joinToString()}. " +
-            "Without these values the app cannot register an FCM token, so guests will not receive push notifications outside the app."
+fun validateReleaseGoogleServicesConfig() {
+    val googleServicesFile = layout.projectDirectory.file("google-services.json").asFile
+    require(googleServicesFile.exists()) {
+        "Release Android guest app builds require guest-mobile/androidApp/google-services.json. " +
+            "Download it from Firebase Console for applicationId si.calendra.guest.mobile and place it in the androidApp module root."
     }
 }
 
@@ -78,10 +73,6 @@ android {
         //   API_BASE_HOST=10.0.2.2 API_BASE_PROTOCOL=http API_BASE_PORT=4000 ./gradlew :androidApp:assembleDebug
         // Or provide a full override with API_BASE_URL.
         buildConfigField("String", "API_BASE_URL", quoted(resolvedApiBaseUrl))
-        buildConfigField("String", "FCM_PROJECT_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID"))
-        buildConfigField("String", "FCM_APPLICATION_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID"))
-        buildConfigField("String", "FCM_API_KEY", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_API_KEY"))
-        buildConfigField("String", "FCM_GCM_SENDER_ID", quotedEnv("APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID"))
     }
 
     buildFeatures {
@@ -124,7 +115,7 @@ tasks.configureEach {
     if (releasePackagingTask) {
         doFirst {
             validateReleaseApiBaseUrl(resolvedApiBaseUrl)
-            validateReleaseFcmConfig()
+            validateReleaseGoogleServicesConfig()
         }
     }
 }

@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:940757042515:android:0ede2d300a918bd6e6cda6",
+        "mobilesdk_app_id": "1:940757042515:android:8b87fe71edee3075e6cda6",
         "android_client_info": {
-          "package_name": "si.calendra.guest"
+          "package_name": "si.calendra.guest.mobile"
         }
       },
       "oauth_client": [],

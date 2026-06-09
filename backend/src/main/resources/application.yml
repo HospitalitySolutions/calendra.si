@@ -184,7 +184,7 @@ app:
       connect-timeout-seconds: ${APP_GUEST_PUSH_CONNECT_TIMEOUT_SECONDS:10}
       fcm:
         project-id: ${APP_GUEST_PUSH_FCM_PROJECT_ID:}
-        service-account-json: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON:}
+        service-account-json: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON:${APP_FIREBASE_SERVICE_ACCOUNT_JSON:}}
         service-account-json-base64: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON_BASE64:}
         service-account-file: ${APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_FILE:}
         token-uri: ${APP_GUEST_PUSH_FCM_TOKEN_URI:https://oauth2.googleapis.com/token}

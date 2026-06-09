@@ -1,0 +1,49 @@
+Android guest push / Firebase configuration fix
+
+Changed files:
+- guest-mobile/build.gradle.kts
+- guest-mobile/androidApp/build.gradle.kts
+- guest-mobile/androidApp/src/main/AndroidManifest.xml
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/GuestMobileApplication.kt
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/push/GuestPushManager.kt
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/push/GuestFirebaseMessagingService.kt
+- backend/src/main/resources/application.yml
+- backend/src/main/java/com/example/app/guest/notifications/GuestPushService.java
+- .env.example
+- .env.staging.example
+- backend/env.local.example
+
+What changed:
+1. Android Firebase setup now uses the standard google-services.json flow:
+   - Added com.google.gms.google-services plugin to the guest mobile Gradle project.
+   - Applied the plugin in androidApp.
+   - Firebase initialization now uses FirebaseApp.initializeApp(context), which reads values generated from google-services.json.
+   - Removed dependency on APP_GUEST_MOBILE_ANDROID_FCM_* BuildConfig values for the Android app.
+
+2. Added early Android application startup setup:
+   - Added GuestMobileApplication.
+   - Registered it in AndroidManifest.xml.
+   - Creates notification channels before background FCM notifications arrive.
+
+3. Added both Android notification channels:
+   - guest_messages
+   - guest_reminders
+
+4. Token registration is now idempotent on authenticated app start:
+   - The app sends the current Android FCM token to the backend whenever the guest is logged in, instead of skipping when the local cached token matches.
+
+5. Backend Firebase secret compatibility:
+   - Preferred secret remains APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON.
+   - Added backwards-compatible support for APP_FIREBASE_SERVICE_ACCOUNT_JSON because this value was used during setup.
+
+6. Backend FCM payload strengthened:
+   - High priority Android notification.
+   - Default sound.
+   - Channel-aware messages/reminders.
+
+After applying:
+- Put google-services.json in guest-mobile/androidApp/google-services.json.
+- Make sure Firebase Android package name is si.calendra.guest.mobile.
+- Rebuild and reinstall Android app.
+- Restart backend after Secrets Manager updates.
+- Open guest app and log in once so the device token is registered.
