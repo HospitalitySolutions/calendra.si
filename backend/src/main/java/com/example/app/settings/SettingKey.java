@@ -169,6 +169,12 @@ public enum SettingKey {
     /** Guest app public/discoverability settings. */
     GUEST_APP_SETTINGS_JSON,
 
+    /** Website booking widget booking/payment behavior. */
+    WEBSITE_BOOKING_RULES_JSON,
+
+    /** Website booking widget public flow settings. */
+    WEBSITE_WIDGET_SETTINGS_JSON,
+
     /**
      * JSON: public register page plan and add-on monthly prices (EUR), merged with built-in defaults.
      * Stored on the super-admin company that last saved it; public catalog picks the newest row by {@code updatedAt}.

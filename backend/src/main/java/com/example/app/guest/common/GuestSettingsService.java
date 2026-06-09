@@ -100,7 +100,7 @@ public class GuestSettingsService {
         return new ArrayList<>(out);
     }
 
-    static List<String> applyGlobalProviderCapabilities(
+    public static List<String> applyGlobalProviderCapabilities(
             List<String> accepted,
             GlobalPaymentProviderService.ProviderCapabilities capabilities
     ) {

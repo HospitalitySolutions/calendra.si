@@ -15,6 +15,7 @@ import com.example.app.paypal.PayPalClient;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.stripe.StripeGuestCheckoutService;
+import com.example.app.widget.WebsiteWidgetSettingsService;
 import com.example.app.reminder.ReminderService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBooking;
@@ -62,6 +63,7 @@ public class GuestOrderService {
     private final PayPalClient payPalClient;
     private final StripeGuestCheckoutService stripeGuestCheckoutService;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final WebsiteWidgetSettingsService websiteWidgetSettings;
     private final InvoiceOrderIdService invoiceOrderIdService;
 
     @Autowired
@@ -86,6 +88,7 @@ public class GuestOrderService {
             PayPalClient payPalClient,
             StripeGuestCheckoutService stripeGuestCheckoutService,
             GlobalPaymentProviderService globalPaymentProviders,
+            WebsiteWidgetSettingsService websiteWidgetSettings,
             InvoiceOrderIdService invoiceOrderIdService
     ) {
         this.guestTenantService = guestTenantService;
@@ -108,6 +111,7 @@ public class GuestOrderService {
         this.payPalClient = payPalClient;
         this.stripeGuestCheckoutService = stripeGuestCheckoutService;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.websiteWidgetSettings = websiteWidgetSettings;
         this.invoiceOrderIdService = invoiceOrderIdService;
     }
 
@@ -134,7 +138,7 @@ public class GuestOrderService {
     ) {
         this(guestTenantService, catalogService, guestSettings, companies, orders, entitlements, entitlementUsages,
                 bookings, bookingCreationService, bookingChangePublisher, users, paymentMethods, notifications, reminders,
-                entitlementService, bankTransferBillingService, productBillingService, payPalClient, null, null, null);
+                entitlementService, bankTransferBillingService, productBillingService, payPalClient, null, null, null, null);
     }
 
     /** Backwards-compatible constructor used by unit tests that mock Stripe and global payment providers. */
@@ -163,7 +167,7 @@ public class GuestOrderService {
         this(guestTenantService, catalogService, guestSettings, companies, orders, entitlements, entitlementUsages,
                 bookings, bookingCreationService, bookingChangePublisher, users, paymentMethods, notifications, reminders,
                 entitlementService, bankTransferBillingService, productBillingService, payPalClient,
-                stripeGuestCheckoutService, globalPaymentProviders, null);
+                stripeGuestCheckoutService, globalPaymentProviders, null, null);
     }
 
     @Transactional
@@ -172,7 +176,7 @@ public class GuestOrderService {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         var product = catalogService.resolveProduct(companyId, request.productId(), guestUser);
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
-        GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
+        GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
         assertPaymentMethodAllowed(companyId, paymentMethodType, product.productType(), channel);
         assertExternalCheckoutReadyBeforeOrderCreated(link, paymentMethodType);
         cancelOpenExternalCheckoutsForGuest(guestUser, companyId, paymentMethodType);
@@ -624,9 +628,9 @@ public class GuestOrderService {
     }
 
     private void assertPaymentMethodAllowed(Long companyId, GuestPaymentMethodType paymentMethodType, String productType, PaymentChannel channel) {
-        GuestSettingsService.GuestBookingRules rules = catalogService.bookingRules(companyId);
-        boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
-        boolean advanceBillingEnabled = guestSettings.advanceBillingEnabled(companyId);
+        GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
+        boolean billingEnabled = billingEnabledForChannel(companyId, channel);
+        boolean advanceBillingEnabled = advanceBillingEnabledForChannel(companyId, channel);
 
         if (!billingEnabled) {
             if (paymentMethodType != GuestPaymentMethodType.PAY_AT_VENUE || !isSessionLikeProductType(productType)) {
@@ -671,7 +675,7 @@ public class GuestOrderService {
         }
 
         if (paymentMethodType != GuestPaymentMethodType.ENTITLEMENT) {
-            List<String> accepted = guestSettings.acceptedPaymentMethods(companyId);
+            List<String> accepted = acceptedPaymentMethodsForChannel(companyId, channel);
             if (!accepted.contains(paymentMethodType.name())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This payment method is not enabled for this tenant.");
             }
@@ -718,6 +722,34 @@ public class GuestOrderService {
         if (!allowedGuestProductTypes(method).contains(productType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This payment method is not allowed for the selected product.");
         }
+    }
+
+    private GuestSettingsService.GuestBookingRules bookingRulesForChannel(Long companyId, PaymentChannel channel) {
+        if (channel == PaymentChannel.WEBSITE && websiteWidgetSettings != null) {
+            return websiteWidgetSettings.bookingRules(companyId);
+        }
+        return catalogService.bookingRules(companyId);
+    }
+
+    private boolean billingEnabledForChannel(Long companyId, PaymentChannel channel) {
+        if (channel == PaymentChannel.WEBSITE && websiteWidgetSettings != null) {
+            return websiteWidgetSettings.billingEnabled(companyId);
+        }
+        return !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
+    }
+
+    private boolean advanceBillingEnabledForChannel(Long companyId, PaymentChannel channel) {
+        if (channel == PaymentChannel.WEBSITE && websiteWidgetSettings != null) {
+            return websiteWidgetSettings.advanceBillingEnabled(companyId);
+        }
+        return guestSettings.advanceBillingEnabled(companyId);
+    }
+
+    private List<String> acceptedPaymentMethodsForChannel(Long companyId, PaymentChannel channel) {
+        if (channel == PaymentChannel.WEBSITE && websiteWidgetSettings != null) {
+            return websiteWidgetSettings.acceptedPaymentMethods(companyId);
+        }
+        return guestSettings.acceptedPaymentMethods(companyId);
     }
 
     private boolean matches(PaymentMethod method, GuestPaymentMethodType type) {

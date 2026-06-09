@@ -1,0 +1,50 @@
+Changes done
+============
+
+1. Added a new Configuration -> Website tab.
+   - Added Website to the configuration navigation.
+   - Added Website subtabs:
+     - Splošno
+     - Načini plačila
+
+2. Added Website -> Splošno setting.
+   - Added "Korak izbire zaposlenega" OFF/ON.
+   - When OFF, the public website booking widget skips the employee selection step and continues directly to date/time selection.
+   - This setting is stored separately for the website widget in WEBSITE_WIDGET_SETTINGS_JSON.
+
+3. Added Website payment configuration.
+   - Added the same payment-method controls as the guest app:
+     - Spletno plačilo s kartico
+     - Bančno nakazilo
+     - PayPal
+     - Darilni bon
+   - Added "Delno plačilo" with deposit percentage.
+   - Added "Plačilo na lokaciji".
+   - Website settings are stored separately from the guest app in:
+     - WEBSITE_WIDGET_SETTINGS_JSON
+     - WEBSITE_BOOKING_RULES_JSON
+   - If no Website settings exist yet, the widget falls back to the current Guest app booking/payment settings so existing behavior is preserved until the new Website tab is saved.
+
+4. Applied Website settings to the public booking widget.
+   - Public widget config now includes:
+     - employeeSelectionStep
+     - requireOnlinePayment
+     - paymentRequirement
+     - depositPercent
+     - allowedPaymentMethods
+   - The widget payment/review step now reflects:
+     - full online payment
+     - deposit/partial payment with due-now and remaining-at-location amounts
+     - pay-on-location flow without online payment method selection
+
+5. Applied Website settings to backend checkout validation.
+   - Website orders now use Website-specific booking/payment settings instead of Guest app settings.
+   - Guest mobile app orders continue using Guest app settings.
+   - Website payment methods are still checked against enabled widget payment methods and global Stripe/PayPal capabilities.
+
+Validation
+==========
+
+- Frontend staging build completed successfully with: npm run build:staging
+- Widget JavaScript syntax check completed successfully with: node --check
+- Backend Maven compile could not be run in this sandbox because Maven Wrapper could not download Maven from repo.maven.apache.org.

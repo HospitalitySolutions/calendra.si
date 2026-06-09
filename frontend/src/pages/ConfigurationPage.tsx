@@ -19,7 +19,7 @@ import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useLocale } from '../locale'
 import { getDefaultAllowedRoute, normalizePackageType } from '../lib/packageAccess'
 
-type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'integrations' | 'whatsapp' | 'viber' | 'modules'
+type Tab = 'company' | 'booking' | 'billing' | 'guestApp' | 'website' | 'notifications' | 'integrations' | 'whatsapp' | 'viber' | 'modules'
 type BookingSubtab = 'general' | 'spaces'
 type BillingSubtab = 'settings' | 'paymentMethods' | 'stripe' | 'paypal' | 'fiscal' | 'invoiceDelivery' | 'folioLayout'
 type IntegrationSubtab = 'status' | 'googleCalendar'
@@ -113,7 +113,7 @@ const loadCompanyProfilesFromSettings = (settings: Record<string, string>): Comp
 }
 
 
-type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'notifications' | 'integrations' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
+type ConfigNavIcon = 'company' | 'booking' | 'billing' | 'guestApp' | 'website' | 'notifications' | 'integrations' | 'googleCalendar' | 'whatsapp' | 'viber' | 'modules' | 'security'
 
 type ConfigNavItem = { id: Tab; icon: ConfigNavIcon }
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
@@ -226,13 +226,14 @@ const normalizeAccountRegisterCatalog = (catalog: AccountRegisterCatalog | null 
 })
 const accountUsagePercent = (current: number, max: number) => max > 0 ? Math.min(100, (current / max) * 100) : 0
 
-const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'notifications', 'integrations', 'whatsapp', 'viber', 'modules']
+const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestApp', 'website', 'notifications', 'integrations', 'whatsapp', 'viber', 'modules']
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   company: 'tabCompany',
   booking: 'tabBooking',
   billing: 'tabBilling',
   guestApp: 'tabGuestApp',
+  website: 'tabWebsite',
   notifications: 'tabNotifications',
   integrations: 'tabIntegrations',
   whatsapp: 'tabWhatsapp',
@@ -304,6 +305,16 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
         <rect x="7" y="2" width="10" height="20" rx="2" />
         <path d="M11 18h2" />
         <path d="M9 5h6" />
+      </svg>
+    )
+  }
+  if (kind === 'website') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18" />
+        <path d="M12 3a13.5 13.5 0 0 1 0 18" />
+        <path d="M12 3a13.5 13.5 0 0 0 0 18" />
       </svg>
     )
   }
@@ -2643,6 +2654,19 @@ type GuestBookingRulesForm = {
 }
 
 type GuestAppSubtab = 'general' | 'bookingRules' | 'paymentMethods' | 'qrCode'
+type WebsiteSubtab = 'general' | 'paymentMethods'
+
+type WebsiteWidgetSettingsForm = {
+  employeeSelectionStep: boolean
+  acceptedPaymentMethodIds: GuestPaymentMethodId[]
+  paymentDefaultMethodId: GuestPaymentMethodId
+  paymentOnLocation: boolean
+}
+
+type WebsiteBookingRulesForm = {
+  paymentRequirement: GuestBookingRulesForm['paymentRequirement']
+  depositPercent: string
+}
 
 type GuestAppAssetField = 'cardImageUrl' | 'logoImageUrl' | 'iconImageUrl'
 
@@ -2669,6 +2693,8 @@ type StripeConnectTenantStatus = {
 
 const GUEST_APP_SETTINGS_KEY = 'GUEST_APP_SETTINGS_JSON'
 const GUEST_BOOKING_RULES_KEY = 'GUEST_BOOKING_RULES_JSON'
+const WEBSITE_WIDGET_SETTINGS_KEY = 'WEBSITE_WIDGET_SETTINGS_JSON'
+const WEBSITE_BOOKING_RULES_KEY = 'WEBSITE_BOOKING_RULES_JSON'
 
 const GUEST_PAYMENT_METHOD_OPTIONS: { id: GuestPaymentMethodId; label: string }[] = [
   { id: 'online_card', label: 'Spletno plačilo s kartico' },
@@ -2707,6 +2733,13 @@ function guestAppSubtabs(t: (key: string) => string): { id: GuestAppSubtab; labe
     { id: 'bookingRules', label: t('configGuestSubtabBookingRules') },
     { id: 'paymentMethods', label: t('configGuestSubtabPaymentMethods') },
     { id: 'qrCode', label: t('configGuestSubtabQrCode') },
+  ]
+}
+
+function websiteSubtabs(t: (key: string) => string): { id: WebsiteSubtab; label: string }[] {
+  return [
+    { id: 'general', label: t('configGuestSubtabGeneral') },
+    { id: 'paymentMethods', label: t('configGuestSubtabPaymentMethods') },
   ]
 }
 const GUEST_PRODUCT_TYPES = ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP', 'GIFT_CARD'] as const
@@ -2767,6 +2800,18 @@ const defaultGuestBookingRules = (): GuestBookingRulesForm => ({
   noShowPolicy: 'charge_deposit',
   refundPolicy: 'auto_by_cancellation_deadline',
   policyText: 'Rezervacijo lahko brezplačno odpoveste do navedenega roka pred terminom.\n\nPri kasnejši odpovedi ali no-show se zaračuna polog.\n\nPolog ni prenosljiv in se ne vrača.',
+})
+
+const defaultWebsiteWidgetSettings = (): WebsiteWidgetSettingsForm => ({
+  employeeSelectionStep: false,
+  acceptedPaymentMethodIds: DEFAULT_GUEST_PAYMENT_METHOD_IDS,
+  paymentDefaultMethodId: 'online_card',
+  paymentOnLocation: true,
+})
+
+const defaultWebsiteBookingRules = (): WebsiteBookingRulesForm => ({
+  paymentRequirement: 'none',
+  depositPercent: '20',
 })
 
 const QR_QUIET_ZONE = 4
@@ -3120,6 +3165,56 @@ const normalizeBookingRulesForPaymentLocation = (rules: GuestBookingRulesForm, p
   return { ...rules, paymentRequirement: nextRequirement, requireOnlinePayment: true }
 }
 
+const parseWebsiteWidgetSettings = (raw: string | undefined): WebsiteWidgetSettingsForm => {
+  if (!raw) return defaultWebsiteWidgetSettings()
+  try {
+    const parsed = JSON.parse(raw)
+    return {
+      employeeSelectionStep: parsed?.employeeSelectionStep === true,
+      acceptedPaymentMethodIds: normalizeGuestPaymentMethods(parsed?.acceptedPaymentMethodIds),
+      paymentDefaultMethodId: isGuestPaymentMethodId(String(parsed?.paymentDefaultMethodId || '')) ? parsed.paymentDefaultMethodId : 'online_card',
+      paymentOnLocation: parsed?.paymentOnLocation !== false,
+    }
+  } catch {
+    return defaultWebsiteWidgetSettings()
+  }
+}
+
+const parseWebsiteBookingRules = (raw: string | undefined): WebsiteBookingRulesForm => {
+  if (!raw) return defaultWebsiteBookingRules()
+  try {
+    const parsed = JSON.parse(raw)
+    return {
+      paymentRequirement: parsed?.paymentRequirement === 'none' || parsed?.paymentRequirement === 'deposit' ? parsed.paymentRequirement : 'full',
+      depositPercent: String(parsed?.depositPercent ?? 20),
+    }
+  } catch {
+    return defaultWebsiteBookingRules()
+  }
+}
+
+const normalizeWebsiteBookingRulesForPaymentLocation = (rules: WebsiteBookingRulesForm, paymentOnLocation: boolean): WebsiteBookingRulesForm => {
+  if (paymentOnLocation) return { ...rules, paymentRequirement: 'none' }
+  const nextRequirement = rules.paymentRequirement === 'none' ? 'full' : rules.paymentRequirement
+  return { ...rules, paymentRequirement: nextRequirement }
+}
+
+const serializeWebsiteWidgetSettings = (value: WebsiteWidgetSettingsForm) => JSON.stringify({
+  employeeSelectionStep: value.employeeSelectionStep,
+  acceptedPaymentMethodIds: normalizeGuestPaymentMethods(value.acceptedPaymentMethodIds),
+  paymentDefaultMethodId: isGuestPaymentMethodId(String(value.paymentDefaultMethodId || '')) ? value.paymentDefaultMethodId : 'online_card',
+  paymentOnLocation: value.paymentOnLocation,
+})
+
+const serializeWebsiteBookingRules = (value: WebsiteBookingRulesForm) => JSON.stringify({
+  requireOnlinePayment: value.paymentRequirement !== 'none',
+  paymentRequirement: value.paymentRequirement,
+  depositPercent: String(value.depositPercent || '20').trim() || '20',
+  allowBankTransferFor: ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP', 'GIFT_CARD'],
+  allowCardFor: ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP', 'GIFT_CARD'],
+  allowPaypalFor: ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP', 'GIFT_CARD'],
+})
+
 const serializeGuestAppSettings = (value: GuestAppSettingsForm) => JSON.stringify({
   guestAppEnabled: value.guestAppEnabled,
   walletEnabled: value.walletEnabled,
@@ -3432,6 +3527,7 @@ export function ConfigurationPage() {
   const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
   const [expandedIntegrationCard, setExpandedIntegrationCard] = useState<'stripe' | 'googleCalendar' | null>(null)
   const [guestAppSubtab, setGuestAppSubtab] = useState<GuestAppSubtab>('general')
+  const [websiteSubtab, setWebsiteSubtab] = useState<WebsiteSubtab>('general')
   const [startingPaypalOnboarding, setStartingPaypalOnboarding] = useState(false)
   const [startingStripeOnboarding, setStartingStripeOnboarding] = useState(false)
   const [refreshingStripeStatus, setRefreshingStripeStatus] = useState(false)
@@ -3449,6 +3545,8 @@ export function ConfigurationPage() {
   const [uploadingGuestAsset, setUploadingGuestAsset] = useState<GuestAppAssetField | null>(null)
   const [guestAppSettings, setGuestAppSettings] = useState<GuestAppSettingsForm>(defaultGuestAppSettings)
   const [guestBookingRules, setGuestBookingRules] = useState<GuestBookingRulesForm>(defaultGuestBookingRules)
+  const [websiteSettings, setWebsiteSettings] = useState<WebsiteWidgetSettingsForm>(defaultWebsiteWidgetSettings)
+  const [websiteBookingRules, setWebsiteBookingRules] = useState<WebsiteBookingRulesForm>(defaultWebsiteBookingRules)
   const [spaces, setSpaces] = useState<Space[]>([])
   const [editingSpaceId, setEditingSpaceId] = useState<number | null>(null)
   const [spaceEditDraft, setSpaceEditDraft] = useState({ name: '', description: '' })
@@ -4037,6 +4135,9 @@ export function ConfigurationPage() {
     if (q === 'guestApp' && (subtabQuery === 'general' || subtabQuery === 'bookingRules' || subtabQuery === 'paymentMethods' || subtabQuery === 'qrCode')) {
       setGuestAppSubtab(subtabQuery)
     }
+    if (q === 'website' && (subtabQuery === 'general' || subtabQuery === 'paymentMethods')) {
+      setWebsiteSubtab(subtabQuery)
+    }
   }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, guestAppEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
 
   useEffect(() => {
@@ -4124,7 +4225,13 @@ export function ConfigurationPage() {
     }
     setTab(next)
     if (next === 'integrations') setIntegrationSubtab('status')
+    if (next === 'website') setWebsiteSubtab('general')
     navigate(`/configuration?tab=${next}`)
+  }
+
+  const setWebsiteSubtabAndUrl = (next: WebsiteSubtab) => {
+    setWebsiteSubtab(next)
+    navigate(next === 'general' ? '/configuration?tab=website' : `/configuration?tab=website&subtab=${next}`)
   }
 
   const setAccountSubtabAndUrl = (next: typeof accountSubtab) => {
@@ -4162,6 +4269,22 @@ export function ConfigurationPage() {
       paymentOnLocation: parsedGuestBookingRules.paymentRequirement === 'none',
     }
     const nextGuestBookingRules = normalizeBookingRulesForPaymentLocation(parsedGuestBookingRules, nextGuestApp.paymentOnLocation)
+    const parsedWebsiteBookingRules = settingsData[WEBSITE_BOOKING_RULES_KEY]
+      ? parseWebsiteBookingRules(settingsData[WEBSITE_BOOKING_RULES_KEY])
+      : { paymentRequirement: nextGuestBookingRules.paymentRequirement, depositPercent: nextGuestBookingRules.depositPercent }
+    const parsedWebsiteSettings = settingsData[WEBSITE_WIDGET_SETTINGS_KEY]
+      ? parseWebsiteWidgetSettings(settingsData[WEBSITE_WIDGET_SETTINGS_KEY])
+      : {
+        employeeSelectionStep: nextGuestApp.employeeSelectionStep,
+        acceptedPaymentMethodIds: nextGuestApp.acceptedPaymentMethodIds,
+        paymentDefaultMethodId: nextGuestApp.paymentDefaultMethodId,
+        paymentOnLocation: nextGuestApp.paymentOnLocation,
+      }
+    const nextWebsiteSettings = {
+      ...parsedWebsiteSettings,
+      paymentOnLocation: parsedWebsiteBookingRules.paymentRequirement === 'none' ? true : parsedWebsiteSettings.paymentOnLocation,
+    }
+    const nextWebsiteBookingRules = normalizeWebsiteBookingRulesForPaymentLocation(parsedWebsiteBookingRules, nextWebsiteSettings.paymentOnLocation)
     setSettings(nextSettings)
     setSubscriptionBillingInterval(String(nextSettings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY')
     const activeTenantUserCount = Math.max(1, Array.isArray(tenantUsersRes.data) ? tenantUsersRes.data.filter((user) => user.active !== false).length : 1)
@@ -4191,6 +4314,8 @@ export function ConfigurationPage() {
       setModulesDraft(buildModulesDraftFromCommitted(nextSettings, nextGuestApp))
     }
     setGuestBookingRules(nextGuestBookingRules)
+    setWebsiteSettings(nextWebsiteSettings)
+    setWebsiteBookingRules(nextWebsiteBookingRules)
     setPersonalTaskPresets(parsePersonalTaskPresets(settingsData[PERSONAL_TASK_PRESETS_KEY]))
     setSpaces(spacesRes.data || [])
     setPaymentMethods((paymentMethodsRes.data || [])
@@ -4287,6 +4412,7 @@ export function ConfigurationPage() {
       { id: 'booking', icon: 'booking' },
       { id: 'billing', icon: 'billing' },
       { id: 'guestApp', icon: 'guestApp' },
+      { id: 'website', icon: 'website' },
       { id: 'notifications', icon: 'notifications' },
       { id: 'integrations', icon: 'integrations' },
       { id: 'whatsapp', icon: 'whatsapp' },
@@ -4392,6 +4518,8 @@ export function ConfigurationPage() {
         [PERSONAL_TASK_PRESETS_KEY]: serializePersonalTaskPresets(personalTaskPresets),
         [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(effectiveGuestApp),
         [GUEST_BOOKING_RULES_KEY]: serializeGuestBookingRules(guestBookingRules),
+        [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(websiteSettings),
+        [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(normalizeWebsiteBookingRulesForPaymentLocation(websiteBookingRules, websiteSettings.paymentOnLocation)),
       }
       const { data } = await api.put('/settings', payload)
       setWorkingHoursFallback(normalizedStart, normalizedEnd)
@@ -4656,6 +4784,48 @@ export function ConfigurationPage() {
       showToast('success', t('configConfigurationSaved'))
     } catch (e: any) {
       window.alert(e?.response?.data?.message || 'Failed to save guest app configuration.')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const saveWebsiteConfiguration = async () => {
+    if (!isAdmin) return
+    setSavingSettings(true)
+    try {
+      const normalizedStart = toTimeInputValue(settings.WORKING_HOURS_START, '05:00')
+      const normalizedEnd = toTimeInputValue(settings.WORKING_HOURS_END, '23:00')
+      const effectiveWebsiteBookingRules = normalizeWebsiteBookingRulesForPaymentLocation(websiteBookingRules, websiteSettings.paymentOnLocation)
+      const payload = {
+        ...settings,
+        WORKING_HOURS_START: normalizedStart,
+        WORKING_HOURS_END: normalizedEnd,
+        [PERSONAL_TASK_PRESETS_KEY]: serializePersonalTaskPresets(personalTaskPresets),
+        [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(guestAppSettings),
+        [GUEST_BOOKING_RULES_KEY]: serializeGuestBookingRules(guestBookingRules),
+        [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(websiteSettings),
+        [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(effectiveWebsiteBookingRules),
+      }
+      const { data } = await api.put('/settings', payload)
+      const persistedSettings = parseWebsiteWidgetSettings(data?.[WEBSITE_WIDGET_SETTINGS_KEY] ?? payload[WEBSITE_WIDGET_SETTINGS_KEY])
+      const persistedRules = parseWebsiteBookingRules(data?.[WEBSITE_BOOKING_RULES_KEY] ?? payload[WEBSITE_BOOKING_RULES_KEY])
+      const nextWebsiteSettings = {
+        ...persistedSettings,
+        paymentOnLocation: persistedRules.paymentRequirement === 'none' ? true : persistedSettings.paymentOnLocation,
+      }
+      setWebsiteSettings(nextWebsiteSettings)
+      setWebsiteBookingRules(normalizeWebsiteBookingRulesForPaymentLocation(persistedRules, nextWebsiteSettings.paymentOnLocation))
+      setSettings({
+        ...payload,
+        ...data,
+        WORKING_HOURS_START: data?.WORKING_HOURS_START || normalizedStart,
+        WORKING_HOURS_END: data?.WORKING_HOURS_END || normalizedEnd,
+      })
+      window.dispatchEvent(new Event('settings-updated'))
+      await load()
+      showToast('success', t('configConfigurationSaved'))
+    } catch (e: any) {
+      window.alert(e?.response?.data?.message || 'Failed to save website widget configuration.')
     } finally {
       setSavingSettings(false)
     }
@@ -5084,10 +5254,37 @@ export function ConfigurationPage() {
         paymentProvider,
       }
     })
+    setWebsiteSettings((prev) => {
+      const filteredAccepted = prev.acceptedPaymentMethodIds.filter((methodId) => allowed.has(methodId))
+      const acceptedPaymentMethodIds = filteredAccepted.length > 0
+        ? filteredAccepted
+        : [visibleGuestPaymentMethodOptions[0]?.id ?? 'bank_transfer']
+      const paymentDefaultMethodId = allowed.has(prev.paymentDefaultMethodId)
+        ? prev.paymentDefaultMethodId
+        : acceptedPaymentMethodIds[0]
+      if (
+        acceptedPaymentMethodIds.length === prev.acceptedPaymentMethodIds.length
+        && acceptedPaymentMethodIds.every((id, index) => prev.acceptedPaymentMethodIds[index] === id)
+        && paymentDefaultMethodId === prev.paymentDefaultMethodId
+      ) {
+        return prev
+      }
+      return { ...prev, acceptedPaymentMethodIds, paymentDefaultMethodId }
+    })
   }, [paymentGlobalCapabilities.paypalEnabled, paymentGlobalCapabilities.stripeEnabled, visibleGuestPaymentMethodOptions])
 
   const toggleGuestPaymentMethod = (id: GuestPaymentMethodId) => {
     setGuestAppSettings((prev) => {
+      const has = prev.acceptedPaymentMethodIds.includes(id)
+      const acceptedPaymentMethodIds = has
+        ? prev.acceptedPaymentMethodIds.filter((row) => row !== id)
+        : [...prev.acceptedPaymentMethodIds, id]
+      return { ...prev, acceptedPaymentMethodIds: acceptedPaymentMethodIds.length > 0 ? acceptedPaymentMethodIds : prev.acceptedPaymentMethodIds }
+    })
+  }
+
+  const toggleWebsitePaymentMethod = (id: GuestPaymentMethodId) => {
+    setWebsiteSettings((prev) => {
       const has = prev.acceptedPaymentMethodIds.includes(id)
       const acceptedPaymentMethodIds = has
         ? prev.acceptedPaymentMethodIds.filter((row) => row !== id)
@@ -9638,6 +9835,153 @@ export function ConfigurationPage() {
                 </div>
                 <div className="gapp-savebar">
                   <button type="button" className="gapp-primary-button" onClick={saveGuestAppConfiguration} disabled={savingSettings}>
+                    <GuestSaveIcon />
+                    {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
+      ) : tab === 'website' ? (
+        <Card className="settings-card guest-app-settings-card gapp-modern-card website-settings-card">
+          <style>{`
+            .website-settings-card { --gapp-blue:#2563eb; --gapp-text:#071635; --gapp-muted:#66748a; --gapp-line:#d7e3f5; border-radius:24px; border:1px solid rgba(203,213,225,.9); background:rgba(255,255,255,.98); box-shadow:0 26px 72px rgba(15,23,42,.09); overflow:hidden; }
+            .website-settings-card button { font-family:inherit; }
+            .website-settings-card .gapp-subtabs { display:flex; align-items:center; gap:22px; flex-wrap:wrap; padding:20px 24px 0; border-bottom:1px solid #e8eef6; }
+            .website-settings-card .gapp-subtab { appearance:none; border:0; background:transparent; color:#0f172a; font-weight:900; font-size:16px; padding:10px 0 13px; cursor:pointer; position:relative; }
+            .website-settings-card .gapp-subtab.active { color:#2563eb; }
+            .website-settings-card .gapp-subtab.active::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height:3px; border-radius:999px; background:#2563eb; box-shadow:0 6px 16px rgba(37,99,235,.28); }
+            .website-settings-card .gapp-panel { margin:18px 24px 28px; padding:38px 46px; border:1px solid #d4e0f1; border-radius:24px; background:#fff; box-shadow:0 12px 32px rgba(30,64,175,.06); }
+            .website-settings-card .gapp-section-heading { margin:0 0 22px; }
+            .website-settings-card .gapp-section-heading h3 { margin:0 0 6px; font-size:24px; line-height:1.15; color:#071635; letter-spacing:-.035em; font-weight:900; }
+            .website-settings-card .gapp-section-heading p { margin:0; color:#66748a; font-size:15px; line-height:1.5; }
+            .website-settings-card .gapp-payment-layout { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; }
+            .website-settings-card .gapp-payment-list { display:grid; gap:12px; margin-bottom:22px; }
+            .website-settings-card .gapp-payment-row { display:grid; grid-template-columns:54px minmax(0,1fr) auto; align-items:center; gap:16px; min-height:68px; border:1px solid #dbe7fb; border-radius:16px; padding:10px 14px; background:#fff; box-shadow:0 7px 20px rgba(15,23,42,.035); }
+            .website-settings-card .gapp-payment-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:13px; background:#f8fafc; color:#1e3a8a; border:1px solid #e2e8f0; }
+            .website-settings-card .gapp-payment-row strong { color:#071635; font-size:16px; font-weight:900; }
+            .website-settings-card .gapp-payment-toggle-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:8px; }
+            .website-settings-card .gapp-payment-toggle-card { border:1px solid #dbe7fb; border-radius:16px; background:linear-gradient(180deg,#fff 0%,#f8fbff 100%); box-shadow:0 9px 22px rgba(30,64,175,.06); padding:16px; align-content:start; }
+            .website-settings-card .gapp-toggle-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+            .website-settings-card .gapp-label { display:block; color:#071635; font-weight:900; font-size:15px; line-height:1.25; }
+            .website-settings-card .gapp-hint { display:block; margin-top:10px; color:#66748a; font-size:14px; line-height:1.45; }
+            .website-settings-card .gapp-switch { position:relative; display:inline-flex; align-items:center; justify-content:flex-start; width:74px; height:38px; border:1px solid #cdd8e8; border-radius:999px; background:#dfe7f1; color:#64748b; font-size:12px; font-weight:900; padding:0 9px; cursor:pointer; transition:background .18s ease,border-color .18s ease,color .18s ease; }
+            .website-settings-card .gapp-switch-label { margin-left:auto; z-index:1; }
+            .website-settings-card .gapp-switch.active { background:#2563eb; border-color:#2563eb; color:#fff; }
+            .website-settings-card .gapp-switch.active .gapp-switch-label { margin-left:0; margin-right:auto; }
+            .website-settings-card .gapp-switch-knob { position:absolute; left:4px; width:28px; height:28px; border-radius:999px; background:#fff; box-shadow:0 4px 10px rgba(15,23,42,.18); transition:transform .18s ease; }
+            .website-settings-card .gapp-switch.active .gapp-switch-knob { transform:translateX(36px); }
+            .website-settings-card .gapp-segmented { --segments:2; display:grid; grid-template-columns:repeat(var(--segments),1fr); min-height:46px; border:1px solid #dbe7fb; border-radius:14px; overflow:hidden; background:#f8fbff; }
+            .website-settings-card .gapp-segmented button { border:0; background:transparent; color:#64748b; font-weight:900; cursor:pointer; }
+            .website-settings-card .gapp-segmented button.active { background:#2563eb; color:#fff; box-shadow:0 8px 20px rgba(37,99,235,.22); }
+            .website-settings-card .gapp-field.gapp-deposit-field { margin-top:14px; }
+            .website-settings-card .gapp-deposit-input-wrap { position:relative; display:flex; align-items:center; }
+            .website-settings-card .gapp-deposit-input { width:100%; min-height:44px; border:1px solid #cddcf5; border-radius:12px; background:#f8fbff; color:#1e3a8a; font-size:16px; font-weight:900; padding:10px 42px 10px 14px; outline:none; }
+            .website-settings-card .gapp-deposit-input-suffix { position:absolute; right:10px; top:50%; transform:translateY(-50%); border-radius:999px; background:#e7efff; color:#1d4ed8; font-size:12px; font-weight:900; padding:4px 8px; pointer-events:none; }
+            .website-settings-card .gapp-savebar { display:flex; justify-content:flex-end; margin-top:28px; }
+            .website-settings-card .gapp-primary-button { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:50px; border:0; border-radius:14px; padding:0 24px; background:#2563eb; color:#fff; font-weight:900; font-size:16px; cursor:pointer; box-shadow:0 14px 30px rgba(37,99,235,.24); }
+            .website-settings-card .gapp-primary-button:disabled { opacity:.65; cursor:not-allowed; }
+            @media (max-width:980px) { .website-settings-card .gapp-panel { margin:14px; padding:22px; } .website-settings-card .gapp-payment-toggle-row { grid-template-columns:1fr; } }
+          `}</style>
+          <div className="gapp-subtabs" role="tablist" aria-label={locale === 'sl' ? 'Website nastavitve' : 'Website settings'}>
+            {websiteSubtabs(t).map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                role="tab"
+                aria-selected={websiteSubtab === entry.id}
+                className={websiteSubtab === entry.id ? 'gapp-subtab active' : 'gapp-subtab'}
+                onClick={() => setWebsiteSubtabAndUrl(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+          <div className="gapp-panel">
+            {websiteSubtab === 'general' ? (
+              <>
+                <div className="gapp-section-heading">
+                  <h3>Splošno</h3>
+                  <p>Nastavite potek javnega booking widgeta na spletni strani.</p>
+                </div>
+                <div className="gapp-payment-toggle-card">
+                  <div className="gapp-toggle-head">
+                    <div>
+                      <span className="gapp-label">Korak izbire zaposlenega</span>
+                      <span className="gapp-hint">Ko je izklopljeno, obiskovalec preskoči izbiro zaposlenega in nadaljuje neposredno na izbiro termina.</span>
+                    </div>
+                    <GuestSegmentedToggle value={websiteSettings.employeeSelectionStep} onChange={(value) => setWebsiteSettings({ ...websiteSettings, employeeSelectionStep: value })} />
+                  </div>
+                </div>
+                <div className="gapp-savebar">
+                  <button type="button" className="gapp-primary-button" onClick={saveWebsiteConfiguration} disabled={savingSettings}>
+                    <GuestSaveIcon />
+                    {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="gapp-grid gapp-payment-layout">
+                  <div className="gapp-pane">
+                    <div className="gapp-section-heading">
+                      <h3>Sprejeti načini plačila</h3>
+                      <p>Izberite, katere načine plačila želite omogočiti gostom v booking widgetu na spletni strani.</p>
+                    </div>
+                    <div className="gapp-payment-list">
+                      {visibleGuestPaymentMethodOptions.map((method) => (
+                        <div className="gapp-payment-row" key={method.id}>
+                          <span className="gapp-payment-icon"><GuestPaymentMethodIcon kind={method.id} /></span>
+                          <strong>{method.label}</strong>
+                          <GuestSwitch checked={websiteSettings.acceptedPaymentMethodIds.includes(method.id)} onChange={() => toggleWebsitePaymentMethod(method.id)} />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="gapp-payment-toggle-row">
+                      <div className="gapp-payment-toggle-card">
+                        <div className="gapp-toggle-head">
+                          <span className="gapp-label">Delno plačilo</span>
+                          <GuestSwitch
+                            checked={websiteBookingRules.paymentRequirement === 'deposit'}
+                            onChange={(checked) => {
+                              if (checked) setWebsiteSettings((prev) => ({ ...prev, paymentOnLocation: false }))
+                              setWebsiteBookingRules({ ...websiteBookingRules, paymentRequirement: checked ? 'deposit' : 'full' })
+                            }}
+                          />
+                        </div>
+                        <span className="gapp-hint">Ko je izklopljeno, se ob spletnem plačilu samodejno zaračuna polni znesek.</span>
+                        {websiteBookingRules.paymentRequirement === 'deposit' ? (
+                          <GuestField className="gapp-deposit-field" label="Znesek pologa" hint="Odstotek od skupnega zneska, ki ga gost plača ob rezervaciji.">
+                            <div className="gapp-deposit-input-wrap">
+                              <input
+                                className="gapp-deposit-input"
+                                value={websiteBookingRules.depositPercent}
+                                onChange={(e) => setWebsiteBookingRules({ ...websiteBookingRules, depositPercent: e.target.value.replace(/[^0-9]/g, '') })}
+                              />
+                              <span className="gapp-deposit-input-suffix">%</span>
+                            </div>
+                          </GuestField>
+                        ) : null}
+                      </div>
+                      <div className="gapp-payment-toggle-card">
+                        <div className="gapp-toggle-head">
+                          <span className="gapp-label">Plačilo na lokaciji</span>
+                          <GuestSwitch
+                            checked={websiteSettings.paymentOnLocation}
+                            onChange={(checked) => {
+                              setWebsiteSettings({ ...websiteSettings, paymentOnLocation: checked })
+                              setWebsiteBookingRules((prev) => normalizeWebsiteBookingRulesForPaymentLocation(prev, checked))
+                            }}
+                          />
+                        </div>
+                        <span className="gapp-hint">Ko je vklopljeno, gost rezervira brez spletnega plačila in poravna na lokaciji.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="gapp-savebar">
+                  <button type="button" className="gapp-primary-button" onClick={saveWebsiteConfiguration} disabled={savingSettings}>
                     <GuestSaveIcon />
                     {savingSettings ? t('formSaving') : t('configSaveConfiguration')}
                   </button>

@@ -73,6 +73,7 @@ public class PublicBookingWidgetService {
     private final WidgetBookingIdempotencyService widgetBookingIdempotencyService;
     private final WidgetPublicAuditLogger widgetPublicAuditLogger;
     private final GuestSettingsService guestSettingsService;
+    private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
     private final PaymentMethodRepository paymentMethods;
     private final TimeService timeService;
 
@@ -91,6 +92,7 @@ public class PublicBookingWidgetService {
             WidgetBookingIdempotencyService widgetBookingIdempotencyService,
             WidgetPublicAuditLogger widgetPublicAuditLogger,
             GuestSettingsService guestSettingsService,
+            WebsiteWidgetSettingsService websiteWidgetSettingsService,
             PaymentMethodRepository paymentMethods,
             TimeService timeService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String widgetTimezoneId
@@ -109,6 +111,7 @@ public class PublicBookingWidgetService {
         this.widgetBookingIdempotencyService = widgetBookingIdempotencyService;
         this.widgetPublicAuditLogger = widgetPublicAuditLogger;
         this.guestSettingsService = guestSettingsService;
+        this.websiteWidgetSettingsService = websiteWidgetSettingsService;
         this.paymentMethods = paymentMethods;
         this.timeService = timeService;
         this.widgetZoneId = (widgetTimezoneId == null || widgetTimezoneId.isBlank())
@@ -120,8 +123,8 @@ public class PublicBookingWidgetService {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "config");
         var cfg = loadConfig(company.getId());
-        var publicSettings = guestSettingsService.publicSettings(company.getId());
-        var bookingRules = guestSettingsService.bookingRules(company.getId());
+        var websiteSettings = websiteWidgetSettingsService.widgetSettings(company.getId());
+        var bookingRules = websiteWidgetSettingsService.bookingRules(company.getId());
         var allowedPaymentMethods = resolveAllowedPaymentMethods(company);
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
@@ -134,8 +137,10 @@ public class PublicBookingWidgetService {
                 widgetZoneId.getId(),
                 widgetTurnstileService.isEnabled(company),
                 widgetTurnstileService.siteKey(company),
-                publicSettings.employeeSelectionStep(),
+                websiteSettings.employeeSelectionStep(),
                 bookingRules.requireOnlinePayment(),
+                bookingRules.paymentRequirement(),
+                bookingRules.depositPercent(),
                 allowedPaymentMethods
         );
     }
@@ -146,6 +151,7 @@ public class PublicBookingWidgetService {
      * {@code GuestOrderService.assertPaymentMethodAllowed}.
      */
     private PublicBookingWidgetController.AllowedPaymentMethodsResponse resolveAllowedPaymentMethods(Company company) {
+        List<String> accepted = websiteWidgetSettingsService.acceptedPaymentMethods(company.getId());
         List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId());
         PaymentMethod cardMethod = methods.stream().filter(pm ->
                 pm.isWidgetEnabled() && pm.getPaymentType() == PaymentType.CARD && pm.isStripeEnabled()).findFirst().orElse(null);
@@ -154,13 +160,15 @@ public class PublicBookingWidgetService {
         PaymentMethod paypalMethod = methods.stream().filter(pm ->
                 pm.isWidgetEnabled() && pm.getPaymentType() == PaymentType.OTHER).findFirst().orElse(null);
         String productType = "SESSION_SINGLE";
-        boolean card = cardMethod != null && allowedGuestProductTypes(cardMethod).contains(productType);
-        boolean bankTransfer = bankMethod != null && allowedGuestProductTypes(bankMethod).contains(productType);
-        boolean paypal = company.getPaypalMerchantId() != null
+        boolean card = accepted.contains("CARD") && cardMethod != null && allowedGuestProductTypes(cardMethod).contains(productType);
+        boolean bankTransfer = accepted.contains("BANK_TRANSFER") && bankMethod != null && allowedGuestProductTypes(bankMethod).contains(productType);
+        boolean paypal = accepted.contains("PAYPAL")
+                && company.getPaypalMerchantId() != null
                 && !company.getPaypalMerchantId().isBlank()
                 && paypalMethod != null
                 && allowedGuestProductTypes(paypalMethod).contains(productType);
-        return new PublicBookingWidgetController.AllowedPaymentMethodsResponse(card, bankTransfer, paypal, true);
+        boolean giftCard = accepted.contains("GIFT_CARD");
+        return new PublicBookingWidgetController.AllowedPaymentMethodsResponse(card, bankTransfer, paypal, giftCard);
     }
 
     private List<String> allowedGuestProductTypes(PaymentMethod method) {
