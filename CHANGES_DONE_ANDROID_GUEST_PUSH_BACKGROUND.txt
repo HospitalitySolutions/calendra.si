@@ -1,0 +1,50 @@
+Android guest push notifications check/fix
+
+Summary
+- Push notification code existed for Android guest mobile app and backend, but background delivery was not fully safe for reminders.
+- Backend sends Android reminder/booking-change notifications with channel_id=guest_reminders.
+- Android app previously created only guest_messages channel, so Android 8+ devices could fail to display reminders/booking-change pushes when the app is backgrounded or closed.
+
+Changes done
+1. Added GuestMobileApplication and registered it in AndroidManifest.xml.
+   - Initializes Firebase push setup and notification channels at app process start, not only when MainActivity is opened.
+
+2. Added Android notification channel support for both push types.
+   - guest_messages: tenant/guest inbox messages.
+   - guest_reminders: booking confirmations, booking changes, and appointment reminders.
+
+3. Added default FCM notification channel metadata.
+   - com.google.firebase.messaging.default_notification_channel_id=guest_messages.
+
+4. Hardened FirebaseMessagingService.
+   - Initializes push setup inside onNewToken and onMessageReceived.
+   - Foreground reminders/booking changes now use guest_reminders channel.
+   - Foreground chat messages continue using guest_messages channel.
+
+5. Fixed background notification tap handling.
+   - FCM background notification taps can include raw data extras like screen and companyId.
+   - GuestInboxDeepLinkBus and GuestBookingChangeBus now read both internal app extras and raw FCM extras.
+
+6. Added release build guard for Android FCM client config.
+   - Release Android guest builds now require:
+     APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID
+     APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID
+     APP_GUEST_MOBILE_ANDROID_FCM_API_KEY
+     APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID
+   - Can be bypassed only with ALLOW_MISSING_ANDROID_PUSH_CONFIG=true when intentionally building without push.
+
+7. Updated env examples/documentation.
+   - Added Android FCM app build-time variables.
+   - Added backend FCM delivery variables reminder for Secrets Manager/env setup.
+
+Important production requirements
+- The guest must open/login to the Android app at least once, grant notification permission on Android 13+, and the app must register its FCM token with the backend.
+- Backend production/staging must have APP_GUEST_PUSH_ENABLED=true.
+- Backend production/staging must have valid Firebase HTTP v1 service account credentials through one of:
+  APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON
+  APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_JSON_BASE64
+  APP_GUEST_PUSH_FCM_SERVICE_ACCOUNT_FILE
+- The Firebase Android app must be configured for package/applicationId: si.calendra.guest.mobile.
+
+Validation note
+- I could not run the Gradle compile/build here because the Gradle wrapper tried to download Gradle from services.gradle.org and internet access is blocked in this environment.

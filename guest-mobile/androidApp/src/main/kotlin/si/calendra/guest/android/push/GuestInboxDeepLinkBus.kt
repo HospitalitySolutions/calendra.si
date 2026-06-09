@@ -25,9 +25,11 @@ object GuestInboxDeepLinkBus {
     fun publishFromIntent(intent: Intent?) {
         if (intent == null) return
         val screen = intent.getStringExtra(EXTRA_TARGET_SCREEN)?.trim()
+            ?: intent.getStringExtra("screen")?.trim()
             ?: intent.data?.getQueryParameter("screen")?.trim()
         if (screen != null && !screen.equals(SCREEN_INBOX, ignoreCase = true)) return
         val companyId = intent.getStringExtra(EXTRA_COMPANY_ID)?.trim()
+            ?: intent.getStringExtra("companyId")?.trim()
             ?: intent.data?.getQueryParameter("companyId")?.trim()
         publish(companyId)
     }

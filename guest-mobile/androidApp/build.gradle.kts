@@ -46,6 +46,25 @@ fun validateReleaseApiBaseUrl(value: String) {
     }
 }
 
+
+fun validateReleasePushConfig() {
+    val allowMissingPush = envOrProp("ALLOW_MISSING_ANDROID_PUSH_CONFIG", "false").equals("true", ignoreCase = true)
+    if (allowMissingPush) return
+
+    val missing = listOf(
+        "APP_GUEST_MOBILE_ANDROID_FCM_PROJECT_ID",
+        "APP_GUEST_MOBILE_ANDROID_FCM_APPLICATION_ID",
+        "APP_GUEST_MOBILE_ANDROID_FCM_API_KEY",
+        "APP_GUEST_MOBILE_ANDROID_FCM_GCM_SENDER_ID"
+    ).filter { envOrProp(it).isBlank() }
+
+    require(missing.isEmpty()) {
+        "Release Android guest app builds require Firebase Cloud Messaging config for push notifications. " +
+            "Missing: ${missing.joinToString()}. " +
+            "Set ALLOW_MISSING_ANDROID_PUSH_CONFIG=true only when intentionally building a release without push notifications."
+    }
+}
+
 val resolvedApiBaseUrl = apiBaseUrl()
 val enableReleaseR8 = envOrProp("ENABLE_ANDROID_RELEASE_R8", "false").equals("true", ignoreCase = true)
 
@@ -110,6 +129,7 @@ tasks.configureEach {
     if (releasePackagingTask) {
         doFirst {
             validateReleaseApiBaseUrl(resolvedApiBaseUrl)
+            validateReleasePushConfig()
         }
     }
 }

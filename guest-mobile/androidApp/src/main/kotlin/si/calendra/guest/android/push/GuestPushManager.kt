@@ -26,7 +26,9 @@ object GuestPushManager {
     private const val PREFS_NAME = "guest_push"
     private const val KEY_CACHED_TOKEN = "cached_token"
     private const val KEY_REGISTERED_TOKEN = "registered_token"
-    const val CHANNEL_ID = "guest_messages"
+    const val MESSAGE_CHANNEL_ID = "guest_messages"
+    const val REMINDER_CHANNEL_ID = "guest_reminders"
+    const val CHANNEL_ID = MESSAGE_CHANNEL_ID
     private const val PERMISSION_REQUEST_CODE = 7001
 
     fun initialize(context: Context): Boolean {
@@ -42,7 +44,7 @@ object GuestPushManager {
                 .build()
             FirebaseApp.initializeApp(context, options)
         }
-        ensureNotificationChannel(context)
+        ensureNotificationChannels(context)
         return true
     }
 
@@ -85,9 +87,10 @@ object GuestPushManager {
         body: String,
         companyId: String? = null,
         clientId: String? = null,
-        openInboxOnTap: Boolean = true
+        openInboxOnTap: Boolean = true,
+        channelId: String = MESSAGE_CHANNEL_ID
     ) {
-        ensureNotificationChannel(context)
+        ensureNotificationChannels(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -109,7 +112,7 @@ object GuestPushManager {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle(title)
             .setContentText(body)
@@ -121,13 +124,33 @@ object GuestPushManager {
         NotificationManagerCompat.from(context).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
     }
 
-    private fun ensureNotificationChannel(context: Context) {
+    private fun ensureNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+        createChannelIfMissing(
+            manager,
+            MESSAGE_CHANNEL_ID,
+            "Guest messages",
+            "Chat messages sent from the Calendra web inbox"
+        )
+        createChannelIfMissing(
+            manager,
+            REMINDER_CHANNEL_ID,
+            "Guest reminders",
+            "Booking confirmations, booking changes, and appointment reminders"
+        )
+    }
+
+    private fun createChannelIfMissing(
+        manager: NotificationManager,
+        channelId: String,
+        name: String,
+        description: String
+    ) {
+        if (manager.getNotificationChannel(channelId) != null) return
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Guest messages", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Chat messages sent from the Calendra web inbox"
+            NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_HIGH).apply {
+                this.description = description
             }
         )
     }
