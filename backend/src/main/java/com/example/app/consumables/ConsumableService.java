@@ -1,5 +1,6 @@
 package com.example.app.consumables;
 
+import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.consumables.ConsumableEnums.PurchaseOrderStatus;
@@ -42,6 +43,7 @@ public class ConsumableService {
     private final SessionBookingRepository bookings;
     private final ConsumableSupplierRepository suppliers;
     private final ConsumablePurchaseOrderRepository purchaseOrders;
+    private final TimeService timeService;
 
     public ConsumableService(
             CompanyRepository companies,
@@ -53,7 +55,8 @@ public class ConsumableService {
             SessionTypeRepository sessionTypes,
             SessionBookingRepository bookings,
             ConsumableSupplierRepository suppliers,
-            ConsumablePurchaseOrderRepository purchaseOrders
+            ConsumablePurchaseOrderRepository purchaseOrders,
+            TimeService timeService
     ) {
         this.companies = companies;
         this.consumables = consumables;
@@ -65,6 +68,7 @@ public class ConsumableService {
         this.bookings = bookings;
         this.suppliers = suppliers;
         this.purchaseOrders = purchaseOrders;
+        this.timeService = timeService;
     }
 
     @Transactional(readOnly = true)
@@ -190,7 +194,7 @@ public class ConsumableService {
         var low = items.stream().filter(Consumable::isActive).filter(Consumable::isTrackStock)
                 .filter(item -> nz(item.getCurrentStock()).compareTo(nz(item.getMinimumStock())) < 0)
                 .toList();
-        var thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
+        var thirtyDaysAgo = timeService.instant(companyId).minus(30, ChronoUnit.DAYS);
         var recent = movements.findAllForCompanySince(companyId, thirtyDaysAgo);
         BigDecimal totalValue = items.stream()
                 .filter(Consumable::isActive)
@@ -439,7 +443,7 @@ public class ConsumableService {
         if (id == null) po.setCompany(requireCompany(me.getCompany().getId()));
         po.setOrderNumber(blankToNull(req.orderNumber()) != null ? req.orderNumber().trim() : generateOrderNumber());
         po.setStatus(req.status() != null ? req.status() : PurchaseOrderStatus.DRAFT);
-        po.setOrderDate(req.orderDate() != null ? req.orderDate() : LocalDate.now());
+        po.setOrderDate(req.orderDate() != null ? req.orderDate() : timeService.localDate());
         po.setExpectedDate(req.expectedDate());
         po.setTotalAmount(nz(req.totalAmount()));
         po.setReceivedAmount(nz(req.receivedAmount()));

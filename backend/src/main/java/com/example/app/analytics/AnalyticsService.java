@@ -5,6 +5,7 @@ import com.example.app.billing.BillItem;
 import com.example.app.billing.BillRepository;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
+import com.example.app.common.TimeService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -36,6 +37,7 @@ public class AnalyticsService {
     private final SessionBookingRepository bookingRepository;
     private final ClientRepository clientRepository;
     private final BillRepository billRepository;
+    private final TimeService timeService;
 
     @Value("${app.reminders.timezone:Europe/Ljubljana}")
     private String remindersTimezone;
@@ -43,10 +45,12 @@ public class AnalyticsService {
     public AnalyticsService(
             SessionBookingRepository bookingRepository,
             ClientRepository clientRepository,
-            BillRepository billRepository) {
+            BillRepository billRepository,
+            TimeService timeService) {
         this.bookingRepository = bookingRepository;
         this.clientRepository = clientRepository;
         this.billRepository = billRepository;
+        this.timeService = timeService;
     }
 
     public record PeriodPoint(
@@ -506,7 +510,7 @@ public class AnalyticsService {
     private record DateRange(LocalDate from, LocalDate to) {}
 
     private DateRange resolveRange(String period, LocalDate fromParam, LocalDate toParam, ZoneId zone) {
-        LocalDate today = LocalDate.now(zone);
+        LocalDate today = timeService.localDate(zone);
         if ("custom".equals(period)) {
             if (fromParam == null || toParam == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "For custom period, both from and to are required.");

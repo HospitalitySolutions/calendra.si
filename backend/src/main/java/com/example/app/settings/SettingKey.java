@@ -175,6 +175,12 @@ public enum SettingKey {
      */
     PLATFORM_REGISTER_PRICE_JSON,
 
+    /**
+     * JSON array of per-tenant time-simulation entries, stored on the Platform Admin company.
+     * Each entry shifts the effective clock for a single tenant for testing purposes.
+     */
+    PLATFORM_TIME_SIMULATION_JSON,
+
     /** Tenant PayPal seller onboarding and merchant configuration. */
     PAYPAL_MERCHANT_ID,
     PAYPAL_TRACKING_ID,

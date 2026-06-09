@@ -195,7 +195,8 @@ class TenantIsolationControllerAccessTest {
                 mock(BillRepository.class),
                 mock(GuestEntitlementUsageRepository.class),
                 mock(ConsumableService.class),
-                mock(AppSettingRepository.class));
+                mock(AppSettingRepository.class),
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
         User tenantA = tenantAdmin(1L);
 
         SessionBooking owned = new SessionBooking();
@@ -436,7 +437,8 @@ class TenantIsolationControllerAccessTest {
                 mock(InvoiceOrderIdService.class),
                 mock(EntityManager.class),
                 mock(GlobalPaymentProviderService.class),
-                mock(BillingModuleAccessService.class));
+                mock(BillingModuleAccessService.class),
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
     }
 
     private static User tenantAdmin(Long companyId) {

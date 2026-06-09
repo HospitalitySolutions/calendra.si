@@ -1,6 +1,8 @@
 package com.example.app.guest.catalog;
 
 import com.example.app.client.Client;
+import com.example.app.common.SimulatedTimeContext;
+import com.example.app.common.TimeService;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.GuestProduct;
@@ -54,6 +56,7 @@ public class GuestCatalogService {
     private final UserRepository users;
     private final SessionBookingCreationService bookingCreationService;
     private final GuestSettingsService guestSettings;
+    private final TimeService timeService;
     private final ZoneId zoneId;
 
     public GuestCatalogService(
@@ -64,6 +67,7 @@ public class GuestCatalogService {
             UserRepository users,
             SessionBookingCreationService bookingCreationService,
             GuestSettingsService guestSettings,
+            TimeService timeService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String timezoneId
     ) {
         this.sessionTypes = sessionTypes;
@@ -73,11 +77,13 @@ public class GuestCatalogService {
         this.users = users;
         this.bookingCreationService = bookingCreationService;
         this.guestSettings = guestSettings;
+        this.timeService = timeService;
         this.zoneId = ZoneId.of((timezoneId == null || timezoneId.isBlank()) ? "Europe/Ljubljana" : timezoneId.trim());
     }
 
     @Transactional(readOnly = true)
     public List<GuestDtos.ProductResponse> products(Long companyId, GuestUser guestUser) {
+        SimulatedTimeContext.set(companyId);
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
@@ -130,6 +136,7 @@ public class GuestCatalogService {
 
     @Transactional(readOnly = true)
     public GuestDtos.AvailabilityResponse availability(Long companyId, Long sessionTypeId, String dateText, Long consultantId, GuestUser guestUser) {
+        SimulatedTimeContext.set(companyId);
         LocalDate date = LocalDate.parse(dateText);
         SessionType type = sessionTypes.findById(sessionTypeId)
                 .filter(t -> Objects.equals(t.getCompany().getId(), companyId))
@@ -137,7 +144,7 @@ public class GuestCatalogService {
         if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
         }
-        LocalDate today = LocalDate.now(zoneId);
+        LocalDate today = timeService.localDate(zoneId);
         if (date.isBefore(today)) {
             return new GuestDtos.AvailabilityResponse(String.valueOf(type.getId()), date.toString(), List.of());
         }
@@ -310,14 +317,14 @@ public class GuestCatalogService {
     }
 
     private boolean isGuestSlotStartInFuture(LocalDate date, LocalDateTime slotStart) {
-        LocalDate today = LocalDate.now(zoneId);
+        LocalDate today = timeService.localDate(zoneId);
         if (date.isBefore(today)) {
             return false;
         }
         if (date.isAfter(today)) {
             return true;
         }
-        return slotStart.isAfter(LocalDateTime.now(zoneId));
+        return slotStart.isAfter(timeService.localDateTime(zoneId));
     }
 
     private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
@@ -414,7 +421,7 @@ public class GuestCatalogService {
     }
 
     private boolean hasVisibleGuestGroupSession(Long companyId, SessionType type, GuestUser guestUser) {
-        LocalDateTime now = LocalDateTime.now(zoneId);
+        LocalDateTime now = timeService.localDateTime(zoneId, companyId);
         LocalDateTime to = now.plusMonths(6);
         return bookings.findPublicGroupSessionCandidates(companyId, type.getId(), now.toLocalDate().atStartOfDay(), to)
                 .stream()
@@ -454,7 +461,7 @@ public class GuestCatalogService {
         SessionBooking representative = rows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
                 .orElse(rows.get(0));
-        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(LocalDateTime.now(zoneId))) {
+        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(zoneId))) {
             return null;
         }
         if (consultantId != null) {
@@ -480,7 +487,7 @@ public class GuestCatalogService {
         SessionBooking representative = rows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
                 .orElse(rows.get(0));
-        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(LocalDateTime.now(zoneId))) {
+        if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(zoneId))) {
             return false;
         }
         boolean hasBlockingSessionRow = rows.stream()

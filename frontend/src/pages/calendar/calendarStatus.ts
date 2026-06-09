@@ -1,3 +1,5 @@
+import { nowMs } from '../../lib/clock'
+
 export type StoredBookingStatus = 'RESERVED' | 'CANCELLED' | 'NO_SHOW' | 'CHECKED_OUT'
 export type DerivedBookingStatus = StoredBookingStatus | 'ONGOING' | 'CHECKED_OUT'
 export type BookingStatusUpdateValidationReason = 'INVALID_TIME_WINDOW' | 'CHECKED_OUT_BEFORE_START' | 'UNSUPPORTED_TRANSITION'
@@ -47,7 +49,7 @@ function deriveBookingStatusAtTime(
 }
 
 export function deriveBookingStatus(startTime: unknown, endTime: unknown, rawStatus: unknown): DerivedBookingStatus {
-  return deriveBookingStatusAtTime(startTime, endTime, rawStatus, Date.now())
+  return deriveBookingStatusAtTime(startTime, endTime, rawStatus, nowMs())
 }
 
 function canTransitionToStoredStatus(derivedStatus: DerivedBookingStatus, targetStoredStatus: StoredBookingStatus): boolean {
@@ -63,7 +65,7 @@ export function validateStoredBookingStatusUpdate(
   endTime: unknown,
   currentStoredStatus: unknown,
   targetStoredStatus: unknown,
-  nowMs: number = Date.now(),
+  nowMsArg: number = nowMs(),
 ): { allowed: true } | { allowed: false; reason: BookingStatusUpdateValidationReason } {
   const normalizedCurrent = normalizeStoredBookingStatus(currentStoredStatus)
   const normalizedTarget = normalizeStoredBookingStatus(targetStoredStatus)
@@ -77,10 +79,10 @@ export function validateStoredBookingStatusUpdate(
       return { allowed: false, reason: 'UNSUPPORTED_TRANSITION' }
     }
     if (normalizedCurrent === 'CHECKED_OUT') return { allowed: true }
-    if (nowMs < startMs) return { allowed: false, reason: 'CHECKED_OUT_BEFORE_START' }
+    if (nowMsArg < startMs) return { allowed: false, reason: 'CHECKED_OUT_BEFORE_START' }
     return { allowed: true }
   }
-  const derivedStatus = deriveBookingStatusAtTime(startTime, endTime, normalizedCurrent, nowMs)
+  const derivedStatus = deriveBookingStatusAtTime(startTime, endTime, normalizedCurrent, nowMsArg)
   return canTransitionToStoredStatus(derivedStatus, normalizedTarget)
     ? { allowed: true }
     : { allowed: false, reason: 'UNSUPPORTED_TRANSITION' }

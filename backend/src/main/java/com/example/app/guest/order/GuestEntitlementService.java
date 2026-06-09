@@ -1,6 +1,7 @@
 package com.example.app.guest.order;
 
 import com.example.app.client.Client;
+import com.example.app.common.TimeService;
 import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,10 +29,12 @@ public class GuestEntitlementService {
 
     private final GuestEntitlementRepository entitlements;
     private final GuestEntitlementUsageRepository usages;
+    private final TimeService timeService;
 
-    public GuestEntitlementService(GuestEntitlementRepository entitlements, GuestEntitlementUsageRepository usages) {
+    public GuestEntitlementService(GuestEntitlementRepository entitlements, GuestEntitlementUsageRepository usages, TimeService timeService) {
         this.entitlements = entitlements;
         this.usages = usages;
+        this.timeService = timeService;
     }
 
     @Transactional
@@ -50,7 +53,7 @@ public class GuestEntitlementService {
     public GuestEntitlementSelection consumeSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId, SessionBooking booking) {
         GuestEntitlement entitlement = entitlements.findById(entitlementId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available."));
-        Instant now = Instant.now();
+        Instant now = timeService.instant(companyId);
         boolean matchesClient = entitlement.getClient() != null && Objects.equals(entitlement.getClient().getId(), client.getId());
         boolean matchesCompany = entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId);
         boolean active = entitlement.getStatus() == EntitlementStatus.ACTIVE;
@@ -311,7 +314,7 @@ public class GuestEntitlementService {
     }
 
     private java.util.Optional<GuestEntitlement> findBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId) {
-        Instant now = Instant.now();
+        Instant now = timeService.instant(companyId);
         return entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(client.getId(), companyId, ACTIVE_STATUSES).stream()
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
                 .filter(entitlement -> entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now))
@@ -324,7 +327,7 @@ public class GuestEntitlementService {
     }
 
     private List<GuestEntitlement> findMatchingGiftCards(Client client, Long companyId, String currency) {
-        Instant now = Instant.now();
+        Instant now = timeService.instant(companyId);
         String expectedCurrency = currency == null ? null : currency.trim().toUpperCase(java.util.Locale.ROOT);
         return entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(client.getId(), companyId, ACTIVE_STATUSES).stream()
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))

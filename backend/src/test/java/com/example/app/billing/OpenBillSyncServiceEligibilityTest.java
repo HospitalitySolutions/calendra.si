@@ -44,7 +44,8 @@ class OpenBillSyncServiceEligibilityTest {
                 advanceAllocationRepo,
                 clientCompanies,
                 settings,
-                txRepo
+                txRepo,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper()))
         );
     }
 

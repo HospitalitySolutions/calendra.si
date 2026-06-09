@@ -5,6 +5,8 @@ import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.billing.PaymentType;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
+import com.example.app.common.SimulatedTimeContext;
+import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.guest.common.GuestSettingsService;
@@ -72,6 +74,7 @@ public class PublicBookingWidgetService {
     private final WidgetPublicAuditLogger widgetPublicAuditLogger;
     private final GuestSettingsService guestSettingsService;
     private final PaymentMethodRepository paymentMethods;
+    private final TimeService timeService;
 
     public PublicBookingWidgetService(
             CompanyRepository companies,
@@ -89,6 +92,7 @@ public class PublicBookingWidgetService {
             WidgetPublicAuditLogger widgetPublicAuditLogger,
             GuestSettingsService guestSettingsService,
             PaymentMethodRepository paymentMethods,
+            TimeService timeService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String widgetTimezoneId
     ) {
         this.companies = companies;
@@ -106,6 +110,7 @@ public class PublicBookingWidgetService {
         this.widgetPublicAuditLogger = widgetPublicAuditLogger;
         this.guestSettingsService = guestSettingsService;
         this.paymentMethods = paymentMethods;
+        this.timeService = timeService;
         this.widgetZoneId = (widgetTimezoneId == null || widgetTimezoneId.isBlank())
                 ? ZoneId.of("Europe/Ljubljana")
                 : ZoneId.of(widgetTimezoneId.trim());
@@ -199,6 +204,7 @@ public class PublicBookingWidgetService {
     @Transactional(readOnly = true)
     public PublicBookingWidgetController.AvailabilityResponse availability(String tenantCode, Long typeId, String dateText, Long consultantId, HttpServletRequest request) {
         Company company = resolveCompany(tenantCode);
+        SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, request, false, "availability");
         WidgetConfig cfg = loadConfig(company.getId());
         LocalDate date = parseDate(dateText);
@@ -231,6 +237,7 @@ public class PublicBookingWidgetService {
     @Transactional
     public PublicBookingWidgetController.BookingResponse createBooking(String tenantCode, PublicBookingWidgetController.BookingRequest request, String idempotencyKey, HttpServletRequest httpRequest) {
         Company company = resolveCompany(tenantCode);
+        SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, httpRequest, true, "bookings");
         widgetTurnstileService.verifyForPublicAction(company, request.turnstileToken(), widgetPublicAuditLogger.clientIp(httpRequest));
         WidgetConfig cfg = loadConfig(company.getId());
@@ -249,7 +256,7 @@ public class PublicBookingWidgetService {
             LocalDateTime start = parseStartTime(request.startTime(), date);
             LocalDateTime end = start.plusMinutes(type.getDurationMinutes() != null ? type.getDurationMinutes() : cfg.sessionLengthMinutes());
 
-            if (!start.isAfter(LocalDateTime.now(widgetZoneId))) {
+            if (!start.isAfter(timeService.localDateTime(widgetZoneId))) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected time is in the past.");
             }
 
@@ -315,7 +322,7 @@ public class PublicBookingWidgetService {
         if (representative.getType() == null || !Objects.equals(representative.getType().getId(), type.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session does not match this service.");
         }
-        if (!representative.getStartTime().isAfter(LocalDateTime.now(widgetZoneId))) {
+        if (!representative.getStartTime().isAfter(timeService.localDateTime(widgetZoneId))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
         }
 
@@ -381,7 +388,7 @@ public class PublicBookingWidgetService {
                     continue;
                 }
             }
-            if (!booking.getStartTime().isAfter(LocalDateTime.now(widgetZoneId))) {
+            if (!booking.getStartTime().isAfter(timeService.localDateTime(widgetZoneId))) {
                 continue;
             }
             grouped.computeIfAbsent(groupKeyOf(booking), ignored -> new ArrayList<>()).add(booking);
@@ -459,7 +466,7 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
-        LocalDate today = LocalDate.now(widgetZoneId);
+        LocalDate today = timeService.localDate(widgetZoneId);
         if (date.isBefore(today)) {
             return new ArrayList<>();
         }
@@ -520,7 +527,7 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
-        LocalDate today = LocalDate.now(widgetZoneId);
+        LocalDate today = timeService.localDate(widgetZoneId);
         if (date.isBefore(today)) {
             return new ArrayList<>();
         }
@@ -649,7 +656,7 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId
     ) {
-        LocalDate today = LocalDate.now(widgetZoneId);
+        LocalDate today = timeService.localDate(widgetZoneId);
         if (date.isBefore(today)) {
             return new ArrayList<>();
         }
@@ -699,14 +706,14 @@ public class PublicBookingWidgetService {
     }
 
     private boolean isWidgetSlotStartInFuture(LocalDate date, LocalDateTime slotStart) {
-        LocalDate today = LocalDate.now(widgetZoneId);
+        LocalDate today = timeService.localDate(widgetZoneId);
         if (date.isBefore(today)) {
             return false;
         }
         if (date.isAfter(today)) {
             return true;
         }
-        return slotStart.isAfter(LocalDateTime.now(widgetZoneId));
+        return slotStart.isAfter(timeService.localDateTime(widgetZoneId));
     }
 
     private boolean isActuallyBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {

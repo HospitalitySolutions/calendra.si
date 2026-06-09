@@ -1,5 +1,6 @@
 package com.example.app.billing;
 
+import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.client.Client;
@@ -94,6 +95,7 @@ public class BillingController {
     private final EntityManager entityManager;
     private final GlobalPaymentProviderService globalPaymentProviders;
     private final BillingModuleAccessService billingModuleAccess;
+    private final TimeService timeService;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -106,7 +108,8 @@ public class BillingController {
                              InvoiceOrderIdService invoiceOrderIdService,
                              EntityManager entityManager,
                              GlobalPaymentProviderService globalPaymentProviders,
-                             BillingModuleAccessService billingModuleAccess) {
+                             BillingModuleAccessService billingModuleAccess,
+                             TimeService timeService) {
         this.txRepo = txRepo;
         this.paymentMethodRepo = paymentMethodRepo;
         this.billRepo = billRepo;
@@ -130,6 +133,7 @@ public class BillingController {
         this.entityManager = entityManager;
         this.globalPaymentProviders = globalPaymentProviders;
         this.billingModuleAccess = billingModuleAccess;
+        this.timeService = timeService;
     }
 
     @ModelAttribute
@@ -437,7 +441,7 @@ public class BillingController {
         existing.setNetPrice(s.getNetPrice());
         var nextActive = s.isActive();
         if (existing.isActive() && !nextActive
-                && sessionBookings.existsUpcomingOrOngoingForTransactionService(companyId, id, LocalDateTime.now())) {
+                && sessionBookings.existsUpcomingOrOngoingForTransactionService(companyId, id, timeService.localDateTime())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "This transaction service is used by upcoming or ongoing bookings and cannot be inactivated."
@@ -453,7 +457,7 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var existing = txRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (sessionBookings.existsUpcomingOrOngoingForTransactionService(companyId, id, LocalDateTime.now())) {
+        if (sessionBookings.existsUpcomingOrOngoingForTransactionService(companyId, id, timeService.localDateTime())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "This transaction service is used by upcoming or ongoing bookings and cannot be deleted. Set it inactive instead."
@@ -1692,7 +1696,7 @@ public class BillingController {
         advanceAllocationRepo.flush();
         openBillRepo.delete(open);
         if (session != null) {
-            session.setBilledAt(LocalDate.now());
+            session.setBilledAt(timeService.localDate());
             sessionBookings.save(session);
         }
     }
@@ -1934,7 +1938,7 @@ public class BillingController {
         if (realSessionIds.isEmpty()) {
             return;
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = timeService.localDateTime();
         boolean hasUnbillable = sessionBookings.findAllByCompanyIdAndIds(companyId, realSessionIds).stream()
                 .anyMatch(session -> !BILLABLE_LIFECYCLE_STATUSES_FOR_CLOSE.contains(SessionBookingStatus.deriveLifecycleStatus(
                         session.getStartTime(),
@@ -2005,7 +2009,7 @@ public class BillingController {
         bill.setConsultant(open.getConsultant());
         bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId));
         bill.setBankTransferReference(open.getReference());
-        bill.setIssueDate(LocalDate.now());
+        bill.setIssueDate(timeService.localDate());
         bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
         if (open.getItems() == null || open.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no items.");
@@ -2051,7 +2055,7 @@ public class BillingController {
         bill.setSourceSessionIdSnapshot(linkedSessionId != null ? linkedSessionId : linkedSessionIds.stream().findFirst().orElse(null));
         bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
         if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
-            bill.setPaidAt(OffsetDateTime.now());
+            bill.setPaidAt(timeService.offsetDateTime());
         }
         invoiceOrderIdService.assignIfMissing(bill);
         var saved = billRepo.saveAndFlush(bill);
@@ -2062,7 +2066,7 @@ public class BillingController {
         if (!linkedSessionIds.isEmpty()) {
             var linkedSessions = sessionBookings.findAllByCompanyIdAndIds(companyId, linkedSessionIds);
             for (var session : linkedSessions) {
-                session.setBilledAt(java.time.LocalDate.now());
+                session.setBilledAt(timeService.localDate());
             }
             sessionBookings.saveAll(linkedSessions);
             sessionBookings.flush();
@@ -2113,7 +2117,7 @@ public class BillingController {
         PaymentMethod paymentMethod = resolvePreviewPaymentMethod(open, req, companyId);
         bill.setPaymentMethod(paymentMethod);
         bill.setBankTransferReference(req != null && req.reference() != null ? req.reference().trim() : open.getReference());
-        bill.setIssueDate(LocalDate.now());
+        bill.setIssueDate(timeService.localDate());
         bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
 
         Long linkedSessionId = resolvePreviewSessionId(open, req, companyId);
@@ -2356,7 +2360,7 @@ public class BillingController {
     }
 
     private void syncOpenBillsFromPastSessions(Long companyId) {
-        var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(LocalDateTime.now(), companyId);
+        var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(timeService.localDateTime(), companyId);
         for (SessionBooking sb : past) {
             var type = sb.getType();
             if (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty()) continue;
@@ -3206,7 +3210,7 @@ public class BillingController {
         );
     }
 
-    private static String deriveOpenBillSessionLifecycleStatus(SessionBooking session) {
+    private String deriveOpenBillSessionLifecycleStatus(SessionBooking session) {
         if (session == null || session.getStartTime() == null || session.getEndTime() == null) {
             return null;
         }
@@ -3214,7 +3218,7 @@ public class BillingController {
                 session.getStartTime(),
                 session.getEndTime(),
                 session.getBookingStatus(),
-                LocalDateTime.now()
+                timeService.localDateTime()
         );
     }
 
@@ -3351,10 +3355,10 @@ public class BillingController {
         bill.setConsultant(request.consultantId() != null ? users.findByIdAndCompanyId(request.consultantId(), companyId).orElseThrow() : me);
         bill.setPaymentMethod(resolvePaymentMethod(request.paymentMethodId(), companyId));
         bill.setBankTransferReference(request.bankTransferReference() == null ? null : request.bankTransferReference().trim());
-        bill.setIssueDate(LocalDate.now());
+        bill.setIssueDate(timeService.localDate());
         bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
         if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
-            bill.setPaidAt(OffsetDateTime.now());
+            bill.setPaidAt(timeService.offsetDateTime());
         }
 
         BigDecimal totalNet = BigDecimal.ZERO;
@@ -3434,11 +3438,11 @@ public class BillingController {
         if (request.paymentSplits() != null) {
             replaceBillPaymentSplits(bill, request.paymentSplits(), companyId, totalGross);
             bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
-            bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? OffsetDateTime.now() : null);
+            bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? timeService.offsetDateTime() : null);
         } else if (!legacyUnusedAdvanceSplits.isEmpty()) {
             replaceBillPaymentSplits(bill, legacyUnusedAdvanceSplits, companyId, totalGross);
             bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
-            bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? OffsetDateTime.now() : null);
+            bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? timeService.offsetDateTime() : null);
         }
         invoiceOrderIdService.assignIfMissing(bill);
         // Ensure we map within an open session. Items are cascade-persisted.
@@ -3448,7 +3452,7 @@ public class BillingController {
         }
 
         if (selectedSession != null) {
-            selectedSession.setBilledAt(LocalDate.now());
+            selectedSession.setBilledAt(timeService.localDate());
             sessionBookings.save(selectedSession);
         }
 
@@ -3487,9 +3491,9 @@ public class BillingController {
         refund.setConsultant(original.getConsultant());
         refund.setPaymentMethod(original.getPaymentMethod());
         copyRefundPaymentSplits(original, refund);
-        refund.setIssueDate(LocalDate.now());
+        refund.setIssueDate(timeService.localDate());
         refund.setPaymentStatus(BillPaymentStatus.PAID);
-        refund.setPaidAt(OffsetDateTime.now());
+        refund.setPaidAt(timeService.offsetDateTime());
         refund.setSourceSessionIdSnapshot(original.getSourceSessionIdSnapshot());
         refund.setRefundOfBillId(original.getId());
         refund.setRefundReference("Refund of " + (original.getBillNumber() == null ? original.getId() : original.getBillNumber()));
@@ -3683,7 +3687,7 @@ public class BillingController {
         boolean alreadyPaid = BillPaymentStatus.PAID.equals(bill.getPaymentStatus());
         bill.setPaymentStatus(BillPaymentStatus.PAID);
         if (bill.getPaidAt() == null) {
-            bill.setPaidAt(OffsetDateTime.now());
+            bill.setPaidAt(timeService.offsetDateTime());
         }
         bill = billRepo.save(bill);
         if (!alreadyPaid) {
@@ -3999,7 +4003,7 @@ public class BillingController {
         String refundNo = refund.getBillNumber() == null ? String.valueOf(refund.getId()) : refund.getBillNumber();
         refundOrder.setReferenceCode(("REFUND-" + originalNo + "-" + refundNo).replaceAll("\\s+", "-"));
         refundOrder.setBillId(refund.getId());
-        refundOrder.setPaidAt(java.time.Instant.now());
+        refundOrder.setPaidAt(timeService.instant());
         refundOrder.setMetadataJson(guestRefundMetadata(originalOrder, originalNo));
         guestOrders.save(refundOrder);
     }

@@ -1,6 +1,7 @@
 package com.example.app.session;
 
 import com.example.app.client.Client;
+import com.example.app.common.TimeService;
 import com.example.app.consumables.ConsumableService;
 import com.example.app.client.ClientRepository;
 import com.example.app.billing.OpenBillSyncService;
@@ -58,6 +59,7 @@ public class SessionBookingCreationService {
     private final OpenBillSyncService openBillSyncService;
     private final GuestEntitlementService guestEntitlementService;
     private final ConsumableService consumableService;
+    private final TimeService timeService;
     private final ZoneId bookingZone;
 
     @Autowired
@@ -79,6 +81,7 @@ public class SessionBookingCreationService {
             OpenBillSyncService openBillSyncService,
             GuestEntitlementService guestEntitlementService,
             ConsumableService consumableService,
+            TimeService timeService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String bookingTimezoneId) {
         this.repo = repo;
         this.personalBlocks = personalBlocks;
@@ -97,6 +100,7 @@ public class SessionBookingCreationService {
         this.openBillSyncService = openBillSyncService;
         this.guestEntitlementService = guestEntitlementService;
         this.consumableService = consumableService;
+        this.timeService = timeService;
         String zoneId = bookingTimezoneId == null || bookingTimezoneId.isBlank()
                 ? "Europe/Ljubljana"
                 : bookingTimezoneId.trim();
@@ -122,6 +126,7 @@ public class SessionBookingCreationService {
             OpenBillSyncService openBillSyncService) {
         this(repo, personalBlocks, clients, users, spaces, types, companies, settings, groupRepository, clientCompanies,
                 reminderService, zoomService, googleMeetService, bookingChangePublisher, openBillSyncService, null, null,
+                new TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())),
                 "Europe/Ljubljana");
     }
 
@@ -548,7 +553,7 @@ public class SessionBookingCreationService {
         if (representative.getClientGroup() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session is not a group session.");
         }
-        if (!representative.getStartTime().isAfter(LocalDateTime.now())) {
+        if (!representative.getStartTime().isAfter(timeService.localDateTime(bookingZone))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
         }
 
@@ -1259,7 +1264,7 @@ public class SessionBookingCreationService {
                 end,
                 existingRepresentative.getBookingStatus(),
                 targetStored,
-                LocalDateTime.now(bookingZone)
+                timeService.localDateTime(bookingZone)
         )) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Unsupported booking status transition.");
         }

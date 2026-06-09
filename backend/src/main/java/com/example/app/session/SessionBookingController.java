@@ -1,5 +1,6 @@
 package com.example.app.session;
 
+import com.example.app.common.TimeService;
 import com.example.app.company.CompanyRepository;
 import com.example.app.consumables.ConsumableService;
 import com.example.app.billing.Bill;
@@ -60,6 +61,7 @@ public class SessionBookingController {
     private final GuestEntitlementUsageRepository entitlementUsages;
     private final ConsumableService consumableService;
     private final AppSettingRepository settings;
+    private final TimeService timeService;
 
     public SessionBookingController(SessionBookingRepository repo,
                                     BookableSlotRepository bookableSlots,
@@ -74,7 +76,8 @@ public class SessionBookingController {
                                     BillRepository bills,
                                     GuestEntitlementUsageRepository entitlementUsages,
                                     ConsumableService consumableService,
-                                    AppSettingRepository settings) {
+                                    AppSettingRepository settings,
+                                    TimeService timeService) {
         this.repo = repo;
         this.bookableSlots = bookableSlots;
         this.personalBlocks = personalBlocks;
@@ -90,6 +93,7 @@ public class SessionBookingController {
         this.entitlementUsages = entitlementUsages;
         this.consumableService = consumableService;
         this.settings = settings;
+        this.timeService = timeService;
     }
 
     public record BookingRequest(
@@ -407,7 +411,7 @@ public class SessionBookingController {
         openBillSyncService.requireNoShowTransactionServiceConfigured(companyId);
 
         List<SessionBooking> updatedRows = new ArrayList<>();
-        var now = LocalDateTime.now();
+        var now = timeService.localDateTime();
         for (Long clientId : selectedClientIds) {
             SessionBooking row = rowsByClientId.get(clientId);
             if (row == null) {

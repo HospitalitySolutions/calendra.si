@@ -30,7 +30,8 @@ class GuestEntitlementServiceGiftCardSplitTest {
     void consumeBestMatchingGiftCard_usesMultipleCardsFromLowestBalanceFirst() {
         GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
         GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
-        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
 
         Client client = new Client();
         client.setId(1L);
@@ -72,7 +73,8 @@ class GuestEntitlementServiceGiftCardSplitTest {
     void consumeBestMatchingGiftCard_failsWhenTotalBalanceIsInsufficient() {
         GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
         GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
-        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
 
         Client client = new Client();
         client.setId(1L);
@@ -99,7 +101,8 @@ class GuestEntitlementServiceGiftCardSplitTest {
     void maybeRestoreCreditForBooking_restoresAllGiftCardUsages() {
         GuestEntitlementRepository entitlements = org.mockito.Mockito.mock(GuestEntitlementRepository.class);
         GuestEntitlementUsageRepository usages = org.mockito.Mockito.mock(GuestEntitlementUsageRepository.class);
-        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())));
 
         SessionBooking booking = new SessionBooking();
         booking.setId(77L);

@@ -2054,6 +2054,193 @@ function OtherAdminPanel() {
   )
 }
 
+type TimeSimulationView = {
+  tenantId: number
+  tenantName: string | null
+  offsetSeconds: number
+  enabled: boolean
+  realNow: string
+  simulatedNow: string
+}
+
+function formatOffsetLabel(seconds: number): string {
+  if (!seconds) return 'no shift'
+  const sign = seconds > 0 ? '+' : '-'
+  let s = Math.abs(seconds)
+  const days = Math.floor(s / 86400); s -= days * 86400
+  const hours = Math.floor(s / 3600); s -= hours * 3600
+  const mins = Math.floor(s / 60); s -= mins * 60
+  const parts: string[] = []
+  if (days) parts.push(`${days}d`)
+  if (hours) parts.push(`${hours}h`)
+  if (mins) parts.push(`${mins}m`)
+  if (s) parts.push(`${s}s`)
+  return `${sign}${parts.join(' ') || '0s'}`
+}
+
+function TimeSimulatorPanel() {
+  const [tenants, setTenants] = useState<TenancyRow[]>([])
+  const [sims, setSims] = useState<TimeSimulationView[]>([])
+  const [selectedTenantId, setSelectedTenantId] = useState<number | ''>('')
+  const [absoluteDateTime, setAbsoluteDateTime] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [ok, setOk] = useState<string | null>(null)
+
+  const loadAll = useCallback(async () => {
+    setErr(null)
+    try {
+      const [tenantsRes, simsRes] = await Promise.all([
+        api.get<TenancyRow[]>('/platform-admin/tenancies'),
+        api.get<TimeSimulationView[]>('/platform-admin/time-simulator'),
+      ])
+      setTenants(Array.isArray(tenantsRes.data) ? tenantsRes.data : [])
+      setSims(Array.isArray(simsRes.data) ? simsRes.data : [])
+    } catch {
+      setErr('Could not load tenants or active simulations.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadAll()
+  }, [loadAll])
+
+  const change = async (body: Record<string, unknown>) => {
+    if (selectedTenantId === '') {
+      setErr('Select a tenant first.')
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    setOk(null)
+    try {
+      await api.put('/platform-admin/time-simulator', { tenantId: selectedTenantId, ...body })
+      setOk('Time simulation updated.')
+      await loadAll()
+    } catch {
+      setErr('Could not update the time simulation.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const reset = async (tenantId: number) => {
+    setBusy(true)
+    setErr(null)
+    setOk(null)
+    try {
+      await api.delete(`/platform-admin/time-simulator/${tenantId}`)
+      setOk('Simulation cleared.')
+      await loadAll()
+    } catch {
+      setErr('Could not clear the simulation.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="panel panel-pad">
+      <div className="plan-price-head">
+        <div className="eyebrow">Developer tools</div>
+        <h2>Time simulator</h2>
+        <p className="muted" style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}>
+          Artificially shift "now" for a single tenant to test session status changes and billing cycles. Only that
+          tenant's time-based logic is affected; security, fiscalization and audit timestamps always use real time.
+        </p>
+      </div>
+
+      {loading ? <p className="muted">Loading…</p> : null}
+      {err ? <p className="search-err">{err}</p> : null}
+      {ok ? <p style={{ margin: 0, color: 'var(--success-text)', fontWeight: 800, fontSize: '0.92rem' }}>{ok}</p> : null}
+
+      {!loading ? (
+        <div className="section-card" style={{ marginTop: 12 }}>
+          <div className="section-head">
+            <div className="section-title">
+              <strong>Configure tenant clock</strong>
+              <span>Pick a tenant, then set an absolute date/time or advance/rewind the clock.</span>
+            </div>
+          </div>
+
+          <label style={{ display: 'block', marginTop: 10, fontWeight: 700 }}>
+            Tenant
+            <select
+              style={{ display: 'block', width: '100%', marginTop: 6 }}
+              value={selectedTenantId}
+              onChange={(e) => setSelectedTenantId(e.target.value === '' ? '' : Number(e.target.value))}
+            >
+              <option value="">Select a tenant…</option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} (#{t.id})</option>
+              ))}
+            </select>
+          </label>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 12 }}>
+            <label style={{ fontWeight: 700 }}>
+              Set absolute date/time
+              <input
+                type="datetime-local"
+                style={{ display: 'block', marginTop: 6 }}
+                value={absoluteDateTime}
+                onChange={(e) => setAbsoluteDateTime(e.target.value)}
+              />
+            </label>
+            <button
+              className="button primary"
+              type="button"
+              disabled={busy || selectedTenantId === '' || !absoluteDateTime}
+              onClick={() => void change({ mode: 'ABSOLUTE', absoluteDateTime })}
+            >
+              Apply date
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+            <button className="button" type="button" disabled={busy || selectedTenantId === ''} onClick={() => void change({ mode: 'ADVANCE', advanceSeconds: 3600 })}>+1 hour</button>
+            <button className="button" type="button" disabled={busy || selectedTenantId === ''} onClick={() => void change({ mode: 'ADVANCE', advanceSeconds: 86400 })}>+1 day</button>
+            <button className="button" type="button" disabled={busy || selectedTenantId === ''} onClick={() => void change({ mode: 'ADVANCE', advanceSeconds: 604800 })}>+1 week</button>
+            <button className="button" type="button" disabled={busy || selectedTenantId === ''} onClick={() => void change({ mode: 'ADVANCE', advanceSeconds: 2592000 })}>+30 days</button>
+            <button className="button" type="button" disabled={busy || selectedTenantId === ''} onClick={() => void change({ mode: 'ADVANCE', advanceSeconds: -3600 })}>-1 hour</button>
+            <button className="button" type="button" disabled={busy || selectedTenantId === ''} onClick={() => void change({ mode: 'ADVANCE', advanceSeconds: -86400 })}>-1 day</button>
+          </div>
+        </div>
+      ) : null}
+
+      {!loading ? (
+        <div className="section-card" style={{ marginTop: 12 }}>
+          <div className="section-head">
+            <div className="section-title">
+              <strong>Active simulations</strong>
+              <span>{sims.length ? `${sims.length} tenant(s) currently shifted.` : 'No tenants are currently shifted.'}</span>
+            </div>
+          </div>
+          {sims.length ? (
+            <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+              {sims.map((sim) => (
+                <div key={sim.tenantId} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--border, #e5e7eb)', paddingTop: 8 }}>
+                  <div>
+                    <strong>{sim.tenantName || `Tenant #${sim.tenantId}`}</strong>
+                    <div className="muted" style={{ fontSize: '0.85rem' }}>
+                      Shift {formatOffsetLabel(sim.offsetSeconds)} · simulated now: {sim.simulatedNow}
+                    </div>
+                    <div className="muted" style={{ fontSize: '0.8rem' }}>real now: {sim.realNow}</div>
+                  </div>
+                  <button className="button" type="button" disabled={busy} onClick={() => void reset(sim.tenantId)}>Reset</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 type AdminWorkspaceTab =
   | 'tenants'
   | 'plans'
@@ -2065,6 +2252,7 @@ type AdminWorkspaceTab =
   | 'payments'
   | 'messaging'
   | 'other'
+  | 'developer'
 
 const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: 'tenants', label: 'Tenant management' },
@@ -2077,6 +2265,7 @@ const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: 'payments', label: 'Payment providers' },
   { id: 'messaging', label: 'Messaging providers' },
   { id: 'other', label: 'Other' },
+  { id: 'developer', label: 'Developer tools' },
 ]
 
 function AdminComingSoon({ title }: { title: string }) {
@@ -2904,6 +3093,8 @@ export function PlatformAdminPage() {
                   <AjpesAdminPanel />
                 ) : workspace === 'other' ? (
                   <OtherAdminPanel />
+                ) : workspace === 'developer' ? (
+                  <TimeSimulatorPanel />
                 ) : (
                   <AdminComingSoon title={ADMIN_TABS.find((t) => t.id === workspace)?.label ?? 'Section'} />
                 )}

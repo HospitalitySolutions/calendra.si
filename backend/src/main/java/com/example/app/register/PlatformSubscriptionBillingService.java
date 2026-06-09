@@ -22,6 +22,8 @@ import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.client.InvoiceRecipientType;
+import com.example.app.common.SimulatedTimeContext;
+import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.company.Company;
@@ -90,6 +92,7 @@ public class PlatformSubscriptionBillingService {
     private final InvoicePdfS3Service invoicePdfS3Service;
     private final BillingEmailService billingEmailService;
     private final StripeBillingService stripeBillingService;
+    private final TimeService timeService;
 
     public PlatformSubscriptionBillingService(
             CompanyRepository companies,
@@ -108,7 +111,8 @@ public class PlatformSubscriptionBillingService {
             BillFolioPdfService billFolioPdfService,
             InvoicePdfS3Service invoicePdfS3Service,
             BillingEmailService billingEmailService,
-            StripeBillingService stripeBillingService
+            StripeBillingService stripeBillingService,
+            TimeService timeService
     ) {
         this.companies = companies;
         this.users = users;
@@ -127,6 +131,7 @@ public class PlatformSubscriptionBillingService {
         this.invoicePdfS3Service = invoicePdfS3Service;
         this.billingEmailService = billingEmailService;
         this.stripeBillingService = stripeBillingService;
+        this.timeService = timeService;
     }
 
     /** Upserts the platform payee + open bill using the best data currently available for the signup. */
@@ -178,7 +183,7 @@ public class PlatformSubscriptionBillingService {
             return;
         }
 
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantCompany.getId());
         LocalDate billingStart = resolveInitialBillingStart(plan, tenantCompany.getId(), today);
         LocalDate billingEnd = periodEnd(billingStart, plan.interval());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
@@ -354,7 +359,6 @@ public class PlatformSubscriptionBillingService {
         if (platformCompany == null || platformCompany.getId() == null) {
             return;
         }
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
         RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
         PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
         for (AppSetting endSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_END)) {
@@ -362,12 +366,14 @@ public class PlatformSubscriptionBillingService {
             if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompany.getId())) {
                 continue;
             }
+            // Evaluate each tenant against its own (possibly simulated) clock.
+            LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenant.getId());
             LocalDate end = parseDateOrNull(endSetting.getValue());
             if (end == null || end.isAfter(today)) {
                 continue;
             }
             try {
-                renewTenantSubscription(platformCompany, tenant, billingCatalog, end);
+                SimulatedTimeContext.runAs(tenant.getId(), () -> renewTenantSubscription(platformCompany, tenant, billingCatalog, end));
             } catch (Exception e) {
                 log.warn("Failed to renew platform subscription for tenant {}", tenant.getId(), e);
             }
@@ -509,7 +515,7 @@ public class PlatformSubscriptionBillingService {
         }
         RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
         PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        try {
         for (OpenBill open : openBills.findAllByCompanyIdAndReferenceStartingWith(platformCompany.getId(), OPEN_BILL_REFERENCE_PREFIX)) {
             Long tenantId = parseTenantId(open.getReference());
             if (tenantId == null) {
@@ -519,6 +525,8 @@ public class PlatformSubscriptionBillingService {
             if (tenant == null) {
                 continue;
             }
+            SimulatedTimeContext.set(tenantId);
+            LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
             String packageName = settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_PACKAGE_NAME).map(AppSetting::getValue).orElse("PROFESSIONAL");
             String interval = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL).map(AppSetting::getValue).orElse("MONTHLY");
             PlatformPlan plan = billingCatalog.resolvePlan(packageName, interval);
@@ -544,6 +552,9 @@ public class PlatformSubscriptionBillingService {
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
             openBills.save(open);
+        }
+        } finally {
+            SimulatedTimeContext.clear();
         }
     }
 
@@ -571,7 +582,7 @@ public class PlatformSubscriptionBillingService {
         bill.setConsultant(open.getConsultant());
         bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolvePaymentMethod(platformCompany.getId(), null).orElse(null));
         bill.setBankTransferReference(open.getReference());
-        bill.setIssueDate(LocalDate.now());
+        bill.setIssueDate(timeService.localDate());
         bill.setFiscalStatus(BillFiscalStatus.NOT_SENT);
 
         BigDecimal totalNet = BigDecimal.ZERO;

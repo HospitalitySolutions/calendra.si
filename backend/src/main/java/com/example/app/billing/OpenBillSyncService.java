@@ -1,6 +1,7 @@
 package com.example.app.billing;
 
 import com.example.app.client.Client;
+import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.session.SessionBooking;
@@ -42,6 +43,7 @@ public class OpenBillSyncService {
     private final ClientCompanyRepository clientCompanies;
     private final AppSettingRepository settings;
     private final TransactionServiceRepository txRepo;
+    private final TimeService timeService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -55,7 +57,8 @@ public class OpenBillSyncService {
             AdvanceAllocationRepository advanceAllocationRepo,
             ClientCompanyRepository clientCompanies,
             AppSettingRepository settings,
-            TransactionServiceRepository txRepo
+            TransactionServiceRepository txRepo,
+            TimeService timeService
     ) {
         this.sessionBookings = sessionBookings;
         this.users = users;
@@ -66,11 +69,12 @@ public class OpenBillSyncService {
         this.clientCompanies = clientCompanies;
         this.settings = settings;
         this.txRepo = txRepo;
+        this.timeService = timeService;
     }
 
     @Transactional
     public void syncCompany(Long companyId) {
-        var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(LocalDateTime.now(), companyId);
+        var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(timeService.localDateTime(java.time.ZoneId.systemDefault(), companyId), companyId);
         for (SessionBooking sb : past) {
             syncSessionRow(companyId, sb);
         }

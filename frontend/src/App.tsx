@@ -17,6 +17,7 @@ import { Shell } from './components/Shell'
 import { useLocale } from './locale'
 import { getDefaultAllowedRoute, hasBillingAccess, hasInboxAccess } from './lib/packageAccess'
 import { storeAuthenticatedSession } from './lib/session'
+import { startClockSync, stopClockSync } from './lib/clock'
 import { clearAuthStoragePreservingTheme } from './theme'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
@@ -103,6 +104,15 @@ export default function App() {
     registerConflict409Handler((msg) => showToast('error', msg))
     return () => registerConflict409Handler(null)
   }, [showToast])
+
+  useEffect(() => {
+    if (!user) {
+      stopClockSync()
+      return
+    }
+    startClockSync()
+    return () => stopClockSync()
+  }, [user])
 
   useEffect(() => {
     clearToasts()

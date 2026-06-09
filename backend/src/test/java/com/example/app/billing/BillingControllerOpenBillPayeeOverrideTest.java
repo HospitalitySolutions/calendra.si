@@ -97,7 +97,8 @@ class BillingControllerOpenBillPayeeOverrideTest {
                 invoiceOrderIdService,
                 entityManager,
                 globalPaymentProviders,
-                billingModuleAccess
+                billingModuleAccess,
+                new com.example.app.common.TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper()))
         );
 
         ownerCompany = new Company();
