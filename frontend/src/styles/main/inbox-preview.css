@@ -650,9 +650,22 @@
     background: #f0fdf4;
 }
 
+.analytics-inbox-b-status.is-closed {
+    color: #64748b;
+    border-color: var(--inbox-b-line-strong);
+    background: #f1f5f9;
+}
+
 .analytics-inbox-b-icon-btn {
     width: 36px;
     padding: 0;
+    cursor: pointer;
+}
+
+.analytics-inbox-b-icon-btn.is-active {
+    color: #f59e0b;
+    border-color: rgba(245, 158, 11, 0.4);
+    background: #fffbeb;
 }
 
 .analytics-inbox-b-conversation-meta {

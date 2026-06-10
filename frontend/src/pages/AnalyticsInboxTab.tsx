@@ -712,7 +712,9 @@ export function AnalyticsInboxTab() {
 
   const me = getStoredUser()
   const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
-  const [threadTab, setThreadTab] = useState<'all' | 'unread' | 'scheduled' | 'campaigns'>('all')
+  const [folder, setFolder] = useState<'inbox' | 'unread' | 'starred' | 'closed'>('inbox')
+  const [savingStar, setSavingStar] = useState(false)
+  const [savingStatus, setSavingStatus] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [scheduleView, setScheduleView] = useState<ScheduleView>('list')
   const [scheduledItems, setScheduledItems] = useState<ScheduledItem[]>([])
@@ -951,11 +953,11 @@ export function AnalyticsInboxTab() {
 
   const threads = threadsQuery.data ?? []
   const visibleThreads = useMemo(() => {
-    if (threadTab === 'unread') return threads.filter((thread) => (thread.unreadCount ?? 0) > 0 || thread.lastDirection === 'INBOUND')
-    if (threadTab === 'scheduled') return []
-    if (threadTab === 'campaigns') return []
-    return threads
-  }, [threads, threadTab])
+    if (folder === 'unread') return threads.filter((thread) => (thread.unreadCount ?? 0) > 0)
+    if (folder === 'starred') return threads.filter((thread) => thread.starred)
+    if (folder === 'closed') return threads.filter((thread) => thread.closed)
+    return threads.filter((thread) => !thread.closed)
+  }, [threads, folder])
 
   const groupedThreads = useMemo(() => {
     const grouped: Record<string, InboxThread[]> = { Today: [], Yesterday: [], Earlier: [] }
@@ -966,7 +968,6 @@ export function AnalyticsInboxTab() {
   }, [visibleThreads])
 
   const unreadMessageCount = threads.reduce((total, thread) => total + (thread.unreadCount ?? 0), 0)
-  const waitingReplyCount = threads.filter((thread) => thread.lastDirection === 'INBOUND').length
   const selectedClientInitials = selectedClient
     ? initialsFromName(selectedClient.firstName, selectedClient.lastName)
     : selectedThread
@@ -1290,6 +1291,35 @@ export function AnalyticsInboxTab() {
     }
   }
 
+  const updateStarred = async (starred: boolean) => {
+    if (!selectedClientId) return
+    setSavingStar(true)
+    try {
+      await api.put(`/inbox/clients/${selectedClientId}/star`, { starred })
+      await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || copy.sendFailed)
+    } finally {
+      setSavingStar(false)
+    }
+  }
+
+  const updateStatus = async (closed: boolean) => {
+    if (!selectedClientId) return
+    setSavingStatus(true)
+    try {
+      await api.put(`/inbox/clients/${selectedClientId}/status`, { closed })
+      showToast('success', closed
+        ? (locale === 'sl' ? 'Pogovor je zaključen.' : 'Conversation closed.')
+        : (locale === 'sl' ? 'Pogovor je ponovno odprt.' : 'Conversation reopened.'))
+      await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || copy.sendFailed)
+    } finally {
+      setSavingStatus(false)
+    }
+  }
+
   const resetScheduleDraft = () => {
     setScheduleDraftClientId(selectedClientId)
     setScheduleDraftChannel(availableChannels.includes(composeChannel) ? composeChannel : (availableChannels[0] ?? 'EMAIL'))
@@ -1381,6 +1411,7 @@ export function AnalyticsInboxTab() {
     showing: 'Prikazujem',
     of: 'od',
     statusOpen: 'Odprto',
+    statusClosed: 'Zaključeno',
     responsible: 'Odgovoren',
     details: 'Podrobnosti pogovora',
     channel: 'Kanal',
@@ -1446,6 +1477,7 @@ export function AnalyticsInboxTab() {
     showing: 'Showing',
     of: 'of',
     statusOpen: 'Open',
+    statusClosed: 'Closed',
     responsible: 'Responsible',
     details: 'Conversation details',
     channel: 'Channel',
@@ -1498,15 +1530,10 @@ export function AnalyticsInboxTab() {
   const selectedClientLocation = selectedClient?.billingCompany ? [selectedClient.billingCompany.postalCode, selectedClient.billingCompany.city].filter(Boolean).join(' ') : ''
   const safeThreadsCount = Math.max(threads.length, visibleThreads.length)
   const folderRows = [
-    { label: ui.inbox, count: unreadMessageCount || safeThreadsCount, icon: '✉', active: true },
-    { label: ui.assignedToMe, count: Math.max(1, waitingReplyCount), icon: '☉' },
-    { label: ui.unread, count: unreadMessageCount, icon: '◇' },
-    { label: ui.starred, count: 0, icon: '☆' },
-    { label: ui.inProgress, count: waitingReplyCount, icon: '◌' },
-    { label: ui.waitingReply, count: waitingReplyCount, icon: '◷' },
-    { label: ui.closed, count: Math.max(0, safeThreadsCount - waitingReplyCount), icon: '✓' },
-    { label: ui.spam, count: 0, icon: '⊘' },
-    { label: ui.archive, count: Math.max(0, safeThreadsCount), icon: '▣' },
+    { id: 'inbox' as const, label: ui.inbox, count: threads.filter((thread) => !thread.closed).length, icon: '✉' },
+    { id: 'unread' as const, label: ui.unread, count: threads.filter((thread) => (thread.unreadCount ?? 0) > 0).length, icon: '◇' },
+    { id: 'starred' as const, label: ui.starred, count: threads.filter((thread) => thread.starred).length, icon: '★' },
+    { id: 'closed' as const, label: ui.closed, count: threads.filter((thread) => thread.closed).length, icon: '✓' },
   ]
 
   const setScheduleTo = (date: Date) => {
@@ -1640,18 +1667,16 @@ export function AnalyticsInboxTab() {
           <div className="analytics-inbox-b-folders">
             <div className="analytics-inbox-b-section-heading">
               <span>{ui.folders}</span>
-              <button type="button">{ui.newFolder}</button>
             </div>
             <div className="analytics-inbox-b-folder-list">
-              {folderRows.map((folder) => (
-                <button key={folder.label} type="button" className={folder.active ? 'active' : ''}>
-                  <span aria-hidden="true">{folder.icon}</span>
-                  <strong>{folder.label}</strong>
-                  <em>{folder.count}</em>
+              {folderRows.map((row) => (
+                <button key={row.id} type="button" className={folder === row.id ? 'active' : ''} onClick={() => setFolder(row.id)}>
+                  <span aria-hidden="true">{row.icon}</span>
+                  <strong>{row.label}</strong>
+                  <em>{row.count}</em>
                 </button>
               ))}
             </div>
-            <button type="button" className="analytics-inbox-b-edit-folders">✎ {ui.editFolders}</button>
           </div>
 
           <div className="analytics-inbox-b-conversations">
@@ -1716,12 +1741,27 @@ export function AnalyticsInboxTab() {
                     ))}
                   </select>
                 </label>
-              ) : (
-                <span className="analytics-inbox-b-assignee">{ui.responsible}: <strong>{selectedThread?.assignedToName || ui.unassigned}</strong></span>
-              )}
-              <button type="button" className="analytics-inbox-b-status">{ui.statusOpen}⌄</button>
-              <button type="button" className="analytics-inbox-b-icon-btn">＋</button>
-              <button type="button" className="analytics-inbox-b-icon-btn">☆</button>
+              ) : null}
+              {selectedClientId != null ? (
+                <select
+                  className={`analytics-inbox-b-status${selectedThread?.closed ? ' is-closed' : ''}`}
+                  value={selectedThread?.closed ? 'closed' : 'open'}
+                  disabled={savingStatus}
+                  onChange={(e) => updateStatus(e.target.value === 'closed')}
+                  aria-label={ui.statusOpen}
+                >
+                  <option value="open">{ui.statusOpen}</option>
+                  <option value="closed">{ui.statusClosed}</option>
+                </select>
+              ) : null}
+              <button
+                type="button"
+                className={`analytics-inbox-b-icon-btn${selectedThread?.starred ? ' is-active' : ''}`}
+                disabled={savingStar || selectedClientId == null}
+                onClick={() => updateStarred(!selectedThread?.starred)}
+                title={ui.starred}
+                aria-pressed={!!selectedThread?.starred}
+              >{selectedThread?.starred ? '★' : '☆'}</button>
               <button type="button" className="analytics-inbox-b-icon-btn">⋮</button>
             </div>
           </header>

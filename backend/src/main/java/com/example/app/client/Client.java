@@ -46,6 +46,14 @@ public class Client extends BaseEntity {
     @Column(nullable = false)
     private boolean batchPaymentEnabled = false;
 
+    /** Inbox: conversation is starred (folder "Označeno"). */
+    @Column(nullable = false)
+    private boolean inboxStarred = false;
+
+    /** Inbox: conversation is closed/resolved (folder "Zaključeno"); excluded from "Prejeto". */
+    @Column(nullable = false)
+    private boolean inboxClosed = false;
+
     @ManyToOne
     @JoinColumn(name = "assigned_to_id", nullable = true)
     private User assignedTo;

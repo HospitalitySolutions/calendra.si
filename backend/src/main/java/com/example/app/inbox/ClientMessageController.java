@@ -90,6 +90,24 @@ public class ClientMessageController {
         return service.setAssignee(me, clientId, request == null ? null : request.userId());
     }
 
+    @PutMapping("/clients/{clientId}/star")
+    public ClientMessageService.ThreadFlagsView setStarred(
+            @AuthenticationPrincipal User me,
+            @PathVariable Long clientId,
+            @RequestBody ClientMessageService.StarRequest request
+    ) {
+        return service.setStarred(me, clientId, request != null && Boolean.TRUE.equals(request.starred()));
+    }
+
+    @PutMapping("/clients/{clientId}/status")
+    public ClientMessageService.ThreadFlagsView setStatus(
+            @AuthenticationPrincipal User me,
+            @PathVariable Long clientId,
+            @RequestBody ClientMessageService.StatusRequest request
+    ) {
+        return service.setStatus(me, clientId, request != null && Boolean.TRUE.equals(request.closed()));
+    }
+
     @PostMapping(value = "/clients/{clientId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public StoredFileResponse preuploadInboxAttachment(
             @AuthenticationPrincipal User me,

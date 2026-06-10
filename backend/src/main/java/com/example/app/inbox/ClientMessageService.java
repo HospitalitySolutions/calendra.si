@@ -157,7 +157,9 @@ public class ClientMessageService {
             long messageCount,
             long unreadCount,
             Long assignedToId,
-            String assignedToName
+            String assignedToName,
+            boolean starred,
+            boolean closed
     ) {}
 
     public record GuestThreadSummary(
@@ -214,6 +216,12 @@ public class ClientMessageService {
     public record AssigneeRequest(Long userId) {}
 
     public record AssigneeView(Long clientId, Long assignedToId, String assignedToName) {}
+
+    public record StarRequest(Boolean starred) {}
+
+    public record StatusRequest(Boolean closed) {}
+
+    public record ThreadFlagsView(Long clientId, boolean starred, boolean closed) {}
 
     @Transactional(readOnly = true)
     public List<GuestThreadSummary> listGuestThreads(GuestUser guestUser, Long companyId) {
@@ -379,7 +387,9 @@ public class ClientMessageService {
                     rows.size(),
                     countStaffUnread(rows, activeGuestLinksByClientId.get(client.getId())),
                     assignee != null ? assignee.getId() : null,
-                    displayUserName(assignee)
+                    displayUserName(assignee),
+                    client.isInboxStarred(),
+                    client.isInboxClosed()
             ));
         }
         out.sort(Comparator.comparing((ThreadSummary row) -> row.lastSentAt() != null ? row.lastSentAt() : Instant.EPOCH).reversed());
@@ -454,6 +464,24 @@ public class ClientMessageService {
         clients.save(client);
         User saved = client.getAssignedTo();
         return new AssigneeView(clientId, saved != null ? saved.getId() : null, displayUserName(saved));
+    }
+
+    /** Toggles the "starred" flag on a conversation (any staff member who can see the client). */
+    @Transactional
+    public ThreadFlagsView setStarred(User me, Long clientId, boolean starred) {
+        Client client = requireVisibleClient(me, clientId);
+        client.setInboxStarred(starred);
+        clients.save(client);
+        return new ThreadFlagsView(clientId, client.isInboxStarred(), client.isInboxClosed());
+    }
+
+    /** Opens/closes a conversation (any staff member who can see the client). */
+    @Transactional
+    public ThreadFlagsView setStatus(User me, Long clientId, boolean closed) {
+        Client client = requireVisibleClient(me, clientId);
+        client.setInboxClosed(closed);
+        clients.save(client);
+        return new ThreadFlagsView(clientId, client.isInboxStarred(), client.isInboxClosed());
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)

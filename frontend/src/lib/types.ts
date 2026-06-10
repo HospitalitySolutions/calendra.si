@@ -399,6 +399,8 @@ export type InboxThread = {
   unreadCount?: number
   assignedToId?: number | null
   assignedToName?: string | null
+  starred?: boolean
+  closed?: boolean
 }
 
 export type MessageAttachment = {
