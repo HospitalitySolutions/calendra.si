@@ -29,6 +29,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -241,6 +242,67 @@ public class PublicBookingWidgetService {
         }
 
         return new PublicBookingWidgetController.AvailabilityResponse(cfg.availabilityEnabled(), DATE_FORMAT.format(date), slots, groupSessions);
+    }
+
+    /**
+     * Returns the set of dates within {@code monthText} (YYYY-MM) that have at least one bookable slot or group
+     * session, so the calendar can mark only genuinely available days as selectable. Only today onward is evaluated.
+     */
+    @Transactional(readOnly = true)
+    public PublicBookingWidgetController.AvailabilityMonthResponse availabilityMonth(String tenantCode, Long typeId, String monthText, Long consultantId, HttpServletRequest request) {
+        Company company = resolveCompany(tenantCode);
+        SimulatedTimeContext.set(company.getId());
+        guardPublicWidgetRequest(company, request, false, "availability-month");
+        WidgetConfig cfg = loadConfig(company.getId());
+        SessionType type = resolveType(company.getId(), typeId);
+        YearMonth month = parseMonth(monthText);
+        boolean groupOnlyWebsiteBooking = isGroupWebsiteBookingOnly(type);
+        Long resolvedConsultantId = !groupOnlyWebsiteBooking && consultantId != null
+                ? resolveConsultantForBooking(company.getId(), consultantId, false).getId()
+                : null;
+
+        LocalDate today = timeService.localDate(widgetZoneId);
+        LocalDate cursor = month.atDay(1);
+        if (cursor.isBefore(today)) {
+            cursor = today;
+        }
+        LocalDate monthEnd = month.atEndOfMonth();
+
+        List<String> availableDates = new ArrayList<>();
+        for (LocalDate date = cursor; !date.isAfter(monthEnd); date = date.plusDays(1)) {
+            if (dayHasAvailability(company, cfg, type, date, resolvedConsultantId, groupOnlyWebsiteBooking)) {
+                availableDates.add(DATE_FORMAT.format(date));
+            }
+        }
+        return new PublicBookingWidgetController.AvailabilityMonthResponse(month.toString(), availableDates);
+    }
+
+    private boolean dayHasAvailability(Company company, WidgetConfig cfg, SessionType type, LocalDate date, Long consultantId, boolean groupOnlyWebsiteBooking) {
+        if (groupOnlyWebsiteBooking) {
+            return !buildGroupSessions(company, type, date, consultantId).isEmpty();
+        }
+        if (cfg.availabilityEnabled()) {
+            if (!buildBookableSlots(company, cfg, type, date, consultantId).isEmpty()) {
+                return true;
+            }
+            return !buildWorkingHoursSlots(company, cfg, type, date, consultantId).isEmpty();
+        }
+        return !buildFallbackSlots(company, cfg, type, date, consultantId).isEmpty();
+    }
+
+    private YearMonth parseMonth(String monthText) {
+        if (monthText == null || monthText.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "month is required (YYYY-MM).");
+        }
+        String value = monthText.trim();
+        try {
+            if (value.length() >= 10) {
+                return YearMonth.from(parseDate(value));
+            }
+            return YearMonth.parse(value);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid month; use YYYY-MM.");
+        }
     }
 
     @Transactional

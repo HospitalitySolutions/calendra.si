@@ -1,0 +1,38 @@
+Inbox second-design rework implemented
+
+Changed files:
+- frontend/src/pages/AnalyticsInboxTab.tsx
+- frontend/src/styles/main/inbox-preview.css
+
+What changed:
+1. Reworked the inbox tab into the second preview design structure:
+   - top Prejeto header with KPI counters,
+   - full-width search/filter row,
+   - left folder/navigation rail inside inbox,
+   - conversation list,
+   - central conversation detail/thread,
+   - right details + scheduling panel.
+2. Added the right-side Podrobnosti pogovora panel with:
+   - selected client selector,
+   - channel switcher,
+   - subject field,
+   - attachment area respecting the existing Guest App attachment limitation.
+3. Integrated the existing scheduling state/functionality directly in the right panel:
+   - Pošlji zdaj / Razporedi za kasneje toggle,
+   - date and time controls,
+   - quick presets: Čez 1 uro, Jutri 09:00, Ponedeljek 09:00,
+   - one-time/repeat visual controls,
+   - scheduled message button,
+   - upcoming scheduled messages list,
+   - management modal for scheduled messages.
+4. Kept existing inbox APIs and message sending behavior:
+   - /inbox/threads,
+   - /inbox/clients/{id}/messages,
+   - /inbox/messages,
+   - client list/group/capability queries,
+   - attachment upload/discard logic.
+5. Added responsive CSS so the layout stacks cleanly on narrower screens.
+
+Validation notes:
+- TypeScript syntax was checked as far as possible in this sandbox.
+- Full frontend build could not be completed because npm dependencies/node_modules are not available in the sandbox.

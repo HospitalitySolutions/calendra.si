@@ -323,6 +323,9 @@
         selectedConsultantId: null,
         selectedDate: '',
         calendarMonth: '',
+        availableDates: null,
+        monthAvailabilityKey: '',
+        loadingMonthAvailability: false,
         slots: [],
         groupSessions: [],
         selectedSlot: null,
@@ -649,6 +652,7 @@
     async loadConsultantsAndAvailability() {
       await this.loadConsultants();
       await this.loadAvailability();
+      await this.loadMonthAvailability();
     }
 
     async loadConsultants() {
@@ -746,6 +750,47 @@
         });
       } catch (error) {
         this.setState({ loadingAvailability: false, error: this.normalizeError(error, this.text().failedToLoadAvailability) });
+      }
+    }
+
+    async loadMonthAvailability() {
+      const { selectedServiceId, calendarMonth, selectedConsultantId, config } = this.state;
+      if (!selectedServiceId || !calendarMonth) return;
+
+      const supportsGroupSessions = this.currentServiceSupportsGroupSessions();
+      // When the employee-selection step is on, per-date availability depends on the chosen consultant.
+      // Until one is picked we cannot know it, so leave every date selectable (unknown state).
+      const consultantRequired = !supportsGroupSessions
+        && this.shouldShowConsultantStep()
+        && config?.availabilityEnabled
+        && !selectedConsultantId;
+      if (consultantRequired) {
+        this.setState({ availableDates: null, monthAvailabilityKey: 'pending-consultant' });
+        return;
+      }
+
+      const monthKey = String(calendarMonth).slice(0, 7);
+      const cacheKey = `${selectedServiceId}|${selectedConsultantId != null ? selectedConsultantId : ''}|${monthKey}`;
+      if (cacheKey === this.state.monthAvailabilityKey) return;
+
+      this.setState({ loadingMonthAvailability: true });
+      try {
+        const params = new URLSearchParams({
+          typeId: String(selectedServiceId),
+          month: monthKey,
+        });
+        if (selectedConsultantId != null) {
+          params.set('consultantId', String(selectedConsultantId));
+        }
+        const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability-month?${params.toString()}`);
+        this.setState({
+          availableDates: Array.isArray(data.availableDates) ? data.availableDates : [],
+          monthAvailabilityKey: cacheKey,
+          loadingMonthAvailability: false,
+        });
+      } catch (error) {
+        // On failure fall back to the unknown state so dates stay selectable rather than wrongly blocked.
+        this.setState({ availableDates: null, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
       }
     }
 
@@ -1321,9 +1366,12 @@
         termsAccepted: true,
         paymentResult: null,
         activeStep: 'datetime',
+        availableDates: null,
+        monthAvailabilityKey: '',
       });
 
       void this.loadAvailability();
+      void this.loadMonthAvailability();
     }
 
     monthLabel() {
@@ -1351,7 +1399,10 @@
       const lead = (monthStart.getDay() + 6) % 7;
       const totalCells = Math.ceil((lead + totalDays) / 7) * 7;
       const today = parseIsoDate(this.todayInWidgetTimezone()) || new Date();
+      const todayIso = formatIsoDate(today);
       const selectedDate = this.state.selectedDate;
+      const availableDates = this.state.availableDates;
+      const availabilityKnown = Array.isArray(availableDates);
       const cells = [];
 
       for (let index = 0; index < totalCells; index += 1) {
@@ -1359,14 +1410,20 @@
         const cellDate = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1 + dayOffset);
         const iso = formatIsoDate(cellDate);
         const inMonth = sameMonth(cellDate, monthStart);
-        const disabled = iso < formatIsoDate(today);
+        const past = iso < todayIso;
+        // When availability is known, a future in-month day with no slots is neither shown as free nor selectable.
+        const hasSlots = !availabilityKnown || availableDates.includes(iso);
+        const noSlots = availabilityKnown && inMonth && !past && !hasSlots;
+        const available = inMonth && !past && hasSlots;
         cells.push({
           iso,
           day: cellDate.getDate(),
           inMonth,
-          disabled,
+          past,
+          disabled: past || noSlots,
+          available,
           selected: selectedDate === iso,
-          today: iso === formatIsoDate(today),
+          today: iso === todayIso,
         });
       }
 
@@ -1391,7 +1448,7 @@
           </div>
           <div class="calendar-grid">
             ${cells.map((cell) => {
-              const isAvailable = !cell.disabled && cell.inMonth;
+              const isAvailable = cell.available;
               return `
                 <button
                   type="button"
@@ -2184,6 +2241,8 @@
             selectedGroupSession: null,
             groupSessions: [],
             manualTime: '',
+            availableDates: null,
+            monthAvailabilityKey: '',
           });
           await this.loadConsultantsAndAvailability();
           if (this.state.config?.turnstileEnabled && this.state.config?.turnstileSiteKey) {
@@ -2203,8 +2262,11 @@
             selectedSlot: null,
             selectedGroupSession: null,
             manualTime: '',
+            availableDates: null,
+            monthAvailabilityKey: '',
           });
           await this.loadAvailability();
+          await this.loadMonthAvailability();
         });
       });
 
@@ -2222,6 +2284,7 @@
             error: '',
           });
           await this.loadAvailability();
+          await this.loadMonthAvailability();
         });
       });
 
@@ -2232,6 +2295,7 @@
           const minMonth = parseIsoDate(this.monthKeyForDate(this.todayInWidgetTimezone())) || firstOfMonth(new Date());
           if (previous < minMonth) return;
           this.setState({ calendarMonth: formatIsoDate(previous) });
+          void this.loadMonthAvailability();
         });
       });
 
@@ -2239,6 +2303,7 @@
         button.addEventListener('click', () => {
           const current = parseIsoDate(this.state.calendarMonth) || firstOfMonth(new Date());
           this.setState({ calendarMonth: formatIsoDate(addMonths(current, 1)) });
+          void this.loadMonthAvailability();
         });
       });
 

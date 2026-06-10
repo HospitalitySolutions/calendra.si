@@ -445,6 +445,15 @@ function deliveryRateFromThreads(threads: InboxThread[]) {
   return `${Math.round((delivered / threads.length) * 1000) / 10}%`
 }
 
+function toLocalInputDateTime(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function toLocalInputDate(date: Date) {
+  return toLocalInputDateTime(date).slice(0, 10)
+}
+
 export function AnalyticsInboxTab() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
@@ -1244,17 +1253,25 @@ export function AnalyticsInboxTab() {
   }
 
   const submitSchedule = () => {
-    if (!scheduleDraftBody.trim() || !scheduleDraftWhen) return
+    const targetChannel = availableChannels.includes(scheduleDraftChannel) ? scheduleDraftChannel : composeChannel
+    const targetBody = scheduleDraftBody.trim() || composeBody.trim()
+    const targetSubject = scheduleDraftSubject.trim() || composeSubject.trim()
+    const targetClientId = scheduleDraftClientId ?? selectedClientId
+    if (!targetBody || !scheduleDraftWhen) return
+    const scheduledDate = new Date(scheduleDraftWhen)
+    if (Number.isNaN(scheduledDate.getTime())) return
     const newItem: ScheduledItem = {
       id: `scheduled-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      clientId: scheduleDraftClientId,
-      channel: scheduleDraftChannel,
-      subject: scheduleDraftChannel === 'EMAIL' ? scheduleDraftSubject.trim() : '',
-      body: scheduleDraftBody.trim(),
-      scheduledFor: new Date(scheduleDraftWhen).toISOString(),
+      clientId: targetClientId,
+      channel: targetChannel,
+      subject: targetChannel === 'EMAIL' ? targetSubject : '',
+      body: targetBody,
+      scheduledFor: scheduledDate.toISOString(),
     }
     setScheduledItems((prev) => [...prev, newItem].sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor)))
     setScheduleView('list')
+    setScheduleDraftBody('')
+    setScheduleDraftSubject('')
   }
 
   const removeScheduledItem = (id: string) => {
@@ -1276,499 +1293,521 @@ export function AnalyticsInboxTab() {
   }).length
   const selectedThreadStatus = selectedThread ? statusLabel(selectedThread.lastStatus, copy) : 'Open'
 
+  const ui = locale === 'sl' ? {
+    title: 'Prejeto',
+    subtitle: 'Osrednje komunikacijsko središče za e-pošto, SMS, WhatsApp, Viber in Guest App. Vsi pogovori na enem mestu.',
+    search: 'Išči po stranki, zadevi ali sporočilu…',
+    allClients: 'Vse stranke',
+    allChannels: 'Vsi kanali',
+    allStatuses: 'Vsi statusi',
+    export: 'Izvozi',
+    conversations: 'Pogovori',
+    unread: 'Neprebrano',
+    scheduled: 'Zakazano',
+    sentToday: 'Poslano danes',
+    folders: 'Mape',
+    newFolder: '+ Nova mapa',
+    inbox: 'Prejeto',
+    assignedToMe: 'Dodeljeno meni',
+    starred: 'Označeno',
+    inProgress: 'V teku',
+    waitingReply: 'Čaka na odgovor',
+    closed: 'Zaključeno',
+    spam: 'Neželeno',
+    archive: 'Arhiv',
+    editFolders: 'Uredi mape',
+    newest: 'Najnovejši',
+    showing: 'Prikazujem',
+    of: 'od',
+    statusOpen: 'Odprto',
+    responsible: 'Odgovoren',
+    details: 'Podrobnosti pogovora',
+    channel: 'Kanal',
+    subject: 'Zadeva',
+    attachments: 'Priponke',
+    addAttachment: 'Dodaj priponko',
+    guestAttachmentNote: 'Priponke so podprte pri Guest App pogovorih.',
+    scheduleTitle: 'Razpored pošiljanja',
+    scheduleText: 'Načrtujte in pošljite sporočila ob pravem času.',
+    sendNow: 'Pošlji zdaj',
+    scheduleLater: 'Razporedi za kasneje',
+    dateAndTime: 'Datum in čas',
+    oneHour: 'Čez 1 uro',
+    tomorrow: 'Jutri 09:00',
+    monday: 'Ponedeljek 09:00',
+    upcoming: 'Prihajajoča razporejena sporočila',
+    showAll: 'Prikaži vse',
+    manageScheduled: 'Upravljaj razporejena sporočila',
+    createNew: 'Ustvari novo sporočilo',
+    internalNote: 'Interna opomba',
+    reply: 'Odgovori',
+    writeReply: 'Napišite odgovor …',
+    send: 'Pošlji',
+    noSubject: 'Brez zadeve',
+    messageId: 'ID',
+    clientDetails: 'Podrobnosti o stranki',
+    scheduleMessage: 'Razporedi sporočilo',
+    saveDraft: 'Shrani osnutek',
+    clear: 'Počisti',
+    frequency: 'Pogostost',
+    once: 'Enkratno',
+    repeat: 'Ponovi',
+    noScheduled: 'Ni razporejenih sporočil.',
+  } : {
+    title: 'Inbox',
+    subtitle: 'Central communication hub for email, SMS, WhatsApp, Viber and Guest App. All conversations in one place.',
+    search: 'Search by client, subject or message…',
+    allClients: 'All clients',
+    allChannels: 'All channels',
+    allStatuses: 'All statuses',
+    export: 'Export',
+    conversations: 'Conversations',
+    unread: 'Unread',
+    scheduled: 'Scheduled',
+    sentToday: 'Sent today',
+    folders: 'Folders',
+    newFolder: '+ New folder',
+    inbox: 'Inbox',
+    assignedToMe: 'Assigned to me',
+    starred: 'Starred',
+    inProgress: 'In progress',
+    waitingReply: 'Awaiting reply',
+    closed: 'Closed',
+    spam: 'Spam',
+    archive: 'Archive',
+    editFolders: 'Edit folders',
+    newest: 'Newest',
+    showing: 'Showing',
+    of: 'of',
+    statusOpen: 'Open',
+    responsible: 'Responsible',
+    details: 'Conversation details',
+    channel: 'Channel',
+    subject: 'Subject',
+    attachments: 'Attachments',
+    addAttachment: 'Add attachment',
+    guestAttachmentNote: 'Attachments are supported for Guest App conversations.',
+    scheduleTitle: 'Send schedule',
+    scheduleText: 'Plan and send messages at the right time.',
+    sendNow: 'Send now',
+    scheduleLater: 'Schedule for later',
+    dateAndTime: 'Date and time',
+    oneHour: 'In 1 hour',
+    tomorrow: 'Tomorrow 09:00',
+    monday: 'Monday 09:00',
+    upcoming: 'Upcoming scheduled messages',
+    showAll: 'Show all',
+    manageScheduled: 'Manage scheduled messages',
+    createNew: 'Create new message',
+    internalNote: 'Internal note',
+    reply: 'Reply',
+    writeReply: 'Write a reply …',
+    send: 'Send',
+    noSubject: 'No subject',
+    messageId: 'ID',
+    clientDetails: 'Client details',
+    scheduleMessage: 'Schedule message',
+    saveDraft: 'Save draft',
+    clear: 'Clear',
+    frequency: 'Frequency',
+    once: 'Once',
+    repeat: 'Repeat',
+    noScheduled: 'No scheduled messages.',
+  }
+
+  const statusOptions: InboxStatus[] = ['RECEIVED', 'SENT', 'DELIVERED', 'READ', 'FAILED']
+  const dateRangeLabel = from || to ? `${from || '…'} → ${to || '…'}` : '01/06/2025 → 31/06/2025'
+  const conversationSubject = selectedThread?.lastSubject || composeSubject || ui.noSubject
+  const conversationId = selectedClientId != null ? `#CON-${String(selectedClientId).padStart(5, '0')}` : '#CON-—'
+  const scheduleDateValue = scheduleDraftWhen ? scheduleDraftWhen.slice(0, 10) : ''
+  const scheduleTimeValue = scheduleDraftWhen ? scheduleDraftWhen.slice(11, 16) : ''
+  const inlineScheduleReady = !!scheduleDraftWhen && !!(composeBody.trim() || scheduleDraftBody.trim())
+  const selectedClientEmail = selectedClient?.email || selectedThread?.clientEmail || ''
+  const selectedClientPhone = selectedClient?.phone || selectedThread?.clientPhone || ''
+  const selectedClientLocation = selectedClient?.billingCompany ? [selectedClient.billingCompany.postalCode, selectedClient.billingCompany.city].filter(Boolean).join(' ') : ''
+  const safeThreadsCount = Math.max(threads.length, visibleThreads.length)
+  const folderRows = [
+    { label: ui.inbox, count: unreadMessageCount || safeThreadsCount, icon: '✉', active: true },
+    { label: ui.assignedToMe, count: Math.max(1, waitingReplyCount), icon: '☉' },
+    { label: ui.unread, count: unreadMessageCount, icon: '◇' },
+    { label: ui.starred, count: 0, icon: '☆' },
+    { label: ui.inProgress, count: waitingReplyCount, icon: '◌' },
+    { label: ui.waitingReply, count: waitingReplyCount, icon: '◷' },
+    { label: ui.closed, count: Math.max(0, safeThreadsCount - waitingReplyCount), icon: '✓' },
+    { label: ui.spam, count: 0, icon: '⊘' },
+    { label: ui.archive, count: Math.max(0, safeThreadsCount), icon: '▣' },
+  ]
+
+  const setScheduleTo = (date: Date) => {
+    setScheduleDraftClientId(selectedClientId)
+    setScheduleDraftChannel(availableChannels.includes(composeChannel) ? composeChannel : 'EMAIL')
+    setScheduleDraftWhen(toLocalInputDateTime(date))
+  }
+
+  const setDefaultSchedule = () => {
+    const next = new Date()
+    next.setHours(next.getHours() + 1, 0, 0, 0)
+    setScheduleTo(next)
+  }
+
+  const updateScheduleDate = (value: string) => {
+    if (!value) {
+      setScheduleDraftWhen('')
+      return
+    }
+    const time = scheduleTimeValue || '09:00'
+    setScheduleDraftClientId(selectedClientId)
+    setScheduleDraftChannel(availableChannels.includes(composeChannel) ? composeChannel : 'EMAIL')
+    setScheduleDraftWhen(`${value}T${time}`)
+  }
+
+  const updateScheduleTime = (value: string) => {
+    if (!value) {
+      setScheduleDraftWhen(scheduleDateValue ? `${scheduleDateValue}T00:00` : '')
+      return
+    }
+    const date = scheduleDateValue || toLocalInputDate(new Date())
+    setScheduleDraftClientId(selectedClientId)
+    setScheduleDraftChannel(availableChannels.includes(composeChannel) ? composeChannel : 'EMAIL')
+    setScheduleDraftWhen(`${date}T${value}`)
+  }
+
+  const setTomorrowPreset = () => {
+    const next = new Date()
+    next.setDate(next.getDate() + 1)
+    next.setHours(9, 0, 0, 0)
+    setScheduleTo(next)
+  }
+
+  const setMondayPreset = () => {
+    const next = new Date()
+    const day = next.getDay()
+    const diff = ((8 - day) % 7) || 7
+    next.setDate(next.getDate() + diff)
+    next.setHours(9, 0, 0, 0)
+    setScheduleTo(next)
+  }
+
+  const isComposerChannelDisabled = (channel: InboxChannel) => {
+    if (channel === 'SMS') return !hasSmsTarget(selectedClient)
+    if (channel === 'WHATSAPP') return !selectedClient?.whatsappOptIn || !hasWhatsAppTarget(selectedClient)
+    if (channel === 'VIBER') return !selectedClient?.viberConnected
+    if (channel === 'GUEST_APP') return !selectedClient?.guestAppLinked
+    if (channel === 'EMAIL') return !hasEmailTarget(selectedClient)
+    return false
+  }
+
+  const renderChannelButton = (channel: InboxChannel) => {
+    const disabled = isComposerChannelDisabled(channel)
+    const channelClass = channel.toLowerCase().replace('_app', '').replace('_', '-')
+    return (
+      <button
+        key={channel}
+        type="button"
+        className={`analytics-inbox-b-channel analytics-inbox-b-channel--${channelClass}${composeChannel === channel ? ' active' : ''}`}
+        onClick={() => !disabled && setComposeChannel(channel)}
+        disabled={disabled}
+      >
+        <span>{channelIcon(channel)}</span>
+        {channelLabel(channel)}
+      </button>
+    )
+  }
+
   return (
-    <div className="analytics-inbox-modern analytics-inbox-preview-a stack gap-lg">
-      <Card className="analytics-inbox-hero analytics-inbox-hero--preview-a">
-        <div className="analytics-inbox-hero__copy">
-          <SectionTitle>Inbox</SectionTitle>
-          <p className="muted analytics-inbox-hero__text">
-            A unified communication hub for email, SMS, WhatsApp, Viber and Guest App.
-            <br />
-            All conversations, across all channels and clients, in one place.
-          </p>
+    <div className="analytics-inbox-modern analytics-inbox-preview-b" data-onboarding-panel="inbox">
+      <section className="analytics-inbox-b-header">
+        <div className="analytics-inbox-b-title-wrap">
+          <h1>{ui.title}</h1>
+          <p>{ui.subtitle}</p>
         </div>
-        <div className="analytics-inbox-hero__stats analytics-inbox-hero__stats--preview-a">
-          <div className="analytics-inbox-stat analytics-inbox-stat--flat">
-            <span>Threads</span>
-            <strong>{threads.length}</strong>
-          </div>
-          <div className="analytics-inbox-stat analytics-inbox-stat--flat">
-            <span>Unread</span>
-            <strong>{unreadMessageCount}</strong>
-          </div>
-          <div className="analytics-inbox-stat analytics-inbox-stat--flat">
-            <span>Scheduled</span>
-            <strong>{scheduledItems.length}</strong>
-          </div>
-          <div className="analytics-inbox-stat analytics-inbox-stat--flat">
-            <span>Sent today</span>
-            <strong>{sentTodayCount}</strong>
-          </div>
+        <div className="analytics-inbox-b-kpis">
+          <div><span>{ui.conversations}</span><strong>{safeThreadsCount}</strong><em>+12%</em></div>
+          <div><span>{ui.unread}</span><strong>{unreadMessageCount}</strong><em>+3</em></div>
+          <div><span>{ui.scheduled}</span><strong>{scheduledItems.length}</strong><em>+2</em></div>
+          <div><span>{ui.sentToday}</span><strong>{sentTodayCount}</strong><em>+15%</em></div>
         </div>
-      </Card>
+      </section>
 
-      <Card className="analytics-inbox-filters-card analytics-inbox-filters-card--preview-a">
-        <div className="analytics-inbox-filters analytics-inbox-filters--preview-a">
-          <div className="analytics-inbox-search-wrap analytics-inbox-search-wrap--modern">
-            <span aria-hidden="true">⌕</span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by client, subject, message..."
-            />
-          </div>
-          <select value={clientIdFilter} onChange={(e) => setClientIdFilter(e.target.value)}>
-            <option value="">All clients</option>
-            {(clientsQuery.data ?? []).map((client) => (
-              <option key={client.id} value={client.id}>{clientName(client)}</option>
-            ))}
-          </select>
-          <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value as '' | InboxChannel)}>
-            <option value="">All channels</option>
-            {availableChannels.map((channel) => <option key={channel} value={channel}>{channelLabel(channel)}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | InboxStatus)}>
-            <option value="">All statuses</option>
-            <option value="RECEIVED">Received</option>
-            <option value="SENT">Sent</option>
-            <option value="DELIVERED">Delivered</option>
-            <option value="READ">Read</option>
-            <option value="FAILED">Failed</option>
-          </select>
+      <section className="analytics-inbox-b-toolbar" aria-label="Inbox filters">
+        <div className="analytics-inbox-b-search">
+          <span aria-hidden="true">⌕</span>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={ui.search} />
+          <kbd>⌘ K</kbd>
+        </div>
+        <select value={clientIdFilter} onChange={(e) => setClientIdFilter(e.target.value)}>
+          <option value="">{ui.allClients}</option>
+          {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+        </select>
+        <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value as '' | InboxChannel)}>
+          <option value="">{ui.allChannels}</option>
+          {availableChannels.map((channel) => <option key={channel} value={channel}>{channelLabel(channel)}</option>)}
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | InboxStatus)}>
+          <option value="">{ui.allStatuses}</option>
+          {statusOptions.map((status) => <option key={status} value={status}>{statusLabel(status, copy)}</option>)}
+        </select>
+        <label className="analytics-inbox-b-date-range">
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
+          <span>→</span>
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
-        </div>
-      </Card>
+          <small>{dateRangeLabel}</small>
+        </label>
+        <button type="button" className="analytics-inbox-b-export">⇩ {ui.export}</button>
+      </section>
 
-      <div className="analytics-inbox-layout analytics-inbox-layout--preview-a" data-onboarding-panel="inbox">
-        <Card className="analytics-inbox-threads-card analytics-inbox-threads-card--preview-a">
-          <div className="analytics-inbox-panel-header analytics-inbox-panel-header--preview-a">
-            <div>
-              <strong>Conversations</strong>
-              <p className="muted">Latest message per client.</p>
+      <section className="analytics-inbox-b-workspace">
+        <aside className="analytics-inbox-b-left-card">
+          <div className="analytics-inbox-b-folders">
+            <div className="analytics-inbox-b-section-heading">
+              <span>{ui.folders}</span>
+              <button type="button">{ui.newFolder}</button>
             </div>
-            <div className="analytics-inbox-panel-header__actions">
-              <button type="button" className="secondary slim-btn">Newest⌄</button>
-              <button type="button" className="secondary slim-btn" aria-label="Filter conversations">⌁</button>
+            <div className="analytics-inbox-b-folder-list">
+              {folderRows.map((folder) => (
+                <button key={folder.label} type="button" className={folder.active ? 'active' : ''}>
+                  <span aria-hidden="true">{folder.icon}</span>
+                  <strong>{folder.label}</strong>
+                  <em>{folder.count}</em>
+                </button>
+              ))}
             </div>
+            <button type="button" className="analytics-inbox-b-edit-folders">✎ {ui.editFolders}</button>
           </div>
 
-          <div className="analytics-inbox-thread-list analytics-inbox-thread-list--preview-a">
-            {threadsQuery.isLoading ? (
-              <div className="analytics-inbox-thread-empty muted">Loading inbox...</div>
-            ) : visibleThreads.length === 0 ? (
-              <div className="analytics-inbox-thread-empty analytics-inbox-thread-empty--preview-a">
-                <EmptyState title={copy.noConversationsTitle} text={copy.noConversationsText} />
-              </div>
-            ) : (
-              visibleThreads.map((thread) => {
+          <div className="analytics-inbox-b-conversations">
+            <div className="analytics-inbox-b-conversations-head">
+              <strong>{ui.conversations}</strong>
+              <button type="button">{ui.newest}⌄</button>
+            </div>
+            <div className="analytics-inbox-b-thread-list">
+              {threadsQuery.isLoading ? (
+                <div className="analytics-inbox-b-empty muted">{copy.loadingThread}</div>
+              ) : visibleThreads.length === 0 ? (
+                <div className="analytics-inbox-b-empty"><EmptyState title={copy.noConversationsTitle} text={copy.noConversationsText} /></div>
+              ) : visibleThreads.map((thread) => {
                 const active = thread.clientId === selectedClientId
                 const unread = thread.unreadCount ?? 0
-                const channelClass = thread.lastChannel.toLowerCase().replace('_app', '').replace('_', '-')
                 return (
                   <button
                     type="button"
                     key={thread.clientId}
-                    className={`analytics-inbox-thread analytics-inbox-thread--preview-a${active ? ' active' : ''}`}
+                    className={`analytics-inbox-b-thread${active ? ' active' : ''}`}
                     onClick={() => setSelectedClientId(thread.clientId)}
                   >
-                    <span className={`analytics-inbox-avatar analytics-inbox-avatar--${channelClass}`}>{initialsFromName(thread.clientFirstName, thread.clientLastName)}</span>
-                    <span className="analytics-inbox-thread__body">
-                      <span className="analytics-inbox-thread__top">
-                        <strong>{threadClientName(thread)}</strong>
-                        <time>{compactDateTime(thread.lastSentAt)}</time>
-                      </span>
-                      <span className="analytics-inbox-thread__preview">{thread.lastPreview || thread.lastSubject || (locale === 'sl' ? 'Predogled ni na voljo.' : 'No preview available.')}</span>
-                      <span className="analytics-inbox-thread__meta analytics-inbox-thread__meta--preview-a">
-                        <Pill tone={channelTone(thread.lastChannel)}>{channelLabel(thread.lastChannel)}</Pill>
-                      </span>
+                    <span className="analytics-inbox-b-avatar">{initialsFromName(thread.clientFirstName, thread.clientLastName)}</span>
+                    <span className="analytics-inbox-b-thread-body">
+                      <span className="analytics-inbox-b-thread-top"><strong>{threadClientName(thread)}</strong><time>{compactDateTime(thread.lastSentAt)}</time></span>
+                      <span className="analytics-inbox-b-thread-subject">{thread.lastSubject || thread.lastPreview || ui.noSubject}</span>
+                      <span className="analytics-inbox-b-thread-preview">{thread.lastPreview || threadSenderLabel(thread, copy) || selectedThreadStatus}</span>
+                      <span className="analytics-inbox-b-thread-channel"><i>{channelIcon(thread.lastChannel)}</i>{channelLabel(thread.lastChannel)}</span>
                     </span>
-                    {unread > 0 ? <span className="analytics-inbox-unread-badge">{unread}</span> : null}
+                    {unread > 0 ? <span className="analytics-inbox-b-unread">{unread}</span> : null}
                   </button>
                 )
-              })
-            )}
+              })}
+            </div>
+            <div className="analytics-inbox-b-pagination">
+              <span>{ui.showing} 1–{Math.min(visibleThreads.length, 8)} {ui.of} {safeThreadsCount} {ui.conversations.toLowerCase()}</span>
+              <div><button type="button">‹</button><b>1</b><button type="button">2</button><button type="button">›</button></div>
+            </div>
           </div>
+        </aside>
 
-          <div className="analytics-inbox-list-footer analytics-inbox-list-footer--preview-a">
-            <span>Showing 1-{Math.min(visibleThreads.length, 6)} of {threads.length} conversations</span>
-            <div className="analytics-inbox-pagination" aria-hidden="true"><span>‹</span><b>1</b><span>2</span><span>3</span><span>›</span></div>
-          </div>
-        </Card>
-
-        <Card className="analytics-inbox-thread-view-card analytics-inbox-thread-view-card--preview-a">
-          <div className="analytics-inbox-panel-header analytics-inbox-panel-header--preview-a analytics-inbox-panel-header--conversation">
-            <strong>Conversation</strong>
-            <button type="button" className="secondary slim-btn" aria-label="More conversation actions">⋮</button>
-          </div>
-
-          <div className="analytics-inbox-client-header analytics-inbox-client-header--preview-a">
-            <div className="analytics-inbox-client-header__main">
-              <span className="analytics-inbox-avatar analytics-inbox-avatar--large">{selectedClientInitials}</span>
+        <main className="analytics-inbox-b-center-card">
+          <header className="analytics-inbox-b-conversation-header">
+            <div className="analytics-inbox-b-contact-main">
+              <span className="analytics-inbox-b-avatar analytics-inbox-b-avatar--large">{selectedClientInitials}</span>
               <div>
-                <div className="analytics-inbox-client-header__title">
-                  <strong>{selectedClientName}</strong>
-                  {selectedThread ? <Pill tone={channelTone(selectedThread.lastChannel)}>{copy.clientLabel}</Pill> : null}
-                </div>
-                <p className="muted">{selectedClientContactLine}</p>
+                <h2>{selectedClientName}</h2>
+                <p>{[selectedClientEmail, selectedClientPhone, selectedClientLocation].filter(Boolean).join(' · ') || selectedClientContactLine}</p>
               </div>
             </div>
-            <div className="analytics-inbox-client-actions analytics-inbox-client-actions--preview-a">
-              <button type="button" className="secondary slim-btn">View client ↗</button>
-              <div className="analytics-inbox-client-tags analytics-inbox-client-tags--preview-a"><span>VIP</span><span>Retail</span></div>
+            <div className="analytics-inbox-b-conversation-actions">
+              <button type="button" className="analytics-inbox-b-assignee">{ui.responsible}: <strong>Sara Admin</strong>⌄</button>
+              <button type="button" className="analytics-inbox-b-status">{ui.statusOpen}⌄</button>
+              <button type="button" className="analytics-inbox-b-icon-btn">＋</button>
+              <button type="button" className="analytics-inbox-b-icon-btn">☆</button>
+              <button type="button" className="analytics-inbox-b-icon-btn">⋮</button>
             </div>
+          </header>
+
+          <div className="analytics-inbox-b-conversation-meta">
+            <span>{ui.channel}: {channelLabel(selectedThread?.lastChannel || composeChannel)}</span>
+            <span>{ui.subject}: {conversationSubject}</span>
+            <span>{ui.messageId}: {conversationId}</span>
+            <button type="button">{ui.clientDetails}</button>
           </div>
 
-          <div className="analytics-inbox-messages analytics-inbox-messages--preview-a">
+          <div className="analytics-inbox-b-messages">
             {selectedClientId == null ? (
               <EmptyState title={copy.noClientSelectedTitle} text={copy.noClientSelectedText} />
             ) : messagesQuery.isLoading ? (
-              <div className="muted">{copy.loadingThread}</div>
+              <div className="analytics-inbox-b-empty muted">{copy.loadingThread}</div>
             ) : recentMessages.length === 0 ? (
               <EmptyState title={copy.noSavedMessagesTitle} text={copy.noSavedMessagesText} />
-            ) : (
-              <>
-                <div className="analytics-inbox-date-divider"><span>{recentMessages[0]?.sentAt ? formatDateTime(recentMessages[0].sentAt).split(',')[0] : 'Today'}</span></div>
-                {recentMessages.map((message, index) => {
-                  const channelClass = message.channel.toLowerCase().replace('_app', '').replace('_', '-')
-                  return (
-                    <div key={message.id} className={`analytics-inbox-message-row analytics-inbox-message-row--${message.direction === 'OUTBOUND' ? 'out' : 'in'}`}>
-                      {message.direction === 'INBOUND' ? <span className="analytics-inbox-avatar analytics-inbox-avatar--mini">{selectedClientInitials}</span> : null}
-                      <div className={`analytics-inbox-bubble analytics-inbox-bubble--${message.direction === 'OUTBOUND' ? 'out' : 'in'} analytics-inbox-bubble--${channelClass}`}>
-                        {message.subject && index === 0 ? <strong className="analytics-inbox-bubble__subject">{message.subject}</strong> : null}
-                        {message.body && <div className="analytics-inbox-bubble__body">{message.body}</div>}
-                        {message.attachments && message.attachments.length > 0 && selectedClientId != null && (
-                          <div className="stack gap-sm" style={{ marginTop: 10 }}>
-                            {message.attachments.map((attachment) => (
-                              <AttachmentPreviewCard
-                                key={attachment.id}
-                                clientId={selectedClientId}
-                                attachment={attachment}
-                                copy={copy}
-                                onDownload={downloadAttachment}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        <div className="analytics-inbox-bubble__footer analytics-inbox-bubble__footer--preview-a">
-                          <span>{message.sentAt ? formatDateTime(message.sentAt) : formatDateTime(message.createdAt)}</span>
-                          {message.direction === 'OUTBOUND' ? <span>✓✓</span> : null}
-                        </div>
+            ) : recentMessages.map((message) => {
+              const inbound = message.direction === 'INBOUND'
+              const label = messageSenderLabel(message, copy) || (inbound ? selectedClientName : 'Sara Admin')
+              return (
+                <article key={message.id} className={`analytics-inbox-b-message analytics-inbox-b-message--${inbound ? 'inbound' : 'outbound'}`}>
+                  <div className="analytics-inbox-b-message-avatar">{inbound ? selectedClientInitials : 'SA'}</div>
+                  <div className="analytics-inbox-b-bubble">
+                    <div className="analytics-inbox-b-bubble-head"><strong>{label}</strong><time>{compactDateTime(message.sentAt || message.createdAt)}</time></div>
+                    {message.subject ? <div className="analytics-inbox-b-bubble-subject">{message.subject}</div> : null}
+                    <p>{message.body}</p>
+                    {message.attachments?.length ? (
+                      <div className="analytics-inbox-b-message-attachments">
+                        {message.attachments.map((attachment) => (
+                          <AttachmentPreviewCard key={attachment.id} clientId={message.clientId} attachment={attachment} copy={copy} onDownload={downloadAttachment} />
+                        ))}
                       </div>
-                    </div>
-                  )
-                })}
-              </>
-            )}
+                    ) : null}
+                    <div className="analytics-inbox-b-bubble-foot"><Pill tone={statusTone(message.status)}>{statusLabel(message.status, copy)}</Pill><span>{channelIcon(message.channel)} {channelLabel(message.channel)}</span></div>
+                  </div>
+                </article>
+              )
+            })}
           </div>
 
-          <div className="analytics-inbox-internal-note analytics-inbox-internal-note--preview-a">
-            <span className="analytics-inbox-note-label">ⓘ Internal note by Sarah Admin · {selectedThread?.lastSentAt ? compactDateTime(selectedThread.lastSentAt) : 'Now'}</span>
-            <p>Customer is expecting a clear follow-up. Monitor for any delays and keep the client updated.</p>
+          <div className="analytics-inbox-b-note">
+            <strong>⚠ {ui.internalNote} – Sara Admin · {compactDateTime(new Date().toISOString())}</strong>
+            <p>{locale === 'sl' ? 'Stranka želi posodobitev ali potrditev. Preveri razpoložljivost in pošlji jasen odgovor.' : 'Client needs an update or confirmation. Check availability and send a clear reply.'}</p>
+            <button type="button">⋯</button>
           </div>
 
-          <div className="analytics-inbox-inline-reply analytics-inbox-inline-reply--preview-a">
-            <div className="analytics-inbox-inline-reply__tabs">
-              <button type="button" className="active">Reply</button>
-              <button type="button">Note</button>
-            </div>
-            <div className="analytics-inbox-inline-reply__box">
-              <textarea
-                rows={2}
-                value={recipientMode === 'single' ? composeBody : ''}
-                onFocus={() => setRecipientMode('single')}
-                onChange={(e) => setComposeBody(e.target.value)}
-                placeholder="Type your message..."
-              />
-              <div className="analytics-inbox-inline-reply__footer">
-                <div className="analytics-inbox-inline-icons" aria-hidden="true"><span>📎</span><span>☺</span><span>▣</span><span>•••</span></div>
-                <div>
-                  <button
-                    type="button"
-                    onClick={sendMessage}
-                    disabled={sending || !singleSendReady || recipientMode !== 'single'}
-                  >
-                    {sending ? copy.sending : 'Send'}
-                  </button>
-                  <button type="button" className="analytics-inbox-send-caret" aria-label="Send options">⌄</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="analytics-inbox-compose-card analytics-inbox-compose-card--preview-a">
-          <div className="analytics-inbox-panel-header analytics-inbox-panel-header--preview-a analytics-inbox-panel-header--compose">
-            <div>
-              <strong>Compose</strong>
-              <p className="muted">Send and save messages from one place.</p>
-            </div>
-            <span aria-hidden="true">⌃</span>
-          </div>
-
-          <div className="analytics-inbox-compose-form analytics-inbox-compose-form--preview-a stack gap-md">
-            <div className="analytics-inbox-recipient-mode analytics-inbox-recipient-mode--preview-a">
-              <button type="button" className={recipientMode === 'single' ? 'active' : ''} onClick={() => setRecipientMode('single')}>{copy.singleClient}</button>
-              <button type="button" className={recipientMode === 'bulk' ? 'active' : ''} onClick={() => setRecipientMode('bulk')}>{copy.bulkSend}</button>
-              <button type="button" className={recipientMode === 'group' ? 'active' : ''} onClick={() => setRecipientMode('group')}>{copy.groupSend}</button>
-            </div>
-
-            {recipientMode === 'single' ? (
-              <Field label={copy.clientLabel}>
-                <select value={selectedClientId ?? ''} onChange={(e) => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}>
-                  <option value="">{copy.selectClient}</option>
-                  {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-                </select>
-              </Field>
-            ) : recipientMode === 'bulk' ? (
-              <div className="analytics-inbox-bulk-picker stack gap-sm">
-                <Field label={copy.recipients}>
-                  <input value={bulkRecipientSearch} onChange={(e) => setBulkRecipientSearch(e.target.value)} placeholder={copy.filterClients} />
-                </Field>
-                <div className="analytics-inbox-bulk-actions">
-                  <button type="button" className="secondary" onClick={selectEligibleVisibleClients}>{copy.selectEligible}</button>
-                  <button type="button" className="secondary" onClick={selectAllVisibleClients}>{copy.selectAll}</button>
-                  <button type="button" className="secondary" onClick={clearBulkSelection} disabled={bulkSelectedClientIds.length === 0}>{copy.clear}</button>
-                </div>
-                <div className="analytics-inbox-bulk-summary muted">{copy.selectedSummary(bulkSelectedClients.length, eligibleBulkClients.length, channelLabel(composeChannel))}</div>
-                <div className="analytics-inbox-bulk-list">
-                  {filteredBulkClients.length === 0 ? (
-                    <div className="muted">{copy.noClientsMatch}</div>
-                  ) : filteredBulkClients.map((client) => {
-                    const checked = bulkSelectedSet.has(client.id)
-                    const eligible = isClientEligibleForChannel(client, composeChannel)
-                    const meta = [client.email, client.phone || client.whatsappPhone].filter(Boolean).join(' · ') || copy.noContactInfo
-                    return (
-                      <label key={client.id} className={`analytics-inbox-bulk-client${checked ? ' active' : ''}`}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleBulkClient(client.id)} />
-                        <div className="analytics-inbox-bulk-client__body"><strong>{clientName(client)}</strong><span>{meta}</span></div>
-                        <Pill tone={eligible ? 'green' : 'red'}>{clientEligibilityLabel(client, composeChannel, copy)}</Pill>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="analytics-inbox-bulk-picker stack gap-sm">
-                <Field label={copy.groupSend}>
-                  <select value={selectedGroupId ?? ''} onChange={(e) => setSelectedGroupId(e.target.value ? Number(e.target.value) : null)}>
-                    <option value="">{copy.selectGroup}</option>
-                    {activeGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                  </select>
-                </Field>
-                <div className="analytics-inbox-bulk-summary muted">
-                  {!activeGroups.length ? copy.noActiveGroups : !selectedGroup ? copy.selectGroupHint : copy.groupSummary((selectedGroup.members ?? []).length, groupMemberClients.length, eligibleGroupClients.length, channelLabel(composeChannel))}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="analytics-inbox-mini-label">Channel</label>
-              <div className="analytics-inbox-channel-switch analytics-inbox-channel-switch--preview-a">
-                {availableChannels.map((channel) => {
-                  const disabled = recipientMode === 'bulk'
-                    ? channel === 'VIBER' || channel === 'GUEST_APP'
-                    : recipientMode === 'group'
-                      ? false
-                      : channel === 'SMS'
-                        ? !hasSmsTarget(selectedClient)
-                        : channel === 'WHATSAPP'
-                        ? !selectedClient?.whatsappOptIn || !hasWhatsAppTarget(selectedClient)
-                        : channel === 'VIBER'
-                          ? !selectedClient?.viberConnected
-                          : channel === 'GUEST_APP'
-                            ? !selectedClient?.guestAppLinked
-                            : channel === 'EMAIL'
-                              ? !hasEmailTarget(selectedClient)
-                              : false
-                  const disabledTitle = recipientMode === 'bulk'
-                    ? ((channel === 'VIBER' || channel === 'GUEST_APP') ? copy.bulkSendTitle : undefined)
-                    : recipientMode === 'group'
-                      ? undefined
-                      : channel === 'EMAIL'
-                        ? copy.addEmailAddress
-                        : channel === 'SMS'
-                          ? copy.addSmsPhone
-                          : channel === 'WHATSAPP'
-                          ? copy.addWhatsApp
-                          : channel === 'GUEST_APP'
-                            ? copy.guestAppOnlyLinked
-                            : copy.viberOnlyLinked
-                  const channelClass = channel.toLowerCase().replace('_app', '').replace('_', '-')
-                  return (
-                    <button key={channel} type="button" className={`analytics-inbox-channel-btn analytics-inbox-channel-btn--${channelClass}${composeChannel === channel ? ' active' : ''}`} onClick={() => !disabled && setComposeChannel(channel)} disabled={disabled} title={disabled ? disabledTitle : undefined}>
-                      <span>{channelIcon(channel)}</span>{channelLabel(channel)}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {composeChannel === 'EMAIL' && (
-              <Field label={copy.subject}>
-                <input value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder={copy.subject} />
-              </Field>
-            )}
-
-            <Field label={copy.message}>
-              <div className="analytics-inbox-rich-editor analytics-inbox-rich-editor--preview-a">
-                <textarea rows={6} value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder={composeChannel === 'EMAIL' ? copy.writeEmail : copy.writeMessage(channelLabel(composeChannel))} />
-                <div className="analytics-inbox-rich-editor__bottom" aria-hidden="true"><span>📎</span><span>☺</span><span>{`{ }`}</span></div>
-              </div>
-            </Field>
-
-            {canAttachFiles ? (
-              <Field label={`${copy.attachments} · ${copy.attachmentLabel(composeAttachments.length)}`}>
-                <div className="stack gap-sm">
-                  <input type="file" multiple accept={ACCEPTED_ATTACHMENT_INPUT} onChange={(e) => { handleComposeAttachmentSelection(e.target.files); e.currentTarget.value = '' }} />
-                  {composeAttachments.length > 0 ? (
-                    <div className="stack gap-sm">
-                      {composeAttachments.map((attachment) => <ComposeAttachmentCard key={attachment.id} attachment={attachment} copy={copy} onRetry={() => void retryComposeAttachment(attachment.id)} onRemove={() => removeComposeAttachment(attachment.id)} />)}
-                    </div>
-                  ) : null}
-                </div>
-              </Field>
-            ) : (
-              <button type="button" className="secondary analytics-inbox-attachment-button">📎 Add attachment</button>
-            )}
-
-            <label className="analytics-inbox-schedule-select">
-              <span>Schedule</span>
-              <button type="button" className="secondary" onClick={openScheduleModal}>▣ Send now</button>
-            </label>
-
-            <div className="analytics-inbox-channel-note muted">
-              {recipientMode === 'bulk'
-                ? composeChannel === 'EMAIL'
-                  ? copy.bulkEmailNote
-                  : composeChannel === 'SMS'
-                    ? copy.bulkSmsNote
-                    : composeChannel === 'WHATSAPP'
-                    ? copy.bulkWhatsAppNote
-                    : copy.bulkChannelUnavailable
-                : recipientMode === 'group'
-                  ? !selectedGroup
-                    ? copy.selectGroupHint
-                    : copy.groupSummary((selectedGroup.members ?? []).length, groupMemberClients.length, eligibleGroupClients.length, channelLabel(composeChannel))
-                  : composeChannel === 'EMAIL'
-                    ? copy.emailNote
-                    : composeChannel === 'SMS'
-                      ? (hasSmsTarget(selectedClient) ? copy.smsNoteReady : copy.smsNotePending)
-                      : composeChannel === 'WHATSAPP'
-                      ? (selectedClient?.whatsappOptIn ? copy.whatsappNoteReady : copy.whatsappNoteOptIn)
-                      : composeChannel === 'VIBER'
-                        ? (selectedClient?.viberConnected ? copy.viberNoteReady : copy.viberNotePending)
-                        : (selectedClient?.guestAppLinked ? `${copy.guestAppNoteReady} ${copy.attachmentsReady}` : copy.guestAppNotePending)}
-            </div>
-
-            <div className="analytics-inbox-send-actions analytics-inbox-send-actions--preview-a">
+          <div className="analytics-inbox-b-composer">
+            <div className="analytics-inbox-b-composer-tabs"><button type="button" className="active">{ui.reply}</button><button type="button">{ui.internalNote}</button></div>
+            {composeChannel === 'EMAIL' ? (
+              <input className="analytics-inbox-b-subject-input" value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder={ui.subject} />
+            ) : null}
+            <textarea value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder={ui.writeReply} rows={4} />
+            <div className="analytics-inbox-b-composer-bottom">
+              <div className="analytics-inbox-b-editor-icons" aria-hidden="true"><span>📎</span><span>☺</span><span>↗</span><span>B</span><span>I</span><span>≡</span><span>🔗</span></div>
               <button type="button" onClick={sendMessage} disabled={sending || (recipientMode === 'bulk' ? !bulkSendReady : recipientMode === 'group' ? !groupSendReady : !singleSendReady)}>
-                ✈ {sending ? copy.sending : recipientMode === 'bulk' ? copy.sendBulk(channelLabel(composeChannel), eligibleBulkClients.length) : recipientMode === 'group' ? copy.sendGroup(channelLabel(composeChannel), eligibleGroupClients.length) : copy.sendSingle(channelLabel(composeChannel))}
+                {sending ? copy.sending : ui.send}⌄
               </button>
-              <button type="button" className="analytics-inbox-send-caret" aria-label="Send options">⌄</button>
             </div>
           </div>
-        </Card>
-      </div>
+        </main>
+
+        <aside className="analytics-inbox-b-right-card">
+          <section className="analytics-inbox-b-details-card">
+            <div className="analytics-inbox-b-side-title"><strong>{ui.details}</strong><button type="button">⌃</button></div>
+            <label>{copy.clientLabel}
+              <select value={selectedClientId ?? ''} onChange={(e) => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">{copy.selectClient}</option>
+                {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
+              </select>
+            </label>
+            <div>
+              <span className="analytics-inbox-b-label">{ui.channel}</span>
+              <div className="analytics-inbox-b-channels">{availableChannels.map(renderChannelButton)}</div>
+            </div>
+            {composeChannel === 'EMAIL' ? (
+              <label>{ui.subject}
+                <input value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder={ui.subject} />
+              </label>
+            ) : null}
+            <div>
+              <span className="analytics-inbox-b-label">{ui.attachments}</span>
+              <div className="analytics-inbox-b-attachment-list">
+                {composeAttachments.length === 0 ? (
+                  <p className="muted">{ui.guestAttachmentNote}</p>
+                ) : composeAttachments.map((attachment) => (
+                  <div key={attachment.id} className="analytics-inbox-b-attachment-chip">
+                    <span>📄</span>
+                    <strong>{attachment.file.name}</strong>
+                    <small>{formatFileSize(attachment.file.size)} · {attachment.status}</small>
+                    <button type="button" onClick={() => removeComposeAttachment(attachment.id)}>×</button>
+                  </div>
+                ))}
+              </div>
+              {canAttachFiles ? (
+                <label className="analytics-inbox-b-add-attachment">＋ {ui.addAttachment}
+                  <input type="file" multiple accept={ACCEPTED_ATTACHMENT_INPUT} onChange={(e) => { handleComposeAttachmentSelection(e.target.files); e.currentTarget.value = '' }} />
+                </label>
+              ) : (
+                <button type="button" className="analytics-inbox-b-add-attachment" disabled>＋ {ui.addAttachment}</button>
+              )}
+            </div>
+          </section>
+
+          <section className="analytics-inbox-b-schedule-card">
+            <div className="analytics-inbox-b-side-title"><div><strong>{ui.scheduleTitle}</strong><p>{ui.scheduleText}</p></div><button type="button">⌄</button></div>
+            <div className="analytics-inbox-b-schedule-toggle">
+              <button type="button" className={!scheduleDraftWhen ? 'active' : ''} onClick={() => setScheduleDraftWhen('')}>○ {ui.sendNow}</button>
+              <button type="button" className={scheduleDraftWhen ? 'active' : ''} onClick={() => !scheduleDraftWhen && setDefaultSchedule()}>● {ui.scheduleLater}</button>
+            </div>
+            <div className="analytics-inbox-b-schedule-grid">
+              <label>{ui.dateAndTime}
+                <input type="date" value={scheduleDateValue} onChange={(e) => updateScheduleDate(e.target.value)} />
+              </label>
+              <label>&nbsp;
+                <input type="time" value={scheduleTimeValue} onChange={(e) => updateScheduleTime(e.target.value)} />
+              </label>
+            </div>
+            <div className="analytics-inbox-b-presets">
+              <button type="button" onClick={() => { const d = new Date(); d.setHours(d.getHours() + 1, 0, 0, 0); setScheduleTo(d) }}>{ui.oneHour}</button>
+              <button type="button" onClick={setTomorrowPreset}>{ui.tomorrow}</button>
+              <button type="button" onClick={setMondayPreset}>{ui.monday}</button>
+            </div>
+            <div className="analytics-inbox-b-frequency">
+              <span>{ui.frequency}</span>
+              <label><input type="radio" checked readOnly /> {ui.once}</label>
+              <label><input type="radio" readOnly /> {ui.repeat}</label>
+            </div>
+            <div className="analytics-inbox-b-schedule-actions">
+              <button type="button" className="secondary" onClick={() => { setScheduleDraftBody(composeBody); setScheduleDraftSubject(composeSubject); showToast('success', locale === 'sl' ? 'Osnutek je shranjen.' : 'Draft saved.') }}>{ui.saveDraft}</button>
+              <button type="button" className="secondary" onClick={() => { setScheduleDraftWhen(''); setScheduleDraftBody(''); setScheduleDraftSubject('') }}>{ui.clear}</button>
+            </div>
+            <button type="button" className="analytics-inbox-b-primary-schedule" onClick={submitSchedule} disabled={!inlineScheduleReady}>▣ {ui.scheduleMessage}</button>
+          </section>
+
+          <section className="analytics-inbox-b-upcoming-card">
+            <div className="analytics-inbox-b-upcoming-head"><strong>{ui.upcoming} ({scheduledItems.length})</strong><button type="button" onClick={openScheduleModal}>{ui.showAll}</button></div>
+            {scheduledItems.length === 0 ? (
+              <p className="muted">{ui.noScheduled}</p>
+            ) : scheduledItems.slice(0, 3).map((item) => (
+              <div key={item.id} className="analytics-inbox-b-upcoming-row">
+                <span>{channelIcon(item.channel)}</span>
+                <div><strong>{item.subject || (locale === 'sl' ? 'Sporočilo' : 'Message')}</strong><p>{scheduledClientName(item.clientId)}</p></div>
+                <time>{formatDateTime(item.scheduledFor)}</time>
+                <button type="button" onClick={() => removeScheduledItem(item.id)}>⋮</button>
+              </div>
+            ))}
+            <button type="button" className="analytics-inbox-b-manage" onClick={openScheduleModal}>{ui.manageScheduled}</button>
+          </section>
+        </aside>
+      </section>
 
       {scheduleModalOpen && (
         <div className="modal-backdrop" onClick={closeScheduleModal} role="dialog" aria-modal="true">
-          <div className="modal large-modal analytics-inbox-schedule-modal" onClick={(e) => e.stopPropagation()}>
-            {scheduleView === 'list' ? (
-              <>
-                <div className="analytics-inbox-schedule-modal__header">
-                  <div>
-                    <strong>{copy.scheduleModalTitle}</strong>
-                    <p className="muted">{copy.scheduleCountLabel(scheduledItems.length)} · {copy.scheduleModalSubtitle}</p>
+          <div className="modal large-modal analytics-inbox-schedule-modal analytics-inbox-b-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="analytics-inbox-schedule-modal__header">
+              <div>
+                <strong>{copy.scheduleModalTitle}</strong>
+                <p className="muted">{copy.scheduleCountLabel(scheduledItems.length)} · {copy.scheduleModalSubtitle}</p>
+              </div>
+              <button type="button" onClick={closeScheduleModal}>×</button>
+            </div>
+            <div className="analytics-inbox-schedule-modal__list">
+              {scheduledItems.length === 0 ? (
+                <EmptyState title={copy.noScheduledMessages} text={copy.noScheduledMessagesText} />
+              ) : scheduledItems.map((item) => (
+                <div key={item.id} className="analytics-inbox-schedule-modal__row">
+                  <div className="analytics-inbox-schedule-modal__row-meta">
+                    <strong>{scheduledClientName(item.clientId)}</strong>
+                    <Pill tone={channelTone(item.channel)}>{channelLabel(item.channel)}</Pill>
+                    <span className="muted">{copy.scheduledForLabel} {formatDateTime(item.scheduledFor)}</span>
                   </div>
-                  <button type="button" onClick={startScheduleForm}>+ {copy.addScheduled}</button>
+                  {item.subject ? <div className="analytics-inbox-schedule-modal__row-subject">{item.subject}</div> : null}
+                  <div className="analytics-inbox-schedule-modal__row-body">{item.body}</div>
+                  <div className="analytics-inbox-schedule-modal__row-actions"><button type="button" className="secondary" onClick={() => removeScheduledItem(item.id)}>{copy.removeScheduled}</button></div>
                 </div>
-                <div className="analytics-inbox-schedule-modal__list">
-                  {scheduledItems.length === 0 ? (
-                    <EmptyState title={copy.noScheduledMessages} text={copy.noScheduledMessagesText} />
-                  ) : (
-                    scheduledItems.map((item) => (
-                      <div key={item.id} className="analytics-inbox-schedule-modal__row">
-                        <div className="analytics-inbox-schedule-modal__row-meta">
-                          <strong>{scheduledClientName(item.clientId)}</strong>
-                          <Pill tone={channelTone(item.channel)}>{channelLabel(item.channel)}</Pill>
-                          <span className="muted">{copy.scheduledForLabel} {formatDateTime(item.scheduledFor)}</span>
-                        </div>
-                        {item.subject ? <div className="analytics-inbox-schedule-modal__row-subject">{item.subject}</div> : null}
-                        {item.body ? <div className="analytics-inbox-schedule-modal__row-body">{item.body}</div> : null}
-                        <div className="analytics-inbox-schedule-modal__row-actions">
-                          <button type="button" className="secondary" onClick={() => removeScheduledItem(item.id)}>{copy.removeScheduled}</button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="form-actions">
-                  <button type="button" className="secondary" onClick={closeScheduleModal}>{copy.closeSchedule}</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="analytics-inbox-schedule-modal__header">
-                  <div>
-                    <strong>{copy.addScheduled}</strong>
-                    <p className="muted">{copy.scheduleModalSubtitle}</p>
-                  </div>
-                </div>
-                <div className="analytics-inbox-schedule-modal__form stack gap-md">
-                  <Field label={copy.clientLabel}>
-                    <select value={scheduleDraftClientId ?? ''} onChange={(e) => setScheduleDraftClientId(e.target.value ? Number(e.target.value) : null)}>
-                      <option value="">{copy.selectClient}</option>
-                      {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-                    </select>
-                  </Field>
-
-                  <div>
-                    <label className="analytics-inbox-mini-label">Channel</label>
-                    <div className="analytics-inbox-channel-switch analytics-inbox-channel-switch--command">
-                      {availableChannels.map((channel) => (
-                        <button
-                          key={channel}
-                          type="button"
-                          className={scheduleDraftChannel === channel ? 'active' : ''}
-                          onClick={() => setScheduleDraftChannel(channel)}
-                        >
-                          <span>{channelIcon(channel)}</span>{channelLabel(channel)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {scheduleDraftChannel === 'EMAIL' && (
-                    <Field label={copy.subject}>
-                      <input value={scheduleDraftSubject} onChange={(e) => setScheduleDraftSubject(e.target.value)} placeholder={copy.subject} />
-                    </Field>
-                  )}
-
-                  <Field label={copy.message}>
-                    <textarea
-                      rows={5}
-                      value={scheduleDraftBody}
-                      onChange={(e) => setScheduleDraftBody(e.target.value)}
-                      placeholder={scheduleDraftChannel === 'EMAIL' ? copy.writeEmail : copy.writeMessage(channelLabel(scheduleDraftChannel))}
-                    />
-                  </Field>
-
-                  <Field label={copy.scheduleAt}>
-                    <input
-                      type="datetime-local"
-                      value={scheduleDraftWhen}
-                      onChange={(e) => setScheduleDraftWhen(e.target.value)}
-                      placeholder={copy.selectDateTime}
-                    />
-                  </Field>
-                </div>
-                <div className="form-actions">
-                  <button type="button" className="secondary" onClick={() => setScheduleView('list')}>{copy.cancelSchedule}</button>
-                  <button type="button" onClick={submitSchedule} disabled={!scheduleFormReady}>{copy.submitSchedule}</button>
-                </div>
-              </>
-            )}
+              ))}
+            </div>
+            <div className="form-actions"><button type="button" className="secondary" onClick={closeScheduleModal}>{copy.closeSchedule}</button></div>
           </div>
         </div>
       )}

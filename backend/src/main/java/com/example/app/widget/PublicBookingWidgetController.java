@@ -92,6 +92,11 @@ public class PublicBookingWidgetController {
             List<GroupSessionSlotResponse> groupSessions
     ) {}
 
+    public record AvailabilityMonthResponse(
+            String month,
+            List<String> availableDates
+    ) {}
+
     public record BookingRequest(
             @NotNull Long typeId,
             @NotBlank String date,
@@ -142,6 +147,17 @@ public class PublicBookingWidgetController {
             HttpServletRequest request
     ) {
         return service.availability(tenantCode, typeId, date, consultantId, request);
+    }
+
+    @GetMapping("/{tenantCode}/availability-month")
+    public AvailabilityMonthResponse availabilityMonth(
+            @PathVariable String tenantCode,
+            @RequestParam Long typeId,
+            @RequestParam String month,
+            @RequestParam(required = false) Long consultantId,
+            HttpServletRequest request
+    ) {
+        return service.availabilityMonth(tenantCode, typeId, month, consultantId, request);
     }
 
     @PostMapping("/{tenantCode}/bookings")
