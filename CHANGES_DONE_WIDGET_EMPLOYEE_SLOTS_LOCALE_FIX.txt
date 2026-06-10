@@ -1,0 +1,8 @@
+Changes done:
+- Fixed website booking widget crash on the Date/Time -> Details transition by replacing the invalid this.locale() call with the widget's configured locale helper.
+- Added a normalized locale helper used by translations and Intl.NumberFormat so deposit/full payment summaries render correctly in SL/EN.
+- Hardened widget availability loading so responses are filtered to the selected employee when an employee is chosen.
+- Added a request key guard to ignore stale availability responses when the selected employee/date/service changes quickly, preventing slots from a previous employee from appearing.
+
+Validation:
+- Ran: node --check backend/src/main/resources/static/widget/calendra-booking-widget.js

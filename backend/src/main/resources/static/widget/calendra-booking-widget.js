@@ -382,9 +382,17 @@
       this.render();
     }
 
-    text() {
+    normalizedLocale() {
       const locale = String(this.options?.locale || DEFAULTS.locale || 'en').toLowerCase();
-      return locale.startsWith('sl') ? TRANSLATIONS.sl : TRANSLATIONS.en;
+      return locale.startsWith('sl') ? 'sl' : 'en';
+    }
+
+    text() {
+      return this.normalizedLocale() === 'sl' ? TRANSLATIONS.sl : TRANSLATIONS.en;
+    }
+
+    intlLocale() {
+      return this.normalizedLocale() === 'sl' ? 'sl-SI' : 'en-US';
     }
 
     shouldRenderTurnstile() {
@@ -717,7 +725,7 @@
     }
 
     async loadAvailability() {
-      const { selectedServiceId, selectedDate, consultants, selectedConsultantId, config } = this.state;
+      const { selectedServiceId, selectedDate, selectedConsultantId, config } = this.state;
       if (!selectedServiceId || !selectedDate) return;
 
       const supportsGroupSessions = this.currentServiceSupportsGroupSessions();
@@ -733,6 +741,7 @@
         return;
       }
 
+      const requestKey = `${selectedServiceId}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
       this.setState({ error: '', slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: true });
       try {
         const params = new URLSearchParams({
@@ -743,14 +752,30 @@
           params.set('consultantId', String(selectedConsultantId));
         }
         const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability?${params.toString()}`);
+        const currentKey = `${this.state.selectedServiceId}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
+        if (currentKey !== requestKey) return;
+
+        const filteredSlots = this.filterSlotsForSelectedConsultant(data.slots || [], selectedConsultantId);
+        const filteredGroupSessions = this.filterSlotsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
         this.setState({
-          slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : (data.slots || [])),
-          groupSessions: data.groupSessions || [],
+          slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots),
+          groupSessions: filteredGroupSessions,
           loadingAvailability: false,
         });
       } catch (error) {
-        this.setState({ loadingAvailability: false, error: this.normalizeError(error, this.text().failedToLoadAvailability) });
+        const currentKey = `${this.state.selectedServiceId}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
+        if (currentKey === requestKey) {
+          this.setState({ loadingAvailability: false, error: this.normalizeError(error, this.text().failedToLoadAvailability) });
+        }
       }
+    }
+
+    filterSlotsForSelectedConsultant(items, consultantId = this.state.selectedConsultantId) {
+      const list = Array.isArray(items) ? items : [];
+      if (consultantId == null || consultantId === '') return list;
+      const requested = Number(consultantId);
+      if (!Number.isFinite(requested)) return list;
+      return list.filter((item) => Number(item?.consultantId) === requested);
     }
 
     async loadMonthAvailability() {
@@ -932,8 +957,7 @@
     formatMoneyAmount(amount, priceInfo) {
       const normalized = Math.max(0, Number(amount) || 0);
       const decimals = priceInfo?.decimals ?? (Math.round(normalized) === normalized ? 0 : 2);
-      const locale = this.locale() === 'sl' ? 'sl-SI' : 'en-US';
-      const formatted = new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: 2 }).format(normalized);
+      const formatted = new Intl.NumberFormat(this.intlLocale(), { minimumFractionDigits: decimals, maximumFractionDigits: 2 }).format(normalized);
       if (priceInfo?.prefix) return `${priceInfo.prefix}${formatted}`;
       if (priceInfo?.suffix) return `${formatted} ${priceInfo.suffix}`;
       return formatted;
