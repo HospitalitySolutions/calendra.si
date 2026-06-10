@@ -555,7 +555,17 @@
 .analytics-inbox-b-pagination div {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    flex-wrap: nowrap;
+    gap: 6px;
+}
+
+.analytics-inbox-b-pagination button {
+    cursor: pointer;
+}
+
+.analytics-inbox-b-pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .analytics-inbox-b-pagination button,
@@ -617,8 +627,13 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
+    white-space: nowrap;
+}
+
+.analytics-inbox-b-conversation-actions .analytics-inbox-b-icon-btn {
+    flex: 0 0 auto;
 }
 
 .analytics-inbox-b-assignee,

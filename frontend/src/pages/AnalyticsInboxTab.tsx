@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import DOMPurify from 'dompurify'
 import { api } from '../api'
@@ -45,6 +46,7 @@ type ComposeAttachmentItem = {
   uploadedFileId?: number
 }
 
+const THREADS_PAGE_SIZE = 8
 const MAX_COMPOSE_ATTACHMENT_COUNT = 10
 const MAX_COMPOSE_ATTACHMENT_BYTES = 50 * 1024 * 1024
 const ACCEPTED_ATTACHMENT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'pdf', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']
@@ -721,7 +723,9 @@ export function AnalyticsInboxTab() {
 
   const me = getStoredUser()
   const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
+  const navigate = useNavigate()
   const [folder, setFolder] = useState<'inbox' | 'unread' | 'starred' | 'closed'>('inbox')
+  const [threadPage, setThreadPage] = useState(1)
   const [savingStar, setSavingStar] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
@@ -991,6 +995,24 @@ export function AnalyticsInboxTab() {
     })
     return grouped
   }, [visibleThreads])
+
+  const threadTotalPages = Math.max(1, Math.ceil(visibleThreads.length / THREADS_PAGE_SIZE))
+  const pagedThreads = useMemo(
+    () => visibleThreads.slice((threadPage - 1) * THREADS_PAGE_SIZE, threadPage * THREADS_PAGE_SIZE),
+    [visibleThreads, threadPage],
+  )
+  const threadRangeStart = visibleThreads.length === 0 ? 0 : (threadPage - 1) * THREADS_PAGE_SIZE + 1
+  const threadRangeEnd = Math.min(threadPage * THREADS_PAGE_SIZE, visibleThreads.length)
+
+  // Reset to the first page whenever the folder or filters change.
+  useEffect(() => {
+    setThreadPage(1)
+  }, [folder, search, clientIdFilter, channelFilter, statusFilter, from, to, assigneeFilter])
+
+  // Keep the current page within bounds when the visible count shrinks.
+  useEffect(() => {
+    setThreadPage((current) => Math.min(Math.max(1, current), threadTotalPages))
+  }, [threadTotalPages])
 
   const unreadMessageCount = threads.reduce((total, thread) => total + (thread.unreadCount ?? 0), 0)
   const selectedClientInitials = selectedClient
@@ -1754,7 +1776,7 @@ export function AnalyticsInboxTab() {
                 <div className="analytics-inbox-b-empty muted">{copy.loadingThread}</div>
               ) : visibleThreads.length === 0 ? (
                 <div className="analytics-inbox-b-empty"><EmptyState title={copy.noConversationsTitle} text={copy.noConversationsText} /></div>
-              ) : visibleThreads.map((thread) => {
+              ) : pagedThreads.map((thread) => {
                 const threadKey = inboxThreadKey(thread)
                 const active = threadKey === selectedThreadKey
                 const unread = thread.unreadCount ?? 0
@@ -1778,8 +1800,16 @@ export function AnalyticsInboxTab() {
               })}
             </div>
             <div className="analytics-inbox-b-pagination">
-              <span>{ui.showing} 1–{Math.min(visibleThreads.length, 8)} {ui.of} {safeThreadsCount} {ui.conversations.toLowerCase()}</span>
-              <div><button type="button">‹</button><b>1</b><button type="button">2</button><button type="button">›</button></div>
+              <span>{ui.showing} {threadRangeStart}–{threadRangeEnd} {ui.of} {visibleThreads.length} {ui.conversations.toLowerCase()}</span>
+              <div>
+                <button type="button" disabled={threadPage <= 1} onClick={() => setThreadPage((p) => Math.max(1, p - 1))}>‹</button>
+                {Array.from({ length: threadTotalPages }, (_, index) => index + 1).map((page) => (
+                  page === threadPage
+                    ? <b key={page}>{page}</b>
+                    : <button type="button" key={page} onClick={() => setThreadPage(page)}>{page}</button>
+                ))}
+                <button type="button" disabled={threadPage >= threadTotalPages} onClick={() => setThreadPage((p) => Math.min(threadTotalPages, p + 1))}>›</button>
+              </div>
             </div>
           </div>
         </aside>
@@ -1837,7 +1867,7 @@ export function AnalyticsInboxTab() {
             <span>{ui.channel}: {channelLabel(selectedThread?.lastChannel || composeChannel)}</span>
             <span>{ui.subject}: {conversationSubject}</span>
             <span>{ui.messageId}: {conversationId}</span>
-            <button type="button">{ui.clientDetails}</button>
+            <button type="button" disabled={selectedClientId == null} onClick={() => { if (selectedClientId != null) navigate(`/clients?clientId=${selectedClientId}`) }}>{ui.clientDetails}</button>
           </div>
 
           <div className="analytics-inbox-b-messages">
