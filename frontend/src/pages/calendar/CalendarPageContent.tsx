@@ -58,6 +58,7 @@ import { calendarBookingPanelHelpId, helpAria, helpTitle, helpTooltip } from '..
 import { LanguageModal } from '../../components/LanguageModal'
 import { GuestConfigSaveIcon } from '../../components/GuestConfigSaveIcon'
 import { type BookingPayeeDraft } from '../../components/BookingPayeePanel'
+import { canIssueAdvanceInvoices, canIssueOpenInvoices } from '../../lib/employeePermissions'
 import { useToast } from '../../components/Toast'
 import { subscribeBookingUpdates } from '../../lib/bookingRealtime'
 import { consultantDayWindow, parseHmToMinutes as whWindowParseHm, windowToDayMs } from '../../lib/consultantWorkingHours'
@@ -157,6 +158,8 @@ export default function CalendarPage() {
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
   const user = getStoredUser()!
   const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
+  const canIssueOpenInvoice = canIssueOpenInvoices(user)
+  const canIssueAdvanceInvoice = canIssueAdvanceInvoices(user)
   const [calendarData, setCalendarData] = useState<any>({ booked: [], bookable: [] })
   const [settings, setSettings] = useState<Record<string, string>>({})
   const personalModuleEnabled = settings.PERSONAL_ENABLED !== 'false'
@@ -6864,6 +6867,10 @@ export default function CalendarPage() {
 
   const openBookedPaymentAdvanceEditor = useCallback((status: BookingPaymentStatus | null | undefined, explicitClient?: any | null) => {
     if (settings.BILLING_ADVANCE_ENABLED === 'false') return false
+    if (!canIssueAdvanceInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
+      return false
+    }
 
     const clientIdRaw = Number(
       explicitClient?.id
@@ -6907,15 +6914,18 @@ export default function CalendarPage() {
     return true
   }, [
     bookedPaymentPayeeDrafts,
+    canIssueAdvanceInvoice,
     groupedSingleInvoicePayeeDraft,
     isGroupedSingleInvoiceMode,
     location.pathname,
     location.search,
+    locale,
     navigate,
     paymentManagerSessionClients,
     selectedBookedClientIds,
     selectedBookedPaymentClient?.id,
     settings.BILLING_ADVANCE_ENABLED,
+    showToast,
     selectedBookedSession?.client?.id,
     selectedBookedSession?.consultant?.id,
     selectedBookedSession?.id,
@@ -7198,6 +7208,10 @@ export default function CalendarPage() {
 
   const createOpenBillForPaymentStatus = useCallback(async (status: BookingPaymentStatus | null, options?: { selectedOnly?: boolean; suppressToast?: boolean }) => {
     if (!status?.bookingId) return
+    if (!canIssueOpenInvoice) {
+      if (!options?.suppressToast) showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
+      return null
+    }
     const selectedOnly = !!options?.selectedOnly
     const suppressToast = !!options?.suppressToast
     const shouldSyncPerClientBillTabs = !selectedOnly && !isGroupedSingleInvoiceMode
@@ -7393,7 +7407,7 @@ export default function CalendarPage() {
       }
       return null
     }
-  }, [bookedBookingPayeeLinkedCompany?.id, bookedPaymentPayeeDrafts, bookingPayeeCompanies, isGroupedSingleInvoiceMode, loadCalendarRangeOnly, locale, paymentManagerSessionClients, paymentStatusForClient, selectedBookedClientIds, selectedBookedSession, selectedBookedStoredStatus, showToast, updateSelectedBookingPaymentStatus])
+  }, [bookedBookingPayeeLinkedCompany?.id, bookedPaymentPayeeDrafts, bookingPayeeCompanies, canIssueOpenInvoice, isGroupedSingleInvoiceMode, loadCalendarRangeOnly, locale, paymentManagerSessionClients, paymentStatusForClient, selectedBookedClientIds, selectedBookedSession, selectedBookedStoredStatus, showToast, updateSelectedBookingPaymentStatus])
 
   const openPaymentInvoicePdf = useCallback(async (status: BookingPaymentStatus | null) => {
     const invoice = invoiceAllocationForPaymentStatus(status)

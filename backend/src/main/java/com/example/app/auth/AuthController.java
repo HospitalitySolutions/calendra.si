@@ -6,6 +6,7 @@ import com.example.app.mfa.WebAuthnService;
 import com.example.app.securitycenter.SecurityCenterService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.security.JwtService;
+import com.example.app.security.SecurityUtils;
 import com.example.app.security.ratelimit.AuthRateLimiter;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -244,21 +245,7 @@ public class AuthController {
                 "packageType", packageType,
                 "tenantCode", tenantCode != null && !tenantCode.isBlank() ? tenantCode : "",
                 "avatarPath", avatarPath,
-                "permissions", parsePermissionsJson(user.getPermissionsJson()));
-    }
-
-    private List<String> parsePermissionsJson(String json) {
-        if (json == null || json.isBlank()) return List.of();
-        try {
-            List<?> parsed = JSON.readValue(json, List.class);
-            return parsed.stream()
-                    .filter(String.class::isInstance)
-                    .map(String.class::cast)
-                    .distinct()
-                    .toList();
-        } catch (Exception ex) {
-            return List.of();
-        }
+                "permissions", SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()));
     }
 
     @PostMapping("/signup")

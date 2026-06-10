@@ -1,0 +1,21 @@
+Implemented employee invoice permissions.
+
+Changes:
+- Added three employee permissions under Employees > Permissions:
+  - Can issue advance invoices
+  - Can issue open invoices
+  - Can issue refunds
+- The three invoice permissions default to ON for existing and newly created employees.
+- Added a permissions version marker so admins can intentionally turn invoice permissions OFF without legacy rows being re-enabled automatically.
+- Backend now enforces invoice permissions for:
+  - creating open bills from calendar/session/manual invoice flows
+  - closing open bills into issued invoices
+  - creating advance invoices
+  - issuing refund invoices
+- Billing and Calendar UI now disables/shows permission errors for restricted invoice actions.
+- Existing wallet-entitlement scanner permission remains default OFF and unchanged.
+
+Validation:
+- Frontend TypeScript check passed: npx tsc -b --pretty false
+- Full Vite build was started but exceeded the execution timeout during asset bundling after TypeScript passed.
+- Backend compile could not be completed in the sandbox because Maven wrapper needed to download Maven from repo.maven.apache.org, which failed in this environment.

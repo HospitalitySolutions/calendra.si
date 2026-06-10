@@ -24,17 +24,13 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
-
-    private static final Set<String> ALLOWED_PERMISSIONS = Set.of(SecurityUtils.PERMISSION_WALLET_ENTITLEMENT_SCAN);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -163,7 +159,7 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Invalid working hours."));
         }
-        user.setPermissionsJson(writePermissionsJson(request.permissions()));
+        user.setPermissionsJson(writePermissionsJson(request.permissions() == null ? SecurityUtils.defaultEmployeePermissions() : request.permissions()));
 
         try {
             User saved = userRepository.save(user);
@@ -410,7 +406,7 @@ public class UserController {
                 user.getWhatsappSenderNumber(),
                 user.getWhatsappPhoneNumberId(),
                 parseWorkingHoursJson(user.getWorkingHoursJson()),
-                parsePermissionsJson(user.getPermissionsJson()),
+                SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()),
                 user.getAvatarS3Key() == null || user.getAvatarS3Key().isBlank()
                         ? null
                         : "/api/users/" + user.getId() + "/avatar?v=" + (user.getUpdatedAt() == null ? 0 : user.getUpdatedAt().toEpochMilli()),
@@ -419,32 +415,9 @@ public class UserController {
         );
     }
 
-    private List<String> parsePermissionsJson(String json) {
-        if (json == null || json.isBlank()) {
-            return List.of();
-        }
-        try {
-            List<?> parsed = objectMapper.readValue(json, List.class);
-            return parsed.stream()
-                    .filter(String.class::isInstance)
-                    .map(String.class::cast)
-                    .filter(ALLOWED_PERMISSIONS::contains)
-                    .distinct()
-                    .toList();
-        } catch (Exception e) {
-            return List.of();
-        }
-    }
-
     private String writePermissionsJson(List<String> permissions) {
-        var normalized = new LinkedHashSet<String>();
-        if (permissions != null) {
-            permissions.stream()
-                    .filter(ALLOWED_PERMISSIONS::contains)
-                    .forEach(normalized::add);
-        }
         try {
-            return objectMapper.writeValueAsString(normalized);
+            return objectMapper.writeValueAsString(SecurityUtils.normalizePermissionsForStorage(permissions));
         } catch (JsonProcessingException e) {
             return "[]";
         }

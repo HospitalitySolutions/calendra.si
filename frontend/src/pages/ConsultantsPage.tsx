@@ -6,6 +6,15 @@ import { Card, EmptyState, Field, PageHeader } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 import { formatDate, fullName } from '../lib/format'
 import { dayOptions, type DayOfWeek, type WorkingHoursConfig } from '../lib/types'
+import {
+  BILLING_ADVANCE_INVOICE_PERMISSION,
+  BILLING_OPEN_INVOICE_PERMISSION,
+  BILLING_REFUND_PERMISSION,
+  DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS,
+  WALLET_SCANNER_PERMISSION,
+  normalizeEmployeePermissions,
+  type EmployeePermission,
+} from '../lib/employeePermissions'
 
 const EMPLOYEE_DAY_LABEL_KEY: Record<DayOfWeek, string> = {
   MONDAY: 'employeesDayMonday',
@@ -97,9 +106,6 @@ function employeeListCountLabel(count: number, locale: AppLocale): string {
 }
 
 type UserRole = 'ADMIN' | 'CONSULTANT'
-type EmployeePermission = 'WALLET_ENTITLEMENT_SCAN'
-const WALLET_SCANNER_PERMISSION: EmployeePermission = 'WALLET_ENTITLEMENT_SCAN'
-
 function formatRoleLabel(role: UserRole, t: (key: string) => string) {
   return role === 'ADMIN' ? t('employeesFormRoleOptionAdmin') : t('employeesFormRoleOptionConsultant')
 }
@@ -153,7 +159,7 @@ const emptyForm: ConsultantForm = {
   vatId: '',
   phone: '',
   workingHours: { ...defaultWh, allDays: { ...defaultWh.allDays! } },
-  permissions: [],
+  permissions: [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS],
 }
 
 function normalizeWorkingHoursForApi(cfg: WorkingHoursConfig): WorkingHoursConfig {
@@ -174,10 +180,6 @@ function normalizeWorkingHoursForApi(cfg: WorkingHoursConfig): WorkingHoursConfi
 
 function cloneConsultantForm(f: ConsultantForm): ConsultantForm {
   return JSON.parse(JSON.stringify(f)) as ConsultantForm
-}
-
-function normalizeEmployeePermissions(permissions?: string[] | null): EmployeePermission[] {
-  return permissions?.includes(WALLET_SCANNER_PERMISSION) ? [WALLET_SCANNER_PERMISSION] : []
 }
 
 function permissionsEqual(a: EmployeePermission[], b: EmployeePermission[]): boolean {
@@ -870,26 +872,54 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 )}
 
                 {!selfService && formSectionTab === 'permissions' && (
-                  <div className="full-span consultant-permissions-card employee-form-permissions-card" role="tabpanel">
-                    <div>
-                      <strong>{t('employeesPermissionWalletScannerTitle')}</strong>
-                      <p className="muted" style={{ margin: '0.25rem 0 0', lineHeight: 1.45 }}>
-                        {t('employeesPermissionWalletScannerText')}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className={`employee-form-status-switch${form.permissions.includes(WALLET_SCANNER_PERMISSION) ? ' employee-form-status-switch--on' : ''}`}
-                      aria-pressed={form.permissions.includes(WALLET_SCANNER_PERMISSION)}
-                      onClick={() => setForm((current) => togglePermission(current, WALLET_SCANNER_PERMISSION))}
-                    >
-                      <span className="employee-form-status-switch-text">
-                        {form.permissions.includes(WALLET_SCANNER_PERMISSION) ? t('configToggleOn') : t('configToggleOff')}
-                      </span>
-                      <span className="employee-form-status-switch-track" aria-hidden>
-                        <span />
-                      </span>
-                    </button>
+                  <div className="full-span employee-form-permissions-list" role="tabpanel">
+                    {([
+                      {
+                        permission: WALLET_SCANNER_PERMISSION,
+                        title: t('employeesPermissionWalletScannerTitle'),
+                        text: t('employeesPermissionWalletScannerText'),
+                      },
+                      {
+                        permission: BILLING_ADVANCE_INVOICE_PERMISSION,
+                        title: t('employeesPermissionAdvanceInvoiceTitle'),
+                        text: t('employeesPermissionAdvanceInvoiceText'),
+                      },
+                      {
+                        permission: BILLING_OPEN_INVOICE_PERMISSION,
+                        title: t('employeesPermissionOpenInvoiceTitle'),
+                        text: t('employeesPermissionOpenInvoiceText'),
+                      },
+                      {
+                        permission: BILLING_REFUND_PERMISSION,
+                        title: t('employeesPermissionRefundTitle'),
+                        text: t('employeesPermissionRefundText'),
+                      },
+                    ] as const).map((permissionRow) => {
+                      const enabled = form.permissions.includes(permissionRow.permission)
+                      return (
+                        <div key={permissionRow.permission} className="consultant-permissions-card employee-form-permissions-card">
+                          <div>
+                            <strong>{permissionRow.title}</strong>
+                            <p className="muted" style={{ margin: '0.25rem 0 0', lineHeight: 1.45 }}>
+                              {permissionRow.text}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className={`employee-form-status-switch${enabled ? ' employee-form-status-switch--on' : ''}`}
+                            aria-pressed={enabled}
+                            onClick={() => setForm((current) => togglePermission(current, permissionRow.permission))}
+                          >
+                            <span className="employee-form-status-switch-text">
+                              {enabled ? t('configToggleOn') : t('configToggleOff')}
+                            </span>
+                            <span className="employee-form-status-switch-track" aria-hidden>
+                              <span />
+                            </span>
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
 

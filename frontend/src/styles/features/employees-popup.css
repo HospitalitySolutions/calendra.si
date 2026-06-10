@@ -287,6 +287,13 @@
     box-shadow: 0 8px 18px rgba(22, 114, 243, 0.24);
 }
 
+
+.employee-form-permissions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
 .employee-form-working-card.consultant-wh-card,
 .employee-form-permissions-card.consultant-permissions-card {
     border: 1px solid #e2e8f0;

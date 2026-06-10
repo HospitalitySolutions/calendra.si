@@ -8,6 +8,7 @@ import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field, PageHeader } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
+import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
@@ -668,6 +669,9 @@ export type BillingPageProps = {
 export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = null, onEmbeddedClose, onEmbeddedSaved }: BillingPageProps = {}) {
   const me = getStoredUser()!
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
+  const canIssueOpenInvoice = canIssueOpenInvoices(me)
+  const canIssueAdvanceInvoice = canIssueAdvanceInvoices(me)
+  const canIssueRefundInvoice = canIssueRefundInvoices(me)
   const { showToast } = useToast()
   const { t, locale } = useLocale()
   const routeParams = useParams()
@@ -1071,6 +1075,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   useEffect(() => {
     if (!embeddedCreateBill) return
+    if ((embeddedCreateBill.billType === 'ADVANCE' && !canIssueAdvanceInvoice) || (embeddedCreateBill.billType !== 'ADVANCE' && !canIssueOpenInvoice)) {
+      embeddedCreateKeyRef.current = ''
+      setShowCreateBillModal(false)
+      onEmbeddedClose?.()
+      showToast('error', embeddedCreateBill.billType === 'ADVANCE'
+        ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
+        : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
+      return
+    }
     if (embeddedCreateBill.billType === 'ADVANCE' && !advanceBillingEnabled) {
       embeddedCreateKeyRef.current = ''
       setShowCreateBillModal(false)
@@ -1097,7 +1110,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setBillingTab(embeddedCreateBill.billType === 'ADVANCE' && advanceBillingEnabled ? 'unusedAdvances' : 'open')
     setEditingCreateBillPayee(false)
     setShowCreateBillModal(true)
-  }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, me.id])
+  }, [embeddedCreateBill, embeddedCreateKey, visiblePaymentMethods, advanceBillingEnabled, canIssueAdvanceInvoice, canIssueOpenInvoice, locale, me.id, onEmbeddedClose, showToast])
   /** Keep the side panel in sync when open bills reload (e.g. apply advance, polling) unless there are unsaved line edits. */
   useEffect(() => {
     setDetailOpenBill((prev) => {
@@ -2124,6 +2137,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return anyReserved ? 'ADVANCE' : 'INVOICE'
   }
 
+  function canIssueOpenBillType(ob: OpenBill | null | undefined): boolean {
+    return resolveOpenBillEffectiveType(ob) === 'ADVANCE' ? canIssueAdvanceInvoice : canIssueOpenInvoice
+  }
+
+  function issueOpenBillPermissionTooltip(ob: OpenBill | null | undefined): string | undefined {
+    if (canIssueOpenBillType(ob)) return undefined
+    return resolveOpenBillEffectiveType(ob) === 'ADVANCE'
+      ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
+      : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
+  }
+
   const setOpenBillPaymentSplits = (ob: OpenBill, splits: OpenBillPaymentSplitDraft[]) => {
     setOpenBillPaymentEdits((prev) => ({ ...prev, [ob.id]: splits }))
   }
@@ -2962,6 +2986,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const createBill = async () => {
     if (creatingBill) return
+    if (billForm.billType === 'ADVANCE' ? !canIssueAdvanceInvoice : !canIssueOpenInvoice) {
+      showToast('error', billForm.billType === 'ADVANCE'
+        ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
+        : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
+      return
+    }
     setCreatingBill(true)
     try {
       const payload = {
@@ -3018,6 +3048,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const openCreateBillModal = () => {
+    if (!canIssueOpenInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
+      return
+    }
     const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
     setBillForm({
       items: [],
@@ -3036,6 +3070,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const openCreateAdvanceBillModal = () => {
     if (!advanceBillingEnabled) return
+    if (!canIssueAdvanceInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
+      return
+    }
     const defaultPaymentMethodId = visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? visiblePaymentMethods[0]?.id
     setBillForm({
       items: [],
@@ -3816,6 +3854,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const createBillFromOpen = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
     if (creatingFromOpenId) return
+    const effectiveType = resolveOpenBillEffectiveType(ob)
+    if (effectiveType === 'ADVANCE' ? !canIssueAdvanceInvoice : !canIssueOpenInvoice) {
+      showToast('error', effectiveType === 'ADVANCE'
+        ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
+        : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
+      return
+    }
     const target = onePayeeRelatedBills && onePayeeRelatedBills.length > 1 ? (onePayeeRelatedBills[0] ?? ob) : ob
     setCreatingFromOpenId(target.id)
     try {
@@ -3937,6 +3982,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const createManualOpenBillFromCreateBillForm = async () => {
     if (creatingManualOpenBill) return
+    if (!canIssueOpenInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
+      return
+    }
     const payload = buildManualOpenBillPayload()
     if (!payload) return
     const existingIds = new Set(openBills.map((entry) => entry.id))
@@ -3967,6 +4016,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const createAndCloseManualOpenBill = async () => {
     if (creatingBill || creatingManualOpenBill) return
+    if (!canIssueOpenInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
+      return
+    }
     const payload = buildManualOpenBillPayload()
     if (!payload) return
     const existingIds = new Set(openBills.map((entry) => entry.id))
@@ -4032,6 +4085,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const submitAdditionalOpenBill = async () => {
     if (!addOpenBillContext || creatingAdditionalOpenBill) return
+    if (!canIssueOpenInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
+      return
+    }
     const ctx = addOpenBillContext
     if (ctx.billingTarget === 'PERSON' && !ctx.clientId) {
       showToast('error', locale === 'sl' ? 'Izberite klienta.' : 'Select a client.')
@@ -6701,13 +6758,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const canRefundBill = (bill: Bill) =>
-    bill.paymentStatus === 'paid'
+    canIssueRefundInvoice
+    && bill.paymentStatus === 'paid'
     && Number(bill.totalGross || 0) > 0
     && !bill.refundOfBillId
     && normalizeBillType(bill) === 'INVOICE'
 
   const refundBill = async (bill: Bill) => {
-    if (refundingBillId || !canRefundBill(bill)) return
+    if (refundingBillId) return
+    if (!canIssueRefundInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo vračil.' : 'You do not have permission to issue refunds.')
+      return
+    }
+    if (!canRefundBill(bill)) return
     const ok = window.confirm(`Create refund invoice for ${bill.billNumber || `#${bill.id}`}?`)
     if (!ok) return
     setRefundingBillId(bill.id)
@@ -6858,7 +6921,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       onChange={(e) => setOpenBillsSearch(e.target.value)}
                     />
                   </div>
-                  <button type="button" className="clients-modern-new-btn" onClick={openCreateBillModal}>
+                  <button
+                    type="button"
+                    className="clients-modern-new-btn"
+                    onClick={openCreateBillModal}
+                    disabled={!canIssueOpenInvoice}
+                    title={!canIssueOpenInvoice ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.') : undefined}
+                  >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                       <path d="M12 5v14" />
                       <path d="M5 12h14" />
@@ -6939,6 +7008,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         const clientLabel = openBillListGroupClientLabel(ob)
                         const rowDescription = Array.from(new Set(rowMembers.map((entry) => openBillDescription(entry)).filter((value) => value && value !== '—'))).join(' · ') || '—'
                         const groupBillCount = rowMembers.length
+                        const canCloseRowBill = groupBillCount > 1 || canIssueOpenBillType(ob)
+                        const rowClosePermissionTooltip = groupBillCount > 1 ? undefined : issueOpenBillPermissionTooltip(ob)
                         const sessionCount = ob.sessions?.length ?? 0
                         const rawId = String(ob.sessionDisplayId || formatBillingSessionIdDisplay(ob.sessionId) || '—')
                         const displayId = rawId.startsWith('#') ? rawId : `#${rawId}`
@@ -7016,7 +7087,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                 type="button"
                                 className="billing-open-modern-mobile-action billing-open-modern-mobile-action--primary"
                                 onClick={() => groupBillCount > 1 ? openEditInvoicePopup(ob) : createBillFromOpen(ob)}
-                                disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || !ob.paymentMethod?.id)}
+                                disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || !ob.paymentMethod?.id || !canCloseRowBill)}
+                                title={rowClosePermissionTooltip}
                               >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></svg>
                                 <span>{creatingFromOpenId === ob.id
@@ -7062,6 +7134,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           const rowDescription = Array.from(new Set(rowMembers.map((entry) => openBillDescription(entry)).filter((value) => value && value !== '—'))).join(' · ') || '—'
                           const rowPaymentMethod = rowMembers[0] ?? ob
                           const groupBillCount = rowMembers.length
+                          const canCloseRowBill = groupBillCount > 1 || canIssueOpenBillType(ob)
+                          const rowClosePermissionTooltip = groupBillCount > 1 ? undefined : issueOpenBillPermissionTooltip(ob)
                           return (
                             <tr key={`${openBillListGroupKey(ob)}:${ob.id}`} className="clients-row" onClick={() => openEditInvoicePopup(ob)}>
                               <td className="billing-modern-link-cell">
@@ -7092,7 +7166,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                   type="button"
                                   className="billing-open-row-action billing-open-row-action--primary"
                                   onClick={() => groupBillCount > 1 ? openEditInvoicePopup(ob) : createBillFromOpen(ob)}
-                                  disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || items.length === 0 || !ob.paymentMethod?.id)}
+                                  disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || items.length === 0 || !ob.paymentMethod?.id || !canCloseRowBill)}
+                                  title={rowClosePermissionTooltip}
                                 >
                                   {creatingFromOpenId === ob.id
                                     ? billingCopy.creating
@@ -7238,7 +7313,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       onChange={(e) => setUnusedAdvancesSearch(e.target.value)}
                     />
                   </div>
-                  <button type="button" className="clients-modern-new-btn" onClick={openCreateAdvanceBillModal}>
+                  <button
+                    type="button"
+                    className="clients-modern-new-btn"
+                    onClick={openCreateAdvanceBillModal}
+                    disabled={!canIssueAdvanceInvoice}
+                    title={!canIssueAdvanceInvoice ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.') : undefined}
+                  >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                       <path d="M12 5v14" />
                       <path d="M5 12h14" />
@@ -7571,7 +7652,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const detailCloseCandidateBills = detailOnePayeeForAll ? detailBaseRelatedOpenBills : [detailActionOpenBill]
         const detailSessionsBillableForClose = openBillSessionsAreBillableForClose(detailCloseCandidateBills)
         const detailPaymentsMatchCloseTotal = paymentSplitsMatchInvoiceTotal(detailPaymentSplits, detailActionGross || detailGross)
-        const detailCloseDisabledReason = !detailSessionsBillableForClose
+        const detailCanIssueOpenBill = canIssueOpenBillType(detailActionOpenBill)
+        const detailIssuePermissionTooltip = issueOpenBillPermissionTooltip(detailActionOpenBill)
+        const detailCloseDisabledReason = !detailCanIssueOpenBill
+          ? detailIssuePermissionTooltip
+          : !detailSessionsBillableForClose
           ? (locale === 'sl'
               ? 'Termin mora biti v statusu RESERVED, ONGOING, CHECKED OUT ali NO SHOW.'
               : 'Session must be in RESERVED, ONGOING, CHECKED OUT or NO SHOW status.')
@@ -7646,7 +7731,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     type="button"
                     className="billing-bill-modal-primary-action"
                     onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid}
+                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
                     title={detailCloseDisabledReason}
                   >
                     {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
@@ -7677,7 +7762,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const createPaymentTotal = paymentSplitTotalGross(createPaymentSplits)
         const createPaymentDifference = createGross - createPaymentTotal
         const isCreateAdvanceBill = billForm.billType === 'ADVANCE'
-        const createCloseTooltip = (billForm.billingTarget === 'PERSON' && !billForm.clientId)
+        const canIssueCreateBillType = isCreateAdvanceBill ? canIssueAdvanceInvoice : canIssueOpenInvoice
+        const createPermissionTooltip = !canIssueCreateBillType
+          ? (isCreateAdvanceBill
+            ? (locale === 'sl' ? 'Nimate dovoljenja za izdajo predplačil.' : 'You do not have permission to issue advance invoices.')
+            : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
+          : undefined
+        const createCloseTooltip = createPermissionTooltip
+          ?? ((billForm.billingTarget === 'PERSON' && !billForm.clientId)
             ? (locale === 'sl' ? 'Izberite klienta.' : 'Select a client.')
             : (billForm.billingTarget === 'COMPANY' && !billForm.recipientCompanyId)
               ? (locale === 'sl' ? 'Izberite podjetje.' : 'Select a company.')
@@ -7691,7 +7783,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     ? (locale === 'sl' ? 'Vsota plačil mora biti enaka znesku računa.' : 'Payment amounts must match the total.')
                     : !createAdvanceSelectionValid
                       ? (locale === 'sl' ? 'Izbrana predplačila niso veljavna.' : 'The selected advances are not valid.')
-                      : undefined
+                      : undefined)
         return (
           <div className={`modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop${isCreateAdvanceBill ? ' billing-bill-modal-backdrop--advance-create' : ''}`} onMouseDown={onCreateBillBackdropMouseDown} role="presentation">
             <div className={`modal large-modal booking-side-panel billing-create-panel billing-bill-modal${isCreateAdvanceBill ? ' billing-create-panel--advance' : ''}`} onMouseDown={(e) => e.stopPropagation()}>
@@ -7863,7 +7955,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       type="button"
                       className="billing-bill-modal-save-btn"
                       onClick={() => void createManualOpenBillFromCreateBillForm()}
-                      disabled={creatingManualOpenBill || creatingBill || !billCanSubmit}
+                      disabled={creatingManualOpenBill || creatingBill || !billCanSubmit || !canIssueOpenInvoice}
                       title={createCloseTooltip}
                     >
                       <span className="billing-bill-modal-save-btn__icon" aria-hidden>
@@ -7880,7 +7972,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     type="button"
                     className="billing-bill-modal-primary-action"
                     onClick={() => void (isCreateAdvanceBill ? createBill() : createAndCloseManualOpenBill())}
-                    disabled={creatingBill || creatingManualOpenBill || !billCanSubmit}
+                    disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueCreateBillType}
                     title={createCloseTooltip}
                   >
                     {creatingBill ? billingCopy.creating : (

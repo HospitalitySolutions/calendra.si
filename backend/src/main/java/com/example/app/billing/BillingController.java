@@ -19,6 +19,7 @@ import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.fiscal.FiscalizationService;
+import com.example.app.security.SecurityUtils;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.guest.model.GuestPaymentMethodType;
@@ -147,6 +148,33 @@ public class BillingController {
 
     private boolean isAdvanceBillingEnabled(Long companyId) {
         return billingModuleAccess.isAdvanceEnabled(companyId);
+    }
+
+
+    private void requireCanIssueOpenInvoice(User user) {
+        if (!SecurityUtils.canIssueOpenInvoices(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to issue open invoices.");
+        }
+    }
+
+    private void requireCanIssueAdvanceInvoice(User user) {
+        if (!SecurityUtils.canIssueAdvanceInvoices(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to issue advance invoices.");
+        }
+    }
+
+    private void requireCanIssueRefund(User user) {
+        if (!SecurityUtils.canIssueRefundInvoices(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to issue refunds.");
+        }
+    }
+
+    private void requireCanIssueBillType(User user, BillType billType) {
+        if (billType == BillType.ADVANCE) {
+            requireCanIssueAdvanceInvoice(user);
+        } else {
+            requireCanIssueOpenInvoice(user);
+        }
     }
 
     public record BillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {}
@@ -664,6 +692,7 @@ public class BillingController {
             @AuthenticationPrincipal User me
     ) {
         var companyId = me.getCompany().getId();
+        requireCanIssueOpenInvoice(me);
         var session = sessionBookings.findByIdAndCompanyId(sessionBookingId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if ("CANCELLED".equalsIgnoreCase(String.valueOf(session.getBookingStatus()))) {
@@ -866,6 +895,7 @@ public class BillingController {
             @AuthenticationPrincipal User me
     ) {
         var companyId = me.getCompany().getId();
+        requireCanIssueOpenInvoice(me);
         var actor = users.findByIdAndCompanyId(me.getId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
         var sourceSession = sessionBookings.findByIdAndCompanyId(sessionBookingId, companyId)
@@ -933,6 +963,7 @@ public class BillingController {
     @Transactional
     public List<OpenBillResponse> createManualOpenBill(@RequestBody ManualOpenBillRequest req, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
+        requireCanIssueBillType(me, resolveRequestedBillType(req == null ? null : req.billType()));
         var actor = users.findByIdAndCompanyId(me.getId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
         if (req == null || (req.clientId() == null && req.recipientCompanyId() == null)) {
@@ -1984,6 +2015,7 @@ public class BillingController {
         BillType resolvedBillType = open.getBillType() != null
                 ? open.getBillType()
                 : deriveBillTypeFromSessions(companyId, linkedSessionIds);
+        requireCanIssueBillType(me, resolvedBillType);
         boolean explicitAdvanceOpenBill = open.getBillType() == BillType.ADVANCE;
         Set<Long> allowedAdvanceServiceIds = resolveAdvanceDeductionServiceIds(companyId);
         if (explicitAdvanceOpenBill) {
@@ -3299,6 +3331,7 @@ public class BillingController {
         String billNumber = nextInvoiceNumber(companyId);
         bill.setBillNumber(billNumber);
         BillType requestedBillType = resolveRequestedBillType(request.billType());
+        requireCanIssueBillType(me, requestedBillType);
         if (requestedBillType == BillType.ADVANCE) {
             assertAdvanceBillingEnabled(companyId);
         }
@@ -3465,6 +3498,7 @@ public class BillingController {
     @Transactional
     public BillResponse refundBill(@PathVariable Long id, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        requireCanIssueRefund(me);
         Bill original = billRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (original.getRefundOfBillId() != null) {
