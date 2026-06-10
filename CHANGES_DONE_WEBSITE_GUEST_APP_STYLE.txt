@@ -1,0 +1,11 @@
+Website tab visual sizing update
+
+Changed:
+- Updated Configuration -> Website inline styles to match the Guest app tab sizing.
+- Website subtabs now use the same rounded active-pill design as Guest app subtabs.
+- Reduced Website text, headings, payment method rows, switches, segmented controls, and save button sizes to match Guest app.
+- Kept Website configuration behavior unchanged.
+
+Validation:
+- Frontend TypeScript check passed: npx tsc -b --pretty false
+- Full npm run build started successfully but Vite bundling timed out in the sandbox after TypeScript completed.

@@ -9849,43 +9849,265 @@ export function ConfigurationPage() {
       ) : tab === 'website' ? (
         <Card className="settings-card guest-app-settings-card gapp-modern-card website-settings-card">
           <style>{`
-            .website-settings-card { --gapp-blue:#2563eb; --gapp-text:#071635; --gapp-muted:#66748a; --gapp-line:#d7e3f5; border-radius:24px; border:1px solid rgba(203,213,225,.9); background:rgba(255,255,255,.98); box-shadow:0 26px 72px rgba(15,23,42,.09); overflow:hidden; }
-            .website-settings-card button { font-family:inherit; }
-            .website-settings-card .gapp-subtabs { display:flex; align-items:center; gap:22px; flex-wrap:wrap; padding:20px 24px 0; border-bottom:1px solid #e8eef6; }
-            .website-settings-card .gapp-subtab { appearance:none; border:0; background:transparent; color:#0f172a; font-weight:900; font-size:16px; padding:10px 0 13px; cursor:pointer; position:relative; }
-            .website-settings-card .gapp-subtab.active { color:#2563eb; }
-            .website-settings-card .gapp-subtab.active::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height:3px; border-radius:999px; background:#2563eb; box-shadow:0 6px 16px rgba(37,99,235,.28); }
-            .website-settings-card .gapp-panel { margin:18px 24px 28px; padding:38px 46px; border:1px solid #d4e0f1; border-radius:24px; background:#fff; box-shadow:0 12px 32px rgba(30,64,175,.06); }
-            .website-settings-card .gapp-section-heading { margin:0 0 22px; }
-            .website-settings-card .gapp-section-heading h3 { margin:0 0 6px; font-size:24px; line-height:1.15; color:#071635; letter-spacing:-.035em; font-weight:900; }
-            .website-settings-card .gapp-section-heading p { margin:0; color:#66748a; font-size:15px; line-height:1.5; }
-            .website-settings-card .gapp-payment-layout { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; }
-            .website-settings-card .gapp-payment-list { display:grid; gap:12px; margin-bottom:22px; }
-            .website-settings-card .gapp-payment-row { display:grid; grid-template-columns:54px minmax(0,1fr) auto; align-items:center; gap:16px; min-height:68px; border:1px solid #dbe7fb; border-radius:16px; padding:10px 14px; background:#fff; box-shadow:0 7px 20px rgba(15,23,42,.035); }
-            .website-settings-card .gapp-payment-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:13px; background:#f8fafc; color:#1e3a8a; border:1px solid #e2e8f0; }
-            .website-settings-card .gapp-payment-row strong { color:#071635; font-size:16px; font-weight:900; }
-            .website-settings-card .gapp-payment-toggle-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:8px; }
-            .website-settings-card .gapp-payment-toggle-card { border:1px solid #dbe7fb; border-radius:16px; background:linear-gradient(180deg,#fff 0%,#f8fbff 100%); box-shadow:0 9px 22px rgba(30,64,175,.06); padding:16px; align-content:start; }
-            .website-settings-card .gapp-toggle-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
-            .website-settings-card .gapp-label { display:block; color:#071635; font-weight:900; font-size:15px; line-height:1.25; }
-            .website-settings-card .gapp-hint { display:block; margin-top:10px; color:#66748a; font-size:14px; line-height:1.45; }
-            .website-settings-card .gapp-switch { position:relative; display:inline-flex; align-items:center; justify-content:flex-start; width:74px; height:38px; border:1px solid #cdd8e8; border-radius:999px; background:#dfe7f1; color:#64748b; font-size:12px; font-weight:900; padding:0 9px; cursor:pointer; transition:background .18s ease,border-color .18s ease,color .18s ease; }
-            .website-settings-card .gapp-switch-label { margin-left:auto; z-index:1; }
-            .website-settings-card .gapp-switch.active { background:#2563eb; border-color:#2563eb; color:#fff; }
-            .website-settings-card .gapp-switch.active .gapp-switch-label { margin-left:0; margin-right:auto; }
-            .website-settings-card .gapp-switch-knob { position:absolute; left:4px; width:28px; height:28px; border-radius:999px; background:#fff; box-shadow:0 4px 10px rgba(15,23,42,.18); transition:transform .18s ease; }
-            .website-settings-card .gapp-switch.active .gapp-switch-knob { transform:translateX(36px); }
-            .website-settings-card .gapp-segmented { --segments:2; display:grid; grid-template-columns:repeat(var(--segments),1fr); min-height:46px; border:1px solid #dbe7fb; border-radius:14px; overflow:hidden; background:#f8fbff; }
-            .website-settings-card .gapp-segmented button { border:0; background:transparent; color:#64748b; font-weight:900; cursor:pointer; }
-            .website-settings-card .gapp-segmented button.active { background:#2563eb; color:#fff; box-shadow:0 8px 20px rgba(37,99,235,.22); }
-            .website-settings-card .gapp-field.gapp-deposit-field { margin-top:14px; }
-            .website-settings-card .gapp-deposit-input-wrap { position:relative; display:flex; align-items:center; }
-            .website-settings-card .gapp-deposit-input { width:100%; min-height:44px; border:1px solid #cddcf5; border-radius:12px; background:#f8fbff; color:#1e3a8a; font-size:16px; font-weight:900; padding:10px 42px 10px 14px; outline:none; }
-            .website-settings-card .gapp-deposit-input-suffix { position:absolute; right:10px; top:50%; transform:translateY(-50%); border-radius:999px; background:#e7efff; color:#1d4ed8; font-size:12px; font-weight:900; padding:4px 8px; pointer-events:none; }
-            .website-settings-card .gapp-savebar { display:flex; justify-content:flex-end; margin-top:28px; }
-            .website-settings-card .gapp-primary-button { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:50px; border:0; border-radius:14px; padding:0 24px; background:#2563eb; color:#fff; font-weight:900; font-size:16px; cursor:pointer; box-shadow:0 14px 30px rgba(37,99,235,.24); }
-            .website-settings-card .gapp-primary-button:disabled { opacity:.65; cursor:not-allowed; }
-            @media (max-width:980px) { .website-settings-card .gapp-panel { margin:14px; padding:22px; } .website-settings-card .gapp-payment-toggle-row { grid-template-columns:1fr; } }
+            .website-settings-card {
+              --gapp-blue: #2563eb;
+              --gapp-blue-dark: #1d4ed8;
+              --gapp-text: #0f1b3d;
+              --gapp-muted: #64748b;
+              --gapp-line: #dbe4f0;
+              --gapp-soft: #f8fafc;
+              --gapp-soft-blue: #eff6ff;
+              border-radius: 24px;
+              border: 1px solid rgba(203, 213, 225, 0.78);
+              box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+              background: #fff;
+              padding: 28px 34px 32px;
+              color: var(--gapp-text);
+              overflow: visible;
+            }
+            .website-settings-card button { font-family: inherit; }
+            .website-settings-card .gapp-subtabs {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              flex-wrap: wrap;
+              margin: 20px 0 10px;
+              padding: 0;
+              border-bottom: 1px solid #edf2f7;
+            }
+            .website-settings-card .gapp-subtab {
+              position: relative;
+              appearance: none;
+              border: 0;
+              background: transparent;
+              color: #334155;
+              font-weight: 700;
+              font-size: 15px;
+              padding: 10px 14px;
+              cursor: pointer;
+              border-radius: 10px;
+              box-shadow: none;
+              outline: none;
+              transition: color .18s ease, background .18s ease, box-shadow .18s ease;
+            }
+            .website-settings-card .gapp-subtab:hover { color: #0f172a; background: #f8fafc; }
+            .website-settings-card .gapp-subtab.active {
+              color: #2563eb;
+              background: #eaf2ff;
+              box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16), 0 3px 10px rgba(37, 99, 235, 0.18);
+            }
+            .website-settings-card .gapp-subtab.active::after { content: none; }
+            .website-settings-card .gapp-panel {
+              margin-top: 12px;
+              border: 1px solid rgba(203, 213, 225, 0.86);
+              border-radius: 22px;
+              background: #fff;
+              padding: 34px;
+              box-shadow: 0 18px 50px rgba(15, 23, 42, 0.07);
+            }
+            .website-settings-card .gapp-grid,
+            .website-settings-card .gapp-form-grid {
+              display: grid;
+              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+              gap: 38px 70px;
+            }
+            .website-settings-card .gapp-column { display: grid; gap: 22px; align-content: start; }
+            .website-settings-card .gapp-field { display: grid; gap: 8px; }
+            .website-settings-card .gapp-label {
+              display: block;
+              font-size: 14px;
+              font-weight: 800;
+              color: var(--gapp-text);
+              line-height: 1.2;
+            }
+            .website-settings-card .gapp-hint {
+              display: block;
+              margin-top: 0;
+              color: var(--gapp-muted);
+              font-size: 12.5px;
+              line-height: 1.45;
+            }
+            .website-settings-card .gapp-section-heading { margin: 0 0 20px; }
+            .website-settings-card .gapp-section-heading h3 { margin: 0 0 6px; font-size: 19px; line-height: 1.2; color: var(--gapp-text); letter-spacing: 0; font-weight: 800; }
+            .website-settings-card .gapp-section-heading p { margin: 0; color: var(--gapp-muted); font-size: 13px; line-height: 1.45; }
+            .website-settings-card .gapp-payment-layout { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+            .website-settings-card .gapp-pane { min-width: 0; }
+            .website-settings-card .gapp-payment-list { display: grid; gap: 10px; margin-bottom: 20px; }
+            .website-settings-card .gapp-payment-row {
+              display: grid;
+              grid-template-columns: 46px minmax(0, 1fr) auto;
+              align-items: center;
+              gap: 14px;
+              min-height: 58px;
+              border: 1px solid var(--gapp-line);
+              border-radius: 13px;
+              padding: 8px 12px;
+              background: #fff;
+              box-shadow: none;
+            }
+            .website-settings-card .gapp-payment-icon {
+              display: grid;
+              place-items: center;
+              width: 42px;
+              height: 42px;
+              border-radius: 11px;
+              background: #f8fafc;
+              color: #1e3a8a;
+              border: 1px solid #e2e8f0;
+            }
+            .website-settings-card .gapp-payment-row strong { color: #172554; font-size: 14px; font-weight: 800; }
+            .website-settings-card .gapp-payment-toggle-row {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 14px;
+              margin-top: 4px;
+            }
+            .website-settings-card .gapp-payment-toggle-card {
+              border: 1px solid #dbe7fb;
+              border-radius: 14px;
+              background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+              box-shadow: 0 6px 16px rgba(30, 64, 175, 0.06);
+              padding: 12px 14px;
+              align-content: start;
+            }
+            .website-settings-card .gapp-toggle-head {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 12px;
+            }
+            .website-settings-card .gapp-toggle-head .gapp-label { margin-top: 2px; }
+            .website-settings-card .gapp-switch {
+              position: relative;
+              display: inline-flex;
+              align-items: center;
+              justify-content: flex-end;
+              width: 68px;
+              height: 34px;
+              border: 1px solid #cbd5e1;
+              border-radius: 999px;
+              background: #e2e8f0;
+              color: #64748b;
+              padding: 0 9px 0 34px;
+              font-size: 10px;
+              font-weight: 900;
+              cursor: pointer;
+              transition: background .18s ease, border-color .18s ease;
+            }
+            .website-settings-card .gapp-switch-label { margin-left: 0; z-index: 1; }
+            .website-settings-card .gapp-switch.active {
+              justify-content: flex-start;
+              padding: 0 34px 0 9px;
+              background: var(--gapp-blue);
+              border-color: var(--gapp-blue);
+              color: #fff;
+            }
+            .website-settings-card .gapp-switch.active .gapp-switch-label { margin-left: 0; margin-right: 0; }
+            .website-settings-card .gapp-switch-knob {
+              position: absolute;
+              left: 4px;
+              width: 26px;
+              height: 26px;
+              border-radius: 999px;
+              background: #fff;
+              box-shadow: 0 4px 10px rgba(15, 23, 42, .18);
+              transition: transform .18s ease;
+            }
+            .website-settings-card .gapp-switch.active .gapp-switch-knob { transform: translateX(34px); }
+            .website-settings-card .gapp-segmented {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              overflow: hidden;
+              border: 1px solid var(--gapp-line);
+              border-radius: 11px;
+              background: #f8fafc;
+              min-height: 42px;
+            }
+            .website-settings-card .gapp-segmented button {
+              appearance: none;
+              border: 0;
+              background: transparent;
+              color: #334155;
+              font-size: 14px;
+              font-weight: 800;
+              cursor: pointer;
+              transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+            }
+            .website-settings-card .gapp-segmented button.active {
+              background: var(--gapp-blue);
+              color: #fff;
+              box-shadow: 0 8px 20px rgba(37, 99, 235, 0.28);
+            }
+            .website-settings-card .gapp-field.gapp-deposit-field { margin-top: 12px; }
+            .website-settings-card .gapp-deposit-input-wrap { position: relative; display: flex; align-items: center; }
+            .website-settings-card .gapp-deposit-input {
+              width: 100%;
+              min-height: 44px;
+              border: 1px solid #cddcf5;
+              border-radius: 12px;
+              background: #f8fbff;
+              color: #1e3a8a;
+              font-size: 16px;
+              font-weight: 800;
+              letter-spacing: .02em;
+              line-height: 1.2;
+              padding: 10px 40px 10px 14px;
+              outline: none;
+              box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+              transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+            }
+            .website-settings-card .gapp-deposit-input:focus {
+              border-color: rgba(37, 99, 235, 0.65);
+              background: #fff;
+              box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+            }
+            .website-settings-card .gapp-deposit-input-suffix {
+              position: absolute;
+              right: 10px;
+              top: 50%;
+              transform: translateY(-50%);
+              min-width: 24px;
+              height: 24px;
+              border-radius: 999px;
+              display: grid;
+              place-items: center;
+              padding: 0 7px;
+              background: #e7efff;
+              color: #1d4ed8;
+              font-size: 12px;
+              font-weight: 900;
+              pointer-events: none;
+            }
+            .website-settings-card .gapp-savebar { display: flex; justify-content: flex-end; margin-top: 30px; }
+            .website-settings-card .gapp-primary-button {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              gap: 10px;
+              min-height: 44px;
+              border: 1px solid #2563eb;
+              border-radius: 12px;
+              padding: 0 22px;
+              background: #2563eb;
+              color: #fff;
+              font-weight: 800;
+              font-size: 14px;
+              cursor: pointer;
+              box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
+              box-sizing: border-box;
+              transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+            }
+            .website-settings-card .gapp-primary-button:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); }
+            .website-settings-card .gapp-primary-button:disabled { opacity: .62; cursor: not-allowed; transform: none; }
+            @media (max-width: 980px) {
+              .website-settings-card { padding: 24px; }
+              .website-settings-card .gapp-grid,
+              .website-settings-card .gapp-form-grid,
+              .website-settings-card .gapp-payment-layout { grid-template-columns: 1fr; }
+              .website-settings-card .gapp-payment-toggle-row { grid-template-columns: 1fr; }
+              .website-settings-card .gapp-subtabs { gap: 18px; overflow-x: auto; }
+              .website-settings-card .gapp-panel { padding: 22px; }
+            }
           `}</style>
           <div className="gapp-subtabs" role="tablist" aria-label={locale === 'sl' ? 'Website nastavitve' : 'Website settings'}>
             {websiteSubtabs(t).map((entry) => (
