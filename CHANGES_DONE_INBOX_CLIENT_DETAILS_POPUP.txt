@@ -1,0 +1,11 @@
+Inbox client details popup update
+
+- Changed Inbox "Podrobnosti stranke" action to open the embedded Clients detail popup instead of navigating away to /clients.
+- The popup uses the same ClientsPage embedded detail mode used from the Calendar tab, so the user stays on the Inbox tab while viewing/editing client details.
+- After client edits from the popup, Inbox client/thread/message queries are invalidated so updated client data can refresh in the Inbox.
+- Adjusted Inbox conversation header controls:
+  - moved the Odgovoren control slightly left with tighter spacing,
+  - shortened the Odprto/Zaključeno status dropdown width.
+
+Build check:
+- frontend: npm run build passed.

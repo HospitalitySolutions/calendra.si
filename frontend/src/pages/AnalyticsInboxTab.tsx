@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import DOMPurify from 'dompurify'
 import { api } from '../api'
@@ -12,6 +11,10 @@ import { formatDateTime } from '../lib/format'
 import { useLocale } from '../locale'
 
 type ConsultantOption = { id: number; firstName: string; lastName: string; email: string; consultant?: boolean }
+
+const EmbeddedClientsPage = lazy(() =>
+  import('./ClientsPage').then((module) => ({ default: module.ClientsPage })),
+)
 
 // Returns true when stripped HTML still contains visible text.
 function richTextHasContent(html: string): boolean {
@@ -723,7 +726,7 @@ export function AnalyticsInboxTab() {
 
   const me = getStoredUser()
   const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
-  const navigate = useNavigate()
+  const [clientDetailModalId, setClientDetailModalId] = useState<number | null>(null)
   const [folder, setFolder] = useState<'inbox' | 'unread' | 'starred' | 'closed'>('inbox')
   const [threadPage, setThreadPage] = useState(1)
   const [savingStar, setSavingStar] = useState(false)
@@ -1628,6 +1631,21 @@ export function AnalyticsInboxTab() {
     setSelectedThreadKey(inboxThreadKey(thread))
   }
 
+  const openClientDetailsPopup = () => {
+    if (selectedClientId == null) return
+    setClientDetailModalId(selectedClientId)
+  }
+
+  const closeClientDetailsPopup = () => {
+    setClientDetailModalId(null)
+  }
+
+  const refreshInboxAfterClientEdit = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['inbox-clients'] })
+    await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
+    await queryClient.invalidateQueries({ queryKey: ['inbox-messages'] })
+  }
+
   const selectClient = (clientId: number | null) => {
     setSelectedClientId(clientId)
     if (clientId == null) {
@@ -1867,7 +1885,7 @@ export function AnalyticsInboxTab() {
             <span>{ui.channel}: {channelLabel(selectedThread?.lastChannel || composeChannel)}</span>
             <span>{ui.subject}: {conversationSubject}</span>
             <span>{ui.messageId}: {conversationId}</span>
-            <button type="button" disabled={selectedClientId == null} onClick={() => { if (selectedClientId != null) navigate(`/clients?clientId=${selectedClientId}`) }}>{ui.clientDetails}</button>
+            <button type="button" disabled={selectedClientId == null} onClick={openClientDetailsPopup}>{ui.clientDetails}</button>
           </div>
 
           <div className="analytics-inbox-b-messages">
@@ -2064,6 +2082,16 @@ export function AnalyticsInboxTab() {
             <div className="form-actions"><button type="button" className="secondary" onClick={closeScheduleModal}>{copy.closeSchedule}</button></div>
           </div>
         </div>
+      )}
+
+      {clientDetailModalId != null && (
+        <Suspense fallback={null}>
+          <EmbeddedClientsPage
+            embeddedClientId={clientDetailModalId}
+            onEmbeddedClose={closeClientDetailsPopup}
+            onEmbeddedSaved={refreshInboxAfterClientEdit}
+          />
+        </Suspense>
       )}
     </div>
   )
