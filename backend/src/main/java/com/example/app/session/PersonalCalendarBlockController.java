@@ -63,7 +63,8 @@ public class PersonalCalendarBlockController {
     public PersonalBlockResponse update(@PathVariable Long id, @RequestBody PersonalBlockRequest req, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
         var block = repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!block.getOwner().getId().equals(me.getId()) || !block.getCompany().getId().equals(companyId)) {
+        if (!block.getCompany().getId().equals(companyId)
+                || (!SecurityUtils.isAdmin(me) && !block.getOwner().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         var start = parseToLocalDateTime(req.startTime());
@@ -84,7 +85,8 @@ public class PersonalCalendarBlockController {
     @Transactional
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var block = repo.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!block.getOwner().getId().equals(me.getId()) || !block.getCompany().getId().equals(me.getCompany().getId())) {
+        if (!block.getCompany().getId().equals(me.getCompany().getId())
+                || (!SecurityUtils.isAdmin(me) && !block.getOwner().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
         googleCalendarSyncQueueService.enqueueDelete(block.getCompany(), GoogleCalendarEntityType.PERSONAL_SESSION, block.getId());

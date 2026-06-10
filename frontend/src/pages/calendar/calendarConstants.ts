@@ -6,6 +6,7 @@ export const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlat
 export const WORKING_HOURS_FALLBACK_KEY = 'workingHoursFallback'
 export const PERSONAL_TASK_PRESETS_KEY = 'PERSONAL_TASK_PRESETS_JSON'
 export const AVAILABILITY_BLOCK_TASK = '__availability_block__'
+export const AVAILABILITY_BLOCK_METADATA_PREFIX = 'CALENDRA_AVAILABILITY_BLOCK_V1:'
 /** Visible calendar data only; full meta/settings use CALENDAR_META_POLL_MS and focus/settings events. */
 export const CALENDAR_POLL_MS = 30000
 export const CALENDAR_META_POLL_MS = 180000

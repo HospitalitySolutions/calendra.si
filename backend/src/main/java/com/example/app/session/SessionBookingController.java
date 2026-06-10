@@ -526,11 +526,28 @@ public class SessionBookingController {
                 .toList();
         var rangeStart = from.atStartOfDay();
         var rangeEnd = to.plusDays(1).atStartOfDay();
-        var personal = (SecurityUtils.isAdmin(me)
+        var overlappingPersonalRows = SecurityUtils.isAdmin(me)
                 ? personalBlocks.findOverlappingByCompany(companyId, rangeStart, rangeEnd)
-                : personalBlocks.findOverlapping(me.getId(), companyId, rangeStart, rangeEnd)).stream()
-                .map(b -> new PersonalBlockSummary(b.getId(), b.getOwner().getId(), b.getStartTime(), b.getEndTime(), b.getTask(), b.getNotes()))
-                .toList();
+                : personalBlocks.findOverlapping(me.getId(), companyId, rangeStart, rangeEnd);
+        var recurringAvailabilityRows = SecurityUtils.isAdmin(me)
+                ? personalBlocks.findAvailabilityBlockMarkersByCompany(companyId)
+                : personalBlocks.findAvailabilityBlockMarkersForOwner(me.getId(), companyId);
+        List<PersonalBlockSummary> personal = new ArrayList<>();
+        for (var block : overlappingPersonalRows) {
+            if (AvailabilityBlockMetadata.isRecurringAvailabilityBlock(block)) {
+                continue;
+            }
+            personal.add(new PersonalBlockSummary(block.getId(), block.getOwner().getId(), block.getStartTime(), block.getEndTime(), block.getTask(), block.getNotes()));
+        }
+        for (var block : recurringAvailabilityRows) {
+            if (!AvailabilityBlockMetadata.isRecurringAvailabilityBlock(block)) {
+                continue;
+            }
+            for (var occurrence : AvailabilityBlockMetadata.expand(block, from, to)) {
+                personal.add(new PersonalBlockSummary(block.getId(), block.getOwner().getId(), occurrence.startTime(), occurrence.endTime(), block.getTask(), block.getNotes()));
+            }
+        }
+        personal.sort((a, b) -> a.startTime().compareTo(b.startTime()));
         var todos = (SecurityUtils.isAdmin(me)
                 ? calendarTodos.findByCompanyAndDateRange(companyId, rangeStart, rangeEnd)
                 : calendarTodos.findByOwnerAndDateRange(me.getId(), companyId, rangeStart, rangeEnd)).stream()

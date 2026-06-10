@@ -40,4 +40,13 @@ public interface PersonalCalendarBlockRepository extends JpaRepository<PersonalC
            "AND p.startTime < :end AND p.endTime > :start")
     boolean existsOverlappingPersonalSessionForOwner(@Param("ownerId") Long ownerId, @Param("companyId") Long companyId,
                                                      @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Query("SELECT p FROM PersonalCalendarBlock p WHERE p.owner.id = :ownerId AND p.company.id = :companyId " +
+           "AND LOWER(p.task) = '__availability_block__'")
+    List<PersonalCalendarBlock> findAvailabilityBlockMarkersForOwner(@Param("ownerId") Long ownerId, @Param("companyId") Long companyId);
+
+    @Query("SELECT p FROM PersonalCalendarBlock p WHERE p.company.id = :companyId " +
+           "AND LOWER(p.task) = '__availability_block__'")
+    List<PersonalCalendarBlock> findAvailabilityBlockMarkersByCompany(@Param("companyId") Long companyId);
+
 }

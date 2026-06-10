@@ -667,7 +667,7 @@ public class SessionBookingCreationService {
             if (consultantOverlap) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a session at that time.");
             }
-            if (!allowPersonalBlockOverlap && personalBlocks.existsOverlappingPersonalSessionForOwner(consultantId, companyId, start, requestedBusyEnd)) {
+            if (!allowPersonalBlockOverlap && hasOverlappingPersonalOrAvailabilityBlock(consultantId, companyId, start, requestedBusyEnd)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a personal session at that time.");
             }
         }
@@ -689,6 +689,14 @@ public class SessionBookingCreationService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This space is already booked at that time.");
             }
         }
+    }
+
+    private boolean hasOverlappingPersonalOrAvailabilityBlock(Long consultantId, Long companyId, LocalDateTime start, LocalDateTime end) {
+        if (personalBlocks.existsOverlappingPersonalSessionForOwner(consultantId, companyId, start, end)) {
+            return true;
+        }
+        return personalBlocks.findAvailabilityBlockMarkersForOwner(consultantId, companyId).stream()
+                .anyMatch(block -> AvailabilityBlockMetadata.overlaps(block, start, end));
     }
 
     public boolean shouldEnforceSpaceOverlapProtection(

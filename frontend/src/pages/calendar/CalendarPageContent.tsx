@@ -68,6 +68,7 @@ import {
   ANDROID_PINCH_ZOOM_MAX,
   ANDROID_PINCH_ZOOM_MIN,
   AVAILABILITY_BLOCK_TASK,
+  AVAILABILITY_BLOCK_METADATA_PREFIX,
   CALENDAR_META_POLL_MS,
   CALENDAR_POLL_MS,
   CONSULTANT_RESOURCE_UNASSIGNED_ID,
@@ -2365,6 +2366,20 @@ export default function CalendarPage() {
     leaveCompactFormRouteIfNeeded()
   }
 
+  const buildAvailabilityBlockMarkerNotes = (payload: { dayOfWeek: string; startTime: string; endTime: string; indefinite: boolean; startDate: string | null; endDate: string | null }, anchorDate?: string) => {
+    const metadataStartDate = payload.indefinite ? (anchorDate || payload.startDate || '') : (payload.startDate || '')
+    const metadata = [
+      `dayOfWeek=${payload.dayOfWeek}`,
+      `startTime=${payload.startTime}`,
+      `endTime=${payload.endTime}`,
+      `indefinite=${payload.indefinite ? 'true' : 'false'}`,
+      `startDate=${metadataStartDate}`,
+      `endDate=${payload.indefinite ? '' : payload.endDate || ''}`,
+    ].join(';')
+    return `Availability blocked
+${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
+  }
+
   const saveAvailabilitySlot = async () => {
     if (!availabilitySelection) return
     setAvailabilityError(null)
@@ -2680,32 +2695,19 @@ export default function CalendarPage() {
 
       // Also add an availability-block marker so working-hours availability
       // is removed for this period as well (not only explicit slots).
-      const ownerId = consultantId
-      const blockCandidates = (calendarData.personal || [])
-        .filter((p: any) => (p.consultant?.id ?? p.consultantId ?? p.ownerId) === ownerId)
-        .filter((p: any) => String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK)
-      const reqStartMs = startDate.getTime()
-      const reqEndMs = endDate.getTime()
-      const covered = blockCandidates
-        .map((p: any) => ({
-          startMs: Math.max(reqStartMs, new Date(p.startTime).getTime()),
-          endMs: Math.min(reqEndMs, new Date(p.endTime).getTime()),
-        }))
-        .filter((r: any) => Number.isFinite(r.startMs) && Number.isFinite(r.endMs) && r.endMs > r.startMs)
-        .sort((a: any, b: any) => a.startMs - b.startMs)
-      let cursor = reqStartMs
-      for (const r of covered) {
-        if (r.endMs <= cursor) continue
-        if (r.startMs > cursor) break
-        cursor = Math.max(cursor, r.endMs)
-        if (cursor >= reqEndMs) break
-      }
-      if (cursor < reqEndMs) {
+      const blockNotes = buildAvailabilityBlockMarkerNotes(payload, availabilitySelection.startTime.slice(0, 10))
+      const alreadyHasSameRecurringBlock = (calendarData.personal || []).some((p: any) => {
+        const ownerId = p.consultant?.id ?? p.consultantId ?? p.ownerId
+        return ownerId === consultantId
+          && String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK
+          && String(p.notes || '') === blockNotes
+      })
+      if (!alreadyHasSameRecurringBlock) {
         await api.post('/bookings/personal-blocks', {
           startTime: availabilitySelection.startTime,
           endTime: availabilitySelection.endTime,
           task: AVAILABILITY_BLOCK_TASK,
-          notes: 'Availability blocked',
+          notes: blockNotes,
           consultantId: isTenantAdmin ? consultantId : undefined,
         })
       }
@@ -3569,7 +3571,7 @@ export default function CalendarPage() {
         const startStr = String(p.startTime || '')
         return [
           {
-            id: `avail-block-${p.id}`,
+            id: `avail-block-${p.id}-${String(p.startTime || '').replace(/[^0-9A-Za-z]/g, '')}`,
             title: '',
             display: 'background',
             start: p.startTime,

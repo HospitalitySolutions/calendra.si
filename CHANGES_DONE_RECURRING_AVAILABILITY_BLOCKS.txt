@@ -1,0 +1,8 @@
+Recurring availability block fix
+
+- Calendar Availability -> Block now stores a recurrence marker for the selected weekday/time.
+- Limited (Omejeno) blocks now apply to the same day of week and time between Datum od and Datum do.
+- Indefinite (Neskončno) blocks now apply to the same day of week and time from the selected date onward.
+- Guest mobile app and public website widget availability checks now respect these recurring block markers when validating slots.
+- Calendar data expands recurring block markers into the currently visible date range so the blocked periods are shown/hatched on the calendar.
+- Admin users can now update/delete personal availability-block markers for employees in the same company.
