@@ -16,6 +16,7 @@ import com.example.app.files.ClientFileUploadPolicy;
 import com.example.app.files.StoredFileResponse;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
+import com.example.app.user.Role;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalMessagingProviderService;
@@ -135,7 +136,8 @@ public class ClientMessageService {
             MessageChannel channel,
             MessageStatus status,
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            Long assignedUserId
     ) {}
 
     public record ThreadSummary(
@@ -153,7 +155,9 @@ public class ClientMessageService {
             String lastSenderPhone,
             Instant lastSentAt,
             long messageCount,
-            long unreadCount
+            long unreadCount,
+            Long assignedToId,
+            String assignedToName
     ) {}
 
     public record GuestThreadSummary(
@@ -199,10 +203,17 @@ public class ClientMessageService {
             String senderPhone,
             Instant sentAt,
             Instant createdAt,
-            List<MessageAttachmentView> attachments
+            List<MessageAttachmentView> attachments,
+            boolean internalNote
     ) {}
 
     public record SendMessageRequest(Long clientId, MessageChannel channel, String subject, String body, List<Long> attachmentFileIds) {}
+
+    public record InternalNoteRequest(String body) {}
+
+    public record AssigneeRequest(Long userId) {}
+
+    public record AssigneeView(Long clientId, Long assignedToId, String assignedToName) {}
 
     @Transactional(readOnly = true)
     public List<GuestThreadSummary> listGuestThreads(GuestUser guestUser, Long companyId) {
@@ -340,9 +351,14 @@ public class ClientMessageService {
 
         List<ThreadSummary> out = new ArrayList<>();
         for (List<ClientMessage> rows : grouped.values()) {
-            ClientMessage latest = rows.stream().max(Comparator.comparing(ClientMessage::getCreatedAt)).orElse(null);
+            // Internal notes are staff-only annotations; do not let them define the thread's channel/preview.
+            ClientMessage latest = rows.stream()
+                    .filter(row -> !row.isInternalNote())
+                    .max(Comparator.comparing(ClientMessage::getCreatedAt))
+                    .orElseGet(() -> rows.stream().max(Comparator.comparing(ClientMessage::getCreatedAt)).orElse(null));
             if (latest == null) continue;
             Client client = latest.getClient();
+            User assignee = client.getAssignedTo();
             User latestSender = latest.getSenderUser();
             String inboundSenderName = latest.getDirection() == MessageDirection.INBOUND ? clientDisplayName(client) : null;
             String inboundSenderPhone = latest.getDirection() == MessageDirection.INBOUND ? blankToNull(preferredPhone(client)) : null;
@@ -361,7 +377,9 @@ public class ClientMessageService {
                     blankToNull(latestSender != null ? latestSender.getPhone() : null) != null ? blankToNull(latestSender != null ? latestSender.getPhone() : null) : inboundSenderPhone,
                     latest.getSentAt() != null ? latest.getSentAt() : latest.getCreatedAt(),
                     rows.size(),
-                    countStaffUnread(rows, activeGuestLinksByClientId.get(client.getId()))
+                    countStaffUnread(rows, activeGuestLinksByClientId.get(client.getId())),
+                    assignee != null ? assignee.getId() : null,
+                    displayUserName(assignee)
             ));
         }
         out.sort(Comparator.comparing((ThreadSummary row) -> row.lastSentAt() != null ? row.lastSentAt() : Instant.EPOCH).reversed());
@@ -391,6 +409,51 @@ public class ClientMessageService {
         Client client = requireVisibleClient(me, request.clientId());
         List<ClientFile> attachmentFiles = resolveAttachmentFiles(me, client, request.attachmentFileIds());
         return sendInternal(me, client, request, attachmentFiles);
+    }
+
+    /** Creates a staff-only internal note on a conversation. Never delivered to the client. */
+    @Transactional
+    public MessageView createInternalNote(User me, Long clientId, String body) {
+        if (clientId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
+        Client client = requireVisibleClient(me, clientId);
+        String normalized = normalizeBody(body);
+        if (normalized.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Note body is required.");
+        ClientMessage row = new ClientMessage();
+        row.setCompany(me.getCompany());
+        row.setClient(client);
+        row.setSenderUser(me);
+        row.setDirection(MessageDirection.OUTBOUND);
+        row.setChannel(MessageChannel.EMAIL); // sentinel channel; internal notes are never delivered
+        row.setStatus(MessageStatus.SENT);
+        row.setRecipient("");
+        row.setBody(normalized);
+        row.setInternalNote(true);
+        row.setSentAt(Instant.now());
+        return toView(messages.save(row));
+    }
+
+    /** Admin-only: attach a conversation to an employee by setting the client's assigned consultant. */
+    @Transactional
+    public AssigneeView setAssignee(User me, Long clientId, Long userId) {
+        if (!SecurityUtils.isAdmin(me)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only admins can change the responsible employee.");
+        }
+        if (clientId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
+        Client client = clients.findByIdAndCompanyId(clientId, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found."));
+        if (userId == null) {
+            client.setAssignedTo(null);
+        } else {
+            User assignee = users.findByIdAndCompanyId(userId, me.getCompany().getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant."));
+            if (!assignee.isConsultant() && assignee.getRole() != Role.CONSULTANT) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant.");
+            }
+            client.setAssignedTo(assignee);
+        }
+        clients.save(client);
+        User saved = client.getAssignedTo();
+        return new AssigneeView(clientId, saved != null ? saved.getId() : null, displayUserName(saved));
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)
@@ -460,9 +523,13 @@ public class ClientMessageService {
 
     private MessageView sendInternal(User me, Client client, SendMessageRequest request, List<ClientFile> attachmentFiles) {
         MessageChannel channel = request.channel() == null ? MessageChannel.EMAIL : request.channel();
-        String body = normalizeBody(request.body());
+        String rawBody = normalizeBody(request.body());
+        String plainBody = htmlToPlainText(rawBody);
+        // Only email renders rich HTML; every other channel is plain text.
+        boolean asHtml = channel == MessageChannel.EMAIL && looksLikeHtml(rawBody);
+        String storedBody = asHtml ? rawBody : plainBody;
         List<ClientFile> safeAttachments = attachmentFiles == null ? List.of() : attachmentFiles;
-        if (body.isBlank() && safeAttachments.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body or at least one attachment is required.");
+        if (plainBody.isBlank() && safeAttachments.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body or at least one attachment is required.");
         if (!safeAttachments.isEmpty() && channel != MessageChannel.GUEST_APP) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Attachments are currently supported only for Guest App messages.");
         }
@@ -479,15 +546,15 @@ public class ClientMessageService {
         row.setChannel(channel);
         row.setStatus(MessageStatus.FAILED);
         row.setSubject(blankToNull(normalizeSubject(request.subject())));
-        row.setBody(body);
+        row.setBody(storedBody);
 
         try {
             ChannelDeliveryResult result = switch (channel) {
-                case EMAIL -> sendEmail(client, row.getSubject(), body, me);
-                case SMS -> sendSmsText(client, body);
-                case WHATSAPP -> sendWhatsAppText(client, row.getSubject(), body, me);
-                case VIBER -> sendViberText(client, body);
-                case GUEST_APP -> sendGuestAppMessage(client, body, me, row, safeAttachments);
+                case EMAIL -> sendEmail(client, row.getSubject(), rawBody, plainBody, asHtml, me);
+                case SMS -> sendSmsText(client, plainBody);
+                case WHATSAPP -> sendWhatsAppText(client, row.getSubject(), plainBody, me);
+                case VIBER -> sendViberText(client, plainBody);
+                case GUEST_APP -> sendGuestAppMessage(client, plainBody, me, row, safeAttachments);
             };
             row.setRecipient(result.recipient());
             row.setExternalMessageId(result.externalMessageId());
@@ -692,6 +759,10 @@ public class ClientMessageService {
     private boolean matchesFilter(ClientMessage row, ThreadFilter filter) {
         if (filter == null) return true;
         if (filter.clientId() != null && !Objects.equals(row.getClient().getId(), filter.clientId())) return false;
+        if (filter.assignedUserId() != null) {
+            User assignee = row.getClient().getAssignedTo();
+            if (assignee == null || !Objects.equals(assignee.getId(), filter.assignedUserId())) return false;
+        }
         if (filter.channel() != null && row.getChannel() != filter.channel()) return false;
         if (filter.status() != null && row.getStatus() != filter.status()) return false;
         if (filter.from() != null) {
@@ -936,7 +1007,8 @@ public class ClientMessageService {
                 blankToNull(senderUser != null ? senderUser.getPhone() : null) != null ? blankToNull(senderUser != null ? senderUser.getPhone() : null) : inboundSenderPhone,
                 row.getSentAt(),
                 row.getCreatedAt(),
-                toAttachmentViews(row)
+                toAttachmentViews(row),
+                row.isInternalNote()
         );
     }
 
@@ -986,17 +1058,21 @@ public class ClientMessageService {
         return new ChannelDeliveryResult(recipient, null, delivery.delivered() ? MessageStatus.DELIVERED : MessageStatus.SENT);
     }
 
-    private ChannelDeliveryResult sendEmail(Client client, String subject, String body, User me) {
+    private ChannelDeliveryResult sendEmail(Client client, String subject, String htmlBody, String plainBody, boolean asHtml, User me) {
         String to = blankToNull(client.getEmail());
         if (to == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client does not have an email address.");
         if (!mailConfigured || mailSender == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is not configured on the server.");
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
+            MimeMessageHelper helper = new MimeMessageHelper(message, asHtml, StandardCharsets.UTF_8.name());
             helper.setFrom(resolveFromAddress());
             helper.setTo(to);
             helper.setSubject(subject == null || subject.isBlank() ? defaultSubject(client) : subject);
-            helper.setText(body, false);
+            if (asHtml) {
+                helper.setText(plainBody, htmlBody);
+            } else {
+                helper.setText(plainBody, false);
+            }
             String replyTo = readSetting(client.getCompany().getId(), SettingKey.COMPANY_EMAIL);
             if (replyTo != null && !replyTo.isBlank()) helper.setReplyTo(replyTo.trim());
             else if (me.getEmail() != null && !me.getEmail().isBlank()) helper.setReplyTo(me.getEmail().trim());
@@ -1244,6 +1320,28 @@ public class ClientMessageService {
 
     private static String normalizeBody(String value) {
         return value == null ? "" : value.replace("\r\n", "\n").trim();
+    }
+
+    private static boolean looksLikeHtml(String value) {
+        return value != null && value.matches("(?s).*<[a-zA-Z][\\s\\S]*>.*");
+    }
+
+    /** Converts editor HTML to a readable plain-text equivalent for non-HTML channels and email fallback. */
+    private static String htmlToPlainText(String value) {
+        if (value == null) return "";
+        String text = value
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</(p|div|h[1-6]|li|blockquote|tr)>", "\n")
+                .replaceAll("(?i)<li[^>]*>", "• ")
+                .replaceAll("<[^>]+>", "");
+        text = text.replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'");
+        text = text.replaceAll("\n{3,}", "\n\n");
+        return text.trim();
     }
 
     private static String normalizeSubject(String value) {

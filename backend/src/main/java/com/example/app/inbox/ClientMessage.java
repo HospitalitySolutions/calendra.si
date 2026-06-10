@@ -69,6 +69,10 @@ public class ClientMessage extends BaseEntity {
     @Column(length = 2000)
     private String errorMessage;
 
+    /** Staff-only note attached to a conversation; never delivered to the client. */
+    @Column(nullable = false)
+    private boolean internalNote = false;
+
     private Instant sentAt;
     @OneToMany(mappedBy = "message", fetch = FetchType.LAZY, orphanRemoval = true)
     @OrderBy("createdAt asc, id asc")

@@ -14,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,9 +42,10 @@ public class ClientMessageController {
             @RequestParam(required = false) MessageChannel channel,
             @RequestParam(required = false) MessageStatus status,
             @RequestParam(required = false) LocalDate from,
-            @RequestParam(required = false) LocalDate to
+            @RequestParam(required = false) LocalDate to,
+            @RequestParam(required = false) Long assignedUserId
     ) {
-        return service.listThreads(me, new ClientMessageService.ThreadFilter(search, clientId, channel, status, from, to));
+        return service.listThreads(me, new ClientMessageService.ThreadFilter(search, clientId, channel, status, from, to, assignedUserId));
     }
 
     @GetMapping("/global-capabilities")
@@ -68,6 +70,24 @@ public class ClientMessageController {
             @RequestBody ClientMessageService.SendMessageRequest request
     ) {
         return service.send(me, request);
+    }
+
+    @PostMapping("/clients/{clientId}/notes")
+    public ClientMessageService.MessageView createInternalNote(
+            @AuthenticationPrincipal User me,
+            @PathVariable Long clientId,
+            @RequestBody ClientMessageService.InternalNoteRequest request
+    ) {
+        return service.createInternalNote(me, clientId, request == null ? null : request.body());
+    }
+
+    @PutMapping("/clients/{clientId}/assignee")
+    public ClientMessageService.AssigneeView setAssignee(
+            @AuthenticationPrincipal User me,
+            @PathVariable Long clientId,
+            @RequestBody ClientMessageService.AssigneeRequest request
+    ) {
+        return service.setAssignee(me, clientId, request == null ? null : request.userId());
     }
 
     @PostMapping(value = "/clients/{clientId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

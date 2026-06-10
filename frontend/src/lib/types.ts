@@ -397,6 +397,8 @@ export type InboxThread = {
   lastSentAt?: string | null
   messageCount: number
   unreadCount?: number
+  assignedToId?: number | null
+  assignedToName?: string | null
 }
 
 export type MessageAttachment = {
@@ -426,6 +428,7 @@ export type ClientMessage = {
   sentAt?: string | null
   createdAt: string
   attachments?: MessageAttachment[]
+  internalNote?: boolean
 }
 
 export type SettingsMap = Record<string, string>

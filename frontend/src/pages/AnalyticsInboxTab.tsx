@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import DOMPurify from 'dompurify'
 import { api } from '../api'
+import { getStoredUser } from '../auth'
 import { useToast } from '../components/Toast'
 import { Card, EmptyState, Field, Pill, SectionTitle } from '../components/ui'
+import { RichTextEditor } from '../components/RichTextEditor'
 import type { Client, ClientGroup, ClientMessage, InboxChannel, InboxStatus, InboxThread } from '../lib/types'
 import { formatDateTime } from '../lib/format'
 import { useLocale } from '../locale'
+
+type ConsultantOption = { id: number; firstName: string; lastName: string; email: string; consultant?: boolean }
+
+// Returns true when stripped HTML still contains visible text.
+function richTextHasContent(html: string): boolean {
+  if (!html) return false
+  return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').trim().length > 0
+}
+
+const HTML_TAG_RE = /<[a-z][\s\S]*>/i
 
 const CHANNELS: InboxChannel[] = ['EMAIL', 'SMS', 'WHATSAPP', 'VIBER', 'GUEST_APP']
 type RecipientMode = 'single' | 'bulk' | 'group'
@@ -691,6 +704,14 @@ export function AnalyticsInboxTab() {
   const [composeBody, setComposeBody] = useState('')
   const [composeAttachments, setComposeAttachments] = useState<ComposeAttachmentItem[]>([])
   const [sending, setSending] = useState(false)
+  const [composerTab, setComposerTab] = useState<'reply' | 'note'>('reply')
+  const [noteBody, setNoteBody] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [savingAssignee, setSavingAssignee] = useState(false)
+  const [assigneeFilter, setAssigneeFilter] = useState<number | ''>('')
+
+  const me = getStoredUser()
+  const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
   const [threadTab, setThreadTab] = useState<'all' | 'unread' | 'scheduled' | 'campaigns'>('all')
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [scheduleView, setScheduleView] = useState<ScheduleView>('list')
@@ -716,6 +737,15 @@ export function AnalyticsInboxTab() {
     queryFn: async () => {
       const res = await api.get<ClientGroup[]>('/groups')
       return res.data ?? []
+    },
+  })
+
+  const consultantsQuery = useQuery<ConsultantOption[]>({
+    queryKey: ['inbox-consultants'],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const res = await api.get<ConsultantOption[]>('/users')
+      return (res.data ?? []).filter((user) => user.consultant)
     },
   })
 
@@ -758,7 +788,7 @@ export function AnalyticsInboxTab() {
   )
 
   const threadsQuery = useQuery<InboxThread[]>({
-    queryKey: ['inbox-threads', search, clientIdFilter, channelFilter, statusFilter, from, to],
+    queryKey: ['inbox-threads', search, clientIdFilter, channelFilter, statusFilter, from, to, assigneeFilter],
     refetchInterval: 10000,
     queryFn: async () => {
       const res = await api.get<InboxThread[]>('/inbox/threads', {
@@ -769,6 +799,7 @@ export function AnalyticsInboxTab() {
           status: statusFilter || undefined,
           from: from || undefined,
           to: to || undefined,
+          assignedUserId: isAdmin && assigneeFilter ? Number(assigneeFilter) : undefined,
         },
       })
       return res.data ?? []
@@ -964,10 +995,11 @@ export function AnalyticsInboxTab() {
     })
   }, [recipientMode, activeGroups])
 
+  const composeBodyHasText = richTextHasContent(composeBody)
   const canAttachFiles = recipientMode === 'single' && composeChannel === 'GUEST_APP' && selectedClientId != null
-  const singleSendReady = !!selectedClientId && (!!composeBody.trim() || composeAttachments.length > 0) && isClientEligibleForChannel(selectedClient, composeChannel)
-  const bulkSendReady = composeChannel !== 'VIBER' && composeChannel !== 'GUEST_APP' && !!composeBody.trim() && eligibleBulkClients.length > 0
-  const groupSendReady = !!selectedGroup && !!composeBody.trim() && eligibleGroupClients.length > 0
+  const singleSendReady = !!selectedClientId && (composeBodyHasText || composeAttachments.length > 0) && isClientEligibleForChannel(selectedClient, composeChannel)
+  const bulkSendReady = composeChannel !== 'VIBER' && composeChannel !== 'GUEST_APP' && composeBodyHasText && eligibleBulkClients.length > 0
+  const groupSendReady = !!selectedGroup && composeBodyHasText && eligibleGroupClients.length > 0
 
   const toggleBulkClient = (clientId: number) => {
     setBulkSelectedClientIds((prev) => (
@@ -1092,7 +1124,7 @@ export function AnalyticsInboxTab() {
   }
 
   const sendSingleMessage = async () => {
-    if (!selectedClientId || (!composeBody.trim() && composeAttachments.length === 0)) return
+    if (!selectedClientId || (!composeBodyHasText && composeAttachments.length === 0)) return
     setSending(true)
     try {
       let attachmentFileIds: number[] = []
@@ -1123,7 +1155,7 @@ export function AnalyticsInboxTab() {
 
   const sendBulkMessage = async () => {
     const eligibleRecipients = eligibleBulkClients
-    if (!eligibleRecipients.length || !composeBody.trim()) return
+    if (!eligibleRecipients.length || !composeBodyHasText) return
 
     setSending(true)
     try {
@@ -1171,7 +1203,7 @@ export function AnalyticsInboxTab() {
 
   const sendGroupMessage = async () => {
     const eligibleRecipients = eligibleGroupClients
-    if (!selectedGroup || !eligibleRecipients.length || !composeBody.trim()) return
+    if (!selectedGroup || !eligibleRecipients.length || !composeBodyHasText) return
 
     setSending(true)
     try {
@@ -1227,6 +1259,35 @@ export function AnalyticsInboxTab() {
       return
     }
     await sendSingleMessage()
+  }
+
+  const addInternalNote = async () => {
+    if (!selectedClientId || !richTextHasContent(noteBody)) return
+    setSavingNote(true)
+    try {
+      await api.post(`/inbox/clients/${selectedClientId}/notes`, { body: noteBody })
+      setNoteBody('')
+      showToast('success', locale === 'sl' ? 'Interna opomba je dodana.' : 'Internal note added.')
+      await invalidateInboxQueries([selectedClientId])
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || copy.sendFailed)
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const updateAssignee = async (userId: number | null) => {
+    if (!selectedClientId || !isAdmin) return
+    setSavingAssignee(true)
+    try {
+      await api.put(`/inbox/clients/${selectedClientId}/assignee`, { userId })
+      showToast('success', locale === 'sl' ? 'Odgovorni zaposleni je posodobljen.' : 'Responsible employee updated.')
+      await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || copy.sendFailed)
+    } finally {
+      setSavingAssignee(false)
+    }
   }
 
   const resetScheduleDraft = () => {
@@ -1353,6 +1414,11 @@ export function AnalyticsInboxTab() {
     once: 'Enkratno',
     repeat: 'Ponovi',
     noScheduled: 'Ni razporejenih sporočil.',
+    addNote: 'Dodaj opombo',
+    addNotePlaceholder: 'Napišite interno opombo …',
+    internalNoteHint: 'Vidno samo zaposlenim',
+    searchEmployee: 'Vsi zaposleni',
+    unassigned: 'Nedodeljeno',
   } : {
     title: 'Inbox',
     subtitle: 'Central communication hub for email, SMS, WhatsApp, Viber and Guest App. All conversations in one place.',
@@ -1413,6 +1479,11 @@ export function AnalyticsInboxTab() {
     once: 'Once',
     repeat: 'Repeat',
     noScheduled: 'No scheduled messages.',
+    addNote: 'Add note',
+    addNotePlaceholder: 'Write an internal note …',
+    internalNoteHint: 'Visible to staff only',
+    searchEmployee: 'All employees',
+    unassigned: 'Unassigned',
   }
 
   const statusOptions: InboxStatus[] = ['RECEIVED', 'SENT', 'DELIVERED', 'READ', 'FAILED']
@@ -1547,6 +1618,14 @@ export function AnalyticsInboxTab() {
           <option value="">{ui.allStatuses}</option>
           {statusOptions.map((status) => <option key={status} value={status}>{statusLabel(status, copy)}</option>)}
         </select>
+        {isAdmin ? (
+          <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value ? Number(e.target.value) : '')} aria-label={ui.responsible}>
+            <option value="">{ui.searchEmployee}</option>
+            {(consultantsQuery.data ?? []).map((employee) => (
+              <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
+            ))}
+          </select>
+        ) : null}
         <label className="analytics-inbox-b-date-range">
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
           <span>→</span>
@@ -1624,7 +1703,22 @@ export function AnalyticsInboxTab() {
               </div>
             </div>
             <div className="analytics-inbox-b-conversation-actions">
-              <button type="button" className="analytics-inbox-b-assignee">{ui.responsible}: <strong>Sara Admin</strong>⌄</button>
+              {isAdmin && selectedClientId != null ? (
+                <label className="analytics-inbox-b-assignee">{ui.responsible}:
+                  <select
+                    value={selectedThread?.assignedToId ?? ''}
+                    disabled={savingAssignee}
+                    onChange={(e) => updateAssignee(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">{ui.unassigned}</option>
+                    {(consultantsQuery.data ?? []).map((employee) => (
+                      <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <span className="analytics-inbox-b-assignee">{ui.responsible}: <strong>{selectedThread?.assignedToName || ui.unassigned}</strong></span>
+              )}
               <button type="button" className="analytics-inbox-b-status">{ui.statusOpen}⌄</button>
               <button type="button" className="analytics-inbox-b-icon-btn">＋</button>
               <button type="button" className="analytics-inbox-b-icon-btn">☆</button>
@@ -1648,14 +1742,31 @@ export function AnalyticsInboxTab() {
               <EmptyState title={copy.noSavedMessagesTitle} text={copy.noSavedMessagesText} />
             ) : recentMessages.map((message) => {
               const inbound = message.direction === 'INBOUND'
-              const label = messageSenderLabel(message, copy) || (inbound ? selectedClientName : 'Sara Admin')
+              const label = messageSenderLabel(message, copy) || (inbound ? selectedClientName : 'Admin')
+              if (message.internalNote) {
+                return (
+                  <div key={message.id} className="analytics-inbox-b-note">
+                    <strong>⚠ {ui.internalNote} – {label} · {compactDateTime(message.sentAt || message.createdAt)}</strong>
+                    {HTML_TAG_RE.test(message.body || '') ? (
+                      <div className="analytics-inbox-b-bubble-html" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.body || '') }} />
+                    ) : (
+                      <p>{message.body}</p>
+                    )}
+                  </div>
+                )
+              }
+              const renderHtml = message.direction === 'OUTBOUND' && message.channel === 'EMAIL' && HTML_TAG_RE.test(message.body || '')
               return (
                 <article key={message.id} className={`analytics-inbox-b-message analytics-inbox-b-message--${inbound ? 'inbound' : 'outbound'}`}>
                   <div className="analytics-inbox-b-message-avatar">{inbound ? selectedClientInitials : 'SA'}</div>
                   <div className="analytics-inbox-b-bubble">
                     <div className="analytics-inbox-b-bubble-head"><strong>{label}</strong><time>{compactDateTime(message.sentAt || message.createdAt)}</time></div>
                     {message.subject ? <div className="analytics-inbox-b-bubble-subject">{message.subject}</div> : null}
-                    <p>{message.body}</p>
+                    {renderHtml ? (
+                      <div className="analytics-inbox-b-bubble-html" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.body || '') }} />
+                    ) : (
+                      <p>{message.body}</p>
+                    )}
                     {message.attachments?.length ? (
                       <div className="analytics-inbox-b-message-attachments">
                         {message.attachments.map((attachment) => (
@@ -1670,24 +1781,39 @@ export function AnalyticsInboxTab() {
             })}
           </div>
 
-          <div className="analytics-inbox-b-note">
-            <strong>⚠ {ui.internalNote} – Sara Admin · {compactDateTime(new Date().toISOString())}</strong>
-            <p>{locale === 'sl' ? 'Stranka želi posodobitev ali potrditev. Preveri razpoložljivost in pošlji jasen odgovor.' : 'Client needs an update or confirmation. Check availability and send a clear reply.'}</p>
-            <button type="button">⋯</button>
-          </div>
-
           <div className="analytics-inbox-b-composer">
-            <div className="analytics-inbox-b-composer-tabs"><button type="button" className="active">{ui.reply}</button><button type="button">{ui.internalNote}</button></div>
-            {composeChannel === 'EMAIL' ? (
-              <input className="analytics-inbox-b-subject-input" value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder={ui.subject} />
-            ) : null}
-            <textarea value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder={ui.writeReply} rows={4} />
-            <div className="analytics-inbox-b-composer-bottom">
-              <div className="analytics-inbox-b-editor-icons" aria-hidden="true"><span>📎</span><span>☺</span><span>↗</span><span>B</span><span>I</span><span>≡</span><span>🔗</span></div>
-              <button type="button" onClick={sendMessage} disabled={sending || (recipientMode === 'bulk' ? !bulkSendReady : recipientMode === 'group' ? !groupSendReady : !singleSendReady)}>
-                {sending ? copy.sending : ui.send}⌄
-              </button>
+            <div className="analytics-inbox-b-composer-tabs">
+              <button type="button" className={composerTab === 'reply' ? 'active' : ''} onClick={() => setComposerTab('reply')}>{ui.reply}</button>
+              <button type="button" className={composerTab === 'note' ? 'active' : ''} onClick={() => setComposerTab('note')}>{ui.internalNote}</button>
             </div>
+            {composerTab === 'reply' ? (
+              <>
+                {composeChannel === 'EMAIL' ? (
+                  <input className="analytics-inbox-b-subject-input" value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder={ui.subject} />
+                ) : null}
+                <div className="analytics-inbox-b-editor-wrap">
+                  <RichTextEditor valueHtml={composeBody} onChangeHtml={setComposeBody} placeholder={ui.writeReply} minHeight={120} />
+                </div>
+                <div className="analytics-inbox-b-composer-bottom">
+                  <span className="analytics-inbox-b-editor-hint">{channelLabel(composeChannel)}</span>
+                  <button type="button" onClick={sendMessage} disabled={sending || (recipientMode === 'bulk' ? !bulkSendReady : recipientMode === 'group' ? !groupSendReady : !singleSendReady)}>
+                    {sending ? copy.sending : ui.send}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="analytics-inbox-b-editor-wrap">
+                  <RichTextEditor valueHtml={noteBody} onChangeHtml={setNoteBody} placeholder={ui.addNotePlaceholder} minHeight={100} />
+                </div>
+                <div className="analytics-inbox-b-composer-bottom">
+                  <span className="analytics-inbox-b-editor-hint">{ui.internalNoteHint}</span>
+                  <button type="button" onClick={addInternalNote} disabled={savingNote || !selectedClientId || !richTextHasContent(noteBody)}>
+                    {savingNote ? copy.sending : ui.addNote}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </main>
 
