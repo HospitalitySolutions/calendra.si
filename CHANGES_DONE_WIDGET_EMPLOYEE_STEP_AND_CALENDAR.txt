@@ -1,0 +1,23 @@
+Updated files:
+- backend/src/main/resources/static/widget/calendra-booking-widget.js
+
+Changes done:
+1. Added a separate Employee/Zaposleni step when the tenant Website configuration has Korak izbire zaposlenega enabled.
+   - Progress steps now become: Storitev -> Zaposleni -> Datum in ura -> Plačilo in pregled.
+   - When the setting is disabled, the widget keeps the shorter flow without the employee step.
+   - Group-session services still skip employee selection because the employee comes from the selected group session.
+
+2. Removed employee names from the Izberite uro time-slot buttons.
+   - Time buttons now show only the time label.
+   - Selected employee is still preserved internally for booking submission when the employee step is enabled.
+
+3. Date/time step no longer embeds the employee picker.
+   - Employee selection is only shown in the new Zaposleni step.
+
+4. Fixed selected calendar date readability.
+   - The selected date number is forced to white with stronger font weight so it remains visible on the blue selected-day circle.
+
+5. Updated Slovenian wording from svetovalec to zaposleni where this widget flow references employee selection.
+
+Validation:
+- Ran node --check on calendra-booking-widget.js successfully.

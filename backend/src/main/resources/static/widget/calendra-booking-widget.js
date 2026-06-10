@@ -151,8 +151,8 @@
       detailsSubtitle: 'Preverite svoje podatke in dokončajte rezervacijo.',
       serviceHelp: 'Izberite storitev, ki najbolje ustreza vašim potrebam. Na naslednjem koraku boste izbrali datum in uro.',
       selectedService: 'Izbrana storitev',
-      chooseConsultantOptional: 'Izberite svetovalca (neobvezno)',
-      chooseConsultantRequired: 'Izberite svetovalca',
+      chooseConsultantOptional: 'Izberite zaposlenega (neobvezno)',
+      chooseConsultantRequired: 'Izberite zaposlenega',
       availableDate: 'Razpoložljiv datum',
       unavailableDate: 'Ni na voljo',
       secureData: 'Vaši podatki so varni in zaščiteni.',
@@ -227,13 +227,13 @@
       summaryTime: 'Ura',
       summaryDuration: 'Trajanje',
       summaryEmployee: 'Zaposleni',
-      summaryConsultant: 'Svetovalec',
+      summaryConsultant: 'Zaposleni',
       summaryTotal: 'Skupaj',
       summaryPrice: 'Cena',
-      consultantRequiredHint: 'Najprej izberite svetovalca za prikaz prostih terminov.',
+      consultantRequiredHint: 'Najprej izberite zaposlenega za prikaz prostih terminov.',
       noSlots: 'Za izbrani datum ni prostih terminov.',
       verificationRequired: 'Izpolnite varnostni preveritveni izziv.',
-      noConsultants: 'Za to storitev ni razpoložljivih svetovalcev.',
+      noConsultants: 'Za to storitev ni razpoložljivih zaposlenih.',
       chooseTime: 'Izberite uro',
       refreshAvailability: 'Osveži razpoložljivost',
       refreshSlots: 'Osveži termine',
@@ -247,10 +247,10 @@
       chooseTimeError: 'Izberite uro.',
       failedToLoad: 'Widgeta ni bilo mogoče naložiti.',
       failedToLoadAvailability: 'Razpoložljivosti ni bilo mogoče naložiti.',
-      failedToLoadConsultants: 'Svetovalcev ni bilo mogoče naložiti.',
+      failedToLoadConsultants: 'Zaposlenih ni bilo mogoče naložiti.',
       bookingFailed: 'Rezervacija ni uspela.',
       service: 'storitev',
-      consultant: 'svetovalec',
+      consultant: 'zaposlenega',
       date: 'datum',
       time: 'ura',
       firstName: 'ime',
@@ -497,11 +497,17 @@
 
     stepDefinitions() {
       const t = this.text();
-      return [
+      const steps = [
         { id: 'service', label: t.stepService },
+      ];
+      if (this.shouldShowConsultantStep()) {
+        steps.push({ id: 'consultant', label: t.stepConsultant });
+      }
+      steps.push(
         { id: 'datetime', label: t.stepDateTime },
         { id: 'details', label: t.stepGuest },
-      ];
+      );
+      return steps;
     }
 
     defaultPaymentMethod(config = this.state.config) {
@@ -517,6 +523,7 @@
     activeStepHeadline() {
       const t = this.text();
       if (this.state.bookingSuccess) return t.confirmed;
+      if (this.state.activeStep === 'consultant') return t.sectionConsultant || t.chooseConsultantRequired;
       if (this.state.activeStep === 'datetime') return t.dateTitle || t.sectionDateTime;
       if (this.state.activeStep === 'details') return t.detailsTitle || t.sectionGuest;
       return t.title;
@@ -525,6 +532,7 @@
     activeStepSubtitle() {
       const t = this.text();
       if (this.state.bookingSuccess) return t.confirmationSent;
+      if (this.state.activeStep === 'consultant') return '';
       if (this.state.activeStep === 'datetime') return t.dateSubtitle || t.subtitle;
       if (this.state.activeStep === 'details') return t.detailsSubtitle || t.summaryPrivacyText;
       return t.subtitle;
@@ -1546,9 +1554,9 @@
         `;
       }
 
-      if (this.state.activeStep === 'datetime') {
-        const consultantCards = showConsultantPicker && !this.currentServiceSupportsGroupSessions() ? `
-          <div class="consultants-block">
+      if (this.state.activeStep === 'consultant') {
+        const consultantOptionsMarkup = `
+          <div class="consultants-block consultants-block--step">
             <div class="block-title">${escapeHtml(this.consultantSelectionOptional() ? t.chooseConsultantOptional : t.chooseConsultantRequired)}</div>
             <div class="consultant-row">
               ${this.state.consultants.length ? this.state.consultants.map((item) => `
@@ -1560,8 +1568,31 @@
               `).join('') : `<div class="empty">${escapeHtml(t.noConsultants)}</div>`}
             </div>
           </div>
-        ` : '';
+        `;
 
+        return `
+          <section class="panel-section panel-section--consultant">
+            <div class="selected-service-card">
+              ${this.serviceIconMarkup(service, 0)}
+              <span>
+                <small>${escapeHtml(t.selectedService)}</small>
+                <strong>${escapeHtml(this.serviceDisplayName(service))}</strong>
+                <em>${this.uiIcon('clock')}${escapeHtml(String(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service?.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</em>
+              </span>
+            </div>
+            ${consultantOptionsMarkup}
+            <div class="panel-actions panel-actions--footer">
+              <div class="trust-note">${this.uiIcon('shield')}<span>${escapeHtml(t.secureData)}</span></div>
+              <div class="action-pair">
+                <button class="secondary" type="button" data-action="back">${this.uiIcon('arrowLeft')} ${escapeHtml(t.back)}</button>
+                <button class="primary" type="button" data-action="next" ${!this.isStepComplete('consultant') ? 'disabled' : ''}>${escapeHtml(t.continue)} ${this.uiIcon('arrowRight')}</button>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      if (this.state.activeStep === 'datetime') {
         const groupSessionsMarkup = `
           <div class="times-card times-card--clean">
             <div class="block-title">${escapeHtml(t.groupSessionsTitle)}</div>
@@ -1619,7 +1650,6 @@
                           data-consultant-name="${escapeHtml(slot.consultantName || '')}"
                         >
                           <span>${escapeHtml(slot.label)}</span>
-                          ${((!showConsultantPicker || !this.state.selectedConsultantId) && slot.consultantName) ? `<small>${escapeHtml(slot.consultantName)}</small>` : ''}
                         </button>
                       `).join('')}</div>`
                     : `<div class="empty">${escapeHtml(t.noSlots)}</div>`}
@@ -1649,7 +1679,6 @@
                     <em>${this.uiIcon('clock')}${escapeHtml(String(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service?.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</em>
                   </span>
                 </div>
-                ${consultantCards}
                 ${this.currentServiceSupportsGroupSessions() ? groupSessionsMarkup : slotsMarkup}
               </div>
             </div>
@@ -1896,6 +1925,7 @@
         .calendar-cell i { position: absolute; bottom: 8px; left: 50%; width: 5px; height: 5px; border-radius: 999px; background: var(--calendra-primary); transform: translateX(-50%); }
         .calendar-cell:not(.is-unavailable):not(.is-outside) { background: rgba(15,107,255,.08); color: var(--calendra-primary); }
         .calendar-cell.is-selected { background: var(--calendra-primary) !important; color: #fff; box-shadow: 0 13px 24px rgba(15,107,255,.22); }
+        .calendar-cell.is-selected span { color: #fff !important; font-weight: 900; text-shadow: 0 1px 2px rgba(0,0,0,.18); }
         .calendar-cell.is-selected i { background: #fff; }
         .calendar-cell.is-outside { color: #b4bdcc; background: transparent; }
         .calendar-cell.is-unavailable { color: #9099aa; cursor: default; }
@@ -1911,6 +1941,8 @@
         .selected-service-card strong { font-size: 17px; font-weight: 850; }
         .selected-service-card em { display: inline-flex; align-items: center; gap: 7px; color: #536079; font-style: normal; font-weight: 650; }
         .consultants-block { display: grid; gap: 12px; }
+        .panel-section--consultant .selected-service-card { margin-bottom: 20px; }
+        .panel-section--consultant .consultants-block { max-width: 820px; }
         .consultant-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
         .consultant-pill {
           min-height: 78px;
@@ -2145,6 +2177,7 @@
 
           this.setState({
             selectedServiceId: Number(button.dataset.id),
+            selectedConsultantId: null,
             bookingSuccess: null,
             error: '',
             selectedSlot: null,
