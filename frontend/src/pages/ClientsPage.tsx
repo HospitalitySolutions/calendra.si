@@ -1058,7 +1058,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setErrorMessage('')
     try {
       const response = await api.get(`/clients`)
-      setClients(response.data ?? [])
+      const rows = response.data ?? []
+      setClients(rows)
+      setDetailClient((current) => {
+        if (!current) return current
+        return rows.find((row: Client) => row.id === current.id) ?? current
+      })
     } catch (error: any) {
       if (error?.response?.status === 403) setErrorMessage('You are not allowed to view clients. Please log in again.')
       else setErrorMessage('Failed to load clients.')
@@ -1302,6 +1307,33 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       .finally(() => { if (!cancelled) setDetailGroupSessionsLoading(false) })
     return () => { cancelled = true }
   }, [detailGroup])
+
+  useEffect(() => {
+    const onBookingsUpdated = () => {
+      void loadClients()
+      const clientId = detailClient?.id
+      if (clientId) {
+        setDetailSessionsLoading(true)
+        setDetailSessionsError('')
+        api
+          .get<ClientSession[]>(`/clients/${clientId}/bookings`)
+          .then((res) => setDetailSessions(res.data ?? []))
+          .catch(() => setDetailSessionsError('Failed to load sessions.'))
+          .finally(() => setDetailSessionsLoading(false))
+      }
+      const groupId = detailGroup?.id
+      if (groupId) {
+        setDetailGroupSessionsLoading(true)
+        api
+          .get<ClientSession[]>(`/groups/${groupId}/bookings`)
+          .then((res) => setDetailGroupSessions(res.data ?? []))
+          .catch(() => {})
+          .finally(() => setDetailGroupSessionsLoading(false))
+      }
+    }
+    window.addEventListener('bookings-updated', onBookingsUpdated)
+    return () => window.removeEventListener('bookings-updated', onBookingsUpdated)
+  }, [detailClient?.id, detailGroup?.id])
 
   useEffect(() => {
     if (!isAdmin) return

@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -311,9 +312,17 @@ public class SessionBookingCreationService {
                     existingRows, groupKey, req, me, start, end, companyId, meetingLink, targetStoredStatus);
         }
         var existingByClientId = new java.util.LinkedHashMap<Long, SessionBooking>();
+        boolean singleClientReplacement = representative.getClientGroup() == null
+                && existingRows.size() == 1
+                && requestedClientIds.size() == 1;
+        Long replacementClientId = singleClientReplacement ? requestedClientIds.get(0) : null;
         for (var row : existingRows) {
             if (row.getClient() != null) {
-                existingByClientId.put(row.getClient().getId(), row);
+                Long mapKey = row.getClient().getId();
+                if (singleClientReplacement && replacementClientId != null && replacementClientId > 0) {
+                    mapKey = replacementClientId;
+                }
+                existingByClientId.put(mapKey, row);
             }
         }
         List<SessionBooking> saved = new ArrayList<>();
@@ -323,6 +332,8 @@ public class SessionBookingCreationService {
             boolean previouslyBlockedAvailability = false;
             LocalDateTime previousStart = null;
             LocalDateTime previousEnd = null;
+            Long previousClientId = null;
+            boolean clientChanged = false;
             if (row == null) {
                 row = new SessionBooking();
                 row.setBookingGroupKey(groupKey);
@@ -331,16 +342,29 @@ public class SessionBookingCreationService {
                 previouslyBlockedAvailability = SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus());
                 previousStart = row.getStartTime();
                 previousEnd = row.getEndTime();
+                previousClientId = row.getClient() != null ? row.getClient().getId() : null;
+                clientChanged = previousClientId != null && !Objects.equals(previousClientId, clientId);
+                if (clientChanged) {
+                    // Switching a one-client session to another guest should move the existing row,
+                    // not leave the original client attached through a stale grouped row.
+                    reminderService.sendSessionCancelled(row);
+                    restoreGuestCreditForBooking(row);
+                }
             }
             applySharedFields(row, req, me, start, end, companyId, meetingLink, targetStoredStatus);
             row.setBookingGroupKey(groupKey);
             row.setClient(requireClient(clientId, companyId, me));
             row.setClientGroup(representative.getClientGroup());
+            if (clientChanged) {
+                row.setGuestUserId(null);
+                row.setSourceOrderId(null);
+                row.setSourceChannel("STAFF");
+            }
             mergeSessionGroupOverrides(row, req, companyId, representative.getClientGroup());
             mergeSessionPayeeOverride(row, req, companyId, clientId);
             row = repo.save(row);
             saved.add(row);
-            if (created) {
+            if (created || clientChanged) {
                 reminderService.sendBookingConfirmation(row);
             } else {
                 restoreGuestCreditIfNoLongerBlocking(row, previouslyBlockedAvailability);

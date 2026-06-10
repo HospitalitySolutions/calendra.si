@@ -1,0 +1,6 @@
+Client session reassignment fix
+
+- Fixed one-client session reassignment so switching the guest on an existing session reuses/moves the existing booking row to the new client instead of leaving the previous client attached to the session.
+- Restores any wallet entitlement usage tied to the previous guest when the session is reassigned, clears old guest-app/order metadata, and sends the new guest a fresh confirmation.
+- Keeps open invoice headers aligned with the reassigned session client for normal open invoices.
+- Added frontend refresh events after booking create/update/delete so open Client Details cards refresh their session list/removal-block status without leaving the current tab.

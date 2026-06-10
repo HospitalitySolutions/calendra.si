@@ -1833,6 +1833,7 @@ export default function CalendarPage() {
         api.put(`/bookings/${bookingId}`, payload).then(() => {
           setSelectedBookedSession(null)
           setBookedStatusMenuOpen(false)
+          notifyBookingAndClientRecordsChanged()
           load()
           leaveCompactFormRouteIfNeeded()
         }).catch((e: any) => {
@@ -4475,6 +4476,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     [selectedBookedSession],
   )
 
+  const notifyBookingAndClientRecordsChanged = useCallback(() => {
+    window.dispatchEvent(new Event('bookings-updated'))
+    window.dispatchEvent(new Event('clients-updated'))
+  }, [])
+
   const visibleClients = useMemo(() => {
     const q = clientSearch.trim().toLowerCase()
     const active = metaClients.filter((c: any) => c.active !== false)
@@ -6567,6 +6573,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setEditingClientSearch(false)
       setEditingGroupSearch(false)
       calendarRef.current?.getApi()?.unselect()
+      notifyBookingAndClientRecordsChanged()
       window.dispatchEvent(new Event('todos-updated'))
       leaveCompactFormRouteIfNeeded()
     } catch (e: any) {
@@ -6584,6 +6591,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     setSelectedBookedSession(null)
     setBookedStatusMenuOpen(false)
     setConfirmDelete(false)
+    notifyBookingAndClientRecordsChanged()
     load()
     leaveCompactFormRouteIfNeeded()
   }
@@ -8084,6 +8092,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
     setSelectedBookedSession(null)
     setBookedStatusMenuOpen(false)
+    notifyBookingAndClientRecordsChanged()
     load()
     leaveCompactFormRouteIfNeeded()
     setSaveBookingLoading(false)
@@ -8697,6 +8706,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       })
       setSelectedBookedSession(null)
       setBookedStatusMenuOpen(false)
+      notifyBookingAndClientRecordsChanged()
       load()
       leaveCompactFormRouteIfNeeded()
     } catch (e: any) {

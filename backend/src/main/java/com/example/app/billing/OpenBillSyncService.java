@@ -242,6 +242,7 @@ public class OpenBillSyncService {
 
         OpenBill open = resolveSyncTargetOpenBill(sb, client, consultant, linkedCompany, companyBatchEnabled, clientBatchEnabled, containingOpen, companyId);
         boolean changed = false;
+        changed |= alignOpenBillHeaderWithSession(open, sb, client, consultant);
 
         if (legacyOpen != null && !sameOpenBill(legacyOpen, open)) {
             open = moveOpenBillRowsIntoTarget(companyId, legacyOpen, open, sb.getId());
@@ -549,6 +550,36 @@ public class OpenBillSyncService {
                 .filter(User::isActive)
                 .min(Comparator.comparing(User::getId))
                 .orElse(null);
+    }
+
+    private boolean alignOpenBillHeaderWithSession(
+            OpenBill open,
+            SessionBooking session,
+            com.example.app.client.Client client,
+            User consultant
+    ) {
+        if (open == null || session == null || client == null) {
+            return false;
+        }
+        if (open.isManualSplitLocked() || !OpenBill.BATCH_SCOPE_NONE.equals(open.getBatchScope())) {
+            return false;
+        }
+        boolean changed = false;
+        if (open.getClient() == null || !Objects.equals(open.getClient().getId(), client.getId())) {
+            open.setClient(client);
+            changed = true;
+        }
+        if (consultant != null && (open.getConsultant() == null || !Objects.equals(open.getConsultant().getId(), consultant.getId()))) {
+            open.setConsultant(consultant);
+            changed = true;
+        }
+        if (open.getSessionBooking() != null
+                && open.getSessionBooking().getId() != null
+                && !Objects.equals(open.getSessionBooking().getId(), session.getId())) {
+            open.setSessionBooking(session);
+            changed = true;
+        }
+        return changed;
     }
 
     private OpenBill resolveSyncTargetOpenBill(
