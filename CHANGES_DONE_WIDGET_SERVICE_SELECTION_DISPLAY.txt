@@ -1,0 +1,12 @@
+Updated the public booking widget service-selection step.
+
+Changes done:
+1. Changed the main service-step headline from "Rezervirajte termin" to "Izberite storitev" in Slovenian and from "Book your session" to "Choose service" in English.
+2. Removed the extra subtitle under the main headline on the service step.
+3. Removed the duplicated "Izberite storitev" section title and helper text above the service cards.
+4. Service cards now show the service description as the bold primary label, with the service code/name only used as a fallback when no description exists.
+5. The same public service display label is used in selected-service, summary, and success views.
+6. Made the service price stand out more by showing it as a larger blue price pill on each service card.
+
+Validation:
+- Ran `node --check backend/src/main/resources/static/widget/calendra-booking-widget.js` successfully.

@@ -12,8 +12,8 @@
   const TRANSLATIONS = {
     en: {
       badge: 'Calendra booking',
-      title: 'Book your session',
-      subtitle: 'Choose the service that best fits your needs.',
+      title: 'Choose service',
+      subtitle: '',
       dateTitle: 'Choose date and time',
       dateSubtitle: 'Choose a date and an available time that works best for you.',
       detailsTitle: 'Payment & review',
@@ -143,8 +143,8 @@
     },
     sl: {
       badge: 'Naročanje',
-      title: 'Rezervirajte termin',
-      subtitle: 'Izberite storitev, ki najbolj ustreza vašim potrebam.',
+      title: 'Izberite storitev',
+      subtitle: '',
       dateTitle: 'Izberite datum in uro',
       dateSubtitle: 'Izberite datum in razpoložljiv termin, ki vam najbolj ustreza.',
       detailsTitle: 'Plačilo in pregled',
@@ -768,6 +768,12 @@
       return this.state.services.find((item) => item.id === this.state.selectedServiceId) || null;
     }
 
+    serviceDisplayName(service) {
+      const description = String(service?.description || '').trim();
+      const name = String(service?.name || '').trim();
+      return description || name;
+    }
+
     currentConsultant() {
       return this.state.consultants.find((item) => item.id === this.state.selectedConsultantId) || null;
     }
@@ -1272,7 +1278,7 @@
           saving: false,
           bookingSuccess: {
             id: orderId,
-            serviceName: this.currentService()?.name,
+            serviceName: this.serviceDisplayName(this.currentService()),
             startsAtLabel: selectedSlot.label,
             startTime: selectedSlot.startTime,
             email: form.email.trim(),
@@ -1430,7 +1436,7 @@
         <aside class="summary-card ${this.state.activeStep === 'details' ? 'summary-card--final' : ''}">
           <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
           <div class="summary-rows">
-            ${row('user', t.summaryService, service?.name || '')}
+            ${row('user', t.summaryService, this.serviceDisplayName(service))}
             ${row('calendar', t.summaryDateTime, dateLabel)}
             ${row('clock', t.summaryTime || t.labelTime, selectedTime)}
             ${row('clock', t.summaryDuration, service ? `${durationMinutes} ${t.durationSuffix}` : '')}
@@ -1498,7 +1504,7 @@
             <div class="success-icon">${this.uiIcon('check')}</div>
             <div class="success-title">${escapeHtml(t.confirmed)}</div>
             <p class="success-copy">
-              ${escapeHtml(this.state.bookingSuccess.serviceName || service?.name || t.sessionFallback)} · ${escapeHtml(this.state.bookingSuccess.startsAtLabel || this.state.bookingSuccess.startTime || '')}
+              ${escapeHtml(this.state.bookingSuccess.serviceName || this.serviceDisplayName(service) || t.sessionFallback)} · ${escapeHtml(this.state.bookingSuccess.startsAtLabel || this.state.bookingSuccess.startTime || '')}
             </p>
             <p class="success-copy">${escapeHtml(t.confirmationSent)} ${escapeHtml(this.state.bookingSuccess.email || this.state.form.email)}.</p>
             ${bt ? `
@@ -1517,20 +1523,15 @@
       if (this.state.activeStep === 'service') {
         return `
           <section class="panel-section panel-section--service">
-            <div class="section-copy">
-              <h3>${escapeHtml(t.sectionService)}</h3>
-              <p>${escapeHtml(t.serviceHelp || t.subtitle)}</p>
-            </div>
             <div class="service-grid">
               ${this.state.services.map((item, index) => `
                 <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''}" type="button" data-action="service" data-id="${item.id}">
                   ${this.serviceIconMarkup(item, index)}
                   <span class="service-card-main">
-                    <span class="service-card-title">${escapeHtml(item.name)}</span>
-                    ${item.description ? `<span class="service-card-body">${escapeHtml(item.description)}</span>` : ''}
+                    <span class="service-card-title">${escapeHtml(this.serviceDisplayName(item))}</span>
                     <span class="service-card-meta">
                       <span>${this.uiIcon('clock')}${escapeHtml(String(item.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}</span>
-                      ${item.priceLabel ? `<b>·</b><strong>${escapeHtml(item.priceLabel)}</strong>` : ''}
+                      ${item.priceLabel ? `<span class="service-card-price">${escapeHtml(item.priceLabel)}</span>` : ''}
                     </span>
                   </span>
                   <span class="service-card-check">${this.uiIcon('check')}</span>
@@ -1644,7 +1645,7 @@
                   ${this.serviceIconMarkup(service, 0)}
                   <span>
                     <small>${escapeHtml(t.selectedService)}</small>
-                    <strong>${escapeHtml(service?.name || '')}</strong>
+                    <strong>${escapeHtml(this.serviceDisplayName(service))}</strong>
                     <em>${this.uiIcon('clock')}${escapeHtml(String(service?.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}${service?.priceLabel ? ` · ${escapeHtml(service.priceLabel)}` : ''}</em>
                   </span>
                 </div>
@@ -1842,8 +1843,18 @@
         .service-card-main { min-width: 0; display: grid; gap: 8px; }
         .service-card-title { font-size: 19px; font-weight: 880; letter-spacing: -.02em; }
         .service-card-body { color: var(--calendra-muted); font-size: 14px; line-height: 1.45; }
-        .service-card-meta { display: inline-flex; align-items: center; gap: 12px; color: #6f7b91; font-size: 15px; }
+        .service-card-meta { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; color: #6f7b91; font-size: 15px; }
         .service-card-meta span { display: inline-flex; align-items: center; gap: 8px; }
+        .service-card-price {
+          padding: 7px 12px;
+          border-radius: 999px;
+          background: rgba(15,107,255,.10);
+          color: var(--calendra-primary);
+          font-size: 17px;
+          font-weight: 900;
+          letter-spacing: -.01em;
+          box-shadow: inset 0 0 0 1px rgba(15,107,255,.14);
+        }
         .service-card-meta strong { color: var(--calendra-primary); font-weight: 850; }
         .service-card-check {
           width: 32px; height: 32px; border-radius: 999px; display: inline-grid; place-items: center;
@@ -2077,6 +2088,7 @@
 
     render() {
       const t = this.text();
+      const headlineSubtitle = this.activeStepSubtitle();
       this.shadowRoot.innerHTML = `
         <style>${this.styles()}</style>
         <div class="widget">
@@ -2085,7 +2097,7 @@
               ${this.renderProgress()}
               <div class="headline">
                 <h2>${escapeHtml(this.activeStepHeadline())}</h2>
-                <p>${escapeHtml(this.activeStepSubtitle())}</p>
+                ${headlineSubtitle ? `<p>${escapeHtml(headlineSubtitle)}</p>` : ''}
               </div>
               ${this.state.loading ? `<div class="loading">${escapeHtml(t.loading)}</div>` : ''}
               ${!this.state.loading && this.state.error ? `<div class="error">${escapeHtml(this.state.error)}</div>` : ''}
