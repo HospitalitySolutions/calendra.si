@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type ToolbarIconKind = 'bold' | 'italic' | 'underline' | 'link' | 'bullets' | 'numbers' | 'quote'
 
@@ -56,8 +56,13 @@ export type RichTextEditorProps = {
  * (block style + bold/italic/underline/link/lists/quote) backed by document.execCommand.
  * Emits its HTML through onChangeHtml.
  */
+function isEditorEmpty(element: HTMLElement) {
+  return (element.textContent ?? '').replace(/\u00a0/g, ' ').trim() === ''
+}
+
 export function RichTextEditor({ valueHtml, onChangeHtml, placeholder, ariaLabel, minHeight = 120 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const [empty, setEmpty] = useState(true)
 
   // Sync external value into the editor only when it differs and the user isn't actively typing.
   useEffect(() => {
@@ -68,11 +73,13 @@ export function RichTextEditor({ valueHtml, onChangeHtml, placeholder, ariaLabel
     if (element.innerHTML !== next) {
       element.innerHTML = next
     }
+    setEmpty(isEditorEmpty(element))
   }, [valueHtml])
 
   const sync = () => {
     const element = editorRef.current
     if (!element) return
+    setEmpty(isEditorEmpty(element))
     onChangeHtml(element.innerHTML)
   }
 
@@ -100,8 +107,6 @@ export function RichTextEditor({ valueHtml, onChangeHtml, placeholder, ariaLabel
     if (!url) return
     exec('createLink', url)
   }
-
-  const isEmpty = !valueHtml || valueHtml.replace(/<br\s*\/?>(\s|&nbsp;)*/gi, '').replace(/<[^>]+>/g, '').trim() === ''
 
   return (
     <div className="rte-editor">
@@ -142,13 +147,14 @@ export function RichTextEditor({ valueHtml, onChangeHtml, placeholder, ariaLabel
         </button>
       </div>
       <div className="rte-surface">
-        {isEmpty && placeholder ? <div className="rte-placeholder" aria-hidden>{placeholder}</div> : null}
         <div
           ref={editorRef}
           className="rte-content"
           role="textbox"
           aria-multiline="true"
           aria-label={ariaLabel || placeholder}
+          data-placeholder={placeholder || undefined}
+          data-empty={empty ? 'true' : 'false'}
           contentEditable
           suppressContentEditableWarning
           style={{ minHeight }}

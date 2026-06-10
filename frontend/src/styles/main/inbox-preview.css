@@ -180,14 +180,6 @@
     letter-spacing: -0.03em;
 }
 
-.analytics-inbox-b-kpis em {
-    display: inline-block;
-    margin-top: 6px;
-    color: #16a34a;
-    font-size: 0.76rem;
-    font-style: normal;
-    font-weight: 900;
-}
 
 .analytics-inbox-b-toolbar {
     display: grid;
@@ -1002,16 +994,9 @@
     position: relative;
 }
 
-.rte-placeholder {
-    position: absolute;
-    top: 14px;
-    left: 14px;
-    color: #94a3b8;
-    pointer-events: none;
-    font-size: 0.9rem;
-}
-
 .rte-content {
+    position: relative;
+    z-index: 1;
     padding: 12px 14px;
     outline: 0;
     color: #1e293b;
@@ -1019,6 +1004,18 @@
     line-height: 1.55;
     overflow-y: auto;
     max-height: 260px;
+    background: #fff;
+}
+
+.rte-content[data-empty="true"]::before {
+    content: attr(data-placeholder);
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    color: #94a3b8;
+    pointer-events: none;
+    font-size: 0.9rem;
+    line-height: 1.55;
 }
 
 .rte-content:focus {

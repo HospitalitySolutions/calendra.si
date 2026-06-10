@@ -1548,6 +1548,15 @@ export function AnalyticsInboxTab() {
     setScheduleTo(next)
   }
 
+  // Scheduling is always on: seed a default send time (in 1 hour) once so the date/time inputs are pre-filled.
+  useEffect(() => {
+    if (scheduleDraftWhen) return
+    const next = new Date()
+    next.setHours(next.getHours() + 1, 0, 0, 0)
+    setScheduleDraftWhen(toLocalInputDateTime(next))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const updateScheduleDate = (value: string) => {
     if (!value) {
       setScheduleDraftWhen('')
@@ -1620,10 +1629,10 @@ export function AnalyticsInboxTab() {
           <p>{ui.subtitle}</p>
         </div>
         <div className="analytics-inbox-b-kpis">
-          <div><span>{ui.conversations}</span><strong>{safeThreadsCount}</strong><em>+12%</em></div>
-          <div><span>{ui.unread}</span><strong>{unreadMessageCount}</strong><em>+3</em></div>
-          <div><span>{ui.scheduled}</span><strong>{scheduledItems.length}</strong><em>+2</em></div>
-          <div><span>{ui.sentToday}</span><strong>{sentTodayCount}</strong><em>+15%</em></div>
+          <div><span>{ui.conversations}</span><strong>{safeThreadsCount}</strong></div>
+          <div><span>{ui.unread}</span><strong>{unreadMessageCount}</strong></div>
+          <div><span>{ui.scheduled}</span><strong>{scheduledItems.length}</strong></div>
+          <div><span>{ui.sentToday}</span><strong>{sentTodayCount}</strong></div>
         </div>
       </section>
 
@@ -1870,11 +1879,6 @@ export function AnalyticsInboxTab() {
               <span className="analytics-inbox-b-label">{ui.channel}</span>
               <div className="analytics-inbox-b-channels">{availableChannels.map(renderChannelButton)}</div>
             </div>
-            {composeChannel === 'EMAIL' ? (
-              <label>{ui.subject}
-                <input value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder={ui.subject} />
-              </label>
-            ) : null}
             <div>
               <span className="analytics-inbox-b-label">{ui.attachments}</span>
               <div className="analytics-inbox-b-attachment-list">
@@ -1901,10 +1905,6 @@ export function AnalyticsInboxTab() {
 
           <section className="analytics-inbox-b-schedule-card">
             <div className="analytics-inbox-b-side-title"><div><strong>{ui.scheduleTitle}</strong><p>{ui.scheduleText}</p></div><button type="button">⌄</button></div>
-            <div className="analytics-inbox-b-schedule-toggle">
-              <button type="button" className={!scheduleDraftWhen ? 'active' : ''} onClick={() => setScheduleDraftWhen('')}>○ {ui.sendNow}</button>
-              <button type="button" className={scheduleDraftWhen ? 'active' : ''} onClick={() => !scheduleDraftWhen && setDefaultSchedule()}>● {ui.scheduleLater}</button>
-            </div>
             <div className="analytics-inbox-b-schedule-grid">
               <label>{ui.dateAndTime}
                 <input type="date" value={scheduleDateValue} onChange={(e) => updateScheduleDate(e.target.value)} />
@@ -1925,7 +1925,7 @@ export function AnalyticsInboxTab() {
             </div>
             <div className="analytics-inbox-b-schedule-actions">
               <button type="button" className="secondary" onClick={() => { setScheduleDraftBody(composeBody); setScheduleDraftSubject(composeSubject); showToast('success', locale === 'sl' ? 'Osnutek je shranjen.' : 'Draft saved.') }}>{ui.saveDraft}</button>
-              <button type="button" className="secondary" onClick={() => { setScheduleDraftWhen(''); setScheduleDraftBody(''); setScheduleDraftSubject('') }}>{ui.clear}</button>
+              <button type="button" className="secondary" onClick={() => { setDefaultSchedule(); setScheduleDraftBody(''); setScheduleDraftSubject('') }}>{ui.clear}</button>
             </div>
             <button type="button" className="analytics-inbox-b-primary-schedule" onClick={submitSchedule} disabled={!inlineScheduleReady}>▣ {ui.scheduleMessage}</button>
           </section>
