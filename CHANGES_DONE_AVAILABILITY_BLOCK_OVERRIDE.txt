@@ -1,0 +1,13 @@
+Availability block override for guest booking
+============================================
+
+Changed:
+- Calendar -> Availability -> Blokiraj now creates the __availability_block__ marker even when the Personal module is disabled, so blocked availability is still persisted as an availability override.
+- Calendar -> Availability -> Odpri now removes/splits existing __availability_block__ markers even when the Personal module is disabled, so opening availability can undo a previous block.
+- Calendar availability rendering subtracts __availability_block__ ranges from explicit availability slots and employee working-hours availability even when normal personal sessions are disabled.
+- Backend booking conflict checks now treat __availability_block__ markers as blocking calendar blocks.
+
+Result:
+- Guest mobile app availability and public website widget availability no longer expose slots that overlap a Calendar -> Availability -> Blokiraj range.
+- This applies even when employee working hours would otherwise make that time available.
+- Explicit bookable windows and employee working hours are both overridden by the calendar block marker.

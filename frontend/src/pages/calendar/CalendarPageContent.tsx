@@ -2404,7 +2404,6 @@ export default function CalendarPage() {
       return (Number(hh) || 0) * 60 + (Number(mm) || 0)
     }
     const releaseAvailabilityBlockMarkers = async () => {
-      if (!personalModuleEnabled) return
       const reqStartMs = startDate.getTime()
       const reqEndMs = endDate.getTime()
       const availabilityBlocks = (calendarData.personal || []).filter((p: any) => {
@@ -2679,11 +2678,9 @@ export default function CalendarPage() {
       // Also add an availability-block marker so working-hours availability
       // is removed for this period as well (not only explicit slots).
       const ownerId = consultantId
-      const blockCandidates = personalModuleEnabled
-        ? (calendarData.personal || [])
-            .filter((p: any) => (p.consultant?.id ?? p.consultantId ?? p.ownerId) === ownerId)
-            .filter((p: any) => String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK)
-        : []
+      const blockCandidates = (calendarData.personal || [])
+        .filter((p: any) => (p.consultant?.id ?? p.consultantId ?? p.ownerId) === ownerId)
+        .filter((p: any) => String(p.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK)
       const reqStartMs = startDate.getTime()
       const reqEndMs = endDate.getTime()
       const covered = blockCandidates
@@ -2700,7 +2697,7 @@ export default function CalendarPage() {
         cursor = Math.max(cursor, r.endMs)
         if (cursor >= reqEndMs) break
       }
-      if (cursor < reqEndMs && personalModuleEnabled) {
+      if (cursor < reqEndMs) {
         await api.post('/bookings/personal-blocks', {
           startTime: availabilitySelection.startTime,
           endTime: availabilitySelection.endTime,
@@ -3140,17 +3137,17 @@ export default function CalendarPage() {
       arr.push({ startMs, endMs })
       blockingRangesByConsultant.set(cid, arr)
     }
-    if (personalModuleEnabled) {
-      for (const p of calendarData.personal || []) {
-        const cid = personalOwnerId(p)
-        if (!Number.isFinite(cid) || !visibleConsultantIds.has(cid)) continue
-        const startMs = new Date(p.startTime).getTime()
-        const endMs = new Date(p.endTime).getTime()
-        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue
-        const arr = blockingRangesByConsultant.get(cid) || []
-        arr.push({ startMs, endMs })
-        blockingRangesByConsultant.set(cid, arr)
-      }
+    for (const p of calendarData.personal || []) {
+      const isAvailabilityBlock = String(p?.task || '').trim().toLowerCase() === AVAILABILITY_BLOCK_TASK
+      if (!personalModuleEnabled && !isAvailabilityBlock) continue
+      const cid = personalOwnerId(p)
+      if (!Number.isFinite(cid) || !visibleConsultantIds.has(cid)) continue
+      const startMs = new Date(p.startTime).getTime()
+      const endMs = new Date(p.endTime).getTime()
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) continue
+      const arr = blockingRangesByConsultant.get(cid) || []
+      arr.push({ startMs, endMs })
+      blockingRangesByConsultant.set(cid, arr)
     }
     const splitIntoStepSegments = (startMs: number, endMs: number, stepMs: number) => {
       const out: Array<{ startMs: number; endMs: number }> = []
@@ -3561,7 +3558,7 @@ export default function CalendarPage() {
 
     /** Bookings + staff columns (Vsi termini po osebju): blocked availability per consultant as diagonal hatch. */
     const adminStaffColumnsAvailabilityBlocks = (() => {
-      if (!bookingsUseResourceColumns || !personalModuleEnabled) return []
+      if (!bookingsUseResourceColumns) return []
       return (calendarData.personal || []).flatMap((p: any) => {
         if (String(p.task || '').trim().toLowerCase() !== AVAILABILITY_BLOCK_TASK) return []
         const cid = personalOwnerId(p)
