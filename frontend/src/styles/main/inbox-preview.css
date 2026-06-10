@@ -1305,6 +1305,17 @@ button.analytics-inbox-b-add-attachment:disabled {
     min-height: auto;
 }
 
+.analytics-inbox-b-interval {
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--inbox-b-line-strong);
+    border-radius: 10px;
+    background: #fff;
+    color: #334155;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
 .analytics-inbox-b-schedule-actions {
     display: grid;
     grid-template-columns: 1fr auto;

@@ -85,6 +85,8 @@ public class ClientMessageService {
     private final ObjectMapper objectMapper;
     private final GlobalMessagingProviderService globalMessagingProviders;
     private final GuestSettingsService guestSettingsService;
+    private final ScheduledMessageRepository scheduledMessages;
+    private final com.example.app.common.TimeService timeService;
     private final RestTemplate restTemplate = new RestTemplate();
 
     public ClientMessageService(
@@ -101,6 +103,8 @@ public class ClientMessageService {
             SettingsCryptoService crypto,
             GlobalMessagingProviderService globalMessagingProviders,
             GuestSettingsService guestSettingsService,
+            ScheduledMessageRepository scheduledMessages,
+            com.example.app.common.TimeService timeService,
             SmsGateway smsGateway,
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
@@ -121,6 +125,8 @@ public class ClientMessageService {
         this.crypto = crypto;
         this.globalMessagingProviders = globalMessagingProviders;
         this.guestSettingsService = guestSettingsService;
+        this.scheduledMessages = scheduledMessages;
+        this.timeService = timeService;
         this.smsGateway = smsGateway;
         this.smsConfigured = smsGateway != null && smsGateway.isConfigured();
         this.mailSender = mailSender;
@@ -210,6 +216,27 @@ public class ClientMessageService {
     ) {}
 
     public record SendMessageRequest(Long clientId, MessageChannel channel, String subject, String body, List<Long> attachmentFileIds) {}
+
+    public record ScheduleRequest(
+            Long clientId,
+            MessageChannel channel,
+            String subject,
+            String body,
+            Instant scheduledFor,
+            MessageRecurrence recurrence
+    ) {}
+
+    public record ScheduledMessageView(
+            Long id,
+            Long clientId,
+            String clientName,
+            MessageChannel channel,
+            String subject,
+            String body,
+            Instant scheduledFor,
+            MessageRecurrence recurrence,
+            ScheduledMessageStatus status
+    ) {}
 
     public record InternalNoteRequest(String body) {}
 
@@ -419,6 +446,123 @@ public class ClientMessageService {
         Client client = requireVisibleClient(me, request.clientId());
         List<ClientFile> attachmentFiles = resolveAttachmentFiles(me, client, request.attachmentFileIds());
         return sendInternal(me, client, request, attachmentFiles);
+    }
+
+    /** Schedules a message to be delivered at a future time, optionally repeating. */
+    @Transactional
+    public ScheduledMessageView createScheduledMessage(User me, ScheduleRequest request) {
+        if (request == null || request.clientId() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientId is required.");
+        Client client = requireVisibleClient(me, request.clientId());
+        String body = normalizeBody(request.body());
+        if (body.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body is required.");
+        if (request.scheduledFor() == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scheduled time is required.");
+        if (request.scheduledFor().isBefore(timeService.instant(me.getCompany().getId()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Scheduled time must be in the future.");
+        }
+        MessageChannel channel = request.channel() == null ? MessageChannel.EMAIL : request.channel();
+        MessageRecurrence recurrence = request.recurrence() == null ? MessageRecurrence.NONE : request.recurrence();
+
+        ScheduledMessage row = new ScheduledMessage();
+        row.setCompany(me.getCompany());
+        row.setClient(client);
+        row.setSenderUser(me);
+        row.setChannel(channel);
+        row.setSubject(channel == MessageChannel.EMAIL ? blankToNull(normalizeSubject(request.subject())) : null);
+        row.setBody(body);
+        row.setNextRunAt(request.scheduledFor());
+        row.setRecurrence(recurrence);
+        row.setStatus(ScheduledMessageStatus.ACTIVE);
+        return toScheduledView(scheduledMessages.save(row));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ScheduledMessageView> listScheduledMessages(User me) {
+        return scheduledMessages.findByCompanyIdAndStatusOrderByNextRunAtAsc(me.getCompany().getId(), ScheduledMessageStatus.ACTIVE).stream()
+                .map(this::toScheduledView)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void cancelScheduledMessage(User me, Long id) {
+        ScheduledMessage row = scheduledMessages.findByIdAndCompanyId(id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Scheduled message not found."));
+        scheduledMessages.delete(row);
+    }
+
+    /** Dispatches all due scheduled messages, honoring the per-tenant time simulator. Called by the scheduler. */
+    @Transactional
+    public void dispatchDueScheduledMessages() {
+        for (ScheduledMessage row : scheduledMessages.findByStatus(ScheduledMessageStatus.ACTIVE)) {
+            try {
+                dispatchOne(row);
+            } catch (Exception ex) {
+                row.setLastError(truncateError(ex.getMessage()));
+                if (row.getRecurrence() == MessageRecurrence.NONE) {
+                    row.setStatus(ScheduledMessageStatus.FAILED);
+                } else {
+                    advanceRecurrence(row);
+                }
+                scheduledMessages.save(row);
+            }
+        }
+    }
+
+    private void dispatchOne(ScheduledMessage row) {
+        Long companyId = row.getCompany() != null ? row.getCompany().getId() : null;
+        Instant now = timeService.instant(companyId);
+        if (row.getNextRunAt() == null || now.isBefore(row.getNextRunAt())) return;
+
+        User sender = row.getSenderUser();
+        if (sender == null) throw new IllegalStateException("Scheduled message has no sender.");
+        send(sender, new SendMessageRequest(row.getClient().getId(), row.getChannel(), row.getSubject(), row.getBody(), null));
+
+        row.setLastRunAt(now);
+        row.setLastError(null);
+        if (row.getRecurrence() == MessageRecurrence.NONE) {
+            row.setStatus(ScheduledMessageStatus.COMPLETED);
+        } else {
+            advanceRecurrence(row);
+        }
+        scheduledMessages.save(row);
+    }
+
+    /** Moves nextRunAt forward by the recurrence interval until it is strictly after the effective now. */
+    private void advanceRecurrence(ScheduledMessage row) {
+        if (row.getRecurrence() == MessageRecurrence.NONE) return;
+        Long companyId = row.getCompany() != null ? row.getCompany().getId() : null;
+        Instant now = timeService.instant(companyId);
+        java.time.ZonedDateTime next = (row.getNextRunAt() == null ? now : row.getNextRunAt()).atZone(SYSTEM_ZONE);
+        int guard = 0;
+        do {
+            next = switch (row.getRecurrence()) {
+                case DAILY -> next.plusDays(1);
+                case WEEKLY -> next.plusWeeks(1);
+                case MONTHLY -> next.plusMonths(1);
+                case YEARLY -> next.plusYears(1);
+                case NONE -> next;
+            };
+            guard++;
+        } while (!next.toInstant().isAfter(now) && guard < 10000);
+        row.setNextRunAt(next.toInstant());
+    }
+
+    private ScheduledMessageView toScheduledView(ScheduledMessage row) {
+        return new ScheduledMessageView(
+                row.getId(),
+                row.getClient() != null ? row.getClient().getId() : null,
+                clientDisplayName(row.getClient()),
+                row.getChannel(),
+                row.getSubject(),
+                row.getBody(),
+                row.getNextRunAt(),
+                row.getRecurrence(),
+                row.getStatus()
+        );
+    }
+
+    private static String truncateError(String message) {
+        if (message == null) return null;
+        return message.length() > 2000 ? message.substring(0, 2000) : message;
     }
 
     /** Creates a staff-only internal note on a conversation. Never delivered to the client. */

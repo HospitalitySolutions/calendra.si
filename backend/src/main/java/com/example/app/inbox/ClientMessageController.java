@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -70,6 +71,24 @@ public class ClientMessageController {
             @RequestBody ClientMessageService.SendMessageRequest request
     ) {
         return service.send(me, request);
+    }
+
+    @GetMapping("/scheduled")
+    public List<ClientMessageService.ScheduledMessageView> listScheduled(@AuthenticationPrincipal User me) {
+        return service.listScheduledMessages(me);
+    }
+
+    @PostMapping("/scheduled")
+    public ClientMessageService.ScheduledMessageView createScheduled(
+            @AuthenticationPrincipal User me,
+            @RequestBody ClientMessageService.ScheduleRequest request
+    ) {
+        return service.createScheduledMessage(me, request);
+    }
+
+    @DeleteMapping("/scheduled/{id}")
+    public void cancelScheduled(@AuthenticationPrincipal User me, @PathVariable Long id) {
+        service.cancelScheduledMessage(me, id);
     }
 
     @PostMapping("/clients/{clientId}/notes")

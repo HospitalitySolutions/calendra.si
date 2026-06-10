@@ -23,13 +23,17 @@ const HTML_TAG_RE = /<[a-z][\s\S]*>/i
 const CHANNELS: InboxChannel[] = ['EMAIL', 'SMS', 'WHATSAPP', 'VIBER', 'GUEST_APP']
 type RecipientMode = 'single' | 'bulk' | 'group'
 type ScheduleView = 'list' | 'form'
+type MessageRecurrence = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 type ScheduledItem = {
-  id: string
+  id: number
   clientId: number | null
+  clientName?: string | null
   channel: InboxChannel
-  subject: string
+  subject?: string | null
   body: string
   scheduledFor: string
+  recurrence: MessageRecurrence
+  status?: string
 }
 type ComposeAttachmentStatus = 'pending' | 'uploading' | 'uploaded' | 'failed'
 type ComposeAttachmentItem = {
@@ -717,12 +721,14 @@ export function AnalyticsInboxTab() {
   const [savingStatus, setSavingStatus] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [scheduleView, setScheduleView] = useState<ScheduleView>('list')
-  const [scheduledItems, setScheduledItems] = useState<ScheduledItem[]>([])
   const [scheduleDraftClientId, setScheduleDraftClientId] = useState<number | null>(null)
   const [scheduleDraftChannel, setScheduleDraftChannel] = useState<InboxChannel>('EMAIL')
   const [scheduleDraftSubject, setScheduleDraftSubject] = useState('')
   const [scheduleDraftBody, setScheduleDraftBody] = useState('')
   const [scheduleDraftWhen, setScheduleDraftWhen] = useState('')
+  const [scheduleFrequency, setScheduleFrequency] = useState<'once' | 'repeat'>('once')
+  const [scheduleInterval, setScheduleInterval] = useState<Exclude<MessageRecurrence, 'NONE'>>('WEEKLY')
+  const [submittingSchedule, setSubmittingSchedule] = useState(false)
   const composeAttachmentsRef = useRef<ComposeAttachmentItem[]>([])
   const selectedClientIdRef = useRef<number | null>(null)
   const previousSelectedClientIdRef = useRef<number | null>(null)
@@ -741,6 +747,15 @@ export function AnalyticsInboxTab() {
       return res.data ?? []
     },
   })
+
+  const scheduledQuery = useQuery<ScheduledItem[]>({
+    queryKey: ['inbox-scheduled'],
+    queryFn: async () => {
+      const res = await api.get<ScheduledItem[]>('/inbox/scheduled')
+      return res.data ?? []
+    },
+  })
+  const scheduledItems = scheduledQuery.data ?? []
 
   const consultantsQuery = useQuery<ConsultantOption[]>({
     queryKey: ['inbox-consultants'],
@@ -1343,37 +1358,63 @@ export function AnalyticsInboxTab() {
     setScheduleView('form')
   }
 
-  const submitSchedule = () => {
+  const submitSchedule = async () => {
     const targetChannel = availableChannels.includes(scheduleDraftChannel) ? scheduleDraftChannel : composeChannel
-    const targetBody = scheduleDraftBody.trim() || composeBody.trim()
+    const targetBody = scheduleDraftBody.trim() || composeBody
     const targetSubject = scheduleDraftSubject.trim() || composeSubject.trim()
     const targetClientId = scheduleDraftClientId ?? selectedClientId
-    if (!targetBody || !scheduleDraftWhen) return
+    if (!targetClientId || !richTextHasContent(targetBody) || !scheduleDraftWhen) return
     const scheduledDate = new Date(scheduleDraftWhen)
     if (Number.isNaN(scheduledDate.getTime())) return
-    const newItem: ScheduledItem = {
-      id: `scheduled-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      clientId: targetClientId,
-      channel: targetChannel,
-      subject: targetChannel === 'EMAIL' ? targetSubject : '',
-      body: targetBody,
-      scheduledFor: scheduledDate.toISOString(),
+    setSubmittingSchedule(true)
+    try {
+      await api.post('/inbox/scheduled', {
+        clientId: targetClientId,
+        channel: targetChannel,
+        subject: targetChannel === 'EMAIL' ? (targetSubject || null) : null,
+        body: targetBody,
+        scheduledFor: scheduledDate.toISOString(),
+        recurrence: scheduleFrequency === 'once' ? 'NONE' : scheduleInterval,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['inbox-scheduled'] })
+      showToast('success', locale === 'sl' ? 'Sporočilo je načrtovano.' : 'Message scheduled.')
+      setScheduleView('list')
+      setScheduleDraftBody('')
+      setScheduleDraftSubject('')
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || copy.sendFailed)
+    } finally {
+      setSubmittingSchedule(false)
     }
-    setScheduledItems((prev) => [...prev, newItem].sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor)))
-    setScheduleView('list')
-    setScheduleDraftBody('')
-    setScheduleDraftSubject('')
   }
 
-  const removeScheduledItem = (id: string) => {
-    setScheduledItems((prev) => prev.filter((item) => item.id !== id))
+  const removeScheduledItem = async (id: number) => {
+    try {
+      await api.delete(`/inbox/scheduled/${id}`)
+      await queryClient.invalidateQueries({ queryKey: ['inbox-scheduled'] })
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || copy.sendFailed)
+    }
   }
 
-  const scheduledClientName = (clientId: number | null) => {
-    if (clientId == null) return locale === 'sl' ? 'Brez stranke' : 'No client'
-    const client = (clientsQuery.data ?? []).find((row) => row.id === clientId)
+  const scheduledClientName = (item: ScheduledItem) => {
+    if (item.clientName) return item.clientName
+    if (item.clientId == null) return locale === 'sl' ? 'Brez stranke' : 'No client'
+    const client = (clientsQuery.data ?? []).find((row) => row.id === item.clientId)
     return client ? clientName(client) : locale === 'sl' ? 'Stranka' : 'Client'
   }
+
+  const recurrenceLabel = (recurrence: MessageRecurrence) => {
+    switch (recurrence) {
+      case 'DAILY': return ui.intervalDaily
+      case 'WEEKLY': return ui.intervalWeekly
+      case 'MONTHLY': return ui.intervalMonthly
+      case 'YEARLY': return ui.intervalYearly
+      default: return ui.recurrenceOnceLabel
+    }
+  }
+
+  const scheduledBodyPreview = (body: string) => (body || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim()
 
   const scheduleFormReady = !!scheduleDraftBody.trim() && !!scheduleDraftWhen
   const sentTodayCount = recentMessages.filter((message) => {
@@ -1444,6 +1485,11 @@ export function AnalyticsInboxTab() {
     frequency: 'Pogostost',
     once: 'Enkratno',
     repeat: 'Ponovi',
+    intervalDaily: 'Dnevno',
+    intervalWeekly: 'Tedensko',
+    intervalMonthly: 'Mesečno',
+    intervalYearly: 'Letno',
+    recurrenceOnceLabel: 'Enkratno',
     noScheduled: 'Ni razporejenih sporočil.',
     addNote: 'Dodaj opombo',
     addNotePlaceholder: 'Napišite interno opombo …',
@@ -1510,6 +1556,11 @@ export function AnalyticsInboxTab() {
     frequency: 'Frequency',
     once: 'Once',
     repeat: 'Repeat',
+    intervalDaily: 'Daily',
+    intervalWeekly: 'Weekly',
+    intervalMonthly: 'Monthly',
+    intervalYearly: 'Yearly',
+    recurrenceOnceLabel: 'One-time',
     noScheduled: 'No scheduled messages.',
     addNote: 'Add note',
     addNotePlaceholder: 'Write an internal note …',
@@ -1524,7 +1575,7 @@ export function AnalyticsInboxTab() {
   const conversationId = selectedClientId != null ? `#CON-${String(selectedClientId).padStart(5, '0')}` : '#CON-—'
   const scheduleDateValue = scheduleDraftWhen ? scheduleDraftWhen.slice(0, 10) : ''
   const scheduleTimeValue = scheduleDraftWhen ? scheduleDraftWhen.slice(11, 16) : ''
-  const inlineScheduleReady = !!scheduleDraftWhen && !!(composeBody.trim() || scheduleDraftBody.trim())
+  const inlineScheduleReady = !!scheduleDraftWhen && selectedClientId != null && (richTextHasContent(composeBody) || richTextHasContent(scheduleDraftBody))
   const selectedClientEmail = selectedClient?.email || selectedThread?.clientEmail || ''
   const selectedClientPhone = selectedClient?.phone || selectedThread?.clientPhone || ''
   const selectedClientLocation = selectedClient?.billingCompany ? [selectedClient.billingCompany.postalCode, selectedClient.billingCompany.city].filter(Boolean).join(' ') : ''
@@ -1535,18 +1586,6 @@ export function AnalyticsInboxTab() {
     { id: 'starred' as const, label: ui.starred, count: threads.filter((thread) => thread.starred).length, icon: '★' },
     { id: 'closed' as const, label: ui.closed, count: threads.filter((thread) => thread.closed).length, icon: '✓' },
   ]
-
-  const setScheduleTo = (date: Date) => {
-    setScheduleDraftClientId(selectedClientId)
-    setScheduleDraftChannel(availableChannels.includes(composeChannel) ? composeChannel : 'EMAIL')
-    setScheduleDraftWhen(toLocalInputDateTime(date))
-  }
-
-  const setDefaultSchedule = () => {
-    const next = new Date()
-    next.setHours(next.getHours() + 1, 0, 0, 0)
-    setScheduleTo(next)
-  }
 
   // Scheduling is always on: seed a default send time (in 1 hour) once so the date/time inputs are pre-filled.
   useEffect(() => {
@@ -1577,22 +1616,6 @@ export function AnalyticsInboxTab() {
     setScheduleDraftClientId(selectedClientId)
     setScheduleDraftChannel(availableChannels.includes(composeChannel) ? composeChannel : 'EMAIL')
     setScheduleDraftWhen(`${date}T${value}`)
-  }
-
-  const setTomorrowPreset = () => {
-    const next = new Date()
-    next.setDate(next.getDate() + 1)
-    next.setHours(9, 0, 0, 0)
-    setScheduleTo(next)
-  }
-
-  const setMondayPreset = () => {
-    const next = new Date()
-    const day = next.getDay()
-    const diff = ((8 - day) % 7) || 7
-    next.setDate(next.getDate() + diff)
-    next.setHours(9, 0, 0, 0)
-    setScheduleTo(next)
   }
 
   const isComposerChannelDisabled = (channel: InboxChannel) => {
@@ -1913,21 +1936,20 @@ export function AnalyticsInboxTab() {
                 <input type="time" value={scheduleTimeValue} onChange={(e) => updateScheduleTime(e.target.value)} />
               </label>
             </div>
-            <div className="analytics-inbox-b-presets">
-              <button type="button" onClick={() => { const d = new Date(); d.setHours(d.getHours() + 1, 0, 0, 0); setScheduleTo(d) }}>{ui.oneHour}</button>
-              <button type="button" onClick={setTomorrowPreset}>{ui.tomorrow}</button>
-              <button type="button" onClick={setMondayPreset}>{ui.monday}</button>
-            </div>
             <div className="analytics-inbox-b-frequency">
               <span>{ui.frequency}</span>
-              <label><input type="radio" checked readOnly /> {ui.once}</label>
-              <label><input type="radio" readOnly /> {ui.repeat}</label>
+              <label><input type="radio" name="schedule-frequency" checked={scheduleFrequency === 'once'} onChange={() => setScheduleFrequency('once')} /> {ui.once}</label>
+              <label><input type="radio" name="schedule-frequency" checked={scheduleFrequency === 'repeat'} onChange={() => setScheduleFrequency('repeat')} /> {ui.repeat}</label>
+              {scheduleFrequency === 'repeat' ? (
+                <select className="analytics-inbox-b-interval" value={scheduleInterval} onChange={(e) => setScheduleInterval(e.target.value as Exclude<MessageRecurrence, 'NONE'>)}>
+                  <option value="DAILY">{ui.intervalDaily}</option>
+                  <option value="WEEKLY">{ui.intervalWeekly}</option>
+                  <option value="MONTHLY">{ui.intervalMonthly}</option>
+                  <option value="YEARLY">{ui.intervalYearly}</option>
+                </select>
+              ) : null}
             </div>
-            <div className="analytics-inbox-b-schedule-actions">
-              <button type="button" className="secondary" onClick={() => { setScheduleDraftBody(composeBody); setScheduleDraftSubject(composeSubject); showToast('success', locale === 'sl' ? 'Osnutek je shranjen.' : 'Draft saved.') }}>{ui.saveDraft}</button>
-              <button type="button" className="secondary" onClick={() => { setDefaultSchedule(); setScheduleDraftBody(''); setScheduleDraftSubject('') }}>{ui.clear}</button>
-            </div>
-            <button type="button" className="analytics-inbox-b-primary-schedule" onClick={submitSchedule} disabled={!inlineScheduleReady}>▣ {ui.scheduleMessage}</button>
+            <button type="button" className="analytics-inbox-b-primary-schedule" onClick={submitSchedule} disabled={!inlineScheduleReady || submittingSchedule}>▣ {ui.scheduleMessage}</button>
           </section>
 
           <section className="analytics-inbox-b-upcoming-card">
@@ -1937,7 +1959,7 @@ export function AnalyticsInboxTab() {
             ) : scheduledItems.slice(0, 3).map((item) => (
               <div key={item.id} className="analytics-inbox-b-upcoming-row">
                 <span>{channelIcon(item.channel)}</span>
-                <div><strong>{item.subject || (locale === 'sl' ? 'Sporočilo' : 'Message')}</strong><p>{scheduledClientName(item.clientId)}</p></div>
+                <div><strong>{item.subject || scheduledBodyPreview(item.body) || (locale === 'sl' ? 'Sporočilo' : 'Message')}</strong><p>{scheduledClientName(item)} · {recurrenceLabel(item.recurrence)}</p></div>
                 <time>{formatDateTime(item.scheduledFor)}</time>
                 <button type="button" onClick={() => removeScheduledItem(item.id)}>⋮</button>
               </div>
@@ -1963,12 +1985,13 @@ export function AnalyticsInboxTab() {
               ) : scheduledItems.map((item) => (
                 <div key={item.id} className="analytics-inbox-schedule-modal__row">
                   <div className="analytics-inbox-schedule-modal__row-meta">
-                    <strong>{scheduledClientName(item.clientId)}</strong>
+                    <strong>{scheduledClientName(item)}</strong>
                     <Pill tone={channelTone(item.channel)}>{channelLabel(item.channel)}</Pill>
+                    <Pill tone="default">{recurrenceLabel(item.recurrence)}</Pill>
                     <span className="muted">{copy.scheduledForLabel} {formatDateTime(item.scheduledFor)}</span>
                   </div>
                   {item.subject ? <div className="analytics-inbox-schedule-modal__row-subject">{item.subject}</div> : null}
-                  <div className="analytics-inbox-schedule-modal__row-body">{item.body}</div>
+                  <div className="analytics-inbox-schedule-modal__row-body">{scheduledBodyPreview(item.body)}</div>
                   <div className="analytics-inbox-schedule-modal__row-actions"><button type="button" className="secondary" onClick={() => removeScheduledItem(item.id)}>{copy.removeScheduled}</button></div>
                 </div>
               ))}
