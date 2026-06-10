@@ -6795,6 +6795,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return null
   }
 
+  const renderBankStatementImportButton = () => (
+    <button
+      type="button"
+      className="clients-modern-new-btn billing-bank-import-btn"
+      onClick={() => bankStatementInputRef.current?.click()}
+      disabled={importingBankStatement}
+      title={billingCopy.importBankCsv}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M12 3v12" />
+        <path d="m7 8 5-5 5 5" />
+        <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+      </svg>
+      <span>{importingBankStatement ? billingCopy.importBankCsvImporting : billingCopy.importBankCsv}</span>
+    </button>
+  )
+
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
@@ -6821,6 +6838,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 </button>
               </div>
             </div>
+            <input
+              ref={bankStatementInputRef}
+              type="file"
+              accept=".csv,text/csv,application/vnd.ms-excel,text/plain"
+              className="billing-bank-import-input"
+              onChange={(e) => { void importBankStatement(e.currentTarget.files?.[0]) }}
+            />
 
             {billingTab === 'open' && (
               <div className="billing-modern-content">
@@ -7098,7 +7122,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
             {billingTab === 'openPayments' && (
               <div className="billing-modern-content">
-                <div className="billing-modern-filter-row billing-modern-filter-row--single">
+                <div className="billing-modern-filter-row">
                   <div className="billing-modern-search-wrap">
                     <span className="billing-modern-search-icon" aria-hidden>⌕</span>
                     <input
@@ -7108,6 +7132,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       onChange={(e) => setOpenPaymentsSearch(e.target.value)}
                     />
                   </div>
+                  {renderBankStatementImportButton()}
                 </div>
 
                 <div className="billing-modern-stats billing-modern-stats--single">
@@ -7379,6 +7404,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <option value="ADVANCE">{billingCopy.historyBillTypeAdvance}</option>
                     <option value="REFUND">{billingCopy.historyBillTypeRefund}</option>
                   </select>
+                  {renderBankStatementImportButton()}
                 </div>
 
                 <div className="billing-modern-stats billing-modern-stats--five">

@@ -383,6 +383,7 @@ export type InboxStatus = 'SENT' | 'DELIVERED' | 'READ' | 'RECEIVED' | 'FAILED'
 
 export type InboxThread = {
   clientId: number
+  threadKey?: string | null
   clientFirstName: string
   clientLastName: string
   clientEmail?: string | null
@@ -415,6 +416,7 @@ export type MessageAttachment = {
 export type ClientMessage = {
   id: number
   clientId: number
+  threadKey?: string | null
   clientFirstName: string
   clientLastName: string
   recipient: string

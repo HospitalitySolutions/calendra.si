@@ -69,6 +69,18 @@ public class ClientMessage extends BaseEntity {
     @Column(length = 2000)
     private String errorMessage;
 
+    /** Logical inbox thread key. Legacy messages with null use a derived client-based key. */
+    @Column(name = "conversation_key", length = 80)
+    private String conversationKey;
+
+    /** Closed/resolved flag for this logical conversation. Closed conversations are immutable. */
+    @Column(name = "conversation_closed", nullable = false)
+    private boolean conversationClosed = false;
+
+    /** Starred flag for this logical conversation. */
+    @Column(name = "conversation_starred", nullable = false)
+    private boolean conversationStarred = false;
+
     /** Staff-only note attached to a conversation; never delivered to the client. */
     @Column(nullable = false)
     private boolean internalNote = false;

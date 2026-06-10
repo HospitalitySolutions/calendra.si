@@ -1449,3 +1449,28 @@ button.analytics-inbox-b-add-attachment:disabled {
         margin-left: 0;
     }
 }
+
+.analytics-inbox-b-folders {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.analytics-inbox-b-retention-export {
+    margin-top: auto;
+    padding-top: 16px;
+    display: grid;
+    gap: 10px;
+}
+
+.analytics-inbox-b-retention-export p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    font-weight: 700;
+}
+
+.analytics-inbox-b-retention-export .analytics-inbox-b-export {
+    width: 100%;
+}

@@ -114,9 +114,18 @@
 }
 
 .billing-modern-filter-row--history {
-    grid-template-columns: minmax(300px, 0.8fr) minmax(250px, max-content) repeat(3, minmax(150px, 185px));
+    grid-template-columns: minmax(280px, 1fr) minmax(230px, max-content) repeat(3, minmax(140px, 175px)) minmax(160px, max-content);
     justify-content: start;
     align-items: center;
+}
+
+.billing-bank-import-input {
+    display: none;
+}
+
+.billing-bank-import-btn {
+    min-width: 170px;
+    white-space: nowrap;
 }
 
 .billing-modern-search-wrap {

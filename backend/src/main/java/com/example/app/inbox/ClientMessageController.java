@@ -59,10 +59,11 @@ public class ClientMessageController {
     public List<ClientMessageService.MessageView> listClientMessages(
             @AuthenticationPrincipal User me,
             @PathVariable Long clientId,
+            @RequestParam(required = false) String threadKey,
             @RequestParam(required = false) MessageChannel channel,
             @RequestParam(required = false) Integer limit
     ) {
-        return service.listClientMessages(me, clientId, channel, limit);
+        return service.listClientMessages(me, clientId, threadKey, channel, limit);
     }
 
     @PostMapping("/messages")
@@ -113,18 +114,20 @@ public class ClientMessageController {
     public ClientMessageService.ThreadFlagsView setStarred(
             @AuthenticationPrincipal User me,
             @PathVariable Long clientId,
+            @RequestParam(required = false) String threadKey,
             @RequestBody ClientMessageService.StarRequest request
     ) {
-        return service.setStarred(me, clientId, request != null && Boolean.TRUE.equals(request.starred()));
+        return service.setStarred(me, clientId, threadKey, request != null && Boolean.TRUE.equals(request.starred()));
     }
 
     @PutMapping("/clients/{clientId}/status")
     public ClientMessageService.ThreadFlagsView setStatus(
             @AuthenticationPrincipal User me,
             @PathVariable Long clientId,
+            @RequestParam(required = false) String threadKey,
             @RequestBody ClientMessageService.StatusRequest request
     ) {
-        return service.setStatus(me, clientId, request != null && Boolean.TRUE.equals(request.closed()));
+        return service.setStatus(me, clientId, threadKey, request != null && Boolean.TRUE.equals(request.closed()));
     }
 
     @PostMapping(value = "/clients/{clientId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

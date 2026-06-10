@@ -1,0 +1,9 @@
+Changes done:
+- Restored the bank statement import button in Billing -> Zgodovina računov / Folio history.
+- Added the same import action to Billing -> Odprta plačila / Open payments for faster reconciliation of unpaid bank transfers.
+- Reused the existing /billing/bank-reconciliation/import CSV upload functionality and existing toast/load refresh flow.
+- Added a hidden CSV file input and responsive styling so the button fits the billing filter rows.
+
+Files changed:
+- frontend/src/pages/BillingPage.tsx
+- frontend/src/styles/main/billing-tabs.css

@@ -421,6 +421,10 @@ function threadClientName(thread: InboxThread) {
   return [thread.clientFirstName, thread.clientLastName].filter(Boolean).join(' ').trim() || 'Client'
 }
 
+function inboxThreadKey(thread: InboxThread) {
+  return thread.threadKey || `client-${thread.clientId}`
+}
+
 function compactDateTime(value?: string | null) {
   if (!value) return '—'
   const date = new Date(value)
@@ -699,6 +703,7 @@ export function AnalyticsInboxTab() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
+  const [selectedThreadKey, setSelectedThreadKey] = useState<string | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [recipientMode, setRecipientMode] = useState<RecipientMode>('single')
   const [bulkRecipientSearch, setBulkRecipientSearch] = useState('')
@@ -823,27 +828,32 @@ export function AnalyticsInboxTab() {
     },
   })
 
-  const selectedThread = useMemo(
-    () => (threadsQuery.data ?? []).find((row) => row.clientId === selectedClientId) ?? null,
-    [threadsQuery.data, selectedClientId],
-  )
+  const selectedThread = useMemo(() => {
+    const rows = threadsQuery.data ?? []
+    if (selectedThreadKey) return rows.find((row) => inboxThreadKey(row) === selectedThreadKey) ?? null
+    return rows.find((row) => row.clientId === selectedClientId) ?? null
+  }, [threadsQuery.data, selectedClientId, selectedThreadKey])
 
   useEffect(() => {
     const rows = threadsQuery.data ?? []
     if (!rows.length) {
       if (selectedClientId == null && clientIdFilter) setSelectedClientId(Number(clientIdFilter))
+      if (!clientIdFilter) setSelectedThreadKey(null)
       return
     }
-    if (selectedClientId == null) {
+    if (selectedThreadKey == null) {
+      setSelectedThreadKey(inboxThreadKey(rows[0]))
       setSelectedClientId(rows[0].clientId)
       return
     }
-    // Keep explicit client selection from the composer even if that client has no existing thread yet.
-    if (clientIdFilter) {
-      const existsInFilteredRows = rows.some((row) => row.clientId === selectedClientId)
-      if (!existsInFilteredRows) setSelectedClientId(rows[0].clientId)
+    const selected = rows.find((row) => inboxThreadKey(row) === selectedThreadKey)
+    if (!selected) {
+      setSelectedThreadKey(inboxThreadKey(rows[0]))
+      setSelectedClientId(rows[0].clientId)
+      return
     }
-  }, [threadsQuery.data, selectedClientId, clientIdFilter])
+    if (selectedClientId !== selected.clientId) setSelectedClientId(selected.clientId)
+  }, [threadsQuery.data, selectedThreadKey, selectedClientId, clientIdFilter])
 
   useEffect(() => {
     if (recipientMode === 'single' && selectedThread?.lastChannel) setComposeChannel(selectedThread.lastChannel)
@@ -916,11 +926,11 @@ export function AnalyticsInboxTab() {
   }, [])
 
   const messagesQuery = useQuery<ClientMessage[]>({
-    queryKey: ['inbox-messages', selectedClientId],
+    queryKey: ['inbox-messages', selectedClientId, selectedThreadKey],
     enabled: selectedClientId != null,
     refetchInterval: selectedClientId != null ? 5000 : false,
     queryFn: async () => {
-      const res = await api.get<ClientMessage[]>(`/inbox/clients/${selectedClientId}/messages`)
+      const res = await api.get<ClientMessage[]>(`/inbox/clients/${selectedClientId}/messages`, { params: { threadKey: selectedThreadKey || undefined } })
       return res.data ?? []
     },
   })
@@ -1161,6 +1171,7 @@ export function AnalyticsInboxTab() {
       })
       showToast('success', copy.messageSent(channelLabel(composeChannel)))
       resetComposerAfterSend()
+      if (selectedThread?.closed) setSelectedThreadKey(null)
       await invalidateInboxQueries([selectedClientId])
     } catch (error: any) {
       showToast('error', error?.response?.data?.message || copy.sendFailed)
@@ -1284,6 +1295,7 @@ export function AnalyticsInboxTab() {
       await api.post(`/inbox/clients/${selectedClientId}/notes`, { body: noteBody })
       setNoteBody('')
       showToast('success', locale === 'sl' ? 'Interna opomba je dodana.' : 'Internal note added.')
+      if (selectedThread?.closed) setSelectedThreadKey(null)
       await invalidateInboxQueries([selectedClientId])
     } catch (error: any) {
       showToast('error', error?.response?.data?.message || copy.sendFailed)
@@ -1310,7 +1322,7 @@ export function AnalyticsInboxTab() {
     if (!selectedClientId) return
     setSavingStar(true)
     try {
-      await api.put(`/inbox/clients/${selectedClientId}/star`, { starred })
+      await api.put(`/inbox/clients/${selectedClientId}/star`, { starred }, { params: { threadKey: selectedThreadKey || undefined } })
       await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
     } catch (error: any) {
       showToast('error', error?.response?.data?.message || copy.sendFailed)
@@ -1323,7 +1335,7 @@ export function AnalyticsInboxTab() {
     if (!selectedClientId) return
     setSavingStatus(true)
     try {
-      await api.put(`/inbox/clients/${selectedClientId}/status`, { closed })
+      await api.put(`/inbox/clients/${selectedClientId}/status`, { closed }, { params: { threadKey: selectedThreadKey || undefined } })
       showToast('success', closed
         ? (locale === 'sl' ? 'Pogovor je zaključen.' : 'Conversation closed.')
         : (locale === 'sl' ? 'Pogovor je ponovno odprt.' : 'Conversation reopened.'))
@@ -1433,6 +1445,7 @@ export function AnalyticsInboxTab() {
     allChannels: 'Vsi kanali',
     allStatuses: 'Vsi statusi',
     export: 'Izvozi',
+    retentionNotice: 'Sporočila se samodejno izbrišejo po 90 dneh.',
     conversations: 'Pogovori',
     unread: 'Neprebrano',
     scheduled: 'Zakazano',
@@ -1504,6 +1517,7 @@ export function AnalyticsInboxTab() {
     allChannels: 'All channels',
     allStatuses: 'All statuses',
     export: 'Export',
+    retentionNotice: 'Messages are automatically purged after 90 days.',
     conversations: 'Conversations',
     unread: 'Unread',
     scheduled: 'Scheduled',
@@ -1586,6 +1600,22 @@ export function AnalyticsInboxTab() {
     { id: 'starred' as const, label: ui.starred, count: threads.filter((thread) => thread.starred).length, icon: '★' },
     { id: 'closed' as const, label: ui.closed, count: threads.filter((thread) => thread.closed).length, icon: '✓' },
   ]
+
+  const selectThread = (thread: InboxThread) => {
+    setSelectedClientId(thread.clientId)
+    setSelectedThreadKey(inboxThreadKey(thread))
+  }
+
+  const selectClient = (clientId: number | null) => {
+    setSelectedClientId(clientId)
+    if (clientId == null) {
+      setSelectedThreadKey(null)
+      return
+    }
+    const thread = (threadsQuery.data ?? []).find((row) => row.clientId === clientId && !row.closed)
+      ?? (threadsQuery.data ?? []).find((row) => row.clientId === clientId)
+    setSelectedThreadKey(thread ? inboxThreadKey(thread) : null)
+  }
 
   // Scheduling is always on: seed a default send time (in 1 hour) once so the date/time inputs are pre-filled.
   useEffect(() => {
@@ -1691,7 +1721,6 @@ export function AnalyticsInboxTab() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
           <small>{dateRangeLabel}</small>
         </label>
-        <button type="button" className="analytics-inbox-b-export">⇩ {ui.export}</button>
       </section>
 
       <section className="analytics-inbox-b-workspace">
@@ -1709,6 +1738,10 @@ export function AnalyticsInboxTab() {
                 </button>
               ))}
             </div>
+            <div className="analytics-inbox-b-retention-export">
+              <p>{ui.retentionNotice}</p>
+              <button type="button" className="analytics-inbox-b-export">⇩ {ui.export}</button>
+            </div>
           </div>
 
           <div className="analytics-inbox-b-conversations">
@@ -1722,14 +1755,15 @@ export function AnalyticsInboxTab() {
               ) : visibleThreads.length === 0 ? (
                 <div className="analytics-inbox-b-empty"><EmptyState title={copy.noConversationsTitle} text={copy.noConversationsText} /></div>
               ) : visibleThreads.map((thread) => {
-                const active = thread.clientId === selectedClientId
+                const threadKey = inboxThreadKey(thread)
+                const active = threadKey === selectedThreadKey
                 const unread = thread.unreadCount ?? 0
                 return (
                   <button
                     type="button"
-                    key={thread.clientId}
+                    key={threadKey}
                     className={`analytics-inbox-b-thread${active ? ' active' : ''}`}
-                    onClick={() => setSelectedClientId(thread.clientId)}
+                    onClick={() => selectThread(thread)}
                   >
                     <span className="analytics-inbox-b-avatar">{initialsFromName(thread.clientFirstName, thread.clientLastName)}</span>
                     <span className="analytics-inbox-b-thread-body">
@@ -1778,8 +1812,9 @@ export function AnalyticsInboxTab() {
                 <select
                   className={`analytics-inbox-b-status${selectedThread?.closed ? ' is-closed' : ''}`}
                   value={selectedThread?.closed ? 'closed' : 'open'}
-                  disabled={savingStatus}
-                  onChange={(e) => updateStatus(e.target.value === 'closed')}
+                  disabled={savingStatus || !!selectedThread?.closed}
+                  title={selectedThread?.closed ? (locale === 'sl' ? 'Zaključenega pogovora ni mogoče ponovno odpreti. Novo sporočilo ustvari nov pogovor.' : 'Closed conversations cannot be reopened. A new message starts a new conversation.') : undefined}
+                  onChange={(e) => { if (e.target.value === 'closed') void updateStatus(true) }}
                   aria-label={ui.statusOpen}
                 >
                   <option value="open">{ui.statusOpen}</option>
@@ -1893,7 +1928,7 @@ export function AnalyticsInboxTab() {
           <section className="analytics-inbox-b-details-card">
             <div className="analytics-inbox-b-side-title"><strong>{ui.details}</strong><button type="button">⌃</button></div>
             <label>{copy.clientLabel}
-              <select value={selectedClientId ?? ''} onChange={(e) => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}>
+              <select value={selectedClientId ?? ''} onChange={(e) => selectClient(e.target.value ? Number(e.target.value) : null)}>
                 <option value="">{copy.selectClient}</option>
                 {(clientsQuery.data ?? []).map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
               </select>

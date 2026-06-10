@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -64,6 +65,7 @@ public class ClientMessageService {
     private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
     private static final String META_GRAPH_BASE = "https://graph.facebook.com/v23.0";
     private static final String VIBER_BASE = "https://chatapi.viber.com/pa";
+    private static final String LEGACY_CONVERSATION_PREFIX = "legacy-client-";
 
     private final ClientMessageRepository messages;
     private final ClientRepository clients;
@@ -148,6 +150,7 @@ public class ClientMessageService {
 
     public record ThreadSummary(
             Long clientId,
+            String threadKey,
             String clientFirstName,
             String clientLastName,
             String clientEmail,
@@ -170,6 +173,7 @@ public class ClientMessageService {
 
     public record GuestThreadSummary(
             Long clientId,
+            String threadKey,
             String clientFirstName,
             String clientLastName,
             String lastPreview,
@@ -197,6 +201,7 @@ public class ClientMessageService {
     public record MessageView(
             Long id,
             Long clientId,
+            String threadKey,
             String clientFirstName,
             String clientLastName,
             String recipient,
@@ -248,7 +253,7 @@ public class ClientMessageService {
 
     public record StatusRequest(Boolean closed) {}
 
-    public record ThreadFlagsView(Long clientId, boolean starred, boolean closed) {}
+    public record ThreadFlagsView(Long clientId, String threadKey, boolean starred, boolean closed) {}
 
     @Transactional(readOnly = true)
     public List<GuestThreadSummary> listGuestThreads(GuestUser guestUser, Long companyId) {
@@ -257,18 +262,27 @@ public class ClientMessageService {
                 .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
                 .toList();
         if (rows.isEmpty()) return List.of();
-        ClientMessage latest = rows.get(rows.size() - 1);
         Client client = link.getClient();
-        return List.of(new GuestThreadSummary(
-                client.getId(),
-                client.getFirstName(),
-                client.getLastName(),
-                summarizeMessage(latest),
-                messageDisplaySender(latest),
-                latest.getSentAt() != null ? latest.getSentAt() : latest.getCreatedAt(),
-                rows.size(),
-                countGuestUnread(rows, link)
-        ));
+        return groupByConversationKey(rows).entrySet().stream()
+                .map(entry -> {
+                    List<ClientMessage> conversationRows = entry.getValue();
+                    ClientMessage latest = latestDisplayMessage(conversationRows);
+                    if (latest == null) return null;
+                    return new GuestThreadSummary(
+                            client.getId(),
+                            entry.getKey(),
+                            client.getFirstName(),
+                            client.getLastName(),
+                            summarizeMessage(latest),
+                            messageDisplaySender(latest),
+                            latest.getSentAt() != null ? latest.getSentAt() : latest.getCreatedAt(),
+                            conversationRows.size(),
+                            countGuestUnread(conversationRows, link)
+                    );
+                })
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing((GuestThreadSummary row) -> row.lastSentAt() != null ? row.lastSentAt() : Instant.EPOCH).reversed())
+                .toList();
     }
 
     @Transactional
@@ -277,8 +291,12 @@ public class ClientMessageService {
         List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
                 .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
                 .toList();
-        markGuestMessagesRead(link, rows);
-        List<MessageView> out = rows.stream().map(this::toView).toList();
+        String latestKey = latestConversationKey(rows);
+        List<ClientMessage> selectedRows = latestKey == null ? rows : rows.stream()
+                .filter(row -> Objects.equals(conversationKey(row), latestKey))
+                .toList();
+        markGuestMessagesRead(link, selectedRows);
+        List<MessageView> out = selectedRows.stream().map(this::toView).toList();
         if (limit != null && limit > 0 && out.size() > limit) return out.subList(out.size() - limit, out.size());
         return out;
     }
@@ -292,10 +310,18 @@ public class ClientMessageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message body or at least one attachment is required.");
         }
 
+        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
+                .filter(message -> message.getChannel() == MessageChannel.GUEST_APP)
+                .toList();
+        String conversationKey = resolveOpenConversationKey(link.getClient(), existingRows);
+
         ClientMessage row = new ClientMessage();
         row.setCompany(link.getCompany());
         row.setClient(link.getClient());
         row.setGuestUser(guestUser);
+        row.setConversationKey(conversationKey);
+        row.setConversationClosed(false);
+        row.setConversationStarred(false);
         row.setDirection(MessageDirection.INBOUND);
         row.setChannel(MessageChannel.GUEST_APP);
         row.setStatus(MessageStatus.RECEIVED);
@@ -304,9 +330,6 @@ public class ClientMessageService {
         row.setBody(normalizedBody);
         row.setSentAt(sentAt);
         row.setErrorMessage(null);
-        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
-                .filter(message -> message.getChannel() == MessageChannel.GUEST_APP)
-                .toList();
         markGuestMessagesRead(link, existingRows, sentAt);
         ClientMessage saved = messages.save(row);
         linkAttachments(saved, attachmentFiles);
@@ -381,16 +404,12 @@ public class ClientMessageService {
         List<ClientMessage> filtered = visible.stream().filter(row -> matchesFilter(row, filter)).toList();
         Map<Long, GuestTenantLink> activeGuestLinksByClientId = guestTenantLinks.findAllByCompanyIdAndStatus(me.getCompany().getId(), GuestTenantLinkStatus.ACTIVE).stream()
                 .collect(Collectors.toMap(link -> link.getClient().getId(), link -> link, (left, right) -> left, LinkedHashMap::new));
-        Map<Long, List<ClientMessage>> grouped = filtered.stream()
-                .collect(Collectors.groupingBy(row -> row.getClient().getId(), LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<ClientMessage>> grouped = groupByConversationKey(filtered);
 
         List<ThreadSummary> out = new ArrayList<>();
-        for (List<ClientMessage> rows : grouped.values()) {
-            // Internal notes are staff-only annotations; do not let them define the thread's channel/preview.
-            ClientMessage latest = rows.stream()
-                    .filter(row -> !row.isInternalNote())
-                    .max(Comparator.comparing(ClientMessage::getCreatedAt))
-                    .orElseGet(() -> rows.stream().max(Comparator.comparing(ClientMessage::getCreatedAt)).orElse(null));
+        for (Map.Entry<String, List<ClientMessage>> entry : grouped.entrySet()) {
+            List<ClientMessage> rows = entry.getValue();
+            ClientMessage latest = latestDisplayMessage(rows);
             if (latest == null) continue;
             Client client = latest.getClient();
             User assignee = client.getAssignedTo();
@@ -399,6 +418,7 @@ public class ClientMessageService {
             String inboundSenderPhone = latest.getDirection() == MessageDirection.INBOUND ? blankToNull(preferredPhone(client)) : null;
             out.add(new ThreadSummary(
                     client.getId(),
+                    entry.getKey(),
                     client.getFirstName(),
                     client.getLastName(),
                     blankToNull(client.getEmail()),
@@ -415,8 +435,8 @@ public class ClientMessageService {
                     countStaffUnread(rows, activeGuestLinksByClientId.get(client.getId())),
                     assignee != null ? assignee.getId() : null,
                     displayUserName(assignee),
-                    client.isInboxStarred(),
-                    client.isInboxClosed()
+                    conversationStarred(rows),
+                    conversationClosed(rows)
             ));
         }
         out.sort(Comparator.comparing((ThreadSummary row) -> row.lastSentAt() != null ? row.lastSentAt() : Instant.EPOCH).reversed());
@@ -424,12 +444,18 @@ public class ClientMessageService {
     }
 
     @Transactional
-    public List<MessageView> listClientMessages(User me, Long clientId, MessageChannel channel, Integer limit) {
+    public List<MessageView> listClientMessages(User me, Long clientId, String threadKey, MessageChannel channel, Integer limit) {
         Client client = requireVisibleClient(me, clientId);
         List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
-        if (channel == null || channel == MessageChannel.GUEST_APP) markStaffMessagesRead(me.getCompany().getId(), client.getId(), rows);
-        List<MessageView> out = rows.stream()
+        String selectedThreadKey = blankToNull(threadKey);
+        if (selectedThreadKey == null) selectedThreadKey = latestConversationKey(rows);
+        final String effectiveThreadKey = selectedThreadKey;
+        List<ClientMessage> selectedRows = rows.stream()
+                .filter(row -> effectiveThreadKey == null || Objects.equals(conversationKey(row), effectiveThreadKey))
                 .filter(row -> channel == null || row.getChannel() == channel)
+                .toList();
+        if (channel == null || channel == MessageChannel.GUEST_APP) markStaffMessagesRead(me.getCompany().getId(), client.getId(), selectedRows);
+        List<MessageView> out = selectedRows.stream()
                 .map(this::toView)
                 .toList();
         if (limit != null && limit > 0 && out.size() > limit) return out.subList(out.size() - limit, out.size());
@@ -572,10 +598,16 @@ public class ClientMessageService {
         Client client = requireVisibleClient(me, clientId);
         String normalized = normalizeBody(body);
         if (normalized.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Note body is required.");
+        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
+        String conversationKey = resolveOpenConversationKey(client, existingRows);
+
         ClientMessage row = new ClientMessage();
         row.setCompany(me.getCompany());
         row.setClient(client);
         row.setSenderUser(me);
+        row.setConversationKey(conversationKey);
+        row.setConversationClosed(false);
+        row.setConversationStarred(false);
         row.setDirection(MessageDirection.OUTBOUND);
         row.setChannel(MessageChannel.EMAIL); // sentinel channel; internal notes are never delivered
         row.setStatus(MessageStatus.SENT);
@@ -612,20 +644,37 @@ public class ClientMessageService {
 
     /** Toggles the "starred" flag on a conversation (any staff member who can see the client). */
     @Transactional
-    public ThreadFlagsView setStarred(User me, Long clientId, boolean starred) {
+    public ThreadFlagsView setStarred(User me, Long clientId, String threadKey, boolean starred) {
         Client client = requireVisibleClient(me, clientId);
-        client.setInboxStarred(starred);
-        clients.save(client);
-        return new ThreadFlagsView(clientId, client.isInboxStarred(), client.isInboxClosed());
+        ConversationSelection selection = requireConversationSelection(me.getCompany().getId(), client, threadKey);
+        selection.rows().forEach(row -> {
+            row.setConversationStarred(starred);
+            messages.save(row);
+        });
+        if (selection.legacy()) {
+            client.setInboxStarred(starred);
+            clients.save(client);
+        }
+        return new ThreadFlagsView(clientId, selection.threadKey(), starred, conversationClosed(selection.rows()));
     }
 
-    /** Opens/closes a conversation (any staff member who can see the client). */
+    /** Closes a conversation. Closed conversations cannot be reopened; the next inbound/outbound message starts a new chat. */
     @Transactional
-    public ThreadFlagsView setStatus(User me, Long clientId, boolean closed) {
+    public ThreadFlagsView setStatus(User me, Long clientId, String threadKey, boolean closed) {
+        if (!closed) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Closed conversations cannot be reopened. Send or receive a new message to start a new chat.");
+        }
         Client client = requireVisibleClient(me, clientId);
-        client.setInboxClosed(closed);
-        clients.save(client);
-        return new ThreadFlagsView(clientId, client.isInboxStarred(), client.isInboxClosed());
+        ConversationSelection selection = requireConversationSelection(me.getCompany().getId(), client, threadKey);
+        selection.rows().forEach(row -> {
+            row.setConversationClosed(true);
+            messages.save(row);
+        });
+        if (selection.legacy()) {
+            client.setInboxClosed(true);
+            clients.save(client);
+        }
+        return new ThreadFlagsView(clientId, selection.threadKey(), conversationStarred(selection.rows()), true);
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)
@@ -693,6 +742,13 @@ public class ClientMessageService {
         }
     }
 
+    @Transactional
+    public int purgeMessagesOlderThan(Instant cutoff) {
+        if (cutoff == null) return 0;
+        messageAttachments.deleteAllByMessageCreatedAtBefore(cutoff);
+        return messages.deleteAllByCreatedAtBefore(cutoff);
+    }
+
     private MessageView sendInternal(User me, Client client, SendMessageRequest request, List<ClientFile> attachmentFiles) {
         MessageChannel channel = request.channel() == null ? MessageChannel.EMAIL : request.channel();
         String rawBody = normalizeBody(request.body());
@@ -710,10 +766,16 @@ public class ClientMessageService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest App is disabled for this tenant.");
         }
 
+        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
+        String conversationKey = resolveOpenConversationKey(client, existingRows);
+
         ClientMessage row = new ClientMessage();
         row.setCompany(me.getCompany());
         row.setClient(client);
         row.setSenderUser(me);
+        row.setConversationKey(conversationKey);
+        row.setConversationClosed(false);
+        row.setConversationStarred(false);
         row.setDirection(MessageDirection.OUTBOUND);
         row.setChannel(channel);
         row.setStatus(MessageStatus.FAILED);
@@ -753,6 +815,7 @@ public class ClientMessageService {
         if (saved.getChannel() == MessageChannel.GUEST_APP && saved.getSentAt() != null) {
             List<ClientMessage> guestAppRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(saved.getCompany().getId(), saved.getClient().getId()).stream()
                     .filter(message -> message.getChannel() == MessageChannel.GUEST_APP)
+                    .filter(message -> Objects.equals(conversationKey(message), conversationKey(saved)))
                     .toList();
             markStaffMessagesRead(saved.getCompany().getId(), saved.getClient().getId(), guestAppRows, saved.getSentAt());
         }
@@ -846,9 +909,15 @@ public class ClientMessageService {
     }
 
     private void persistInboundMessage(Company company, Client client, MessageChannel channel, String recipient, String subject, String body, String externalId) {
+        List<ClientMessage> existingRows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(company.getId(), client.getId());
+        String conversationKey = resolveOpenConversationKey(client, existingRows);
+
         ClientMessage row = new ClientMessage();
         row.setCompany(company);
         row.setClient(client);
+        row.setConversationKey(conversationKey);
+        row.setConversationClosed(false);
+        row.setConversationStarred(false);
         row.setChannel(channel);
         row.setDirection(MessageDirection.INBOUND);
         row.setStatus(MessageStatus.RECEIVED);
@@ -916,6 +985,91 @@ public class ClientMessageService {
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private record ConversationSelection(String threadKey, List<ClientMessage> rows, boolean legacy) {}
+
+    private String legacyConversationKey(Long clientId) {
+        return LEGACY_CONVERSATION_PREFIX + (clientId == null ? "unknown" : clientId);
+    }
+
+    private String conversationKey(ClientMessage row) {
+        String explicit = blankToNull(row == null ? null : row.getConversationKey());
+        if (explicit != null) return explicit;
+        return legacyConversationKey(row != null && row.getClient() != null ? row.getClient().getId() : null);
+    }
+
+    private Map<String, List<ClientMessage>> groupByConversationKey(List<ClientMessage> rows) {
+        if (rows == null || rows.isEmpty()) return new LinkedHashMap<>();
+        return rows.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(this::conversationKey, LinkedHashMap::new, Collectors.toList()));
+    }
+
+    private ClientMessage latestDisplayMessage(List<ClientMessage> rows) {
+        if (rows == null || rows.isEmpty()) return null;
+        return rows.stream()
+                .filter(row -> !row.isInternalNote())
+                .max(Comparator.comparing(ClientMessage::getCreatedAt))
+                .orElseGet(() -> rows.stream().max(Comparator.comparing(ClientMessage::getCreatedAt)).orElse(null));
+    }
+
+    private String latestConversationKey(List<ClientMessage> rows) {
+        return groupByConversationKey(rows).entrySet().stream()
+                .max(Comparator.comparing(entry -> {
+                    ClientMessage latest = latestDisplayMessage(entry.getValue());
+                    return latest == null ? Instant.EPOCH : messageInstant(latest);
+                }))
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+
+    private boolean isLegacyConversation(List<ClientMessage> rows) {
+        return rows != null && rows.stream().anyMatch(row -> blankToNull(row.getConversationKey()) == null);
+    }
+
+    private boolean conversationClosed(List<ClientMessage> rows) {
+        if (rows == null || rows.isEmpty()) return false;
+        if (isLegacyConversation(rows)) {
+            Client client = rows.get(0).getClient();
+            return (client != null && client.isInboxClosed()) || rows.stream().anyMatch(ClientMessage::isConversationClosed);
+        }
+        return rows.stream().anyMatch(ClientMessage::isConversationClosed);
+    }
+
+    private boolean conversationStarred(List<ClientMessage> rows) {
+        if (rows == null || rows.isEmpty()) return false;
+        if (isLegacyConversation(rows)) {
+            Client client = rows.get(0).getClient();
+            return (client != null && client.isInboxStarred()) || rows.stream().anyMatch(ClientMessage::isConversationStarred);
+        }
+        return rows.stream().anyMatch(ClientMessage::isConversationStarred);
+    }
+
+    private String resolveOpenConversationKey(Client client, List<ClientMessage> rows) {
+        return groupByConversationKey(rows).entrySet().stream()
+                .sorted(Comparator.<Map.Entry<String, List<ClientMessage>>, Instant>comparing(entry -> {
+                    ClientMessage latest = latestDisplayMessage(entry.getValue());
+                    return latest == null ? Instant.EPOCH : messageInstant(latest);
+                }).reversed())
+                .filter(entry -> !conversationClosed(entry.getValue()))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse("conversation-" + UUID.randomUUID());
+    }
+
+    private ConversationSelection requireConversationSelection(Long companyId, Client client, String threadKey) {
+        if (client == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.");
+        List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, client.getId());
+        String effectiveThreadKey = blankToNull(threadKey);
+        if (effectiveThreadKey == null) effectiveThreadKey = latestConversationKey(rows);
+        if (effectiveThreadKey == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found.");
+        final String key = effectiveThreadKey;
+        List<ClientMessage> selectedRows = rows.stream()
+                .filter(row -> Objects.equals(conversationKey(row), key))
+                .toList();
+        if (selectedRows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found.");
+        return new ConversationSelection(key, selectedRows, isLegacyConversation(selectedRows));
     }
 
     private List<ClientMessage> filterVisibleMessages(User me) {
@@ -1165,6 +1319,7 @@ public class ClientMessageService {
         return new MessageView(
                 row.getId(),
                 client.getId(),
+                conversationKey(row),
                 client.getFirstName(),
                 client.getLastName(),
                 row.getRecipient(),
