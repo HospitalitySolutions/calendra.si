@@ -2928,7 +2928,8 @@ private fun walletAccessesForTenant(state: GuestUiState, tenantId: String): List
                 priceGross = access.priceGross,
                 currency = access.currency,
                 validityDays = access.validityDays,
-                autoRenews = access.autoRenews
+                autoRenews = access.autoRenews,
+                accessUrl = access.accessUrl
             )
         }
     }
@@ -3079,7 +3080,8 @@ private fun aggregatedAccesses(state: GuestUiState): List<AccessCard> =
                     priceGross = access.priceGross,
                     currency = access.currency,
                     validityDays = access.validityDays,
-                    autoRenews = access.autoRenews
+                    autoRenews = access.autoRenews,
+                    accessUrl = access.accessUrl
                 )
             }
         }

@@ -35,9 +35,11 @@ import {
   CardsMembershipsSection,
   type CardsMembershipsSectionHandle,
 } from "./CardsMembershipsSection";
+import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
 
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
 const SESSION_TYPES_SUBTAB_CARDS = "cards-memberships";
+const SESSION_TYPES_SUBTAB_COURSES = "courses";
 
 type TypeServiceLine = { transactionServiceId: number; price: string };
 
@@ -619,11 +621,13 @@ export function SessionTypesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const showCardsMemberships =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_CARDS;
+  const showCourses =
+    searchParams.get("subtab") === SESSION_TYPES_SUBTAB_COURSES;
   const showTransactionServices =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_TRANSACTION;
 
   const setSessionTypesSubtab = useCallback(
-    (next: "types" | "transactionServices" | "cardsMemberships") => {
+    (next: "types" | "transactionServices" | "cardsMemberships" | "courses") => {
       if (next === "transactionServices") {
         setSearchParams(
           { subtab: SESSION_TYPES_SUBTAB_TRANSACTION },
@@ -632,6 +636,11 @@ export function SessionTypesPage() {
       } else if (next === "cardsMemberships") {
         setSearchParams(
           { subtab: SESSION_TYPES_SUBTAB_CARDS },
+          { replace: true },
+        );
+      } else if (next === "courses") {
+        setSearchParams(
+          { subtab: SESSION_TYPES_SUBTAB_COURSES },
           { replace: true },
         );
       } else {
@@ -711,14 +720,23 @@ export function SessionTypesPage() {
   const [cardsActiveFilter, setCardsActiveFilter] = useState<
     "active" | "inactive"
   >("active");
+  const [coursesActiveFilter, setCoursesActiveFilter] = useState<
+    "active" | "inactive"
+  >("active");
   const [typeSearch, setTypeSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [cardSearch, setCardSearch] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
   const [guestCardsFilteredCount, setGuestCardsFilteredCount] = useState(0);
+  const [coursesFilteredCount, setCoursesFilteredCount] = useState(0);
   const cardsMembershipsRef = useRef<CardsMembershipsSectionHandle>(null);
+  const coursesRef = useRef<CoursesSectionHandle>(null);
 
   const onGuestCardsFilteredCount = useCallback((n: number) => {
     setGuestCardsFilteredCount(n);
+  }, []);
+  const onCoursesFilteredCount = useCallback((n: number) => {
+    setCoursesFilteredCount(n);
   }, []);
 
   useEffect(() => {
@@ -726,7 +744,11 @@ export function SessionTypesPage() {
       setCardSearch("");
       setGuestCardsFilteredCount(0);
     }
-  }, [showCardsMemberships]);
+    if (!showCourses) {
+      setCourseSearch("");
+      setCoursesFilteredCount(0);
+    }
+  }, [showCardsMemberships, showCourses]);
 
   const taxRateSelectOptions = useMemo(
     () =>
@@ -2137,10 +2159,10 @@ export function SessionTypesPage() {
                 type="button"
                 role="tab"
                 aria-selected={
-                  !showTransactionServices && !showCardsMemberships
+                  !showTransactionServices && !showCardsMemberships && !showCourses
                 }
                 className={
-                  !showTransactionServices && !showCardsMemberships
+                  !showTransactionServices && !showCardsMemberships && !showCourses
                     ? "clients-session-tab active"
                     : "clients-session-tab"
                 }
@@ -2177,6 +2199,16 @@ export function SessionTypesPage() {
                 <ServiceConfigTabIcon name="cards" />
                 <span>{t("sessionTypesSubtabCards")}</span>
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showCourses}
+                className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
+                onClick={() => setSessionTypesSubtab("courses")}
+              >
+                <ServiceConfigTabIcon name="types" />
+                <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
+              </button>
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
@@ -2184,25 +2216,31 @@ export function SessionTypesPage() {
               <input
                 className="clients-search-input"
                 placeholder={
-                  showCardsMemberships
-                    ? t("sessionTypesSearchCardsPlaceholder")
-                    : showTransactionServices
-                      ? t("sessionTypesSearchServicesPlaceholder")
-                      : t("sessionTypesSearchTypesPlaceholder")
+                  showCourses
+                    ? (locale === "sl" ? "Išči tečaje..." : "Search courses...")
+                    : showCardsMemberships
+                      ? t("sessionTypesSearchCardsPlaceholder")
+                      : showTransactionServices
+                        ? t("sessionTypesSearchServicesPlaceholder")
+                        : t("sessionTypesSearchTypesPlaceholder")
                 }
                 value={
-                  showCardsMemberships
-                    ? cardSearch
-                    : showTransactionServices
-                      ? serviceSearch
-                      : typeSearch
+                  showCourses
+                    ? courseSearch
+                    : showCardsMemberships
+                      ? cardSearch
+                      : showTransactionServices
+                        ? serviceSearch
+                        : typeSearch
                 }
                 onChange={(e) =>
-                  showCardsMemberships
-                    ? setCardSearch(e.target.value)
-                    : showTransactionServices
-                      ? setServiceSearch(e.target.value)
-                      : setTypeSearch(e.target.value)
+                  showCourses
+                    ? setCourseSearch(e.target.value)
+                    : showCardsMemberships
+                      ? setCardSearch(e.target.value)
+                      : showTransactionServices
+                        ? setServiceSearch(e.target.value)
+                        : setTypeSearch(e.target.value)
                 }
               />
               <span className="clients-search-icon" aria-hidden>
@@ -2218,7 +2256,11 @@ export function SessionTypesPage() {
                   type="button"
                   className="clients-session-tab active"
                   onClick={() => {
-                    if (showCardsMemberships) {
+                    if (showCourses) {
+                      setCoursesActiveFilter((prev) =>
+                        prev === "active" ? "inactive" : "active",
+                      );
+                    } else if (showCardsMemberships) {
                       setCardsActiveFilter((prev) =>
                         prev === "active" ? "inactive" : "active",
                       );
@@ -2235,21 +2277,25 @@ export function SessionTypesPage() {
                 >
                   <span
                     className={
-                      (showCardsMemberships
-                        ? cardsActiveFilter
-                        : showTransactionServices
-                          ? serviceActiveFilter
-                          : typeActiveFilter) === "active"
+                      (showCourses
+                        ? coursesActiveFilter
+                        : showCardsMemberships
+                          ? cardsActiveFilter
+                          : showTransactionServices
+                            ? serviceActiveFilter
+                            : typeActiveFilter) === "active"
                         ? "clients-filter-dot clients-filter-dot--active"
                         : "clients-filter-dot clients-filter-dot--inactive"
                     }
                     aria-hidden
                   />
-                  {(showCardsMemberships
-                    ? cardsActiveFilter
-                    : showTransactionServices
-                      ? serviceActiveFilter
-                      : typeActiveFilter) === "active"
+                  {(showCourses
+                    ? coursesActiveFilter
+                    : showCardsMemberships
+                      ? cardsActiveFilter
+                      : showTransactionServices
+                        ? serviceActiveFilter
+                        : typeActiveFilter) === "active"
                     ? locale === "sl"
                       ? "Aktivna"
                       : "Active"
@@ -2261,24 +2307,28 @@ export function SessionTypesPage() {
               <div
                 className={`clients-count-chip${isSessionTypesNarrow ? " clients-count-chip--mobile-open" : ""}`}
               >
-                {showCardsMemberships
-                  ? guestCardListCountLabel(guestCardsFilteredCount, locale)
-                  : showTransactionServices
-                    ? transactionServiceListCountLabel(
-                        filteredServices.length,
-                        locale,
-                      )
-                    : sessionTypeListCountLabel(filteredTypes.length, locale)}
+                {showCourses
+                  ? (locale === "sl" ? `${coursesFilteredCount} tečajev` : `${coursesFilteredCount} courses`)
+                  : showCardsMemberships
+                    ? guestCardListCountLabel(guestCardsFilteredCount, locale)
+                    : showTransactionServices
+                      ? transactionServiceListCountLabel(
+                          filteredServices.length,
+                          locale,
+                        )
+                      : sessionTypeListCountLabel(filteredTypes.length, locale)}
               </div>
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"
                 onClick={
-                  showCardsMemberships
-                    ? () => cardsMembershipsRef.current?.openNew()
-                    : showTransactionServices
-                      ? openNewServiceModal
-                      : openNewTypeModal
+                  showCourses
+                    ? () => coursesRef.current?.openNew()
+                    : showCardsMemberships
+                      ? () => cardsMembershipsRef.current?.openNew()
+                      : showTransactionServices
+                        ? openNewServiceModal
+                        : openNewTypeModal
                 }
               >
                 <ServiceConfigTabIcon name="plus" />
@@ -2291,7 +2341,14 @@ export function SessionTypesPage() {
             </div>
           </div>
           </div>
-          {showCardsMemberships ? (
+          {showCourses ? (
+            <CoursesSection
+              ref={coursesRef}
+              searchQuery={courseSearch}
+              activeFilter={coursesActiveFilter}
+              onFilteredCountChange={onCoursesFilteredCount}
+            />
+          ) : showCardsMemberships ? (
             <CardsMembershipsSection
               ref={cardsMembershipsRef}
               sessionTypes={activeTypes}
@@ -2317,9 +2374,9 @@ export function SessionTypesPage() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={showTransactionServices && !showCardsMemberships}
+                aria-selected={showTransactionServices && !showCardsMemberships && !showCourses}
                 className={
-                  showTransactionServices && !showCardsMemberships
+                  showTransactionServices && !showCardsMemberships && !showCourses
                     ? "clients-session-tab active"
                     : "clients-session-tab"
                 }
@@ -2342,6 +2399,16 @@ export function SessionTypesPage() {
                 <ServiceConfigTabIcon name="cards" />
                 <span>{t("sessionTypesSubtabCards")}</span>
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showCourses}
+                className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
+                onClick={() => setSessionTypesSubtab("courses")}
+              >
+                <ServiceConfigTabIcon name="types" />
+                <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
+              </button>
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
@@ -2349,15 +2416,19 @@ export function SessionTypesPage() {
               <input
                 className="clients-search-input"
                 placeholder={
-                  showCardsMemberships
-                    ? t("sessionTypesSearchCardsPlaceholder")
-                    : t("sessionTypesSearchServicesPlaceholder")
+                  showCourses
+                    ? (locale === "sl" ? "Išči tečaje..." : "Search courses...")
+                    : showCardsMemberships
+                      ? t("sessionTypesSearchCardsPlaceholder")
+                      : t("sessionTypesSearchServicesPlaceholder")
                 }
-                value={showCardsMemberships ? cardSearch : serviceSearch}
+                value={showCourses ? courseSearch : showCardsMemberships ? cardSearch : serviceSearch}
                 onChange={(e) =>
-                  showCardsMemberships
-                    ? setCardSearch(e.target.value)
-                    : setServiceSearch(e.target.value)
+                  showCourses
+                    ? setCourseSearch(e.target.value)
+                    : showCardsMemberships
+                      ? setCardSearch(e.target.value)
+                      : setServiceSearch(e.target.value)
                 }
               />
               <span className="clients-search-icon" aria-hidden>
@@ -2373,7 +2444,11 @@ export function SessionTypesPage() {
                   type="button"
                   className="clients-session-tab active"
                   onClick={() => {
-                    if (showCardsMemberships) {
+                    if (showCourses) {
+                      setCoursesActiveFilter((prev) =>
+                        prev === "active" ? "inactive" : "active",
+                      );
+                    } else if (showCardsMemberships) {
                       setCardsActiveFilter((prev) =>
                         prev === "active" ? "inactive" : "active",
                       );
@@ -2386,17 +2461,21 @@ export function SessionTypesPage() {
                 >
                   <span
                     className={
-                      (showCardsMemberships
-                        ? cardsActiveFilter
-                        : serviceActiveFilter) === "active"
+                      (showCourses
+                        ? coursesActiveFilter
+                        : showCardsMemberships
+                          ? cardsActiveFilter
+                          : serviceActiveFilter) === "active"
                         ? "clients-filter-dot clients-filter-dot--active"
                         : "clients-filter-dot clients-filter-dot--inactive"
                     }
                     aria-hidden
                   />
-                  {(showCardsMemberships
-                    ? cardsActiveFilter
-                    : serviceActiveFilter) === "active"
+                  {(showCourses
+                    ? coursesActiveFilter
+                    : showCardsMemberships
+                      ? cardsActiveFilter
+                      : serviceActiveFilter) === "active"
                     ? locale === "sl"
                       ? "Aktivna"
                       : "Active"
@@ -2408,20 +2487,24 @@ export function SessionTypesPage() {
               <div
                 className={`clients-count-chip${isSessionTypesNarrow ? " clients-count-chip--mobile-open" : ""}`}
               >
-                {showCardsMemberships
-                  ? guestCardListCountLabel(guestCardsFilteredCount, locale)
-                  : transactionServiceListCountLabel(
-                      filteredServices.length,
-                      locale,
-                    )}
+                {showCourses
+                  ? (locale === "sl" ? `${coursesFilteredCount} tečajev` : `${coursesFilteredCount} courses`)
+                  : showCardsMemberships
+                    ? guestCardListCountLabel(guestCardsFilteredCount, locale)
+                    : transactionServiceListCountLabel(
+                        filteredServices.length,
+                        locale,
+                      )}
               </div>
               <button
                 type="button"
                 className="clients-modern-new-btn service-config-new-btn"
                 onClick={
-                  showCardsMemberships
-                    ? () => cardsMembershipsRef.current?.openNew()
-                    : openNewServiceModal
+                  showCourses
+                    ? () => coursesRef.current?.openNew()
+                    : showCardsMemberships
+                      ? () => cardsMembershipsRef.current?.openNew()
+                      : openNewServiceModal
                 }
               >
                 <ServiceConfigTabIcon name="plus" />
@@ -2434,7 +2517,14 @@ export function SessionTypesPage() {
             </div>
           </div>
           </div>
-          {showCardsMemberships ? (
+          {showCourses ? (
+            <CoursesSection
+              ref={coursesRef}
+              searchQuery={courseSearch}
+              activeFilter={coursesActiveFilter}
+              onFilteredCountChange={onCoursesFilteredCount}
+            />
+          ) : showCardsMemberships ? (
             <CardsMembershipsSection
               ref={cardsMembershipsRef}
               sessionTypes={activeTypes}

@@ -1,6 +1,7 @@
 package com.example.app.guest.model;
 
 import com.example.app.common.BaseEntity;
+import com.example.app.course.Course;
 import com.example.app.billing.TransactionService;
 import com.example.app.company.Company;
 import com.example.app.session.SessionType;
@@ -26,6 +27,10 @@ public class GuestProduct extends BaseEntity {
     @ManyToOne
     @JoinColumn(name = "transaction_service_id")
     private TransactionService transactionService;
+
+    @ManyToOne
+    @JoinColumn(name = "course_id")
+    private Course course;
 
     @Column(nullable = false, length = 160)
     private String name;

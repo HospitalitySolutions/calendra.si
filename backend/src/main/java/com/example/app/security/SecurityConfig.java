@@ -137,6 +137,7 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/zoom/callback", "/api/google/callback", "/api/google/calendar/callback", "/api/google/calendar/webhook").permitAll();
                     auth.requestMatchers("/api/stripe/webhook").permitAll();
                     auth.requestMatchers("/api/guest/paypal/**", "/api/guest/stripe/**").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/course-access/**").permitAll();
 
                     auth.requestMatchers("/api/public/widget/**").permitAll();
                     auth.requestMatchers("/widget/**").permitAll();

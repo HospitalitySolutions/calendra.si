@@ -134,6 +134,7 @@ public final class GuestMapper {
                 ? null
                 : entitlement.getRemainingValueGross().doubleValue();
         String currency = product == null ? null : product.getCurrency();
+        String accessUrl = courseAccessUrl(entitlement);
         return new GuestDtos.EntitlementResponse(
                 String.valueOf(entitlement.getId()),
                 product == null ? "" : product.getName(),
@@ -151,8 +152,25 @@ public final class GuestMapper {
                 entitlement.getDisplayCode(),
                 priceGross,
                 remainingValueGross,
-                currency
+                currency,
+                accessUrl
         );
+    }
+
+    private static String courseAccessUrl(GuestEntitlement entitlement) {
+        if (entitlement == null || entitlement.getEntitlementType() != EntitlementType.COURSE) return null;
+        String token = entitlement.getCourseAccessToken();
+        if (entitlement.getMetadataJson() != null && !entitlement.getMetadataJson().isBlank()) {
+            try {
+                JsonNode root = JSON.readTree(entitlement.getMetadataJson());
+                String url = root.path("courseAccessUrl").asText(null);
+                if (url != null && !url.isBlank()) return url;
+                if (token == null || token.isBlank()) token = root.path("courseAccessToken").asText(null);
+            } catch (Exception ignore) {
+            }
+        }
+        if (token == null || token.isBlank()) return null;
+        return "/course-access/" + token;
     }
 
     private static boolean autoRenewSetting(GuestEntitlement entitlement) {

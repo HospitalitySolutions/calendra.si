@@ -103,9 +103,9 @@ public class WebsiteWidgetSettingsService {
                 root.path("noShowConsumesCredit").asBoolean(true),
                 root.path("sameDayBankTransferAllowed").asBoolean(false),
                 root.path("bankTransferReservesSlot").asBoolean(false),
-                readTextArray(root.path("allowBankTransferFor"), List.of("SESSION_SINGLE", "PACK", "MEMBERSHIP", "GIFT_CARD")),
-                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD")),
-                readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD")),
+                readTextArray(root.path("allowBankTransferFor"), List.of("SESSION_SINGLE", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")),
+                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")),
+                readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")),
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent

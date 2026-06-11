@@ -33,7 +33,8 @@ data class EntitlementSummary(
     val displayCode: String? = null,
     val priceGross: Double? = null,
     val remainingValueGross: Double? = null,
-    val currency: String? = null
+    val currency: String? = null,
+    val accessUrl: String? = null
 )
 
 @Serializable

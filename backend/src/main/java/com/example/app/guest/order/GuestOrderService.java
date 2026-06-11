@@ -41,7 +41,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class GuestOrderService {
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final List<String> ALL_ALLOWED_GUEST_PRODUCT_TYPES = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
+    private static final List<String> ALL_ALLOWED_GUEST_PRODUCT_TYPES = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
 
     private final GuestTenantService guestTenantService;
     private final GuestCatalogService catalogService;
@@ -835,7 +835,7 @@ public class GuestOrderService {
             Object productType = map.get("productType");
             if (guestProductId == null || productType == null) return null;
             String typeName = String.valueOf(productType);
-            if (!("PACK".equals(typeName) || "MEMBERSHIP".equals(typeName) || "CLASS_TICKET".equals(typeName) || "GIFT_CARD".equals(typeName))) {
+            if (!("PACK".equals(typeName) || "MEMBERSHIP".equals(typeName) || "CLASS_TICKET".equals(typeName) || "GIFT_CARD".equals(typeName) || "COURSE".equals(typeName))) {
                 return null;
             }
             return catalogService
@@ -1074,7 +1074,7 @@ public class GuestOrderService {
             Object guestProductId = map.get("guestProductId");
             if (productType == null || guestProductId == null) return;
             String productTypeName = String.valueOf(productType);
-            if (!("PACK".equals(productTypeName) || "MEMBERSHIP".equals(productTypeName) || "CLASS_TICKET".equals(productTypeName) || "GIFT_CARD".equals(productTypeName))) return;
+            if (!("PACK".equals(productTypeName) || "MEMBERSHIP".equals(productTypeName) || "CLASS_TICKET".equals(productTypeName) || "GIFT_CARD".equals(productTypeName) || "COURSE".equals(productTypeName))) return;
             Long guestProductIdLong = Long.parseLong(String.valueOf(guestProductId));
             GuestProduct product = catalogService.resolveProduct(order.getCompany().getId(), String.valueOf(guestProductIdLong), order.getGuestUser()).persistedProduct();
             if (product != null) {

@@ -13,6 +13,7 @@ import { RegisterPlanAddonsPage } from './pages/RegisterPlanAddonsPage'
 import { RegisterAccountPage } from './pages/RegisterAccountPage'
 import { RegisterBillingDetailsPage } from './pages/RegisterBillingDetailsPage'
 import { ZoomInstallPage } from './pages/ZoomInstallPage'
+import { CourseAccessPage } from './pages/CourseAccessPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
 import { getDefaultAllowedRoute, hasBillingAccess, hasInboxAccess } from './lib/packageAccess'
@@ -269,6 +270,7 @@ export default function App() {
   }, [location.search, location.pathname, navigate, showToast, user])
 
   if (location.pathname === '/oauth-callback') return <OAuthCallbackPage />
+  if (location.pathname.startsWith('/course-access/')) return <CourseAccessPage />
   if (location.pathname === '/forgot-password') return <ForgotPasswordPage />
   if (location.pathname === '/reset-password') return <ResetPasswordPage />
 

@@ -142,21 +142,24 @@ function walletProductTypeLabel(productType: string | null | undefined, locale: 
     if (type === 'MEMBERSHIP') return 'Članarina'
     if (type === 'GIFT_CARD') return 'Darilna kartica'
     if (type === 'CLASS_TICKET') return 'Karta'
+    if (type === 'COURSE') return 'Tečaj'
     if (type === 'PACK') return 'Paket'
     return 'Ugodnost'
   }
   if (type === 'MEMBERSHIP') return 'Membership'
   if (type === 'GIFT_CARD') return 'Gift card'
   if (type === 'CLASS_TICKET') return 'Ticket'
+  if (type === 'COURSE') return 'Course'
   if (type === 'PACK') return 'Pack'
   return 'Entitlement'
 }
 
-function walletProductTypeTone(productType: string | null | undefined): 'pack' | 'membership' | 'gift' | 'ticket' {
+function walletProductTypeTone(productType: string | null | undefined): 'pack' | 'membership' | 'gift' | 'ticket' | 'course' {
   const type = (productType ?? '').toUpperCase()
   if (type === 'MEMBERSHIP') return 'membership'
   if (type === 'GIFT_CARD') return 'gift'
   if (type === 'CLASS_TICKET') return 'ticket'
+  if (type === 'COURSE') return 'course'
   return 'pack'
 }
 
@@ -3394,7 +3397,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               {walletProductsLoading ? (
                                 <div className="muted clients-wallet-product-loading">{locale === 'sl' ? 'Nalaganje ugodnosti…' : 'Loading entitlements…'}</div>
                               ) : filteredWalletProducts.length === 0 ? (
-                                <div className="clients-wallet-product-empty">{locale === 'sl' ? 'Ni ustvarjenih aktivnih kart, paketov, članarin ali darilnih kartic.' : 'No active cards, packs, memberships or gift cards are configured.'}</div>
+                                <div className="clients-wallet-product-empty">{locale === 'sl' ? 'Ni ustvarjenih aktivnih kart, paketov, članarin, tečajev ali darilnih kartic.' : 'No active cards, packs, memberships, courses or gift cards are configured.'}</div>
                               ) : (
                                 filteredWalletProducts.map((product) => {
                                   const selected = selectedWalletProduct?.id === product.id

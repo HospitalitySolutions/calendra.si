@@ -69,10 +69,10 @@ public class BillingController {
     private static final long MANUAL_OPEN_BILL_LINE_SOURCE_ID_LIMIT = -900_000_000_000L;
     private static final String COMPANY_BILL_PROXY_EMAIL_DOMAIN = "calendra.invalid";
     private static final int TRANSACTION_SERVICE_CODE_MAX_LENGTH = 12;
-    private static final Set<String> GUEST_PRODUCT_TYPES = Set.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
-    private static final List<String> DEFAULT_ALLOWED_FOR_CARD = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
-    private static final List<String> DEFAULT_ALLOWED_FOR_BANK_TRANSFER = List.of("PACK", "MEMBERSHIP", "GIFT_CARD");
-    private static final List<String> DEFAULT_ALLOWED_FOR_OTHER = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD");
+    private static final Set<String> GUEST_PRODUCT_TYPES = Set.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
+    private static final List<String> DEFAULT_ALLOWED_FOR_CARD = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
+    private static final List<String> DEFAULT_ALLOWED_FOR_BANK_TRANSFER = List.of("PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
+    private static final List<String> DEFAULT_ALLOWED_FOR_OTHER = List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
     private final TransactionServiceRepository txRepo;
     private final PaymentMethodRepository paymentMethodRepo;
     private final BillRepository billRepo;

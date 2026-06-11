@@ -1,5 +1,9 @@
 package com.example.app.guest.catalog;
 
+import com.example.app.course.Course;
+import com.example.app.course.CourseRepository;
+import com.example.app.course.MembershipCourse;
+import com.example.app.course.MembershipCourseRepository;
 import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestOrderItemRepository;
 import com.example.app.guest.model.GuestProduct;
@@ -15,7 +19,9 @@ import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,19 +46,25 @@ public class GuestProductAdminController {
     private final TransactionServiceRepository transactionServices;
     private final GuestOrderItemRepository orderItems;
     private final GuestEntitlementRepository entitlements;
+    private final CourseRepository courses;
+    private final MembershipCourseRepository membershipCourses;
 
     public GuestProductAdminController(
             GuestProductRepository products,
             SessionTypeRepository sessionTypes,
             TransactionServiceRepository transactionServices,
             GuestOrderItemRepository orderItems,
-            GuestEntitlementRepository entitlements
+            GuestEntitlementRepository entitlements,
+            CourseRepository courses,
+            MembershipCourseRepository membershipCourses
     ) {
         this.products = products;
         this.sessionTypes = sessionTypes;
         this.transactionServices = transactionServices;
         this.orderItems = orderItems;
         this.entitlements = entitlements;
+        this.courses = courses;
+        this.membershipCourses = membershipCourses;
     }
 
     @GetMapping
@@ -69,7 +81,9 @@ public class GuestProductAdminController {
         GuestProduct product = new GuestProduct();
         product.setCompany(me.getCompany());
         apply(product, request, me);
-        return toResponse(products.save(product));
+        product = products.save(product);
+        syncMembershipCourses(product, request.includedCourseIds(), me.getCompany().getId());
+        return toResponse(product);
     }
 
     @PutMapping("/{id}")
@@ -78,7 +92,9 @@ public class GuestProductAdminController {
         GuestProduct product = products.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
         apply(product, request, me);
-        return toResponse(products.save(product));
+        product = products.save(product);
+        syncMembershipCourses(product, request.includedCourseIds(), me.getCompany().getId());
+        return toResponse(product);
     }
 
     @DeleteMapping("/{id}")
@@ -104,7 +120,7 @@ public class GuestProductAdminController {
         }
 
         Long companyId = me.getCompany().getId();
-        SessionType sessionType = productType == ProductType.GIFT_CARD
+        SessionType sessionType = (productType == ProductType.GIFT_CARD || productType == ProductType.COURSE)
                 ? null
                 : resolveSessionType(request.sessionTypeId(), companyId);
         TransactionService transactionService = productType == ProductType.GIFT_CARD
@@ -120,7 +136,7 @@ public class GuestProductAdminController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tickets must be linked to a service type.");
         }
 
-        Integer usageLimit = (productType == ProductType.CLASS_TICKET || productType == ProductType.MEMBERSHIP || productType == ProductType.GIFT_CARD)
+        Integer usageLimit = (productType == ProductType.CLASS_TICKET || productType == ProductType.MEMBERSHIP || productType == ProductType.GIFT_CARD || productType == ProductType.COURSE)
                 ? Integer.valueOf(1)
                 : normalizePositiveInteger(request.usageLimit(), "Usage limit");
         if (productType == ProductType.PACK && (usageLimit == null || usageLimit < 1)) {
@@ -236,6 +252,28 @@ public class GuestProductAdminController {
         return value;
     }
 
+    private void syncMembershipCourses(GuestProduct product, List<Long> includedCourseIds, Long companyId) {
+        if (product.getProductType() != ProductType.MEMBERSHIP) {
+            if (product.getId() != null) {
+                membershipCourses.deleteAllByMembershipProductIdAndCompanyId(product.getId(), companyId);
+            }
+            return;
+        }
+        membershipCourses.deleteAllByMembershipProductIdAndCompanyId(product.getId(), companyId);
+        if (includedCourseIds == null || includedCourseIds.isEmpty()) return;
+        Set<Long> uniqueIds = new LinkedHashSet<>(includedCourseIds);
+        for (Long courseId : uniqueIds) {
+            if (courseId == null) continue;
+            Course course = courses.findByIdAndCompanyId(courseId, companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected course was not found."));
+            MembershipCourse row = new MembershipCourse();
+            row.setCompany(product.getCompany());
+            row.setMembershipProduct(product);
+            row.setCourse(course);
+            membershipCourses.save(row);
+        }
+    }
+
     private String normalizeCurrency(String raw) {
         String currency = trimToNull(raw);
         String normalized = currency == null ? "EUR" : currency.toUpperCase(Locale.ROOT);
@@ -249,6 +287,17 @@ public class GuestProductAdminController {
         if (raw == null) return null;
         String trimmed = raw.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private List<Long> includedCourseIds(GuestProduct product) {
+        if (product == null || product.getId() == null || product.getProductType() != ProductType.MEMBERSHIP) {
+            return List.of();
+        }
+        Long companyId = product.getCompany() == null ? null : product.getCompany().getId();
+        if (companyId == null) return List.of();
+        return membershipCourses.findAllByMembershipProductIdAndCompanyIdOrderByCourseTitleAsc(product.getId(), companyId).stream()
+                .map(row -> row.getCourse().getId())
+                .toList();
     }
 
     private ProductAdminResponse toResponse(GuestProduct product) {
@@ -272,6 +321,7 @@ public class GuestProductAdminController {
                 product.getTransactionService() == null ? null : product.getTransactionService().getId(),
                 product.getTransactionService() == null ? null : product.getTransactionService().getCode(),
                 product.getTransactionService() == null ? null : product.getTransactionService().getDescription(),
+                includedCourseIds(product),
                 product.getCreatedAt(),
                 product.getUpdatedAt()
         );
@@ -293,7 +343,8 @@ public class GuestProductAdminController {
             Boolean autoRenews,
             Integer sortOrder,
             Long sessionTypeId,
-            Long transactionServiceId
+            Long transactionServiceId,
+            List<Long> includedCourseIds
     ) {}
 
     public record ProductAdminResponse(
@@ -316,6 +367,7 @@ public class GuestProductAdminController {
             Long transactionServiceId,
             String transactionServiceCode,
             String transactionServiceDescription,
+            List<Long> includedCourseIds,
             Instant createdAt,
             Instant updatedAt
     ) {}

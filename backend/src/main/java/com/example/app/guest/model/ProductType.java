@@ -5,5 +5,6 @@ public enum ProductType {
     CLASS_TICKET,
     PACK,
     MEMBERSHIP,
-    GIFT_CARD
+    GIFT_CARD,
+    COURSE
 }

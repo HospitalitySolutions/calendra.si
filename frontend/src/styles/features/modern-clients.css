@@ -3372,3 +3372,8 @@
         justify-self: start;
     }
 }
+
+.clients-wallet-product-badge--course {
+    background: #e0f2fe;
+    color: #0369a1;
+}

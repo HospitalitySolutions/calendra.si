@@ -140,7 +140,9 @@ public final class GuestDtos {
             Double priceGross,
             /** Remaining gift-card balance; null for visit packs, tickets and memberships. */
             Double remainingValueGross,
-            String currency
+            String currency,
+            /** Protected Calendra course URL used by email links and course QR cards. */
+            String accessUrl
     ) {}
     public record PendingOrderResponse(String orderId, String status, String paymentMethodType, double totalGross, String referenceCode) {}
     public record HomeResponse(TenantSummaryResponse tenant, List<UpcomingBookingResponse> upcomingBookings, List<EntitlementResponse> activeEntitlements, List<PendingOrderResponse> pendingOrders) {}

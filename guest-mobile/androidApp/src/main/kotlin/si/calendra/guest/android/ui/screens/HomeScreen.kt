@@ -127,7 +127,8 @@ data class AccessCard(
     val priceGross: Double? = null,
     val currency: String? = null,
     val validityDays: Int? = null,
-    val autoRenews: Boolean = false
+    val autoRenews: Boolean = false,
+    val accessUrl: String? = null
 )
 
 @Composable

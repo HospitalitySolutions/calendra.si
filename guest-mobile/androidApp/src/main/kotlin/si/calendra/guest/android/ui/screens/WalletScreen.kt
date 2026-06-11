@@ -172,6 +172,7 @@ private fun walletFilterDisplay(label: String, languageCode: String): String = w
     "All" -> walletTr(languageCode, "All", "Vse")
     "Tickets" -> walletTr(languageCode, "Tickets", "Vstopnice")
     "Memberships" -> walletTr(languageCode, "Memberships", "Članarine")
+    "Courses" -> walletTr(languageCode, "Courses", "Tečaji")
     "Paid" -> walletTr(languageCode, "Paid", "Plačano")
     "Pending" -> walletTr(languageCode, "Pending", "V čakanju")
     "Refunded" -> walletTr(languageCode, "Refunded", "Vrnjeno")
@@ -184,6 +185,7 @@ private fun walletProductTypeLabel(type: String, languageCode: String): String =
     "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
     "CLASS_TICKET" -> walletTr(languageCode, "Class ticket", "Vstopnica")
     "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
+    "COURSE" -> walletTr(languageCode, "Course", "Tečaj")
     else -> type.lowercase(Locale.getDefault()).replaceFirstChar { it.uppercase() }
 }
 
@@ -470,7 +472,7 @@ private fun WalletEntitlementFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        listOf("All", "Tickets", "Memberships").forEach { label ->
+        listOf("All", "Tickets", "Memberships", "Courses").forEach { label ->
             val selected = label == selectedFilter
             Surface(
                 modifier = Modifier.clickable(
@@ -774,7 +776,8 @@ data class WalletPassCardData(
     val remainingValueGross: Double?,
     val currency: String?,
     val autoRenews: Boolean,
-    val status: String
+    val status: String,
+    val accessUrl: String? = null
 )
 
 
@@ -908,6 +911,7 @@ private fun EntitlementsPanel(
         when (selectedFilter) {
             "Tickets" -> cards.filter { it.type == "PACK" || it.type == "CLASS_TICKET" }
             "Memberships" -> cards.filter { it.type == "MEMBERSHIP" }
+            "Courses" -> cards.filter { it.type == "COURSE" }
             else -> cards
         }
     }
@@ -1434,7 +1438,8 @@ private fun AccessCard.toWalletPassCardData(): WalletPassCardData = WalletPassCa
     remainingValueGross = null,
     currency = currency,
     autoRenews = autoRenews,
-    status = "ACTIVE"
+    status = "ACTIVE",
+    accessUrl = accessUrl
 )
 
 private fun EntitlementSummary.toWalletPassCardData(): WalletPassCardData = WalletPassCardData(
@@ -1453,7 +1458,8 @@ private fun EntitlementSummary.toWalletPassCardData(): WalletPassCardData = Wall
     remainingValueGross = remainingValueGross,
     currency = currency,
     autoRenews = autoRenews,
-    status = status
+    status = status,
+    accessUrl = accessUrl
 )
 
 @Composable
@@ -1471,9 +1477,16 @@ private fun WalletStackedPassCard(
     val style = walletTicketStyle(card.type, index)
     val isLightCard = type == "CLASS_TICKET" || type == "GIFT_CARD"
     val shape = RoundedCornerShape(26.dp)
-    val code = card.entitlementCode?.takeIf { it.isNotBlank() }
-        ?: card.displayCode?.takeIf { it.isNotBlank() }
-        ?: card.id
+    val code = if (type == "COURSE") {
+        card.accessUrl?.takeIf { it.isNotBlank() }
+            ?: card.entitlementCode?.takeIf { it.isNotBlank() }
+            ?: card.displayCode?.takeIf { it.isNotBlank() }
+            ?: card.id
+    } else {
+        card.entitlementCode?.takeIf { it.isNotBlank() }
+            ?: card.displayCode?.takeIf { it.isNotBlank() }
+            ?: card.id
+    }
     val primary = primaryMetric(card, languageCode)
     val secondary = secondaryMetric(card, languageCode)
     val textColor = if (isLightCard) WalletInk else Color.White
@@ -2200,6 +2213,12 @@ private fun walletTicketStyle(type: String, index: Int): WalletTicketStyle = whe
         border = WalletAmber.copy(alpha = 0.74f),
         softAccent = Color(0xFFFFFFFF)
     )
+    "COURSE" -> WalletTicketStyle(
+        background = Color(0xFF0F7BFF),
+        accent = WalletBlueSoft,
+        border = Color(0xFF2C8BFF),
+        softAccent = Color(0xFF003DA8)
+    )
     else -> {
         val isBlue = index % 2 == 0
         WalletTicketStyle(
@@ -2216,6 +2235,7 @@ private fun primaryMetric(card: WalletPassCardData, languageCode: String = "en")
     "PACK" -> walletTr(languageCode, "Access", "Dostop") to usesSummary(card, languageCode)
     "CLASS_TICKET" -> walletTr(languageCode, "Access", "Dostop") to walletTr(languageCode, "1 class", "1 obisk")
     "GIFT_CARD" -> walletTr(languageCode, "Balance", "Dobroimetje") to "${formatPrice(card.remainingValueGross ?: 0.0)} ${card.currency ?: ""}".trim()
+    "COURSE" -> walletTr(languageCode, "Access", "Dostop") to walletTr(languageCode, "Open course", "Odpri tečaj")
     else -> productTypeLabel(card.type) to usesSummary(card)
 }
 
@@ -2224,6 +2244,7 @@ private fun secondaryMetric(card: WalletPassCardData, languageCode: String = "en
     "PACK" -> walletTr(languageCode, "Expires", "Poteče") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
     "CLASS_TICKET" -> walletTr(languageCode, "Date", "Datum") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
     "GIFT_CARD" -> walletTr(languageCode, "Valid until", "Velja do") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
+    "COURSE" -> walletTr(languageCode, "Access", "Dostop") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "Lifetime", "Doživljenjsko"))
     else -> walletTr(languageCode, "Valid until", "Velja do") to (formatLongDate(card.validUntil).takeIf { it != "—" } ?: walletTr(languageCode, "No expiry", "Brez poteka"))
 }
 
@@ -2239,6 +2260,7 @@ private fun entitlementHeaderTypeTag(type: String, languageCode: String = "en"):
     "PACK" -> walletTr(languageCode, "PACK", "PAKET")
     "CLASS_TICKET" -> walletTr(languageCode, "CLASS", "VSTOPNICA")
     "GIFT_CARD" -> walletTr(languageCode, "GIFT", "DARILO")
+    "COURSE" -> walletTr(languageCode, "COURSE", "TEČAJ")
     else -> productTypeLabel(type).uppercase(Locale.getDefault())
 }
 
@@ -2246,6 +2268,7 @@ private fun entitlementTopRightTypeLabel(type: String, languageCode: String = "e
     "PACK", "CLASS_TICKET" -> walletTr(languageCode, "Ticket", "Vstopnica")
     "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
     "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
+    "COURSE" -> walletTr(languageCode, "Course", "Tečaj")
     else -> productTypeLabel(type)
 }
 
@@ -2301,6 +2324,7 @@ private fun statusLabelForCard(card: WalletPassCardData, languageCode: String = 
     return when (card.type) {
         "PACK" -> card.remainingUses?.let { walletTr(languageCode, "$it left", "$it preostalo") } ?: walletTr(languageCode, "Active", "Aktivno")
         "CLASS_TICKET" -> walletTr(languageCode, "Ready", "Pripravljeno")
+        "COURSE" -> walletTr(languageCode, "Available", "Na voljo")
         else -> walletTr(languageCode, "Active", "Aktivno")
     }
 }
@@ -2544,12 +2568,14 @@ private enum class BuyMarketplaceCategory(val title: String) {
     All("All"),
     Memberships("Memberships"),
     Cards("Cards"),
+    Courses("Courses"),
     GiftCards("Gift Cards");
 
     fun localizedTitle(languageCode: String): String = when (this) {
         All -> walletTr(languageCode, "All", "Vse")
         Memberships -> walletTr(languageCode, "Memberships", "Članarine")
         Cards -> walletTr(languageCode, "Cards", "Karte")
+        Courses -> walletTr(languageCode, "Courses", "Tečaji")
         GiftCards -> walletTr(languageCode, "Gift Cards", "Darilne kartice")
     }
 }
@@ -2558,6 +2584,7 @@ private fun buyMarketplaceCategoriesForOffers(offers: List<WalletOfferCard>): Li
     add(BuyMarketplaceCategory.All)
     if (offers.any { offerMatchesMarketplaceCategory(it, BuyMarketplaceCategory.Memberships) }) add(BuyMarketplaceCategory.Memberships)
     if (offers.any { offerMatchesMarketplaceCategory(it, BuyMarketplaceCategory.Cards) }) add(BuyMarketplaceCategory.Cards)
+    if (offers.any { offerMatchesMarketplaceCategory(it, BuyMarketplaceCategory.Courses) }) add(BuyMarketplaceCategory.Courses)
     if (offers.any { offerMatchesMarketplaceCategory(it, BuyMarketplaceCategory.GiftCards) }) add(BuyMarketplaceCategory.GiftCards)
 }
 
@@ -2565,8 +2592,9 @@ private fun buyMarketplaceSortRank(offer: WalletOfferCard): Int {
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
         type == "MEMBERSHIP" -> 0
-        !isGiftOffer(offer) -> 1
-        else -> 2
+        type == "COURSE" -> 1
+        !isGiftOffer(offer) -> 2
+        else -> 3
     }
 }
 
@@ -2575,7 +2603,8 @@ private fun offerMatchesMarketplaceCategory(offer: WalletOfferCard, category: Bu
     return when (category) {
         BuyMarketplaceCategory.All -> true
         BuyMarketplaceCategory.Memberships -> type == "MEMBERSHIP"
-        BuyMarketplaceCategory.Cards -> !isGiftOffer(offer) && type != "MEMBERSHIP"
+        BuyMarketplaceCategory.Cards -> !isGiftOffer(offer) && type != "MEMBERSHIP" && type != "COURSE"
+        BuyMarketplaceCategory.Courses -> type == "COURSE"
         BuyMarketplaceCategory.GiftCards -> isGiftOffer(offer)
     }
 }
@@ -2634,6 +2663,7 @@ private fun BuyMarketplaceCategoryIcon(category: BuyMarketplaceCategory, selecte
         BuyMarketplaceCategory.All -> Icon(Icons.Rounded.Tune, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
         BuyMarketplaceCategory.Memberships -> Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
         BuyMarketplaceCategory.Cards -> Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+        BuyMarketplaceCategory.Courses -> Text("▶", color = tint, fontSize = 13.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold)
         BuyMarketplaceCategory.GiftCards -> Text("🎁", fontSize = 13.sp, lineHeight = 13.sp)
     }
 }

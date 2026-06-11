@@ -424,8 +424,9 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
     /// Remaining gift-card balance; nil for non-gift-card entitlements.
     let remainingValueGross: Double?
     let currency: String?
+    let accessUrl: String?
 
-    init(id: String, name: String, type: String, entitlementCode: String?, remainingUses: Int?, visitCount: Int?, totalUses: Int?, validUntil: String?, validityDays: Int?, status: String?, sessionTypeId: String?, sessionTypeName: String?, autoRenews: Bool?, displayCode: String?, priceGross: Double?, remainingValueGross: Double?, currency: String?) {
+    init(id: String, name: String, type: String, entitlementCode: String?, remainingUses: Int?, visitCount: Int?, totalUses: Int?, validUntil: String?, validityDays: Int?, status: String?, sessionTypeId: String?, sessionTypeName: String?, autoRenews: Bool?, displayCode: String?, priceGross: Double?, remainingValueGross: Double?, currency: String?, accessUrl: String?) {
         self.id = id
         self.name = name
         self.type = type
@@ -443,6 +444,7 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
         self.priceGross = priceGross
         self.remainingValueGross = remainingValueGross
         self.currency = currency
+        self.accessUrl = accessUrl
     }
 
     enum CodingKeys: String, CodingKey {
@@ -463,6 +465,7 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
         case priceGross
         case remainingValueGross
         case currency
+        case accessUrl
     }
 }
 
@@ -790,6 +793,7 @@ struct AccessCardModel: Identifiable, Hashable {
     /// Remaining gift-card balance; nil for non-gift-card entitlements.
     let remainingValueGross: Double?
     let currency: String?
+    let accessUrl: String?
     /// Mirrors backend `EntitlementStatus` (e.g. ACTIVE, EXPIRED).
     let status: String
 }

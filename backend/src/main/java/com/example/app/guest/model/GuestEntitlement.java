@@ -65,6 +65,10 @@ public class GuestEntitlement extends BaseEntity {
     @Column(name = "display_seq")
     private Integer displaySeq;
 
+    /** Protected token used by course QR codes and email links. */
+    @Column(name = "course_access_token", length = 64, unique = true)
+    private String courseAccessToken;
+
     @Column(columnDefinition = "TEXT")
     private String metadataJson;
 }

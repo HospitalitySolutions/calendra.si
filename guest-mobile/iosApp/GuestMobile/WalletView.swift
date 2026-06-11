@@ -130,6 +130,7 @@ private func walletFilterTitle(_ label: String, languageCode: String) -> String 
     case "All": return walletTr(languageCode, "All", "Vse")
     case "Tickets": return walletTr(languageCode, "Tickets", "Vstopnice")
     case "Memberships": return walletTr(languageCode, "Memberships", "Članarine")
+    case "Courses": return walletTr(languageCode, "Courses", "Tečaji")
     case "Paid": return walletTr(languageCode, "Paid", "Plačano")
     case "Pending": return walletTr(languageCode, "Pending", "V čakanju")
     case "Refunded": return walletTr(languageCode, "Refunded", "Vrnjeno")
@@ -146,6 +147,7 @@ private func walletProductTypeLabel(_ type: String, languageCode: String) -> Str
     case "MEMBERSHIP": return walletTr(languageCode, "Membership", "Članarina")
     case "CLASS_TICKET": return walletTr(languageCode, "Class ticket", "Vstopnica")
     case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(languageCode, "Gift card", "Darilna kartica")
+    case "COURSE": return walletTr(languageCode, "Course", "Tečaj")
     case "ORDER": return walletTr(languageCode, "Order", "Naročilo")
     default: return type.capitalized
     }
@@ -155,6 +157,7 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
     case all
     case memberships
     case classPacks
+    case courses
     case giftCards
 
     var id: String { title }
@@ -164,6 +167,7 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
         case .all: return "All"
         case .memberships: return "Memberships"
         case .classPacks: return "Cards"
+        case .courses: return "Courses"
         case .giftCards: return "Gift Cards"
         }
     }
@@ -173,6 +177,7 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
         case .all: return walletTr(languageCode, "All", "Vse")
         case .memberships: return walletTr(languageCode, "Memberships", "Članarine")
         case .classPacks: return walletTr(languageCode, "Cards", "Karte")
+        case .courses: return walletTr(languageCode, "Courses", "Tečaji")
         case .giftCards: return walletTr(languageCode, "Gift Cards", "Darilne kartice")
         }
     }
@@ -182,19 +187,23 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
         case .all: return "square.grid.2x2"
         case .memberships: return "dumbbell"
         case .classPacks: return "ticket"
+        case .courses: return "play.rectangle"
         case .giftCards: return "gift"
         }
     }
 
     func matches(_ offer: WalletOfferModel) -> Bool {
         let isGift = offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT"
+        let isCourse = offer.productType == "COURSE"
         switch self {
         case .all:
             return true
         case .memberships:
             return offer.productType == "MEMBERSHIP"
         case .classPacks:
-            return offer.productType != "MEMBERSHIP" && !isGift
+            return offer.productType != "MEMBERSHIP" && !isGift && !isCourse
+        case .courses:
+            return isCourse
         case .giftCards:
             return isGift
         }
@@ -460,6 +469,8 @@ struct WalletView: View {
                 return card.type == "PACK" || card.type == "CLASS_TICKET"
             case "Memberships":
                 return card.type == "MEMBERSHIP"
+            case "Courses":
+                return card.type == "COURSE"
             default:
                 return true
             }
@@ -649,8 +660,9 @@ struct WalletView: View {
 
     private func buyOfferSortRank(_ offer: WalletOfferModel) -> Int {
         if offer.productType == "MEMBERSHIP" { return 0 }
-        if offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT" { return 2 }
-        return 1
+        if offer.productType == "COURSE" { return 1 }
+        if offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT" { return 3 }
+        return 2
     }
 
     private func buyFeaturedOffer(from offers: [WalletOfferModel]) -> WalletOfferModel? {
@@ -952,7 +964,7 @@ struct WalletView: View {
         onToggleStatusFilter: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 8) {
-            ForEach(["All", "Tickets", "Memberships"], id: \.self) { label in
+            ForEach(["All", "Tickets", "Memberships", "Courses"], id: \.self) { label in
                 let isSelected = selectedFilter == label
                 Button {
                     onFilterSelected(label)
@@ -1770,6 +1782,7 @@ private struct WalletStackedPassCard: View {
     private var style: WalletTicketStyle { walletTicketStyle(type: entitlement.type, index: index) }
     private var shape: CompactTicketShape { CompactTicketShape(cornerRadius: 20, notchRadius: 10, notchFractionY: 0.48) }
     private var code: String {
+        if entitlement.type.uppercased() == "COURSE", let accessUrl = entitlement.accessUrl, !accessUrl.isEmpty { return accessUrl }
         if let entitlementCode = entitlement.entitlementCode, !entitlementCode.isEmpty { return entitlementCode }
         if let displayCode = entitlement.displayCode, !displayCode.isEmpty { return displayCode }
         return entitlement.entitlementId
@@ -2070,6 +2083,7 @@ private struct WalletStackedPassCard: View {
         case "PACK", "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Ticket", "Vstopnica")
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Membership", "Članarina")
         case "GIFT_CARD": return walletTr(appUiLocaleStorage, "Gift card", "Darilna kartica")
+        case "COURSE": return walletTr(appUiLocaleStorage, "Course", "Tečaj")
         default: return productTypeLabel(entitlement.type)
         }
     }
@@ -2087,6 +2101,7 @@ private struct WalletStackedPassCard: View {
             if let remaining = entitlement.remainingUses { return "\(remaining) left" }
             return "Active"
         case "CLASS_TICKET": return "Ready"
+        case "COURSE": return walletTr(appUiLocaleStorage, "Available", "Na voljo")
         default: return "Active"
         }
     }
@@ -2105,6 +2120,7 @@ private struct WalletStackedPassCard: View {
         case "PACK": return ("Access", usesSummary)
         case "CLASS_TICKET": return ("Access", "1 class")
         case "GIFT_CARD": return ("Balance", giftCardBalance)
+        case "COURSE": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), walletTr(appUiLocaleStorage, "Open course", "Odpri tečaj"))
         default: return (productTypeLabel(entitlement.type), usesSummary)
         }
     }
@@ -2114,6 +2130,7 @@ private struct WalletStackedPassCard: View {
         case "MEMBERSHIP": return ("Valid until", validUntilLabel)
         case "PACK": return ("Expires", validUntilLabel)
         case "CLASS_TICKET": return ("Date", validUntilLabel)
+        case "COURSE": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), validUntilLabel == "No expiry" ? walletTr(appUiLocaleStorage, "Lifetime", "Doživljenjsko") : validUntilLabel)
         default: return ("Valid until", validUntilLabel)
         }
     }
@@ -3617,6 +3634,10 @@ private struct BuyOfferIllustration: View {
                 Image(systemName: "figure.mind.and.body")
                     .font(.system(size: 35, weight: .regular))
                     .foregroundColor(accent)
+            case "COURSE":
+                Image(systemName: "play.rectangle")
+                    .font(.system(size: 35, weight: .semibold))
+                    .foregroundColor(accent)
             default:
                 Image(systemName: "gift")
                     .font(.system(size: 32, weight: .semibold))
@@ -3683,9 +3704,10 @@ private struct ClassTicketOfferCard: View {
 
     var body: some View {
         let shape = CompactTicketShape(cornerRadius: 20, notchRadius: 11)
+        let isCourse = offer.productType.uppercased() == "COURSE"
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 9) {
-                Text("CLASS TICKET")
+                Text(isCourse ? "COURSE" : "CLASS TICKET")
                     .font(.caption.weight(.bold))
                     .tracking(1.2)
                     .foregroundColor(walletGold)
@@ -3700,13 +3722,13 @@ private struct ClassTicketOfferCard: View {
                 Rectangle()
                     .fill(walletGold.opacity(0.45))
                     .frame(maxWidth: 320, maxHeight: 1)
-                Text(classOfferDescription(offer))
+                Text(isCourse ? (offer.description ?? "Video / audio course access") : classOfferDescription(offer))
                     .font(.subheadline)
                     .foregroundColor(walletMuted)
                     .lineLimit(3)
                 HStack(spacing: 14) {
-                    OfferMetricBlock(title: (offer.usageLimit ?? 1) <= 1 ? "Valid for 1 class" : "Valid for \(offer.usageLimit ?? 1) classes", subtitle: offerValidityLabel(offer.validityDays), accent: walletGold)
-                    OfferMetricBlock(title: offerVisitCountLabel(offer.usageLimit), subtitle: (offer.usageLimit ?? 1) <= 1 ? "Single use" : "Multi-use", accent: walletGold)
+                    OfferMetricBlock(title: isCourse ? "Lifetime access" : ((offer.usageLimit ?? 1) <= 1 ? "Valid for 1 class" : "Valid for \(offer.usageLimit ?? 1) classes"), subtitle: isCourse ? "Course entitlement" : offerValidityLabel(offer.validityDays), accent: walletGold)
+                    OfferMetricBlock(title: isCourse ? "Video / audio" : offerVisitCountLabel(offer.usageLimit), subtitle: isCourse ? "QR access card" : ((offer.usageLimit ?? 1) <= 1 ? "Single use" : "Multi-use"), accent: walletGold)
                 }
                 Button(action: onTap) {
                     Text("Buy now")

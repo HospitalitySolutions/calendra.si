@@ -187,8 +187,8 @@ public class GuestSettingsService {
                 root.path("sameDayBankTransferAllowed").asBoolean(false),
                 root.path("bankTransferReservesSlot").asBoolean(false),
                 readTextArray(root.path("allowBankTransferFor"), List.of("PACK", "MEMBERSHIP")),
-                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP")),
-                readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP")),
+                readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "COURSE")),
+                readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "COURSE")),
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent

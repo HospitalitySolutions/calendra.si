@@ -56,7 +56,8 @@ public class ClientWalletPurchaseController {
             ProductType.CLASS_TICKET,
             ProductType.PACK,
             ProductType.MEMBERSHIP,
-            ProductType.GIFT_CARD
+            ProductType.GIFT_CARD,
+            ProductType.COURSE
     );
 
     private final ClientRepository clients;
@@ -270,6 +271,7 @@ public class ClientWalletPurchaseController {
         return switch (product.getProductType() == null ? ProductType.PACK : product.getProductType()) {
             case MEMBERSHIP -> "Membership";
             case GIFT_CARD -> "Gift card";
+            case COURSE -> "Course";
             case CLASS_TICKET -> "Ticket";
             case PACK -> "Pack";
             case SESSION_SINGLE -> "Session";

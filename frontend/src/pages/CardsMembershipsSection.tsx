@@ -20,7 +20,7 @@ import { useLocale } from '../locale'
 
 const SESSION_TYPES_SUBTAB_TRANSACTION = 'transaction-services'
 
-type GuestAdminProductType = 'CLASS_TICKET' | 'PACK' | 'MEMBERSHIP' | 'GIFT_CARD'
+type GuestAdminProductType = 'CLASS_TICKET' | 'PACK' | 'MEMBERSHIP' | 'GIFT_CARD' | 'COURSE'
 
 type GuestAdminProduct = {
   id: number
@@ -42,9 +42,12 @@ type GuestAdminProduct = {
   transactionServiceId?: number | null
   transactionServiceCode?: string | null
   transactionServiceDescription?: string | null
+  includedCourseIds?: number[] | null
   createdAt?: string
   updatedAt?: string
 }
+
+type CourseOption = { id: number; title: string; mediaType: string; status: string; active: boolean }
 
 type GuestProductFormState = {
   name: string
@@ -62,6 +65,7 @@ type GuestProductFormState = {
   sortOrder: string
   sessionTypeId: string
   transactionServiceId: string
+  includedCourseIds: string[]
 }
 
 const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = ['PACK', 'MEMBERSHIP', 'GIFT_CARD']
@@ -71,6 +75,7 @@ const CARD_PRODUCT_TYPE_LABELS: Record<GuestAdminProductType, string> = {
   PACK: 'Tickets',
   MEMBERSHIP: 'Membership',
   GIFT_CARD: 'Gift card',
+  COURSE: 'Course',
 }
 
 const defaultGuestProductForm = (): GuestProductFormState => ({
@@ -89,6 +94,7 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   sortOrder: '0',
   sessionTypeId: '',
   transactionServiceId: '',
+  includedCourseIds: [],
 })
 
 const normalizeGuestProductFormForType = (
@@ -100,7 +106,7 @@ const normalizeGuestProductFormForType = (
   return {
     ...current,
     productType: nextProductType,
-    usageLimit: (nextProductType === 'CLASS_TICKET' || nextProductType === 'MEMBERSHIP' || nextProductType === 'GIFT_CARD')
+    usageLimit: (nextProductType === 'CLASS_TICKET' || nextProductType === 'MEMBERSHIP' || nextProductType === 'GIFT_CARD' || nextProductType === 'COURSE')
       ? '1'
       : nextProductType === 'PACK' && currentUsage == null
         ? '1'
@@ -108,7 +114,7 @@ const normalizeGuestProductFormForType = (
     sessionTypeId:
       (nextProductType === 'CLASS_TICKET' || nextProductType === 'PACK')
         ? (current.sessionTypeId.trim() || defaultSessionTypeId || '')
-        : nextProductType === 'GIFT_CARD'
+        : nextProductType === 'GIFT_CARD' || nextProductType === 'COURSE'
           ? ''
           : current.sessionTypeId,
     autoRenews: nextProductType === 'MEMBERSHIP' ? current.autoRenews : false,
@@ -245,6 +251,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
   const { showToast } = useToast()
   const [guestProducts, setGuestProducts] = useState<GuestAdminProduct[]>([])
   const [transactionServices, setTransactionServices] = useState<BillingService[]>([])
+  const [courses, setCourses] = useState<CourseOption[]>([])
   const [openProductMenuId, setOpenProductMenuId] = useState<number | null>(null)
   const [activatingGuestProductId, setActivatingGuestProductId] = useState<number | null>(null)
   const [showGuestProductModal, setShowGuestProductModal] = useState(false)
@@ -255,15 +262,18 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
   const loadGuestProducts = useCallback(async () => {
     if (!isAdmin) return
     try {
-      const [productsRes, servicesRes] = await Promise.all([
+      const [productsRes, servicesRes, coursesRes] = await Promise.all([
         api.get('/guest/admin/products').catch(() => ({ data: [] })),
         api.get<BillingService[]>('/billing/services').catch(() => ({ data: [] as BillingService[] })),
+        api.get<CourseOption[]>('/courses').catch(() => ({ data: [] as CourseOption[] })),
       ])
       setGuestProducts(productsRes.data || [])
       setTransactionServices(Array.isArray(servicesRes.data) ? servicesRes.data : [])
+      setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : [])
     } catch {
       setGuestProducts([])
       setTransactionServices([])
+      setCourses([])
     }
   }, [isAdmin])
 
@@ -333,6 +343,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
           transactionServiceId: product.transactionServiceId == null
             ? (activeTransactionServices[0] ? String(activeTransactionServices[0].id) : '')
             : String(product.transactionServiceId),
+          includedCourseIds: Array.isArray(product.includedCourseIds) ? product.includedCourseIds.map(String) : [],
         },
         product.productType === 'CLASS_TICKET' ? 'PACK' : product.productType,
       ),
@@ -385,6 +396,9 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       sortOrder: Number.parseInt(guestProductForm.sortOrder || '0', 10) || 0,
       sessionTypeId: isGiftCard ? null : (guestProductForm.sessionTypeId ? Number.parseInt(guestProductForm.sessionTypeId, 10) : null),
       transactionServiceId: isGiftCard ? transactionServiceId : null,
+      includedCourseIds: guestProductForm.productType === 'MEMBERSHIP'
+        ? guestProductForm.includedCourseIds.map((id) => Number.parseInt(id, 10)).filter((id) => Number.isFinite(id))
+        : [],
     }
     const wasEditing = editingGuestProductId != null
     setSavingGuestProduct(true)
@@ -905,6 +919,30 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                   <button type="button" className={guestProductForm.guestVisible ? 'cards-product-toggle-btn active' : 'cards-product-toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, guestVisible: true })}>ON</button>
                 </div>
               </Field>
+              {guestProductForm.productType === 'MEMBERSHIP' && (
+                <Field label="Included courses" hint="Guests with this membership can access selected courses while membership is active.">
+                  <div className="service-config-course-picker">
+                    {courses.length === 0 ? (
+                      <div className="muted">No courses created yet. Add courses in the Courses tab.</div>
+                    ) : courses.map((course) => (
+                      <label key={course.id} className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={guestProductForm.includedCourseIds.includes(String(course.id))}
+                          onChange={(e) => setGuestProductForm((current) => ({
+                            ...current,
+                            includedCourseIds: e.target.checked
+                              ? Array.from(new Set([...current.includedCourseIds, String(course.id)]))
+                              : current.includedCourseIds.filter((id) => id !== String(course.id)),
+                          }))}
+                        />
+                        {course.title} <span className="muted">({course.mediaType})</span>
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+              )}
+
               {guestProductForm.productType === 'MEMBERSHIP' && (
                 <Field label="Auto-renew" hint="Available for memberships. Guests can later change this in their wallet.">
                   <div className="cards-product-toggle" role="group" aria-label="Auto-renew">

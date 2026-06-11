@@ -2792,7 +2792,7 @@ function websiteSubtabs(t: (key: string) => string): { id: WebsiteSubtab; label:
     { id: 'paymentMethods', label: t('configGuestSubtabPaymentMethods') },
   ]
 }
-const GUEST_PRODUCT_TYPES = ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP', 'GIFT_CARD'] as const
+const GUEST_PRODUCT_TYPES = ['SESSION_SINGLE', 'CLASS_TICKET', 'PACK', 'MEMBERSHIP', 'GIFT_CARD', 'COURSE'] as const
 const ALL_GUEST_PRODUCT_TYPES: string[] = [...GUEST_PRODUCT_TYPES]
 
 const defaultGuestAppSettings = (): GuestAppSettingsForm => ({

@@ -124,6 +124,14 @@ app:
       channel: ${APP_REALTIME_REDIS_CHANNEL:calendra:session-bookings:events}
   mail:
     from: ${APP_MAIL_FROM:}
+  bunny:
+    enabled: ${APP_BUNNY_ENABLED:true}
+    api-key: ${BUNNY_API_KEY:}
+    stream-base-url: ${BUNNY_STREAM_BASE_URL:https://video.bunnycdn.com}
+    storage-zone: ${BUNNY_STORAGE_ZONE:}
+    storage-password: ${BUNNY_STORAGE_PASSWORD:}
+    storage-region-host: ${BUNNY_STORAGE_REGION_HOST:https://storage.bunnycdn.com}
+    audio-cdn-host: ${BUNNY_AUDIO_CDN_HOST:}
   auth:
     frontend-url: ${APP_AUTH_FRONTEND_URL:${APP_PUBLIC_BASE_URL:http://localhost:3000}}
     cookie:

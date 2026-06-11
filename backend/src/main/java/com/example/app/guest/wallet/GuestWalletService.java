@@ -70,7 +70,7 @@ public class GuestWalletService {
         } catch (Exception ignore) {
         }
         if (productName == null) {
-            productName = entitlements.findBySourceOrderId(order.getId())
+            productName = entitlements.findFirstBySourceOrderIdOrderByCreatedAtAsc(order.getId())
                     .map(e -> e.getProduct() == null ? null : e.getProduct().getName())
                     .orElse(null);
         }

@@ -13,8 +13,11 @@ public interface GuestEntitlementRepository extends JpaRepository<GuestEntitleme
     List<GuestEntitlement> findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(Long clientId, Long companyId);
     List<GuestEntitlement> findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(Long clientId, Long companyId, java.util.Collection<EntitlementStatus> statuses);
     Optional<GuestEntitlement> findBySourceOrderId(Long sourceOrderId);
+    Optional<GuestEntitlement> findBySourceOrderIdAndProductId(Long sourceOrderId, Long productId);
+    Optional<GuestEntitlement> findFirstBySourceOrderIdOrderByCreatedAtAsc(Long sourceOrderId);
     Optional<GuestEntitlement> findByEntitlementCode(String entitlementCode);
     Optional<GuestEntitlement> findFirstByDisplayCodeAndCompanyIdOrderByCreatedAtDesc(String displayCode, Long companyId);
+    Optional<GuestEntitlement> findByCourseAccessToken(String courseAccessToken);
     boolean existsByEntitlementCode(String entitlementCode);
     long countByProductId(Long productId);
 

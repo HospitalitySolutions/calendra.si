@@ -1,6 +1,9 @@
 package com.example.app.guest.order;
 
 import com.example.app.client.Client;
+import com.example.app.course.CourseAccessEmailService;
+import com.example.app.course.MembershipCourse;
+import com.example.app.course.MembershipCourseRepository;
 import com.example.app.common.TimeService;
 import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
@@ -11,10 +14,12 @@ import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.UUID;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,16 +35,34 @@ public class GuestEntitlementService {
     private final GuestEntitlementRepository entitlements;
     private final GuestEntitlementUsageRepository usages;
     private final TimeService timeService;
+    private final MembershipCourseRepository membershipCourses;
+    private final CourseAccessEmailService courseAccessEmailService;
+    private final String publicBaseUrl;
 
-    public GuestEntitlementService(GuestEntitlementRepository entitlements, GuestEntitlementUsageRepository usages, TimeService timeService) {
+    public GuestEntitlementService(
+            GuestEntitlementRepository entitlements,
+            GuestEntitlementUsageRepository usages,
+            TimeService timeService,
+            MembershipCourseRepository membershipCourses,
+            CourseAccessEmailService courseAccessEmailService,
+            @Value("${app.public-base-url:}") String publicBaseUrl
+    ) {
         this.entitlements = entitlements;
         this.usages = usages;
         this.timeService = timeService;
+        this.membershipCourses = membershipCourses;
+        this.courseAccessEmailService = courseAccessEmailService;
+        this.publicBaseUrl = publicBaseUrl;
+    }
+
+    /** Backwards-compatible constructor used by older unit tests. */
+    public GuestEntitlementService(GuestEntitlementRepository entitlements, GuestEntitlementUsageRepository usages, TimeService timeService) {
+        this(entitlements, usages, timeService, null, null, "");
     }
 
     @Transactional
     public GuestEntitlement ensureEntitlementForOrder(GuestOrder order, GuestProduct product) {
-        return entitlements.findBySourceOrderId(order.getId()).orElseGet(() -> createEntitlement(order, product));
+        return entitlements.findBySourceOrderIdAndProductId(order.getId(), product.getId()).orElseGet(() -> createEntitlement(order, product));
     }
 
     @Transactional
@@ -245,11 +268,87 @@ public class GuestEntitlementService {
         entitlement.setDisplaySeq(seq);
         entitlement.setDisplayCode(buildDisplayCode(product, seq));
         entitlement.setEntitlementCode(generateUniqueEntitlementCode());
-        entitlement.setMetadataJson(writeMetadata(new LinkedHashMap<>(Map.of(
-                "autoRenews", product.isAutoRenews(),
-                "listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue()
-        ))));
-        return entitlements.save(entitlement);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("autoRenews", product.isAutoRenews());
+        metadata.put("listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue());
+        if (product.getProductType() == ProductType.COURSE) {
+            String token = UUID.randomUUID().toString();
+            entitlement.setCourseAccessToken(token);
+            metadata.put("courseAccessToken", token);
+            metadata.put("courseAccessUrl", buildCourseAccessUrl(token));
+            metadata.put("courseAccessSource", "DIRECT_PURCHASE");
+            metadata.put("lifetimeAccess", true);
+        } else if (product.getProductType() == ProductType.MEMBERSHIP && membershipCourses != null) {
+            metadata.put("includedCourseIds", membershipCourses.findAllByMembershipProductIdAndCompanyIdOrderByCourseTitleAsc(product.getId(), product.getCompany().getId()).stream()
+                    .map(row -> row.getCourse().getId())
+                    .toList());
+        }
+        entitlement.setMetadataJson(writeMetadata(metadata));
+        entitlement = entitlements.save(entitlement);
+        if (product.getProductType() == ProductType.COURSE) {
+            if (courseAccessEmailService != null) {
+                courseAccessEmailService.sendCourseAccessEmail(entitlement, courseAccessUrl(entitlement));
+            }
+        } else if (product.getProductType() == ProductType.MEMBERSHIP) {
+            createMembershipCourseAccessEntitlements(order, entitlement, product);
+        }
+        return entitlement;
+    }
+
+    private void createMembershipCourseAccessEntitlements(GuestOrder order, GuestEntitlement membershipEntitlement, GuestProduct membershipProduct) {
+        if (membershipCourses == null || membershipProduct == null || membershipProduct.getId() == null) return;
+        List<MembershipCourse> rows = membershipCourses.findAllByMembershipProductIdAndCompanyIdOrderByCourseTitleAsc(
+                membershipProduct.getId(),
+                membershipProduct.getCompany().getId()
+        );
+        for (MembershipCourse row : rows) {
+            if (row.getCourse() == null || row.getCourse().getGuestProduct() == null) continue;
+            GuestProduct courseProduct = row.getCourse().getGuestProduct();
+            GuestEntitlement courseEntitlement = new GuestEntitlement();
+            courseEntitlement.setCompany(order.getCompany());
+            courseEntitlement.setClient(order.getClient());
+            courseEntitlement.setProduct(courseProduct);
+            courseEntitlement.setSourceOrder(order);
+            courseEntitlement.setEntitlementType(EntitlementType.COURSE);
+            courseEntitlement.setStatus(EntitlementStatus.ACTIVE);
+            courseEntitlement.setValidFrom(membershipEntitlement.getValidFrom());
+            courseEntitlement.setValidUntil(membershipEntitlement.getValidUntil());
+            courseEntitlement.setRemainingUses(1);
+            courseEntitlement.setEntitlementCode(generateUniqueEntitlementCode());
+            int seq = (int) (entitlements.countByProductId(courseProduct.getId()) + 1);
+            courseEntitlement.setDisplaySeq(seq);
+            courseEntitlement.setDisplayCode(buildDisplayCode(courseProduct, seq));
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            String token = UUID.randomUUID().toString();
+            courseEntitlement.setCourseAccessToken(token);
+            metadata.put("courseAccessToken", token);
+            metadata.put("courseAccessUrl", buildCourseAccessUrl(token));
+            metadata.put("courseAccessSource", "MEMBERSHIP");
+            metadata.put("membershipEntitlementId", membershipEntitlement.getId());
+            metadata.put("lifetimeAccess", false);
+            courseEntitlement.setMetadataJson(writeMetadata(metadata));
+            courseEntitlement = entitlements.save(courseEntitlement);
+            if (courseAccessEmailService != null) {
+                courseAccessEmailService.sendCourseAccessEmail(courseEntitlement, courseAccessUrl(courseEntitlement));
+            }
+        }
+    }
+
+    private String courseAccessUrl(GuestEntitlement entitlement) {
+        String token = entitlement.getCourseAccessToken();
+        if (token == null || token.isBlank()) {
+            token = String.valueOf(metadata(entitlement.getMetadataJson()).getOrDefault("courseAccessToken", ""));
+        }
+        return buildCourseAccessUrl(token);
+    }
+
+    private String buildCourseAccessUrl(String token) {
+        String base = publicBaseUrl == null || publicBaseUrl.isBlank() ? "" : publicBaseUrl.trim();
+        while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+        if (base.isBlank()) {
+            return "/course-access/" + token;
+        }
+        return base + "/course-access/" + token;
     }
 
 
@@ -286,6 +385,7 @@ public class GuestEntitlementService {
                 case PACK -> "PK";
                 case MEMBERSHIP -> "MB";
                 case GIFT_CARD -> "GC";
+                case COURSE -> "CR";
                 default -> "GP";
             };
         }
@@ -381,6 +481,7 @@ public class GuestEntitlementService {
             case PACK -> EntitlementType.PACK;
             case MEMBERSHIP -> EntitlementType.MEMBERSHIP;
             case GIFT_CARD -> EntitlementType.GIFT_CARD;
+            case COURSE -> EntitlementType.COURSE;
             default -> EntitlementType.ACCESS;
         };
     }

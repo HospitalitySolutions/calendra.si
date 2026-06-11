@@ -5,7 +5,7 @@ import UIKit
 private func isWalletBuyOfferProduct(_ product: ProductModel) -> Bool {
     guard product.bookable == false else { return false }
     switch product.productType.uppercased() {
-    case "PACK", "MEMBERSHIP", "CLASS_TICKET", "GIFT_CARD":
+    case "PACK", "MEMBERSHIP", "CLASS_TICKET", "GIFT_CARD", "COURSE":
         return true
     default:
         return false
@@ -140,6 +140,7 @@ final class AppStore: ObservableObject {
                     priceGross: $0.priceGross,
                     remainingValueGross: $0.remainingValueGross,
                     currency: $0.currency,
+                    accessUrl: $0.accessUrl,
                     status: $0.status ?? "ACTIVE"
                 )
             }
@@ -184,6 +185,7 @@ final class AppStore: ObservableObject {
                 priceGross: $0.priceGross,
                 remainingValueGross: $0.remainingValueGross,
                 currency: $0.currency,
+                accessUrl: $0.accessUrl,
                 status: $0.status ?? "ACTIVE"
             )
         }

@@ -5,5 +5,6 @@ public enum EntitlementType {
     PACK,
     MEMBERSHIP,
     GIFT_CARD,
-    ACCESS
+    ACCESS,
+    COURSE
 }
