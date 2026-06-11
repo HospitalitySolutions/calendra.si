@@ -153,6 +153,8 @@ export function WalletScannerPage() {
   const scannerGroupBookingId = Number.isFinite(groupBookingId) && groupBookingId > 0 ? groupBookingId : null
   const paymentBookingId = Number(query.get('paymentBookingId'))
   const scannerPaymentBookingId = Number.isFinite(paymentBookingId) && paymentBookingId > 0 ? paymentBookingId : null
+  const paymentClientId = Number(query.get('paymentClientId') || query.get('clientId'))
+  const scannerPaymentClientId = Number.isFinite(paymentClientId) && paymentClientId > 0 ? paymentClientId : null
   const autoStartCamera = query.get('autoStart') === '1' || query.get('camera') === '1'
   const returnTo = query.get('returnTo') || (scannerPaymentBookingId ? `/calendar/booking/${scannerPaymentBookingId}` : scannerGroupBookingId ? `/calendar/booking/${scannerGroupBookingId}` : null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -218,6 +220,7 @@ export function WalletScannerPage() {
         source,
         groupBookingId: scannerGroupBookingId,
         paymentBookingId: scannerPaymentBookingId,
+        paymentClientId: scannerPaymentClientId,
       })
       if (data.success) {
         if (scannerPaymentBookingId) {

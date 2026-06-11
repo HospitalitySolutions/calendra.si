@@ -1,8 +1,10 @@
 // @ts-nocheck
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { BrowserQRCodeReader } from '@zxing/browser'
+import { api } from '../../../api'
 import { bookingStatusDisplayLabel, deriveBookingStatus } from '../calendarStatus'
 export function CalendarSessionModals({ ctx }: { ctx: any }) {
-  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
+  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarFiltersBottomBar,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
 
   const [bookedBillingActionMenu, setBookedBillingActionMenu] = useState<null | 'advance' | 'invoice'>(null)
   const [bookedBillingView, setBookedBillingView] = useState<null | 'advances' | 'invoices'>(null)
@@ -10,6 +12,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [noShowClientPickerOpen, setNoShowClientPickerOpen] = useState(false)
   const [noShowSelectedClientIds, setNoShowSelectedClientIds] = useState<number[]>([])
   const [noShowSubmitting, setNoShowSubmitting] = useState(false)
+  const [bookedEntitlementTarget, setBookedEntitlementTarget] = useState<any>(null)
+  const [bookedEntitlementStep, setBookedEntitlementStep] = useState<'choice' | 'scanner' | 'manual' | 'wallet'>('choice')
+  const [bookedEntitlementManualCode, setBookedEntitlementManualCode] = useState('')
+  const [bookedEntitlementSubmitting, setBookedEntitlementSubmitting] = useState(false)
+  const [bookedEntitlementScanResult, setBookedEntitlementScanResult] = useState<{ tone: 'success' | 'error' | 'info'; text: string; detail?: string } | null>(null)
+  const [bookedEntitlementWalletOptions, setBookedEntitlementWalletOptions] = useState<any[]>([])
+  const [bookedEntitlementWalletLoading, setBookedEntitlementWalletLoading] = useState(false)
+  const [bookedEntitlementCameraActive, setBookedEntitlementCameraActive] = useState(false)
+  const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
+  const bookedEntitlementScannerControlsRef = useRef<any>(null)
+  const bookedEntitlementQrReaderRef = useRef<any>(null)
+  const bookedEntitlementScanningLockRef = useRef(false)
+  const bookedEntitlementWalletRequestRef = useRef(0)
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
   const advanceBillingEnabled = settings?.BILLING_ADVANCE_ENABLED !== 'false'
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
@@ -153,6 +168,227 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     ? (locale === 'sl' ? 'Odstrani iz skupine' : 'Remove from group')
     : (locale === 'sl' ? 'Odstrani iz termina' : 'Remove from session')
 
+  const stopBookedEntitlementCamera = () => {
+    if (bookedEntitlementScannerControlsRef.current) {
+      bookedEntitlementScannerControlsRef.current.stop()
+      bookedEntitlementScannerControlsRef.current = null
+    }
+    bookedEntitlementQrReaderRef.current = null
+    if (bookedEntitlementVideoRef.current) bookedEntitlementVideoRef.current.srcObject = null
+    bookedEntitlementScanningLockRef.current = false
+    setBookedEntitlementCameraActive(false)
+  }
+
+  useEffect(() => stopBookedEntitlementCamera, [])
+
+  const bookedEntitlementErrorMessage = (result?: string | null, message?: string | null) => {
+    if (message) return message
+    if (result === 'INVALID_CODE') return locale === 'sl' ? 'Koda ugodnosti ni veljavna.' : 'The entitlement code is invalid.'
+    if (result === 'EXPIRED') return locale === 'sl' ? 'Ugodnost je potekla.' : 'The entitlement has expired.'
+    if (result === 'NO_VISITS_REMAINING') return locale === 'sl' ? 'Ugodnost nima več preostalih obiskov.' : 'No visits remain on this entitlement.'
+    if (result === 'DUPLICATE_SCAN') return locale === 'sl' ? 'Ta ugodnost je bila pravkar uporabljena.' : 'This entitlement was just used.'
+    if (result === 'UNSUPPORTED_PAYMENT_ENTITLEMENT') return locale === 'sl' ? 'Za plačilo lahko uporabite samo vstopnice in pakete.' : 'Only tickets and packs can be used for payment.'
+    if (result === 'SERVICE_TYPE_MISMATCH') return locale === 'sl' ? 'Ugodnost ni vezana na storitev tega termina.' : 'The entitlement is not linked to this session service.'
+    if (result === 'PAYMENT_BOOKING_NOT_FOUND') return locale === 'sl' ? 'Termina za plačilo ni bilo mogoče najti.' : 'The payment booking could not be found.'
+    if (result === 'PAYMENT_CLIENT_MISMATCH') return locale === 'sl' ? 'Ugodnost pripada drugemu klientu.' : 'The entitlement belongs to a different client.'
+    if (result === 'ALREADY_PAID_WITH_ENTITLEMENT') return locale === 'sl' ? 'Ta termin je že plačan z ugodnostjo.' : 'This session was already paid with an entitlement.'
+    return locale === 'sl' ? 'Ugodnosti ni bilo mogoče uporabiti.' : 'Unable to apply the entitlement.'
+  }
+
+  const bookedEntitlementWalletCountLabel = (count: number) => {
+    if (locale === 'sl') return count === 1 ? '1 na voljo' : `${count} na voljo`
+    return count === 1 ? '1 available' : `${count} available`
+  }
+
+  const bookedEntitlementWalletTypeLabel = (option: any) => {
+    if (locale === 'sl') {
+      if (option?.entitlementType === 'PACK') return 'Paket'
+      if (option?.entitlementType === 'TICKET') return 'Karta'
+      return 'Ugodnost'
+    }
+    if (option?.entitlementType === 'PACK') return 'Pack'
+    if (option?.entitlementType === 'TICKET') return 'Ticket'
+    return 'Entitlement'
+  }
+
+  const bookedEntitlementWalletRemainingLabel = (option: any) => {
+    const remaining = Number(option?.remainingUses)
+    const total = Number(option?.totalUses)
+    if (Number.isFinite(remaining) && Number.isFinite(total) && total > 0) {
+      return locale === 'sl' ? `${remaining}/${total} preostalo` : `${remaining}/${total} remaining`
+    }
+    if (Number.isFinite(remaining)) {
+      return locale === 'sl' ? `${remaining} preostalo` : `${remaining} remaining`
+    }
+    return locale === 'sl' ? 'Na voljo' : 'Available'
+  }
+
+  const refreshBookedSessionAfterEntitlementScan = async () => {
+    if (typeof loadCalendarRangeOnly !== 'function') return
+    try {
+      const refreshed = await loadCalendarRangeOnly(true)
+      const bookingId = Number(selectedBookedSession?.id ?? bookedEntitlementTarget?.returnBookingId ?? 0)
+      if (!refreshed?.booked || !Number.isInteger(bookingId) || bookingId <= 0) return
+      const updated = refreshed.booked.find((booking: any) => Number(booking?.id) === bookingId)
+      if (updated) {
+        setSelectedBookedSession((current: any) => current && Number(current?.id) === bookingId ? updated : current)
+      }
+    } catch {
+      // The scan itself succeeded; keep the modal result even if calendar refresh fails.
+    }
+  }
+
+  const loadBookedEntitlementWalletOptions = async (paymentBookingId: number, requestId: number, paymentClientId?: number | null) => {
+    setBookedEntitlementWalletLoading(true)
+    try {
+      const params: any = { paymentBookingId }
+      const clientId = Number(paymentClientId)
+      if (Number.isInteger(clientId) && clientId > 0) params.paymentClientId = clientId
+      const { data } = await api.get('/wallet-scanner/payment-options', { params })
+      if (bookedEntitlementWalletRequestRef.current === requestId) {
+        setBookedEntitlementWalletOptions(Array.isArray(data) ? data : [])
+      }
+    } catch {
+      if (bookedEntitlementWalletRequestRef.current === requestId) {
+        setBookedEntitlementWalletOptions([])
+      }
+    } finally {
+      if (bookedEntitlementWalletRequestRef.current === requestId) {
+        setBookedEntitlementWalletLoading(false)
+      }
+    }
+  }
+
+  const openBookedEntitlementPaymentModal = (status?: any, client?: any) => {
+    const paymentBookingId = Number(status?.bookingId ?? selectedBookedSession?.id ?? 0)
+    if (!Number.isInteger(paymentBookingId) || paymentBookingId <= 0) return
+    const paymentClientId = Number(client?.id ?? status?.clientId ?? 0)
+    const requestId = bookedEntitlementWalletRequestRef.current + 1
+    bookedEntitlementWalletRequestRef.current = requestId
+    setBookedEntitlementTarget({
+      paymentBookingId,
+      paymentClientId: Number.isInteger(paymentClientId) && paymentClientId > 0 ? paymentClientId : null,
+      clientLabel: client ? fullName(client) : clientNameForStatus(status),
+      amountGross: Number(status?.sessionTotalGross ?? 0) || 0,
+      returnBookingId: Number(selectedBookedSession?.id ?? paymentBookingId),
+    })
+    setBookedEntitlementStep('choice')
+    setBookedEntitlementManualCode('')
+    setBookedEntitlementScanResult(null)
+    setBookedEntitlementWalletOptions([])
+    setBookedEntitlementWalletLoading(false)
+    void loadBookedEntitlementWalletOptions(paymentBookingId, requestId, Number.isInteger(paymentClientId) && paymentClientId > 0 ? paymentClientId : null)
+  }
+
+  const closeBookedEntitlementPaymentModal = () => {
+    bookedEntitlementWalletRequestRef.current += 1
+    stopBookedEntitlementCamera()
+    setBookedEntitlementTarget(null)
+    setBookedEntitlementStep('choice')
+    setBookedEntitlementManualCode('')
+    setBookedEntitlementScanResult(null)
+    setBookedEntitlementWalletOptions([])
+    setBookedEntitlementWalletLoading(false)
+  }
+
+  const startBookedEntitlementCamera = async () => {
+    if (bookedEntitlementCameraActive || bookedEntitlementSubmitting) return
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setBookedEntitlementScanResult({ tone: 'error', text: locale === 'sl' ? 'Kamera v tem brskalniku ni podprta.' : 'Camera scanning is not supported in this browser.' })
+      return
+    }
+    if (!window.isSecureContext) {
+      setBookedEntitlementScanResult({ tone: 'error', text: locale === 'sl' ? 'Za uporabo kamere odprite aplikacijo prek HTTPS.' : 'Open the app over HTTPS to use the camera.' })
+      return
+    }
+    const video = bookedEntitlementVideoRef.current
+    if (!video) return
+    try {
+      const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 120 })
+      bookedEntitlementQrReaderRef.current = reader
+      bookedEntitlementScannerControlsRef.current = await reader.decodeFromVideoDevice(undefined, video, (decodeResult: any) => {
+        if (!decodeResult || bookedEntitlementScanningLockRef.current) return
+        void submitBookedEntitlementPaymentCode(decodeResult.getText(), 'qr')
+      })
+      bookedEntitlementScanningLockRef.current = false
+      setBookedEntitlementCameraActive(true)
+      setBookedEntitlementScanResult(null)
+    } catch (error: any) {
+      const name = String(error?.name ?? '')
+      const text = name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError'
+        ? (locale === 'sl' ? 'Dovolite dostop do kamere in poskusite znova.' : 'Allow camera access and try again.')
+        : (locale === 'sl' ? 'Kamere ni bilo mogoče zagnati.' : 'Unable to start the camera.')
+      setBookedEntitlementScanResult({ tone: 'error', text })
+      stopBookedEntitlementCamera()
+    }
+  }
+
+  const submitBookedEntitlementPaymentCode = async (rawCode: string, source: 'qr' | 'manual' | 'wallet') => {
+    const code = String(rawCode || '').trim()
+    if (!code || bookedEntitlementSubmitting || !bookedEntitlementTarget) return
+    const paymentBookingId = Number(bookedEntitlementTarget.paymentBookingId)
+    if (!Number.isInteger(paymentBookingId) || paymentBookingId <= 0) {
+      setBookedEntitlementScanResult({
+        tone: 'error',
+        text: locale === 'sl' ? 'Ugodnost lahko uporabite samo za termin, ki ima plačilni zapis.' : 'Entitlements can only be used on sessions with a payment record.',
+      })
+      return
+    }
+    bookedEntitlementScanningLockRef.current = true
+    setBookedEntitlementSubmitting(true)
+    setBookedEntitlementScanResult({ tone: 'info', text: locale === 'sl' ? 'Preverjam ugodnost…' : 'Checking entitlement…' })
+    try {
+      const paymentClientId = Number(bookedEntitlementTarget.paymentClientId)
+      const { data } = await api.post('/wallet-scanner/scan', {
+        code,
+        source,
+        paymentBookingId,
+        ...(Number.isInteger(paymentClientId) && paymentClientId > 0 ? { paymentClientId } : {}),
+      })
+      if (data?.success) {
+        const detail = [data.client?.firstName, data.client?.lastName].filter(Boolean).join(' ').trim()
+          || data.entitlement?.productName
+          || data.entitlement?.code
+          || code
+        setBookedEntitlementScanResult({
+          tone: 'success',
+          text: locale === 'sl' ? 'Ugodnost je uporabljena kot plačilo.' : 'Entitlement applied as payment.',
+          detail,
+        })
+        if (typeof showToast === 'function') showToast('success', locale === 'sl' ? 'Ugodnost je uporabljena kot plačilo.' : 'Entitlement applied as payment.')
+        stopBookedEntitlementCamera()
+        await refreshBookedSessionAfterEntitlementScan()
+        window.setTimeout(() => closeBookedEntitlementPaymentModal(), 650)
+      } else {
+        setBookedEntitlementScanResult({ tone: 'error', text: bookedEntitlementErrorMessage(data?.result, data?.message), detail: data?.entitlement?.productName || undefined })
+        bookedEntitlementScanningLockRef.current = false
+      }
+    } catch (error: any) {
+      const responseData = error?.response?.data as { result?: string; message?: string; error?: string } | undefined
+      setBookedEntitlementScanResult({
+        tone: 'error',
+        text: bookedEntitlementErrorMessage(responseData?.result, responseData?.message || responseData?.error),
+      })
+      bookedEntitlementScanningLockRef.current = false
+    } finally {
+      setBookedEntitlementSubmitting(false)
+    }
+  }
+
+  const submitBookedEntitlementManualCode = (event: any) => {
+    event.preventDefault()
+    void submitBookedEntitlementPaymentCode(bookedEntitlementManualCode, 'manual')
+  }
+
+  const submitBookedEntitlementWalletOption = (option: any) => {
+    const code = String(option?.code || option?.displayCode || '').trim()
+    if (!code) {
+      setBookedEntitlementScanResult({ tone: 'error', text: locale === 'sl' ? 'Ta ugodnost nima kode za uporabo.' : 'This entitlement has no usable code.' })
+      return
+    }
+    void submitBookedEntitlementPaymentCode(code, 'wallet')
+  }
+
   const currentBookingStatusKey = selectedBookedSession
     ? deriveBookingStatus(
       selectedBookedSession.startTime,
@@ -208,6 +444,25 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     && !bookedPaymentActionStatus?.openBillId
     && bookedPaymentActionStatus?.status === 'UNPAID'
   const bookingServiceBillingButtonIsAdvance = advanceBillingEnabled && !canShowOpenBillForBookedStatus
+  const bookingServiceEntitlementClient = selectedBookedPaymentClient
+    || bookedSessionSelectedClient
+    || paymentManagerSessionClients?.[0]
+    || selectedBookedSession?.client
+    || null
+  const bookingServiceEntitlementStatus = bookedPaymentActionStatus
+    || (bookingServiceEntitlementClient?.id ? paymentStatusForClient(bookingServiceEntitlementClient.id) : null)
+  const bookingServiceEntitlementAllocation = (bookingServiceEntitlementStatus?.allocations ?? []).find((allocation: any) => allocation?.source === 'ENTITLEMENT')
+  const bookingServiceInvoiceAllocation = invoiceAllocationForPaymentStatus(bookingServiceEntitlementStatus)
+  const canScanEntitlementFromService = !!bookingServiceEntitlementStatus?.bookingId
+    && !isGroupedSingleInvoiceMode
+    && !bookingServiceInvoiceAllocation
+    && !bookingServiceEntitlementAllocation
+    && !bookingServiceEntitlementStatus?.openBillId
+    && bookingServiceEntitlementStatus?.status !== 'PAID'
+  const bookingServiceScanDisabled = !canScanEntitlementFromService
+  const bookingServiceScanTitle = canScanEntitlementFromService
+    ? (locale === 'sl' ? 'Skeniraj vstopnico ali paket za plačilo termina' : 'Scan ticket or pack to pay this session')
+    : (locale === 'sl' ? 'Skeniranje ugodnosti ni na voljo za ta termin.' : 'Entitlement scan is not available for this session.')
 
   const bookingStatusOptionIsActionable = (option: any) => {
     if (!option?.targetStatus || option.key === currentBookingStatusKey) return false
@@ -353,6 +608,43 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       <path d="M6.5 6.75h11A1.75 1.75 0 0 1 19.25 8.5v7A1.75 1.75 0 0 1 17.5 17.25h-11A1.75 1.75 0 0 1 4.75 15.5v-7A1.75 1.75 0 0 1 6.5 6.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
       <path d="M7.5 10.25h4.25M7.5 13.75h2.75M15.5 10.25v4.5M13.25 12.5h4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M7.5 5.25 15.75 3.7a1.6 1.6 0 0 1 1.9 1.25l.25 1.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+
+  const BookedEntitlementPaymentIcon = ({ className = '' }: any) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M8 5.5 19 11l-8 8-5.5-5.5 8-8Z" />
+      <path d="M9.5 9.5h.01M12 12h.01" strokeWidth="2.4" />
+    </svg>
+  )
+
+  const BookedEntitlementScanIcon = ({ className = '' }: any) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M7 3H5a2 2 0 0 0-2 2v2M17 3h2a2 2 0 0 1 2 2v2M7 21H5a2 2 0 0 1-2-2v-2M17 21h2a2 2 0 0 0 2-2v-2" />
+      <path d="M8 8h3v3H8zM13 8h3v3h-3zM8 13h3v3H8zM13 13h1.5M16 13v3M14 16h2" />
+    </svg>
+  )
+
+  const BookedEntitlementKeyboardIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3.5" y="6" width="17" height="12" rx="2.5" />
+      <path d="M6.5 10.5h1M9.5 10.5h1M12.5 10.5h1M15.5 10.5h1M6.5 13.5h6M14.5 13.5h3" />
+    </svg>
+  )
+
+  const BookedEntitlementWalletIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5.5 7.5h12.2A2.3 2.3 0 0 1 20 9.8v7.4a2.3 2.3 0 0 1-2.3 2.3H5.5A2.5 2.5 0 0 1 3 17V7.4A2.9 2.9 0 0 1 5.9 4.5h9.8" />
+      <path d="M5.6 7.5h12.9" />
+      <path d="M16.2 12.3h4v3.4h-4a1.7 1.7 0 1 1 0-3.4Z" />
+      <path d="M16.4 14h.01" strokeWidth="2.4" />
+    </svg>
+  )
+
+  const BookedEntitlementCameraIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8.5 7.5h7l1 1.5H19A2.5 2.5 0 0 1 21.5 11.5v5A2.5 2.5 0 0 1 19 19H5a2.5 2.5 0 0 1-2.5-2.5v-5A2.5 2.5 0 0 1 5 9h2.5l1-1.5Z" />
+      <circle cx="12" cy="14" r="3" />
     </svg>
   )
 
@@ -727,6 +1019,220 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       .slice(0, 2)
       .map((part: string) => part[0]?.toUpperCase() || '')
       .join('') || 'K'
+  }
+
+  const renderBookedEntitlementPaymentModal = () => {
+    if (!bookedEntitlementTarget) return null
+    const canScanSession = Number.isInteger(Number(bookedEntitlementTarget.paymentBookingId)) && Number(bookedEntitlementTarget.paymentBookingId) > 0
+    const walletOptionCount = bookedEntitlementWalletOptions.length
+    const modalTitle = bookedEntitlementStep === 'choice'
+      ? (locale === 'sl' ? 'Izberite vnos ugodnosti' : 'Choose entitlement input')
+      : bookedEntitlementStep === 'scanner'
+        ? (locale === 'sl' ? 'Skeniraj ugodnost' : 'Scan entitlement')
+        : bookedEntitlementStep === 'wallet'
+          ? (locale === 'sl' ? 'Izberite ugodnost iz denarnice' : 'Choose wallet entitlement')
+          : (locale === 'sl' ? 'Vnesite kodo ugodnosti' : 'Enter entitlement code')
+    const targetAmount = Number(bookedEntitlementTarget.amountGross ?? 0)
+
+    return (
+      <div className="billing-entitlement-modal-backdrop" onMouseDown={closeBookedEntitlementPaymentModal} role="presentation">
+        <div
+          className={`billing-entitlement-modal billing-entitlement-modal--${bookedEntitlementStep}`}
+          onMouseDown={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={modalTitle}
+        >
+          <div className="billing-entitlement-modal-head">
+            <div>
+              <h3>{modalTitle}</h3>
+              <p>
+                {bookedEntitlementStep === 'choice'
+                  ? (locale === 'sl' ? 'Izberite, kako želite uporabiti ugodnost za ta termin.' : 'Select how you would like to provide the entitlement for this session.')
+                  : bookedEntitlementStep === 'scanner'
+                    ? (locale === 'sl' ? 'Postavite QR ali črtno kodo znotraj okvirja.' : 'Position the QR or barcode within the frame.')
+                    : bookedEntitlementStep === 'wallet'
+                      ? (locale === 'sl' ? 'Izberite razpoložljivo ugodnost stranke za izbrani termin.' : 'Choose an available entitlement from the client wallet for this session.')
+                      : (locale === 'sl' ? 'Ročno vnesite kodo ugodnosti za ta termin.' : 'Enter the entitlement code manually to apply it to this session.')}
+              </p>
+            </div>
+            <button type="button" className="billing-bill-modal-close" onClick={closeBookedEntitlementPaymentModal} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+          </div>
+
+          {!canScanSession && (
+            <div className="billing-entitlement-result billing-entitlement-result--error" role="status">
+              <strong>{locale === 'sl' ? 'Ta termin nima plačilnega zapisa.' : 'This session has no payment record.'}</strong>
+              <span>{locale === 'sl' ? 'Ugodnost lahko uporabite kot plačilo samo pri terminih, ki imajo plačilni zapis.' : 'Entitlements can only be applied when the session has a payment record.'}</span>
+            </div>
+          )}
+
+          {bookedEntitlementStep === 'choice' && (
+            <div className="billing-entitlement-choice-list">
+              <button
+                type="button"
+                className="billing-entitlement-choice-card"
+                onClick={() => {
+                  setBookedEntitlementStep('scanner')
+                  setBookedEntitlementScanResult(null)
+                }}
+                disabled={!canScanSession}
+              >
+                <span className="billing-entitlement-choice-icon" aria-hidden><BookedEntitlementScanIcon /></span>
+                <span className="billing-entitlement-choice-copy">
+                  <strong>{locale === 'sl' ? 'Skeniraj ugodnost' : 'Scan entitlement'}</strong>
+                  <small>{locale === 'sl' ? 'Odprite skener v popupu in skenirajte QR kodo ugodnosti.' : 'Open the scanner in a popup to scan the entitlement QR code.'}</small>
+                </span>
+                <span className="billing-entitlement-choice-arrow" aria-hidden>›</span>
+              </button>
+              <button
+                type="button"
+                className="billing-entitlement-choice-card"
+                onClick={() => {
+                  stopBookedEntitlementCamera()
+                  setBookedEntitlementStep('manual')
+                  setBookedEntitlementScanResult(null)
+                }}
+                disabled={!canScanSession}
+              >
+                <span className="billing-entitlement-choice-icon" aria-hidden><BookedEntitlementKeyboardIcon /></span>
+                <span className="billing-entitlement-choice-copy">
+                  <strong>{locale === 'sl' ? 'Vnesi kodo ročno' : 'Enter code manually'}</strong>
+                  <small>{locale === 'sl' ? 'Odprite obrazec za ročni vnos kode ugodnosti.' : 'Open a form to manually enter the entitlement code.'}</small>
+                </span>
+                <span className="billing-entitlement-choice-arrow" aria-hidden>›</span>
+              </button>
+              {canScanSession && walletOptionCount > 0 && (
+                <button
+                  type="button"
+                  className="billing-entitlement-choice-card billing-entitlement-choice-card--with-badge"
+                  onClick={() => {
+                    stopBookedEntitlementCamera()
+                    setBookedEntitlementStep('wallet')
+                    setBookedEntitlementScanResult(null)
+                  }}
+                  disabled={bookedEntitlementWalletLoading}
+                >
+                  <span className="billing-entitlement-choice-icon" aria-hidden><BookedEntitlementWalletIcon /></span>
+                  <span className="billing-entitlement-choice-copy">
+                    <strong>{locale === 'sl' ? 'Izberi iz denarnice' : 'Choose from wallet'}</strong>
+                    <small>{locale === 'sl' ? 'Uporabite razpoložljivo ugodnost stranke za ta termin.' : 'Use an available entitlement from the client wallet for this session.'}</small>
+                  </span>
+                  <span className="billing-entitlement-choice-badge">{bookedEntitlementWalletCountLabel(walletOptionCount)}</span>
+                  <span className="billing-entitlement-choice-arrow" aria-hidden>›</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {bookedEntitlementStep === 'wallet' && (
+            <div className="billing-entitlement-wallet">
+              <div className="billing-entitlement-target-strip">
+                <span>{locale === 'sl' ? 'Stranka' : 'Client'}</span>
+                <strong>{bookedEntitlementTarget.clientLabel || '—'}</strong>
+                <em>{targetAmount > 0 ? currency(targetAmount) : (locale === 'sl' ? 'Termin' : 'Session')}</em>
+              </div>
+              <div className="billing-entitlement-wallet-list">
+                {bookedEntitlementWalletOptions.map((option: any) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className="billing-entitlement-wallet-card"
+                    onClick={() => submitBookedEntitlementWalletOption(option)}
+                    disabled={bookedEntitlementSubmitting || !String(option.code || option.displayCode || '').trim()}
+                  >
+                    <span className="billing-entitlement-choice-icon" aria-hidden><BookedEntitlementWalletIcon /></span>
+                    <span className="billing-entitlement-wallet-copy">
+                      <strong>{option.productName || bookedEntitlementWalletTypeLabel(option)}</strong>
+                      <small>{bookedEntitlementWalletTypeLabel(option)} · {bookedEntitlementWalletRemainingLabel(option)}</small>
+                      {(option.displayCode || option.code) && <em>{option.displayCode || option.code}</em>}
+                    </span>
+                    <span className="billing-entitlement-choice-arrow" aria-hidden>›</span>
+                  </button>
+                ))}
+                {walletOptionCount === 0 && !bookedEntitlementWalletLoading && (
+                  <div className="billing-entitlement-wallet-empty">
+                    {locale === 'sl' ? 'Stranka nima razpoložljivih kart ali paketov za to storitev.' : 'The client has no available tickets or packs for this service.'}
+                  </div>
+                )}
+                {bookedEntitlementWalletLoading && (
+                  <div className="billing-entitlement-wallet-empty">
+                    {locale === 'sl' ? 'Preverjam denarnico…' : 'Checking wallet…'}
+                  </div>
+                )}
+              </div>
+              <button type="button" className="billing-entitlement-link-btn billing-entitlement-wallet-back" onClick={() => setBookedEntitlementStep('choice')}>
+                {locale === 'sl' ? 'Nazaj na izbiro vnosa' : 'Back to input choice'}
+              </button>
+            </div>
+          )}
+
+          {bookedEntitlementStep === 'scanner' && (
+            <div className="billing-entitlement-scanner">
+              <div className="billing-entitlement-scanner-frame">
+                <video ref={bookedEntitlementVideoRef} className="billing-entitlement-scanner-video" playsInline muted />
+                {!bookedEntitlementCameraActive && (
+                  <div className="billing-entitlement-scanner-empty">
+                    <span aria-hidden><BookedEntitlementScanIcon /></span>
+                    <strong>{locale === 'sl' ? 'Kamera se pripravlja…' : 'Preparing camera…'}</strong>
+                  </div>
+                )}
+              </div>
+              <div className="billing-entitlement-target-strip">
+                <span>{locale === 'sl' ? 'Stranka' : 'Client'}</span>
+                <strong>{bookedEntitlementTarget.clientLabel || '—'}</strong>
+                <em>{targetAmount > 0 ? currency(targetAmount) : (locale === 'sl' ? 'Termin' : 'Session')}</em>
+              </div>
+              <div className="billing-entitlement-scanner-actions">
+                <button type="button" className="billing-entitlement-link-btn" onClick={() => { stopBookedEntitlementCamera(); setBookedEntitlementStep('manual'); setBookedEntitlementScanResult(null) }}>
+                  {locale === 'sl' ? 'Vnesi kodo ročno' : 'Enter code manually'}
+                </button>
+                <button type="button" className="billing-entitlement-camera-btn" onClick={() => void startBookedEntitlementCamera()} disabled={bookedEntitlementSubmitting}>
+                  <BookedEntitlementCameraIcon />
+                </button>
+                <button type="button" className="billing-entitlement-icon-soft" onClick={stopBookedEntitlementCamera} disabled={!bookedEntitlementCameraActive || bookedEntitlementSubmitting} aria-label={locale === 'sl' ? 'Ustavi kamero' : 'Stop camera'}>
+                  <BookedEntitlementPaymentIcon />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {bookedEntitlementStep === 'manual' && (
+            <form className="billing-entitlement-manual-form" onSubmit={submitBookedEntitlementManualCode}>
+              <label>
+                <span>{locale === 'sl' ? 'Koda ugodnosti' : 'Entitlement code'}</span>
+                <input
+                  value={bookedEntitlementManualCode}
+                  onChange={(event) => setBookedEntitlementManualCode(event.target.value)}
+                  placeholder={locale === 'sl' ? 'npr. ENT-2025-0001' : 'e.g. ENT-2025-0001'}
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoFocus
+                />
+              </label>
+              <div className="billing-entitlement-manual-hint">
+                <span aria-hidden>i</span>
+                {locale === 'sl' ? 'Kodo običajno prejmete na kartici ugodnosti ali v mobilni denarnici.' : 'The code is typically printed on the entitlement or shown in the mobile wallet.'}
+              </div>
+              <button type="submit" className="billing-entitlement-apply-btn" disabled={bookedEntitlementSubmitting || !bookedEntitlementManualCode.trim()}>
+                {bookedEntitlementSubmitting ? (locale === 'sl' ? 'Preverjam…' : 'Applying…') : (locale === 'sl' ? 'Uporabi kodo' : 'Apply code')}
+              </button>
+              <div className="billing-entitlement-or-row"><span>{locale === 'sl' ? 'ali' : 'or'}</span></div>
+              <button type="button" className="billing-entitlement-open-scanner-btn" onClick={() => { setBookedEntitlementStep('scanner'); setBookedEntitlementScanResult(null) }}>
+                <BookedEntitlementScanIcon />
+                {locale === 'sl' ? 'Odpri skener' : 'Open scanner'}
+              </button>
+            </form>
+          )}
+
+          {bookedEntitlementScanResult && (
+            <div className={`billing-entitlement-result billing-entitlement-result--${bookedEntitlementScanResult.tone}`} role="status">
+              <strong>{bookedEntitlementScanResult.text}</strong>
+              {bookedEntitlementScanResult.detail && <span>{bookedEntitlementScanResult.detail}</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -1286,6 +1792,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           <CalendarAdvancePaymentIcon />
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="secondary calendar-client-picker__invoice-btn calendar-client-picker__payee-tab-btn calendar-booking-service-invoice-btn calendar-booking-service-scan-btn"
+                        title={bookingServiceScanTitle}
+                        aria-label={bookingServiceScanTitle}
+                        disabled={bookingServiceScanDisabled}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (bookingServiceScanDisabled) return
+                          openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
+                        }}
+                      >
+                        <BookedEntitlementScanIcon />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1635,6 +2155,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
       {bookedBillingView === 'advances' && renderSessionBillingViewModal('advances')}
       {bookedBillingView === 'invoices' && renderSessionBillingViewModal('invoices')}
+      {renderBookedEntitlementPaymentModal()}
 
       {bookedPaymentMenuOpen && (selectedBookedSession || paymentManagerIsNewBooking) && (
         <div className="calendar-payment-manager-backdrop" onClick={() => setBookedPaymentMenuOpen(false)}>
