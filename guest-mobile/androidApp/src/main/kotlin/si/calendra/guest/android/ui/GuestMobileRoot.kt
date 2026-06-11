@@ -393,6 +393,8 @@ fun GuestMobileRoot() {
         }
     }
 
+    val inboxTabEnabled = state.uiState.linkedTenants.any { it.inboxEnabled }
+
     fun navigateToTab(route: String) {
         if (route != RootRoute.Book.route) {
             bookLaunchRequest = null
@@ -459,6 +461,11 @@ fun GuestMobileRoot() {
     }
 
     fun requestTabNavigation(route: String) {
+        if (route == RootRoute.Inbox.route && !inboxTabEnabled) {
+            navigateToTab(RootRoute.Home.route)
+            return
+        }
+
         if (route == RootRoute.Wallet.route) {
             bookLaunchRequest = null
             bookReturnRoute = null
@@ -501,6 +508,7 @@ fun GuestMobileRoot() {
 
     suspend fun openInboxFromPush(companyId: String) {
         if (companyId.isBlank()) return
+        if (state.uiState.linkedTenants.none { it.companyId == companyId && it.inboxEnabled }) return
         runCatching {
             state.uiState = state.uiState.copy(selectedTenantId = companyId)
             if (state.uiState.session != null) {
@@ -978,6 +986,7 @@ fun GuestMobileRoot() {
                     utilityBarVisible = true,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                        inboxEnabled = inboxTabEnabled,
                     profileAvatarBitmap = headerAvatarBitmap,
                     profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
@@ -1040,6 +1049,7 @@ fun GuestMobileRoot() {
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                        inboxEnabled = inboxTabEnabled,
                     profileAvatarBitmap = headerAvatarBitmap,
                     profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
@@ -1108,6 +1118,7 @@ fun GuestMobileRoot() {
                     utilityBarVisible = false,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                        inboxEnabled = inboxTabEnabled,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                     onScanTenant = {
                         val options = ScanOptions().apply {
@@ -1215,6 +1226,7 @@ fun GuestMobileRoot() {
                         utilityBarVisible = false,
                         unreadNotificationCount = unreadBellCount(state.uiState),
                         unreadInboxCount = unreadInboxCount(state.uiState),
+                        inboxEnabled = inboxTabEnabled,
                         onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
                         onScanTenant = {
                             val options = ScanOptions().apply {
@@ -1290,6 +1302,7 @@ fun GuestMobileRoot() {
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                        inboxEnabled = inboxTabEnabled,
                     profileAvatarBitmap = headerAvatarBitmap,
                     profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
@@ -1442,6 +1455,11 @@ fun GuestMobileRoot() {
                 }
             }
             composable(RootRoute.Inbox.route) {
+                if (!inboxTabEnabled) {
+                    LaunchedEffect(Unit) { navigateToTab(RootRoute.Home.route) }
+                    Box(Modifier.fillMaxSize())
+                    return@composable
+                }
                 val inboxSelectedId = state.uiState.selectedTenantId
                     ?: state.uiState.linkedTenants.firstOrNull()?.companyId
                 val activeTenantId = inboxSelectedId
@@ -1456,6 +1474,7 @@ fun GuestMobileRoot() {
                     utilityBarVisible = state.uiState.linkedTenants.isNotEmpty(),
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                        inboxEnabled = inboxTabEnabled,
                     profileAvatarBitmap = headerAvatarBitmap,
                     profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
@@ -1649,6 +1668,7 @@ fun GuestMobileRoot() {
                     utilityBarVisible = true,
                     unreadNotificationCount = unreadBellCount(state.uiState),
                     unreadInboxCount = unreadInboxCount(state.uiState),
+                        inboxEnabled = inboxTabEnabled,
                     profileAvatarBitmap = headerAvatarBitmap,
                     profileInitials = headerAvatarInitials,
                     onAddTenant = { navController.navigate(RootRoute.JoinTenant.route) { launchSingleTop = true } },
@@ -1806,6 +1826,7 @@ private fun GuestTabsScaffold(
     utilityBarVisible: Boolean,
     unreadNotificationCount: Int,
     unreadInboxCount: Int,
+    inboxEnabled: Boolean = true,
     profileAvatarBitmap: Bitmap? = null,
     profileInitials: String = "•",
     onAddTenant: () -> Unit,
@@ -1826,6 +1847,7 @@ private fun GuestTabsScaffold(
                 current = current,
                 languageCode = languageCode,
                 unreadInboxCount = unreadInboxCount,
+                inboxEnabled = inboxEnabled,
                 onTabSelected = onTabSelected
             )
         }
@@ -2591,15 +2613,18 @@ private fun BottomNavBar(
     current: String,
     languageCode: String,
     unreadInboxCount: Int,
+    inboxEnabled: Boolean = true,
     onTabSelected: (String) -> Unit
 ) {
     val isSl = languageCode.lowercase().startsWith("sl")
-    val sideItems = listOf(
-        Triple(RootRoute.Home.route, if (isSl) "Domov" else "Home", Icons.Rounded.Home),
-        Triple(RootRoute.Wallet.route, if (isSl) "Denarnica" else "Wallet", Icons.Rounded.Wallet),
-        Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum),
-        Triple(RootRoute.Calendar.route, if (isSl) "Koledar" else "Calendar", Icons.Rounded.CalendarMonth)
-    )
+    val sideItems = buildList {
+        add(Triple(RootRoute.Home.route, if (isSl) "Domov" else "Home", Icons.Rounded.Home))
+        add(Triple(RootRoute.Wallet.route, if (isSl) "Denarnica" else "Wallet", Icons.Rounded.Wallet))
+        if (inboxEnabled) {
+            add(Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum))
+        }
+        add(Triple(RootRoute.Calendar.route, if (isSl) "Koledar" else "Calendar", Icons.Rounded.CalendarMonth))
+    }
 
     Surface(
         modifier = Modifier

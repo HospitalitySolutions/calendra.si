@@ -258,6 +258,7 @@ public class ClientMessageService {
     @Transactional(readOnly = true)
     public List<GuestThreadSummary> listGuestThreads(GuestUser guestUser, Long companyId) {
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        requireGuestInboxEnabled(companyId);
         List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
                 .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
                 .toList();
@@ -288,6 +289,7 @@ public class ClientMessageService {
     @Transactional
     public List<MessageView> listGuestMessages(GuestUser guestUser, Long companyId, Integer limit) {
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        requireGuestInboxEnabled(companyId);
         List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
                 .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
                 .toList();
@@ -304,6 +306,7 @@ public class ClientMessageService {
     @Transactional(noRollbackFor = ResponseStatusException.class)
     public MessageView sendGuestMessage(GuestUser guestUser, Long companyId, String body, List<Long> attachmentFileIds) {
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        requireGuestInboxEnabled(companyId);
         String normalizedBody = normalizeBody(body);
         List<ClientFile> attachmentFiles = resolveGuestAttachmentFiles(link, attachmentFileIds);
         if (normalizedBody.isBlank() && attachmentFiles.isEmpty()) {
@@ -343,6 +346,7 @@ public class ClientMessageService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Attachment file is required.");
         }
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        requireGuestInboxEnabled(companyId);
         ClientFileUploadPolicy.validateInboxAttachments(List.of(file));
         Client client = link.getClient();
         Company tenant = link.getCompany();
@@ -363,6 +367,7 @@ public class ClientMessageService {
     public void discardGuestPendingInboxAttachment(GuestUser guestUser, Long companyId, Long fileId) {
         if (fileId == null) return;
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        requireGuestInboxEnabled(companyId);
         var file = clientFiles.findByIdAndClientIdAndOwnerCompanyId(fileId, link.getClient().getId(), link.getCompany().getId()).orElse(null);
         if (file == null || !file.isPendingInboxAttachment()) return;
         if (messageAttachments.existsByClientFileId(file.getId())) {
@@ -389,6 +394,7 @@ public class ClientMessageService {
     @Transactional(readOnly = true)
     public AttachmentDownload downloadGuestAttachment(GuestUser guestUser, Long companyId, Long attachmentId) {
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
+        requireGuestInboxEnabled(companyId);
         ClientMessageAttachment attachment = messageAttachments
                 .findByIdAndMessageCompanyIdAndMessageClientIdAndMessageChannel(attachmentId, companyId, link.getClient().getId(), MessageChannel.GUEST_APP)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Attachment not found."));
@@ -1123,6 +1129,12 @@ public class ClientMessageService {
                 .collect(Collectors.joining(" "))
                 .trim();
         return label.isBlank() ? null : label;
+    }
+
+    private void requireGuestInboxEnabled(Long companyId) {
+        if (!guestSettingsService.inboxEnabled(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest inbox is disabled for this tenant.");
+        }
     }
 
     private GuestTenantLink requireActiveGuestLink(GuestUser guestUser, Long companyId) {

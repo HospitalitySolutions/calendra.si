@@ -38,7 +38,17 @@ struct MainTabView: View {
     private let walletOffersRefreshDebounceSeconds: TimeInterval = 1.5
     private let appTabSwipeThreshold: CGFloat = 58
 
-    private var swipeableTabs: [Tab] { [.home, .wallet, .book, .inbox, .calendar] }
+    private var inboxEnabledTenants: [TenantModel] {
+        store.linkedTenants.filter { $0.inboxEnabled != false }
+    }
+
+    private var inboxTabEnabled: Bool {
+        !inboxEnabledTenants.isEmpty
+    }
+
+    private var swipeableTabs: [Tab] {
+        inboxTabEnabled ? [.home, .wallet, .book, .inbox, .calendar] : [.home, .wallet, .book, .calendar]
+    }
 
     private var appTabSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 30, coordinateSpace: .local)
@@ -67,7 +77,13 @@ struct MainTabView: View {
 
     private var inboxSelectedTenant: TenantModel? {
         let selectedId = store.selectedTenantId ?? store.currentTenant.id
-        return store.linkedTenants.first { $0.id == selectedId } ?? store.currentTenant
+        if let selected = inboxEnabledTenants.first(where: { $0.id == selectedId }) {
+            return selected
+        }
+        if store.currentTenant.inboxEnabled != false {
+            return store.currentTenant
+        }
+        return inboxEnabledTenants.first
     }
 
     private var inboxDashboardTenantName: String? {
@@ -302,8 +318,17 @@ struct MainTabView: View {
             }
         }
         .onChange(of: selectedTab) { nextTab in
+            if nextTab == .inbox && !inboxTabEnabled {
+                selectedTab = .home
+                return
+            }
             if nextTab == .wallet {
                 refreshWalletOffersIfNeeded()
+            }
+        }
+        .onChange(of: inboxTabEnabled) { enabled in
+            if !enabled && selectedTab == .inbox {
+                selectedTab = .home
             }
         }
         .onChange(of: store.walletScopedTenantId) { tenantId in
@@ -312,7 +337,11 @@ struct MainTabView: View {
             }
         }
         .onChange(of: store.pendingInboxOpenCompanyId) { companyId in
-            guard companyId != nil else { return }
+            guard let companyId else { return }
+            guard store.linkedTenants.contains(where: { $0.id == companyId && $0.inboxEnabled != false }) else {
+                store.consumePendingInboxOpen()
+                return
+            }
             selectedTab = .inbox
             store.consumePendingInboxOpen()
         }
@@ -340,7 +369,7 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showWalletTenantPicker) {
             TenantSelectionBottomSheet(
-                tenants: store.linkedTenants,
+                tenants: tenantPickerTarget == .inbox ? inboxEnabledTenants : store.linkedTenants,
                 selectedTenantId: {
                     switch tenantPickerTarget {
                     case .calendar:
@@ -348,7 +377,7 @@ struct MainTabView: View {
                     case .wallet:
                         return walletTenantDraftId ?? store.walletScopedTenantId ?? store.linkedTenants.first?.id
                     case .inbox:
-                        return walletTenantDraftId ?? store.selectedTenantId ?? store.linkedTenants.first?.id
+                        return walletTenantDraftId ?? store.selectedTenantId ?? inboxEnabledTenants.first?.id
                     }
                 }(),
                 allowsAllTenants: tenantPickerTarget == .calendar,
@@ -447,7 +476,11 @@ struct MainTabView: View {
     }
 
     private func openTenantSelection(_ target: TenantPickerTarget) {
-        guard !store.linkedTenants.isEmpty else { return }
+        if target == .inbox {
+            guard !inboxEnabledTenants.isEmpty else { return }
+        } else {
+            guard !store.linkedTenants.isEmpty else { return }
+        }
         tenantPickerTarget = target
         switch target {
         case .calendar:
@@ -455,7 +488,7 @@ struct MainTabView: View {
         case .wallet:
             walletTenantDraftId = store.walletScopedTenantId ?? store.linkedTenants.first?.id
         case .inbox:
-            walletTenantDraftId = store.selectedTenantId ?? store.currentTenant.id
+            walletTenantDraftId = store.selectedTenantId ?? inboxEnabledTenants.first?.id ?? store.currentTenant.id
         }
         showWalletTenantPicker = true
     }
@@ -675,7 +708,9 @@ struct MainTabView: View {
                 navItem(.home, icon: "house", selectedIcon: "house.fill", title: isSl ? "Domov" : "Home")
                 navItem(.wallet, icon: "wallet.pass", selectedIcon: "wallet.pass.fill", title: isSl ? "Denarnica" : "Wallet")
                 bookTabItem
-                navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: isSl ? "Prejeto" : "Inbox")
+                if inboxTabEnabled {
+                    navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: isSl ? "Prejeto" : "Inbox")
+                }
                 navItem(.calendar, icon: "calendar", selectedIcon: "calendar", title: isSl ? "Koledar" : "Calendar")
             }
             .padding(.horizontal, 14)
@@ -731,6 +766,7 @@ struct MainTabView: View {
 
     private func navItem(_ tab: Tab, icon: String, selectedIcon: String, title: String) -> some View {
         Button {
+            if tab == .inbox && !inboxTabEnabled { return }
             bookLaunchRequest = nil
             bookReturnTab = nil
             if tab == .wallet {

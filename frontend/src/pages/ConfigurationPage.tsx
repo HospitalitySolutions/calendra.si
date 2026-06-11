@@ -3337,6 +3337,7 @@ type ModulesDraft = {
   BOOKABLE_ENABLED: string
   NO_SHOW_ENABLED: string
   ONLINE_SESSION_BOOKING_ENABLED: string
+  WEBSITE_WIDGET_ENABLED: string
   AI_BOOKING_ENABLED: string
   PERSONAL_ENABLED: string
   TODOS_ENABLED: string
@@ -3357,6 +3358,7 @@ type ModulesDraft = {
   NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: string
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: string
   GOOGLE_CALENDAR_MODULE_ENABLED: string
+  INBOX_ENABLED: string
   WHATSAPP_MODULE_ENABLED: string
   VIBER_MODULE_ENABLED: string
   SECURITY_MODULE_ENABLED: string
@@ -3385,6 +3387,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === 'true' ? 'true' : 'false',
   NO_SHOW_ENABLED: modulesStringSetting(s, 'NO_SHOW_ENABLED', true),
   ONLINE_SESSION_BOOKING_ENABLED: modulesStringSetting(s, 'ONLINE_SESSION_BOOKING_ENABLED', true),
+  WEBSITE_WIDGET_ENABLED: modulesStringSetting(s, 'WEBSITE_WIDGET_ENABLED', true),
   AI_BOOKING_ENABLED: s.AI_BOOKING_ENABLED === 'true' ? 'true' : 'false',
   PERSONAL_ENABLED: s.PERSONAL_ENABLED === 'false' ? 'false' : 'true',
   TODOS_ENABLED: s.TODOS_ENABLED === 'false' ? 'false' : 'true',
@@ -3405,6 +3408,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', true),
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED', true),
   GOOGLE_CALENDAR_MODULE_ENABLED: modulesStringSetting(s, 'GOOGLE_CALENDAR_MODULE_ENABLED', true),
+  INBOX_ENABLED: modulesStringSetting(s, 'INBOX_ENABLED', true),
   WHATSAPP_MODULE_ENABLED: modulesStringSetting(s, 'WHATSAPP_MODULE_ENABLED', true),
   VIBER_MODULE_ENABLED: modulesStringSetting(s, 'VIBER_MODULE_ENABLED', false),
   SECURITY_MODULE_ENABLED: modulesStringSetting(s, 'SECURITY_MODULE_ENABLED', true),
@@ -4123,6 +4127,7 @@ export function ConfigurationPage() {
   const stripeModuleEnabledCommitted = billingEnabledCommitted && settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
   const stripePaymentsAvailableCommitted = stripeModuleEnabledCommitted && paymentGlobalCapabilities.stripeEnabled
   const notificationsEnabledCommitted = settings.NOTIFICATIONS_ENABLED !== 'false'
+  const websiteWidgetEnabledCommitted = settings.WEBSITE_WIDGET_ENABLED !== 'false'
   const googleCalendarModuleEnabledCommitted = settings.GOOGLE_CALENDAR_MODULE_ENABLED !== 'false'
 
   const isConfigTabAvailable = (tabId: Tab) => {
@@ -4131,6 +4136,7 @@ export function ConfigurationPage() {
     if (tabId === 'whatsapp') return inboxGlobalCapabilities.whatsappEnabled
     if (tabId === 'viber') return inboxGlobalCapabilities.viberEnabled
     if (tabId === 'guestApp') return guestAppEnabledCommitted
+    if (tabId === 'website') return websiteWidgetEnabledCommitted
     return true
   }
 
@@ -4219,7 +4225,7 @@ export function ConfigurationPage() {
     if (q === 'website' && (subtabQuery === 'general' || subtabQuery === 'paymentMethods')) {
       setWebsiteSubtab(subtabQuery)
     }
-  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, googleCalendarModuleEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
+  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, googleCalendarModuleEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -4274,7 +4280,7 @@ export function ConfigurationPage() {
       setTab(fallback)
       navigate(`/configuration?tab=${fallback}`, { replace: true })
     }
-  }, [tab, inboxCapabilitiesLoaded, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted, navigate])
+  }, [tab, inboxCapabilitiesLoaded, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted, navigate])
 
   useEffect(() => {
     const prev = prevTabRef.current
@@ -4498,7 +4504,7 @@ export function ConfigurationPage() {
       { id: 'modules', icon: 'modules' },
     ]
     return items.filter((entry) => isConfigTabAvailable(entry.id))
-  }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted])
+  }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted])
 
   useEffect(() => {
     const order: BookingSubtab[] = ['general']
@@ -4555,6 +4561,7 @@ export function ConfigurationPage() {
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
           ONLINE_SESSION_BOOKING_ENABLED: modulesDraftForSave.ONLINE_SESSION_BOOKING_ENABLED,
+          WEBSITE_WIDGET_ENABLED: modulesDraftForSave.WEBSITE_WIDGET_ENABLED,
           AI_BOOKING_ENABLED: modulesDraftForSave.AI_BOOKING_ENABLED,
           PERSONAL_ENABLED: modulesDraftForSave.PERSONAL_ENABLED,
           TODOS_ENABLED: modulesDraftForSave.TODOS_ENABLED,
@@ -4575,6 +4582,7 @@ export function ConfigurationPage() {
           NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: modulesDraftForSave.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED,
           NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesDraftForSave.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED,
           GOOGLE_CALENDAR_MODULE_ENABLED: modulesDraftForSave.GOOGLE_CALENDAR_MODULE_ENABLED,
+          INBOX_ENABLED: modulesDraftForSave.INBOX_ENABLED,
           WHATSAPP_MODULE_ENABLED: modulesDraftForSave.WHATSAPP_MODULE_ENABLED,
           VIBER_MODULE_ENABLED: modulesDraftForSave.VIBER_MODULE_ENABLED,
           SECURITY_MODULE_ENABLED: modulesDraftForSave.SECURITY_MODULE_ENABLED,
@@ -5634,6 +5642,7 @@ export function ConfigurationPage() {
     'NOTIFICATIONS_EMAIL_ALERTS_ENABLED',
     'NOTIFICATIONS_SMS_ALERTS_ENABLED',
     'NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED',
+    'INBOX_ENABLED',
     'GOOGLE_CALENDAR_MODULE_ENABLED',
   ]
   const securityModuleKeys: ModulesStringKey[] = [
@@ -5678,6 +5687,13 @@ export function ConfigurationPage() {
           subtitle: 'Allow option to book guest to an online session.',
           checked: moduleOn('ONLINE_SESSION_BOOKING_ENABLED'),
           onChange: (checked) => setModuleStringSetting('ONLINE_SESSION_BOOKING_ENABLED', checked),
+        },
+        {
+          id: 'booking-website-widget',
+          icon: 'website',
+          title: t('tabWebsite'),
+          checked: moduleOn('WEBSITE_WIDGET_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('WEBSITE_WIDGET_ENABLED', checked),
         },
         { id: 'booking-no-show', icon: 'noShow', title: t('configModulesNoShowLabel'), checked: moduleOn('NO_SHOW_ENABLED'), onChange: (checked) => setModuleStringSetting('NO_SHOW_ENABLED', checked) },
         { id: 'booking-ai', icon: 'spark', title: `${t('configModulesAiLabel')} (Prihaja kmalu)`, checked: false, disabled: true, onChange: () => setModuleStringSetting('AI_BOOKING_ENABLED', false) },
@@ -5765,6 +5781,7 @@ export function ConfigurationPage() {
             { id: 'communication-guest-app-alerts', icon: 'guestApp', title: locale === 'sl' ? 'Obvestila v aplikaciji za goste' : 'Guest app alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleBool('guestAppEnabled') && moduleOn('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED') || !moduleBool('guestAppEnabled'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', checked) },
           ],
         },
+        { id: 'communication-inbox', icon: 'message', title: locale === 'sl' ? 'Prejeto' : 'Inbox', checked: moduleOn('INBOX_ENABLED'), onChange: (checked) => setModuleStringSetting('INBOX_ENABLED', checked) },
         { id: 'communication-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) },
       ],
     },

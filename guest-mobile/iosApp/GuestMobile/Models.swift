@@ -22,6 +22,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let employeeSelectionStep: Bool?
     let useEmployeeContact: Bool?
     let billingEnabled: Bool?
+    let inboxEnabled: Bool?
     let cardImageUrl: String?
     let logoImageUrl: String?
     let iconImageUrl: String?
@@ -45,6 +46,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case employeeSelectionStep
         case useEmployeeContact
         case billingEnabled
+        case inboxEnabled
         case cardImageUrl
         case logoImageUrl
         case iconImageUrl
@@ -65,6 +67,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         employeeSelectionStep: Bool? = nil,
         useEmployeeContact: Bool? = nil,
         billingEnabled: Bool? = nil,
+        inboxEnabled: Bool? = nil,
         cardImageUrl: String? = nil,
         logoImageUrl: String? = nil,
         iconImageUrl: String? = nil,
@@ -83,6 +86,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.employeeSelectionStep = employeeSelectionStep
         self.useEmployeeContact = useEmployeeContact
         self.billingEnabled = billingEnabled
+        self.inboxEnabled = inboxEnabled
         self.cardImageUrl = cardImageUrl
         self.logoImageUrl = logoImageUrl
         self.iconImageUrl = iconImageUrl
@@ -104,6 +108,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.employeeSelectionStep = try c.decodeIfPresent(Bool.self, forKey: .employeeSelectionStep)
         self.useEmployeeContact = try c.decodeIfPresent(Bool.self, forKey: .useEmployeeContact)
         self.billingEnabled = try c.decodeIfPresent(Bool.self, forKey: .billingEnabled)
+        self.inboxEnabled = try c.decodeIfPresent(Bool.self, forKey: .inboxEnabled)
         self.cardImageUrl = try c.decodeIfPresent(String.self, forKey: .cardImageUrl)
         self.logoImageUrl = try c.decodeIfPresent(String.self, forKey: .logoImageUrl)
         self.iconImageUrl = try c.decodeIfPresent(String.self, forKey: .iconImageUrl)
@@ -130,6 +135,7 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
     let employeeSelectionStep: Bool?
     let useEmployeeContact: Bool?
     let billingEnabled: Bool?
+    let inboxEnabled: Bool?
     let requireOnlinePayment: Bool?
     let paymentRequirement: String?
     let depositPercent: Int?
@@ -152,6 +158,7 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
         employeeSelectionStep: Bool? = nil,
         useEmployeeContact: Bool? = nil,
         billingEnabled: Bool? = nil,
+        inboxEnabled: Bool? = nil,
         requireOnlinePayment: Bool? = nil,
         paymentRequirement: String? = nil,
         depositPercent: Int? = nil,
@@ -171,6 +178,7 @@ struct TenantSummaryModel: Identifiable, Hashable, Codable {
         self.employeeSelectionStep = employeeSelectionStep
         self.useEmployeeContact = useEmployeeContact
         self.billingEnabled = billingEnabled
+        self.inboxEnabled = inboxEnabled
         self.requireOnlinePayment = requireOnlinePayment
         self.paymentRequirement = paymentRequirement
         self.depositPercent = depositPercent

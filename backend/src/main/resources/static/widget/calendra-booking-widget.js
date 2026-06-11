@@ -359,6 +359,11 @@
       this.observeLayout();
       this.render();
       this.bootstrap().catch((error) => {
+        if (error && error.widgetDisabled) {
+          this.style.display = 'none';
+          this.setState({ loading: false, error: '' });
+          return;
+        }
         this.setState({
           loading: false,
           error: this.normalizeError(error, this.text().failedToLoad),
@@ -649,7 +654,11 @@
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data?.message || `Request failed with status ${response.status}`);
+        const message = data?.message || data?.error || `Request failed with status ${response.status}`;
+        const error = new Error(message);
+        error.status = response.status;
+        error.widgetDisabled = response.status === 404 && /widget.*disabled|disabled.*widget|website widget is disabled/i.test(String(message));
+        throw error;
       }
       return data;
     }

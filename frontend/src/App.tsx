@@ -97,6 +97,7 @@ export default function App() {
   }
   const handledRef = useRef(false)
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
+  const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
 
 
@@ -125,6 +126,7 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       setBillingModuleEnabled(true)
+      setInboxModuleEnabled(true)
       return
     }
 
@@ -132,10 +134,16 @@ export default function App() {
     const loadBillingModuleState = () => {
       api.get('/settings')
         .then((res) => {
-          if (!cancelled) setBillingModuleEnabled(res.data?.BILLING_ENABLED !== 'false')
+          if (!cancelled) {
+            setBillingModuleEnabled(res.data?.BILLING_ENABLED !== 'false')
+            setInboxModuleEnabled(res.data?.INBOX_ENABLED !== 'false')
+          }
         })
         .catch(() => {
-          if (!cancelled) setBillingModuleEnabled(true)
+          if (!cancelled) {
+            setBillingModuleEnabled(true)
+            setInboxModuleEnabled(true)
+          }
         })
     }
 
@@ -300,7 +308,7 @@ export default function App() {
   const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
   const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
   const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
-  const inboxAllowed = hasInboxAccess(user.packageType)
+  const inboxAllowed = hasInboxAccess(user.packageType) && inboxModuleEnabled
   const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const fallbackRoute = getDefaultAllowedRoute(user.packageType)
 

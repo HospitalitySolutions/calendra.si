@@ -48,6 +48,7 @@ public class PublicWidgetOrderService {
     private final WidgetRateLimiter widgetRateLimiter;
     private final WidgetTurnstileService widgetTurnstileService;
     private final WidgetPublicAuditLogger widgetPublicAuditLogger;
+    private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
 
     public PublicWidgetOrderService(
             CompanyRepository companies,
@@ -61,7 +62,8 @@ public class PublicWidgetOrderService {
             WidgetOriginValidator widgetOriginValidator,
             WidgetRateLimiter widgetRateLimiter,
             WidgetTurnstileService widgetTurnstileService,
-            WidgetPublicAuditLogger widgetPublicAuditLogger
+            WidgetPublicAuditLogger widgetPublicAuditLogger,
+            WebsiteWidgetSettingsService websiteWidgetSettingsService
     ) {
         this.companies = companies;
         this.clientCompanies = clientCompanies;
@@ -75,6 +77,7 @@ public class PublicWidgetOrderService {
         this.widgetRateLimiter = widgetRateLimiter;
         this.widgetTurnstileService = widgetTurnstileService;
         this.widgetPublicAuditLogger = widgetPublicAuditLogger;
+        this.websiteWidgetSettingsService = websiteWidgetSettingsService;
     }
 
     @Transactional
@@ -344,6 +347,9 @@ public class PublicWidgetOrderService {
 
     private void guardWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
         try {
+            if (!websiteWidgetSettingsService.widgetEnabled(company.getId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Website widget is disabled.");
+            }
             widgetOriginValidator.validate(company, request);
             widgetRateLimiter.check(company.getTenantCode(), widgetPublicAuditLogger.clientIp(request), bookingRequest);
             widgetPublicAuditLogger.logAttempt(company, request, action, "allowed", "");

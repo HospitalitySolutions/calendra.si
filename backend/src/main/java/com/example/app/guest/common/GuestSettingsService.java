@@ -31,6 +31,7 @@ public class GuestSettingsService {
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
         boolean enabled = root.path("guestAppEnabled").asBoolean(true);
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
+        boolean inboxEnabled = settingEnabled(values, SettingKey.INBOX_ENABLED, true);
         boolean discoverable = root.path("publicDiscoverable").asBoolean(false);
         String name = textOrNull(root.path("publicName"));
         String description = textOrNull(root.path("publicDescription"));
@@ -51,13 +52,19 @@ public class GuestSettingsService {
         String defaultLanguage = root.path("defaultLanguage").asText("sl");
         boolean employeeSelectionStep = root.path("employeeSelectionStep").asBoolean(false);
         boolean useEmployeeContact = root.path("useEmployeeContact").asBoolean(false);
-        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl);
+        return new GuestPublicSettings(enabled, discoverable, name, description, city, phone, formattedAddress, invoiceCompanyName, defaultLanguage, employeeSelectionStep, useEmployeeContact, billingEnabled, inboxEnabled, tenantType, cardImageUrl, logoImageUrl, iconImageUrl);
     }
 
     public Boolean billingEnabled(Long companyId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         return settingEnabled(values, SettingKey.BILLING_ENABLED, true);
+    }
+
+    public boolean inboxEnabled(Long companyId) {
+        Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
+                .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
+        return settingEnabled(values, SettingKey.INBOX_ENABLED, true);
     }
 
     public boolean advanceBillingEnabled(Long companyId) {
@@ -267,7 +274,7 @@ public class GuestSettingsService {
         return Math.min(value, 100);
     }
 
-    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl) {}
+    public record GuestPublicSettings(boolean guestAppEnabled, boolean publicDiscoverable, String publicName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String invoiceCompanyName, String defaultLanguage, boolean employeeSelectionStep, boolean useEmployeeContact, boolean billingEnabled, boolean inboxEnabled, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl) {}
     public record GuestBookingRules(
             int cancelUntilHours,
             int rescheduleUntilHours,

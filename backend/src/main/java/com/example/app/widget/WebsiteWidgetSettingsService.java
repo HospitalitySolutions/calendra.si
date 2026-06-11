@@ -144,6 +144,10 @@ public class WebsiteWidgetSettingsService {
                 .toList();
     }
 
+    public boolean widgetEnabled(Long companyId) {
+        return settingEnabled(values(companyId), SettingKey.WEBSITE_WIDGET_ENABLED, true);
+    }
+
     public boolean billingEnabled(Long companyId) {
         return settingEnabled(values(companyId), SettingKey.BILLING_ENABLED, true);
     }

@@ -6,6 +6,7 @@ public enum SettingKey {
     BOOKABLE_ENABLED,
     NO_SHOW_ENABLED,
     ONLINE_SESSION_BOOKING_ENABLED,
+    WEBSITE_WIDGET_ENABLED,
     MODULE_CONFIG_TYPE,
     AI_BOOKING_ENABLED,
     /** Personal time blocks on the calendar (and personal-task presets tab). */
@@ -24,6 +25,7 @@ public enum SettingKey {
     /** Enables advance/deposit billing features (Predplačilo) for the tenant. */
     BILLING_ADVANCE_ENABLED,
     COMMUNICATION_ENABLED,
+    INBOX_ENABLED,
     NOTIFICATIONS_ENABLED,
     NOTIFICATIONS_EMAIL_ALERTS_ENABLED,
     NOTIFICATIONS_SMS_ALERTS_ENABLED,

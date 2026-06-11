@@ -158,10 +158,11 @@ function ShellInner({ children }: PropsWithChildren) {
   const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
+  const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
   const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
   const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
-  const inboxAllowed = hasInboxAccess(user.packageType)
+  const inboxAllowed = hasInboxAccess(user.packageType) && inboxModuleEnabled
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
@@ -253,6 +254,7 @@ function ShellInner({ children }: PropsWithChildren) {
         setTodosModuleEnabled(settingsData.TODOS_ENABLED !== 'false')
         setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
         setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
+        setInboxModuleEnabled(settingsData.INBOX_ENABLED !== 'false')
       })
       .catch(() => {})
       .finally(() => setSettingsLoaded(true))
@@ -1274,7 +1276,7 @@ function ShellInner({ children }: PropsWithChildren) {
       <OnboardingTour
         user={user}
         billingModuleEnabled={billingModuleEnabled}
-        inboxModuleEnabled
+        inboxModuleEnabled={inboxModuleEnabled}
         servicesModuleEnabled={isAdmin && typesModuleEnabled}
         employeesModuleEnabled={isAdmin}
         configurationModuleEnabled={isAdmin}

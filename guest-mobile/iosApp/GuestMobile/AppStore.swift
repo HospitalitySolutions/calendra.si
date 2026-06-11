@@ -483,6 +483,12 @@ final class AppStore: ObservableObject {
                         companyAddress: tenant.companyAddress,
                         employeeSelectionStep: tenant.employeeSelectionStep,
                         useEmployeeContact: tenant.useEmployeeContact,
+                        billingEnabled: tenant.billingEnabled,
+                        inboxEnabled: tenant.inboxEnabled,
+                        requireOnlinePayment: tenant.requireOnlinePayment,
+                        paymentRequirement: tenant.paymentRequirement,
+                        depositPercent: tenant.depositPercent,
+                        acceptedPaymentMethods: tenant.acceptedPaymentMethods,
                         cardImageUrl: tenant.cardImageUrl,
                         logoImageUrl: tenant.logoImageUrl,
                         iconImageUrl: tenant.iconImageUrl
@@ -868,12 +874,12 @@ final class AppStore: ObservableObject {
     func openInboxFromPush(companyId: String) async {
         let normalized = companyId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return }
+        guard linkedTenants.contains(where: { $0.id == normalized && $0.inboxEnabled != false }) else { return }
         selectedTenantId = normalized
         if let tenant = linkedTenants.first(where: { $0.id == normalized }) {
             currentTenant = tenant
         }
         pendingInboxOpenCompanyId = normalized
-        guard linkedTenants.contains(where: { $0.id == normalized }) else { return }
         do {
             try await refreshTenant(companyId: normalized)
             await loadInboxMessages(companyId: normalized)

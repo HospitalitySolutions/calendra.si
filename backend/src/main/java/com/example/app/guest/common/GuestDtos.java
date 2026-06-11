@@ -30,6 +30,7 @@ public final class GuestDtos {
             boolean employeeSelectionStep,
             boolean useEmployeeContact,
             boolean billingEnabled,
+            boolean inboxEnabled,
             boolean requireOnlinePayment,
             /** Booking payment mode: none / deposit / full. */
             String paymentRequirement,

@@ -432,6 +432,9 @@ public class PublicBookingWidgetService {
 
     private void guardPublicWidgetRequest(Company company, HttpServletRequest request, boolean bookingRequest, String action) {
         try {
+            if (!websiteWidgetSettingsService.widgetEnabled(company.getId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Website widget is disabled.");
+            }
             widgetOriginValidator.validate(company, request);
             widgetRateLimiter.check(company.getTenantCode(), widgetPublicAuditLogger.clientIp(request), bookingRequest);
             widgetPublicAuditLogger.logAttempt(company, request, action, "allowed", "");
