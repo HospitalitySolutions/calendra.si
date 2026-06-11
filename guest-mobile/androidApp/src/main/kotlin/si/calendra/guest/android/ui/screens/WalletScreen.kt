@@ -157,7 +157,7 @@ enum class WalletSubTab(val icon: androidx.compose.ui.graphics.vector.ImageVecto
     Orders(Icons.AutoMirrored.Outlined.ReceiptLong);
 
     fun localizedTitle(languageCode: String): String = when (this) {
-        Entitlements -> walletTr(languageCode, "Entitlements", "Vstopnice")
+        Entitlements -> walletTr(languageCode, "Entitlements", "Ugodnosti")
         Orders -> walletTr(languageCode, "Orders", "Naročila")
         Buy -> walletTr(languageCode, "Buy", "Nakup")
     }

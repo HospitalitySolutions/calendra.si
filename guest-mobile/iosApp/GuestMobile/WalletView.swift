@@ -21,7 +21,7 @@ enum WalletSubTab: String, CaseIterable, Identifiable {
     func localizedTitle(languageCode: String) -> String {
         let sl = languageCode.lowercased() == "sl"
         switch self {
-        case .entitlements: return sl ? "Vstopnice" : "Entitlements"
+        case .entitlements: return sl ? "Ugodnosti" : "Entitlements"
         case .orders: return sl ? "Naročila" : "Orders"
         case .buy: return sl ? "Nakup" : "Buy"
         }

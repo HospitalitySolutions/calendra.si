@@ -4556,6 +4556,11 @@ export function ConfigurationPage() {
           modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED = 'false'
           modulesDraftForSave.BILLING_ADVANCE_ENABLED = 'false'
         }
+        if (!modulesDraftForSave.guestWalletEnabled) {
+          modulesDraftForSave.guestOrdersEnabled = false
+          modulesDraftForSave.guestBuyTabEnabled = false
+          modulesDraftForSave.guestEntitlementsEnabled = false
+        }
         effectiveSettings = {
           ...settings,
           MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
@@ -5597,6 +5602,15 @@ export function ConfigurationPage() {
           NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: 'false',
         }
       }
+      if (key === 'guestWalletEnabled' && !checked) {
+        return {
+          ...d,
+          guestWalletEnabled: false,
+          guestOrdersEnabled: false,
+          guestBuyTabEnabled: false,
+          guestEntitlementsEnabled: false,
+        }
+      }
       return { ...d, [key]: checked }
     })
   }
@@ -5749,10 +5763,10 @@ export function ConfigurationPage() {
           checked: moduleBool('guestAppEnabled'),
           onChange: (checked) => setModuleBooleanSetting('guestAppEnabled', checked),
           children: [
-            { id: 'guest-app-wallet', icon: 'wallet', title: 'Wallet', checked: moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestWalletEnabled', checked) },
-            { id: 'guest-app-orders', icon: 'invoice', title: 'Orders', checked: moduleBool('guestOrdersEnabled'), onChange: (checked) => setModuleBooleanSetting('guestOrdersEnabled', checked) },
-            { id: 'guest-app-buy-tab', icon: 'billing', title: 'Buy tab', checked: moduleOn('BILLING_ENABLED') && moduleBool('guestBuyTabEnabled'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleBooleanSetting('guestBuyTabEnabled', checked) },
-            { id: 'guest-app-entitlements', icon: 'wallet', title: 'Entitlements', checked: moduleBool('guestEntitlementsEnabled'), onChange: (checked) => setModuleBooleanSetting('guestEntitlementsEnabled', checked) },
+            { id: 'guest-app-wallet', icon: 'wallet', title: locale === 'sl' ? 'Denarnica' : 'Wallet', checked: moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestWalletEnabled', checked) },
+            { id: 'guest-app-orders', icon: 'invoice', title: locale === 'sl' ? 'Naročila' : 'Orders', checked: moduleBool('guestWalletEnabled') && moduleBool('guestOrdersEnabled'), disabled: !moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestOrdersEnabled', checked) },
+            { id: 'guest-app-buy-tab', icon: 'billing', title: locale === 'sl' ? 'Nakup' : 'Buy', checked: moduleBool('guestWalletEnabled') && moduleOn('BILLING_ENABLED') && moduleBool('guestBuyTabEnabled'), disabled: !moduleBool('guestWalletEnabled') || !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleBooleanSetting('guestBuyTabEnabled', checked) },
+            { id: 'guest-app-entitlements', icon: 'wallet', title: locale === 'sl' ? 'Ugodnosti' : 'Entitlements', checked: moduleBool('guestWalletEnabled') && moduleBool('guestEntitlementsEnabled'), disabled: !moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestEntitlementsEnabled', checked) },
           ],
         },
       ],
