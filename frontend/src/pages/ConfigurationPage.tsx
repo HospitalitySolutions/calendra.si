@@ -933,6 +933,20 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
     },
   }
 
+  const channelAvailability: Record<NotificationChannel, boolean> = {
+    email: settings.NOTIFICATIONS_EMAIL_ALERTS_ENABLED !== 'false',
+    sms: settings.NOTIFICATIONS_SMS_ALERTS_ENABLED === 'true',
+    guestApp: settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== 'false',
+  }
+  const availableChannels = (['email', 'sms', 'guestApp'] as const).filter((id) => channelAvailability[id])
+
+  useEffect(() => {
+    if (availableChannels.length === 0) return
+    if (!channelAvailability[channel]) {
+      setChannel(availableChannels[0])
+    }
+  }, [channelAvailability, availableChannels, channel])
+
   useEffect(() => {
     setEditingEvent(null)
     setPreviewTemplate(false)
@@ -1931,7 +1945,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
               ['email', 'E-pošta'],
               ['sms', 'SMS'],
               ['guestApp', 'Aplikacija za goste'],
-            ] as const).map(([id, label]) => (
+            ] as const).filter(([id]) => channelAvailability[id]).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
@@ -1944,7 +1958,11 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
               </button>
             ))}
           </div>
-          {channel !== 'email' ? (
+          {availableChannels.length === 0 ? (
+            <div className="notif-mobile-channel-note" role="note">
+              <span>Vsi kanali obvestil so izklopljeni. Vklopite jih v Nastavitve → Moduli → Komunikacija.</span>
+            </div>
+          ) : channel !== 'email' && channelAvailability[channel] ? (
             <div className="notif-mobile-channel-note" role="note">
               <span className="notif-mobile-channel-note-icon"><NotificationInfoIcon kind={channel} /></span>
               <span>
@@ -1954,6 +1972,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
               </span>
             </div>
           ) : null}
+          {availableChannels.length > 0 ? (
           <div className={selectedEvent ? 'notif-layout has-editor' : 'notif-layout'}>
             <div>
               <div className="notif-event-list">
@@ -2111,6 +2130,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
               </aside>
             ) : null}
           </div>
+          ) : null}
           <div className="notif-savebar">
             <button type="button" className="notif-save-button" onClick={() => void onSave()} disabled={savingSettings}>
               <GuestSaveIcon />
@@ -3329,6 +3349,7 @@ type ModulesDraft = {
   NOTIFICATIONS_ENABLED: string
   NOTIFICATIONS_EMAIL_ALERTS_ENABLED: string
   NOTIFICATIONS_SMS_ALERTS_ENABLED: string
+  NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: string
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: string
   GOOGLE_CALENDAR_MODULE_ENABLED: string
   WHATSAPP_MODULE_ENABLED: string
@@ -3376,6 +3397,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   NOTIFICATIONS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_ENABLED', true),
   NOTIFICATIONS_EMAIL_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_EMAIL_ALERTS_ENABLED', true),
   NOTIFICATIONS_SMS_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_SMS_ALERTS_ENABLED', false),
+  NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', true),
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED', true),
   GOOGLE_CALENDAR_MODULE_ENABLED: modulesStringSetting(s, 'GOOGLE_CALENDAR_MODULE_ENABLED', true),
   WHATSAPP_MODULE_ENABLED: modulesStringSetting(s, 'WHATSAPP_MODULE_ENABLED', true),
@@ -4093,9 +4115,11 @@ export function ConfigurationPage() {
     [settings[GUEST_APP_SETTINGS_KEY]],
   )
   const billingEnabledCommitted = settings.BILLING_ENABLED !== 'false'
+  const notificationsEnabledCommitted = settings.NOTIFICATIONS_ENABLED !== 'false'
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (tabId === 'billing') return billingEnabledCommitted
+    if (tabId === 'notifications') return notificationsEnabledCommitted
     if (tabId === 'whatsapp') return inboxGlobalCapabilities.whatsappEnabled
     if (tabId === 'viber') return inboxGlobalCapabilities.viberEnabled
     if (tabId === 'guestApp') return guestAppEnabledCommitted
@@ -4172,7 +4196,7 @@ export function ConfigurationPage() {
     if (q === 'website' && (subtabQuery === 'general' || subtabQuery === 'paymentMethods')) {
       setWebsiteSubtab(subtabQuery)
     }
-  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, guestAppEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
+  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -4227,7 +4251,7 @@ export function ConfigurationPage() {
       setTab(fallback)
       navigate(`/configuration?tab=${fallback}`, { replace: true })
     }
-  }, [tab, inboxCapabilitiesLoaded, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted, navigate])
+  }, [tab, inboxCapabilitiesLoaded, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted, navigate])
 
   useEffect(() => {
     const prev = prevTabRef.current
@@ -4451,7 +4475,7 @@ export function ConfigurationPage() {
       { id: 'modules', icon: 'modules' },
     ]
     return items.filter((entry) => isConfigTabAvailable(entry.id))
-  }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted])
+  }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted])
 
   useEffect(() => {
     const order: BookingSubtab[] = ['general']
@@ -4524,6 +4548,7 @@ export function ConfigurationPage() {
           NOTIFICATIONS_ENABLED: modulesDraftForSave.NOTIFICATIONS_ENABLED,
           NOTIFICATIONS_EMAIL_ALERTS_ENABLED: modulesDraftForSave.NOTIFICATIONS_EMAIL_ALERTS_ENABLED,
           NOTIFICATIONS_SMS_ALERTS_ENABLED: modulesDraftForSave.NOTIFICATIONS_SMS_ALERTS_ENABLED,
+          NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: modulesDraftForSave.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED,
           NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesDraftForSave.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED,
           GOOGLE_CALENDAR_MODULE_ENABLED: modulesDraftForSave.GOOGLE_CALENDAR_MODULE_ENABLED,
           WHATSAPP_MODULE_ENABLED: modulesDraftForSave.WHATSAPP_MODULE_ENABLED,
@@ -5436,6 +5461,15 @@ export function ConfigurationPage() {
           BILLING_GIFT_CARDS_ENABLED: 'false',
         }
       }
+      if (key === 'NOTIFICATIONS_ENABLED' && !checked) {
+        return {
+          ...d,
+          NOTIFICATIONS_ENABLED: 'false',
+          NOTIFICATIONS_EMAIL_ALERTS_ENABLED: 'false',
+          NOTIFICATIONS_SMS_ALERTS_ENABLED: 'false',
+          NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: 'false',
+        }
+      }
       return { ...d, [key]: checked ? 'true' : 'false' }
     })
   }
@@ -5458,6 +5492,11 @@ export function ConfigurationPage() {
         next.BILLING_BANK_TRANSFER_ENABLED = 'false'
         next.BILLING_PAYPAL_ENABLED = 'false'
         next.BILLING_GIFT_CARDS_ENABLED = 'false'
+      }
+      if (next.NOTIFICATIONS_ENABLED !== 'true') {
+        next.NOTIFICATIONS_EMAIL_ALERTS_ENABLED = 'false'
+        next.NOTIFICATIONS_SMS_ALERTS_ENABLED = 'false'
+        next.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED = 'false'
       }
       return next
     })
@@ -5511,10 +5550,8 @@ export function ConfigurationPage() {
     'NOTIFICATIONS_ENABLED',
     'NOTIFICATIONS_EMAIL_ALERTS_ENABLED',
     'NOTIFICATIONS_SMS_ALERTS_ENABLED',
-    'NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED',
+    'NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED',
     'GOOGLE_CALENDAR_MODULE_ENABLED',
-    'WHATSAPP_MODULE_ENABLED',
-    'VIBER_MODULE_ENABLED',
   ]
   const securityModuleKeys: ModulesStringKey[] = [
     'SECURITY_MODULE_ENABLED',
@@ -5571,7 +5608,6 @@ export function ConfigurationPage() {
           onChange: (checked) => setModuleStringSetting('GROUP_BOOKING_ENABLED', checked),
           children: [
             { id: 'booking-multiple-clients', icon: 'group', title: t('configModulesMultipleClientsPerSessionLabel'), checked: moduleOn('GROUP_BOOKING_ENABLED') && moduleOn('MULTIPLE_CLIENTS_PER_SESSION_ENABLED'), disabled: !moduleOn('GROUP_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('MULTIPLE_CLIENTS_PER_SESSION_ENABLED', checked) },
-            { id: 'booking-max-participants', icon: 'group', title: 'Max participants', checked: moduleOn('GROUP_BOOKING_ENABLED'), disabled: !moduleOn('GROUP_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('GROUP_BOOKING_ENABLED', checked) },
           ],
         },
       ],
@@ -5644,12 +5680,10 @@ export function ConfigurationPage() {
           children: [
             { id: 'communication-email-alerts', icon: 'message', title: 'Email alerts', checked: moduleOn('NOTIFICATIONS_EMAIL_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_EMAIL_ALERTS_ENABLED', checked) },
             { id: 'communication-sms-alerts', icon: 'message', title: 'SMS alerts', checked: moduleOn('NOTIFICATIONS_SMS_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_SMS_ALERTS_ENABLED', checked) },
-            { id: 'communication-reminder-templates', icon: 'todo', title: 'Reminder templates', checked: moduleOn('NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED', checked) },
+            { id: 'communication-guest-app-alerts', icon: 'guestApp', title: 'Guest App alerts', checked: moduleOn('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', checked) },
           ],
         },
         { id: 'communication-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked), children: [{ id: 'communication-google-two-way', icon: 'link', title: 'Two-way sync', checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) }] },
-        { id: 'communication-whatsapp', icon: 'message', title: 'WhatsApp', checked: moduleOn('WHATSAPP_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('WHATSAPP_MODULE_ENABLED', checked), children: [{ id: 'communication-whatsapp-inbox', icon: 'message', title: 'Inbox channel', checked: moduleOn('WHATSAPP_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('WHATSAPP_MODULE_ENABLED', checked) }] },
-        { id: 'communication-viber', icon: 'message', title: 'Viber', checked: moduleOn('VIBER_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('VIBER_MODULE_ENABLED', checked), children: [{ id: 'communication-viber-inbox', icon: 'message', title: 'Inbox channel', checked: moduleOn('VIBER_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('VIBER_MODULE_ENABLED', checked) }] },
       ],
     },
     {
