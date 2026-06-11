@@ -1,0 +1,31 @@
+Bunny direct upload library creation fix
+
+Updated files:
+- backend/src/main/java/com/example/app/course/BunnyMediaService.java
+- backend/src/main/java/com/example/app/course/BunnyProperties.java
+- backend/src/main/resources/application.yml
+- .env.example
+- .env.staging.example
+- backend/env.local.example
+
+Changes:
+- Fixed Bunny Stream library create/list calls to use Bunny Core API:
+  https://api.bunny.net/videolibrary
+  instead of the Stream video upload API.
+- Added app.bunny.core-base-url / BUNNY_CORE_BASE_URL with default https://api.bunny.net.
+- After creating/finding a tenant library, backend now resolves the library Stream API key
+  returned by Bunny and uses that key for:
+  - Create Video API
+  - TUS upload signature generation
+  - fallback direct backend upload
+- Existing course records that already have bunnyLibraryId are supported; backend loads
+  the library by id through Core API and resolves its ApiKey before creating the video.
+- Improved error messages so Bunny HTTP status/body are visible in the API response/logs.
+
+Important env values:
+BUNNY_API_KEY=<Bunny account API key from account settings>
+BUNNY_CORE_BASE_URL=https://api.bunny.net
+BUNNY_STREAM_BASE_URL=https://video.bunnycdn.com
+BUNNY_STORAGE_ZONE=calendra-courses-audio
+BUNNY_STORAGE_PASSWORD=<Storage Zone API/HTTP password>
+BUNNY_AUDIO_CDN_HOST=https://calendra-courses-audio.b-cdn.net

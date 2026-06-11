@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.bunny")
 public record BunnyProperties(
         String apiKey,
+        String coreBaseUrl,
         String streamBaseUrl,
         String storageZone,
         String storagePassword,
@@ -12,6 +13,10 @@ public record BunnyProperties(
         String audioCdnHost,
         boolean enabled
 ) {
+    public String effectiveCoreBaseUrl() {
+        return hasText(coreBaseUrl) ? trimSlash(coreBaseUrl) : "https://api.bunny.net";
+    }
+
     public String effectiveStreamBaseUrl() {
         return hasText(streamBaseUrl) ? trimSlash(streamBaseUrl) : "https://video.bunnycdn.com";
     }

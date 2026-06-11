@@ -128,6 +128,7 @@ app:
   bunny:
     enabled: ${APP_BUNNY_ENABLED:true}
     api-key: ${BUNNY_API_KEY:}
+    core-base-url: ${BUNNY_CORE_BASE_URL:https://api.bunny.net}
     stream-base-url: ${BUNNY_STREAM_BASE_URL:https://video.bunnycdn.com}
     storage-zone: ${BUNNY_STORAGE_ZONE:}
     storage-password: ${BUNNY_STORAGE_PASSWORD:}

@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -42,42 +43,39 @@ public class BunnyMediaService {
             throw new IllegalArgumentException("Direct Bunny Stream upload sessions are only available for video courses.");
         }
         if (!properties.hasStreamApiKey()) {
-            throw new IllegalStateException("Bunny Stream API key is not configured.");
+            throw new IllegalStateException("Bunny account API key is not configured.");
         }
 
-        String libraryId = course.getBunnyLibraryId();
-        String libraryName = course.getBunnyLibraryName();
-        if (libraryId == null || libraryId.isBlank()) {
-            LibraryRef library = ensureTenantVideoLibrary(course.getCompany());
-            libraryId = library.id();
-            libraryName = library.name();
-        }
-        if (libraryId == null || libraryId.isBlank()) {
+        LibraryRef library = resolveTenantVideoLibrary(course);
+        if (!hasText(library.id())) {
             throw new IllegalStateException("Bunny Stream library could not be created for this tenant.");
         }
+        if (!hasText(library.streamApiKey())) {
+            throw new IllegalStateException("Bunny Stream library API key could not be resolved for this tenant.");
+        }
 
-        String createUrl = properties.effectiveStreamBaseUrl() + "/library/" + libraryId + "/videos";
+        String createUrl = properties.effectiveStreamBaseUrl() + "/library/" + library.id() + "/videos";
         String title = hasText(course.getTitle()) ? course.getTitle() : safeFileName(fileName, "course-video");
         String titleJson = "{\"title\":" + JSON.writeValueAsString(title) + "}";
         JsonNode created = restClient.post()
                 .uri(createUrl)
-                .header("AccessKey", properties.apiKey())
+                .header("AccessKey", library.streamApiKey())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(titleJson)
                 .retrieve()
                 .body(JsonNode.class);
         String videoId = created == null ? null : firstText(created, "guid", "videoId", "id");
-        if (videoId == null || videoId.isBlank()) {
+        if (!hasText(videoId)) {
             throw new IllegalStateException("Bunny Stream did not return a video id.");
         }
 
         long expiration = Instant.now().plusSeconds(24 * 60 * 60).getEpochSecond();
-        String signature = sha256Hex(libraryId + properties.apiKey() + expiration + videoId);
+        String signature = sha256Hex(library.id() + library.streamApiKey() + expiration + videoId);
         return new DirectVideoUploadSession(
                 "TUS",
                 properties.effectiveStreamBaseUrl() + "/tusupload",
-                libraryId,
-                libraryName,
+                library.id(),
+                library.name(),
                 videoId,
                 signature,
                 expiration,
@@ -88,39 +86,36 @@ public class BunnyMediaService {
     }
 
     private CourseUploadResult uploadVideo(Course course, MultipartFile file) throws IOException {
-        String libraryId = course.getBunnyLibraryId();
-        String libraryName = course.getBunnyLibraryName();
-        if (libraryId == null || libraryId.isBlank()) {
-            LibraryRef library = ensureTenantVideoLibrary(course.getCompany());
-            libraryId = library.id();
-            libraryName = library.name();
-        }
+        LibraryRef library = resolveTenantVideoLibrary(course);
         if (!properties.hasStreamApiKey()) {
-            log.warn("Bunny Stream API key is not configured; course {} media was marked for later upload.", course.getId());
-            return new CourseUploadResult(libraryId, libraryName, null, null, null, "BUNNY_STREAM_NOT_CONFIGURED");
+            log.warn("Bunny account API key is not configured; course {} media was marked for later upload.", course.getId());
+            return new CourseUploadResult(library.id(), library.name(), null, null, null, "BUNNY_STREAM_NOT_CONFIGURED");
         }
-        String createUrl = properties.effectiveStreamBaseUrl() + "/library/" + libraryId + "/videos";
+        if (!hasText(library.id()) || !hasText(library.streamApiKey())) {
+            throw new IllegalStateException("Bunny Stream library/API key could not be resolved for this tenant.");
+        }
+        String createUrl = properties.effectiveStreamBaseUrl() + "/library/" + library.id() + "/videos";
         String titleJson = "{\"title\":" + JSON.writeValueAsString(course.getTitle()) + "}";
         JsonNode created = restClient.post()
                 .uri(createUrl)
-                .header("AccessKey", properties.apiKey())
+                .header("AccessKey", library.streamApiKey())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(titleJson)
                 .retrieve()
                 .body(JsonNode.class);
         String videoId = created == null ? null : firstText(created, "guid", "videoId", "id");
-        if (videoId == null || videoId.isBlank()) {
+        if (!hasText(videoId)) {
             throw new IllegalStateException("Bunny Stream did not return a video id.");
         }
-        String uploadUrl = properties.effectiveStreamBaseUrl() + "/library/" + libraryId + "/videos/" + videoId;
+        String uploadUrl = properties.effectiveStreamBaseUrl() + "/library/" + library.id() + "/videos/" + videoId;
         restClient.put()
                 .uri(uploadUrl)
-                .header("AccessKey", properties.apiKey())
+                .header("AccessKey", library.streamApiKey())
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(file.getBytes())
                 .retrieve()
                 .toBodilessEntity();
-        return new CourseUploadResult(libraryId, libraryName, videoId, null, null, "UPLOADED_TO_BUNNY_STREAM");
+        return new CourseUploadResult(library.id(), library.name(), videoId, null, null, "UPLOADED_TO_BUNNY_STREAM");
     }
 
     private CourseUploadResult uploadAudio(Course course, MultipartFile file) throws IOException {
@@ -140,7 +135,7 @@ public class BunnyMediaService {
                 .retrieve()
                 .toBodilessEntity();
         String cdnUrl = null;
-        if (properties.audioCdnHost() != null && !properties.audioCdnHost().trim().isBlank()) {
+        if (hasText(properties.audioCdnHost())) {
             String host = properties.audioCdnHost().trim();
             while (host.endsWith("/")) host = host.substring(0, host.length() - 1);
             cdnUrl = host + "/" + path;
@@ -148,38 +143,79 @@ public class BunnyMediaService {
         return new CourseUploadResult(null, null, null, path, cdnUrl, "UPLOADED_TO_BUNNY_STORAGE");
     }
 
+    private LibraryRef resolveTenantVideoLibrary(Course course) {
+        if (course != null && hasText(course.getBunnyLibraryId())) {
+            LibraryRef existing = getVideoLibrary(course.getBunnyLibraryId(), course.getBunnyLibraryName());
+            if (hasText(existing.id())) return existing;
+        }
+        return ensureTenantVideoLibrary(course.getCompany());
+    }
+
     private LibraryRef ensureTenantVideoLibrary(Company company) {
         String libraryName = "Calendra tenant " + company.getId() + " - " + safeLibraryName(company.getName());
         if (!properties.hasStreamApiKey()) {
-            return new LibraryRef(null, libraryName);
+            return new LibraryRef(null, libraryName, null);
         }
         try {
             JsonNode libraries = restClient.get()
-                    .uri(properties.effectiveStreamBaseUrl() + "/library")
+                    .uri(properties.effectiveCoreBaseUrl() + "/videolibrary")
                     .header("AccessKey", properties.apiKey())
                     .retrieve()
                     .body(JsonNode.class);
-            if (libraries != null && libraries.isArray()) {
-                for (JsonNode item : libraries) {
+            JsonNode items = libraries == null ? null : (libraries.isArray() ? libraries : libraries.get("Items"));
+            if (items != null && items.isArray()) {
+                for (JsonNode item : items) {
                     String name = firstText(item, "name", "Name");
                     if (libraryName.equals(name)) {
                         String id = firstText(item, "id", "Id", "libraryId");
-                        if (id != null && !id.isBlank()) return new LibraryRef(id, libraryName);
+                        LibraryRef full = getVideoLibrary(id, libraryName);
+                        if (hasText(full.id())) return full;
                     }
                 }
             }
             JsonNode created = restClient.post()
-                    .uri(properties.effectiveStreamBaseUrl() + "/library")
+                    .uri(properties.effectiveCoreBaseUrl() + "/videolibrary")
                     .header("AccessKey", properties.apiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body("{\"Name\":" + JSON.writeValueAsString(libraryName) + "}")
                     .retrieve()
                     .body(JsonNode.class);
             String id = created == null ? null : firstText(created, "id", "Id", "libraryId");
-            return new LibraryRef(id, libraryName);
+            String name = created == null ? libraryName : firstText(created, "name", "Name");
+            String streamApiKey = created == null ? null : firstText(created, "apiKey", "ApiKey", "ApiAccessKey");
+            if (!hasText(streamApiKey) && hasText(id)) {
+                return getVideoLibrary(id, hasText(name) ? name : libraryName);
+            }
+            return new LibraryRef(id, hasText(name) ? name : libraryName, streamApiKey);
+        } catch (RestClientResponseException ex) {
+            String body = ex.getResponseBodyAsString();
+            log.warn("Could not create/find Bunny Stream library for tenant {}. Bunny returned HTTP {}: {}", company.getId(), ex.getStatusCode(), body, ex);
+            throw new IllegalStateException("Bunny Stream library create/list failed: HTTP " + ex.getStatusCode().value() + " " + abbreviate(body));
         } catch (Exception ex) {
             log.warn("Could not create/find Bunny Stream library for tenant {}. Upload can be retried after Bunny configuration is fixed.", company.getId(), ex);
-            return new LibraryRef(null, libraryName);
+            throw new IllegalStateException("Bunny Stream library create/list failed: " + ex.getMessage());
+        }
+    }
+
+    private LibraryRef getVideoLibrary(String libraryId, String nameFallback) {
+        if (!hasText(libraryId)) return new LibraryRef(null, nameFallback, null);
+        try {
+            JsonNode library = restClient.get()
+                    .uri(properties.effectiveCoreBaseUrl() + "/videolibrary/" + libraryId.trim())
+                    .header("AccessKey", properties.apiKey())
+                    .retrieve()
+                    .body(JsonNode.class);
+            String id = library == null ? libraryId : firstText(library, "id", "Id", "libraryId");
+            String name = library == null ? nameFallback : firstText(library, "name", "Name");
+            String streamApiKey = library == null ? null : firstText(library, "apiKey", "ApiKey", "ApiAccessKey");
+            return new LibraryRef(hasText(id) ? id : libraryId, hasText(name) ? name : nameFallback, streamApiKey);
+        } catch (RestClientResponseException ex) {
+            String body = ex.getResponseBodyAsString();
+            log.warn("Could not load Bunny Stream library {}. Bunny returned HTTP {}: {}", libraryId, ex.getStatusCode(), body, ex);
+            return new LibraryRef(null, nameFallback, null);
+        } catch (Exception ex) {
+            log.warn("Could not load Bunny Stream library {}.", libraryId, ex);
+            return new LibraryRef(null, nameFallback, null);
         }
     }
 
@@ -200,6 +236,8 @@ public class BunnyMediaService {
     private static String safeLibraryName(String raw) {
         String value = raw == null ? "Tenant" : raw.trim();
         if (value.isBlank()) value = "Tenant";
+        value = value.replaceAll("[^A-Za-z0-9 ._-]", "-");
+        while (value.contains("--")) value = value.replace("--", "-");
         return value.length() > 80 ? value.substring(0, 80) : value;
     }
 
@@ -222,7 +260,13 @@ public class BunnyMediaService {
         return null;
     }
 
-    private record LibraryRef(String id, String name) {}
+    private static String abbreviate(String value) {
+        if (!hasText(value)) return "";
+        String trimmed = value.replace('\n', ' ').replace('\r', ' ').trim();
+        return trimmed.length() > 300 ? trimmed.substring(0, 300) + "..." : trimmed;
+    }
+
+    private record LibraryRef(String id, String name, String streamApiKey) {}
 
     public record CourseUploadResult(
             String bunnyLibraryId,
