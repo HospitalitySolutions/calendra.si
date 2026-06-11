@@ -1,0 +1,9 @@
+Implemented a backend test compilation fix for the Courses/Bunny patch.
+
+Changes:
+- Updated GuestProductAdminControllerInactivationTest to pass the new CourseRepository and MembershipCourseRepository dependencies required by GuestProductAdminController.
+- Updated ProductAdminRequest construction in the affected tests to include the new includedCourseIds argument.
+- Updated TenantIsolationControllerAccessTest to use mocked course repositories and include the new request argument.
+
+Note:
+- The build log failure was in testCompile because Maven still compiles tests even with -DskipTests.

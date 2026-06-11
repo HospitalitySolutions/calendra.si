@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.example.app.company.Company;
+import com.example.app.course.CourseRepository;
+import com.example.app.course.MembershipCourseRepository;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestOrderItemRepository;
@@ -33,6 +35,8 @@ class GuestProductAdminControllerInactivationTest {
     @Mock private TransactionServiceRepository transactionServices;
     @Mock private GuestOrderItemRepository orderItems;
     @Mock private GuestEntitlementRepository entitlements;
+    @Mock private CourseRepository courses;
+    @Mock private MembershipCourseRepository membershipCourses;
 
     private GuestProductAdminController controller;
     private User me;
@@ -40,7 +44,7 @@ class GuestProductAdminControllerInactivationTest {
 
     @BeforeEach
     void setUp() {
-        controller = new GuestProductAdminController(products, sessionTypes, transactionServices, orderItems, entitlements);
+        controller = new GuestProductAdminController(products, sessionTypes, transactionServices, orderItems, entitlements, courses, membershipCourses);
 
         Company company = new Company();
         company.setId(1L);
@@ -80,7 +84,8 @@ class GuestProductAdminControllerInactivationTest {
                 false,
                 0,
                 null,
-                null
+                null,
+                java.util.List.of()
         );
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.update(5L, req, me));
@@ -108,7 +113,8 @@ class GuestProductAdminControllerInactivationTest {
                 false,
                 0,
                 null,
-                null
+                null,
+                java.util.List.of()
         );
 
         var updated = controller.update(5L, req, me);

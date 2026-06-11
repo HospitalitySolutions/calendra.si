@@ -304,7 +304,9 @@ class TenantIsolationControllerAccessTest {
                 mock(SessionTypeRepository.class),
                 mock(TransactionServiceRepository.class),
                 mock(GuestOrderItemRepository.class),
-                mock(GuestEntitlementRepository.class));
+                mock(GuestEntitlementRepository.class),
+                mock(com.example.app.course.CourseRepository.class),
+                mock(com.example.app.course.MembershipCourseRepository.class));
         var req = new GuestProductAdminController.ProductAdminRequest(
                 "Starter pack",
                 null,
@@ -320,7 +322,8 @@ class TenantIsolationControllerAccessTest {
                 false,
                 0,
                 null,
-                null);
+                null,
+                java.util.List.of());
         assertNotFound(() -> productAdmin.update(44L, req, tenantA));
         verify(products).findByIdAndCompanyId(44L, 1L);
     }
