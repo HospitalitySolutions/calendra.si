@@ -293,6 +293,7 @@ class GuestTenantServiceTest {
                 false,
                 false,
                 true,
+                true,
                 tenantType,
                 "https://example.com/card.jpg",
                 "https://example.com/logo.png",

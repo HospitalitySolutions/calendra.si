@@ -71,6 +71,7 @@ class GuestHomeServiceTest {
                                 false,
                                 false,
                                 true,
+                                true,
                                 "salon",
                                 null,
                                 null,
