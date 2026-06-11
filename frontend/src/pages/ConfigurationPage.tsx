@@ -1960,7 +1960,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
           </div>
           {availableChannels.length === 0 ? (
             <div className="notif-mobile-channel-note" role="note">
-              <span>Vsi kanali obvestil so izklopljeni. Vklopite jih v Nastavitve → Moduli → Komunikacija.</span>
+              <span>Vsi kanali obvestil so izklopljeni. Vklopite jih v Nastavitve → Aplikacijske nastavitve → Komunikacija.</span>
             </div>
           ) : channel !== 'email' && channelAvailability[channel] ? (
             <div className="notif-mobile-channel-note" role="note">
@@ -5707,12 +5707,12 @@ export function ConfigurationPage() {
           checked: moduleOn('NOTIFICATIONS_ENABLED'),
           onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_ENABLED', checked),
           children: [
-            { id: 'communication-email-alerts', icon: 'message', title: 'Email alerts', checked: moduleOn('NOTIFICATIONS_EMAIL_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_EMAIL_ALERTS_ENABLED', checked) },
-            { id: 'communication-sms-alerts', icon: 'message', title: 'SMS alerts', checked: moduleOn('NOTIFICATIONS_SMS_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_SMS_ALERTS_ENABLED', checked) },
-            { id: 'communication-guest-app-alerts', icon: 'guestApp', title: 'Guest App alerts', checked: moduleOn('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', checked) },
+            { id: 'communication-email-alerts', icon: 'message', title: 'Email alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_EMAIL_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_EMAIL_ALERTS_ENABLED', checked) },
+            { id: 'communication-sms-alerts', icon: 'message', title: 'SMS alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_SMS_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_SMS_ALERTS_ENABLED', checked) },
+            { id: 'communication-guest-app-alerts', icon: 'guestApp', title: 'Guest App alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', checked) },
           ],
         },
-        { id: 'communication-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked), children: [{ id: 'communication-google-two-way', icon: 'link', title: 'Two-way sync', checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) }] },
+        { id: 'communication-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) },
       ],
     },
     {
@@ -5722,6 +5722,7 @@ export function ConfigurationPage() {
       icon: 'security',
       tone: 'rose',
       checked: securityModuleKeys.some(moduleOn),
+      hideSwitch: true,
       onChange: (checked) => setModuleStringSettings(securityModuleKeys, checked),
       rows: [
         {
@@ -5746,7 +5747,11 @@ export function ConfigurationPage() {
 
   const tabQuery = query.get('tab')
   const showCompactConfigOverview = isCompactConfigViewport && !isConfigTab(tabQuery)
-  const configDetailTitle = t(CONFIG_TAB_LABEL_KEY[tab])
+  const getConfigTabLabel = useCallback((tabId: Tab) => {
+    if (tabId === 'modules') return locale === 'sl' ? 'Aplikacijske nastavitve' : 'Application settings'
+    return t(CONFIG_TAB_LABEL_KEY[tabId])
+  }, [locale, t])
+  const configDetailTitle = getConfigTabLabel(tab)
   const configShellClassName = showCompactConfigOverview
     ? 'config-shell config-shell--overview'
     : isCompactConfigViewport
@@ -5779,7 +5784,7 @@ export function ConfigurationPage() {
                   <span className="config-overview-tile-icon">
                     <ConfigTabIcon kind={entry.icon} />
                   </span>
-                  <span className="config-overview-tile-label">{t(CONFIG_TAB_LABEL_KEY[entry.id])}</span>
+                  <span className="config-overview-tile-label">{getConfigTabLabel(entry.id)}</span>
                 </button>
               ))}
             </div>
@@ -5811,7 +5816,7 @@ export function ConfigurationPage() {
                     onClick={() => setTabAndUrl(entry.id)}
                   >
                     <ConfigTabIcon kind={entry.icon} />
-                    <span>{t(CONFIG_TAB_LABEL_KEY[entry.id])}</span>
+                    <span>{getConfigTabLabel(entry.id)}</span>
                   </button>
                 ))}
               </aside>
