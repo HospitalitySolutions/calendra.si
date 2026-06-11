@@ -549,16 +549,13 @@
       return t.subtitle;
     }
 
+    widgetAssetUrl(path) {
+      const baseUrl = String(this.options.baseUrl || DEFAULTS.baseUrl || '').replace(/\/+$/, '');
+      return `${baseUrl}${path}`;
+    }
+
     calendraLogoMarkup() {
-      return `
-        <span class="calendra-mark" aria-hidden="true">
-          <svg viewBox="0 0 36 30" xmlns="http://www.w3.org/2000/svg" focusable="false">
-            <rect x="6" y="4" width="24" height="21" rx="7" fill="#0f6bff" opacity=".12"/>
-            <path d="M25 6.5h-9.4c-5.1 0-9.3 4.1-9.3 9.2s4.2 9.2 9.3 9.2h9.4" fill="none" stroke="#f28c18" stroke-width="5" stroke-linecap="round"/>
-            <path d="M15.7 6.5H25c5.1 0 9.3 4.1 9.3 9.2" fill="none" stroke="#1284ff" stroke-width="5" stroke-linecap="round"/>
-            <path d="M13 2.5v5M23 2.5v5" stroke="#1284ff" stroke-width="3" stroke-linecap="round"/>
-          </svg>
-        </span>`;
+      return `<img class="calendra-logo-image" src="${escapeHtml(this.widgetAssetUrl('/widget/calendra-transparent-logo.png'))}" alt="Calendra" loading="lazy" decoding="async">`;
     }
 
     uiIcon(name) {
@@ -1614,15 +1611,15 @@
           <section class="panel-section panel-section--service">
             <div class="service-grid">
               ${this.state.services.map((item, index) => `
-                <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''}" type="button" data-action="service" data-id="${item.id}">
+                <button class="service-card ${this.state.selectedServiceId === item.id ? 'is-active' : ''} ${item.priceLabel ? 'has-price' : 'no-price'}" type="button" data-action="service" data-id="${item.id}">
                   ${this.serviceIconMarkup(item, index)}
                   <span class="service-card-main">
                     <span class="service-card-title">${escapeHtml(this.serviceDisplayName(item))}</span>
                     <span class="service-card-meta">
                       <span>${this.uiIcon('clock')}${escapeHtml(String(item.durationMinutes || this.state.config?.sessionLengthMinutes || 60))} ${escapeHtml(t.durationSuffix)}</span>
-                      ${item.priceLabel ? `<span class="service-card-price">${escapeHtml(item.priceLabel)}</span>` : ''}
                     </span>
                   </span>
+                  ${item.priceLabel ? `<span class="service-card-price">${escapeHtml(item.priceLabel)}</span>` : ''}
                   <span class="service-card-check">${this.uiIcon('check')}</span>
                 </button>
               `).join('')}
@@ -1927,8 +1924,8 @@
           min-height: 134px;
           width: 100%;
           display: grid;
-          grid-template-columns: 78px minmax(0,1fr) 32px;
-          gap: 22px;
+          grid-template-columns: 78px minmax(0,1fr) auto 32px;
+          gap: 18px;
           align-items: center;
           text-align: left;
           background: #fff;
@@ -1940,6 +1937,7 @@
           box-shadow: 0 4px 15px rgba(15, 23, 42, .035);
           transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
         }
+        .service-card.no-price { grid-template-columns: 78px minmax(0,1fr) 32px; }
         .service-card:hover, .consultant-pill:hover, .slot-chip:hover, .payment-tile:hover, .calendar-cell:hover:not(:disabled) { transform: translateY(-1px); border-color: rgba(15,107,255,.45); box-shadow: var(--calendra-card-shadow); }
         .service-card.is-active, .consultant-pill.is-active, .slot-chip.is-active, .payment-tile.is-active {
           border-color: var(--calendra-primary);
@@ -1956,6 +1954,11 @@
         .service-card-meta { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; color: #6f7b91; font-size: 15px; }
         .service-card-meta span { display: inline-flex; align-items: center; gap: 8px; }
         .service-card-price {
+          justify-self: end;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 52px;
           padding: 7px 12px;
           border-radius: 999px;
           background: rgba(15,107,255,.10);
@@ -1963,6 +1966,8 @@
           font-size: 17px;
           font-weight: 900;
           letter-spacing: -.01em;
+          line-height: 1;
+          white-space: nowrap;
           box-shadow: inset 0 0 0 1px rgba(15,107,255,.14);
         }
         .service-card-meta strong { color: var(--calendra-primary); font-weight: 850; }
@@ -2150,10 +2155,8 @@
         .bank-transfer-instructions { margin: 6px 0 0; color: var(--calendra-muted); font-size: 13px; }
         .turnstile-wrap--under-payments { min-height: 70px; display: grid; justify-items: start; }
         .powered-by { display: flex; justify-content: center; align-items: center; gap: 12px; color: #718096; font-size: 14px; font-weight: 650; padding: 8px 0 0; }
-        .calendra-brand { display: inline-flex; align-items: center; gap: 5px; color: var(--calendra-primary); font-weight: 800; }
-        .calendra-mark { display: inline-flex; width: 27px; height: 23px; }
-        .calendra-mark svg { width: 100%; height: 100%; }
-        .calendra-mark svg path { fill: none; }
+        .calendra-brand { display: inline-flex; align-items: center; height: 24px; color: var(--calendra-primary); font-weight: 800; }
+        .calendra-logo-image { display: block; width: auto; height: 24px; object-fit: contain; }
         :host([data-layout="compact"]) .datetime-layout,
         :host([data-layout="narrow"]) .datetime-layout,
         :host([data-layout="micro"]) .datetime-layout,
@@ -2183,7 +2186,9 @@
         :host([data-layout="micro"]) .progress-item { padding: 10px 12px; border: 1px solid var(--calendra-border); border-radius: 14px; background: #fff; }
         :host([data-layout="micro"]) .progress { grid-template-columns: 1fr; gap: 8px; }
         :host([data-layout="micro"]) .headline h2 { font-size: 34px; }
-        :host([data-layout="micro"]) .service-card { grid-template-columns: 54px 1fr 28px; gap: 14px; padding: 18px; }
+        :host([data-layout="micro"]) .service-card { grid-template-columns: 54px minmax(0,1fr) auto 28px; gap: 12px; padding: 18px; }
+        :host([data-layout="micro"]) .service-card.no-price { grid-template-columns: 54px minmax(0,1fr) 28px; }
+        :host([data-layout="micro"]) .service-card-price { min-width: 46px; padding: 6px 10px; font-size: 15px; }
         :host([data-layout="micro"]) .service-icon { width: 52px; height: 52px; font-size: 26px; }
         :host([data-layout="micro"]) .calendar-card { padding: 16px; }
         :host([data-layout="micro"]) .calendar-grid { gap: 5px; }
@@ -2217,7 +2222,7 @@
               ${!this.state.loading && this.state.config ? this.renderStepContent() : ''}
             </div>
             <div class="powered-by">
-              <span class="calendra-brand">${this.calendraLogoMarkup()}<span>calendra</span></span>
+              <span class="calendra-brand">${this.calendraLogoMarkup()}</span>
               <span>${escapeHtml(t.poweredBy)}</span>
             </div>
           </div>
