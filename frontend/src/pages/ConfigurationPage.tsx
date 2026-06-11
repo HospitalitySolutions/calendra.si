@@ -461,9 +461,10 @@ type ModulesDesignLine = {
   icon: ModulesDesignIconKind
   title: string
   subtitle?: string
-  checked: boolean
+  checked?: boolean
   disabled?: boolean
-  onChange: (checked: boolean) => void
+  onChange?: (checked: boolean) => void
+  valueControl?: ReactNode
   children?: ModulesDesignLine[]
 }
 
@@ -550,28 +551,44 @@ function ModulesDesignSettingLine({
   const hasChildren = Boolean(line.children?.length)
   const expanded = hasChildren && expandedRows.includes(line.id)
   const disabled = Boolean(line.disabled)
+  const hasValueControl = Boolean(line.valueControl)
+  const checked = Boolean(line.checked)
   const lineClassName = [
     'modules-design-setting-line',
     nested ? 'is-subparameter' : '',
     hasChildren ? 'has-children' : '',
+    hasValueControl ? 'is-value-row' : '',
     disabled ? 'is-disabled' : '',
   ].filter(Boolean).join(' ')
+  const copy = (
+    <>
+      <strong>{line.title}</strong>
+      {line.subtitle ? <span>{line.subtitle}</span> : null}
+    </>
+  )
   return (
     <div className={nested ? 'modules-design-subtree' : 'modules-design-tree'}>
       <div className={lineClassName}>
         <span className="modules-design-setting-icon">
           <ModulesDesignIcon kind={line.icon} />
         </span>
-        <button
-          type="button"
-          className="modules-design-setting-copy"
-          onClick={() => { if (!disabled) (hasChildren ? onToggleExpanded(line.id) : line.onChange(!line.checked)) }}
-          disabled={disabled}
-        >
-          <strong>{line.title}</strong>
-          {line.subtitle ? <span>{line.subtitle}</span> : null}
-        </button>
-        <GuestSwitch checked={line.checked} onChange={line.onChange} disabled={disabled} />
+        {hasValueControl ? (
+          <span className="modules-design-setting-copy modules-design-setting-copy--static">{copy}</span>
+        ) : (
+          <button
+            type="button"
+            className="modules-design-setting-copy"
+            onClick={() => { if (!disabled) (hasChildren ? onToggleExpanded(line.id) : line.onChange?.(!checked)) }}
+            disabled={disabled}
+          >
+            {copy}
+          </button>
+        )}
+        {hasValueControl ? (
+          <span className="modules-design-row-control">{line.valueControl}</span>
+        ) : (
+          <GuestSwitch checked={checked} onChange={(nextChecked) => line.onChange?.(nextChecked)} disabled={disabled} />
+        )}
         {hasChildren ? (
           <button
             type="button"
@@ -5737,6 +5754,50 @@ export function ConfigurationPage() {
           children: [
             { id: 'booking-multiple-clients', icon: 'group', title: t('configModulesMultipleClientsPerSessionLabel'), checked: moduleOn('GROUP_BOOKING_ENABLED') && moduleOn('MULTIPLE_CLIENTS_PER_SESSION_ENABLED'), disabled: !moduleOn('GROUP_BOOKING_ENABLED'), onChange: (checked) => setModuleStringSetting('MULTIPLE_CLIENTS_PER_SESSION_ENABLED', checked) },
           ],
+        },
+        {
+          id: 'booking-session-length',
+          icon: 'calendar',
+          title: locale === 'sl' ? 'Dolžina termina (minute)' : 'Session length (minutes)',
+          valueControl: (
+            <span className="modules-design-inline-control modules-design-inline-control--with-suffix">
+              <input
+                type="number"
+                min="15"
+                step="15"
+                value={settings.SESSION_LENGTH_MINUTES || '60'}
+                onChange={(event) => setSettings({ ...settings, SESSION_LENGTH_MINUTES: event.target.value })}
+                aria-label={locale === 'sl' ? 'Dolžina termina v minutah' : 'Session length in minutes'}
+              />
+              <span>min</span>
+            </span>
+          ),
+        },
+        {
+          id: 'booking-calendar-start',
+          icon: 'calendar',
+          title: locale === 'sl' ? 'Koledar od' : 'Calendar from',
+          valueControl: (
+            <ModernTimePicker
+              className="modules-design-inline-control modules-design-time-control"
+              value={toTimeInputValue(settings.WORKING_HOURS_START, '05:00')}
+              onChange={(nextValue) => setSettings({ ...settings, WORKING_HOURS_START: nextValue })}
+              ariaLabel={locale === 'sl' ? 'Koledar od' : 'Calendar from'}
+            />
+          ),
+        },
+        {
+          id: 'booking-calendar-end',
+          icon: 'calendar',
+          title: locale === 'sl' ? 'Koledar do' : 'Calendar to',
+          valueControl: (
+            <ModernTimePicker
+              className="modules-design-inline-control modules-design-time-control"
+              value={toTimeInputValue(settings.WORKING_HOURS_END, '23:00')}
+              onChange={(nextValue) => setSettings({ ...settings, WORKING_HOURS_END: nextValue })}
+              ariaLabel={locale === 'sl' ? 'Koledar do' : 'Calendar to'}
+            />
+          ),
         },
       ],
     },
