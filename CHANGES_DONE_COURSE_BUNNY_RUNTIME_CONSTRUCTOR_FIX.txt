@@ -1,0 +1,5 @@
+Course Bunny runtime constructor fix
+
+- Added @Autowired to the full GuestEntitlementService constructor.
+- Kept the short backwards-compatible constructor for older unit tests.
+- Fixes Spring Boot runtime startup error where multiple constructors caused Spring to try default/no-args instantiation.

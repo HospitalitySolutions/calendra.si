@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class GuestEntitlementService {
     private final CourseAccessEmailService courseAccessEmailService;
     private final String publicBaseUrl;
 
+    @Autowired
     public GuestEntitlementService(
             GuestEntitlementRepository entitlements,
             GuestEntitlementUsageRepository usages,
