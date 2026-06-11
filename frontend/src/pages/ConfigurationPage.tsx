@@ -449,6 +449,7 @@ type ModulesDesignIconKind =
   | 'invoice'
   | 'wallet'
   | 'calendar'
+  | 'website'
   | 'message'
   | 'shield'
   | 'key'
@@ -518,6 +519,8 @@ function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
         <><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" {...common} /><path d="M3.5 20a5 5 0 0 1 9 0M11.5 20a5 5 0 0 1 9 0" {...common} /></>
       ) : kind === 'wallet' ? (
         <><rect x="4" y="7" width="16" height="11" rx="3" {...common} /><path d="M17 11.5h3v3h-3a1.5 1.5 0 0 1 0-3ZM7 7V5.5h9" {...common} /></>
+      ) : kind === 'website' ? (
+        <><rect x="4" y="5" width="16" height="12" rx="2.5" {...common} /><path d="M8 21h8M12 17v4M4 9h16M8 13h2M12 13h4" {...common} /></>
       ) : kind === 'message' ? (
         <><path d="M5 6h14v10H9l-4 4V6Z" {...common} /><path d="M8 10h8M8 13h5" {...common} /></>
       ) : kind === 'shield' ? (
