@@ -4116,6 +4116,7 @@ export function ConfigurationPage() {
   )
   const billingEnabledCommitted = settings.BILLING_ENABLED !== 'false'
   const notificationsEnabledCommitted = settings.NOTIFICATIONS_ENABLED !== 'false'
+  const googleCalendarModuleEnabledCommitted = settings.GOOGLE_CALENDAR_MODULE_ENABLED !== 'false'
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (tabId === 'billing') return billingEnabledCommitted
@@ -4158,8 +4159,13 @@ export function ConfigurationPage() {
       navigate('/configuration?tab=company&subtab=security', { replace: true })
     } else if (q === 'googleCalendar') {
       setTab('integrations')
-      setIntegrationSubtab('googleCalendar')
-      navigate('/configuration?tab=integrations&subtab=googleCalendar', { replace: true })
+      if (googleCalendarModuleEnabledCommitted) {
+        setIntegrationSubtab('googleCalendar')
+        navigate('/configuration?tab=integrations&subtab=googleCalendar', { replace: true })
+      } else {
+        setIntegrationSubtab('status')
+        navigate('/configuration?tab=integrations', { replace: true })
+      }
     } else if (isConfigTab(q)) {
       if (isConfigTabAvailable(q)) {
         setTab(q)
@@ -4173,7 +4179,14 @@ export function ConfigurationPage() {
       setAccountSubtab(subtabQuery)
     }
     if (q === 'integrations') {
-      setIntegrationSubtab(subtabQuery === 'googleCalendar' ? 'googleCalendar' : 'status')
+      if (subtabQuery === 'googleCalendar' && googleCalendarModuleEnabledCommitted) {
+        setIntegrationSubtab('googleCalendar')
+      } else {
+        setIntegrationSubtab('status')
+        if (subtabQuery === 'googleCalendar' && !googleCalendarModuleEnabledCommitted) {
+          navigate('/configuration?tab=integrations', { replace: true })
+        }
+      }
     }
     if (
       subtabQuery === 'settings' ||
@@ -4196,7 +4209,7 @@ export function ConfigurationPage() {
     if (q === 'website' && (subtabQuery === 'general' || subtabQuery === 'paymentMethods')) {
       setWebsiteSubtab(subtabQuery)
     }
-  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
+  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, googleCalendarModuleEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -4726,16 +4739,22 @@ export function ConfigurationPage() {
   }, [me.companyId])
 
   const refreshIntegrationStatuses = async () => {
+    if (!googleCalendarModuleEnabledCommitted) {
+      setGoogleCalendarConnections([])
+      setGoogleCalendarConflictCount(0)
+      setExpandedIntegrationCard((current) => current === 'googleCalendar' ? null : current)
+    }
     await Promise.all([
-      refreshGoogleCalendarStatusSummary(),
+      ...(googleCalendarModuleEnabledCommitted ? [refreshGoogleCalendarStatusSummary()] : []),
       api.get('/stripe/connect/config').then(({ data }) => setStripeConnectStatus(data || null)).catch(() => undefined),
     ])
   }
 
   const setIntegrationSubtabAndUrl = (next: IntegrationSubtab) => {
-    setIntegrationSubtab(next)
-    navigate(next === 'status' ? '/configuration?tab=integrations' : `/configuration?tab=integrations&subtab=${next}`)
-    if (next === 'status') void refreshIntegrationStatuses()
+    const safeNext: IntegrationSubtab = next === 'googleCalendar' && !googleCalendarModuleEnabledCommitted ? 'status' : next
+    setIntegrationSubtab(safeNext)
+    navigate(safeNext === 'status' ? '/configuration?tab=integrations' : `/configuration?tab=integrations&subtab=${safeNext}`)
+    if (safeNext === 'status') void refreshIntegrationStatuses()
   }
 
   const openStripeIntegration = () => {
@@ -4751,6 +4770,11 @@ export function ConfigurationPage() {
 
   const openGoogleCalendarIntegration = () => {
     setTab('integrations')
+    if (!googleCalendarModuleEnabledCommitted) {
+      setIntegrationSubtab('status')
+      navigate('/configuration?tab=integrations')
+      return
+    }
     setIntegrationSubtab('googleCalendar')
     navigate('/configuration?tab=integrations&subtab=googleCalendar')
   }
@@ -4758,8 +4782,14 @@ export function ConfigurationPage() {
   useEffect(() => {
     if (!isAdmin) return
     if (tab !== 'integrations') return
-    void refreshGoogleCalendarStatusSummary()
-  }, [isAdmin, tab, refreshGoogleCalendarStatusSummary])
+    if (googleCalendarModuleEnabledCommitted) {
+      void refreshGoogleCalendarStatusSummary()
+      return
+    }
+    setGoogleCalendarConnections([])
+    setGoogleCalendarConflictCount(0)
+    setExpandedIntegrationCard((current) => current === 'googleCalendar' ? null : current)
+  }, [isAdmin, tab, googleCalendarModuleEnabledCommitted, refreshGoogleCalendarStatusSummary])
 
   const saveStripePreference = async (patch: Partial<{ mode: string; country: string; businessType: string }>) => {
     const nextMode = patch.mode ?? stripeConnectStatus?.activeMode ?? 'sandbox'
@@ -5450,15 +5480,16 @@ export function ConfigurationPage() {
       if (key === 'MULTIPLE_CLIENTS_PER_SESSION_ENABLED' && d.GROUP_BOOKING_ENABLED !== 'true') {
         return { ...d, MULTIPLE_CLIENTS_PER_SESSION_ENABLED: 'false' }
       }
-      if (key === 'BILLING_ENABLED' && !checked) {
+      if (key === 'BILLING_ENABLED') {
         return {
           ...d,
-          BILLING_ENABLED: 'false',
-          BILLING_INVOICES_ENABLED: 'false',
-          BILLING_ONLINE_CARD_PAYMENTS_ENABLED: 'false',
-          BILLING_BANK_TRANSFER_ENABLED: 'false',
-          BILLING_PAYPAL_ENABLED: 'false',
-          BILLING_GIFT_CARDS_ENABLED: 'false',
+          BILLING_ENABLED: checked ? 'true' : 'false',
+          BILLING_INVOICES_ENABLED: checked ? 'true' : 'false',
+          BILLING_ONLINE_CARD_PAYMENTS_ENABLED: checked ? 'true' : 'false',
+          BILLING_BANK_TRANSFER_ENABLED: checked ? 'true' : 'false',
+          BILLING_PAYPAL_ENABLED: checked ? 'true' : 'false',
+          BILLING_GIFT_CARDS_ENABLED: checked ? d.BILLING_GIFT_CARDS_ENABLED : 'false',
+          BILLING_ADVANCE_ENABLED: checked ? d.BILLING_ADVANCE_ENABLED : 'false',
         }
       }
       if (key === 'NOTIFICATIONS_ENABLED' && !checked) {
@@ -5619,6 +5650,7 @@ export function ConfigurationPage() {
       icon: 'billing',
       tone: 'green',
       checked: moduleOn('BILLING_ENABLED'),
+      hideSwitch: true,
       onChange: (checked) => setModuleStringSettings(billingModuleKeys, checked),
       rows: [
         {
@@ -5628,11 +5660,6 @@ export function ConfigurationPage() {
           checked: moduleOn('BILLING_ENABLED'),
           onChange: (checked) => setModuleStringSetting('BILLING_ENABLED', checked),
           children: [
-            { id: 'billing-invoices', icon: 'invoice', title: 'Invoices', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_INVOICES_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_INVOICES_ENABLED', checked) },
-            { id: 'billing-online-card', icon: 'billing', title: 'Online card payments', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_ONLINE_CARD_PAYMENTS_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ONLINE_CARD_PAYMENTS_ENABLED', checked) },
-            { id: 'billing-bank-transfer', icon: 'billing', title: 'Bank transfer', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_BANK_TRANSFER_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_BANK_TRANSFER_ENABLED', checked) },
-            { id: 'billing-paypal', icon: 'billing', title: 'PayPal', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_PAYPAL_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_PAYPAL_ENABLED', checked) },
-            { id: 'billing-gift-cards', icon: 'wallet', title: 'Gift cards', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_GIFT_CARDS_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_GIFT_CARDS_ENABLED', checked) },
             { id: 'billing-advance', icon: 'wallet', title: locale === 'sl' ? 'Predplačilo' : 'Advance', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_ADVANCE_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ADVANCE_ENABLED', checked) },
           ],
         },
@@ -5645,6 +5672,7 @@ export function ConfigurationPage() {
       icon: 'guestApp',
       tone: 'purple',
       checked: moduleBool('guestAppEnabled'),
+      hideSwitch: true,
       onChange: (checked) => setModuleBooleanSettings(guestModuleKeys, checked),
       rows: [
         {
@@ -5669,6 +5697,7 @@ export function ConfigurationPage() {
       icon: 'communication',
       tone: 'amber',
       checked: communicationModuleKeys.some(moduleOn),
+      hideSwitch: true,
       onChange: (checked) => setModuleStringSettings(communicationModuleKeys, checked),
       rows: [
         {
@@ -5723,6 +5752,10 @@ export function ConfigurationPage() {
     : isCompactConfigViewport
       ? 'config-shell config-shell--detail'
       : 'config-shell'
+  const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
+    { id: 'status', label: locale === 'sl' ? 'Status' : 'Status' },
+    ...(googleCalendarModuleEnabledCommitted ? [{ id: 'googleCalendar' as IntegrationSubtab, label: 'Google Calendar' }] : []),
+  ]
 
   return (
     <div className="stack gap-lg">
@@ -10437,10 +10470,7 @@ export function ConfigurationPage() {
           <div className="integrations-card integrations-main-panel">
             <div className="integrations-tabs-card">
               <div className="integrations-subtabs" role="tablist" aria-label={locale === 'sl' ? 'Nastavitve integracij' : 'Integration settings'}>
-                {[
-                  { id: 'status' as IntegrationSubtab, label: locale === 'sl' ? 'Status' : 'Status' },
-                  { id: 'googleCalendar' as IntegrationSubtab, label: 'Google Calendar' },
-                ].map((entry) => (
+                {integrationSubtabs.map((entry) => (
                   <button
                     key={entry.id}
                     type="button"
@@ -10475,6 +10505,7 @@ export function ConfigurationPage() {
                     </button>
                   </section>
 
+                  {googleCalendarModuleEnabledCommitted ? (
                   <article className={expandedIntegrationCard === 'googleCalendar' ? 'integrations-mobile-connection-card is-open' : 'integrations-mobile-connection-card'}>
                     <button
                       type="button"
@@ -10510,6 +10541,7 @@ export function ConfigurationPage() {
                       </div>
                     ) : null}
                   </article>
+                  ) : null}
 
                   <article className={expandedIntegrationCard === 'stripe' ? 'integrations-mobile-connection-card is-open' : 'integrations-mobile-connection-card'}>
                     <button
@@ -10558,13 +10590,14 @@ export function ConfigurationPage() {
                     <div className="integrations-section-heading">
                       <span>
                         <h3 className="integrations-section-title">{locale === 'sl' ? 'Status integracij' : 'Integration status'}</h3>
-                        <span className="integrations-section-kicker">{locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.'}</span>
+                        <span className="integrations-section-kicker">{googleCalendarModuleEnabledCommitted ? (locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.') : (locale === 'sl' ? 'Stripe za ta tenant.' : 'Stripe for this tenant.')}</span>
                       </span>
                       <button type="button" className="integrations-secondary-button" onClick={() => void refreshIntegrationStatuses()} disabled={googleCalendarStatusLoading}>
                         {googleCalendarStatusLoading ? (locale === 'sl' ? 'Osvežujem…' : 'Refreshing…') : (locale === 'sl' ? 'Osveži status' : 'Refresh status')}
                       </button>
                     </div>
 
+                    {googleCalendarModuleEnabledCommitted ? (
                     <button type="button" className="integrations-status-row" onClick={openGoogleCalendarIntegration}>
                       <span className="integrations-row-main">
                         <span className="integrations-row-icon"><ConfigTabIcon kind="googleCalendar" /></span>
@@ -10584,6 +10617,7 @@ export function ConfigurationPage() {
                       <span className={`integrations-status-pill ${googleCalendarStatusTone}`}>{googleCalendarStatusLabel}</span>
                       <span className="integrations-row-arrow" aria-hidden>›</span>
                     </button>
+                    ) : null}
 
                     <button type="button" className="integrations-status-row" onClick={openStripeIntegration}>
                       <span className="integrations-row-main">
@@ -10606,7 +10640,7 @@ export function ConfigurationPage() {
                     </button>
                   </div>
                 </div>              </>
-            ) : (
+            ) : googleCalendarModuleEnabledCommitted ? (
               <div className="integrations-google-panel">
                 <div className="integrations-page-head">
                   <h2>Google Calendar</h2>
@@ -10614,7 +10648,7 @@ export function ConfigurationPage() {
                 </div>
                 <GoogleCalendarIntegrationSection me={me} />
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       ) : tab === 'whatsapp' ? (
