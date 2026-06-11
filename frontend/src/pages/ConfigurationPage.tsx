@@ -1960,7 +1960,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
           </div>
           {availableChannels.length === 0 ? (
             <div className="notif-mobile-channel-note" role="note">
-              <span>Vsi kanali obvestil so izklopljeni. Vklopite jih v Nastavitve → Aplikacijske nastavitve → Komunikacija.</span>
+              <span>Vsi kanali obvestil so izklopljeni. Vklopite jih v Nastavitve → App nastavitve → Komunikacija.</span>
             </div>
           ) : channel !== 'email' && channelAvailability[channel] ? (
             <div className="notif-mobile-channel-note" role="note">
@@ -5535,6 +5535,13 @@ export function ConfigurationPage() {
   const setModuleBooleanSetting = (key: ModulesBooleanKey, checked: boolean) => {
     setModulesDraft((prev) => {
       const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+      if (key === 'guestAppEnabled' && !checked) {
+        return {
+          ...d,
+          guestAppEnabled: false,
+          NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: 'false',
+        }
+      }
       return { ...d, [key]: checked }
     })
   }
@@ -5692,8 +5699,8 @@ export function ConfigurationPage() {
     },
     {
       id: 'communication',
-      title: 'Communication',
-      subtitle: 'Notifications and channels to keep your users informed.',
+      title: locale === 'sl' ? 'Komunikacija' : 'Communication',
+      subtitle: locale === 'sl' ? 'Obvestila in kanali za obveščanje uporabnikov.' : 'Notifications and channels to keep your users informed.',
       icon: 'communication',
       tone: 'amber',
       checked: communicationModuleKeys.some(moduleOn),
@@ -5707,9 +5714,9 @@ export function ConfigurationPage() {
           checked: moduleOn('NOTIFICATIONS_ENABLED'),
           onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_ENABLED', checked),
           children: [
-            { id: 'communication-email-alerts', icon: 'message', title: 'Email alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_EMAIL_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_EMAIL_ALERTS_ENABLED', checked) },
-            { id: 'communication-sms-alerts', icon: 'message', title: 'SMS alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_SMS_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_SMS_ALERTS_ENABLED', checked) },
-            { id: 'communication-guest-app-alerts', icon: 'guestApp', title: 'Guest App alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', checked) },
+            { id: 'communication-email-alerts', icon: 'message', title: locale === 'sl' ? 'E-poštna obvestila' : 'Email alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_EMAIL_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_EMAIL_ALERTS_ENABLED', checked) },
+            { id: 'communication-sms-alerts', icon: 'message', title: locale === 'sl' ? 'SMS obvestila' : 'SMS alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleOn('NOTIFICATIONS_SMS_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_SMS_ALERTS_ENABLED', checked) },
+            { id: 'communication-guest-app-alerts', icon: 'guestApp', title: locale === 'sl' ? 'Obvestila v aplikaciji za goste' : 'Guest app alerts', checked: moduleOn('NOTIFICATIONS_ENABLED') && moduleBool('guestAppEnabled') && moduleOn('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED'), disabled: !moduleOn('NOTIFICATIONS_ENABLED') || !moduleBool('guestAppEnabled'), onChange: (checked) => setModuleStringSetting('NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', checked) },
           ],
         },
         { id: 'communication-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) },
@@ -5748,7 +5755,7 @@ export function ConfigurationPage() {
   const tabQuery = query.get('tab')
   const showCompactConfigOverview = isCompactConfigViewport && !isConfigTab(tabQuery)
   const getConfigTabLabel = useCallback((tabId: Tab) => {
-    if (tabId === 'modules') return locale === 'sl' ? 'Aplikacijske nastavitve' : 'Application settings'
+    if (tabId === 'modules') return locale === 'sl' ? 'App nastavitve' : 'App settings'
     return t(CONFIG_TAB_LABEL_KEY[tabId])
   }, [locale, t])
   const configDetailTitle = getConfigTabLabel(tab)
