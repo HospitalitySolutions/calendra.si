@@ -1087,6 +1087,11 @@ a.config-nav-item {
     padding-left: 20px;
     background: rgba(248, 250, 252, 0.62);
 }
+
+.modules-design-setting-line.is-subparameter.has-children {
+    grid-template-columns: 24px minmax(0, 1fr) auto 22px;
+}
+
 .modules-design-setting-line.is-disabled {
     color: #94a3b8;
     background: rgba(248, 250, 252, 0.78);
@@ -1098,7 +1103,7 @@ a.config-nav-item {
 .modules-design-setting-line.is-disabled .modules-design-setting-copy {
     cursor: not-allowed;
 }
-.modules-design-setting-line.is-subparameter .modules-design-row-chevron { display: none; }
+.modules-design-setting-line.is-subparameter:not(.has-children) .modules-design-row-chevron { display: none; }
 .modules-design-setting-icon {
     display: grid;
     place-items: center;

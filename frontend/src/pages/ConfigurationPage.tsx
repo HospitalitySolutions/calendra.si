@@ -486,6 +486,7 @@ const DEFAULT_EXPANDED_MODULE_ROWS = [
   'billing-billing',
   'guest-app-main',
   'communication-notifications',
+  'guest-app-wallet',
 ]
 
 function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
@@ -552,7 +553,7 @@ function ModulesDesignSettingLine({
   const lineClassName = [
     'modules-design-setting-line',
     nested ? 'is-subparameter' : '',
-    hasChildren && !nested ? 'has-children' : '',
+    hasChildren ? 'has-children' : '',
     disabled ? 'is-disabled' : '',
   ].filter(Boolean).join(' ')
   return (
@@ -5599,6 +5600,10 @@ export function ConfigurationPage() {
         return {
           ...d,
           guestAppEnabled: false,
+          guestWalletEnabled: false,
+          guestOrdersEnabled: false,
+          guestBuyTabEnabled: false,
+          guestEntitlementsEnabled: false,
           NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: 'false',
         }
       }
@@ -5621,6 +5626,18 @@ export function ConfigurationPage() {
       keys.forEach((key) => {
         next[key] = checked
       })
+      if (!checked && keys.includes('guestAppEnabled')) {
+        next.guestWalletEnabled = false
+        next.guestOrdersEnabled = false
+        next.guestBuyTabEnabled = false
+        next.guestEntitlementsEnabled = false
+        next.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED = 'false'
+      }
+      if (!checked && keys.includes('guestWalletEnabled')) {
+        next.guestOrdersEnabled = false
+        next.guestBuyTabEnabled = false
+        next.guestEntitlementsEnabled = false
+      }
       return next
     })
   }
@@ -5763,10 +5780,19 @@ export function ConfigurationPage() {
           checked: moduleBool('guestAppEnabled'),
           onChange: (checked) => setModuleBooleanSetting('guestAppEnabled', checked),
           children: [
-            { id: 'guest-app-wallet', icon: 'wallet', title: locale === 'sl' ? 'Denarnica' : 'Wallet', checked: moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestWalletEnabled', checked) },
-            { id: 'guest-app-orders', icon: 'invoice', title: locale === 'sl' ? 'Naročila' : 'Orders', checked: moduleBool('guestWalletEnabled') && moduleBool('guestOrdersEnabled'), disabled: !moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestOrdersEnabled', checked) },
-            { id: 'guest-app-buy-tab', icon: 'billing', title: locale === 'sl' ? 'Nakup' : 'Buy', checked: moduleBool('guestWalletEnabled') && moduleOn('BILLING_ENABLED') && moduleBool('guestBuyTabEnabled'), disabled: !moduleBool('guestWalletEnabled') || !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleBooleanSetting('guestBuyTabEnabled', checked) },
-            { id: 'guest-app-entitlements', icon: 'wallet', title: locale === 'sl' ? 'Ugodnosti' : 'Entitlements', checked: moduleBool('guestWalletEnabled') && moduleBool('guestEntitlementsEnabled'), disabled: !moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestEntitlementsEnabled', checked) },
+            {
+              id: 'guest-app-wallet',
+              icon: 'wallet',
+              title: locale === 'sl' ? 'Denarnica' : 'Wallet',
+              checked: moduleBool('guestAppEnabled') && moduleBool('guestWalletEnabled'),
+              disabled: !moduleBool('guestAppEnabled'),
+              onChange: (checked) => setModuleBooleanSetting('guestWalletEnabled', checked),
+              children: [
+                { id: 'guest-app-orders', icon: 'invoice', title: locale === 'sl' ? 'Naročila' : 'Orders', checked: moduleBool('guestAppEnabled') && moduleBool('guestWalletEnabled') && moduleBool('guestOrdersEnabled'), disabled: !moduleBool('guestAppEnabled') || !moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestOrdersEnabled', checked) },
+                { id: 'guest-app-buy-tab', icon: 'billing', title: locale === 'sl' ? 'Nakup' : 'Buy', checked: moduleBool('guestAppEnabled') && moduleBool('guestWalletEnabled') && moduleOn('BILLING_ENABLED') && moduleBool('guestBuyTabEnabled'), disabled: !moduleBool('guestAppEnabled') || !moduleBool('guestWalletEnabled') || !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleBooleanSetting('guestBuyTabEnabled', checked) },
+                { id: 'guest-app-entitlements', icon: 'wallet', title: locale === 'sl' ? 'Ugodnosti' : 'Entitlements', checked: moduleBool('guestAppEnabled') && moduleBool('guestWalletEnabled') && moduleBool('guestEntitlementsEnabled'), disabled: !moduleBool('guestAppEnabled') || !moduleBool('guestWalletEnabled'), onChange: (checked) => setModuleBooleanSetting('guestEntitlementsEnabled', checked) },
+              ],
+            },
           ],
         },
       ],
