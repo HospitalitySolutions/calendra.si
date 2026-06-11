@@ -149,18 +149,20 @@ public class PublicBookingWidgetService {
 
     /**
      * Computes the widget's allowed payment methods for a single bookable session
-     * ({@code SESSION_SINGLE}) by mirroring the rules applied in
-     * {@code GuestOrderService.assertPaymentMethodAllowed}.
+     * ({@code SESSION_SINGLE}) from Configuration -> Website. Pay-on-location
+     * is handled separately by the config response; online methods use tenant
+     * payment-method rows that are enabled for either guest app or website so
+     * the website tab can reuse the existing guest app payment setup.
      */
     private PublicBookingWidgetController.AllowedPaymentMethodsResponse resolveAllowedPaymentMethods(Company company) {
         List<String> accepted = websiteWidgetSettingsService.acceptedPaymentMethods(company.getId());
         List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId());
         PaymentMethod cardMethod = methods.stream().filter(pm ->
-                pm.isWidgetEnabled() && pm.getPaymentType() == PaymentType.CARD && pm.isStripeEnabled()).findFirst().orElse(null);
+                isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.CARD && pm.isStripeEnabled()).findFirst().orElse(null);
         PaymentMethod bankMethod = methods.stream().filter(pm ->
-                pm.isWidgetEnabled() && pm.getPaymentType() == PaymentType.BANK_TRANSFER).findFirst().orElse(null);
+                isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.BANK_TRANSFER).findFirst().orElse(null);
         PaymentMethod paypalMethod = methods.stream().filter(pm ->
-                pm.isWidgetEnabled() && pm.getPaymentType() == PaymentType.OTHER).findFirst().orElse(null);
+                isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.OTHER).findFirst().orElse(null);
         String productType = "SESSION_SINGLE";
         boolean card = accepted.contains("CARD") && cardMethod != null && allowedGuestProductTypes(cardMethod).contains(productType);
         boolean bankTransfer = accepted.contains("BANK_TRANSFER") && bankMethod != null && allowedGuestProductTypes(bankMethod).contains(productType);
@@ -171,6 +173,10 @@ public class PublicBookingWidgetService {
                 && allowedGuestProductTypes(paypalMethod).contains(productType);
         boolean giftCard = accepted.contains("GIFT_CARD");
         return new PublicBookingWidgetController.AllowedPaymentMethodsResponse(card, bankTransfer, paypal, giftCard);
+    }
+
+    private boolean isExternallyEnabled(PaymentMethod method) {
+        return method != null && (method.isGuestEnabled() || method.isWidgetEnabled());
     }
 
     private List<String> allowedGuestProductTypes(PaymentMethod method) {

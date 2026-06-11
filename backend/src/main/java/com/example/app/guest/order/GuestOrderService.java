@@ -768,7 +768,10 @@ public class GuestOrderService {
 
     private boolean isChannelEnabled(PaymentMethod method, PaymentChannel channel) {
         if (channel == PaymentChannel.WEBSITE) {
-            return method.isWidgetEnabled();
+            // Website visibility is controlled by Configuration -> Website acceptedPaymentMethods.
+            // Reuse existing guest-enabled payment method rows so tenants do not have to enable
+            // the same method again in Billing > Payment methods just for the website widget.
+            return method.isGuestEnabled() || method.isWidgetEnabled();
         }
         // Guest mobile app availability is controlled by tenant acceptedPaymentMethods,
         // not per-method guestEnabled flags from Billing > Payment methods.

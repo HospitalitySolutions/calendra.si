@@ -3198,20 +3198,47 @@ const parseWebsiteBookingRules = (raw: string | undefined): WebsiteBookingRulesF
   }
 }
 
-const normalizeWebsiteBookingRulesForPaymentLocation = (rules: WebsiteBookingRulesForm, _paymentOnLocation: boolean): WebsiteBookingRulesForm => {
-  // Website widget treats "Plačilo na lokaciji" as an additional selectable
-  // checkout method. It must not disable online card/bank/gift payments or the
-  // deposit/full-payment rule used when an online method is selected.
+const normalizeWebsiteSettingsForPaymentLocation = (settings: WebsiteWidgetSettingsForm): WebsiteWidgetSettingsForm => {
+  if (settings.paymentOnLocation) {
+    return { ...settings, acceptedPaymentMethodIds: [] }
+  }
+
+  const acceptedPaymentMethodIds = normalizeWebsitePaymentMethods(settings.acceptedPaymentMethodIds)
+  const fallbackMethodId = isGuestPaymentMethodId(String(settings.paymentDefaultMethodId || ''))
+    ? settings.paymentDefaultMethodId
+    : 'online_card'
+  const nextAcceptedPaymentMethodIds = acceptedPaymentMethodIds.length > 0
+    ? acceptedPaymentMethodIds
+    : [fallbackMethodId]
+  const paymentDefaultMethodId = nextAcceptedPaymentMethodIds.includes(settings.paymentDefaultMethodId)
+    ? settings.paymentDefaultMethodId
+    : nextAcceptedPaymentMethodIds[0]
+
+  return {
+    ...settings,
+    acceptedPaymentMethodIds: nextAcceptedPaymentMethodIds,
+    paymentDefaultMethodId,
+  }
+}
+
+const normalizeWebsiteBookingRulesForPaymentLocation = (rules: WebsiteBookingRulesForm, paymentOnLocation: boolean): WebsiteBookingRulesForm => {
+  if (paymentOnLocation) {
+    return { ...rules, paymentRequirement: 'none' }
+  }
+
   const nextRequirement = rules.paymentRequirement === 'none' ? 'full' : rules.paymentRequirement
   return { ...rules, paymentRequirement: nextRequirement }
 }
 
-const serializeWebsiteWidgetSettings = (value: WebsiteWidgetSettingsForm) => JSON.stringify({
-  employeeSelectionStep: value.employeeSelectionStep,
-  acceptedPaymentMethodIds: normalizeGuestPaymentMethods(value.acceptedPaymentMethodIds),
-  paymentDefaultMethodId: isGuestPaymentMethodId(String(value.paymentDefaultMethodId || '')) ? value.paymentDefaultMethodId : 'online_card',
-  paymentOnLocation: value.paymentOnLocation,
-})
+const serializeWebsiteWidgetSettings = (value: WebsiteWidgetSettingsForm) => {
+  const normalized = normalizeWebsiteSettingsForPaymentLocation(value)
+  return JSON.stringify({
+    employeeSelectionStep: normalized.employeeSelectionStep,
+    acceptedPaymentMethodIds: normalized.acceptedPaymentMethodIds,
+    paymentDefaultMethodId: normalized.paymentDefaultMethodId,
+    paymentOnLocation: normalized.paymentOnLocation,
+  })
+}
 
 const serializeWebsiteBookingRules = (value: WebsiteBookingRulesForm) => JSON.stringify({
   requireOnlinePayment: value.paymentRequirement !== 'none',
@@ -4287,7 +4314,7 @@ export function ConfigurationPage() {
         paymentDefaultMethodId: nextGuestApp.paymentDefaultMethodId,
         paymentOnLocation: nextGuestApp.paymentOnLocation,
       }
-    const nextWebsiteSettings = parsedWebsiteSettings
+    const nextWebsiteSettings = normalizeWebsiteSettingsForPaymentLocation(parsedWebsiteSettings)
     const nextWebsiteBookingRules = normalizeWebsiteBookingRulesForPaymentLocation(parsedWebsiteBookingRules, nextWebsiteSettings.paymentOnLocation)
     setSettings(nextSettings)
     setSubscriptionBillingInterval(String(nextSettings.BILLING_SUBSCRIPTION_INTERVAL || 'MONTHLY').toUpperCase() === 'YEARLY' ? 'YEARLY' : 'MONTHLY')
@@ -4813,7 +4840,7 @@ export function ConfigurationPage() {
       const { data } = await api.put('/settings', payload)
       const persistedSettings = parseWebsiteWidgetSettings(data?.[WEBSITE_WIDGET_SETTINGS_KEY] ?? payload[WEBSITE_WIDGET_SETTINGS_KEY])
       const persistedRules = parseWebsiteBookingRules(data?.[WEBSITE_BOOKING_RULES_KEY] ?? payload[WEBSITE_BOOKING_RULES_KEY])
-      const nextWebsiteSettings = persistedSettings
+      const nextWebsiteSettings = normalizeWebsiteSettingsForPaymentLocation(persistedSettings)
       setWebsiteSettings(nextWebsiteSettings)
       setWebsiteBookingRules(normalizeWebsiteBookingRulesForPaymentLocation(persistedRules, nextWebsiteSettings.paymentOnLocation))
       setSettings({
@@ -5256,6 +5283,11 @@ export function ConfigurationPage() {
       }
     })
     setWebsiteSettings((prev) => {
+      if (prev.paymentOnLocation) {
+        return prev.acceptedPaymentMethodIds.length === 0
+          ? prev
+          : { ...prev, acceptedPaymentMethodIds: [] }
+      }
       const filteredAccepted = prev.acceptedPaymentMethodIds.filter((methodId) => allowed.has(methodId))
       const acceptedPaymentMethodIds = filteredAccepted.length > 0
         ? filteredAccepted
@@ -5286,14 +5318,41 @@ export function ConfigurationPage() {
 
   const toggleWebsitePaymentMethod = (id: GuestPaymentMethodId) => {
     setWebsiteSettings((prev) => {
-      const has = prev.acceptedPaymentMethodIds.includes(id)
+      const has = !prev.paymentOnLocation && prev.acceptedPaymentMethodIds.includes(id)
       const acceptedPaymentMethodIds = has
         ? prev.acceptedPaymentMethodIds.filter((row) => row !== id)
-        : [...prev.acceptedPaymentMethodIds, id]
-      return acceptedPaymentMethodIds.length > 0 || prev.paymentOnLocation
-        ? { ...prev, acceptedPaymentMethodIds }
-        : prev
+        : [...prev.acceptedPaymentMethodIds.filter((row) => row !== id), id]
+      if (acceptedPaymentMethodIds.length === 0) return prev
+      const paymentDefaultMethodId = acceptedPaymentMethodIds.includes(prev.paymentDefaultMethodId)
+        ? prev.paymentDefaultMethodId
+        : acceptedPaymentMethodIds[0]
+      return { ...prev, paymentOnLocation: false, acceptedPaymentMethodIds, paymentDefaultMethodId }
     })
+    setWebsiteBookingRules((prev) => normalizeWebsiteBookingRulesForPaymentLocation(prev, false))
+  }
+
+  const toggleWebsitePaymentOnLocation = (checked: boolean) => {
+    setWebsiteSettings((prev) => {
+      if (checked) {
+        return { ...prev, paymentOnLocation: true, acceptedPaymentMethodIds: [] }
+      }
+
+      const acceptedPaymentMethodIds = normalizeWebsitePaymentMethods(prev.acceptedPaymentMethodIds)
+      const fallbackMethodId = visibleGuestPaymentMethodOptions[0]?.id ?? 'bank_transfer'
+      const nextAcceptedPaymentMethodIds = acceptedPaymentMethodIds.length > 0
+        ? acceptedPaymentMethodIds
+        : [fallbackMethodId]
+      const paymentDefaultMethodId = nextAcceptedPaymentMethodIds.includes(prev.paymentDefaultMethodId)
+        ? prev.paymentDefaultMethodId
+        : nextAcceptedPaymentMethodIds[0]
+      return {
+        ...prev,
+        paymentOnLocation: false,
+        acceptedPaymentMethodIds: nextAcceptedPaymentMethodIds,
+        paymentDefaultMethodId,
+      }
+    })
+    setWebsiteBookingRules((prev) => normalizeWebsiteBookingRulesForPaymentLocation(prev, checked))
   }
 
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
@@ -10159,7 +10218,11 @@ export function ConfigurationPage() {
                         <div className="gapp-payment-row" key={method.id}>
                           <span className="gapp-payment-icon"><GuestPaymentMethodIcon kind={method.id} /></span>
                           <strong>{method.label}</strong>
-                          <GuestSwitch checked={websiteSettings.acceptedPaymentMethodIds.includes(method.id)} onChange={() => toggleWebsitePaymentMethod(method.id)} />
+                          <GuestSwitch
+                            checked={!websiteSettings.paymentOnLocation && websiteSettings.acceptedPaymentMethodIds.includes(method.id)}
+                            onChange={() => toggleWebsitePaymentMethod(method.id)}
+                            disabled={websiteSettings.paymentOnLocation}
+                          />
                         </div>
                       ))}
                     </div>
@@ -10168,14 +10231,17 @@ export function ConfigurationPage() {
                         <div className="gapp-toggle-head">
                           <span className="gapp-label">Delno plačilo</span>
                           <GuestSwitch
-                            checked={websiteBookingRules.paymentRequirement === 'deposit'}
+                            checked={!websiteSettings.paymentOnLocation && websiteBookingRules.paymentRequirement === 'deposit'}
                             onChange={(checked) => {
-                              setWebsiteBookingRules({ ...websiteBookingRules, paymentRequirement: checked ? 'deposit' : 'full' })
+                              if (!websiteSettings.paymentOnLocation) {
+                                setWebsiteBookingRules({ ...websiteBookingRules, paymentRequirement: checked ? 'deposit' : 'full' })
+                              }
                             }}
+                            disabled={websiteSettings.paymentOnLocation}
                           />
                         </div>
                         <span className="gapp-hint">Ko je izklopljeno, se ob spletnem plačilu samodejno zaračuna polni znesek.</span>
-                        {websiteBookingRules.paymentRequirement === 'deposit' ? (
+                        {!websiteSettings.paymentOnLocation && websiteBookingRules.paymentRequirement === 'deposit' ? (
                           <GuestField className="gapp-deposit-field" label="Znesek pologa" hint="Odstotek od skupnega zneska, ki ga gost plača ob rezervaciji.">
                             <div className="gapp-deposit-input-wrap">
                               <input
@@ -10193,9 +10259,7 @@ export function ConfigurationPage() {
                           <span className="gapp-label">Plačilo na lokaciji</span>
                           <GuestSwitch
                             checked={websiteSettings.paymentOnLocation}
-                            onChange={(checked) => {
-                              setWebsiteSettings({ ...websiteSettings, paymentOnLocation: checked })
-                            }}
+                            onChange={toggleWebsitePaymentOnLocation}
                           />
                         </div>
                         <span className="gapp-hint">Ko je vklopljeno, gost rezervira brez spletnega plačila in poravna na lokaciji.</span>

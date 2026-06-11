@@ -50,7 +50,7 @@ public class WebsiteWidgetSettingsService {
                 : "none".equalsIgnoreCase(rulesRoot.path("paymentRequirement").asText(""));
         return new WebsiteWidgetSettings(
                 root.path("employeeSelectionStep").asBoolean(false),
-                parseAcceptedConfigIds(root.path("acceptedPaymentMethodIds")),
+                paymentOnLocation ? List.of() : parseAcceptedConfigIds(root.path("acceptedPaymentMethodIds")),
                 paymentOnLocation
         );
     }
@@ -87,10 +87,12 @@ public class WebsiteWidgetSettingsService {
         boolean paymentOnLocation = widgetRoot.has("paymentOnLocation")
                 ? widgetRoot.path("paymentOnLocation").asBoolean(true)
                 : "none".equalsIgnoreCase(root.path("paymentRequirement").asText(""));
-        List<String> acceptedOnlineMethods = parseAcceptedRuntimeTypes(widgetRoot.path("acceptedPaymentMethodIds"));
-        boolean requireOnlinePayment = !acceptedOnlineMethods.isEmpty() || !paymentOnLocation;
+        List<String> acceptedOnlineMethods = paymentOnLocation
+                ? List.of()
+                : parseAcceptedRuntimeTypes(widgetRoot.path("acceptedPaymentMethodIds"));
+        boolean requireOnlinePayment = !acceptedOnlineMethods.isEmpty();
         String paymentRequirement = normalizePaymentRequirement(root.path("paymentRequirement").asText(null), requireOnlinePayment);
-        if (!requireOnlinePayment && paymentOnLocation) {
+        if (paymentOnLocation) {
             paymentRequirement = "none";
         }
         int depositPercent = normalizeDepositPercent(root.path("depositPercent").asInt(20));
@@ -119,6 +121,16 @@ public class WebsiteWidgetSettingsService {
                 values.get(SettingKey.WEBSITE_WIDGET_SETTINGS_JSON.name()),
                 values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name())
         ));
+        JsonNode rulesRoot = parse(firstNonBlank(
+                values.get(SettingKey.WEBSITE_BOOKING_RULES_JSON.name()),
+                values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name())
+        ));
+        boolean paymentOnLocation = root.has("paymentOnLocation")
+                ? root.path("paymentOnLocation").asBoolean(true)
+                : "none".equalsIgnoreCase(rulesRoot.path("paymentRequirement").asText(""));
+        if (paymentOnLocation) {
+            return List.of();
+        }
         List<String> accepted = parseAcceptedRuntimeTypes(root.path("acceptedPaymentMethodIds"));
         return applyGlobalProviderCapabilitiesWithoutFallback(accepted);
     }

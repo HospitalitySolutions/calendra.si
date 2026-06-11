@@ -522,12 +522,12 @@
     }
 
     defaultPaymentMethod(config = this.state.config) {
+      if (config?.paymentOnLocation) return 'PAY_AT_VENUE';
       const allowed = config?.allowedPaymentMethods || this.allowedPaymentMethods();
       if (allowed?.card) return 'CARD';
       if (allowed?.bankTransfer) return 'BANK_TRANSFER';
       if (allowed?.paypal) return 'PAYPAL';
       if (allowed?.giftCard) return 'GIFT_CARD';
-      if (config?.paymentOnLocation) return 'PAY_AT_VENUE';
       return null;
     }
 
@@ -905,13 +905,21 @@
       return this.state.config?.allowedPaymentMethods || { card: false, bankTransfer: false, paypal: false, giftCard: false };
     }
 
-    paymentOnLocationAllowed() {
-      return Boolean(this.state.config?.paymentOnLocation);
+    paymentOnLocationAllowed(config = this.state.config) {
+      return Boolean(config?.paymentOnLocation);
+    }
+
+    paymentPickerAllowedMethods() {
+      if (this.paymentOnLocationAllowed()) {
+        return { card: false, bankTransfer: false, paypal: false, giftCard: false };
+      }
+      return this.allowedPaymentMethods();
     }
 
     hasPaymentChoices() {
+      if (this.paymentOnLocationAllowed()) return true;
       const allowed = this.allowedPaymentMethods();
-      return Boolean(allowed.card || allowed.bankTransfer || allowed.paypal || allowed.giftCard || this.paymentOnLocationAllowed());
+      return Boolean(allowed.card || allowed.bankTransfer || allowed.paypal || allowed.giftCard);
     }
 
     /** True when the final step needs the guest to choose one of the configured payment options. */
@@ -1000,12 +1008,13 @@
     }
 
     isPaymentMethodAvailable(method) {
+      if (method === 'PAY_AT_VENUE') return this.paymentOnLocationAllowed();
+      if (this.paymentOnLocationAllowed()) return false;
       const allowed = this.allowedPaymentMethods();
       if (method === 'CARD') return Boolean(allowed.card);
       if (method === 'BANK_TRANSFER') return Boolean(allowed.bankTransfer);
       if (method === 'PAYPAL') return Boolean(allowed.paypal);
       if (method === 'GIFT_CARD') return Boolean(allowed.giftCard);
-      if (method === 'PAY_AT_VENUE') return this.paymentOnLocationAllowed();
       return false;
     }
 
@@ -1771,8 +1780,9 @@
         `;
       }
 
-      const allowed = this.allowedPaymentMethods();
-      const hasAnyPaymentMethod = Boolean(allowed.giftCard || allowed.card || allowed.bankTransfer || allowed.paypal || this.paymentOnLocationAllowed());
+      const payAtVenueOnly = this.paymentOnLocationAllowed();
+      const allowed = this.paymentPickerAllowedMethods();
+      const hasAnyPaymentMethod = Boolean(payAtVenueOnly || allowed.giftCard || allowed.card || allowed.bankTransfer || allowed.paypal);
       const cardVariant = (variant, title, subtitle, iconMarkup) => `
         <button
           class="payment-tile ${this.state.paymentMethod === 'CARD' && this.state.paymentMethodVariant === variant ? 'is-active' : ''}"
@@ -1820,11 +1830,11 @@
                 <div class="block-title">${escapeHtml(t.paymentMethodTitle)}</div>
                 ${hasAnyPaymentMethod ? `
                   <div class="payment-grid">
-                    ${allowed.card ? methodTile('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, this.uiIcon('card')) : ''}
-                    ${allowed.bankTransfer ? methodTile('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, this.paymentMethodLogos('BANK_TRANSFER')) : ''}
-                    ${allowed.paypal ? methodTile('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, this.paymentMethodLogos('PAYPAL')) : ''}
-                    ${allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
-                    ${this.paymentOnLocationAllowed() ? methodTile('PAY_AT_VENUE', t.paymentMethodVenue, t.paymentMethodVenueSubtitle || t.payAtVenueNote, this.uiIcon('card')) : ''}
+                    ${payAtVenueOnly ? methodTile('PAY_AT_VENUE', t.paymentMethodVenue, t.paymentMethodVenueSubtitle || t.payAtVenueNote, this.uiIcon('card')) : ''}
+                    ${!payAtVenueOnly && allowed.card ? methodTile('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, this.uiIcon('card')) : ''}
+                    ${!payAtVenueOnly && allowed.bankTransfer ? methodTile('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, this.paymentMethodLogos('BANK_TRANSFER')) : ''}
+                    ${!payAtVenueOnly && allowed.paypal ? methodTile('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, this.paymentMethodLogos('PAYPAL')) : ''}
+                    ${!payAtVenueOnly && allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
                 ${this.paymentRequirement() === 'deposit' && this.selectedPaymentMethodRequiresOnlinePayment() ? `<p class="summary-payment-note summary-payment-note--checkout">${escapeHtml(t.depositPaymentNote)}</p>` : ''}
