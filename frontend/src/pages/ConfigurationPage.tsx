@@ -486,7 +486,6 @@ const DEFAULT_EXPANDED_MODULE_ROWS = [
   'billing-billing',
   'guest-app-main',
   'communication-notifications',
-  'security-security',
 ]
 
 function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
@@ -5646,13 +5645,9 @@ export function ConfigurationPage() {
     'NOTIFICATIONS_SMS_ALERTS_ENABLED',
     'NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED',
     'INBOX_ENABLED',
-    'GOOGLE_CALENDAR_MODULE_ENABLED',
   ]
-  const securityModuleKeys: ModulesStringKey[] = [
-    'SECURITY_MODULE_ENABLED',
-    'SECURITY_SESSION_SECURITY_ENABLED',
-    'SECURITY_PASSKEYS_ENABLED',
-    'SECURITY_API_INTEGRATIONS_ENABLED',
+  const integrationModuleKeys: ModulesStringKey[] = [
+    'GOOGLE_CALENDAR_MODULE_ENABLED',
   ]
 
   const modulesDesignGroups: ModulesDesignGroup[] = [
@@ -5785,31 +5780,19 @@ export function ConfigurationPage() {
           ],
         },
         { id: 'communication-inbox', icon: 'message', title: locale === 'sl' ? 'Prejeto' : 'Inbox', checked: moduleOn('INBOX_ENABLED'), onChange: (checked) => setModuleStringSetting('INBOX_ENABLED', checked) },
-        { id: 'communication-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) },
       ],
     },
     {
-      id: 'security',
-      title: 'Security & Integrations',
-      subtitle: 'Security settings and third-party integrations.',
-      icon: 'security',
+      id: 'integrations',
+      title: t('tabIntegrations'),
+      subtitle: locale === 'sl' ? 'Nastavitve integracij tretjih oseb.' : 'Third-party integrations.',
+      icon: 'link',
       tone: 'rose',
-      checked: securityModuleKeys.some(moduleOn),
+      checked: integrationModuleKeys.some(moduleOn),
       hideSwitch: true,
-      onChange: (checked) => setModuleStringSettings(securityModuleKeys, checked),
+      onChange: (checked) => setModuleStringSettings(integrationModuleKeys, checked),
       rows: [
-        {
-          id: 'security-security',
-          icon: 'shield',
-          title: t('tabSecurity'),
-          checked: moduleOn('SECURITY_MODULE_ENABLED'),
-          onChange: (checked) => setModuleStringSetting('SECURITY_MODULE_ENABLED', checked),
-          children: [
-            { id: 'security-session-security', icon: 'shield', title: 'Session security', checked: moduleOn('SECURITY_SESSION_SECURITY_ENABLED'), onChange: (checked) => setModuleStringSetting('SECURITY_SESSION_SECURITY_ENABLED', checked) },
-            { id: 'security-passkeys', icon: 'key', title: 'Passkeys / WebAuthn', checked: moduleOn('SECURITY_PASSKEYS_ENABLED'), onChange: (checked) => setModuleStringSetting('SECURITY_PASSKEYS_ENABLED', checked) },
-            { id: 'security-api-integrations', icon: 'link', title: 'API integrations', checked: moduleOn('SECURITY_API_INTEGRATIONS_ENABLED'), onChange: (checked) => setModuleStringSetting('SECURITY_API_INTEGRATIONS_ENABLED', checked) },
-          ],
-        },
+        { id: 'integrations-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) },
       ],
     },
   ]
