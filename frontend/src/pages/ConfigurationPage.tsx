@@ -2752,6 +2752,11 @@ const normalizeWebsitePaymentMethods = (value: any): GuestPaymentMethodId[] => {
   return value.map((row) => String(row || '')).filter(isGuestPaymentMethodId)
 }
 
+const removeStripePaymentMethod = (ids: GuestPaymentMethodId[], fallback: GuestPaymentMethodId = 'bank_transfer'): GuestPaymentMethodId[] => {
+  const filtered = ids.filter((id) => id !== 'online_card')
+  return filtered.length > 0 ? filtered : [fallback]
+}
+
 function guestAppSubtabs(t: (key: string) => string): { id: GuestAppSubtab; label: string }[] {
   return [
     { id: 'general', label: t('configGuestSubtabGeneral') },
@@ -4115,6 +4120,8 @@ export function ConfigurationPage() {
     [settings[GUEST_APP_SETTINGS_KEY]],
   )
   const billingEnabledCommitted = settings.BILLING_ENABLED !== 'false'
+  const stripeModuleEnabledCommitted = billingEnabledCommitted && settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
+  const stripePaymentsAvailableCommitted = stripeModuleEnabledCommitted && paymentGlobalCapabilities.stripeEnabled
   const notificationsEnabledCommitted = settings.NOTIFICATIONS_ENABLED !== 'false'
   const googleCalendarModuleEnabledCommitted = settings.GOOGLE_CALENDAR_MODULE_ENABLED !== 'false'
 
@@ -4197,7 +4204,10 @@ export function ConfigurationPage() {
       subtabQuery === 'invoiceDelivery' ||
       subtabQuery === 'folioLayout'
     ) {
-      if (subtabQuery === 'paypal' && !paymentGlobalCapabilities.paypalEnabled) {
+      if (subtabQuery === 'stripe' && !stripePaymentsAvailableCommitted) {
+        setBillingSubtab('paymentMethods')
+        if (q === 'billing') navigate('/configuration?tab=billing&subtab=paymentMethods', { replace: true })
+      } else if (subtabQuery === 'paypal' && !paymentGlobalCapabilities.paypalEnabled) {
         setBillingSubtab('paymentMethods')
       } else {
         setBillingSubtab(subtabQuery)
@@ -4209,7 +4219,7 @@ export function ConfigurationPage() {
     if (q === 'website' && (subtabQuery === 'general' || subtabQuery === 'paymentMethods')) {
       setWebsiteSubtab(subtabQuery)
     }
-  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, googleCalendarModuleEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
+  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, googleCalendarModuleEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -4521,6 +4531,7 @@ export function ConfigurationPage() {
       const normalizedEnd = toTimeInputValue(settings.WORKING_HOURS_END, '23:00')
       let effectiveSettings = settings
       let effectiveGuestApp = guestAppSettings
+      let effectiveWebsiteSettings = websiteSettings
       if (opts?.applyModulesDraft && modulesDraft) {
         const modulesDraftForSave: ModulesDraft = {
           ...modulesDraft,
@@ -4579,6 +4590,25 @@ export function ConfigurationPage() {
           buyTabEnabled: modulesDraftForSave.guestBuyTabEnabled,
           entitlementsEnabled: modulesDraftForSave.guestEntitlementsEnabled,
         }
+        if (modulesDraftForSave.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'true') {
+          const acceptedPaymentMethodIds = removeStripePaymentMethod(effectiveGuestApp.acceptedPaymentMethodIds)
+          const paymentDefaultMethodId = acceptedPaymentMethodIds.includes(effectiveGuestApp.paymentDefaultMethodId)
+            ? effectiveGuestApp.paymentDefaultMethodId
+            : acceptedPaymentMethodIds[0]
+          effectiveGuestApp = {
+            ...effectiveGuestApp,
+            acceptedPaymentMethodIds,
+            paymentDefaultMethodId,
+            paymentProvider: effectiveGuestApp.paymentProvider === 'stripe' ? (paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'bankart') : effectiveGuestApp.paymentProvider,
+          }
+          effectiveWebsiteSettings = effectiveWebsiteSettings.paymentOnLocation
+            ? { ...effectiveWebsiteSettings, acceptedPaymentMethodIds: [] }
+            : {
+                ...effectiveWebsiteSettings,
+                acceptedPaymentMethodIds: removeStripePaymentMethod(effectiveWebsiteSettings.acceptedPaymentMethodIds),
+                paymentDefaultMethodId: effectiveWebsiteSettings.paymentDefaultMethodId === 'online_card' ? 'bank_transfer' : effectiveWebsiteSettings.paymentDefaultMethodId,
+              }
+        }
       }
       const payload = {
         ...effectiveSettings,
@@ -4587,8 +4617,8 @@ export function ConfigurationPage() {
         [PERSONAL_TASK_PRESETS_KEY]: serializePersonalTaskPresets(personalTaskPresets),
         [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(effectiveGuestApp),
         [GUEST_BOOKING_RULES_KEY]: serializeGuestBookingRules(guestBookingRules),
-        [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(websiteSettings),
-        [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(normalizeWebsiteBookingRulesForPaymentLocation(websiteBookingRules, websiteSettings.paymentOnLocation)),
+        [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(effectiveWebsiteSettings),
+        [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(normalizeWebsiteBookingRulesForPaymentLocation(websiteBookingRules, effectiveWebsiteSettings.paymentOnLocation)),
       }
       const { data } = await api.put('/settings', payload)
       setWorkingHoursFallback(normalizedStart, normalizedEnd)
@@ -4746,7 +4776,7 @@ export function ConfigurationPage() {
     }
     await Promise.all([
       ...(googleCalendarModuleEnabledCommitted ? [refreshGoogleCalendarStatusSummary()] : []),
-      api.get('/stripe/connect/config').then(({ data }) => setStripeConnectStatus(data || null)).catch(() => undefined),
+      ...(stripePaymentsAvailableCommitted ? [api.get('/stripe/connect/config').then(({ data }) => setStripeConnectStatus(data || null)).catch(() => undefined)] : []),
     ])
   }
 
@@ -4758,7 +4788,7 @@ export function ConfigurationPage() {
   }
 
   const openStripeIntegration = () => {
-    if (!billingEnabledCommitted) {
+    if (!stripePaymentsAvailableCommitted) {
       setTab('modules')
       navigate('/configuration?tab=modules')
       return
@@ -4790,6 +4820,14 @@ export function ConfigurationPage() {
     setGoogleCalendarConflictCount(0)
     setExpandedIntegrationCard((current) => current === 'googleCalendar' ? null : current)
   }, [isAdmin, tab, googleCalendarModuleEnabledCommitted, refreshGoogleCalendarStatusSummary])
+
+  useEffect(() => {
+    if (!stripePaymentsAvailableCommitted) {
+      setStripeConnectStatus(null)
+      setExpandedIntegrationCard((current) => current === 'stripe' ? null : current)
+      if (billingSubtab === 'stripe') setBillingSubtab('paymentMethods')
+    }
+  }, [stripePaymentsAvailableCommitted, billingSubtab])
 
   const saveStripePreference = async (patch: Partial<{ mode: string; country: string; businessType: string }>) => {
     const nextMode = patch.mode ?? stripeConnectStatus?.activeMode ?? 'sandbox'
@@ -5303,11 +5341,11 @@ export function ConfigurationPage() {
 
   const visibleGuestPaymentMethodOptions = useMemo(() => (
     GUEST_PAYMENT_METHOD_OPTIONS.filter((method) => {
-      if (method.id === 'online_card') return paymentGlobalCapabilities.stripeEnabled
+      if (method.id === 'online_card') return stripePaymentsAvailableCommitted
       if (method.id === 'paypal') return paymentGlobalCapabilities.paypalEnabled
       return true
     })
-  ), [paymentGlobalCapabilities.paypalEnabled, paymentGlobalCapabilities.stripeEnabled])
+  ), [paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted])
 
   useEffect(() => {
     const allowed = new Set(visibleGuestPaymentMethodOptions.map((method) => method.id))
@@ -5320,8 +5358,8 @@ export function ConfigurationPage() {
         ? prev.paymentDefaultMethodId
         : acceptedPaymentMethodIds[0]
       const paymentProvider = prev.paymentProvider === 'paypal'
-        ? (paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'stripe')
-        : (paymentGlobalCapabilities.stripeEnabled ? 'stripe' : (paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'stripe'))
+        ? (paymentGlobalCapabilities.paypalEnabled ? 'paypal' : (stripePaymentsAvailableCommitted ? 'stripe' : 'bankart'))
+        : (stripePaymentsAvailableCommitted ? 'stripe' : (paymentGlobalCapabilities.paypalEnabled ? 'paypal' : 'bankart'))
       if (
         acceptedPaymentMethodIds.length === prev.acceptedPaymentMethodIds.length
         && acceptedPaymentMethodIds.every((id, index) => prev.acceptedPaymentMethodIds[index] === id)
@@ -5359,7 +5397,7 @@ export function ConfigurationPage() {
       }
       return { ...prev, acceptedPaymentMethodIds, paymentDefaultMethodId }
     })
-  }, [paymentGlobalCapabilities.paypalEnabled, paymentGlobalCapabilities.stripeEnabled, visibleGuestPaymentMethodOptions])
+  }, [paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted, visibleGuestPaymentMethodOptions])
 
   const toggleGuestPaymentMethod = (id: GuestPaymentMethodId) => {
     setGuestAppSettings((prev) => {
@@ -5413,7 +5451,7 @@ export function ConfigurationPage() {
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
     { id: 'settings', label: t('configBillingSettingsTab') },
     { id: 'paymentMethods', label: t('configBillingPaymentMethodsTab') },
-    { id: 'stripe', label: 'Stripe' },
+    ...(stripePaymentsAvailableCommitted ? [{ id: 'stripe', label: 'Stripe' } satisfies { id: BillingSubtab; label: string }] : []),
     ...(paymentGlobalCapabilities.paypalEnabled ? [{ id: 'paypal', label: 'PayPal' } satisfies { id: BillingSubtab; label: string }] : []),
     { id: 'fiscal', label: t('configBillingFiscalTab') },
     { id: 'invoiceDelivery', label: t('configBillingInvoiceDeliveryTab') },
@@ -5421,10 +5459,13 @@ export function ConfigurationPage() {
   ]
 
   useEffect(() => {
+    if (!stripePaymentsAvailableCommitted && billingSubtab === 'stripe') {
+      setBillingSubtab('paymentMethods')
+    }
     if (!paymentGlobalCapabilities.paypalEnabled && billingSubtab === 'paypal') {
       setBillingSubtab('paymentMethods')
     }
-  }, [billingSubtab, paymentGlobalCapabilities.paypalEnabled])
+  }, [billingSubtab, paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted])
 
   const resetAndOpenPaymentMethodModal = () => {
     setInlineEditingPaymentMethodId(-1)
@@ -5452,6 +5493,10 @@ export function ConfigurationPage() {
     })
     load()
   }
+
+  const visibleBillingPaymentMethods = useMemo(() => (
+    paymentMethods.filter((method) => stripePaymentsAvailableCommitted || !(method.stripeEnabled || method.paymentType === 'CARD'))
+  ), [paymentMethods, stripePaymentsAvailableCommitted])
 
   const moduleDraftForDesign = modulesDraftDisplay ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
   const setModuleStringSetting = (key: ModulesStringKey, checked: boolean) => {
@@ -5667,6 +5712,7 @@ export function ConfigurationPage() {
           checked: moduleOn('BILLING_ENABLED'),
           onChange: (checked) => setModuleStringSetting('BILLING_ENABLED', checked),
           children: [
+            { id: 'billing-stripe', icon: 'billing', title: 'Stripe', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_ONLINE_CARD_PAYMENTS_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ONLINE_CARD_PAYMENTS_ENABLED', checked) },
             { id: 'billing-advance', icon: 'wallet', title: locale === 'sl' ? 'Predplačilo' : 'Advance', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_ADVANCE_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ADVANCE_ENABLED', checked) },
           ],
         },
@@ -8771,7 +8817,7 @@ export function ConfigurationPage() {
                   {locale === 'sl' ? 'Nov način plačila' : 'New payment method'}
                 </button>
               </div>
-              {paymentMethods.length === 0 && inlineEditingPaymentMethodId !== -1 ? (
+              {visibleBillingPaymentMethods.length === 0 && inlineEditingPaymentMethodId !== -1 ? (
                 <div className="billing-empty-wrap">
                   <EmptyState title="No payment methods" text="Click New to create your first payment method." />
                 </div>
@@ -8835,7 +8881,7 @@ export function ConfigurationPage() {
                       </div>
                     </div>
                   ) : null}
-                  {paymentMethods.map((method) => {
+                  {visibleBillingPaymentMethods.map((method) => {
                     const methodTypeLabel = method.paymentType === 'BANK_TRANSFER' ? 'BANK TRANSFER' : method.paymentType === 'OTHER' ? 'OTHER' : method.paymentType
                     const methodTypeClass = method.paymentType.toLowerCase().replace('_', '-')
                     const isInlineEditing = inlineEditingPaymentMethodId === method.id && inlinePaymentMethodForm
@@ -10555,6 +10601,7 @@ export function ConfigurationPage() {
                   </article>
                   ) : null}
 
+                  {stripePaymentsAvailableCommitted ? (
                   <article className={expandedIntegrationCard === 'stripe' ? 'integrations-mobile-connection-card is-open' : 'integrations-mobile-connection-card'}>
                     <button
                       type="button"
@@ -10590,6 +10637,7 @@ export function ConfigurationPage() {
                       </div>
                     ) : null}
                   </article>
+                  ) : null}
                 </div>
 
                 <div className="integrations-desktop-status-layout">
@@ -10602,7 +10650,7 @@ export function ConfigurationPage() {
                     <div className="integrations-section-heading">
                       <span>
                         <h3 className="integrations-section-title">{locale === 'sl' ? 'Status integracij' : 'Integration status'}</h3>
-                        <span className="integrations-section-kicker">{googleCalendarModuleEnabledCommitted ? (locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.') : (locale === 'sl' ? 'Stripe za ta tenant.' : 'Stripe for this tenant.')}</span>
+                        <span className="integrations-section-kicker">{googleCalendarModuleEnabledCommitted && stripePaymentsAvailableCommitted ? (locale === 'sl' ? 'Stripe in Google Calendar za ta tenant.' : 'Stripe and Google Calendar for this tenant.') : googleCalendarModuleEnabledCommitted ? 'Google Calendar' : stripePaymentsAvailableCommitted ? (locale === 'sl' ? 'Stripe za ta tenant.' : 'Stripe for this tenant.') : (locale === 'sl' ? 'Ni aktivnih integracij za prikaz.' : 'No active integrations to show.')}</span>
                       </span>
                       <button type="button" className="integrations-secondary-button" onClick={() => void refreshIntegrationStatuses()} disabled={googleCalendarStatusLoading}>
                         {googleCalendarStatusLoading ? (locale === 'sl' ? 'Osvežujem…' : 'Refreshing…') : (locale === 'sl' ? 'Osveži status' : 'Refresh status')}
@@ -10631,6 +10679,7 @@ export function ConfigurationPage() {
                     </button>
                     ) : null}
 
+                    {stripePaymentsAvailableCommitted ? (
                     <button type="button" className="integrations-status-row" onClick={openStripeIntegration}>
                       <span className="integrations-row-main">
                         <span className="integrations-row-icon"><ConfigTabIcon kind="billing" /></span>
@@ -10650,6 +10699,7 @@ export function ConfigurationPage() {
                       <span className={`integrations-status-pill ${stripeStatusTone}`}>{stripeStatusLabel}</span>
                       <span className="integrations-row-arrow" aria-hidden>›</span>
                     </button>
+                    ) : null}
                   </div>
                 </div>              </>
             ) : googleCalendarModuleEnabledCommitted ? (

@@ -442,6 +442,11 @@ function isDepositPaymentMethod(method: { name?: string | null; paymentType?: st
     || haystack.includes('polog')
 }
 
+function isStripePaymentMethod(method: { paymentType?: string | null; stripeEnabled?: boolean | null } | null | undefined): boolean {
+  if (!method) return false
+  return method.stripeEnabled === true || String(method.paymentType || '').trim().toUpperCase() === 'CARD'
+}
+
 function billBankTransferDueAmount(bill: Pick<Bill, 'paymentMethod' | 'paymentSplits' | 'totalGross' | 'pendingPaymentGross'> | null | undefined): number {
   if (!bill) return 0
   const hasBankTransferSplit = (bill.paymentSplits ?? []).some((split) => split?.paymentMethod?.paymentType === 'BANK_TRANSFER')
@@ -1048,9 +1053,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
+  const stripeBillingEnabled = settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
   const visiblePaymentMethods = useMemo(
-    () => advanceBillingEnabled ? paymentMethods : paymentMethods.filter((method) => !isDepositPaymentMethod(method)),
-    [advanceBillingEnabled, paymentMethods],
+    () => {
+      const stripeFiltered = stripeBillingEnabled ? paymentMethods : paymentMethods.filter((method) => !isStripePaymentMethod(method))
+      return advanceBillingEnabled ? stripeFiltered : stripeFiltered.filter((method) => !isDepositPaymentMethod(method))
+    },
+    [advanceBillingEnabled, paymentMethods, stripeBillingEnabled],
   )
 
   useEffect(() => {
@@ -3562,9 +3571,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       const payload = buildOpenBillUpdatePayload(entry, entryItems, entry.id === target.id ? { paymentTotalGross: combinedGross } : undefined)
       const payloadPaymentSplits = Array.isArray(payload.paymentSplits) ? payload.paymentSplits : []
       if (entry.id === target.id && payloadPaymentSplits.length === 0 && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, entry.id)) {
-        const fallbackMethod = entry.paymentMethod && !isDepositPaymentMethod(entry.paymentMethod)
+        const fallbackMethod = entry.paymentMethod && !isDepositPaymentMethod(entry.paymentMethod) && !isStripePaymentMethod(entry.paymentMethod)
           ? entry.paymentMethod
-          : paymentMethods.find((method) => !isDepositPaymentMethod(method))
+          : visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))
         const methodId = Number(fallbackMethod?.id || 0)
         if (methodId > 0) {
           payload.paymentMethodId = methodId
@@ -3700,9 +3709,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
     const payloadPaymentSplits = Array.isArray(payload.paymentSplits) ? payload.paymentSplits : []
     if (related.length > 1 && payloadPaymentSplits.length === 0 && !Object.prototype.hasOwnProperty.call(openBillPaymentEdits, target.id)) {
-      const fallbackMethod = target.paymentMethod && !isDepositPaymentMethod(target.paymentMethod)
+      const fallbackMethod = target.paymentMethod && !isDepositPaymentMethod(target.paymentMethod) && !isStripePaymentMethod(target.paymentMethod)
         ? target.paymentMethod
-        : paymentMethods.find((method) => !isDepositPaymentMethod(method))
+        : visiblePaymentMethods.find((method) => !isDepositPaymentMethod(method))
       const methodId = Number(fallbackMethod?.id || 0)
       if (methodId > 0) {
         payload.paymentMethodId = methodId

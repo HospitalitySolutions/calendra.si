@@ -132,14 +132,15 @@ public class WebsiteWidgetSettingsService {
             return List.of();
         }
         List<String> accepted = parseAcceptedRuntimeTypes(root.path("acceptedPaymentMethodIds"));
-        return applyGlobalProviderCapabilitiesWithoutFallback(accepted);
+        return applyGlobalProviderCapabilitiesWithoutFallback(accepted, values);
     }
 
-    private List<String> applyGlobalProviderCapabilitiesWithoutFallback(List<String> accepted) {
-        var capabilities = globalPaymentProviders.capabilities();
+    private List<String> applyGlobalProviderCapabilitiesWithoutFallback(List<String> accepted, Map<String, String> values) {
+        var global = globalPaymentProviders.capabilities();
+        boolean tenantStripeEnabled = settingEnabled(values, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, true);
         return (accepted == null ? List.<String>of() : accepted).stream()
-                .filter(method -> !"CARD".equals(method) || capabilities.stripeEnabled())
-                .filter(method -> !"PAYPAL".equals(method) || capabilities.paypalEnabled())
+                .filter(method -> !"CARD".equals(method) || (global.stripeEnabled() && tenantStripeEnabled))
+                .filter(method -> !"PAYPAL".equals(method) || global.paypalEnabled())
                 .toList();
     }
 

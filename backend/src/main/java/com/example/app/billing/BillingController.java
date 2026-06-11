@@ -150,6 +150,24 @@ public class BillingController {
         return billingModuleAccess.isAdvanceEnabled(companyId);
     }
 
+    private boolean isTenantStripeBillingEnabled(Long companyId) {
+        return settings.findByCompanyIdAndKey(companyId, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED)
+                .map(AppSetting::getValue)
+                .map(value -> value == null ? "" : value.trim())
+                .map(value -> !"false".equalsIgnoreCase(value))
+                .orElse(true);
+    }
+
+    private static boolean isStripeLikePaymentMethod(PaymentMethod method) {
+        return method != null && (method.isStripeEnabled() || method.getPaymentType() == PaymentType.CARD);
+    }
+
+    private void assertStripePaymentMethodEnabled(Long companyId, PaymentMethod method) {
+        if (isStripeLikePaymentMethod(method) && !isTenantStripeBillingEnabled(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Stripe payments are disabled for this tenant.");
+        }
+    }
+
 
     private void requireCanIssueOpenInvoice(User user) {
         if (!SecurityUtils.canIssueOpenInvoices(user)) {
@@ -1097,6 +1115,7 @@ public class BillingController {
         if (req.paymentMethodId() != null) {
             var paymentMethod = paymentMethodRepo.findByIdAndCompanyId(req.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
+            assertStripePaymentMethodEnabled(companyId, paymentMethod);
             open.setPaymentMethod(paymentMethod);
         }
         if (req.consultantId() != null) {
@@ -1224,6 +1243,7 @@ public class BillingController {
             if (isAdvanceLikePaymentMethod(method) && !isAdvanceBillingEnabled(companyId)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
             }
+            assertStripePaymentMethodEnabled(companyId, method);
             Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
             if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
@@ -1258,6 +1278,7 @@ public class BillingController {
             if (isAdvanceLikePaymentMethod(method) && !isAdvanceBillingEnabled(companyId)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
             }
+            assertStripePaymentMethodEnabled(companyId, method);
             Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
             if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
@@ -1562,6 +1583,7 @@ public class BillingController {
             if (isAdvanceLikePaymentMethod(paymentMethod) && !isAdvanceBillingEnabled(companyId)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
             }
+            assertStripePaymentMethodEnabled(companyId, paymentMethod);
             open.setPaymentMethod(paymentMethod);
         }
         if (req.paymentSplits() != null) {
@@ -2328,10 +2350,14 @@ public class BillingController {
 
     private PaymentMethod resolvePreviewPaymentMethod(OpenBill open, OpenBillUpdateRequest req, Long companyId) {
         if (req != null && req.paymentMethodId() != null) {
-            return paymentMethodRepo.findByIdAndCompanyId(req.paymentMethodId(), companyId)
+            PaymentMethod method = paymentMethodRepo.findByIdAndCompanyId(req.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method"));
+            assertStripePaymentMethodEnabled(companyId, method);
+            return method;
         }
-        return open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId);
+        PaymentMethod fallback = open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId);
+        assertStripePaymentMethodEnabled(companyId, fallback);
+        return fallback;
     }
 
     private Long resolvePreviewSessionId(OpenBill open, OpenBillUpdateRequest req, Long companyId) {
@@ -3693,6 +3719,7 @@ public class BillingController {
         if (!bill.getPaymentMethod().isStripeEnabled()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe payment link is available only for card payment methods with Stripe enabled.");
         }
+        assertStripePaymentMethodEnabled(companyId, bill.getPaymentMethod());
         StripeCheckoutSessionResult checkout = stripeBillingService.createCheckoutSessionForBill(bill);
         billingEmailService.sendCheckoutLink(bill, checkout.url());
         return new CheckoutSessionResponse(bill.getId(), bill.getBillNumber(), bill.getPaymentStatus(), bill.getCheckoutSessionId(), checkout.url(), bill.getCheckoutSessionExpiresAt());
@@ -4319,6 +4346,7 @@ public class BillingController {
             if (isAdvanceLikePaymentMethod(method) && !isAdvanceBillingEnabled(companyId)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance billing is disabled for this tenant.");
             }
+            assertStripePaymentMethodEnabled(companyId, method);
             return method;
         }
         return resolveDefaultPaymentMethod(companyId);
@@ -4329,6 +4357,11 @@ public class BillingController {
         if (!isAdvanceBillingEnabled(companyId)) {
             all = all.stream()
                     .filter(method -> !isAdvanceLikePaymentMethod(method))
+                    .toList();
+        }
+        if (!isTenantStripeBillingEnabled(companyId)) {
+            all = all.stream()
+                    .filter(method -> !isStripeLikePaymentMethod(method))
                     .toList();
         }
         if (all.isEmpty()) {

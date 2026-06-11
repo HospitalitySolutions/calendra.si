@@ -81,7 +81,8 @@ public class GuestSettingsService {
         }
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
         List<String> accepted = parseAcceptedPaymentMethods(root.path("acceptedPaymentMethodIds"));
-        return applyGlobalProviderCapabilities(accepted, globalPaymentProviders.capabilities());
+        var capabilities = tenantPaymentCapabilities(values);
+        return applyGlobalProviderCapabilities(accepted, capabilities);
     }
 
     static List<String> parseAcceptedPaymentMethods(JsonNode node) {
@@ -98,6 +99,15 @@ public class GuestSettingsService {
             return List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
         }
         return new ArrayList<>(out);
+    }
+
+    private GlobalPaymentProviderService.ProviderCapabilities tenantPaymentCapabilities(Map<String, String> values) {
+        var global = globalPaymentProviders.capabilities();
+        boolean tenantStripeEnabled = settingEnabled(values, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, true);
+        return new GlobalPaymentProviderService.ProviderCapabilities(
+                global.stripeEnabled() && tenantStripeEnabled,
+                global.paypalEnabled()
+        );
     }
 
     public static List<String> applyGlobalProviderCapabilities(
