@@ -1,0 +1,10 @@
+Fixed course access public link page.
+
+Problem:
+- App.tsx renders CourseAccessPage directly when pathname starts with /course-access/.
+- Because it is not rendered inside a <Route path="/course-access/:token">, useParams() is empty.
+- CourseAccessPage therefore thought the access token was missing and showed "Povezava za dostop ni veljavna." even when the URL contained a valid token.
+
+Fix:
+- CourseAccessPage now reads token from useParams() when available, and falls back to parsing /course-access/{token} from location.pathname.
+- This keeps it compatible with the current App.tsx direct-render approach and any future Route-based setup.

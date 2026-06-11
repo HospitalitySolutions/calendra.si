@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useLocale } from '../locale'
 
@@ -17,8 +17,16 @@ type CourseAccessResponse = {
 }
 
 export function CourseAccessPage() {
-  const { token } = useParams()
+  const params = useParams()
+  const location = useLocation()
   const { locale } = useLocale()
+
+  const token = useMemo(() => {
+    const routeToken = params.token || params.accessToken
+    if (routeToken) return routeToken
+    const match = location.pathname.match(/\/course-access\/([^/?#]+)/)
+    return match ? decodeURIComponent(match[1]) : ''
+  }, [location.pathname, params.accessToken, params.token])
   const [loading, setLoading] = useState(true)
   const [course, setCourse] = useState<CourseAccessResponse | null>(null)
   const [error, setError] = useState('')
