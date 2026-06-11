@@ -1,0 +1,18 @@
+Implemented direct-to-Bunny video uploads for Courses.
+
+Backend:
+- Added POST /api/courses/{id}/media/direct-upload to create a Bunny Stream video object and return a short-lived TUS upload session.
+- Added POST /api/courses/{id}/media/direct-complete to mark the course media as uploaded after the browser finishes the Bunny TUS upload.
+- Added Bunny Stream TUS signature generation on the backend using SHA256(libraryId + apiKey + expiration + videoId), keeping the Bunny API key server-side only.
+- Kept tenant isolation by reusing/creating the tenant Bunny Stream library before issuing the upload session.
+- Left audio upload on the protected backend route because Bunny Storage does not provide the same pre-signed browser upload flow without exposing the storage password.
+- Made backend multipart upload limits configurable and raised defaults for audio/fallback uploads.
+
+Frontend:
+- Courses video uploads now request a signed upload session from Calendra and upload the file directly from the browser to Bunny Stream using the TUS protocol.
+- Added chunked PATCH upload with progress display so large video files no longer pass through app.calendra.si/backend.
+- Audio uploads still use the existing protected Calendra upload endpoint.
+- Fixed duplicated modal wrapper in CoursesSection.
+
+Configuration:
+- Added APP_MULTIPART_MAX_FILE_SIZE and APP_MULTIPART_MAX_REQUEST_SIZE examples for audio/fallback upload limits.

@@ -38,6 +38,19 @@ type Course = {
   contentType?: string | null
 }
 
+type DirectVideoUploadSession = {
+  uploadType: 'TUS'
+  uploadUrl: string
+  bunnyLibraryId: string
+  bunnyLibraryName?: string | null
+  bunnyVideoId: string
+  authorizationSignature: string
+  authorizationExpire: number
+  fileName: string
+  contentType: string
+  title: string
+}
+
 type CourseFormState = {
   title: string
   description: string
@@ -74,6 +87,76 @@ export type CoursesSectionProps = {
   onFilteredCountChange?: (count: number) => void
 }
 
+function base64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
+  return btoa(binary)
+}
+
+function resolveTusLocation(location: string, endpoint: string): string {
+  try {
+    return new URL(location, endpoint).toString()
+  } catch {
+    return location
+  }
+}
+
+async function uploadVideoToBunnyTus(file: File, session: DirectVideoUploadSession, onProgress: (progress: number) => void) {
+  const authHeaders = {
+    AuthorizationSignature: session.authorizationSignature,
+    AuthorizationExpire: String(session.authorizationExpire),
+    LibraryId: String(session.bunnyLibraryId),
+    VideoId: session.bunnyVideoId,
+  }
+  const metadata = [
+    `filetype ${base64Utf8(file.type || session.contentType || 'video/mp4')}`,
+    `title ${base64Utf8(file.name || session.title || 'course-video')}`,
+  ].join(',')
+
+  const createRes = await fetch(session.uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Tus-Resumable': '1.0.0',
+      'Upload-Length': String(file.size),
+      'Upload-Metadata': metadata,
+      ...authHeaders,
+    },
+  })
+  if (!createRes.ok) {
+    throw new Error(`Bunny TUS upload could not be started (${createRes.status}).`)
+  }
+  const location = createRes.headers.get('Location')
+  if (!location) throw new Error('Bunny TUS upload did not return an upload location.')
+
+  const uploadUrl = resolveTusLocation(location, session.uploadUrl)
+  const chunkSize = 8 * 1024 * 1024
+  let offset = 0
+  onProgress(0)
+
+  while (offset < file.size) {
+    const nextOffset = Math.min(offset + chunkSize, file.size)
+    const chunk = file.slice(offset, nextOffset)
+    const patchRes = await fetch(uploadUrl, {
+      method: 'PATCH',
+      headers: {
+        'Tus-Resumable': '1.0.0',
+        'Content-Type': 'application/offset+octet-stream',
+        'Upload-Offset': String(offset),
+        ...authHeaders,
+      },
+      body: chunk,
+    })
+    if (!patchRes.ok) {
+      throw new Error(`Bunny TUS upload failed (${patchRes.status}).`)
+    }
+    const returnedOffset = Number(patchRes.headers.get('Upload-Offset'))
+    offset = Number.isFinite(returnedOffset) && returnedOffset > offset ? returnedOffset : nextOffset
+    onProgress(file.size > 0 ? (offset / file.size) * 100 : 100)
+  }
+  onProgress(100)
+}
+
 export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionProps>(function CoursesSection(
   { searchQuery, activeFilter, onFilteredCountChange },
   ref,
@@ -88,6 +171,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
   const [form, setForm] = useState<CourseFormState>(defaultCourseForm)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadingId, setUploadingId] = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -178,13 +262,30 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
   }
 
   const uploadMedia = async (courseId: number, file: File) => {
-    const body = new FormData()
-    body.append('file', file)
     setUploadingId(courseId)
+    setUploadProgress(0)
     try {
-      await api.post(`/courses/${courseId}/media`, body, { headers: { 'Content-Type': 'multipart/form-data' } })
+      if (form.mediaType === 'VIDEO') {
+        const sessionRes = await api.post<DirectVideoUploadSession>(`/courses/${courseId}/media/direct-upload`, {
+          fileName: file.name,
+          contentType: file.type || 'video/mp4',
+          sizeBytes: file.size,
+        })
+        await uploadVideoToBunnyTus(file, sessionRes.data, (progress) => setUploadProgress(progress))
+        await api.post(`/courses/${courseId}/media/direct-complete`, {
+          bunnyVideoId: sessionRes.data.bunnyVideoId,
+          fileName: file.name,
+          contentType: file.type || sessionRes.data.contentType || 'video/mp4',
+        })
+      } else {
+        const body = new FormData()
+        body.append('file', file)
+        await api.post(`/courses/${courseId}/media`, body, { headers: { 'Content-Type': 'multipart/form-data' } })
+        setUploadProgress(100)
+      }
     } finally {
       setUploadingId(null)
+      setUploadProgress(null)
     }
   }
 
@@ -296,6 +397,18 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                       accept={form.mediaType === 'AUDIO' ? 'audio/*' : 'video/*'}
                       onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
                     />
+                    {uploadFile && (
+                      <div className="muted" style={{ marginTop: 6 }}>
+                        {form.mediaType === 'VIDEO'
+                          ? (locale === 'sl' ? 'Video se bo naložil neposredno v Bunny Stream.' : 'Video will upload directly to Bunny Stream.')
+                          : (locale === 'sl' ? 'Audio se naloži prek zaščitenega Calendra nalaganja.' : 'Audio uploads through protected Calendra upload.')}
+                      </div>
+                    )}
+                    {uploadProgress != null && (
+                      <div className="muted" style={{ marginTop: 6 }}>
+                        {locale === 'sl' ? 'Nalaganje' : 'Uploading'}: {Math.max(0, Math.min(100, uploadProgress)).toFixed(0)}%
+                      </div>
+                    )}
                   </Field>
                 </div>
                 <Field label={locale === 'sl' ? 'Opis' : 'Description'}>
@@ -308,7 +421,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
               </section>
               <div className="booking-side-panel-footer session-type-config-modal-footer">
                 <button type="button" className="secondary" onClick={() => setShowModal(false)}>{locale === 'sl' ? 'Prekliči' : 'Cancel'}</button>
-                <button type="submit" className="primary" disabled={saving || uploadingId != null}>{saving || uploadingId != null ? (locale === 'sl' ? 'Shranjevanje…' : 'Saving…') : (locale === 'sl' ? 'Shrani' : 'Save')}</button>
+                <button type="submit" className="primary" disabled={saving || uploadingId != null}>{saving || uploadingId != null ? (uploadProgress != null ? `${locale === 'sl' ? 'Nalaganje' : 'Uploading'} ${uploadProgress.toFixed(0)}%` : (locale === 'sl' ? 'Shranjevanje…' : 'Saving…')) : (locale === 'sl' ? 'Shrani' : 'Save')}</button>
               </div>
             </form>
           </div>

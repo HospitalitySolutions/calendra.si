@@ -78,6 +78,86 @@ public class CourseAdminController {
         return toResponse(courses.save(course));
     }
 
+    @PostMapping("/{id}/media/direct-upload")
+    @Transactional
+    public DirectUploadSessionResponse createDirectUploadSession(
+            @PathVariable Long id,
+            @RequestBody DirectUploadSessionRequest request,
+            @AuthenticationPrincipal User me
+    ) {
+        Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (course.getMediaType() != CourseMediaType.VIDEO) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Direct Bunny upload is supported for video courses. Audio upload still uses protected backend upload.");
+        }
+        String contentType = request == null ? null : request.contentType();
+        if (contentType != null && !contentType.toLowerCase(Locale.ROOT).startsWith("video/")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please upload a video file for video courses.");
+        }
+        try {
+            BunnyMediaService.DirectVideoUploadSession session = bunnyMediaService.createDirectVideoUploadSession(
+                    course,
+                    request == null ? null : request.fileName(),
+                    contentType
+            );
+            course.setStatus(CourseStatus.PROCESSING);
+            course.setActive(false);
+            course.setBunnyLibraryId(session.bunnyLibraryId());
+            course.setBunnyLibraryName(session.bunnyLibraryName());
+            course.setBunnyVideoId(session.bunnyVideoId());
+            course.setFileName(session.fileName());
+            course.setContentType(session.contentType());
+            course.setMetadataJson("{\"uploadStatus\":\"DIRECT_UPLOAD_PENDING\"}");
+            createOrUpdateProduct(course, course.getGuestProduct());
+            courses.save(course);
+            return new DirectUploadSessionResponse(
+                    session.uploadType(),
+                    session.uploadUrl(),
+                    session.bunnyLibraryId(),
+                    session.bunnyLibraryName(),
+                    session.bunnyVideoId(),
+                    session.authorizationSignature(),
+                    session.authorizationExpire(),
+                    session.fileName(),
+                    session.contentType(),
+                    session.title()
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Could not create Bunny direct upload session: " + ex.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/media/direct-complete")
+    @Transactional
+    public CourseResponse completeDirectUpload(
+            @PathVariable Long id,
+            @RequestBody DirectUploadCompleteRequest request,
+            @AuthenticationPrincipal User me
+    ) {
+        Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (course.getMediaType() != CourseMediaType.VIDEO) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Direct upload completion is supported for video courses only.");
+        }
+        String videoId = request == null ? null : request.bunnyVideoId();
+        if (videoId == null || videoId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bunny video id is required.");
+        }
+        if (course.getBunnyVideoId() != null && !course.getBunnyVideoId().isBlank() && !course.getBunnyVideoId().equals(videoId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The completed video id does not match the current course upload session.");
+        }
+        course.setBunnyVideoId(videoId);
+        if (request.fileName() != null && !request.fileName().isBlank()) course.setFileName(request.fileName().trim());
+        if (request.contentType() != null && !request.contentType().isBlank()) course.setContentType(request.contentType().trim());
+        course.setMetadataJson("{\"uploadStatus\":\"UPLOADED_TO_BUNNY_STREAM_DIRECT\"}");
+        course.setStatus(CourseStatus.ACTIVE);
+        course.setActive(true);
+        createOrUpdateProduct(course, course.getGuestProduct());
+        return toResponse(courses.save(course));
+    }
+
     @PostMapping("/{id}/media")
     @Transactional
     public CourseResponse uploadMedia(@PathVariable Long id, @RequestParam("file") MultipartFile file, @AuthenticationPrincipal User me) {
@@ -233,6 +313,31 @@ public class CourseAdminController {
         if (value == null) return "null";
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
+
+    public record DirectUploadSessionRequest(
+            String fileName,
+            String contentType,
+            Long sizeBytes
+    ) {}
+
+    public record DirectUploadCompleteRequest(
+            String bunnyVideoId,
+            String fileName,
+            String contentType
+    ) {}
+
+    public record DirectUploadSessionResponse(
+            String uploadType,
+            String uploadUrl,
+            String bunnyLibraryId,
+            String bunnyLibraryName,
+            String bunnyVideoId,
+            String authorizationSignature,
+            long authorizationExpire,
+            String fileName,
+            String contentType,
+            String title
+    ) {}
 
     public record CourseRequest(
             String title,

@@ -4,6 +4,11 @@ import com.example.app.company.Company;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +35,56 @@ public class BunnyMediaService {
             return uploadAudio(course, file);
         }
         return uploadVideo(course, file);
+    }
+
+    public DirectVideoUploadSession createDirectVideoUploadSession(Course course, String fileName, String contentType) throws IOException {
+        if (course.getMediaType() != CourseMediaType.VIDEO) {
+            throw new IllegalArgumentException("Direct Bunny Stream upload sessions are only available for video courses.");
+        }
+        if (!properties.hasStreamApiKey()) {
+            throw new IllegalStateException("Bunny Stream API key is not configured.");
+        }
+
+        String libraryId = course.getBunnyLibraryId();
+        String libraryName = course.getBunnyLibraryName();
+        if (libraryId == null || libraryId.isBlank()) {
+            LibraryRef library = ensureTenantVideoLibrary(course.getCompany());
+            libraryId = library.id();
+            libraryName = library.name();
+        }
+        if (libraryId == null || libraryId.isBlank()) {
+            throw new IllegalStateException("Bunny Stream library could not be created for this tenant.");
+        }
+
+        String createUrl = properties.effectiveStreamBaseUrl() + "/library/" + libraryId + "/videos";
+        String title = hasText(course.getTitle()) ? course.getTitle() : safeFileName(fileName, "course-video");
+        String titleJson = "{\"title\":" + JSON.writeValueAsString(title) + "}";
+        JsonNode created = restClient.post()
+                .uri(createUrl)
+                .header("AccessKey", properties.apiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(titleJson)
+                .retrieve()
+                .body(JsonNode.class);
+        String videoId = created == null ? null : firstText(created, "guid", "videoId", "id");
+        if (videoId == null || videoId.isBlank()) {
+            throw new IllegalStateException("Bunny Stream did not return a video id.");
+        }
+
+        long expiration = Instant.now().plusSeconds(24 * 60 * 60).getEpochSecond();
+        String signature = sha256Hex(libraryId + properties.apiKey() + expiration + videoId);
+        return new DirectVideoUploadSession(
+                "TUS",
+                properties.effectiveStreamBaseUrl() + "/tusupload",
+                libraryId,
+                libraryName,
+                videoId,
+                signature,
+                expiration,
+                safeFileName(fileName, "video.mp4"),
+                hasText(contentType) ? contentType.trim() : "video/mp4",
+                title
+        );
     }
 
     private CourseUploadResult uploadVideo(Course course, MultipartFile file) throws IOException {
@@ -128,6 +183,20 @@ public class BunnyMediaService {
         }
     }
 
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isBlank();
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is not available.", ex);
+        }
+    }
+
     private static String safeLibraryName(String raw) {
         String value = raw == null ? "Tenant" : raw.trim();
         if (value.isBlank()) value = "Tenant";
@@ -162,5 +231,18 @@ public class BunnyMediaService {
             String bunnyStoragePath,
             String bunnyCdnUrl,
             String uploadStatus
+    ) {}
+
+    public record DirectVideoUploadSession(
+            String uploadType,
+            String uploadUrl,
+            String bunnyLibraryId,
+            String bunnyLibraryName,
+            String bunnyVideoId,
+            String authorizationSignature,
+            long authorizationExpire,
+            String fileName,
+            String contentType,
+            String title
     ) {}
 }

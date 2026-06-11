@@ -7,8 +7,9 @@
 spring:
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 55MB
+      # Video courses upload directly to Bunny Stream through TUS, so this mostly applies to audio files and small fallback uploads.
+      max-file-size: ${APP_MULTIPART_MAX_FILE_SIZE:512MB}
+      max-request-size: ${APP_MULTIPART_MAX_REQUEST_SIZE:520MB}
   cloud:
     aws:
       region:
