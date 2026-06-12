@@ -2,6 +2,10 @@ import Foundation
 import ImageIO
 import UIKit
 
+private func normalizedWalletProductType(_ raw: String) -> String {
+    raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+}
+
 private func isWalletBuyOfferProduct(_ product: ProductModel) -> Bool {
     guard product.bookable == false else { return false }
     switch product.productType.uppercased() {
@@ -203,7 +207,7 @@ final class AppStore: ObservableObject {
                     companyId: tenantId,
                     productId: $0.id,
                     name: $0.name,
-                    productType: $0.productType,
+                    productType: normalizedWalletProductType($0.productType),
                     priceGross: $0.priceGross,
                     currency: $0.currency,
                     description: $0.description,
@@ -258,7 +262,7 @@ final class AppStore: ObservableObject {
                         companyId: tenantId,
                         productId: $0.id,
                         name: $0.name,
-                        productType: $0.productType,
+                        productType: normalizedWalletProductType($0.productType),
                         priceGross: $0.priceGross,
                         currency: $0.currency,
                         description: $0.description,
