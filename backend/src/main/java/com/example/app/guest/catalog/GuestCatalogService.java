@@ -8,6 +8,7 @@ import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.guest.model.GuestUser;
+import com.example.app.guest.model.ProductType;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBooking;
