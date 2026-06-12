@@ -2,6 +2,10 @@ import Foundation
 import ImageIO
 import UIKit
 
+private func normalizedWalletProductType(_ raw: String) -> String {
+    raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+}
+
 private func isWalletBuyOfferProduct(_ product: ProductModel) -> Bool {
     guard product.bookable == false else { return false }
     switch product.productType.uppercased() {
@@ -203,7 +207,7 @@ final class AppStore: ObservableObject {
                     companyId: tenantId,
                     productId: $0.id,
                     name: $0.name,
-                    productType: $0.productType,
+                    productType: normalizedWalletProductType($0.productType),
                     priceGross: $0.priceGross,
                     currency: $0.currency,
                     description: $0.description,
@@ -258,7 +262,7 @@ final class AppStore: ObservableObject {
                         companyId: tenantId,
                         productId: $0.id,
                         name: $0.name,
-                        productType: $0.productType,
+                        productType: normalizedWalletProductType($0.productType),
                         priceGross: $0.priceGross,
                         currency: $0.currency,
                         description: $0.description,
@@ -487,13 +491,13 @@ final class AppStore: ObservableObject {
                         useEmployeeContact: tenant.useEmployeeContact,
                         billingEnabled: tenant.billingEnabled,
                         inboxEnabled: tenant.inboxEnabled,
-                        cardImageUrl: tenant.cardImageUrl,
-                        logoImageUrl: tenant.logoImageUrl,
-                        iconImageUrl: tenant.iconImageUrl,
                         requireOnlinePayment: tenant.requireOnlinePayment,
                         paymentRequirement: tenant.paymentRequirement,
                         depositPercent: tenant.depositPercent,
-                        acceptedPaymentMethods: tenant.acceptedPaymentMethods
+                        acceptedPaymentMethods: tenant.acceptedPaymentMethods,
+                        cardImageUrl: tenant.cardImageUrl,
+                        logoImageUrl: tenant.logoImageUrl,
+                        iconImageUrl: tenant.iconImageUrl
                     )
                 )
             }
@@ -1157,13 +1161,17 @@ final class AppStore: ObservableObject {
     private func restartBookingRealtimeStreams() {
         stopBookingRealtimeStreams()
         guard !usePreviewData else { return }
-        let api = self.api
         for tenant in linkedTenants {
             let companyId = tenant.id
-            bookingRealtimeTasks[companyId] = Task { [api, companyId] in
-                await api.listenForBookingUpdates(companyId: companyId) {
+            bookingRealtimeTasks[companyId] = Task { [weak self] in
+                guard let self else { return }
+                await self.api.listenForBookingUpdates(companyId: companyId) { [weak self] in
                     await MainActor.run {
-                        NotificationCenter.default.post(name: .guestPushBookingChanged, object: companyId)
+                        guard let self else { return }
+                        Task { [weak self] in
+                            guard let self else { return }
+                            try? await self.refreshTenant(companyId: companyId)
+                        }
                     }
                 }
             }

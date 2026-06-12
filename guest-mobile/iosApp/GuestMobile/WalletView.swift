@@ -193,15 +193,16 @@ private enum WalletBuyCategory: CaseIterable, Identifiable {
     }
 
     func matches(_ offer: WalletOfferModel) -> Bool {
-        let isGift = offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT"
-        let isCourse = offer.productType == "COURSE"
+        let type = offer.productType.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let isGift = type == "GIFT_CARD" || type == "GIFT_CARD_PRODUCT"
+        let isCourse = type == "COURSE"
         switch self {
         case .all:
             return true
         case .memberships:
-            return offer.productType == "MEMBERSHIP"
+            return type == "MEMBERSHIP"
         case .classPacks:
-            return offer.productType != "MEMBERSHIP" && !isGift && !isCourse
+            return type != "MEMBERSHIP" && !isGift && !isCourse
         case .courses:
             return isCourse
         case .giftCards:
@@ -3117,6 +3118,7 @@ private struct BuyShowcaseOfferCard: View {
     private var typeLabel: String {
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "MEMBERSHIP", "ČLANARINA")
+        case "COURSE": return walletTr(appUiLocaleStorage, "COURSE ACCESS", "DOSTOP DO TEČAJA")
         case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "GIFT CARD", "DARILNA KARTICA")
         default: return walletTr(appUiLocaleStorage, "CARD", "KARTA")
         }
@@ -3126,6 +3128,7 @@ private struct BuyShowcaseOfferCard: View {
         if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty { return promoText }
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Special offer", "Posebna ponudba")
+        case "COURSE": return walletTr(appUiLocaleStorage, "Course access", "Dostop do tečaja")
         case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "Great gift", "Odlično darilo")
         default: return index % 2 == 0 ? walletTr(appUiLocaleStorage, "New", "Novo") : walletTr(appUiLocaleStorage, "Deal", "Akcija")
         }
@@ -3134,6 +3137,7 @@ private struct BuyShowcaseOfferCard: View {
     private var quantityLabel: String {
         let isSl = appUiLocaleStorage.lowercased().hasPrefix("sl")
         if offer.productType == "MEMBERSHIP" { return isSl ? "1 mesec" : "1 month" }
+        if offer.productType == "COURSE" { return isSl ? "doživljenjski dostop" : "lifetime access" }
         if offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT" { return isSl ? "1 kos" : "1 item" }
         guard let usageLimit = offer.usageLimit, usageLimit > 1 else { return isSl ? "1 obisk" : "1 visit" }
         return isSl ? "\(usageLimit) obiskov" : "\(usageLimit) visits"
@@ -3143,12 +3147,16 @@ private struct BuyShowcaseOfferCard: View {
         if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
         switch offer.productType {
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Unlimited access to selected services", "Neomejen dostop do izbranih storitev")
+        case "COURSE": return walletTr(appUiLocaleStorage, "Lifetime access to selected courses after purchase", "Doživljenjski dostop do izbranih tečajev po nakupu")
         case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "For all services from this provider", "Za vse storitve pri ponudniku")
         default: return walletTr(appUiLocaleStorage, "Flexible access for regular visits", "Popolno za redne obiske")
         }
     }
 
     private var expiryText: String {
+        if offer.productType == "COURSE" {
+            return walletTr(appUiLocaleStorage, "No expiry", "Brez poteka")
+        }
         let fallback = appUiLocaleStorage.lowercased().hasPrefix("sl") ? "31. 12. 2026" : "31 Dec 2026"
         guard let validityDays = offer.validityDays, validityDays > 0,
               let date = Calendar.current.date(byAdding: .day, value: validityDays, to: Date()) else {
@@ -3193,7 +3201,7 @@ private struct BuyShowcaseOfferCard: View {
                         Spacer(minLength: 8)
 
                         HStack(spacing: 6) {
-                            Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : "person.crop.circle")
+                            Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : (offer.productType == "COURSE" ? "play.rectangle" : "person.crop.circle"))
                                 .font(.system(size: 13, weight: .bold))
                             Text(quantityLabel)
                                 .font(.system(size: 13, weight: .black))
