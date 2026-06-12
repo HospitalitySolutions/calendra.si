@@ -111,7 +111,13 @@ public class GuestCatalogService {
             if (product.getCourse() != null) continue;
             if (product.getProductType() == ProductType.COURSE && product.getSessionType() == null) continue;
             if (!billingEnabled && !product.isBookable()) continue;
-            if (product.getSessionType() != null && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) continue;
+            // Course access entitlements are sellable wallet products that only use
+            // their linked service type for accounting/VAT mapping. They should not
+            // be hidden just because the linked service type is not visible/bookable
+            // in the guest booking service step.
+            if (product.getProductType() != ProductType.COURSE
+                    && product.getSessionType() != null
+                    && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) continue;
             out.add(new GuestDtos.ProductResponse(
                     String.valueOf(product.getId()),
                     product.getName(),
@@ -212,7 +218,12 @@ public class GuestCatalogService {
         if (Boolean.FALSE.equals(guestSettings.billingEnabled(companyId)) && !product.isBookable()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Purchases are disabled for this tenant.");
         }
-        if (product.getSessionType() != null && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) {
+        // Course access entitlements are non-booking products. The linked service
+        // type is required for billing/accounting, but its booking visibility must
+        // not block purchase from Wallet Buy / widget / client wallet flows.
+        if (product.getProductType() != ProductType.COURSE
+                && product.getSessionType() != null
+                && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
         }
         return new ResolvedProduct(product, product.getSessionType(), product.getName(), product.getProductType().name(), product.getPriceGross(), product.getCurrency(), product.isBookable());

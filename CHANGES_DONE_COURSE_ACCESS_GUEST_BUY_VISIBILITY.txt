@@ -1,0 +1,17 @@
+Course access guest Buy tab visibility fix
+
+Changed:
+- backend/src/main/java/com/example/app/guest/catalog/GuestCatalogService.java
+
+What was fixed:
+- Course access entitlements were linked to a mandatory service type, but the guest product list was still applying the normal booking-service visibility check to that service type.
+- If the linked service type was not visible/bookable in the guest booking flow, the Course access product was hidden from the guest mobile Wallet → Buy tab.
+
+New behavior:
+- Product type COURSE still requires a linked service type and at least one mapped course.
+- Product type COURSE is visible in guest/mobile/web buy lists when the entitlement itself is active + guest visible.
+- The linked service type is used for billing/accounting mapping, but its booking visibility no longer blocks Course access purchase.
+- The same exception is applied during purchase resolution so guests can buy Course access from mobile apps, website widget, and client wallet flows.
+
+Notes:
+- No Android/iOS code changes were required; both mobile apps already categorize productType COURSE into the Courses/Course access buy tab.
