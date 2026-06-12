@@ -106,6 +106,7 @@ public class GuestProductAdminController {
         if (orderItems.countByProductId(product.getId()) > 0 || entitlements.countByProductId(product.getId()) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This card already has orders or entitlements. Archive it instead of deleting it.");
         }
+        membershipCourses.deleteAllByMembershipProductIdAndCompanyId(product.getId(), me.getCompany().getId());
         products.delete(product);
     }
 
@@ -121,7 +122,7 @@ public class GuestProductAdminController {
         }
 
         Long companyId = me.getCompany().getId();
-        SessionType sessionType = (productType == ProductType.GIFT_CARD || productType == ProductType.COURSE)
+        SessionType sessionType = productType == ProductType.GIFT_CARD
                 ? null
                 : resolveSessionType(request.sessionTypeId(), companyId);
         TransactionService transactionService = productType == ProductType.GIFT_CARD
@@ -135,6 +136,9 @@ public class GuestProductAdminController {
         }
         if (productType == ProductType.PACK && sessionType == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tickets must be linked to a service type.");
+        }
+        if (productType == ProductType.COURSE && sessionType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Course access entitlements must be linked to a service type.");
         }
 
         Integer usageLimit = (productType == ProductType.CLASS_TICKET || productType == ProductType.MEMBERSHIP || productType == ProductType.GIFT_CARD || productType == ProductType.COURSE)

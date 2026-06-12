@@ -1,0 +1,14 @@
+Implemented mandatory service type for Course access entitlements.
+
+Changes done:
+- Course access entitlement now requires a service type in the admin UI.
+- Backend validation now rejects Course access entitlements without a linked service type.
+- Course access products now save the selected service type instead of clearing it.
+- Course access rows now show the selected service type together with mapped course count.
+- Existing invalid Course access products without service type are not exposed in guest product listings or purchases until fixed.
+- Delete now removes course mappings before deleting an unsold entitlement, preventing data integrity constraint violations for mapped courses.
+
+Updated files:
+- backend/src/main/java/com/example/app/guest/catalog/GuestProductAdminController.java
+- backend/src/main/java/com/example/app/guest/catalog/GuestCatalogService.java
+- frontend/src/pages/CardsMembershipsSection.tsx

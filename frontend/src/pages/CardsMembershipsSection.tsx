@@ -112,9 +112,9 @@ const normalizeGuestProductFormForType = (
         ? '1'
         : current.usageLimit,
     sessionTypeId:
-      (nextProductType === 'CLASS_TICKET' || nextProductType === 'PACK')
+      (nextProductType === 'CLASS_TICKET' || nextProductType === 'PACK' || nextProductType === 'COURSE')
         ? (current.sessionTypeId.trim() || defaultSessionTypeId || '')
-        : nextProductType === 'GIFT_CARD' || nextProductType === 'COURSE'
+        : nextProductType === 'GIFT_CARD'
           ? ''
           : current.sessionTypeId,
     autoRenews: nextProductType === 'MEMBERSHIP' ? current.autoRenews : false,
@@ -181,8 +181,11 @@ function guestProductTransactionServiceLabel(product: GuestAdminProduct): string
 function includedCoursesLabel(product: GuestAdminProduct, locale: string): string {
   const count = Array.isArray(product.includedCourseIds) ? product.includedCourseIds.length : 0
   if (product.productType === 'COURSE') {
-    if (count <= 0) return locale === 'sl' ? 'Ni izbranih tečajev' : 'No courses selected'
-    return locale === 'sl' ? `${count} tečaj${count === 1 ? '' : 'i'}` : `${count} course${count === 1 ? '' : 's'}`
+    const service = product.sessionTypeName || (locale === 'sl' ? 'Ni izbrana storitev' : 'No service type selected')
+    if (count <= 0) return service
+    return locale === 'sl'
+      ? `${service} · ${count} tečaj${count === 1 ? '' : 'i'}`
+      : `${service} · ${count} course${count === 1 ? '' : 's'}`
   }
   if (product.productType === 'MEMBERSHIP' && count > 0) {
     const service = product.sessionTypeName || (locale === 'sl' ? 'Vse storitve' : 'Any service type')
@@ -395,6 +398,10 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       window.alert('Gift cards must be linked to a transaction service.')
       return
     }
+    if (isCourseAccess && !guestProductForm.sessionTypeId.trim()) {
+      window.alert(locale === 'sl' ? 'Dostop do tečaja mora biti povezan s tipom storitve.' : 'Course access must be linked to a service type.')
+      return
+    }
     if (isCourseAccess && guestProductForm.includedCourseIds.length === 0) {
       window.alert(locale === 'sl' ? 'Dostop do tečaja mora vključevati vsaj en tečaj.' : 'Course access must include at least one course.')
       return
@@ -413,7 +420,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       validityDays,
       autoRenews: guestProductForm.productType === 'MEMBERSHIP' ? guestProductForm.autoRenews : false,
       sortOrder: Number.parseInt(guestProductForm.sortOrder || '0', 10) || 0,
-      sessionTypeId: (isGiftCard || isCourseAccess) ? null : (guestProductForm.sessionTypeId ? Number.parseInt(guestProductForm.sessionTypeId, 10) : null),
+      sessionTypeId: isGiftCard ? null : (guestProductForm.sessionTypeId ? Number.parseInt(guestProductForm.sessionTypeId, 10) : null),
       transactionServiceId: isGiftCard ? transactionServiceId : null,
       includedCourseIds: (guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE')
         ? guestProductForm.includedCourseIds.map((id) => Number.parseInt(id, 10)).filter((id) => Number.isFinite(id))
@@ -471,7 +478,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
         validityDays: product.productType === 'GIFT_CARD' ? (product.validityDays ?? 1) : (product.productType === 'COURSE' ? null : (product.validityDays ?? null)),
         autoRenews: product.productType === 'MEMBERSHIP' ? product.autoRenews : false,
         sortOrder: product.sortOrder ?? 0,
-        sessionTypeId: (product.productType === 'GIFT_CARD' || product.productType === 'COURSE') ? null : (product.sessionTypeId ?? null),
+        sessionTypeId: product.productType === 'GIFT_CARD' ? null : (product.sessionTypeId ?? null),
         transactionServiceId: product.productType === 'GIFT_CARD' ? (product.transactionServiceId ?? null) : null,
         includedCourseIds: (product.productType === 'MEMBERSHIP' || product.productType === 'COURSE') ? (product.includedCourseIds || []) : [],
       })
@@ -821,7 +828,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                 />
               </Field>
               <Field
-                label={guestProductForm.productType === 'PACK' || guestProductForm.productType === 'CLASS_TICKET' ? 'Service type *' : 'Service type'}
+                label={guestProductForm.productType === 'PACK' || guestProductForm.productType === 'CLASS_TICKET' || guestProductForm.productType === 'COURSE' ? 'Service type *' : 'Service type'}
                 hint={
                   guestProductForm.productType === 'GIFT_CARD'
                     ? 'Gift cards are linked to a transaction service instead.'
@@ -829,16 +836,19 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                     ? 'Required. Price is derived from linked transaction services on this type.'
                     : guestProductForm.productType === 'PACK'
                       ? 'Required. Price is derived from linked transaction services × quantity. Quantity can be 1 for a single ticket.'
-                      : 'Optional. When selected, this card can only be used for that service type.'
+                      : guestProductForm.productType === 'COURSE'
+                        ? 'Required. Used for billing, reporting and entitlement grouping for this course access product.'
+                        : 'Optional. When selected, this card can only be used for that service type.'
                 }
               >
                 <select
-                  disabled={guestProductForm.productType === 'GIFT_CARD' || guestProductForm.productType === 'COURSE'}
-                  required={guestProductForm.productType === 'CLASS_TICKET' || guestProductForm.productType === 'PACK'}
+                  disabled={guestProductForm.productType === 'GIFT_CARD'}
+                  required={guestProductForm.productType === 'CLASS_TICKET' || guestProductForm.productType === 'PACK' || guestProductForm.productType === 'COURSE'}
                   value={guestProductForm.sessionTypeId}
                   onChange={(e) => setGuestProductForm({ ...guestProductForm, sessionTypeId: e.target.value })}
                 >
-                  {(guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE' || guestProductForm.productType === 'GIFT_CARD') && <option value="">{guestProductForm.productType === 'COURSE' ? (locale === 'sl' ? 'Ni vezano na storitev' : 'Not linked to a service') : (locale === 'sl' ? 'Vse storitve' : 'Any service type')}</option>}
+                  {(guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'GIFT_CARD') && <option value="">{locale === 'sl' ? 'Vse storitve' : 'Any service type'}</option>}
+                  {guestProductForm.productType === 'COURSE' && <option value="">{locale === 'sl' ? 'Izberi tip storitve' : 'Select service type'}</option>}
                   {sessionTypes.map((sessionType) => (
                     <option key={sessionType.id} value={sessionType.id}>{sessionType.name}</option>
                   ))}
