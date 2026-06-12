@@ -1,0 +1,8 @@
+Course Bunny CSP player fix
+
+- Allowed Bunny Stream iframe player host in the platform Content-Security-Policy.
+- Added frame-src/child-src for https://iframe.mediadelivery.net and Bunny mediadelivery subdomains.
+- Added media-src so protected course audio/CDN playback can load from HTTPS media hosts.
+
+Deployment note:
+- Rebuild/redeploy Caddy/frontend stack or reload Caddy after applying this patch.
