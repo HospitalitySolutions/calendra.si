@@ -2959,7 +2959,7 @@ private fun walletOffersForTenant(state: GuestUiState, tenantId: String): List<W
 private fun isWalletBuyOfferProduct(bookable: Boolean, productType: String): Boolean {
     if (bookable) return false
     return when (productType.uppercase()) {
-        "PACK", "MEMBERSHIP", "CLASS_TICKET", "GIFT_CARD", "COURSE" -> true
+        "PACK", "MEMBERSHIP", "CLASS_TICKET", "GIFT_CARD" -> true
         else -> false
     }
 }

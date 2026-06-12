@@ -597,12 +597,6 @@ struct TenantLookupModel: Codable {
     let canJoin: Bool
     let employeeSelectionStep: Bool?
     let useEmployeeContact: Bool?
-    let billingEnabled: Bool?
-    let inboxEnabled: Bool?
-    let requireOnlinePayment: Bool?
-    let paymentRequirement: String?
-    let depositPercent: Int?
-    let acceptedPaymentMethods: [String]?
 }
 
 struct HomePayloadModel: Codable {

@@ -2932,7 +2932,6 @@ private fun buyMarketplaceSoftPanelColor(offer: WalletOfferCard, index: Int): Co
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
         type == "MEMBERSHIP" -> Color(0xFFE8F5EC)
-        type == "COURSE" -> Color(0xFFF2EDFF)
         isGiftOffer(offer) -> Color(0xFFFFF2E3)
         index % 2 == 0 -> Color(0xFFEAF6FF)
         else -> Color(0xFFFFF0E1)
@@ -2949,7 +2948,6 @@ private fun BuyMarketplaceVisualPanel(
     val type = offer.productType.uppercase(Locale.getDefault())
     val colors = when {
         isGiftOffer(offer) -> listOf(Color(0xFF8A6AF6), Color(0xFF6746D8))
-        type == "COURSE" -> listOf(Color(0xFF6F52E8), Color(0xFF3C2FA6))
         type == "MEMBERSHIP" -> listOf(Color(0xFF2F91FF), Color(0xFF0C5FDC))
         else -> listOf(Color(0xFF21C9C4), Color(0xFF0F87D7))
     }
@@ -2986,7 +2984,6 @@ private fun BuyMarketplaceVisualPanel(
         ) {
             when {
                 isGiftOffer(offer) -> BuyGiftCardIllustration(languageCode = languageCode)
-                type == "COURSE" -> Icon(Icons.Rounded.Description, contentDescription = null, tint = Color.White, modifier = Modifier.size(58.dp))
                 type == "MEMBERSHIP" -> BuyMembershipIllustration()
                 else -> BuyCardIllustration(accent = Color.White)
             }
@@ -3092,7 +3089,6 @@ private fun BuyGiftCardIllustration(languageCode: String) {
 private fun BuyOfferSmallIcon(offer: WalletOfferCard, accent: Color) {
     when {
         isGiftOffer(offer) -> Icon(Icons.Rounded.CardMembership, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
-        offer.productType.uppercase(Locale.getDefault()) == "COURSE" -> Icon(Icons.Rounded.Description, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
         offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
         else -> Icon(Icons.Rounded.ConfirmationNumber, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
     }
@@ -3102,7 +3098,6 @@ private fun buyMarketplaceCardTypeLabel(offer: WalletOfferCard, languageCode: St
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
         type == "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
-        type == "COURSE" -> walletTr(languageCode, "Course access", "Dostop do tečaja")
         isGiftOffer(offer) -> walletTr(languageCode, "Gift card", "Darilna kartica")
         else -> walletTr(languageCode, "Card", "Karta")
     }
@@ -3113,7 +3108,6 @@ private fun buyMarketplaceQuantityLabel(offer: WalletOfferCard, languageCode: St
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
         type == "MEMBERSHIP" -> walletTr(languageCode, "1 month", "1 mesec")
-        type == "COURSE" -> walletTr(languageCode, "Lifetime access", "Doživljenjski dostop")
         isGiftOffer(offer) -> walletTr(languageCode, "1 item", "1 kos")
         limit > 1 -> walletTr(languageCode, "$limit visits", "$limit obiskov")
         else -> walletTr(languageCode, "1 visit", "1 obisk")
@@ -3121,9 +3115,6 @@ private fun buyMarketplaceQuantityLabel(offer: WalletOfferCard, languageCode: St
 }
 
 private fun buyMarketplaceExpiryLabel(offer: WalletOfferCard, languageCode: String): String {
-    if (offer.productType.uppercase(Locale.getDefault()) == "COURSE") {
-        return walletTr(languageCode, "No expiry", "Brez poteka")
-    }
     val pattern = if (walletIsSl(languageCode)) "dd. MM. yyyy" else "dd MMM yyyy"
     val date = offer.validityDays?.takeIf { it > 0 }?.let { days ->
         java.time.LocalDate.now().plusDays(days.toLong()).format(java.time.format.DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
@@ -3135,7 +3126,6 @@ private fun buyMarketplacePriceSubtitle(offer: WalletOfferCard, languageCode: St
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
         type == "MEMBERSHIP" -> walletTr(languageCode, "monthly payment", "mesečno plačilo")
-        type == "COURSE" -> walletTr(languageCode, "one-time access", "enkratni dostop")
         isGiftOffer(offer) -> walletTr(languageCode, "value", "vrednost")
         else -> walletTr(languageCode, "total", "skupaj")
     }
@@ -3148,7 +3138,6 @@ private fun marketplaceOfferDescription(offer: WalletOfferCard, languageCode: St
     offer.description?.isNotBlank() == true -> offer.description
     isGiftOffer(offer) -> walletTr(languageCode, "A thoughtful gift for every occasion.", "Popolno darilo za vsak poseben trenutek.")
     offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> walletTr(languageCode, "A perfect start for new members.", "Popoln začetek za nove člane.")
-    offer.productType.uppercase(Locale.getDefault()) == "COURSE" -> walletTr(languageCode, "Lifetime access to selected courses after purchase.", "Doživljenjski dostop do izbranih tečajev po nakupu.")
     (offer.usageLimit ?: 0) > 1 -> walletTr(languageCode, "Flexible visits for all available sessions.", "Karta za več obiskov. Velja za vse termine.")
     else -> walletTr(languageCode, "Flexible access for your next visit.", "Prilagodljiv dostop za naslednji obisk.")
 }
@@ -3157,7 +3146,6 @@ private fun marketplaceOfferAccent(offer: WalletOfferCard, index: Int): Color {
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
         type == "MEMBERSHIP" -> Color(0xFF0D61D3)
-        type == "COURSE" -> Color(0xFF6F52E8)
         isGiftOffer(offer) -> Color(0xFF6F52E8)
         else -> Color(0xFF079B91)
     }

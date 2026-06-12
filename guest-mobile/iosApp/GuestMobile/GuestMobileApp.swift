@@ -4,11 +4,6 @@ import UserNotifications
 import FirebaseCore
 import FirebaseMessaging
 
-private func configureGuestFirebaseIfNeeded() {
-    guard FirebaseApp.app() == nil else { return }
-    FirebaseApp.configure()
-}
-
 extension Notification.Name {
     static let guestPushTokenUpdated = Notification.Name("guestPushTokenUpdated")
     static let guestPushOpenInbox = Notification.Name("guestPushOpenInbox")
@@ -34,7 +29,9 @@ enum GuestPushInboxRouter {
 
 final class GuestPushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        configureGuestFirebaseIfNeeded()
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
         Messaging.messaging().delegate = self
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
@@ -101,10 +98,6 @@ final class GuestPushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotific
 struct GuestMobileApp: App {
     @UIApplicationDelegateAdaptor(GuestPushAppDelegate.self) private var appDelegate
     @StateObject private var store = AppStore()
-
-    init() {
-        configureGuestFirebaseIfNeeded()
-    }
 
     var body: some Scene {
         WindowGroup {
