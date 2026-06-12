@@ -563,6 +563,8 @@ final class GuestApiClient {
     }
 }
 
+extension GuestApiClient: @unchecked Sendable {}
+
 private struct ApiErrorResponse: Decodable {
     let message: String
 }

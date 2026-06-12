@@ -7,9 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		FIREBASERES00000000000001 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FIREBASEPLIST0000000001 /* GoogleService-Info.plist */; };
-		FIREBASECOREBUILD00000001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = FIREBASECOREPROD00000001 /* FirebaseCore */; };
-		FIREBASEMSGBUILD000000001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = FIREBASEMSGPROD000000001 /* FirebaseMessaging */; };
 		A10000010000000000000001 /* GuestMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000110000000000000001 /* GuestMobileApp.swift */; };
 		A10000020000000000000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000120000000000000001 /* ContentView.swift */; };
 		A10000030000000000000001 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000130000000000000001 /* AppEnvironment.swift */; };
@@ -52,11 +49,13 @@
 		F3B994222F93546D005A7895 /* GuestApiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B9941C2F93546D005A7895 /* GuestApiClient.swift */; };
 		F3B9A1002F9A000000000001 /* WelcomeBookingBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = F3B9A1012F9A000000000001 /* WelcomeBookingBackground.png */; };
 		F3B9A2002F9A000000000002 /* SignupBackground.png in Resources */ = {isa = PBXBuildFile; fileRef = F3B9A2012F9A000000000002 /* SignupBackground.png */; };
+		FIREBASECOREBUILD00000001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = FIREBASECOREPROD00000001 /* FirebaseCore */; };
+		FIREBASEMSGBUILD000000001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = FIREBASEMSGPROD000000001 /* FirebaseMessaging */; };
+		FIREBASERES00000000000001 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FIREBASEPLIST0000000001 /* GoogleService-Info.plist */; };
 		G0G0E0010000000000000001 /* GoogleLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = G0G0E0110000000000000001 /* GoogleLogo.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		FIREBASEPLIST0000000001 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A10000110000000000000001 /* GuestMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestMobileApp.swift; sourceTree = "<group>"; };
 		A10000120000000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000130000000000000001 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
@@ -102,6 +101,7 @@
 		F3B9941E2F93546D005A7895 /* LocalProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalProfileStore.swift; sourceTree = "<group>"; };
 		F3B9A1012F9A000000000001 /* WelcomeBookingBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = WelcomeBookingBackground.png; sourceTree = "<group>"; };
 		F3B9A2012F9A000000000002 /* SignupBackground.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = SignupBackground.png; sourceTree = "<group>"; };
+		FIREBASEPLIST0000000001 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		G0G0E0110000000000000001 /* GoogleLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = GoogleLogo.png; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -335,37 +335,13 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 11.0.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		FIREBASECOREPROD00000001 /* FirebaseCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCore;
-		};
-		FIREBASEMSGPROD000000001 /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMessaging;
-		};
-/* End XCSwiftPackageProductDependency section */
-
 /* Begin XCBuildConfiguration section */
 		A10008000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				API_BASE_URL = "http://localhost:4000";
-				CLANG_ENABLE_OBJC_WEAK = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -375,7 +351,7 @@
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				INFOPLIST_FILE = GuestMobile/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Book";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -395,8 +371,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				API_BASE_URL = "https://app.calendra.si";
-				CLANG_ENABLE_OBJC_WEAK = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GuestMobile/GuestMobile.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -406,7 +382,7 @@
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.773864552259-lp4leak39rq78nrnshr616a7nftdkhkc";
 				INFOPLIST_FILE = GuestMobile/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Calendra Book";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -527,6 +503,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FIREBASECOREPROD00000001 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		FIREBASEMSGPROD000000001 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FIREBASEPKGREF0000000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A10007000000000000000001 /* Project object */;
 }

@@ -487,13 +487,13 @@ final class AppStore: ObservableObject {
                         useEmployeeContact: tenant.useEmployeeContact,
                         billingEnabled: tenant.billingEnabled,
                         inboxEnabled: tenant.inboxEnabled,
+                        cardImageUrl: tenant.cardImageUrl,
+                        logoImageUrl: tenant.logoImageUrl,
+                        iconImageUrl: tenant.iconImageUrl,
                         requireOnlinePayment: tenant.requireOnlinePayment,
                         paymentRequirement: tenant.paymentRequirement,
                         depositPercent: tenant.depositPercent,
-                        acceptedPaymentMethods: tenant.acceptedPaymentMethods,
-                        cardImageUrl: tenant.cardImageUrl,
-                        logoImageUrl: tenant.logoImageUrl,
-                        iconImageUrl: tenant.iconImageUrl
+                        acceptedPaymentMethods: tenant.acceptedPaymentMethods
                     )
                 )
             }
@@ -1157,17 +1157,13 @@ final class AppStore: ObservableObject {
     private func restartBookingRealtimeStreams() {
         stopBookingRealtimeStreams()
         guard !usePreviewData else { return }
+        let api = self.api
         for tenant in linkedTenants {
             let companyId = tenant.id
-            bookingRealtimeTasks[companyId] = Task { [weak self] in
-                guard let self else { return }
-                await self.api.listenForBookingUpdates(companyId: companyId) { [weak self] in
+            bookingRealtimeTasks[companyId] = Task { [api, companyId] in
+                await api.listenForBookingUpdates(companyId: companyId) {
                     await MainActor.run {
-                        guard let self else { return }
-                        Task { [weak self] in
-                            guard let self else { return }
-                            try? await self.refreshTenant(companyId: companyId)
-                        }
+                        NotificationCenter.default.post(name: .guestPushBookingChanged, object: companyId)
                     }
                 }
             }
