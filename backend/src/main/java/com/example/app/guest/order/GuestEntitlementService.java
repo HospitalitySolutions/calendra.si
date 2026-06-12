@@ -273,6 +273,9 @@ public class GuestEntitlementService {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("autoRenews", product.isAutoRenews());
         metadata.put("listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue());
+        if ((product.getProductType() == ProductType.COURSE || product.getProductType() == ProductType.MEMBERSHIP) && membershipCourses != null) {
+            metadata.put("includedCourseIds", mappedCourseIds(product));
+        }
         if (product.getProductType() == ProductType.COURSE) {
             String token = UUID.randomUUID().toString();
             entitlement.setCourseAccessToken(token);
@@ -280,10 +283,6 @@ public class GuestEntitlementService {
             metadata.put("courseAccessUrl", buildCourseAccessUrl(token));
             metadata.put("courseAccessSource", "DIRECT_PURCHASE");
             metadata.put("lifetimeAccess", true);
-        } else if (product.getProductType() == ProductType.MEMBERSHIP && membershipCourses != null) {
-            metadata.put("includedCourseIds", membershipCourses.findAllByMembershipProductIdAndCompanyIdOrderByCourseTitleAsc(product.getId(), product.getCompany().getId()).stream()
-                    .map(row -> row.getCourse().getId())
-                    .toList());
         }
         entitlement.setMetadataJson(writeMetadata(metadata));
         entitlement = entitlements.save(entitlement);
@@ -304,12 +303,11 @@ public class GuestEntitlementService {
                 membershipProduct.getCompany().getId()
         );
         for (MembershipCourse row : rows) {
-            if (row.getCourse() == null || row.getCourse().getGuestProduct() == null) continue;
-            GuestProduct courseProduct = row.getCourse().getGuestProduct();
+            if (row.getCourse() == null) continue;
             GuestEntitlement courseEntitlement = new GuestEntitlement();
             courseEntitlement.setCompany(order.getCompany());
             courseEntitlement.setClient(order.getClient());
-            courseEntitlement.setProduct(courseProduct);
+            courseEntitlement.setProduct(membershipProduct);
             courseEntitlement.setSourceOrder(order);
             courseEntitlement.setEntitlementType(EntitlementType.COURSE);
             courseEntitlement.setStatus(EntitlementStatus.ACTIVE);
@@ -317,9 +315,9 @@ public class GuestEntitlementService {
             courseEntitlement.setValidUntil(membershipEntitlement.getValidUntil());
             courseEntitlement.setRemainingUses(1);
             courseEntitlement.setEntitlementCode(generateUniqueEntitlementCode());
-            int seq = (int) (entitlements.countByProductId(courseProduct.getId()) + 1);
+            int seq = (int) (entitlements.countByProductId(membershipProduct.getId()) + 1);
             courseEntitlement.setDisplaySeq(seq);
-            courseEntitlement.setDisplayCode(buildDisplayCode(courseProduct, seq));
+            courseEntitlement.setDisplayCode(buildDisplayCode(membershipProduct, seq));
             Map<String, Object> metadata = new LinkedHashMap<>();
             String token = UUID.randomUUID().toString();
             courseEntitlement.setCourseAccessToken(token);
@@ -327,6 +325,8 @@ public class GuestEntitlementService {
             metadata.put("courseAccessUrl", buildCourseAccessUrl(token));
             metadata.put("courseAccessSource", "MEMBERSHIP");
             metadata.put("membershipEntitlementId", membershipEntitlement.getId());
+            metadata.put("courseId", row.getCourse().getId());
+            metadata.put("courseTitle", row.getCourse().getTitle());
             metadata.put("lifetimeAccess", false);
             courseEntitlement.setMetadataJson(writeMetadata(metadata));
             courseEntitlement = entitlements.save(courseEntitlement);
@@ -334,6 +334,19 @@ public class GuestEntitlementService {
                 courseAccessEmailService.sendCourseAccessEmail(courseEntitlement, courseAccessUrl(courseEntitlement));
             }
         }
+    }
+
+    private List<Long> mappedCourseIds(GuestProduct product) {
+        if (membershipCourses == null || product == null || product.getId() == null || product.getCompany() == null) {
+            return List.of();
+        }
+        return membershipCourses.findAllByMembershipProductIdAndCompanyIdOrderByCourseTitleAsc(
+                        product.getId(),
+                        product.getCompany().getId()
+                ).stream()
+                .map(row -> row.getCourse() == null ? null : row.getCourse().getId())
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     private String courseAccessUrl(GuestEntitlement entitlement) {

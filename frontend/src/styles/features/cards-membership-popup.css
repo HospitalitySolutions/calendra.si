@@ -1,4 +1,4 @@
-/* Cards & memberships create/edit popup — modern Service-types style */
+/* Entitlements create/edit popup — modern Service-types style */
 .cards-product-modal-backdrop.booking-side-panel-backdrop {
     align-items: center;
     justify-content: center;
@@ -398,7 +398,7 @@ button.cards-product-delete-btn {
     }
 }
 
-/* Cards & memberships list: delete on row (not in edit modal) */
+/* Entitlements list: delete on row (not in edit modal) */
 .clients-mobile-card-head-tools {
     display: inline-flex;
     align-items: center;

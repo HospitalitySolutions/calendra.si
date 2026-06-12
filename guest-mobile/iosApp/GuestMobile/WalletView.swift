@@ -147,7 +147,7 @@ private func walletProductTypeLabel(_ type: String, languageCode: String) -> Str
     case "MEMBERSHIP": return walletTr(languageCode, "Membership", "Članarina")
     case "CLASS_TICKET": return walletTr(languageCode, "Class ticket", "Vstopnica")
     case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(languageCode, "Gift card", "Darilna kartica")
-    case "COURSE": return walletTr(languageCode, "Course", "Tečaj")
+    case "COURSE": return walletTr(languageCode, "Course access", "Dostop do tečaja")
     case "ORDER": return walletTr(languageCode, "Order", "Naročilo")
     default: return type.capitalized
     }
@@ -2083,7 +2083,7 @@ private struct WalletStackedPassCard: View {
         case "PACK", "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Ticket", "Vstopnica")
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Membership", "Članarina")
         case "GIFT_CARD": return walletTr(appUiLocaleStorage, "Gift card", "Darilna kartica")
-        case "COURSE": return walletTr(appUiLocaleStorage, "Course", "Tečaj")
+        case "COURSE": return walletTr(appUiLocaleStorage, "Course access", "Dostop do tečaja")
         default: return productTypeLabel(entitlement.type)
         }
     }

@@ -68,14 +68,14 @@ type GuestProductFormState = {
   includedCourseIds: string[]
 }
 
-const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = ['PACK', 'MEMBERSHIP', 'GIFT_CARD']
+const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = ['PACK', 'MEMBERSHIP', 'GIFT_CARD', 'COURSE']
 
 const CARD_PRODUCT_TYPE_LABELS: Record<GuestAdminProductType, string> = {
   CLASS_TICKET: 'Ticket',
   PACK: 'Tickets',
   MEMBERSHIP: 'Membership',
   GIFT_CARD: 'Gift card',
-  COURSE: 'Course',
+  COURSE: 'Course access',
 }
 
 const defaultGuestProductForm = (): GuestProductFormState => ({
@@ -178,6 +178,19 @@ function guestProductTransactionServiceLabel(product: GuestAdminProduct): string
   return code || description || '—'
 }
 
+function includedCoursesLabel(product: GuestAdminProduct, locale: string): string {
+  const count = Array.isArray(product.includedCourseIds) ? product.includedCourseIds.length : 0
+  if (product.productType === 'COURSE') {
+    if (count <= 0) return locale === 'sl' ? 'Ni izbranih tečajev' : 'No courses selected'
+    return locale === 'sl' ? `${count} tečaj${count === 1 ? '' : 'i'}` : `${count} course${count === 1 ? '' : 's'}`
+  }
+  if (product.productType === 'MEMBERSHIP' && count > 0) {
+    const service = product.sessionTypeName || (locale === 'sl' ? 'Vse storitve' : 'Any service type')
+    return locale === 'sl' ? `${service} · ${count} tečaj${count === 1 ? '' : 'i'}` : `${service} · ${count} course${count === 1 ? '' : 's'}`
+  }
+  return product.productType === 'GIFT_CARD' ? guestProductTransactionServiceLabel(product) : (product.sessionTypeName || (locale === 'sl' ? 'Vse storitve' : 'Any service type'))
+}
+
 function syncGuestProductPriceFromSessionTypes(form: GuestProductFormState, sessionTypes: SessionTypeT[]): GuestProductFormState {
   if (!guestProductTypeUsesAutoPrice(form.productType)) return form
   const suggested = suggestedGuestCardGross(form.productType, form.sessionTypeId, form.usageLimit, sessionTypes)
@@ -228,7 +241,8 @@ function CardsMembershipSortableHeader({ children }: { children: ReactNode }) {
 function guestProductWalletSubtitle(product: GuestAdminProduct): string {
   const bits: string[] = []
   if (product.autoRenews) bits.push('Auto-renew enabled')
-  bits.push('Wallet product')
+  if (product.productType === 'COURSE') bits.push('Course access entitlement')
+  else bits.push('Wallet entitlement')
   return bits.join(' · ')
 }
 
@@ -355,6 +369,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
     e.preventDefault()
     if (!isAdmin) return
     const isGiftCard = guestProductForm.productType === 'GIFT_CARD'
+    const isCourseAccess = guestProductForm.productType === 'COURSE'
     if (guestProductForm.productType === 'PACK') {
       if (!guestProductForm.sessionTypeId.trim()) {
         window.alert('Tickets must be linked to a service type.')
@@ -380,6 +395,10 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       window.alert('Gift cards must be linked to a transaction service.')
       return
     }
+    if (isCourseAccess && guestProductForm.includedCourseIds.length === 0) {
+      window.alert(locale === 'sl' ? 'Dostop do tečaja mora vključevati vsaj en tečaj.' : 'Course access must include at least one course.')
+      return
+    }
     const payload = {
       name: guestProductForm.name.trim(),
       description: guestProductForm.description.trim(),
@@ -390,13 +409,13 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       active: guestProductForm.active,
       guestVisible: guestProductForm.guestVisible,
       bookable: false,
-      usageLimit: (isClassTicket || isMembership || isGiftCard) ? 1 : parsePositiveIntegerInput(guestProductForm.usageLimit),
+      usageLimit: (isClassTicket || isMembership || isGiftCard || isCourseAccess) ? 1 : parsePositiveIntegerInput(guestProductForm.usageLimit),
       validityDays,
       autoRenews: guestProductForm.productType === 'MEMBERSHIP' ? guestProductForm.autoRenews : false,
       sortOrder: Number.parseInt(guestProductForm.sortOrder || '0', 10) || 0,
-      sessionTypeId: isGiftCard ? null : (guestProductForm.sessionTypeId ? Number.parseInt(guestProductForm.sessionTypeId, 10) : null),
+      sessionTypeId: (isGiftCard || isCourseAccess) ? null : (guestProductForm.sessionTypeId ? Number.parseInt(guestProductForm.sessionTypeId, 10) : null),
       transactionServiceId: isGiftCard ? transactionServiceId : null,
-      includedCourseIds: guestProductForm.productType === 'MEMBERSHIP'
+      includedCourseIds: (guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE')
         ? guestProductForm.includedCourseIds.map((id) => Number.parseInt(id, 10)).filter((id) => Number.isFinite(id))
         : [],
     }
@@ -409,9 +428,9 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       setEditingGuestProductId(null)
       setGuestProductForm(defaultGuestProductForm())
       await loadGuestProducts()
-      showToast('success', wasEditing ? 'Card updated.' : 'Card created.')
+      showToast('success', wasEditing ? 'Entitlement updated.' : 'Entitlement created.')
     } catch (err: any) {
-      window.alert(err?.response?.data?.message || 'Failed to save card.')
+      window.alert(err?.response?.data?.message || 'Failed to save entitlement.')
     } finally {
       setSavingGuestProduct(false)
     }
@@ -428,9 +447,9 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
         setGuestProductForm(defaultGuestProductForm())
       }
       await loadGuestProducts()
-      showToast('success', 'Card deleted.')
+      showToast('success', 'Entitlement deleted.')
     } catch (err: any) {
-      window.alert(err?.response?.data?.message || 'Failed to delete card.')
+      window.alert(err?.response?.data?.message || 'Failed to delete entitlement.')
     }
   }
 
@@ -448,16 +467,17 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
         active: nextActive,
         guestVisible: product.guestVisible,
         bookable: false,
-        usageLimit: product.productType === 'CLASS_TICKET' ? 1 : (product.usageLimit ?? null),
-        validityDays: product.productType === 'GIFT_CARD' ? (product.validityDays ?? 1) : (product.validityDays ?? null),
+        usageLimit: (product.productType === 'CLASS_TICKET' || product.productType === 'COURSE') ? 1 : (product.usageLimit ?? null),
+        validityDays: product.productType === 'GIFT_CARD' ? (product.validityDays ?? 1) : (product.productType === 'COURSE' ? null : (product.validityDays ?? null)),
         autoRenews: product.productType === 'MEMBERSHIP' ? product.autoRenews : false,
         sortOrder: product.sortOrder ?? 0,
-        sessionTypeId: product.productType === 'GIFT_CARD' ? null : (product.sessionTypeId ?? null),
+        sessionTypeId: (product.productType === 'GIFT_CARD' || product.productType === 'COURSE') ? null : (product.sessionTypeId ?? null),
         transactionServiceId: product.productType === 'GIFT_CARD' ? (product.transactionServiceId ?? null) : null,
+        includedCourseIds: (product.productType === 'MEMBERSHIP' || product.productType === 'COURSE') ? (product.includedCourseIds || []) : [],
       })
       setOpenProductMenuId(null)
       await loadGuestProducts()
-      showToast('success', `Card ${nextActive ? 'activated' : 'archived'}.`)
+      showToast('success', `Entitlement ${nextActive ? 'activated' : 'archived'}.`)
     } catch (err: any) {
       window.alert(err?.response?.data?.message || 'Failed to update card status.')
     } finally {
@@ -505,7 +525,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
   return (
     <>
       {guestProducts.length === 0 ? (
-        <EmptyState title="No cards yet" text="Create your first membership or ticket card to start selling it in the guest app wallet." />
+        <EmptyState title="No entitlements yet" text="Create your first entitlement, membership, gift card or course access product for the guest wallet." />
       ) : filteredGuestProducts.length === 0 ? (
         <EmptyState title={t('calendarFilterSearchNoResults')} text={t('sessionTypesSearchNoMatchesText')} />
       ) : (
@@ -538,7 +558,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                       className="secondary slim-btn cards-product-delete-btn cards-product-row-delete"
                       onClick={() => void deleteGuestProduct(product)}
                     >
-                      {locale === 'sl' ? 'Izbriši kartico' : 'Delete card'}
+                      {locale === 'sl' ? 'Izbriši kartico' : 'Delete entitlement'}
                     </button>
                     <div className="clients-card-menu-wrap">
                     <button
@@ -577,7 +597,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                   </div>
                   <div>
                     <span>{t('sessionTypesCardsColServiceType')}</span>
-                    <strong>{product.productType === 'GIFT_CARD' ? guestProductTransactionServiceLabel(product) : (product.sessionTypeName || 'Any service type')}</strong>
+                    <strong>{includedCoursesLabel(product, locale)}</strong>
                   </div>
                   <div>
                     <span>{t('sessionTypesCardsColPrice')}</span>
@@ -635,7 +655,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                     <td><CardsMembershipNameCell product={product} index={index} /></td>
                     <td className="clients-muted service-config-category-cell">{productTypeLabel(product.productType)}</td>
                     <td className="clients-muted service-config-category-cell">
-                      {product.productType === 'GIFT_CARD' ? guestProductTransactionServiceLabel(product) : (product.sessionTypeName || 'Any service type')}
+                      {includedCoursesLabel(product, locale)}
                     </td>
                     <td className="clients-muted service-config-price-cell">{currency(product.priceGross)}</td>
                     <td className="clients-muted">{product.validityDays ? `${product.validityDays} days` : 'No expiry'}</td>
@@ -663,7 +683,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                             void deleteGuestProduct(product)
                           }}
                         >
-                          {locale === 'sl' ? 'Izbriši kartico' : 'Delete card'}
+                          {locale === 'sl' ? 'Izbriši kartico' : 'Delete entitlement'}
                         </button>
                         <div className="clients-card-menu-wrap">
                           <button
@@ -717,8 +737,8 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
           <div className="modal large-modal booking-side-panel cards-product-modal" onClick={(e) => e.stopPropagation()}>
             <div className="cards-product-modal-header">
               <div className="cards-product-modal-heading">
-                <h2>{editingGuestProductId ? 'Edit card' : 'New card'}</h2>
-                {editingGuestProductId && <p>Update the details of this card.</p>}
+                <h2>{editingGuestProductId ? (locale === 'sl' ? 'Uredi ugodnost' : 'Edit entitlement') : (locale === 'sl' ? 'Nova ugodnost' : 'New entitlement')}</h2>
+                {editingGuestProductId && <p>{locale === 'sl' ? 'Posodobite podrobnosti ugodnosti.' : 'Update the details of this entitlement.'}</p>}
               </div>
               <button
                 type="button"
@@ -744,7 +764,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                   onChange={(e) => setGuestProductForm({ ...guestProductForm, name: e.target.value })}
                 />
               </Field>
-              <Field label="Card type *">
+              <Field label={locale === 'sl' ? 'Tip ugodnosti *' : 'Entitlement type *'}>
                 <select
                   value={guestProductForm.productType}
                   onChange={(e) => {
@@ -813,12 +833,12 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                 }
               >
                 <select
-                  disabled={guestProductForm.productType === 'GIFT_CARD'}
+                  disabled={guestProductForm.productType === 'GIFT_CARD' || guestProductForm.productType === 'COURSE'}
                   required={guestProductForm.productType === 'CLASS_TICKET' || guestProductForm.productType === 'PACK'}
                   value={guestProductForm.sessionTypeId}
                   onChange={(e) => setGuestProductForm({ ...guestProductForm, sessionTypeId: e.target.value })}
                 >
-                  {guestProductForm.productType === 'MEMBERSHIP' && <option value="">Any service type</option>}
+                  {(guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE' || guestProductForm.productType === 'GIFT_CARD') && <option value="">{guestProductForm.productType === 'COURSE' ? (locale === 'sl' ? 'Ni vezano na storitev' : 'Not linked to a service') : (locale === 'sl' ? 'Vse storitve' : 'Any service type')}</option>}
                   {sessionTypes.map((sessionType) => (
                     <option key={sessionType.id} value={sessionType.id}>{sessionType.name}</option>
                   ))}
@@ -869,17 +889,19 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                   onChange={(e) => setGuestProductForm({ ...guestProductForm, sortOrder: e.target.value })}
                 />
               </Field>
-              <Field label={guestProductForm.productType === 'GIFT_CARD' ? 'Validity (days) *' : 'Validity (days)'} hint={guestProductForm.productType === 'GIFT_CARD' ? 'Required for gift cards.' : 'Leave empty for no expiry.'}>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="E.g. 30"
-                  required={guestProductForm.productType === 'GIFT_CARD'}
-                  value={guestProductForm.validityDays}
-                  onChange={(e) => setGuestProductForm({ ...guestProductForm, validityDays: e.target.value })}
-                />
-              </Field>
+              {guestProductForm.productType !== 'COURSE' && (
+                <Field label={guestProductForm.productType === 'GIFT_CARD' ? 'Validity (days) *' : 'Validity (days)'} hint={guestProductForm.productType === 'GIFT_CARD' ? 'Required for gift cards.' : 'Leave empty for no expiry.'}>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="E.g. 30"
+                    required={guestProductForm.productType === 'GIFT_CARD'}
+                    value={guestProductForm.validityDays}
+                    onChange={(e) => setGuestProductForm({ ...guestProductForm, validityDays: e.target.value })}
+                  />
+                </Field>
+              )}
               {guestProductForm.productType === 'PACK' && (
                 <Field
                   label="Quantity *"
@@ -919,8 +941,13 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                   <button type="button" className={guestProductForm.guestVisible ? 'cards-product-toggle-btn active' : 'cards-product-toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, guestVisible: true })}>ON</button>
                 </div>
               </Field>
-              {guestProductForm.productType === 'MEMBERSHIP' && (
-                <Field label="Included courses" hint="Guests with this membership can access selected courses while membership is active.">
+              {(guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE') && (
+                <Field
+                  label={locale === 'sl' ? 'Vključeni tečaji' : 'Included courses'}
+                  hint={guestProductForm.productType === 'COURSE'
+                    ? (locale === 'sl' ? 'Gost dobi doživljenjski dostop do izbranih tečajev po nakupu te ugodnosti.' : 'Guests get lifetime access to selected courses after buying this entitlement.')
+                    : (locale === 'sl' ? 'Članarina omogoča dostop do izbranih tečajev, dokler je aktivna.' : 'Guests with this membership can access selected courses while the membership is active.')}
+                >
                   <div className="service-config-course-picker">
                     {courses.length === 0 ? (
                       <div className="muted">No courses created yet. Add courses in the Courses tab.</div>
@@ -955,7 +982,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                 <div className="cards-product-modal-footer-actions">
                   <button type="submit" className="gapp-primary-button" disabled={savingGuestProduct}>
                     <GuestConfigSaveIcon />
-                    {savingGuestProduct ? t('formSaving') : editingGuestProductId ? t('formSaveChanges') : locale === 'sl' ? 'Ustvari kartico' : 'Create card'}
+                    {savingGuestProduct ? t('formSaving') : editingGuestProductId ? t('formSaveChanges') : locale === 'sl' ? 'Ustvari ugodnost' : 'Create entitlement'}
                   </button>
                 </div>
               </div>

@@ -185,7 +185,7 @@ private fun walletProductTypeLabel(type: String, languageCode: String): String =
     "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
     "CLASS_TICKET" -> walletTr(languageCode, "Class ticket", "Vstopnica")
     "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
-    "COURSE" -> walletTr(languageCode, "Course", "Tečaj")
+    "COURSE" -> walletTr(languageCode, "Course access", "Dostop do tečaja")
     else -> type.lowercase(Locale.getDefault()).replaceFirstChar { it.uppercase() }
 }
 
@@ -2268,7 +2268,7 @@ private fun entitlementTopRightTypeLabel(type: String, languageCode: String = "e
     "PACK", "CLASS_TICKET" -> walletTr(languageCode, "Ticket", "Vstopnica")
     "MEMBERSHIP" -> walletTr(languageCode, "Membership", "Članarina")
     "GIFT_CARD" -> walletTr(languageCode, "Gift card", "Darilna kartica")
-    "COURSE" -> walletTr(languageCode, "Course", "Tečaj")
+    "COURSE" -> walletTr(languageCode, "Course access", "Dostop do tečaja")
     else -> productTypeLabel(type)
 }
 

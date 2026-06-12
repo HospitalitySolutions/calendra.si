@@ -10,7 +10,6 @@ import {
 import { api } from '../api'
 import { EmptyState, Field } from '../components/ui'
 import { useToast } from '../components/Toast'
-import { currency } from '../lib/format'
 import { useLocale } from '../locale'
 
 type CourseMediaType = 'VIDEO' | 'AUDIO'
@@ -317,7 +316,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
       ) : filtered.length === 0 ? (
         <EmptyState
           title={locale === 'sl' ? 'Ni tečajev' : 'No courses'}
-          text={locale === 'sl' ? 'Dodajte prvi video ali audio tečaj za prodajo v guest aplikaciji, na spletni strani in v denarnici stranke.' : 'Add your first video or audio course for guest app, website widget and client wallet sales.'}
+          text={locale === 'sl' ? 'Dodajte prvi video ali audio tečaj. Prodaja se nastavi posebej v zavihku Ugodnosti.' : 'Add your first video or audio course. Selling/access is configured separately in Entitlements.'}
         />
       ) : (
         <table className="services-table service-config-table">
@@ -326,7 +325,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
               <th>{locale === 'sl' ? 'Tečaj' : 'Course'}</th>
               <th>{locale === 'sl' ? 'Tip' : 'Type'}</th>
               <th>{locale === 'sl' ? 'Status' : 'Status'}</th>
-              <th>{locale === 'sl' ? 'Cena' : 'Price'}</th>
               <th>Bunny</th>
               <th />
             </tr>
@@ -340,7 +338,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                 </td>
                 <td>{course.mediaType === 'AUDIO' ? (locale === 'sl' ? 'Audio' : 'Audio') : (locale === 'sl' ? 'Video' : 'Video')}</td>
                 <td><span className="status-pill">{course.status}</span></td>
-                <td><strong>{currency(course.priceGross)}</strong></td>
                 <td>
                   {course.mediaType === 'VIDEO'
                     ? (course.bunnyVideoId ? `Video ${course.bunnyVideoId}` : (locale === 'sl' ? 'Ni videa' : 'No video'))
@@ -378,19 +375,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                       <option value="AUDIO">Audio</option>
                     </select>
                   </Field>
-                  <Field label={locale === 'sl' ? 'Cena' : 'Price'}>
-                    <input inputMode="decimal" value={form.priceGross} onChange={(e) => setForm((f) => ({ ...f, priceGross: e.target.value }))} />
-                  </Field>
-                  <Field label={locale === 'sl' ? 'Status' : 'Status'}>
-                    <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as CourseStatus }))}>
-                      <option value="DRAFT">Draft</option>
-                      <option value="ACTIVE">Active</option>
-                      <option value="HIDDEN">Hidden</option>
-                    </select>
-                  </Field>
-                  <Field label={locale === 'sl' ? 'Sličica URL' : 'Thumbnail URL'}>
-                    <input value={form.thumbnailUrl} onChange={(e) => setForm((f) => ({ ...f, thumbnailUrl: e.target.value }))} />
-                  </Field>
                   <Field label="Bunny upload">
                     <input
                       type="file"
@@ -416,7 +400,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                 </Field>
                 <div className="form-grid two">
                   <label className="checkbox-row"><input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} /> {locale === 'sl' ? 'Aktivno' : 'Active'}</label>
-                  <label className="checkbox-row"><input type="checkbox" checked={form.guestVisible} onChange={(e) => setForm((f) => ({ ...f, guestVisible: e.target.checked }))} /> {locale === 'sl' ? 'Vidno gostom' : 'Visible to guests'}</label>
+                  <label className="checkbox-row"><input type="checkbox" checked={form.guestVisible} onChange={(e) => setForm((f) => ({ ...f, guestVisible: e.target.checked }))} /> {locale === 'sl' ? 'Na voljo za dostop' : 'Available for access'}</label>
                 </div>
               </section>
               <div className="booking-side-panel-footer session-type-config-modal-footer">

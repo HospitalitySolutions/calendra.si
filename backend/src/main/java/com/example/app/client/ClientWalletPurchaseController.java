@@ -120,6 +120,7 @@ public class ClientWalletPurchaseController {
         Long companyId = me.getCompany().getId();
         return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(companyId).stream()
                 .filter(GuestProduct::isActive)
+                .filter(product -> product.getCourse() == null)
                 .filter(product -> BUYABLE_WALLET_TYPES.contains(product.getProductType()))
                 .map(this::toWalletProductResponse)
                 .toList();
@@ -136,6 +137,7 @@ public class ClientWalletPurchaseController {
         Long companyId = me.getCompany().getId();
         var product = products.findByIdAndCompanyId(productId, companyId)
                 .filter(GuestProduct::isActive)
+                .filter(p -> p.getCourse() == null)
                 .filter(p -> BUYABLE_WALLET_TYPES.contains(p.getProductType()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet product not found."));
 

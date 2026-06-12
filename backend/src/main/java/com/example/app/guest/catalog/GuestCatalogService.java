@@ -107,6 +107,7 @@ public class GuestCatalogService {
             ));
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
+            if (product.getCourse() != null) continue;
             if (!billingEnabled && !product.isBookable()) continue;
             if (product.getSessionType() != null && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) continue;
             out.add(new GuestDtos.ProductResponse(
@@ -202,7 +203,7 @@ public class GuestCatalogService {
         }
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
-        if (!product.isActive() || !product.isGuestVisible()) {
+        if (product.getCourse() != null || !product.isActive() || !product.isGuestVisible()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This product is not available in the guest app.");
         }
         if (Boolean.FALSE.equals(guestSettings.billingEnabled(companyId)) && !product.isBookable()) {

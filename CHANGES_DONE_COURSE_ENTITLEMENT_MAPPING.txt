@@ -1,0 +1,13 @@
+Implemented course access as an entitlement product instead of selling raw Courses directly.
+
+Changes included:
+- Courses now act as a tenant media library only: video/audio upload and access-ready status are managed in Services -> Courses.
+- Courses are no longer auto-created as guest wallet products, so a newly uploaded course will not automatically appear in Guest mobile Buy, Website widget, or Client details wallet.
+- Renamed the Cards & memberships tab label to Entitlements / Ugodnosti.
+- Added Course access as a new entitlement/card type under Entitlements.
+- Course access entitlements can map one or multiple Courses.
+- Membership entitlements can still map selected Courses; membership-based access is valid only while the membership entitlement is active.
+- Direct Course access purchases create lifetime course-access entitlement cards with protected access/QR links.
+- Course-access links can now open one or multiple mapped courses and render a selector before the Bunny video/audio player.
+- Existing legacy direct course products are filtered out of guest Buy, website widget product resolution, client wallet purchase list, and admin Entitlements list.
+- Updated guest mobile labels for COURSE to Course access / Dostop do tečaja.

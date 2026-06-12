@@ -71,6 +71,7 @@ public class GuestProductAdminController {
     @Transactional(readOnly = true)
     public List<ProductAdminResponse> list(@AuthenticationPrincipal User me) {
         return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(me.getCompany().getId()).stream()
+                .filter(product -> product.getCourse() == null)
                 .map(this::toResponse)
                 .toList();
     }
@@ -126,7 +127,7 @@ public class GuestProductAdminController {
         TransactionService transactionService = productType == ProductType.GIFT_CARD
                 ? resolveTransactionService(request.transactionServiceId(), companyId)
                 : null;
-        // Cards & memberships are wallet products only. Booking-slot selection is handled by
+        // Entitlements are wallet products only. Booking-slot selection is handled by
         // session/widget products, not by purchased wallet products.
         boolean bookable = false;
         if (productType == ProductType.CLASS_TICKET && sessionType == null) {
@@ -142,9 +143,12 @@ public class GuestProductAdminController {
         if (productType == ProductType.PACK && (usageLimit == null || usageLimit < 1)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ticket quantity must be at least 1.");
         }
+        if (productType == ProductType.COURSE && (request.includedCourseIds() == null || request.includedCourseIds().isEmpty())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Course access entitlements must include at least one course.");
+        }
         validatePackOrClassPriceGross(productType, sessionType, usageLimit, priceGross);
 
-        Integer validityDays = normalizePositiveInteger(request.validityDays(), "Validity days");
+        Integer validityDays = productType == ProductType.COURSE ? null : normalizePositiveInteger(request.validityDays(), "Validity days");
         if (productType == ProductType.GIFT_CARD && validityDays == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift cards must have an expiry date.");
         }
@@ -166,6 +170,7 @@ public class GuestProductAdminController {
         product.setCurrency(normalizeCurrency(request.currency()));
         product.setSessionType(sessionType);
         product.setTransactionService(transactionService);
+        product.setCourse(null);
         product.setActive(nextActive);
         product.setGuestVisible(request.guestVisible() == null || Boolean.TRUE.equals(request.guestVisible()));
         product.setBookable(bookable);
@@ -253,7 +258,8 @@ public class GuestProductAdminController {
     }
 
     private void syncMembershipCourses(GuestProduct product, List<Long> includedCourseIds, Long companyId) {
-        if (product.getProductType() != ProductType.MEMBERSHIP) {
+        boolean supportsCourseAccess = product.getProductType() == ProductType.MEMBERSHIP || product.getProductType() == ProductType.COURSE;
+        if (!supportsCourseAccess) {
             if (product.getId() != null) {
                 membershipCourses.deleteAllByMembershipProductIdAndCompanyId(product.getId(), companyId);
             }
@@ -290,7 +296,7 @@ public class GuestProductAdminController {
     }
 
     private List<Long> includedCourseIds(GuestProduct product) {
-        if (product == null || product.getId() == null || product.getProductType() != ProductType.MEMBERSHIP) {
+        if (product == null || product.getId() == null || (product.getProductType() != ProductType.MEMBERSHIP && product.getProductType() != ProductType.COURSE)) {
             return List.of();
         }
         Long companyId = product.getCompany() == null ? null : product.getCompany().getId();

@@ -4,7 +4,6 @@ import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestOrderItemRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
-import com.example.app.guest.model.ProductType;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -61,9 +60,6 @@ public class CourseAdminController {
         course.setCompany(me.getCompany());
         apply(course, request);
         course = courses.save(course);
-        GuestProduct product = createOrUpdateProduct(course, null);
-        course.setGuestProduct(product);
-        course = courses.save(course);
         return toResponse(course);
     }
 
@@ -73,8 +69,6 @@ public class CourseAdminController {
         Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
         apply(course, request);
-        course = courses.save(course);
-        createOrUpdateProduct(course, course.getGuestProduct());
         return toResponse(courses.save(course));
     }
 
@@ -108,7 +102,6 @@ public class CourseAdminController {
             course.setFileName(session.fileName());
             course.setContentType(session.contentType());
             course.setMetadataJson("{\"uploadStatus\":\"DIRECT_UPLOAD_PENDING\"}");
-            createOrUpdateProduct(course, course.getGuestProduct());
             courses.save(course);
             return new DirectUploadSessionResponse(
                     session.uploadType(),
@@ -154,7 +147,6 @@ public class CourseAdminController {
         course.setMetadataJson("{\"uploadStatus\":\"UPLOADED_TO_BUNNY_STREAM_DIRECT\"}");
         course.setStatus(CourseStatus.ACTIVE);
         course.setActive(true);
-        createOrUpdateProduct(course, course.getGuestProduct());
         return toResponse(courses.save(course));
     }
 
@@ -189,7 +181,6 @@ public class CourseAdminController {
                     : result.bunnyVideoId() != null;
             course.setStatus(mediaReady ? CourseStatus.ACTIVE : CourseStatus.PROCESSING);
             course.setActive(mediaReady);
-            createOrUpdateProduct(course, course.getGuestProduct());
             return toResponse(courses.save(course));
         } catch (ResponseStatusException ex) {
             throw ex;
@@ -232,30 +223,6 @@ public class CourseAdminController {
         course.setThumbnailUrl(trimToNull(request.thumbnailUrl()));
         CourseStatus requestedStatus = parseStatus(request.status());
         if (requestedStatus != null) course.setStatus(requestedStatus);
-    }
-
-    private GuestProduct createOrUpdateProduct(Course course, GuestProduct existing) {
-        GuestProduct product = existing;
-        if (product == null && course.getGuestProduct() != null) product = course.getGuestProduct();
-        if (product == null) product = new GuestProduct();
-        product.setCompany(course.getCompany());
-        product.setCourse(course);
-        product.setProductType(ProductType.COURSE);
-        product.setName(course.getTitle());
-        product.setDescription(course.getDescription());
-        product.setPromoText(course.getMediaType() == CourseMediaType.AUDIO ? "Audio course" : "Video course");
-        product.setPriceGross(course.getPriceGross());
-        product.setCurrency(course.getCurrency());
-        product.setActive(course.isActive() && course.getStatus() == CourseStatus.ACTIVE);
-        product.setGuestVisible(course.isGuestVisible());
-        product.setBookable(false);
-        product.setUsageLimit(1);
-        product.setValidityDays(null);
-        product.setAutoRenews(false);
-        product.setSortOrder(course.getSortOrder());
-        product.setSessionType(null);
-        product.setTransactionService(null);
-        return products.save(product);
     }
 
     private CourseResponse toResponse(Course course) {

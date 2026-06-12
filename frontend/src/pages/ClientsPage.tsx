@@ -128,8 +128,9 @@ function formatWalletEntitlementStatusLabel(status: string | null | undefined): 
     .join(' ')
 }
 
-function entitlementKind(entitlement: ClientWalletEntitlement): 'membership' | 'pack' | 'ticket' | 'gift_card' {
+function entitlementKind(entitlement: ClientWalletEntitlement): 'membership' | 'pack' | 'ticket' | 'gift_card' | 'course' {
   const raw = `${entitlement.entitlementType ?? ''} ${entitlement.productName ?? ''}`.toLowerCase()
+  if (raw.includes('course') || raw.includes('tečaj')) return 'course'
   if (raw.includes('gift') || raw.includes('daril')) return 'gift_card'
   if (raw.includes('membership')) return 'membership'
   if (raw.includes('ticket')) return 'ticket'
@@ -142,14 +143,14 @@ function walletProductTypeLabel(productType: string | null | undefined, locale: 
     if (type === 'MEMBERSHIP') return 'Članarina'
     if (type === 'GIFT_CARD') return 'Darilna kartica'
     if (type === 'CLASS_TICKET') return 'Karta'
-    if (type === 'COURSE') return 'Tečaj'
+    if (type === 'COURSE') return 'Dostop do tečaja'
     if (type === 'PACK') return 'Paket'
     return 'Ugodnost'
   }
   if (type === 'MEMBERSHIP') return 'Membership'
   if (type === 'GIFT_CARD') return 'Gift card'
   if (type === 'CLASS_TICKET') return 'Ticket'
-  if (type === 'COURSE') return 'Course'
+  if (type === 'COURSE') return 'Course access'
   if (type === 'PACK') return 'Pack'
   return 'Entitlement'
 }
