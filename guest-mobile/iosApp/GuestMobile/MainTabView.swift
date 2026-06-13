@@ -62,11 +62,15 @@ struct MainTabView: View {
     }
 
     private var unreadInboxMessages: Int {
-        store.inboxUnreadCount
+        inboxEnabledTenants.reduce(into: 0) { partial, tenant in
+            let tenantUnread = Int(store.tenantDashboards[tenant.id]?.inboxThread?.unreadCount ?? 0)
+            partial += max(0, tenantUnread)
+        }
     }
 
     private var inboxDialPhone: String? {
-        let t = store.currentTenant.phone?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let raw = inboxSelectedTenant?.phone ?? store.currentTenant.phone
+        let t = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return t.isEmpty ? nil : t
     }
 
@@ -80,10 +84,11 @@ struct MainTabView: View {
         if let selected = inboxEnabledTenants.first(where: { $0.id == selectedId }) {
             return selected
         }
-        if store.currentTenant.inboxEnabled != false {
-            return store.currentTenant
-        }
         return inboxEnabledTenants.first
+    }
+
+    private var resolvedInboxTenantId: String? {
+        inboxSelectedTenant?.id
     }
 
     private var inboxDashboardTenantName: String? {
@@ -342,6 +347,7 @@ struct MainTabView: View {
                 store.consumePendingInboxOpen()
                 return
             }
+            store.setTenantFilter(companyId)
             selectedTab = .inbox
             store.consumePendingInboxOpen()
         }
@@ -377,7 +383,15 @@ struct MainTabView: View {
                     case .wallet:
                         return walletTenantDraftId ?? store.walletScopedTenantId ?? store.linkedTenants.first?.id
                     case .inbox:
-                        return walletTenantDraftId ?? store.selectedTenantId ?? inboxEnabledTenants.first?.id
+                        let draftId = walletTenantDraftId
+                        if let draftId = draftId, inboxEnabledTenants.contains(where: { $0.id == draftId }) {
+                            return draftId
+                        }
+                        let selectedId = store.selectedTenantId
+                        if let selectedId = selectedId, inboxEnabledTenants.contains(where: { $0.id == selectedId }) {
+                            return selectedId
+                        }
+                        return inboxEnabledTenants.first?.id
                     }
                 }(),
                 allowsAllTenants: tenantPickerTarget == .calendar,
@@ -394,8 +408,9 @@ struct MainTabView: View {
                         store.setWalletTenantFilter(tenantId)
                         refreshWalletOffersIfNeeded(for: tenantId)
                     case .inbox:
+                        guard let resolvedTenantId = tenantId, inboxEnabledTenants.contains(where: { $0.id == resolvedTenantId }) else { return }
+                        store.setTenantFilter(resolvedTenantId)
                         selectedTab = .inbox
-                        store.setTenantFilter(tenantId)
                     }
                 },
                 onAddTenant: {
@@ -448,6 +463,9 @@ struct MainTabView: View {
         case .wallet:
             rescheduleContext = nil
             refreshWalletOffersIfNeeded()
+        case .inbox:
+            guard let tenantId = resolvedInboxTenantId else { return }
+            store.setTenantFilter(tenantId)
         default:
             break
         }
@@ -488,7 +506,10 @@ struct MainTabView: View {
         case .wallet:
             walletTenantDraftId = store.walletScopedTenantId ?? store.linkedTenants.first?.id
         case .inbox:
-            walletTenantDraftId = store.selectedTenantId ?? inboxEnabledTenants.first?.id ?? store.currentTenant.id
+            let selectedId = store.selectedTenantId
+            walletTenantDraftId = selectedId.flatMap { selected in
+                inboxEnabledTenants.contains(where: { $0.id == selected }) ? selected : nil
+            } ?? inboxEnabledTenants.first?.id
         }
         showWalletTenantPicker = true
     }
@@ -708,9 +729,7 @@ struct MainTabView: View {
                 navItem(.home, icon: "house", selectedIcon: "house.fill", title: isSl ? "Domov" : "Home")
                 navItem(.wallet, icon: "wallet.pass", selectedIcon: "wallet.pass.fill", title: isSl ? "Denarnica" : "Wallet")
                 bookTabItem
-                if inboxTabEnabled {
-                    navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: isSl ? "Prejeto" : "Inbox")
-                }
+                navItem(.inbox, icon: "ellipsis.message", selectedIcon: "ellipsis.message.fill", title: isSl ? "Prejeto" : "Inbox", enabled: inboxTabEnabled)
                 navItem(.calendar, icon: "calendar", selectedIcon: "calendar", title: isSl ? "Koledar" : "Calendar")
             }
             .padding(.horizontal, 14)
@@ -764,15 +783,19 @@ struct MainTabView: View {
         selectedTab = .book
     }
 
-    private func navItem(_ tab: Tab, icon: String, selectedIcon: String, title: String) -> some View {
+    private func navItem(_ tab: Tab, icon: String, selectedIcon: String, title: String, enabled: Bool = true) -> some View {
         Button {
-            if tab == .inbox && !inboxTabEnabled { return }
+            guard enabled else { return }
             bookLaunchRequest = nil
             bookReturnTab = nil
             if tab == .wallet {
                 rescheduleContext = nil
                 selectedTab = .wallet
                 refreshWalletOffersIfNeeded()
+            } else if tab == .inbox {
+                guard let tenantId = resolvedInboxTenantId else { return }
+                store.setTenantFilter(tenantId)
+                selectedTab = .inbox
             } else {
                 selectedTab = tab
             }
@@ -781,7 +804,7 @@ struct MainTabView: View {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: selectedTab == tab ? selectedIcon : icon)
                         .font(.system(size: 20, weight: .semibold))
-                    if tab == .inbox, unreadInboxMessages > 0 {
+                    if enabled, tab == .inbox, unreadInboxMessages > 0 {
                         Text("\(min(unreadInboxMessages, 99))")
                             .font(.caption2.weight(.bold))
                             .foregroundColor(.white)
@@ -794,10 +817,11 @@ struct MainTabView: View {
                 Text(title)
                     .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .medium))
             }
-            .foregroundColor(selectedTab == tab ? Color(red: 0.114, green: 0.400, blue: 0.957) : Color(red: 0.369, green: 0.435, blue: 0.522))
+            .foregroundColor(!enabled ? Color(red: 0.369, green: 0.435, blue: 0.522).opacity(0.38) : (selectedTab == tab ? Color(red: 0.114, green: 0.400, blue: 0.957) : Color(red: 0.369, green: 0.435, blue: 0.522)))
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 }
 

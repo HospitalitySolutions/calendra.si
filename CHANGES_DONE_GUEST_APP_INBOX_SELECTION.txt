@@ -1,0 +1,18 @@
+Refined guest mobile Inbox/Prejeto tenant availability behavior.
+
+What changed:
+- Guest mobile Inbox bottom tab is enabled when at least one linked tenant has Guest aplikacija -> Prejeto ON.
+- If the guest has only a tenant where Guest aplikacija -> Prejeto is OFF, the Inbox/Prejeto bottom tab remains visible but disabled/grayed out.
+- If the guest has multiple linked tenants, tenants with Guest aplikacija -> Prejeto OFF are excluded from the Inbox tenant dropdown instead of disabling the whole Inbox tab.
+- Android now resolves the active Inbox tenant to the first enabled tenant when the currently selected tenant has inbox disabled.
+- Android Inbox tenant picker now receives only inbox-enabled tenants.
+- iOS Inbox tenant picker already used enabled tenants; selection was tightened so disabled tenants cannot remain selected.
+- Inbox unread badge counts now use only inbox-enabled tenants in the mobile shell.
+- Push/deep-link opening of Inbox remains blocked for tenants where guest mobile Inbox is OFF.
+
+Files updated:
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/GuestMobileRoot.kt
+- guest-mobile/iosApp/GuestMobile/MainTabView.swift
+
+Notes:
+- This builds on the previous separate Prejeto controls: Komunikacija -> Prejeto controls the web app only, while Guest aplikacija -> Prejeto controls guest mobile Inbox availability.

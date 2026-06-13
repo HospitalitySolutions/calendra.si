@@ -1,0 +1,20 @@
+Implemented separate Inbox/Prejeto control for web app vs guest mobile apps.
+
+Changed behavior:
+- Komunikacija -> Prejeto now controls only the web app Inbox/Prejeto module via INBOX_ENABLED.
+- Guest mobile apps no longer use INBOX_ENABLED to decide whether the Inbox tab is available.
+- Added a separate Guest aplikacija -> Prejeto switch in App nastavitve/modules.
+- Guest aplikacija -> Prejeto is stored inside GUEST_APP_SETTINGS_JSON as inboxEnabled.
+- When Guest aplikacija -> Prejeto is OFF, the guest mobile Inbox/Prejeto tab is returned as disabled for that tenant.
+- Android guest app now keeps the Inbox/Prejeto bottom tab visible but grayed out when no linked tenant has guest inbox enabled.
+- iOS guest app now keeps the Inbox/Prejeto bottom tab visible but grayed out when no linked tenant has guest inbox enabled.
+
+Updated files:
+- frontend/src/pages/ConfigurationPage.tsx
+- backend/src/main/java/com/example/app/guest/common/GuestSettingsService.java
+- guest-mobile/androidApp/src/main/kotlin/si/calendra/guest/android/ui/GuestMobileRoot.kt
+- guest-mobile/iosApp/GuestMobile/MainTabView.swift
+
+Notes:
+- Existing tenants default to guest mobile Inbox ON unless inboxEnabled is explicitly set to false in GUEST_APP_SETTINGS_JSON.
+- Full build was not run in this sandbox because the frontend dependencies/Gradle project dependencies are not installed here.

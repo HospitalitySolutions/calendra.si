@@ -393,7 +393,17 @@ fun GuestMobileRoot() {
         }
     }
 
-    val inboxTabEnabled = state.uiState.linkedTenants.any { it.inboxEnabled }
+    fun inboxEnabledTenants(): List<si.calendra.guest.shared.models.TenantSummary> =
+        state.uiState.linkedTenants.filter { it.inboxEnabled }
+
+    fun resolveInboxTenantId(preferredTenantId: String? = state.uiState.selectedTenantId): String? {
+        val eligibleTenants = inboxEnabledTenants()
+        return preferredTenantId
+            ?.takeIf { selected -> eligibleTenants.any { it.companyId == selected } }
+            ?: eligibleTenants.firstOrNull()?.companyId
+    }
+
+    val inboxTabEnabled = inboxEnabledTenants().isNotEmpty()
 
     fun navigateToTab(route: String) {
         if (route != RootRoute.Book.route) {
@@ -461,9 +471,15 @@ fun GuestMobileRoot() {
     }
 
     fun requestTabNavigation(route: String) {
-        if (route == RootRoute.Inbox.route && !inboxTabEnabled) {
-            navigateToTab(RootRoute.Home.route)
-            return
+        if (route == RootRoute.Inbox.route) {
+            val inboxTenantId = resolveInboxTenantId()
+            if (inboxTenantId == null) {
+                navigateToTab(RootRoute.Home.route)
+                return
+            }
+            if (state.uiState.selectedTenantId != inboxTenantId) {
+                state.uiState = state.uiState.copy(selectedTenantId = inboxTenantId)
+            }
         }
 
         if (route == RootRoute.Wallet.route) {
@@ -1460,12 +1476,12 @@ fun GuestMobileRoot() {
                     Box(Modifier.fillMaxSize())
                     return@composable
                 }
-                val inboxSelectedId = state.uiState.selectedTenantId
-                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                val eligibleInboxTenants = inboxEnabledTenants()
+                val inboxSelectedId = resolveInboxTenantId()
                 val activeTenantId = inboxSelectedId
                 val activeDashboard = activeTenantId?.let { state.uiState.tenantDashboards[it] }
                 val inboxTenantPhone = activeDashboard?.tenant?.publicPhone
-                    ?: state.uiState.linkedTenants
+                    ?: eligibleInboxTenants
                         .firstOrNull { it.companyId == inboxSelectedId }
                         ?.publicPhone
                 GuestTabsScaffold(
@@ -1491,14 +1507,17 @@ fun GuestMobileRoot() {
                     onTabSelected = ::requestTabNavigation,
                     leading = { ProfileTopLogo() },
                     tenantSelectorLabel = activeDashboard?.tenant?.companyName
-                        ?: state.uiState.linkedTenants.firstOrNull { it.companyId == activeTenantId }?.companyName
-                        ?: state.uiState.linkedTenants.firstOrNull()?.companyName
+                        ?: eligibleInboxTenants.firstOrNull { it.companyId == activeTenantId }?.companyName
+                        ?: eligibleInboxTenants.firstOrNull()?.companyName
                         ?: if (appUiLocale.lowercase().startsWith("sl")) "Izberi ponudnika" else "Select tenant",
                     onTenantSelectorClick = {
-                        tenantPickerTarget = TenantPickerTarget.Inbox
-                        walletTenantPickerDraftId = activeTenantId
-                            ?: state.uiState.linkedTenants.firstOrNull()?.companyId
-                        showWalletTenantPicker = true
+                        val eligibleTenants = inboxEnabledTenants()
+                        if (eligibleTenants.isNotEmpty()) {
+                            tenantPickerTarget = TenantPickerTarget.Inbox
+                            walletTenantPickerDraftId = activeTenantId
+                                ?: eligibleTenants.firstOrNull()?.companyId
+                            showWalletTenantPicker = true
+                        }
                     }
                 ) { innerModifier ->
                     LaunchedEffect(activeTenantId) {
@@ -1738,14 +1757,20 @@ fun GuestMobileRoot() {
             SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(bottom = 104.dp))
         }
         if (showWalletTenantPicker) {
+            val pickerTenants = when (tenantPickerTarget) {
+                TenantPickerTarget.Inbox -> inboxEnabledTenants()
+                else -> state.uiState.linkedTenants
+            }
             val selectedTenantId = when (tenantPickerTarget) {
                 TenantPickerTarget.Calendar -> walletTenantPickerDraftId ?: calendarSelectedTenantId
                 TenantPickerTarget.Wallet -> walletTenantPickerDraftId
                     ?: state.uiState.walletSelectedTenantId
-                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                    ?: pickerTenants.firstOrNull()?.companyId
                 TenantPickerTarget.Inbox -> walletTenantPickerDraftId
+                    ?.takeIf { selected -> pickerTenants.any { it.companyId == selected } }
                     ?: state.uiState.selectedTenantId
-                    ?: state.uiState.linkedTenants.firstOrNull()?.companyId
+                        ?.takeIf { selected -> pickerTenants.any { it.companyId == selected } }
+                    ?: pickerTenants.firstOrNull()?.companyId
             }
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ModalBottomSheet(
@@ -1765,7 +1790,7 @@ fun GuestMobileRoot() {
                 }
             ) {
                 TenantSelectionBottomSheetContent(
-                    tenants = state.uiState.linkedTenants,
+                    tenants = pickerTenants,
                     selectedTenantId = selectedTenantId,
                     languageCode = appUiLocale,
                     allowAllTenants = tenantPickerTarget == TenantPickerTarget.Calendar,
@@ -2620,9 +2645,7 @@ private fun BottomNavBar(
     val sideItems = buildList {
         add(Triple(RootRoute.Home.route, if (isSl) "Domov" else "Home", Icons.Rounded.Home))
         add(Triple(RootRoute.Wallet.route, if (isSl) "Denarnica" else "Wallet", Icons.Rounded.Wallet))
-        if (inboxEnabled) {
-            add(Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum))
-        }
+        add(Triple(RootRoute.Inbox.route, if (isSl) "Prejeto" else "Inbox", Icons.Rounded.Forum))
         add(Triple(RootRoute.Calendar.route, if (isSl) "Koledar" else "Calendar", Icons.Rounded.CalendarMonth))
     }
 
@@ -2648,12 +2671,14 @@ private fun BottomNavBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 sideItems.take(2).forEach { (route, label, icon) ->
+                    val itemEnabled = route != RootRoute.Inbox.route || inboxEnabled
                     BottomItem(
                         selected = current == route,
                         label = label,
                         onClick = { onTabSelected(route) },
                         icon = { Icon(icon, contentDescription = label) },
-                        badgeCount = if (route == RootRoute.Inbox.route) unreadInboxCount else 0,
+                        badgeCount = if (route == RootRoute.Inbox.route && itemEnabled) unreadInboxCount else 0,
+                        enabled = itemEnabled,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -2664,12 +2689,14 @@ private fun BottomNavBar(
                     modifier = Modifier.width(76.dp)
                 )
                 sideItems.drop(2).forEach { (route, label, icon) ->
+                    val itemEnabled = route != RootRoute.Inbox.route || inboxEnabled
                     BottomItem(
                         selected = current == route,
                         label = label,
                         onClick = { onTabSelected(route) },
                         icon = { Icon(icon, contentDescription = label) },
-                        badgeCount = if (route == RootRoute.Inbox.route) unreadInboxCount else 0,
+                        badgeCount = if (route == RootRoute.Inbox.route && itemEnabled) unreadInboxCount else 0,
+                        enabled = itemEnabled,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -2718,16 +2745,23 @@ private fun BottomItem(
     onClick: () -> Unit,
     icon: @Composable () -> Unit,
     badgeCount: Int = 0,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val contentColor = when {
+        !enabled -> BottomTabInactive.copy(alpha = 0.38f)
+        selected -> BottomTabAccent
+        else -> BottomTabInactive
+    }
     TextButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
         shape = RoundedCornerShape(18.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            CompositionLocalProvider(LocalContentColor provides if (selected) BottomTabAccent else BottomTabInactive) {
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
                 BadgedBox(
                     badge = {
                         if (badgeCount > 0) {
@@ -2742,7 +2776,7 @@ private fun BottomItem(
                 label,
                 style = MaterialTheme.typography.labelMedium.copy(fontSize = 10.sp),
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (selected) BottomTabAccent else BottomTabInactive
+                color = contentColor
             )
         }
     }
@@ -2884,13 +2918,18 @@ private fun unreadBellCount(state: GuestUiState): Int =
         }
 
 private fun unreadInboxCount(state: GuestUiState): Int =
-    badgeTenantIds(state)
+    inboxBadgeTenantIds(state)
         .sumOf { tenantId ->
             state.tenantDashboards[tenantId]?.inboxThread?.unreadCount?.toInt() ?: 0
         }
 
 private fun badgeTenantIds(state: GuestUiState): List<String> =
     state.linkedTenants.map { it.companyId }
+
+private fun inboxBadgeTenantIds(state: GuestUiState): List<String> =
+    state.linkedTenants
+        .filter { it.inboxEnabled }
+        .map { it.companyId }
 
 private fun aggregatedWallet(state: GuestUiState): WalletPayload? {
     val dashboards = state.linkedTenants.mapNotNull { state.tenantDashboards[it.companyId] }

@@ -31,7 +31,7 @@ public class GuestSettingsService {
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
         boolean enabled = root.path("guestAppEnabled").asBoolean(true);
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
-        boolean inboxEnabled = settingEnabled(values, SettingKey.INBOX_ENABLED, true);
+        boolean inboxEnabled = enabled && root.path("inboxEnabled").asBoolean(true);
         boolean discoverable = root.path("publicDiscoverable").asBoolean(false);
         String name = textOrNull(root.path("publicName"));
         String description = textOrNull(root.path("publicDescription"));
@@ -64,7 +64,8 @@ public class GuestSettingsService {
     public boolean inboxEnabled(Long companyId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
-        return settingEnabled(values, SettingKey.INBOX_ENABLED, true);
+        JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
+        return root.path("guestAppEnabled").asBoolean(true) && root.path("inboxEnabled").asBoolean(true);
     }
 
     public boolean advanceBillingEnabled(Long companyId) {

@@ -2642,6 +2642,7 @@ type GuestAppSettingsForm = {
   ordersEnabled: boolean
   buyTabEnabled: boolean
   entitlementsEnabled: boolean
+  inboxEnabled: boolean
   publicDiscoverable: boolean
   publicName: string
   publicDescription: string
@@ -2801,6 +2802,7 @@ const defaultGuestAppSettings = (): GuestAppSettingsForm => ({
   ordersEnabled: true,
   buyTabEnabled: true,
   entitlementsEnabled: false,
+  inboxEnabled: true,
   publicDiscoverable: false,
   publicName: '',
   publicDescription: '',
@@ -3141,6 +3143,7 @@ const parseGuestAppSettings = (raw: string | undefined): GuestAppSettingsForm =>
       ordersEnabled: parsed?.ordersEnabled !== false,
       buyTabEnabled: parsed?.buyTabEnabled !== false,
       entitlementsEnabled: parsed?.entitlementsEnabled === true,
+      inboxEnabled: parsed?.inboxEnabled !== false,
       publicDiscoverable: parsed?.publicDiscoverable === true,
       publicName: normalizePublicName(parsed?.publicName),
       publicDescription: String(parsed?.publicDescription || ''),
@@ -3300,6 +3303,7 @@ const serializeGuestAppSettings = (value: GuestAppSettingsForm) => JSON.stringif
   ordersEnabled: value.ordersEnabled,
   buyTabEnabled: value.buyTabEnabled,
   entitlementsEnabled: value.entitlementsEnabled,
+  inboxEnabled: value.inboxEnabled,
   publicDiscoverable: value.publicDiscoverable,
   publicName: normalizePublicName(value.publicName).trim(),
   publicDescription: normalizePublicDescription(value.publicDescription),
@@ -3390,6 +3394,7 @@ type ModulesDraft = {
   guestOrdersEnabled: boolean
   guestBuyTabEnabled: boolean
   guestEntitlementsEnabled: boolean
+  guestInboxEnabled: boolean
 }
 
 type ModulesStringKey = { [K in keyof ModulesDraft]: ModulesDraft[K] extends string ? (K extends 'MODULE_CONFIG_TYPE' ? never : K) : never }[keyof ModulesDraft]
@@ -3440,6 +3445,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   guestOrdersEnabled: g.ordersEnabled,
   guestBuyTabEnabled: g.buyTabEnabled,
   guestEntitlementsEnabled: g.entitlementsEnabled,
+  guestInboxEnabled: g.inboxEnabled,
 })
 
 type ModulesPresetPackage = 'BASIC' | 'PROFESSIONAL' | 'PREMIUM'
@@ -4639,6 +4645,9 @@ export function ConfigurationPage() {
           modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED = 'false'
           modulesDraftForSave.BILLING_ADVANCE_ENABLED = 'false'
         }
+        if (!modulesDraftForSave.guestAppEnabled) {
+          modulesDraftForSave.guestInboxEnabled = false
+        }
         if (!modulesDraftForSave.guestWalletEnabled) {
           modulesDraftForSave.guestOrdersEnabled = false
           modulesDraftForSave.guestBuyTabEnabled = false
@@ -4688,6 +4697,7 @@ export function ConfigurationPage() {
           ordersEnabled: modulesDraftForSave.guestOrdersEnabled,
           buyTabEnabled: modulesDraftForSave.guestBuyTabEnabled,
           entitlementsEnabled: modulesDraftForSave.guestEntitlementsEnabled,
+          inboxEnabled: modulesDraftForSave.guestInboxEnabled,
         }
         if (modulesDraftForSave.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'true') {
           const acceptedPaymentMethodIds = removeStripePaymentMethod(effectiveGuestApp.acceptedPaymentMethodIds)
@@ -5697,6 +5707,7 @@ export function ConfigurationPage() {
           guestOrdersEnabled: false,
           guestBuyTabEnabled: false,
           guestEntitlementsEnabled: false,
+          guestInboxEnabled: false,
           NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: 'false',
         }
       }
@@ -5724,6 +5735,7 @@ export function ConfigurationPage() {
         next.guestOrdersEnabled = false
         next.guestBuyTabEnabled = false
         next.guestEntitlementsEnabled = false
+        next.guestInboxEnabled = false
         next.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED = 'false'
       }
       if (!checked && keys.includes('guestWalletEnabled')) {
@@ -5761,6 +5773,7 @@ export function ConfigurationPage() {
     'guestOrdersEnabled',
     'guestBuyTabEnabled',
     'guestEntitlementsEnabled',
+    'guestInboxEnabled',
   ]
   const communicationModuleKeys: ModulesStringKey[] = [
     'COMMUNICATION_ENABLED',
@@ -5917,6 +5930,14 @@ export function ConfigurationPage() {
           checked: moduleBool('guestAppEnabled'),
           onChange: (checked) => setModuleBooleanSetting('guestAppEnabled', checked),
           children: [
+            {
+              id: 'guest-app-inbox',
+              icon: 'message',
+              title: locale === 'sl' ? 'Prejeto' : 'Inbox',
+              checked: moduleBool('guestAppEnabled') && moduleBool('guestInboxEnabled'),
+              disabled: !moduleBool('guestAppEnabled'),
+              onChange: (checked) => setModuleBooleanSetting('guestInboxEnabled', checked),
+            },
             {
               id: 'guest-app-wallet',
               icon: 'wallet',
