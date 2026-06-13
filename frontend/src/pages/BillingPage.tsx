@@ -7660,7 +7660,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const detailActionItems = detailOnePayeeForAll
           ? detailBaseRelatedOpenBills.flatMap((entry) => getOpenBillItems(entry))
           : getOpenBillItems(detailActionOpenBill)
-        const detailActionGross = estimateGross(detailActionItems)
+        const detailActionGross = detailOnePayeeForAll
+          ? Number(detailBaseRelatedOpenBills.reduce((sum, entry) => sum + openBillPayableGross(entry), 0).toFixed(2))
+          : openBillPayableGross(detailActionOpenBill)
         const detailPaymentSplits = getOpenBillPaymentSplits(detailActionOpenBill, detailActionGross || detailGross)
         const detailCloseCandidateBills = detailOnePayeeForAll ? detailBaseRelatedOpenBills : [detailActionOpenBill]
         const detailSessionsBillableForClose = openBillSessionsAreBillableForClose(detailCloseCandidateBills)
