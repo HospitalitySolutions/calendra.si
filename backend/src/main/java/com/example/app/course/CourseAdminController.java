@@ -203,6 +203,11 @@ public class CourseAdminController {
         if (membershipCourses.countByCourseId(course.getId()) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This course is included in at least one membership. Remove it from memberships first.");
         }
+        try {
+            bunnyMediaService.deleteCourseMedia(course);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Course media could not be deleted from Bunny: " + ex.getMessage());
+        }
         if (product != null) products.delete(product);
         courses.delete(course);
     }

@@ -171,6 +171,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadingId, setUploadingId] = useState<number | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -309,6 +310,29 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
     }
   }
 
+  const deleteCourse = async (course: Course) => {
+    if (deletingId != null) return
+    const hasBunnyMedia = Boolean(course.bunnyVideoId || course.bunnyStoragePath)
+    const message = hasBunnyMedia
+      ? (locale === 'sl'
+        ? `Izbrisati tečaj "${course.title}" in odstraniti njegovo datoteko iz Bunny? Tega ni mogoče razveljaviti.`
+        : `Delete course "${course.title}" and remove its Bunny media file? This cannot be undone.`)
+      : (locale === 'sl'
+        ? `Izbrisati tečaj "${course.title}"? Tega ni mogoče razveljaviti.`
+        : `Delete course "${course.title}"? This cannot be undone.`)
+    if (!window.confirm(message)) return
+    setDeletingId(course.id)
+    try {
+      await api.delete(`/courses/${course.id}`)
+      await load()
+      showToast('success', hasBunnyMedia ? (locale === 'sl' ? 'Tečaj in Bunny datoteka sta izbrisana.' : 'Course and Bunny media deleted.') : (locale === 'sl' ? 'Tečaj je izbrisan.' : 'Course deleted.'))
+    } catch (err: any) {
+      showToast('error', err?.response?.data?.message || (locale === 'sl' ? 'Tečaja ni bilo mogoče izbrisati.' : 'Could not delete course.'))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="service-config-table-wrap">
       {loading ? (
@@ -344,8 +368,9 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                     : (course.bunnyStoragePath || (locale === 'sl' ? 'Ni audio datoteke' : 'No audio file'))}
                 </td>
                 <td className="service-config-actions-cell">
-                  <button type="button" className="secondary" onClick={() => openEdit(course)}>{locale === 'sl' ? 'Uredi' : 'Edit'}</button>
-                  <button type="button" className="secondary" onClick={() => archiveToggle(course)}>{course.active ? (locale === 'sl' ? 'Arhiviraj' : 'Archive') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}</button>
+                  <button type="button" className="secondary" onClick={() => openEdit(course)} disabled={deletingId === course.id}>{locale === 'sl' ? 'Uredi' : 'Edit'}</button>
+                  <button type="button" className="secondary" onClick={() => archiveToggle(course)} disabled={deletingId === course.id}>{course.active ? (locale === 'sl' ? 'Arhiviraj' : 'Archive') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}</button>
+                  <button type="button" className="danger secondary" onClick={() => void deleteCourse(course)} disabled={deletingId === course.id}>{deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}</button>
                 </td>
               </tr>
             ))}

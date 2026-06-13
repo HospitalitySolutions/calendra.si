@@ -1,0 +1,19 @@
+Course delete + Bunny cleanup
+
+Updated files:
+- frontend/src/pages/CoursesSection.tsx
+- backend/src/main/java/com/example/app/course/CourseAdminController.java
+- backend/src/main/java/com/example/app/course/BunnyMediaService.java
+
+What changed:
+- Added an Izbriši/Delete button to each row in the Tečaji/Courses table.
+- Added a confirmation prompt before deleting a course.
+- The delete action now calls DELETE /api/courses/{id} from the UI and shows loading/success/error states.
+- Backend course deletion now also removes the linked Bunny media before deleting the local course record:
+  - Bunny Stream video is deleted through the tenant library + video id.
+  - Bunny Storage audio is deleted through the configured storage zone + storage path.
+- Bunny 404 responses are treated as already deleted, so local cleanup can continue.
+- Courses with purchases or membership links still cannot be deleted; they should be archived instead.
+
+Notes:
+- If Bunny credentials are missing or Bunny returns an error, the API returns an error and keeps the local course record so the file is not orphaned silently.

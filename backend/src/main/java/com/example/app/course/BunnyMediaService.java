@@ -38,6 +38,75 @@ public class BunnyMediaService {
         return uploadVideo(course, file);
     }
 
+
+    public void deleteCourseMedia(Course course) {
+        if (course == null) return;
+        if (hasText(course.getBunnyVideoId()) && hasText(course.getBunnyLibraryId())) {
+            deleteVideo(course.getBunnyLibraryId(), course.getBunnyLibraryName(), course.getBunnyVideoId());
+        }
+        if (hasText(course.getBunnyStoragePath())) {
+            deleteAudio(course.getBunnyStoragePath());
+        }
+    }
+
+    private void deleteVideo(String libraryId, String libraryName, String videoId) {
+        if (!properties.hasStreamApiKey()) {
+            throw new IllegalStateException("Bunny account API key is not configured; Bunny Stream video cannot be deleted.");
+        }
+        LibraryRef library = getVideoLibrary(libraryId, libraryName);
+        if (!hasText(library.id())) {
+            log.warn("Bunny Stream library {} could not be loaded while deleting video {}; assuming it was already removed.", libraryId, videoId);
+            return;
+        }
+        if (!hasText(library.streamApiKey())) {
+            throw new IllegalStateException("Bunny Stream library API key could not be resolved; video cannot be deleted.");
+        }
+        try {
+            restClient.delete()
+                    .uri(properties.effectiveStreamBaseUrl() + "/library/" + library.id().trim() + "/videos/" + videoId.trim())
+                    .header("AccessKey", library.streamApiKey())
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                log.info("Bunny Stream video {} in library {} was already deleted.", videoId, library.id());
+                return;
+            }
+            String body = ex.getResponseBodyAsString();
+            log.warn("Could not delete Bunny Stream video {} from library {}. Bunny returned HTTP {}: {}", videoId, library.id(), ex.getStatusCode(), body, ex);
+            throw new IllegalStateException("Bunny Stream video delete failed: HTTP " + ex.getStatusCode().value() + " " + abbreviate(body));
+        } catch (Exception ex) {
+            log.warn("Could not delete Bunny Stream video {} from library {}.", videoId, library.id(), ex);
+            throw new IllegalStateException("Bunny Stream video delete failed: " + ex.getMessage());
+        }
+    }
+
+    private void deleteAudio(String storagePath) {
+        if (!properties.hasAudioStorage()) {
+            throw new IllegalStateException("Bunny Storage credentials are not configured; Bunny audio cannot be deleted.");
+        }
+        String path = storagePath.trim();
+        while (path.startsWith("/")) path = path.substring(1);
+        try {
+            restClient.delete()
+                    .uri(properties.effectiveStorageRegionHost() + "/" + properties.storageZone().trim() + "/" + path)
+                    .header("AccessKey", properties.storagePassword())
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                log.info("Bunny Storage audio {} was already deleted.", path);
+                return;
+            }
+            String body = ex.getResponseBodyAsString();
+            log.warn("Could not delete Bunny Storage audio {}. Bunny returned HTTP {}: {}", path, ex.getStatusCode(), body, ex);
+            throw new IllegalStateException("Bunny Storage audio delete failed: HTTP " + ex.getStatusCode().value() + " " + abbreviate(body));
+        } catch (Exception ex) {
+            log.warn("Could not delete Bunny Storage audio {}.", path, ex);
+            throw new IllegalStateException("Bunny Storage audio delete failed: " + ex.getMessage());
+        }
+    }
+
     public DirectVideoUploadSession createDirectVideoUploadSession(Course course, String fileName, String contentType) throws IOException {
         if (course.getMediaType() != CourseMediaType.VIDEO) {
             throw new IllegalArgumentException("Direct Bunny Stream upload sessions are only available for video courses.");
