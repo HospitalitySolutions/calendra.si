@@ -7019,6 +7019,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         const groupBillCount = rowMembers.length
                         const canCloseRowBill = groupBillCount > 1 || canIssueOpenBillType(ob)
                         const rowClosePermissionTooltip = groupBillCount > 1 ? undefined : issueOpenBillPermissionTooltip(ob)
+                        const rowPaymentSelected = !!ob.paymentMethod?.id && (resolveOpenBillEffectiveType(ob) === 'ADVANCE' || !isDepositPaymentMethod(ob.paymentMethod))
+                        const rowCloseTooltip = rowClosePermissionTooltip ?? (groupBillCount <= 1 && !rowPaymentSelected ? (locale === 'sl' ? 'Izberite način plačila' : 'Select a payment method') : undefined)
                         const sessionCount = ob.sessions?.length ?? 0
                         const rawId = String(ob.sessionDisplayId || formatBillingSessionIdDisplay(ob.sessionId) || '—')
                         const displayId = rawId.startsWith('#') ? rawId : `#${rawId}`
@@ -7096,8 +7098,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                 type="button"
                                 className="billing-open-modern-mobile-action billing-open-modern-mobile-action--primary"
                                 onClick={() => groupBillCount > 1 ? openEditInvoicePopup(ob) : createBillFromOpen(ob)}
-                                disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || !ob.paymentMethod?.id || !canCloseRowBill)}
-                                title={rowClosePermissionTooltip}
+                                disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || !rowPaymentSelected || !canCloseRowBill)}
+                                title={rowCloseTooltip}
                               >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></svg>
                                 <span>{creatingFromOpenId === ob.id
@@ -7145,6 +7147,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           const groupBillCount = rowMembers.length
                           const canCloseRowBill = groupBillCount > 1 || canIssueOpenBillType(ob)
                           const rowClosePermissionTooltip = groupBillCount > 1 ? undefined : issueOpenBillPermissionTooltip(ob)
+                          const rowPaymentSelected = !!ob.paymentMethod?.id && (resolveOpenBillEffectiveType(ob) === 'ADVANCE' || !isDepositPaymentMethod(ob.paymentMethod))
+                          const rowCloseTooltip = rowClosePermissionTooltip ?? (groupBillCount <= 1 && !rowPaymentSelected ? (locale === 'sl' ? 'Izberite način plačila' : 'Select a payment method') : undefined)
                           return (
                             <tr key={`${openBillListGroupKey(ob)}:${ob.id}`} className="clients-row" onClick={() => openEditInvoicePopup(ob)}>
                               <td className="billing-modern-link-cell">
@@ -7175,8 +7179,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                   type="button"
                                   className="billing-open-row-action billing-open-row-action--primary"
                                   onClick={() => groupBillCount > 1 ? openEditInvoicePopup(ob) : createBillFromOpen(ob)}
-                                  disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || items.length === 0 || !ob.paymentMethod?.id || !canCloseRowBill)}
-                                  title={rowClosePermissionTooltip}
+                                  disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || items.length === 0 || !rowPaymentSelected || !canCloseRowBill)}
+                                  title={rowCloseTooltip}
                                 >
                                   {creatingFromOpenId === ob.id
                                     ? billingCopy.creating
