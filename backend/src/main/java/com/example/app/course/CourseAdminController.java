@@ -10,6 +10,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -77,6 +78,7 @@ public class CourseAdminController {
     public DirectUploadSessionResponse createDirectUploadSession(
             @PathVariable Long id,
             @RequestBody DirectUploadSessionRequest request,
+            @RequestParam(name = "deleteOld", defaultValue = "false") boolean deleteOld,
             @AuthenticationPrincipal User me
     ) {
         Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
@@ -88,20 +90,31 @@ public class CourseAdminController {
         if (contentType != null && !contentType.toLowerCase(Locale.ROOT).startsWith("video/")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please upload a video file for video courses.");
         }
+        CourseMediaSnapshot oldMedia = snapshotMedia(course);
         try {
             BunnyMediaService.DirectVideoUploadSession session = bunnyMediaService.createDirectVideoUploadSession(
                     course,
                     request == null ? null : request.fileName(),
                     contentType
             );
+            if (deleteOld) {
+                try {
+                    deletePreviousMedia(oldMedia, session.bunnyLibraryId(), session.bunnyVideoId(), null);
+                } catch (Exception ex) {
+                    cleanupNewDirectVideo(session);
+                    throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Old course media could not be deleted from Bunny: " + ex.getMessage());
+                }
+            }
             course.setStatus(CourseStatus.PROCESSING);
             course.setActive(false);
             course.setBunnyLibraryId(session.bunnyLibraryId());
             course.setBunnyLibraryName(session.bunnyLibraryName());
             course.setBunnyVideoId(session.bunnyVideoId());
+            course.setBunnyStoragePath(null);
+            course.setBunnyCdnUrl(null);
             course.setFileName(session.fileName());
             course.setContentType(session.contentType());
-            course.setMetadataJson("{\"uploadStatus\":\"DIRECT_UPLOAD_PENDING\"}");
+            course.setMetadataJson("{\"uploadStatus\":\"DIRECT_UPLOAD_PENDING\",\"deleteOldMedia\":" + deleteOld + "}");
             courses.save(course);
             return new DirectUploadSessionResponse(
                     session.uploadType(),
@@ -152,7 +165,12 @@ public class CourseAdminController {
 
     @PostMapping("/{id}/media")
     @Transactional
-    public CourseResponse uploadMedia(@PathVariable Long id, @RequestParam("file") MultipartFile file, @AuthenticationPrincipal User me) {
+    public CourseResponse uploadMedia(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "deleteOld", defaultValue = "false") boolean deleteOld,
+            @AuthenticationPrincipal User me
+    ) {
         Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
         if (file == null || file.isEmpty()) {
@@ -165,17 +183,33 @@ public class CourseAdminController {
         if (course.getMediaType() == CourseMediaType.AUDIO && contentType != null && !contentType.toLowerCase(Locale.ROOT).startsWith("audio/")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please upload an audio file for audio courses.");
         }
+        CourseMediaSnapshot oldMedia = snapshotMedia(course);
         try {
             course.setStatus(CourseStatus.PROCESSING);
             BunnyMediaService.CourseUploadResult result = bunnyMediaService.upload(course, file);
+            if (deleteOld) {
+                try {
+                    deletePreviousMedia(oldMedia, result.bunnyLibraryId(), result.bunnyVideoId(), result.bunnyStoragePath());
+                } catch (Exception ex) {
+                    cleanupUploadedReplacement(result);
+                    throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Old course media could not be deleted from Bunny: " + ex.getMessage());
+                }
+            }
             if (result.bunnyLibraryId() != null) course.setBunnyLibraryId(result.bunnyLibraryId());
             if (result.bunnyLibraryName() != null) course.setBunnyLibraryName(result.bunnyLibraryName());
-            if (result.bunnyVideoId() != null) course.setBunnyVideoId(result.bunnyVideoId());
-            if (result.bunnyStoragePath() != null) course.setBunnyStoragePath(result.bunnyStoragePath());
-            if (result.bunnyCdnUrl() != null) course.setBunnyCdnUrl(result.bunnyCdnUrl());
+            if (result.bunnyVideoId() != null) {
+                course.setBunnyVideoId(result.bunnyVideoId());
+                course.setBunnyStoragePath(null);
+                course.setBunnyCdnUrl(null);
+            }
+            if (result.bunnyStoragePath() != null || result.bunnyCdnUrl() != null) {
+                course.setBunnyVideoId(null);
+                course.setBunnyStoragePath(result.bunnyStoragePath());
+                course.setBunnyCdnUrl(result.bunnyCdnUrl());
+            }
             course.setFileName(file.getOriginalFilename());
             course.setContentType(contentType);
-            course.setMetadataJson("{\"uploadStatus\":" + jsonString(result.uploadStatus()) + "}");
+            course.setMetadataJson("{\"uploadStatus\":" + jsonString(result.uploadStatus()) + ",\"deleteOldMedia\":" + deleteOld + "}");
             boolean mediaReady = course.getMediaType() == CourseMediaType.AUDIO
                     ? (result.bunnyStoragePath() != null || result.bunnyCdnUrl() != null)
                     : result.bunnyVideoId() != null;
@@ -285,6 +319,66 @@ public class CourseAdminController {
         if (value == null) return "null";
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
+
+    private CourseMediaSnapshot snapshotMedia(Course course) {
+        return new CourseMediaSnapshot(
+                course.getBunnyLibraryId(),
+                course.getBunnyLibraryName(),
+                course.getBunnyVideoId(),
+                course.getBunnyStoragePath()
+        );
+    }
+
+    private void deletePreviousMedia(
+            CourseMediaSnapshot oldMedia,
+            String replacementLibraryId,
+            String replacementVideoId,
+            String replacementStoragePath
+    ) {
+        if (oldMedia == null) return;
+        boolean sameVideo = sameText(oldMedia.bunnyVideoId(), replacementVideoId)
+                && sameText(oldMedia.bunnyLibraryId(), replacementLibraryId);
+        if (hasText(oldMedia.bunnyVideoId()) && !sameVideo) {
+            bunnyMediaService.deleteVideoMedia(oldMedia.bunnyLibraryId(), oldMedia.bunnyLibraryName(), oldMedia.bunnyVideoId());
+        }
+        boolean sameAudio = sameText(oldMedia.bunnyStoragePath(), replacementStoragePath);
+        if (hasText(oldMedia.bunnyStoragePath()) && !sameAudio) {
+            bunnyMediaService.deleteAudioMedia(oldMedia.bunnyStoragePath());
+        }
+    }
+
+    private void cleanupNewDirectVideo(BunnyMediaService.DirectVideoUploadSession session) {
+        try {
+            if (session != null) {
+                bunnyMediaService.deleteVideoMedia(session.bunnyLibraryId(), session.bunnyLibraryName(), session.bunnyVideoId());
+            }
+        } catch (Exception ignored) {
+            // Best-effort cleanup only; the original Bunny delete error is returned to the user.
+        }
+    }
+
+    private void cleanupUploadedReplacement(BunnyMediaService.CourseUploadResult result) {
+        try {
+            bunnyMediaService.deleteUploadedMedia(result);
+        } catch (Exception ignored) {
+            // Best-effort cleanup only; the original Bunny delete error is returned to the user.
+        }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isBlank();
+    }
+
+    private static boolean sameText(String left, String right) {
+        return Objects.equals(trimToNull(left), trimToNull(right));
+    }
+
+    private record CourseMediaSnapshot(
+            String bunnyLibraryId,
+            String bunnyLibraryName,
+            String bunnyVideoId,
+            String bunnyStoragePath
+    ) {}
 
     public record DirectUploadSessionRequest(
             String fileName,

@@ -172,6 +172,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
   const [uploadingId, setUploadingId] = useState<number | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [deleteOldMediaOnReplace, setDeleteOldMediaOnReplace] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -192,6 +193,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
       setEditingId(null)
       setForm(defaultCourseForm())
       setUploadFile(null)
+      setDeleteOldMediaOnReplace(true)
       setShowModal(true)
     },
   }), [])
@@ -227,8 +229,22 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
       thumbnailUrl: course.thumbnailUrl || '',
     })
     setUploadFile(null)
+    setDeleteOldMediaOnReplace(true)
     setShowModal(true)
   }
+
+  const editingCourse = useMemo(
+    () => (editingId == null ? null : courses.find((course) => course.id === editingId) ?? null),
+    [courses, editingId],
+  )
+
+  const editingCourseHasMedia = Boolean(editingCourse?.bunnyVideoId || editingCourse?.bunnyStoragePath || editingCourse?.bunnyCdnUrl)
+
+  const existingMediaLabel = editingCourse
+    ? (editingCourse.mediaType === 'VIDEO'
+      ? (editingCourse.bunnyVideoId ? `Video ${editingCourse.bunnyVideoId}` : null)
+      : (editingCourse.fileName || editingCourse.bunnyStoragePath || editingCourse.bunnyCdnUrl || null))
+    : null
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -250,7 +266,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
       const res = editingId
         ? await api.put<Course>(`/courses/${editingId}`, payload)
         : await api.post<Course>('/courses', payload)
-      if (uploadFile) await uploadMedia(res.data.id, uploadFile)
+      if (uploadFile) await uploadMedia(res.data.id, uploadFile, Boolean(editingId && editingCourseHasMedia && deleteOldMediaOnReplace))
       setShowModal(false)
       await load()
       showToast('success', locale === 'sl' ? 'Tečaj je shranjen.' : 'Course saved.')
@@ -261,7 +277,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
     }
   }
 
-  const uploadMedia = async (courseId: number, file: File) => {
+  const uploadMedia = async (courseId: number, file: File, deleteOldMedia: boolean) => {
     setUploadingId(courseId)
     setUploadProgress(0)
     try {
@@ -270,7 +286,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
           fileName: file.name,
           contentType: file.type || 'video/mp4',
           sizeBytes: file.size,
-        })
+        }, { params: { deleteOld: deleteOldMedia } })
         await uploadVideoToBunnyTus(file, sessionRes.data, (progress) => setUploadProgress(progress))
         await api.post(`/courses/${courseId}/media/direct-complete`, {
           bunnyVideoId: sessionRes.data.bunnyVideoId,
@@ -280,7 +296,10 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
       } else {
         const body = new FormData()
         body.append('file', file)
-        await api.post(`/courses/${courseId}/media`, body, { headers: { 'Content-Type': 'multipart/form-data' } })
+        await api.post(`/courses/${courseId}/media`, body, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          params: { deleteOld: deleteOldMedia },
+        })
         setUploadProgress(100)
       }
     } finally {
@@ -406,11 +425,35 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                       accept={form.mediaType === 'AUDIO' ? 'audio/*' : 'video/*'}
                       onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
                     />
+                    {existingMediaLabel && (
+                      <div className="muted" style={{ marginTop: 6 }}>
+                        {locale === 'sl' ? 'Trenutna Bunny datoteka' : 'Current Bunny file'}: {existingMediaLabel}
+                      </div>
+                    )}
                     {uploadFile && (
                       <div className="muted" style={{ marginTop: 6 }}>
                         {form.mediaType === 'VIDEO'
                           ? (locale === 'sl' ? 'Video se bo naložil neposredno v Bunny Stream.' : 'Video will upload directly to Bunny Stream.')
                           : (locale === 'sl' ? 'Audio se naloži prek zaščitenega Calendra nalaganja.' : 'Audio uploads through protected Calendra upload.')}
+                      </div>
+                    )}
+                    {editingId && uploadFile && editingCourseHasMedia && (
+                      <label className="checkbox-row" style={{ marginTop: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={deleteOldMediaOnReplace}
+                          onChange={(e) => setDeleteOldMediaOnReplace(e.target.checked)}
+                        />
+                        {locale === 'sl'
+                          ? 'Ob zamenjavi izbriši prejšnjo Bunny datoteko'
+                          : 'Delete previous Bunny file when replacing media'}
+                      </label>
+                    )}
+                    {editingId && uploadFile && editingCourseHasMedia && deleteOldMediaOnReplace && (
+                      <div className="muted" style={{ marginTop: 4 }}>
+                        {locale === 'sl'
+                          ? 'Stari audio/video bo odstranjen iz Bunny, zato ga ne bo treba brisati ročno.'
+                          : 'The old audio/video will be removed from Bunny so you do not need to delete it manually.'}
                       </div>
                     )}
                     {uploadProgress != null && (

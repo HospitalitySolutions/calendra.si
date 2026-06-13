@@ -1,0 +1,21 @@
+Course media replacement cleanup
+
+Files changed:
+- frontend/src/pages/CoursesSection.tsx
+- backend/src/main/java/com/example/app/course/CourseAdminController.java
+- backend/src/main/java/com/example/app/course/BunnyMediaService.java
+
+What changed:
+1. Edit course modal now shows the current Bunny media reference when an existing course has a video/audio file.
+2. When a new file is selected while editing an existing course, a new checked option appears:
+   - SL: "Ob zamenjavi izbriši prejšnjo Bunny datoteko"
+   - EN: "Delete previous Bunny file when replacing media"
+3. Frontend passes deleteOld=true to the media upload endpoints when this option is selected.
+4. Backend upload endpoints accept deleteOld and remove the previous Bunny media during replacement:
+   - video: deletes the previous Bunny Stream video by library + video id
+   - audio: deletes the previous Bunny Storage file by storage path
+5. Replacement clears stale media fields so switching audio/video does not leave the old media reference attached to the course.
+6. If old-media deletion fails during replacement, the new Bunny upload/session is cleaned up on a best-effort basis and the API returns an error instead of silently orphaning files.
+
+Validation:
+- Full Maven build could not be run in this sandbox because Maven wrapper tried to download Maven from repo.maven.apache.org and internet access is blocked.

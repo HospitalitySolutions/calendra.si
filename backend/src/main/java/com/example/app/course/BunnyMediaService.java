@@ -41,12 +41,27 @@ public class BunnyMediaService {
 
     public void deleteCourseMedia(Course course) {
         if (course == null) return;
-        if (hasText(course.getBunnyVideoId()) && hasText(course.getBunnyLibraryId())) {
-            deleteVideo(course.getBunnyLibraryId(), course.getBunnyLibraryName(), course.getBunnyVideoId());
+        deleteVideoMedia(course.getBunnyLibraryId(), course.getBunnyLibraryName(), course.getBunnyVideoId());
+        deleteAudioMedia(course.getBunnyStoragePath());
+    }
+
+    public void deleteUploadedMedia(CourseUploadResult result) {
+        if (result == null) return;
+        deleteVideoMedia(result.bunnyLibraryId(), result.bunnyLibraryName(), result.bunnyVideoId());
+        deleteAudioMedia(result.bunnyStoragePath());
+    }
+
+    public void deleteVideoMedia(String libraryId, String libraryName, String videoId) {
+        if (!hasText(videoId)) return;
+        if (!hasText(libraryId)) {
+            throw new IllegalStateException("Bunny Stream library id is missing; video cannot be deleted.");
         }
-        if (hasText(course.getBunnyStoragePath())) {
-            deleteAudio(course.getBunnyStoragePath());
-        }
+        deleteVideo(libraryId, libraryName, videoId);
+    }
+
+    public void deleteAudioMedia(String storagePath) {
+        if (!hasText(storagePath)) return;
+        deleteAudio(storagePath);
     }
 
     private void deleteVideo(String libraryId, String libraryName, String videoId) {
