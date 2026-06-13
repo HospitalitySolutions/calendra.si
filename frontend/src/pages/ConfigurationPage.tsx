@@ -3578,6 +3578,42 @@ const applyModuleConfigPreset = (draft: ModulesDraft, rawConfigType: TenantConfi
   return normalizeModulesDraftDependencies(next)
 }
 
+const modulesDraftToSettingsPatch = (draft: ModulesDraft): Record<string, string> => ({
+  MODULE_CONFIG_TYPE: normalizeTenantConfigType(draft.MODULE_CONFIG_TYPE),
+  SPACES_ENABLED: draft.SPACES_ENABLED,
+  BOOKABLE_ENABLED: draft.BOOKABLE_ENABLED,
+  NO_SHOW_ENABLED: draft.NO_SHOW_ENABLED,
+  ONLINE_SESSION_BOOKING_ENABLED: draft.ONLINE_SESSION_BOOKING_ENABLED,
+  WEBSITE_WIDGET_ENABLED: draft.WEBSITE_WIDGET_ENABLED,
+  AI_BOOKING_ENABLED: draft.AI_BOOKING_ENABLED,
+  PERSONAL_ENABLED: draft.PERSONAL_ENABLED,
+  TODOS_ENABLED: draft.TODOS_ENABLED,
+  MULTIPLE_SESSIONS_PER_SPACE_ENABLED: draft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED,
+  MULTIPLE_CLIENTS_PER_SESSION_ENABLED: draft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED,
+  GROUP_BOOKING_ENABLED: draft.GROUP_BOOKING_ENABLED,
+  BILLING_ENABLED: draft.BILLING_ENABLED,
+  BILLING_INVOICES_ENABLED: draft.BILLING_INVOICES_ENABLED,
+  BILLING_ONLINE_CARD_PAYMENTS_ENABLED: draft.BILLING_ONLINE_CARD_PAYMENTS_ENABLED,
+  BILLING_BANK_TRANSFER_ENABLED: draft.BILLING_BANK_TRANSFER_ENABLED,
+  BILLING_PAYPAL_ENABLED: draft.BILLING_PAYPAL_ENABLED,
+  BILLING_GIFT_CARDS_ENABLED: draft.BILLING_GIFT_CARDS_ENABLED,
+  BILLING_ADVANCE_ENABLED: draft.BILLING_ADVANCE_ENABLED,
+  COMMUNICATION_ENABLED: draft.COMMUNICATION_ENABLED,
+  NOTIFICATIONS_ENABLED: draft.NOTIFICATIONS_ENABLED,
+  NOTIFICATIONS_EMAIL_ALERTS_ENABLED: draft.NOTIFICATIONS_EMAIL_ALERTS_ENABLED,
+  NOTIFICATIONS_SMS_ALERTS_ENABLED: draft.NOTIFICATIONS_SMS_ALERTS_ENABLED,
+  NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: draft.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED,
+  NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: draft.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED,
+  GOOGLE_CALENDAR_MODULE_ENABLED: draft.GOOGLE_CALENDAR_MODULE_ENABLED,
+  INBOX_ENABLED: draft.INBOX_ENABLED,
+  WHATSAPP_MODULE_ENABLED: draft.WHATSAPP_MODULE_ENABLED,
+  VIBER_MODULE_ENABLED: draft.VIBER_MODULE_ENABLED,
+  SECURITY_MODULE_ENABLED: draft.SECURITY_MODULE_ENABLED,
+  SECURITY_SESSION_SECURITY_ENABLED: draft.SECURITY_SESSION_SECURITY_ENABLED,
+  SECURITY_PASSKEYS_ENABLED: draft.SECURITY_PASSKEYS_ENABLED,
+  SECURITY_API_INTEGRATIONS_ENABLED: draft.SECURITY_API_INTEGRATIONS_ENABLED,
+})
+
 export function ConfigurationPage() {
   const me = getStoredUser()!
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
@@ -3622,6 +3658,7 @@ export function ConfigurationPage() {
   const [googleCalendarConflictCount, setGoogleCalendarConflictCount] = useState(0)
 
   const [settings, setSettings] = useState<Record<string, string>>({})
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [companyProfiles, setCompanyProfiles] = useState<CompanyProfileForm[]>([])
   const [selectedCompanyProfileId, setSelectedCompanyProfileId] = useState<string>('')
   const [companyProfilesInitialized, setCompanyProfilesInitialized] = useState(false)
@@ -3660,14 +3697,15 @@ export function ConfigurationPage() {
   const [registeringPremiseId, setRegisteringPremiseId] = useState<string | null>(null)
   const [premisePickerOpen, setPremisePickerOpen] = useState(false)
   const [inboxGlobalCapabilities, setInboxGlobalCapabilities] = useState<InboxGlobalCapabilities>({
-    whatsappEnabled: true,
-    viberEnabled: true,
+    whatsappEnabled: false,
+    viberEnabled: false,
   })
   const [paymentGlobalCapabilities, setPaymentGlobalCapabilities] = useState<PaymentGlobalCapabilities>({
-    stripeEnabled: true,
+    stripeEnabled: false,
     paypalEnabled: false,
   })
   const [inboxCapabilitiesLoaded, setInboxCapabilitiesLoaded] = useState(false)
+  const [paymentCapabilitiesLoaded, setPaymentCapabilitiesLoaded] = useState(false)
   const [modulesDraft, setModulesDraft] = useState<ModulesDraft | null>(null)
   const [expandedModuleRows, setExpandedModuleRows] = useState<string[]>(DEFAULT_EXPANDED_MODULE_ROWS)
   const prevTabRef = useRef<Tab>(tab)
@@ -3680,6 +3718,7 @@ export function ConfigurationPage() {
   )
 
   const selectedCompanyProfile = companyProfiles.find((profile) => profile.id === selectedCompanyProfileId) || companyProfiles[0]
+  const companyTenantType = normalizeTenantConfigType(settings.MODULE_CONFIG_TYPE || guestAppSettings.tenantType)
 
   const activeSubscriptionPackage = useMemo<AccountPlanPackageKey>(() => {
     const configured = normalizePackageType(settings.SIGNUP_PACKAGE_NAME || me.packageType || subscriptionPackage)
@@ -4120,6 +4159,23 @@ export function ConfigurationPage() {
     setSettings((prev) => companyProfileToSettings(prev, nextSelected, nextProfiles))
   }
 
+  const setCompanyTenantType = (rawValue: string) => {
+    const nextType = normalizeTenantConfigType(rawValue)
+    const nextGuestAppSettings = { ...guestAppSettings, tenantType: nextType }
+    const presetDraft = applyModuleConfigPreset(
+      buildModulesDraftFromCommitted(settings, nextGuestAppSettings),
+      nextType,
+      settings.SIGNUP_PACKAGE_NAME || me.packageType,
+    )
+    setGuestAppSettings(nextGuestAppSettings)
+    setSettings((prev) => ({
+      ...prev,
+      ...modulesDraftToSettingsPatch(presetDraft),
+      MODULE_CONFIG_TYPE: nextType,
+    }))
+    setModulesDraft((prev) => prev ? applyModuleConfigPreset(prev, nextType, settings.SIGNUP_PACKAGE_NAME || me.packageType) : prev)
+  }
+
   useEffect(() => {
     if (!companyProfileMenuOpenId) return
     const onPointerDown = (ev: MouseEvent) => {
@@ -4143,18 +4199,20 @@ export function ConfigurationPage() {
     () => parseGuestAppSettings(settings[GUEST_APP_SETTINGS_KEY]).guestAppEnabled,
     [settings[GUEST_APP_SETTINGS_KEY]],
   )
-  const billingEnabledCommitted = settings.BILLING_ENABLED !== 'false'
+  const billingEnabledCommitted = settingsLoaded && settings.BILLING_ENABLED !== 'false'
   const stripeModuleEnabledCommitted = billingEnabledCommitted && settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
-  const stripePaymentsAvailableCommitted = stripeModuleEnabledCommitted && paymentGlobalCapabilities.stripeEnabled
-  const notificationsEnabledCommitted = settings.NOTIFICATIONS_ENABLED !== 'false'
-  const websiteWidgetEnabledCommitted = settings.WEBSITE_WIDGET_ENABLED !== 'false'
-  const googleCalendarModuleEnabledCommitted = settings.GOOGLE_CALENDAR_MODULE_ENABLED !== 'false'
+  const stripePaymentsAvailableCommitted = paymentCapabilitiesLoaded && stripeModuleEnabledCommitted && paymentGlobalCapabilities.stripeEnabled
+  const notificationsEnabledCommitted = settingsLoaded && settings.NOTIFICATIONS_ENABLED !== 'false'
+  const websiteWidgetEnabledCommitted = settingsLoaded && settings.WEBSITE_WIDGET_ENABLED !== 'false'
+  const googleCalendarModuleEnabledCommitted = settingsLoaded && settings.GOOGLE_CALENDAR_MODULE_ENABLED !== 'false'
 
   const isConfigTabAvailable = (tabId: Tab) => {
+    if (tabId === 'company' || tabId === 'modules' || tabId === 'integrations') return true
+    if (!settingsLoaded) return false
     if (tabId === 'billing') return billingEnabledCommitted
     if (tabId === 'notifications') return notificationsEnabledCommitted
-    if (tabId === 'whatsapp') return inboxGlobalCapabilities.whatsappEnabled
-    if (tabId === 'viber') return inboxGlobalCapabilities.viberEnabled
+    if (tabId === 'whatsapp') return inboxCapabilitiesLoaded && inboxGlobalCapabilities.whatsappEnabled
+    if (tabId === 'viber') return inboxCapabilitiesLoaded && inboxGlobalCapabilities.viberEnabled
     if (tabId === 'guestApp') return guestAppEnabledCommitted
     if (tabId === 'website') return websiteWidgetEnabledCommitted
     return true
@@ -4172,6 +4230,7 @@ export function ConfigurationPage() {
 
   useEffect(() => {
     if (!isAdmin) return
+    if (!settingsLoaded || !inboxCapabilitiesLoaded || !paymentCapabilitiesLoaded) return
     const q = query.get('tab')
     if (q === 'sessionTypes') {
       navigate('/session-types', { replace: true })
@@ -4245,7 +4304,7 @@ export function ConfigurationPage() {
     if (q === 'website' && (subtabQuery === 'general' || subtabQuery === 'paymentMethods')) {
       setWebsiteSubtab(subtabQuery)
     }
-  }, [query, navigate, isAdmin, paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, googleCalendarModuleEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
+  }, [query, navigate, isAdmin, settingsLoaded, inboxCapabilitiesLoaded, paymentCapabilitiesLoaded, paymentGlobalCapabilities.paypalEnabled, stripePaymentsAvailableCommitted, billingEnabledCommitted, notificationsEnabledCommitted, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, googleCalendarModuleEnabledCommitted, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -4286,6 +4345,8 @@ export function ConfigurationPage() {
         if (!cancelled) {
           setPaymentGlobalCapabilities({ stripeEnabled: true, paypalEnabled: false })
         }
+      } finally {
+        if (!cancelled) setPaymentCapabilitiesLoaded(true)
       }
     })()
     return () => {
@@ -4294,13 +4355,13 @@ export function ConfigurationPage() {
   }, [isAdmin])
 
   useEffect(() => {
-    if (!inboxCapabilitiesLoaded) return
+    if (!settingsLoaded || !inboxCapabilitiesLoaded) return
     if (!isConfigTabAvailable(tab)) {
       const fallback = getUnavailableConfigTabFallback(tab)
       setTab(fallback)
       navigate(`/configuration?tab=${fallback}`, { replace: true })
     }
-  }, [tab, inboxCapabilitiesLoaded, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted, navigate])
+  }, [tab, settingsLoaded, inboxCapabilitiesLoaded, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted, navigate])
 
   useEffect(() => {
     const prev = prevTabRef.current
@@ -4368,11 +4429,17 @@ export function ConfigurationPage() {
       PAYPAL_CREDENTIALS_CONFIGURED: paypalData.credentialsConfigured ? 'true' : 'false',
     }
     const fallback = getWorkingHoursFallback()
-    const nextSettings = { ...settingsData, ...((!settingsData.WORKING_HOURS_START && !settingsData.WORKING_HOURS_END) ? fallback : {}) }
     const parsedGuestApp = parseGuestAppSettings(settingsData[GUEST_APP_SETTINGS_KEY])
+    const unifiedTenantType = normalizeTenantConfigType(settingsData.MODULE_CONFIG_TYPE || parsedGuestApp.tenantType)
+    const nextSettings = {
+      ...settingsData,
+      MODULE_CONFIG_TYPE: unifiedTenantType,
+      ...((!settingsData.WORKING_HOURS_START && !settingsData.WORKING_HOURS_END) ? fallback : {}),
+    }
     const parsedGuestBookingRules = parseGuestBookingRules(settingsData[GUEST_BOOKING_RULES_KEY])
     const nextGuestApp = {
       ...parsedGuestApp,
+      tenantType: unifiedTenantType,
       paymentOnLocation: parsedGuestBookingRules.paymentRequirement === 'none',
     }
     const nextGuestBookingRules = normalizeBookingRulesForPaymentLocation(parsedGuestBookingRules, nextGuestApp.paymentOnLocation)
@@ -4428,6 +4495,7 @@ export function ConfigurationPage() {
     setCertificateMeta(certificateMetaRes.data || { uploaded: false })
     setStripeConnectStatus(stripeConnectRes.data || null)
     setAccountReceivedInvoices(Array.isArray(receivedInvoicesRes.data) ? receivedInvoicesRes.data : [])
+    setSettingsLoaded(true)
     setAccountReceivedInvoicesLoading(false)
   }
 
@@ -4523,7 +4591,7 @@ export function ConfigurationPage() {
       { id: 'modules', icon: 'modules' },
     ]
     return items.filter((entry) => isConfigTabAvailable(entry.id))
-  }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted])
+  }, [settingsLoaded, inboxCapabilitiesLoaded, inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted])
 
   useEffect(() => {
     if (bookingSubtab !== 'spaces') {
@@ -4614,6 +4682,7 @@ export function ConfigurationPage() {
         }
         effectiveGuestApp = {
           ...guestAppSettings,
+          tenantType: modulesDraftForSave.MODULE_CONFIG_TYPE,
           guestAppEnabled: modulesDraftForSave.guestAppEnabled,
           walletEnabled: modulesDraftForSave.guestWalletEnabled,
           ordersEnabled: modulesDraftForSave.guestOrdersEnabled,
@@ -4640,6 +4709,10 @@ export function ConfigurationPage() {
               }
         }
       }
+      const unifiedTenantType = normalizeTenantConfigType(effectiveSettings.MODULE_CONFIG_TYPE || effectiveGuestApp.tenantType)
+      effectiveSettings = { ...effectiveSettings, MODULE_CONFIG_TYPE: unifiedTenantType }
+      effectiveGuestApp = { ...effectiveGuestApp, tenantType: unifiedTenantType }
+
       const payload = {
         ...effectiveSettings,
         WORKING_HOURS_START: normalizedStart,
@@ -4913,19 +4986,22 @@ export function ConfigurationPage() {
     try {
       const normalizedStart = toTimeInputValue(settings.WORKING_HOURS_START, '05:00')
       const normalizedEnd = toTimeInputValue(settings.WORKING_HOURS_END, '23:00')
-      const effectiveGuestBookingRules = normalizeBookingRulesForPaymentLocation(guestBookingRules, guestAppSettings.paymentOnLocation)
+      const unifiedTenantType = normalizeTenantConfigType(settings.MODULE_CONFIG_TYPE || guestAppSettings.tenantType)
+      const effectiveSettings = { ...settings, MODULE_CONFIG_TYPE: unifiedTenantType }
+      const effectiveGuestAppSettings = { ...guestAppSettings, tenantType: unifiedTenantType }
+      const effectiveGuestBookingRules = normalizeBookingRulesForPaymentLocation(guestBookingRules, effectiveGuestAppSettings.paymentOnLocation)
       const payload = {
-        ...settings,
+        ...effectiveSettings,
         WORKING_HOURS_START: normalizedStart,
         WORKING_HOURS_END: normalizedEnd,
         [PERSONAL_TASK_PRESETS_KEY]: serializePersonalTaskPresets(personalTaskPresets),
-        [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(guestAppSettings),
+        [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(effectiveGuestAppSettings),
         [GUEST_BOOKING_RULES_KEY]: serializeGuestBookingRules(effectiveGuestBookingRules),
       }
       const { data } = await api.put('/settings', payload)
       const persistedRules = parseGuestBookingRules(data?.[GUEST_BOOKING_RULES_KEY] ?? payload[GUEST_BOOKING_RULES_KEY])
       setGuestBookingRules(
-        normalizeBookingRulesForPaymentLocation(persistedRules, guestAppSettings.paymentOnLocation),
+        normalizeBookingRulesForPaymentLocation(persistedRules, effectiveGuestAppSettings.paymentOnLocation),
       )
       setSettings({
         ...payload,
@@ -4949,13 +5025,16 @@ export function ConfigurationPage() {
     try {
       const normalizedStart = toTimeInputValue(settings.WORKING_HOURS_START, '05:00')
       const normalizedEnd = toTimeInputValue(settings.WORKING_HOURS_END, '23:00')
+      const unifiedTenantType = normalizeTenantConfigType(settings.MODULE_CONFIG_TYPE || guestAppSettings.tenantType)
+      const effectiveSettings = { ...settings, MODULE_CONFIG_TYPE: unifiedTenantType }
+      const effectiveGuestAppSettings = { ...guestAppSettings, tenantType: unifiedTenantType }
       const effectiveWebsiteBookingRules = normalizeWebsiteBookingRulesForPaymentLocation(websiteBookingRules, websiteSettings.paymentOnLocation)
       const payload = {
-        ...settings,
+        ...effectiveSettings,
         WORKING_HOURS_START: normalizedStart,
         WORKING_HOURS_END: normalizedEnd,
         [PERSONAL_TASK_PRESETS_KEY]: serializePersonalTaskPresets(personalTaskPresets),
-        [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(guestAppSettings),
+        [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(effectiveGuestAppSettings),
         [GUEST_BOOKING_RULES_KEY]: serializeGuestBookingRules(guestBookingRules),
         [WEBSITE_WIDGET_SETTINGS_KEY]: serializeWebsiteWidgetSettings(websiteSettings),
         [WEBSITE_BOOKING_RULES_KEY]: serializeWebsiteBookingRules(effectiveWebsiteBookingRules),
@@ -6989,6 +7068,7 @@ export function ConfigurationPage() {
                     <label className="account-field"><span className="account-field-label">Davčna številka</span><input className="account-field-control" value={selectedCompanyProfile?.vatId || ''} onChange={(e) => updateSelectedCompanyProfile({ vatId: e.target.value })} /></label>
                     <label className="account-field"><span className="account-field-label">E-pošta</span><input className="account-field-control" type="email" value={selectedCompanyProfile?.email || ''} onChange={(e) => updateSelectedCompanyProfile({ email: e.target.value })} /></label>
                     <label className="account-field"><span className="account-field-label">Telefon</span><input className="account-field-control" value={selectedCompanyProfile?.telephone || ''} onChange={(e) => updateSelectedCompanyProfile({ telephone: e.target.value })} /></label>
+                    <label className="account-field"><span className="account-field-label">Tip podjetja</span><select className="account-field-control" value={companyTenantType} onChange={(e) => setCompanyTenantType(e.target.value)}>{TENANT_CONFIG_TYPE_OPTIONS.map((option) => (<option key={option.id} value={option.id}>{locale === 'sl' ? option.labelSl : option.labelEn}</option>))}</select></label>
                   </div>
                 </section>
 
@@ -9767,16 +9847,6 @@ export function ConfigurationPage() {
                       <input className="gapp-input" value={me.tenantCode || ''} readOnly />
                     </GuestField>
                     <GuestField
-                      label={locale === 'sl' ? 'Vrsta podjetja' : 'Tenant type'}
-                      hint={locale === 'sl' ? 'Določa, v katerem karuselu brskanja v mobilni aplikaciji za goste se to podjetje prikaže.' : 'Controls which guest-mobile browse carousel this tenant appears in.'}
-                    >
-                      <select className="gapp-select" value={guestAppSettings.tenantType} onChange={(e) => setGuestAppSettings({ ...guestAppSettings, tenantType: normalizeTenantConfigType(e.target.value) })}>
-                        {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
-                          <option key={option.id} value={option.id}>{locale === 'sl' ? option.labelSl : option.labelEn}</option>
-                        ))}
-                      </select>
-                    </GuestField>
-                    <GuestField
                       label={locale === 'sl' ? 'Javno najdljivo' : 'Public discoverable'}
                       hint={locale === 'sl' ? 'Ko je VKLOPLJENO, se to podjetje lahko prikaže v javnih rezultatih iskanja aplikacije za goste.' : 'When ON, this tenant can appear in guest-app public search results.'}
                     >
@@ -10763,24 +10833,6 @@ export function ConfigurationPage() {
       ) : tab === 'modules' && modulesDraftDisplay ? (
         <Card className="settings-card modules-design-card">
           <div className="modules-design-shell">
-            <div className="modules-design-toolbar">
-              <div className="modules-design-toolbar-copy">
-                <span className="modules-design-preset-icon"><ModulesDesignIcon kind="sliders" /></span>
-                <div className="modules-design-preset-copy">
-                  <span>{locale === 'sl' ? 'Predloge modulov' : 'Module presets'}</span>
-                  <strong>{locale === 'sl' ? 'Config type' : 'Config type'}</strong>
-                  <p>{locale === 'sl' ? 'Izbrana vrsta iz strani za obračun. Sprememba uporabi priporočene vklopljene module za trenutni paket.' : 'Selected from the billing page. Changing it applies the recommended module switches for your current package.'}</p>
-                </div>
-              </div>
-              <label className="modules-design-config-select" htmlFor="modules-config-type">
-                <span>{locale === 'sl' ? 'Config type' : 'Config type'}</span>
-                <select id="modules-config-type" value={moduleDraftForDesign.MODULE_CONFIG_TYPE} onChange={(event) => setModuleConfigType(normalizeTenantConfigType(event.target.value))}>
-                  {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>{locale === 'sl' ? option.labelSl : option.labelEn}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
             <div className="modules-design-grid">
               {modulesDesignGroups.map((group) => (
                 <ModulesDesignGroupCard

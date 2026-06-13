@@ -1,0 +1,10 @@
+Changes done:
+- Added one unified "Tip podjetja" dropdown under Nastavitve -> Upravljanje računa -> Podjetje -> Osnovni podatki.
+- The dropdown now controls the shared tenant/company type used by both module presets and guest-mobile public browsing.
+- Removed the old "Config type" selector block from App nastavitve / Modules.
+- Removed the old "Vrsta podjetja" selector from Guest aplikacija -> Splošno.
+- Settings load/save now keeps MODULE_CONFIG_TYPE and guestAppSettings.tenantType synchronized, so the value is stored once in practice and reused everywhere.
+- Changing "Tip podjetja" also applies the same module preset logic that the old Config type selector used.
+
+Validation:
+- TypeScript parse/check was attempted with the available global tsc. It reached existing dependency/type-resolution errors because node_modules are not installed in the sandbox, but no new syntax error was reported before those environment/type errors.

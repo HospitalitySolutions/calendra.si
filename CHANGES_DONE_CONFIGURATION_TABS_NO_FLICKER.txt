@@ -1,0 +1,8 @@
+Configuration tab visibility flicker fix
+
+Changed frontend/src/pages/ConfigurationPage.tsx:
+- Added a settingsLoaded guard so module-controlled configuration tabs are not treated as enabled before tenant settings are loaded.
+- Changed WhatsApp/Viber global capability defaults to disabled until /inbox/global-capabilities returns.
+- Changed payment capability defaults to disabled until /settings/payment-capabilities returns, preventing Stripe/PayPal subtab flicker too.
+- Delayed URL tab/subtab resolution until settings, inbox capabilities, and payment capabilities are loaded, so disabled tabs are redirected only after the real capability state is known.
+- Kept always-safe tabs visible immediately: Company, Integrations status, and App nastavitve/Modules.
