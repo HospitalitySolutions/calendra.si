@@ -1014,6 +1014,7 @@ a.config-nav-item {
 .modules-design-group-card--purple { --module-accent: #7c3aed; --module-soft: #f5f3ff; }
 .modules-design-group-card--amber { --module-accent: #f59e0b; --module-soft: #fffbeb; }
 .modules-design-group-card--rose { --module-accent: #f43f5e; --module-soft: #fff1f2; }
+.modules-design-group-card--cyan { --module-accent: #0891b2; --module-soft: #ecfeff; }
 .modules-design-group-header {
     display: grid;
     grid-template-columns: 54px minmax(0, 1fr) auto;
@@ -1264,9 +1265,12 @@ a.config-nav-item {
     height: 1px;
     background: #dbe4f0;
 }
-.modules-design-group-card:nth-child(1) { grid-row: span 2; }
-.modules-design-group-card:nth-child(4) { grid-column: 2; }
-.modules-design-group-card:nth-child(5) { grid-column: 3; }
+.modules-design-group-card--id-booking { grid-column: 1; grid-row: span 2; }
+.modules-design-group-card--id-services { grid-column: 1; }
+.modules-design-group-card--id-billing,
+.modules-design-group-card--id-communication { grid-column: 2; }
+.modules-design-group-card--id-guest-app,
+.modules-design-group-card--id-integrations { grid-column: 3; }
 
 [data-theme="dark"] .modules-design-card.settings-card,
 [data-theme="dark"] .modules-design-group-card,
@@ -1287,9 +1291,12 @@ a.config-nav-item {
 @media (max-width: 1280px) {
     .modules-design-toolbar { grid-template-columns: 1fr; }
     .modules-design-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .modules-design-group-card:nth-child(1),
-    .modules-design-group-card:nth-child(4),
-    .modules-design-group-card:nth-child(5) { grid-row: auto; grid-column: auto; }
+    .modules-design-group-card--id-booking,
+    .modules-design-group-card--id-services,
+    .modules-design-group-card--id-billing,
+    .modules-design-group-card--id-communication,
+    .modules-design-group-card--id-guest-app,
+    .modules-design-group-card--id-integrations { grid-row: auto; grid-column: auto; }
 }
 @media (max-width: 760px) {
     .modules-design-card.settings-card { padding: 20px; border-radius: 18px; }

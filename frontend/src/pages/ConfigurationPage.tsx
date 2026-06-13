@@ -432,10 +432,11 @@ function GuestSwitch({ checked, onChange, label = 'ON', disabled = false }: { ch
   )
 }
 
-type ModulesDesignTone = 'blue' | 'green' | 'purple' | 'amber' | 'rose'
+type ModulesDesignTone = 'blue' | 'green' | 'purple' | 'amber' | 'rose' | 'cyan'
 type ModulesDesignIconKind =
   | 'booking'
   | 'billing'
+  | 'services'
   | 'guestApp'
   | 'communication'
   | 'security'
@@ -498,6 +499,8 @@ function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
         <><rect x="4" y="5" width="16" height="15" rx="3" {...common} /><path d="M8 3v4M16 3v4M4 10h16" {...common} /></>
       ) : kind === 'billing' ? (
         <><rect x="4" y="6" width="16" height="12" rx="3" {...common} /><path d="M7 10h10M8 14h4M16 14h1" {...common} /></>
+      ) : kind === 'services' ? (
+        <><path d="M20 13.2 13.2 20a2.4 2.4 0 0 1-3.4 0L4 14.2V4h10.2L20 9.8a2.4 2.4 0 0 1 0 3.4Z" {...common} /><path d="M8.2 8.2h.01" {...common} /><path d="M10.5 13.5 14 10" {...common} /></>
       ) : kind === 'guestApp' ? (
         <><rect x="7" y="3" width="10" height="18" rx="2.5" {...common} /><path d="M11 18h2M10 6h4" {...common} /></>
       ) : kind === 'communication' ? (
@@ -620,7 +623,7 @@ function ModulesDesignSettingLine({
 
 function ModulesDesignGroupCard({ group, expandedRows, onToggleExpanded }: { group: ModulesDesignGroup; expandedRows: string[]; onToggleExpanded: (id: string) => void }) {
   return (
-    <section className={`modules-design-group-card modules-design-group-card--${group.tone}`}>
+    <section className={`modules-design-group-card modules-design-group-card--${group.tone} modules-design-group-card--id-${group.id}`}>
       <div className={group.hideSwitch ? 'modules-design-group-header no-group-switch' : 'modules-design-group-header'}>
         <span className="modules-design-group-icon"><ModulesDesignIcon kind={group.icon} /></span>
         <span className="modules-design-group-title">
@@ -3358,6 +3361,7 @@ const serializeGuestBookingRules = (value: GuestBookingRulesForm) => JSON.string
 type ModulesDraft = {
   MODULE_CONFIG_TYPE: TenantConfigType
   SPACES_ENABLED: string
+  TYPES_ENABLED: string
   BOOKABLE_ENABLED: string
   NO_SHOW_ENABLED: string
   ONLINE_SESSION_BOOKING_ENABLED: string
@@ -3409,6 +3413,7 @@ const modulesStringSetting = (s: Record<string, string>, key: string, defaultVal
 const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSettingsForm): ModulesDraft => ({
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(s.MODULE_CONFIG_TYPE || g.tenantType),
   SPACES_ENABLED: s.SPACES_ENABLED === 'true' ? 'true' : 'false',
+  TYPES_ENABLED: modulesStringSetting(s, 'TYPES_ENABLED', true),
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === 'true' ? 'true' : 'false',
   NO_SHOW_ENABLED: modulesStringSetting(s, 'NO_SHOW_ENABLED', true),
   ONLINE_SESSION_BOOKING_ENABLED: modulesStringSetting(s, 'ONLINE_SESSION_BOOKING_ENABLED', true),
@@ -3587,6 +3592,7 @@ const applyModuleConfigPreset = (draft: ModulesDraft, rawConfigType: TenantConfi
 const modulesDraftToSettingsPatch = (draft: ModulesDraft): Record<string, string> => ({
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(draft.MODULE_CONFIG_TYPE),
   SPACES_ENABLED: draft.SPACES_ENABLED,
+  TYPES_ENABLED: draft.TYPES_ENABLED,
   BOOKABLE_ENABLED: draft.BOOKABLE_ENABLED,
   NO_SHOW_ENABLED: draft.NO_SHOW_ENABLED,
   ONLINE_SESSION_BOOKING_ENABLED: draft.ONLINE_SESSION_BOOKING_ENABLED,
@@ -4657,6 +4663,7 @@ export function ConfigurationPage() {
           ...settings,
           MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
+          TYPES_ENABLED: modulesDraftForSave.TYPES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
           ONLINE_SESSION_BOOKING_ENABLED: modulesDraftForSave.ONLINE_SESSION_BOOKING_ENABLED,
@@ -5767,6 +5774,9 @@ export function ConfigurationPage() {
     'BILLING_GIFT_CARDS_ENABLED',
     'BILLING_ADVANCE_ENABLED',
   ]
+  const servicesModuleKeys: ModulesStringKey[] = [
+    'TYPES_ENABLED',
+  ]
   const guestModuleKeys: ModulesBooleanKey[] = [
     'guestAppEnabled',
     'guestWalletEnabled',
@@ -5910,6 +5920,26 @@ export function ConfigurationPage() {
             { id: 'billing-stripe', icon: 'billing', title: 'Stripe', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_ONLINE_CARD_PAYMENTS_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ONLINE_CARD_PAYMENTS_ENABLED', checked) },
             { id: 'billing-advance', icon: 'wallet', title: locale === 'sl' ? 'Predplačilo' : 'Advance', checked: moduleOn('BILLING_ENABLED') && moduleOn('BILLING_ADVANCE_ENABLED'), disabled: !moduleOn('BILLING_ENABLED'), onChange: (checked) => setModuleStringSetting('BILLING_ADVANCE_ENABLED', checked) },
           ],
+        },
+      ],
+    },
+    {
+      id: 'services',
+      title: locale === 'sl' ? 'Storitve' : 'Services',
+      subtitle: locale === 'sl' ? 'Upravljanje storitev, tipov terminov in ponudbe.' : 'Manage services, booking types and the offer catalog.',
+      icon: 'services',
+      tone: 'cyan',
+      checked: servicesModuleKeys.some(moduleOn),
+      hideSwitch: true,
+      onChange: (checked) => setModuleStringSettings(servicesModuleKeys, checked),
+      rows: [
+        {
+          id: 'services-service-types',
+          icon: 'services',
+          title: locale === 'sl' ? 'Storitve' : 'Services',
+          subtitle: locale === 'sl' ? 'Prikaže stran Storitve in izbiro tipa storitve.' : 'Shows the Services page and service type selection.',
+          checked: moduleOn('TYPES_ENABLED'),
+          onChange: (checked) => setModuleStringSetting('TYPES_ENABLED', checked),
         },
       ],
     },
