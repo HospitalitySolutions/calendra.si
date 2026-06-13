@@ -230,7 +230,7 @@ const CONFIG_TAB_IDS: readonly Tab[] = ['company', 'booking', 'billing', 'guestA
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   company: 'tabCompany',
-  booking: 'tabBooking',
+  booking: 'configBookingSpacesTab',
   billing: 'tabBilling',
   guestApp: 'tabGuestApp',
   website: 'tabWebsite',
@@ -3607,7 +3607,7 @@ export function ConfigurationPage() {
   const [savingSubscriptionAddons, setSavingSubscriptionAddons] = useState(false)
   const [packageChangeTarget, setPackageChangeTarget] = useState<AccountPlanPackageKey | null>(null)
   const [savingPackageChange, setSavingPackageChange] = useState(false)
-  const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('general')
+  const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('spaces')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
   const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
   const [expandedIntegrationCard, setExpandedIntegrationCard] = useState<'stripe' | 'googleCalendar' | null>(null)
@@ -4503,7 +4503,6 @@ export function ConfigurationPage() {
     navigate('/configuration?tab=integrations&subtab=googleCalendar', { replace: true })
   }, [query, navigate, showToast])
 
-  const spacesModuleEnabled = settings.SPACES_ENABLED === 'true'
 
   const modulesDraftDisplay = useMemo(() => {
     if (tab !== 'modules') return null
@@ -4527,12 +4526,10 @@ export function ConfigurationPage() {
   }, [inboxGlobalCapabilities.whatsappEnabled, inboxGlobalCapabilities.viberEnabled, guestAppEnabledCommitted, websiteWidgetEnabledCommitted, billingEnabledCommitted, notificationsEnabledCommitted])
 
   useEffect(() => {
-    const order: BookingSubtab[] = ['general']
-    if (spacesModuleEnabled) order.push('spaces')
-    if (!order.includes(bookingSubtab)) {
-      setBookingSubtab(order[0]!)
+    if (bookingSubtab !== 'spaces') {
+      setBookingSubtab('spaces')
     }
-  }, [spacesModuleEnabled, bookingSubtab])
+  }, [bookingSubtab])
 
   useEffect(() => {
     setOpenSpaceMenuId(null)
@@ -7987,81 +7984,9 @@ export function ConfigurationPage() {
             }
           `}</style>
           <section className="booking-panel-card">
-            <div className="booking-tabs-card">
-              <div className="booking-tabs" role="tablist" aria-label="Rezervacije">
-                <button
-                  type="button"
-                  className={bookingSubtab === 'general' ? 'booking-tab is-active' : 'booking-tab'}
-                  onClick={() => setBookingSubtab('general')}
-                  role="tab"
-                  aria-selected={bookingSubtab === 'general'}
-                >
-                  Osnovne nastavitve
-                </button>
-                {spacesModuleEnabled ? (
-                  <button
-                    type="button"
-                    className={bookingSubtab === 'spaces' ? 'booking-tab is-active' : 'booking-tab'}
-                    onClick={() => setBookingSubtab('spaces')}
-                    role="tab"
-                    aria-selected={bookingSubtab === 'spaces'}
-                  >
-                    Prostori
-                  </button>
-                ) : null}
-              </div>
-            </div>
           <div className="booking-content-panel">
 
-          {bookingSubtab === 'general' ? (
-            <div>
-              <div className="booking-panel-heading">
-                <p>Nastavite splošna pravila rezervacij, trajanje terminov in delovni čas.</p>
-              </div>
-              <div className="booking-general-grid">
-                <label className="booking-modern-field">
-                  <span className="booking-modern-label-row">Dolžina termina (minute)</span>
-                  <span className="booking-input-wrap">
-                    <input className="booking-modern-input" type="number" min="15" step="15" value={settings.SESSION_LENGTH_MINUTES || '60'} onChange={(e) => setSettings({ ...settings, SESSION_LENGTH_MINUTES: e.target.value })} />
-                    <span className="booking-input-suffix">min</span>
-                  </span>
-                  <span className="booking-field-hint">Privzeto trajanje enega termina za rezervacijo.</span>
-                </label>
-                <label className="booking-modern-field">
-                  <span className="booking-modern-label-row">Koledar od</span>
-                  <span className="booking-input-wrap">
-                    <ModernTimePicker
-                      className="booking-modern-input"
-                      value={toTimeInputValue(settings.WORKING_HOURS_START, '05:00')}
-                      onChange={(nextValue) => setSettings({ ...settings, WORKING_HOURS_START: nextValue })}
-                      ariaLabel="Koledar od"
-                    />
-                  </span>
-                  <span className="booking-field-hint">Začetek delovnega časa, ko so možne rezervacije.</span>
-                </label>
-                <label className="booking-modern-field">
-                  <span className="booking-modern-label-row">Koledar do</span>
-                  <span className="booking-input-wrap">
-                    <ModernTimePicker
-                      className="booking-modern-input"
-                      value={toTimeInputValue(settings.WORKING_HOURS_END, '23:00')}
-                      onChange={(nextValue) => setSettings({ ...settings, WORKING_HOURS_END: nextValue })}
-                      ariaLabel="Koledar do"
-                    />
-                  </span>
-                  <span className="booking-field-hint">Konec delovnega časa, ko so možne rezervacije.</span>
-                </label>
-              </div>
-              <div className="booking-save-row">
-                <button type="button" className="booking-primary-button" onClick={() => void saveSettings()} disabled={savingSettings}>
-                  <GuestSaveIcon />
-                  {savingSettings ? 'Shranjevanje…' : 'Shrani konfiguracijo'}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {bookingSubtab === 'spaces' && spacesModuleEnabled ? (
+          {bookingSubtab === 'spaces' ? (
             <div>
               <div className="booking-spaces-header">
                 <div className="booking-panel-heading" style={{ marginBottom: 0 }}>

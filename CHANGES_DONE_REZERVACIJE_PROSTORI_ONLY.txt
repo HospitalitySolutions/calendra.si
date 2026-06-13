@@ -1,0 +1,7 @@
+Rezervacije settings cleanup
+
+Changed frontend/src/pages/ConfigurationPage.tsx:
+- Renamed the settings side navigation item from Rezervacije/Booking to Prostori/Spaces.
+- Removed the inner Osnovne nastavitve tab from the Rezervacije settings page.
+- Removed the old basic reservation settings panel from this page, because those settings now live under App nastavitve -> Rezervacije.
+- The page now opens directly on the Prostori management UI.
