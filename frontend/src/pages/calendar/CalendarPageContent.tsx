@@ -6451,7 +6451,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         return
       }
     }
-    if (!form.personal && !form.todo && form.outsideBookable && !skipNonBookableConfirm) {
+    if (!form.personal && !form.todo && (form.outsideBookable || isBookingStartInPast(form.startTime)) && !skipNonBookableConfirm) {
       setSelection(null)
       setClientDropdownOpen(false)
       setEditingClientSearch(false)
