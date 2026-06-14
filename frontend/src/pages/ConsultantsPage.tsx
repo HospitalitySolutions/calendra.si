@@ -105,6 +105,17 @@ function employeeListCountLabel(count: number, locale: AppLocale): string {
   return `${count} zaposlenih`
 }
 
+function isUserQuotaError(error: any): boolean {
+  if (error?.response?.status === 402) return true
+  const message = String(error?.response?.data?.message || error?.response?.data?.detail || error?.message || '').toLowerCase()
+  return message.includes('active user') || message.includes('user count') || message.includes('uporabnik')
+}
+
+function fallbackUserQuota(consultants: Consultant[]): UserQuota {
+  const activeUsers = consultants.filter((consultant) => consultant.active !== false).length
+  return { activeUsers, maxUsers: activeUsers || 1, reached: true }
+}
+
 type UserRole = 'ADMIN' | 'CONSULTANT'
 function formatRoleLabel(role: UserRole, t: (key: string) => string) {
   return role === 'ADMIN' ? t('employeesFormRoleOptionAdmin') : t('employeesFormRoleOptionConsultant')
@@ -126,6 +137,12 @@ type Consultant = {
   whatsappPhoneNumberId?: string | null
   workingHours?: WorkingHoursConfig | null
   permissions?: string[]
+}
+
+type UserQuota = {
+  activeUsers: number
+  maxUsers: number | null
+  reached: boolean
 }
 
 type ConsultantForm = {
@@ -239,6 +256,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const user = getStoredUser()
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === ('ROLE_ADMIN' as any) || user?.role === ('ROLE_SUPER_ADMIN' as any)
   const [consultants, setConsultants] = useState<Consultant[]>([])
+  const [userQuota, setUserQuota] = useState<UserQuota | null>(null)
+  const [employeeLimitDialog, setEmployeeLimitDialog] = useState<UserQuota | null>(null)
   const [editing, setEditing] = useState<Consultant | null>(null)
   const [showFormPanel, setShowFormPanel] = useState(false)
   const [search, setSearch] = useState('')
@@ -275,8 +294,13 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     setErrorMessage('')
 
     try {
-      const response = await api.get(`/users`)
-      setConsultants(response.data ?? [])
+      const [usersResponse, quotaResponse] = await Promise.all([
+        api.get(`/users`),
+        api.get<UserQuota>(`/users/quota`).catch(() => ({ data: null as UserQuota | null })),
+      ])
+      const nextConsultants = usersResponse.data ?? []
+      setConsultants(nextConsultants)
+      setUserQuota(quotaResponse.data ?? null)
     } catch (error: any) {
       console.error('Failed to load consultants', error)
 
@@ -290,6 +314,10 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
   const toggleConsultantActiveById = async (consultantId: number, currentlyActive: boolean) => {
     if (!isAdmin) return
+    if (!currentlyActive && userQuota?.maxUsers != null && userQuota.activeUsers >= userQuota.maxUsers) {
+      setEmployeeLimitDialog(userQuota)
+      return
+    }
     setActivatingEmployeeId(consultantId)
     setErrorMessage('')
     try {
@@ -298,7 +326,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       await loadConsultants()
       window.dispatchEvent(new Event('users-updated'))
     } catch (error: any) {
-      const backendMessage = error?.response?.data?.message
+      if (isUserQuotaError(error)) {
+        setEmployeeLimitDialog(userQuota ?? fallbackUserQuota(consultants))
+        return
+      }
+      const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
       setErrorMessage(backendMessage || (locale === 'sl' ? 'Stanja zaposlenega ni bilo mogoče posodobiti.' : 'Failed to update employee status.'))
     } finally {
       setActivatingEmployeeId(null)
@@ -357,6 +389,10 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }, [consultants, search, activeFilter, t])
 
   const startCreate = () => {
+    if (userQuota?.maxUsers != null && userQuota.activeUsers >= userQuota.maxUsers) {
+      setEmployeeLimitDialog(userQuota)
+      return
+    }
     setEditing(null)
     const next: ConsultantForm = {
       ...emptyForm,
@@ -505,9 +541,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       window.dispatchEvent(new Event('users-updated'))
     } catch (error: any) {
       const status = error?.response?.status
-      const backendMessage = error?.response?.data?.message
+      const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
 
-      if (status === 403) {
+      if (isUserQuotaError(error)) {
+        setEmployeeLimitDialog(userQuota ?? fallbackUserQuota(consultants))
+      } else if (status === 403) {
         setErrorMessage(
           selfService
             ? backendMessage || 'You are not allowed to update this profile.'
@@ -561,6 +599,17 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const consultantToggleOn = form.consultant || form.role === 'CONSULTANT'
   const statusHeader = locale === 'sl' ? 'Status' : 'Status'
   const myUserId = user?.id
+  const employeeLimitTitle = locale === 'sl' ? 'Dosegli ste največje število uporabnikov' : 'User limit reached'
+  const employeeLimitText = locale === 'sl'
+    ? 'Za dodajanje ali aktivacijo novega zaposlenega povečajte število uporabnikov v Upravljanje računa → Naročnina.'
+    : 'To add or activate another employee, increase the number of users in Account management → Subscription.'
+  const employeeLimitButtonLabel = locale === 'sl' ? 'Odpri Naročnino' : 'Open Subscription'
+  const employeeLimitCloseLabel = locale === 'sl' ? 'Zapri' : 'Close'
+  const openSubscriptionSettings = () => {
+    setEmployeeLimitDialog(null)
+    setShowFormPanel(false)
+    navigate('/configuration?tab=company&subtab=subscription')
+  }
 
   return (
     <div className="stack gap-lg">
@@ -1115,6 +1164,25 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {employeeLimitDialog && (
+        <div className="modal-backdrop employees-limit-backdrop" onClick={() => setEmployeeLimitDialog(null)}>
+          <div className="modal employees-limit-modal" role="dialog" aria-modal="true" aria-labelledby="employees-limit-title" onClick={(e) => e.stopPropagation()}>
+            <div className="employees-limit-icon" aria-hidden>
+              <EmployeeFormIcon name="person" />
+            </div>
+            <h2 id="employees-limit-title">{employeeLimitTitle}</h2>
+            <p>{employeeLimitText}</p>
+            <div className="employees-limit-usage-card">
+              <span>{locale === 'sl' ? 'Aktivni uporabniki' : 'Active users'}</span>
+              <strong>{employeeLimitDialog.activeUsers} / {employeeLimitDialog.maxUsers ?? '∞'}</strong>
+            </div>
+            <div className="employees-limit-actions">
+              <button type="button" className="secondary" onClick={() => setEmployeeLimitDialog(null)}>{employeeLimitCloseLabel}</button>
+              <button type="button" className="gapp-primary-button" onClick={openSubscriptionSettings}>{employeeLimitButtonLabel}</button>
             </div>
           </div>
         </div>

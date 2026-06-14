@@ -111,6 +111,17 @@ public class UserController {
                         .body(Map.of("message", "User not found.")));
     }
 
+    @GetMapping("/quota")
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserQuotaResponse quota(@AuthenticationPrincipal User me) {
+        Long companyId = me.getCompany().getId();
+        int quota = packageAccessService.userQuota(companyId);
+        long activeUsers = userRepository.countByCompanyIdAndActiveTrue(companyId);
+        Integer maxUsers = quota == Integer.MAX_VALUE ? null : quota;
+        boolean reached = maxUsers != null && activeUsers >= maxUsers;
+        return new UserQuotaResponse(activeUsers, maxUsers, reached);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> findById(@PathVariable Long id, @AuthenticationPrincipal User me) {
@@ -280,6 +291,9 @@ public class UserController {
         Long companyId = me.getCompany().getId();
         return userRepository.findByIdAndCompanyId(id, companyId)
                 .<ResponseEntity<?>>map(target -> {
+                    if (!target.isActive()) {
+                        packageAccessService.requireCanCreateUser(me);
+                    }
                     target.setActive(true);
                     target.setUpdatedAt(Instant.now());
                     return ResponseEntity.ok(toResponse(userRepository.save(target)));
@@ -389,6 +403,13 @@ public class UserController {
             String avatarPath,
             Instant createdAt,
             Instant updatedAt
+    ) {
+    }
+
+    public record UserQuotaResponse(
+            long activeUsers,
+            Integer maxUsers,
+            boolean reached
     ) {
     }
 

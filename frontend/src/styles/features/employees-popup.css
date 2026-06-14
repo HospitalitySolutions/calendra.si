@@ -541,3 +541,147 @@
 [data-theme="dark"] .employees-form-popup-footer.booking-side-panel-footer {
     border-color: rgba(148, 163, 184, 0.22);
 }
+
+/* Employee subscription/user limit dialog */
+.employees-limit-backdrop.modal-backdrop {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.46);
+    backdrop-filter: blur(8px);
+    z-index: 1400;
+}
+
+.employees-limit-modal.modal {
+    width: min(460px, calc(100vw - 40px));
+    max-width: min(460px, calc(100vw - 40px));
+    padding: 28px;
+    border-radius: 24px;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 28px 90px rgba(15, 23, 42, 0.28), 0 1px 0 rgba(255, 255, 255, 0.88) inset;
+    text-align: left;
+}
+
+.employees-limit-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #1672f3;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    box-shadow: 0 12px 24px rgba(22, 114, 243, 0.14);
+    margin-bottom: 16px;
+}
+
+.employees-limit-modal h2 {
+    margin: 0 0 10px;
+    color: #111827;
+    font-size: 1.35rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 850;
+}
+
+.employees-limit-modal p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.96rem;
+    line-height: 1.55;
+}
+
+.employees-limit-usage-card {
+    margin-top: 18px;
+    padding: 15px 16px;
+    border-radius: 16px;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.employees-limit-usage-card span {
+    color: #475569;
+    font-size: 0.84rem;
+    font-weight: 750;
+}
+
+.employees-limit-usage-card strong {
+    color: #0f62d8;
+    font-size: 1.1rem;
+    font-weight: 850;
+}
+
+.employees-limit-actions {
+    margin-top: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.employees-limit-actions button {
+    min-height: 42px;
+    border-radius: 12px;
+    font-weight: 800;
+}
+
+.employees-limit-actions .secondary {
+    min-width: 104px;
+    background: #ffffff;
+    border: 1px solid #dfe4ec;
+    color: #334155;
+    box-shadow: none !important;
+}
+
+.employees-limit-actions .gapp-primary-button {
+    min-width: 178px;
+}
+
+@media (max-width: 520px) {
+    .employees-limit-backdrop.modal-backdrop {
+        padding: 18px;
+    }
+
+    .employees-limit-modal.modal {
+        width: 100%;
+        max-width: 100%;
+        padding: 24px 20px;
+        border-radius: 22px;
+    }
+
+    .employees-limit-actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .employees-limit-actions button,
+    .employees-limit-actions .gapp-primary-button,
+    .employees-limit-actions .secondary {
+        width: 100%;
+    }
+}
+
+[data-theme="dark"] .employees-limit-modal.modal {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] .employees-limit-modal h2 {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .employees-limit-usage-card {
+    background: rgba(22, 114, 243, 0.12);
+    border-color: rgba(96, 165, 250, 0.28);
+}
+
+[data-theme="dark"] .employees-limit-actions .secondary {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #e2e8f0;
+}

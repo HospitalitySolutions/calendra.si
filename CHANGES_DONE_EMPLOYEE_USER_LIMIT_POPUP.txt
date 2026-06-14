@@ -1,0 +1,17 @@
+Employee user limit popup and quota enforcement
+
+Changed files:
+- frontend/src/pages/ConsultantsPage.tsx
+- frontend/src/styles/features/employees-popup.css
+- backend/src/main/java/com/example/app/user/UserController.java
+
+What changed:
+1. Added /api/users/quota endpoint returning active user count and max user count for the tenant.
+2. Employees page now blocks New employee and inactive employee activation when the active user quota is reached.
+3. Added a Slovenian/English popup explaining that the maximum number of users has been reached.
+4. Popup shows the current usage, for example 6 / 6 active users.
+5. Popup includes a button that redirects to Upravljanje računa -> Naročnina: /configuration?tab=company&subtab=subscription.
+6. Backend now also enforces the same quota when activating an inactive user, not just when creating a new user.
+
+Build check:
+- Backend build could not be completed in this sandbox because Maven wrapper dependencies require network access. Running ./mvnw directly also had permission denied until using bash ./mvnw.
