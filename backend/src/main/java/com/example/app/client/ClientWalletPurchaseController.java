@@ -26,6 +26,7 @@ import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
 import com.example.app.security.SecurityUtils;
+import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.user.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,7 +70,32 @@ public class ClientWalletPurchaseController {
     private final OpenBillRepository openBills;
     private final PaymentMethodRepository paymentMethods;
     private final TransactionServiceRepository transactionServices;
+    private final CourseModuleAccessService courseModuleAccessService;
 
+    @Autowired
+    public ClientWalletPurchaseController(
+            ClientRepository clients,
+            GuestProductRepository products,
+            GuestOrderRepository orders,
+            GuestTenantLinkRepository guestTenantLinks,
+            GuestUserRepository guestUsers,
+            OpenBillRepository openBills,
+            PaymentMethodRepository paymentMethods,
+            TransactionServiceRepository transactionServices,
+            CourseModuleAccessService courseModuleAccessService
+    ) {
+        this.clients = clients;
+        this.products = products;
+        this.orders = orders;
+        this.guestTenantLinks = guestTenantLinks;
+        this.guestUsers = guestUsers;
+        this.openBills = openBills;
+        this.paymentMethods = paymentMethods;
+        this.transactionServices = transactionServices;
+        this.courseModuleAccessService = courseModuleAccessService;
+    }
+
+    /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
     public ClientWalletPurchaseController(
             ClientRepository clients,
             GuestProductRepository products,
@@ -79,14 +106,7 @@ public class ClientWalletPurchaseController {
             PaymentMethodRepository paymentMethods,
             TransactionServiceRepository transactionServices
     ) {
-        this.clients = clients;
-        this.products = products;
-        this.orders = orders;
-        this.guestTenantLinks = guestTenantLinks;
-        this.guestUsers = guestUsers;
-        this.openBills = openBills;
-        this.paymentMethods = paymentMethods;
-        this.transactionServices = transactionServices;
+        this(clients, products, orders, guestTenantLinks, guestUsers, openBills, paymentMethods, transactionServices, null);
     }
 
     public record WalletProductResponse(
@@ -118,10 +138,12 @@ public class ClientWalletPurchaseController {
     ) {
         loadClientForWalletWrite(clientId, me);
         Long companyId = me.getCompany().getId();
+        boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
         return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(companyId).stream()
                 .filter(GuestProduct::isActive)
                 .filter(product -> product.getCourse() == null)
                 .filter(product -> BUYABLE_WALLET_TYPES.contains(product.getProductType()))
+                .filter(product -> product.getProductType() != ProductType.COURSE || coursesEnabled)
                 .map(this::toWalletProductResponse)
                 .toList();
     }
@@ -140,6 +162,9 @@ public class ClientWalletPurchaseController {
                 .filter(p -> p.getCourse() == null)
                 .filter(p -> BUYABLE_WALLET_TYPES.contains(p.getProductType()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet product not found."));
+        if (product.getProductType() == ProductType.COURSE && courseModuleAccessService != null) {
+            courseModuleAccessService.assertEnabled(companyId);
+        }
 
         GuestTenantLink link = resolveOrCreateGuestLink(client);
         var paymentMethod = resolveDefaultPaymentMethod(companyId);

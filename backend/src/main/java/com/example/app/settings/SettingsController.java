@@ -5,6 +5,7 @@ import com.example.app.files.TenantFileS3Service;
 import java.util.Locale;
 import java.util.Arrays;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,28 @@ public class SettingsController {
     private final GlobalPaymentProviderService globalPaymentProviders;
     private final GlobalConsumablesFeatureService globalConsumablesFeatureService;
     private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
+    private final CourseModuleAccessService courseModuleAccessService;
 
+    @Autowired
+    public SettingsController(
+            AppSettingRepository repository,
+            SettingsCryptoService crypto,
+            TenantFileS3Service fileStorage,
+            GlobalPaymentProviderService globalPaymentProviders,
+            GlobalConsumablesFeatureService globalConsumablesFeatureService,
+            PlatformTenantAccountLinkService platformTenantAccountLinkService,
+            CourseModuleAccessService courseModuleAccessService
+    ) {
+        this.repository = repository;
+        this.crypto = crypto;
+        this.fileStorage = fileStorage;
+        this.globalPaymentProviders = globalPaymentProviders;
+        this.globalConsumablesFeatureService = globalConsumablesFeatureService;
+        this.platformTenantAccountLinkService = platformTenantAccountLinkService;
+        this.courseModuleAccessService = courseModuleAccessService;
+    }
+
+    /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
     public SettingsController(
             AppSettingRepository repository,
             SettingsCryptoService crypto,
@@ -34,12 +56,7 @@ public class SettingsController {
             GlobalConsumablesFeatureService globalConsumablesFeatureService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
-        this.repository = repository;
-        this.crypto = crypto;
-        this.fileStorage = fileStorage;
-        this.globalPaymentProviders = globalPaymentProviders;
-        this.globalConsumablesFeatureService = globalConsumablesFeatureService;
-        this.platformTenantAccountLinkService = platformTenantAccountLinkService;
+        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null);
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
@@ -58,6 +75,9 @@ public class SettingsController {
     @Transactional
     public Map<String, String> save(@RequestBody Map<String, String> payload, @AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
+            courseModuleAccessService.assertCanDisable(companyId);
+        }
         Arrays.stream(SettingKey.values()).forEach(key -> {
             if (payload.containsKey(key.name())) {
                 var s = repository.findByCompanyIdAndKey(companyId, key).orElseGet(() -> {

@@ -15,6 +15,7 @@ import com.example.app.guest.model.ProductType;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
+import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -23,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -48,7 +50,30 @@ public class GuestProductAdminController {
     private final GuestEntitlementRepository entitlements;
     private final CourseRepository courses;
     private final MembershipCourseRepository membershipCourses;
+    private final CourseModuleAccessService courseModuleAccessService;
 
+    @Autowired
+    public GuestProductAdminController(
+            GuestProductRepository products,
+            SessionTypeRepository sessionTypes,
+            TransactionServiceRepository transactionServices,
+            GuestOrderItemRepository orderItems,
+            GuestEntitlementRepository entitlements,
+            CourseRepository courses,
+            MembershipCourseRepository membershipCourses,
+            CourseModuleAccessService courseModuleAccessService
+    ) {
+        this.products = products;
+        this.sessionTypes = sessionTypes;
+        this.transactionServices = transactionServices;
+        this.orderItems = orderItems;
+        this.entitlements = entitlements;
+        this.courses = courses;
+        this.membershipCourses = membershipCourses;
+        this.courseModuleAccessService = courseModuleAccessService;
+    }
+
+    /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
     public GuestProductAdminController(
             GuestProductRepository products,
             SessionTypeRepository sessionTypes,
@@ -58,13 +83,7 @@ public class GuestProductAdminController {
             CourseRepository courses,
             MembershipCourseRepository membershipCourses
     ) {
-        this.products = products;
-        this.sessionTypes = sessionTypes;
-        this.transactionServices = transactionServices;
-        this.orderItems = orderItems;
-        this.entitlements = entitlements;
-        this.courses = courses;
-        this.membershipCourses = membershipCourses;
+        this(products, sessionTypes, transactionServices, orderItems, entitlements, courses, membershipCourses, null);
     }
 
     @GetMapping
@@ -150,6 +169,11 @@ public class GuestProductAdminController {
         if (productType == ProductType.COURSE && (request.includedCourseIds() == null || request.includedCourseIds().isEmpty())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Course access entitlements must include at least one course.");
         }
+        if ((productType == ProductType.COURSE || productType == ProductType.MEMBERSHIP)
+                && request.includedCourseIds() != null
+                && !request.includedCourseIds().isEmpty()) {
+            assertCoursesEnabled(companyId);
+        }
         validatePackOrClassPriceGross(productType, sessionType, usageLimit, priceGross);
 
         Integer validityDays = productType == ProductType.COURSE ? null : normalizePositiveInteger(request.validityDays(), "Validity days");
@@ -158,6 +182,9 @@ public class GuestProductAdminController {
         }
         boolean autoRenews = productType == ProductType.MEMBERSHIP && Boolean.TRUE.equals(request.autoRenews());
         boolean nextActive = request.active() == null || Boolean.TRUE.equals(request.active());
+        if (productType == ProductType.COURSE && nextActive) {
+            assertCoursesEnabled(companyId);
+        }
         if (product.getId() != null && product.isActive() && !nextActive
                 && entitlements.countByProductId(product.getId()) > 0) {
             throw new ResponseStatusException(
@@ -182,6 +209,12 @@ public class GuestProductAdminController {
         product.setValidityDays(validityDays);
         product.setAutoRenews(autoRenews);
         product.setSortOrder(request.sortOrder() == null ? 0 : request.sortOrder());
+    }
+
+    private void assertCoursesEnabled(Long companyId) {
+        if (courseModuleAccessService != null) {
+            courseModuleAccessService.assertEnabled(companyId);
+        }
     }
 
     private ProductType parseProductType(String raw) {

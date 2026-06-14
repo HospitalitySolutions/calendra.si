@@ -184,6 +184,7 @@ public class DataSeeder implements CommandLineRunner {
         // Seed settings for this tenant.
         seedSetting(company, SettingKey.SPACES_ENABLED, "true");
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
+        seedSetting(company, SettingKey.COURSES_ENABLED, "true");
         seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
         seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, "true");
         seedSetting(company, SettingKey.NO_SHOW_ENABLED, "true");

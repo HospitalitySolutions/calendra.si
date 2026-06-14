@@ -621,7 +621,7 @@ export function SessionTypesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const showCardsMemberships =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_CARDS;
-  const showCourses =
+  const showCoursesParam =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_COURSES;
   const showTransactionServices =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_TRANSACTION;
@@ -652,6 +652,9 @@ export function SessionTypesPage() {
 
   const [boot, setBoot] = useState(true);
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
+  const coursesModuleEnabled = settings.COURSES_ENABLED !== "false";
+  const showCourses = showCoursesParam && coursesModuleEnabled;
   const [types, setTypes] = useState<SessionTypeT[]>([]);
   const [services, setServices] = useState<BillingService[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -1066,7 +1069,6 @@ export function SessionTypesPage() {
     });
   }, []);
 
-  const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
   const groupBookingModuleEnabled = settings.GROUP_BOOKING_ENABLED === "true";
   const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== "false";
   const advanceModuleEnabled = settings.BILLING_ADVANCE_ENABLED !== "false";
@@ -2199,16 +2201,18 @@ export function SessionTypesPage() {
                 <ServiceConfigTabIcon name="cards" />
                 <span>{t("sessionTypesSubtabCards")}</span>
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={showCourses}
-                className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
-                onClick={() => setSessionTypesSubtab("courses")}
-              >
-                <ServiceConfigTabIcon name="types" />
-                <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
-              </button>
+              {coursesModuleEnabled && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={showCourses}
+                  className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
+                  onClick={() => setSessionTypesSubtab("courses")}
+                >
+                  <ServiceConfigTabIcon name="types" />
+                  <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
+                </button>
+              )}
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
@@ -2352,6 +2356,7 @@ export function SessionTypesPage() {
             <CardsMembershipsSection
               ref={cardsMembershipsRef}
               sessionTypes={activeTypes}
+              coursesEnabled={coursesModuleEnabled}
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}
@@ -2399,16 +2404,18 @@ export function SessionTypesPage() {
                 <ServiceConfigTabIcon name="cards" />
                 <span>{t("sessionTypesSubtabCards")}</span>
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={showCourses}
-                className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
-                onClick={() => setSessionTypesSubtab("courses")}
-              >
-                <ServiceConfigTabIcon name="types" />
-                <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
-              </button>
+              {coursesModuleEnabled && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={showCourses}
+                  className={showCourses ? "clients-session-tab active" : "clients-session-tab"}
+                  onClick={() => setSessionTypesSubtab("courses")}
+                >
+                  <ServiceConfigTabIcon name="types" />
+                  <span>{locale === "sl" ? "Tečaji" : "Courses"}</span>
+                </button>
+              )}
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
@@ -2528,6 +2535,7 @@ export function SessionTypesPage() {
             <CardsMembershipsSection
               ref={cardsMembershipsRef}
               sessionTypes={activeTypes}
+              coursesEnabled={coursesModuleEnabled}
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}

@@ -255,13 +255,14 @@ export type CardsMembershipsSectionHandle = {
 
 export type CardsMembershipsSectionProps = {
   sessionTypes: SessionTypeT[]
+  coursesEnabled: boolean
   searchQuery: string
   activeFilter: 'active' | 'inactive'
   onFilteredCountChange?: (filteredCount: number) => void
 }
 
 export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle, CardsMembershipsSectionProps>(
-  function CardsMembershipsSection({ sessionTypes, searchQuery, activeFilter, onFilteredCountChange }, ref) {
+  function CardsMembershipsSection({ sessionTypes, coursesEnabled, searchQuery, activeFilter, onFilteredCountChange }, ref) {
   const me = getStoredUser()
   const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
   const { t, locale } = useLocale()
@@ -282,7 +283,9 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       const [productsRes, servicesRes, coursesRes] = await Promise.all([
         api.get('/guest/admin/products').catch(() => ({ data: [] })),
         api.get<BillingService[]>('/billing/services').catch(() => ({ data: [] as BillingService[] })),
-        api.get<CourseOption[]>('/courses').catch(() => ({ data: [] as CourseOption[] })),
+        coursesEnabled
+          ? api.get<CourseOption[]>('/courses').catch(() => ({ data: [] as CourseOption[] }))
+          : Promise.resolve({ data: [] as CourseOption[] }),
       ])
       setGuestProducts(productsRes.data || [])
       setTransactionServices(Array.isArray(servicesRes.data) ? servicesRes.data : [])
@@ -292,7 +295,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       setTransactionServices([])
       setCourses([])
     }
-  }, [isAdmin])
+  }, [isAdmin, coursesEnabled])
 
   useEffect(() => {
     void loadGuestProducts()
@@ -320,6 +323,13 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       .filter((service) => service.active !== false)
       .sort((a, b) => transactionServiceLabel(a).localeCompare(transactionServiceLabel(b))),
     [transactionServices],
+  )
+
+  const availableAdminGuestProductTypes = useMemo(
+    () => coursesEnabled || guestProductForm.productType === 'COURSE'
+      ? ADMIN_GUEST_PRODUCT_TYPES
+      : ADMIN_GUEST_PRODUCT_TYPES.filter((productType) => productType !== 'COURSE'),
+    [coursesEnabled, guestProductForm.productType],
   )
 
   const openNewGuestProductModal = useCallback(() => {
@@ -373,6 +383,14 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
     if (!isAdmin) return
     const isGiftCard = guestProductForm.productType === 'GIFT_CARD'
     const isCourseAccess = guestProductForm.productType === 'COURSE'
+    if (isCourseAccess && !coursesEnabled) {
+      window.alert(locale === 'sl' ? 'Prodaja dostopa do tečajev je izklopljena v App nastavitvah.' : 'Course access sales are disabled in App settings.')
+      return
+    }
+    if (!coursesEnabled && guestProductForm.productType === 'MEMBERSHIP' && guestProductForm.includedCourseIds.length > 0) {
+      window.alert(locale === 'sl' ? 'Tečaji so izklopljeni v App nastavitvah, zato članarina ne more vključevati tečajev.' : 'Courses are disabled in App settings, so this membership cannot include courses.')
+      return
+    }
     if (guestProductForm.productType === 'PACK') {
       if (!guestProductForm.sessionTypeId.trim()) {
         window.alert('Tickets must be linked to a service type.')
@@ -422,7 +440,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
       sortOrder: Number.parseInt(guestProductForm.sortOrder || '0', 10) || 0,
       sessionTypeId: isGiftCard ? null : (guestProductForm.sessionTypeId ? Number.parseInt(guestProductForm.sessionTypeId, 10) : null),
       transactionServiceId: isGiftCard ? transactionServiceId : null,
-      includedCourseIds: (guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE')
+      includedCourseIds: coursesEnabled && (guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE')
         ? guestProductForm.includedCourseIds.map((id) => Number.parseInt(id, 10)).filter((id) => Number.isFinite(id))
         : [],
     }
@@ -462,6 +480,10 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
 
   const toggleGuestProductActive = async (product: GuestAdminProduct, nextActive: boolean) => {
     if (!isAdmin) return
+    if (product.productType === 'COURSE' && nextActive && !coursesEnabled) {
+      window.alert(locale === 'sl' ? 'Prodaja dostopa do tečajev je izklopljena v App nastavitvah.' : 'Course access sales are disabled in App settings.')
+      return
+    }
     setActivatingGuestProductId(product.id)
     try {
       await api.put(`/guest/admin/products/${product.id}`, {
@@ -493,7 +515,8 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
   }
 
   const filteredGuestProducts = useMemo(() => {
-    const byStatus = guestProducts.filter((product) => (activeFilter === 'inactive' ? product.active === false : product.active !== false))
+    const visibleByModule = guestProducts.filter((product) => coursesEnabled || product.productType !== 'COURSE')
+    const byStatus = visibleByModule.filter((product) => (activeFilter === 'inactive' ? product.active === false : product.active !== false))
     const q = searchQuery.trim().toLowerCase()
     if (!q) return byStatus
     return byStatus.filter((p) => {
@@ -518,7 +541,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
         .toLowerCase()
       return hay.includes(q)
     })
-  }, [guestProducts, searchQuery, activeFilter])
+  }, [guestProducts, searchQuery, activeFilter, coursesEnabled])
 
   useEffect(() => {
     onFilteredCountChange?.(filteredGuestProducts.length)
@@ -792,11 +815,18 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                     )
                   }}
                 >
-                  {ADMIN_GUEST_PRODUCT_TYPES.map((productType) => (
+                  {availableAdminGuestProductTypes.map((productType) => (
                     <option key={productType} value={productType}>{productTypeLabel(productType)}</option>
                   ))}
                 </select>
               </Field>
+              {guestProductForm.productType === 'COURSE' && !coursesEnabled && (
+                <p className="muted cards-product-modal-note full-span">
+                  {locale === 'sl'
+                    ? 'Tečaji so izklopljeni v App nastavitvah, zato dostopa do tečajev ni mogoče prodajati.'
+                    : 'Courses are disabled in App settings, so course access cannot be sold.'}
+                </p>
+              )}
               <Field
                 label="Price (gross) *"
                 hint={
@@ -951,7 +981,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                   <button type="button" className={guestProductForm.guestVisible ? 'cards-product-toggle-btn active' : 'cards-product-toggle-btn'} onClick={() => setGuestProductForm({ ...guestProductForm, guestVisible: true })}>ON</button>
                 </div>
               </Field>
-              {(guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE') && (
+              {coursesEnabled && (guestProductForm.productType === 'MEMBERSHIP' || guestProductForm.productType === 'COURSE') && (
                 <Field
                   label={locale === 'sl' ? 'Vključeni tečaji' : 'Included courses'}
                   hint={guestProductForm.productType === 'COURSE'

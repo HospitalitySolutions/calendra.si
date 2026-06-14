@@ -8,4 +8,5 @@ public interface GuestProductRepository extends JpaRepository<GuestProduct, Long
     List<GuestProduct> findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(Long companyId);
     List<GuestProduct> findAllByCompanyIdOrderBySortOrderAscIdAsc(Long companyId);
     Optional<GuestProduct> findByIdAndCompanyId(Long id, Long companyId);
+    boolean existsByCompanyIdAndProductTypeAndActiveTrue(Long companyId, ProductType productType);
 }

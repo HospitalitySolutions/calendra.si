@@ -4,6 +4,7 @@ import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestOrderItemRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
+import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -11,6 +12,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,7 +31,28 @@ public class CourseAdminController {
     private final GuestEntitlementRepository entitlements;
     private final MembershipCourseRepository membershipCourses;
     private final BunnyMediaService bunnyMediaService;
+    private final CourseModuleAccessService courseModuleAccessService;
 
+    @Autowired
+    public CourseAdminController(
+            CourseRepository courses,
+            GuestProductRepository products,
+            GuestOrderItemRepository orderItems,
+            GuestEntitlementRepository entitlements,
+            MembershipCourseRepository membershipCourses,
+            BunnyMediaService bunnyMediaService,
+            CourseModuleAccessService courseModuleAccessService
+    ) {
+        this.courses = courses;
+        this.products = products;
+        this.orderItems = orderItems;
+        this.entitlements = entitlements;
+        this.membershipCourses = membershipCourses;
+        this.bunnyMediaService = bunnyMediaService;
+        this.courseModuleAccessService = courseModuleAccessService;
+    }
+
+    /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
     public CourseAdminController(
             CourseRepository courses,
             GuestProductRepository products,
@@ -38,12 +61,7 @@ public class CourseAdminController {
             MembershipCourseRepository membershipCourses,
             BunnyMediaService bunnyMediaService
     ) {
-        this.courses = courses;
-        this.products = products;
-        this.orderItems = orderItems;
-        this.entitlements = entitlements;
-        this.membershipCourses = membershipCourses;
-        this.bunnyMediaService = bunnyMediaService;
+        this(courses, products, orderItems, entitlements, membershipCourses, bunnyMediaService, null);
     }
 
     @GetMapping
@@ -57,6 +75,7 @@ public class CourseAdminController {
     @PostMapping
     @Transactional
     public CourseResponse create(@RequestBody CourseRequest request, @AuthenticationPrincipal User me) {
+        assertCoursesEnabled(me.getCompany().getId());
         Course course = new Course();
         course.setCompany(me.getCompany());
         apply(course, request);
@@ -69,6 +88,9 @@ public class CourseAdminController {
     public CourseResponse update(@PathVariable Long id, @RequestBody CourseRequest request, @AuthenticationPrincipal User me) {
         Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (isRequestedActive(request)) {
+            assertCoursesEnabled(me.getCompany().getId());
+        }
         apply(course, request);
         return toResponse(courses.save(course));
     }
@@ -83,6 +105,7 @@ public class CourseAdminController {
     ) {
         Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
+        assertCoursesEnabled(me.getCompany().getId());
         if (course.getMediaType() != CourseMediaType.VIDEO) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Direct Bunny upload is supported for video courses. Audio upload still uses protected backend upload.");
         }
@@ -144,6 +167,7 @@ public class CourseAdminController {
     ) {
         Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
+        assertCoursesEnabled(me.getCompany().getId());
         if (course.getMediaType() != CourseMediaType.VIDEO) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Direct upload completion is supported for video courses only.");
         }
@@ -173,6 +197,7 @@ public class CourseAdminController {
     ) {
         Course course = courses.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
+        assertCoursesEnabled(me.getCompany().getId());
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Upload file is required.");
         }
@@ -244,6 +269,16 @@ public class CourseAdminController {
         }
         if (product != null) products.delete(product);
         courses.delete(course);
+    }
+
+    private void assertCoursesEnabled(Long companyId) {
+        if (courseModuleAccessService != null) {
+            courseModuleAccessService.assertEnabled(companyId);
+        }
+    }
+
+    private static boolean isRequestedActive(CourseRequest request) {
+        return request == null || request.active() == null || Boolean.TRUE.equals(request.active());
     }
 
     private void apply(Course course, CourseRequest request) {

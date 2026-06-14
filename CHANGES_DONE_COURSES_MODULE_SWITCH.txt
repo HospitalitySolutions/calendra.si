@@ -1,0 +1,14 @@
+Implemented Tečaji module switch under Configuration -> App Nastavitve -> Storitve.
+
+Changed behavior:
+- Added COURSES_ENABLED tenant setting with default ON.
+- Added Tečaji child switch under the Storitve switch in App Nastavitve.
+- When Tečaji is OFF, the Tečaji tab is hidden on the Storitve page.
+- When Tečaji is OFF, Course access is hidden from Cards & Memberships and course courses are not loaded there.
+- When Tečaji is OFF, guest Buy/catalog and client wallet purchase flows do not expose Course access products.
+- Backend blocks course creation/media updates, activating/selling Course access products, and direct product resolution when Tečaji is OFF.
+- Backend only allows turning Tečaji OFF when there are no course records and no active Course access products.
+
+Validation note:
+- Backend Maven compile could not be run in this sandbox because the Maven wrapper needed to download Maven from repo.maven.apache.org and network access failed.
+- Frontend build could not be run because node_modules are not included in the uploaded zip and dependencies cannot be installed without network access.

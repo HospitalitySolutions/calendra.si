@@ -3,6 +3,8 @@ package com.example.app.settings;
 public enum SettingKey {
     SPACES_ENABLED,
     TYPES_ENABLED,
+    /** Enables course catalog and course-access entitlements. */
+    COURSES_ENABLED,
     BOOKABLE_ENABLED,
     NO_SHOW_ENABLED,
     ONLINE_SESSION_BOOKING_ENABLED,

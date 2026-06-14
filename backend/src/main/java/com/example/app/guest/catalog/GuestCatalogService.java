@@ -18,6 +18,7 @@ import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionType;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.session.SessionTypeRepository;
+import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -58,6 +59,7 @@ public class GuestCatalogService {
     private final SessionBookingCreationService bookingCreationService;
     private final GuestSettingsService guestSettings;
     private final TimeService timeService;
+    private final CourseModuleAccessService courseModuleAccessService;
     private final ZoneId zoneId;
 
     public GuestCatalogService(
@@ -69,6 +71,7 @@ public class GuestCatalogService {
             SessionBookingCreationService bookingCreationService,
             GuestSettingsService guestSettings,
             TimeService timeService,
+            CourseModuleAccessService courseModuleAccessService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String timezoneId
     ) {
         this.sessionTypes = sessionTypes;
@@ -79,6 +82,7 @@ public class GuestCatalogService {
         this.bookingCreationService = bookingCreationService;
         this.guestSettings = guestSettings;
         this.timeService = timeService;
+        this.courseModuleAccessService = courseModuleAccessService;
         this.zoneId = ZoneId.of((timezoneId == null || timezoneId.isBlank()) ? "Europe/Ljubljana" : timezoneId.trim());
     }
 
@@ -87,6 +91,7 @@ public class GuestCatalogService {
         SimulatedTimeContext.set(companyId);
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
+        boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
             BigDecimal price = sessionTypePriceGross(type);
@@ -109,7 +114,7 @@ public class GuestCatalogService {
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
             if (product.getCourse() != null) continue;
-            if (product.getProductType() == ProductType.COURSE && product.getSessionType() == null) continue;
+            if (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null)) continue;
             if (!billingEnabled && !product.isBookable()) continue;
             // Course access entitlements are sellable wallet products that only use
             // their linked service type for accounting/VAT mapping. They should not
@@ -211,8 +216,9 @@ public class GuestCatalogService {
         }
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
+        boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
         if (product.getCourse() != null || !product.isActive() || !product.isGuestVisible()
-                || (product.getProductType() == ProductType.COURSE && product.getSessionType() == null)) {
+                || (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This product is not available in the guest app.");
         }
         if (Boolean.FALSE.equals(guestSettings.billingEnabled(companyId)) && !product.isBookable()) {

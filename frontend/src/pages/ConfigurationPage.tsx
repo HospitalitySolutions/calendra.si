@@ -3362,6 +3362,7 @@ type ModulesDraft = {
   MODULE_CONFIG_TYPE: TenantConfigType
   SPACES_ENABLED: string
   TYPES_ENABLED: string
+  COURSES_ENABLED: string
   BOOKABLE_ENABLED: string
   NO_SHOW_ENABLED: string
   ONLINE_SESSION_BOOKING_ENABLED: string
@@ -3414,6 +3415,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(s.MODULE_CONFIG_TYPE || g.tenantType),
   SPACES_ENABLED: s.SPACES_ENABLED === 'true' ? 'true' : 'false',
   TYPES_ENABLED: modulesStringSetting(s, 'TYPES_ENABLED', true),
+  COURSES_ENABLED: modulesStringSetting(s, 'COURSES_ENABLED', true),
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === 'true' ? 'true' : 'false',
   NO_SHOW_ENABLED: modulesStringSetting(s, 'NO_SHOW_ENABLED', true),
   ONLINE_SESSION_BOOKING_ENABLED: modulesStringSetting(s, 'ONLINE_SESSION_BOOKING_ENABLED', true),
@@ -3575,6 +3577,7 @@ const MODULE_CONFIG_PRESET_RULES: ModulesPresetRule[] = [
 const normalizeModulesDraftDependencies = (draft: ModulesDraft): ModulesDraft => ({
   ...draft,
   AI_BOOKING_ENABLED: 'false',
+  COURSES_ENABLED: draft.TYPES_ENABLED === 'true' && draft.COURSES_ENABLED === 'true' ? 'true' : 'false',
   MULTIPLE_SESSIONS_PER_SPACE_ENABLED: draft.SPACES_ENABLED === 'true' && draft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'true' : 'false',
   MULTIPLE_CLIENTS_PER_SESSION_ENABLED: draft.GROUP_BOOKING_ENABLED === 'true' && draft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? 'true' : 'false',
 })
@@ -3593,6 +3596,7 @@ const modulesDraftToSettingsPatch = (draft: ModulesDraft): Record<string, string
   MODULE_CONFIG_TYPE: normalizeTenantConfigType(draft.MODULE_CONFIG_TYPE),
   SPACES_ENABLED: draft.SPACES_ENABLED,
   TYPES_ENABLED: draft.TYPES_ENABLED,
+  COURSES_ENABLED: draft.COURSES_ENABLED,
   BOOKABLE_ENABLED: draft.BOOKABLE_ENABLED,
   NO_SHOW_ENABLED: draft.NO_SHOW_ENABLED,
   ONLINE_SESSION_BOOKING_ENABLED: draft.ONLINE_SESSION_BOOKING_ENABLED,
@@ -4640,6 +4644,7 @@ export function ConfigurationPage() {
           ...modulesDraft,
           MODULE_CONFIG_TYPE: normalizeTenantConfigType(modulesDraft.MODULE_CONFIG_TYPE),
           AI_BOOKING_ENABLED: 'false',
+          COURSES_ENABLED: modulesDraft.TYPES_ENABLED === 'true' && modulesDraft.COURSES_ENABLED === 'true' ? 'true' : 'false',
           MULTIPLE_SESSIONS_PER_SPACE_ENABLED: modulesDraft.SPACES_ENABLED === 'true' && modulesDraft.MULTIPLE_SESSIONS_PER_SPACE_ENABLED === 'true' ? 'true' : 'false',
           MULTIPLE_CLIENTS_PER_SESSION_ENABLED: modulesDraft.GROUP_BOOKING_ENABLED === 'true' && modulesDraft.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === 'true' ? 'true' : 'false',
         }
@@ -4664,6 +4669,7 @@ export function ConfigurationPage() {
           MODULE_CONFIG_TYPE: modulesDraftForSave.MODULE_CONFIG_TYPE,
           SPACES_ENABLED: modulesDraftForSave.SPACES_ENABLED,
           TYPES_ENABLED: modulesDraftForSave.TYPES_ENABLED,
+          COURSES_ENABLED: modulesDraftForSave.COURSES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
           ONLINE_SESSION_BOOKING_ENABLED: modulesDraftForSave.ONLINE_SESSION_BOOKING_ENABLED,
@@ -5628,6 +5634,16 @@ export function ConfigurationPage() {
   const setModuleStringSetting = (key: ModulesStringKey, checked: boolean) => {
     setModulesDraft((prev) => {
       const d = prev ?? buildModulesDraftFromCommitted(settings, guestAppSettings)
+      if (key === 'TYPES_ENABLED') {
+        return {
+          ...d,
+          TYPES_ENABLED: checked ? 'true' : 'false',
+          COURSES_ENABLED: checked ? d.COURSES_ENABLED : 'false',
+        }
+      }
+      if (key === 'COURSES_ENABLED' && d.TYPES_ENABLED !== 'true') {
+        return { ...d, COURSES_ENABLED: 'false' }
+      }
       if (key === 'AI_BOOKING_ENABLED') {
         return { ...d, AI_BOOKING_ENABLED: 'false' }
       }
@@ -5684,6 +5700,9 @@ export function ConfigurationPage() {
       })
       if (next.SPACES_ENABLED !== 'true') {
         next.MULTIPLE_SESSIONS_PER_SPACE_ENABLED = 'false'
+      }
+      if (next.TYPES_ENABLED !== 'true') {
+        next.COURSES_ENABLED = 'false'
       }
       if (next.GROUP_BOOKING_ENABLED !== 'true') {
         next.MULTIPLE_CLIENTS_PER_SESSION_ENABLED = 'false'
@@ -5776,6 +5795,7 @@ export function ConfigurationPage() {
   ]
   const servicesModuleKeys: ModulesStringKey[] = [
     'TYPES_ENABLED',
+    'COURSES_ENABLED',
   ]
   const guestModuleKeys: ModulesBooleanKey[] = [
     'guestAppEnabled',
@@ -5940,6 +5960,19 @@ export function ConfigurationPage() {
           subtitle: locale === 'sl' ? 'Prikaže stran Storitve in izbiro tipa storitve.' : 'Shows the Services page and service type selection.',
           checked: moduleOn('TYPES_ENABLED'),
           onChange: (checked) => setModuleStringSetting('TYPES_ENABLED', checked),
+          children: [
+            {
+              id: 'services-courses',
+              icon: 'services',
+              title: locale === 'sl' ? 'Tečaji' : 'Courses',
+              subtitle: locale === 'sl'
+                ? 'Skrije zavihek Tečaji in onemogoči prodajo dostopa do tečajev. Izklop je mogoč samo brez aktivnih dostopov in obstoječih tečajev.'
+                : 'Hides the Courses tab and blocks course-access sales. Can only be turned off when there are no active course accesses or existing courses.',
+              checked: moduleOn('TYPES_ENABLED') && moduleOn('COURSES_ENABLED'),
+              disabled: !moduleOn('TYPES_ENABLED'),
+              onChange: (checked) => setModuleStringSetting('COURSES_ENABLED', checked),
+            },
+          ],
         },
       ],
     },

@@ -9,4 +9,5 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     List<Course> findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueAndStatusOrderBySortOrderAscIdAsc(Long companyId, CourseStatus status);
     Optional<Course> findByIdAndCompanyId(Long id, Long companyId);
     Optional<Course> findByGuestProductIdAndCompanyId(Long guestProductId, Long companyId);
+    boolean existsByCompanyId(Long companyId);
 }
