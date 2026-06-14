@@ -18,5 +18,5 @@ export type ConfirmNonBookableEditPayload = {
 }
 
 export type ConfirmNonBookableState =
-  | { mode: 'create' }
-  | { mode: 'edit'; editPayload: ConfirmNonBookableEditPayload }
+  | { mode: 'create'; pastTime?: boolean }
+  | { mode: 'edit'; editPayload: ConfirmNonBookableEditPayload; pastTime?: boolean }

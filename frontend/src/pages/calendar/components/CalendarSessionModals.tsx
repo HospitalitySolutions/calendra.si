@@ -1282,10 +1282,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           >
             {isNativeAndroid ? (
               <p className="confirm-modal-non-bookable-text">
-                Do you really want to book a client on non bookable time slot?
+                {confirmNonBookableMove.pastTime
+                  ? 'Do you really want to book a session that is in the past (before the current time)?'
+                  : 'Do you really want to book a client on non bookable time slot?'}
               </p>
             ) : (
-              <PageHeader title="Warning" subtitle="Do you really want to book a client on non bookable time slot?" />
+              <PageHeader
+                title="Warning"
+                subtitle={confirmNonBookableMove.pastTime
+                  ? 'Do you really want to book a session that is in the past (before the current time)?'
+                  : 'Do you really want to book a client on non bookable time slot?'}
+              />
             )}
             <div className="row gap">
               <button type="button" onClick={() => void confirmNonBookableMoveYes()}>
@@ -1310,10 +1317,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           >
             {isNativeAndroid ? (
               <p className="confirm-modal-non-bookable-text">
-                Do you really want to book a client on non bookable time slot?
+                {confirmNonBookable.pastTime
+                  ? 'Do you really want to book a session that is in the past (before the current time)?'
+                  : 'Do you really want to book a client on non bookable time slot?'}
               </p>
             ) : (
-              <PageHeader title="Warning" subtitle="Do you really want to book a client on non bookable time slot?" />
+              <PageHeader
+                title="Warning"
+                subtitle={confirmNonBookable.pastTime
+                  ? 'Do you really want to book a session that is in the past (before the current time)?'
+                  : 'Do you really want to book a client on non bookable time slot?'}
+              />
             )}
             <div className="row gap">
               <button

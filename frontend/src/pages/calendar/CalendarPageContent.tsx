@@ -48,6 +48,7 @@ import {
   type NewSlotQuery,
 } from '../calendarFormRoutes'
 import { api } from '../../api'
+import { nowMs } from '../../lib/clock'
 import { setPostZoomReturnPath } from '../../lib/session'
 import { getStoredUser } from '../../auth'
 import { Card, Field, PageHeader } from '../../components/ui'
@@ -249,6 +250,7 @@ export default function CalendarPage() {
     allowPersonalBlockOverlap?: boolean
     spaceIdOverride?: number | null
     consultantIdOverride?: number | null
+    pastTime?: boolean
   } | null>(null)
   const [selectedBookedSession, setSelectedBookedSession] = useState<any>(null)
   const [selectedPersonalBlock, setSelectedPersonalBlock] = useState<any>(null)
@@ -5156,6 +5158,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return data
   }
 
+  const isBookingStartInPast = (startTime: string | null | undefined): boolean => {
+    if (!startTime) return false
+    const startMs = new Date(normalizeToLocalDateTime(startTime)).getTime()
+    return Number.isFinite(startMs) && startMs < nowMs()
+  }
+
   const openBookingModal = (
     start: string,
     end: string,
@@ -6448,7 +6456,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setClientDropdownOpen(false)
       setEditingClientSearch(false)
       calendarRef.current?.getApi()?.unselect()
-      setConfirmNonBookable({ mode: 'create' })
+      setConfirmNonBookable({ mode: 'create', pastTime: isBookingStartInPast(form.startTime) })
       return
     }
     if (!form.personal && !form.todo) {
@@ -7926,6 +7934,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       )) {
         setConfirmNonBookable({
           mode: 'edit',
+          pastTime: isBookingStartInPast(selectedBookedSession.startTime),
           editPayload: {
             id: selectedBookedSession.id,
             clientIds: resolvedClientIds,
@@ -8444,6 +8453,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         spaceIdOverride,
         consultantIdOverride,
         allowPersonalBlockOverlap: true,
+        pastTime: isBookingStartInPast(newStartStr),
       })
       return
     }
@@ -8562,7 +8572,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       )
     ) {
       info.revert()
-      setConfirmNonBookableMove({ booking: props, newStartStr, newEndStr, allowPersonalBlockOverlap: true })
+      setConfirmNonBookableMove({ booking: props, newStartStr, newEndStr, allowPersonalBlockOverlap: true, pastTime: isBookingStartInPast(newStartStr) })
       return
     }
 
@@ -8752,6 +8762,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           allowPersonalBlockOverlap: true,
           spaceIdOverride: moveSpaceId,
           consultantIdOverride: moveCid,
+          pastTime: isBookingStartInPast(c.newStartStr),
         })
         return
       }
@@ -8937,7 +8948,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       )
     ) {
       setOverlapInlineTimeEdit((prev) => prev && prev.eventId === eventId ? { ...prev, saving: false } : prev)
-      setConfirmNonBookableMove({ booking, newStartStr, newEndStr, allowPersonalBlockOverlap: true })
+      setConfirmNonBookableMove({ booking, newStartStr, newEndStr, allowPersonalBlockOverlap: true, pastTime: isBookingStartInPast(newStartStr) })
       return
     }
 
@@ -9078,6 +9089,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         spaceIdOverride,
         consultantIdOverride,
         allowPersonalBlockOverlap: true,
+        pastTime: isBookingStartInPast(newStartStr),
       })
       return
     }
