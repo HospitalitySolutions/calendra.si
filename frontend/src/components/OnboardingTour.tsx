@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { hasBillingAccess, hasInboxAccess } from '../lib/packageAccess'
+import { useLocale, type AppLocale } from '../locale'
 import type { User } from '../lib/types'
 import {
   clearOnboardingTourPending,
@@ -47,39 +48,48 @@ function buildSteps({
   servicesModuleEnabled,
   employeesModuleEnabled,
   configurationModuleEnabled,
-}: OnboardingTourProps): OnboardingStep[] {
+}: OnboardingTourProps, locale: AppLocale): OnboardingStep[] {
   const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
   const inboxAllowed = hasInboxAccess(user.packageType) && inboxModuleEnabled
+  const isSlovenian = locale === 'sl'
 
   return [
     {
       id: 'welcome',
       path: '/calendar',
-      title: 'Welcome to Calendra',
-      body: 'Let’s take a quick tour of your workspace. In just a few steps, we’ll show you where to manage bookings, clients, billing, messages, analytics, services, employees, and settings.',
+      title: isSlovenian ? 'Dobrodošli v Calendri' : 'Welcome to Calendra',
+      body: isSlovenian
+        ? 'Na hitro vas bomo popeljali po vašem delovnem prostoru. V nekaj korakih vam pokažemo, kje upravljate rezervacije, stranke, obračun, sporočila, analitiko, storitve, zaposlene in nastavitve.'
+        : 'Let’s take a quick tour of your workspace. In just a few steps, we’ll show you where to manage bookings, clients, billing, messages, analytics, services, employees, and settings.',
       spotlight: 'calendar',
     },
     {
       id: 'calendar',
       path: '/calendar',
-      title: 'Calendar page',
-      body: 'This is your booking hub. View your schedule, switch between calendar views, create new bookings, and keep track of upcoming sessions at a glance.',
+      title: isSlovenian ? 'Koledar' : 'Calendar page',
+      body: isSlovenian
+        ? 'To je središče vaših rezervacij. Preglejte urnik, preklapljajte med pogledi koledarja, ustvarjajte nove rezervacije in hitro spremljajte prihajajoče termine.'
+        : 'This is your booking hub. View your schedule, switch between calendar views, create new bookings, and keep track of upcoming sessions at a glance.',
       spotlight: 'calendar',
     },
     {
       id: 'clients',
       path: '/clients',
-      title: 'Clients page',
-      body: 'Store all client details in one place. View contact information, notes, history, memberships, and balances so every interaction stays organized.',
+      title: isSlovenian ? 'Stranke' : 'Clients page',
+      body: isSlovenian
+        ? 'Vse podatke o strankah hranite na enem mestu. Preglejte kontaktne podatke, opombe, zgodovino, ugodnosti in stanja, da ostane vsaka interakcija urejena.'
+        : 'Store all client details in one place. View contact information, notes, history, memberships, and balances so every interaction stays organized.',
       spotlight: 'clients',
     },
     ...(billingAllowed
       ? [{
           id: 'billing' as const,
           path: '/billing',
-          title: 'Billing page',
-          body: 'Manage invoices, open bills, payments, discounts, and document history from here. This module is available for Business package and above.',
-          badge: 'Business+ only',
+          title: isSlovenian ? 'Obračun' : 'Billing page',
+          body: isSlovenian
+            ? 'Tukaj upravljate račune, odprte račune, plačila, popuste in zgodovino dokumentov. Ta modul je na voljo v paketu Business in višje.'
+            : 'Manage invoices, open bills, payments, discounts, and document history from here. This module is available for Business package and above.',
+          badge: isSlovenian ? 'Samo Business+' : 'Business+ only',
           spotlight: 'billing',
         }]
       : []),
@@ -87,24 +97,30 @@ function buildSteps({
       ? [{
           id: 'inbox' as const,
           path: '/inbox',
-          title: 'Inbox page',
-          body: 'Send and manage messages across channels. Use templates, follow conversations, and keep email, SMS, and in-app communication in one place.',
+          title: isSlovenian ? 'Prejeto' : 'Inbox page',
+          body: isSlovenian
+            ? 'Pošiljajte in upravljajte sporočila po različnih kanalih. Uporabite predloge, sledite pogovorom ter imejte e-pošto, SMS in sporočila v aplikaciji na enem mestu.'
+            : 'Send and manage messages across channels. Use templates, follow conversations, and keep email, SMS, and in-app communication in one place.',
           spotlight: 'inbox',
         }]
       : []),
     {
       id: 'analytics',
       path: '/analytics',
-      title: 'Analytics page',
-      body: 'Track bookings, revenue, client activity, and business trends. Use analytics to understand performance and make better decisions.',
+      title: isSlovenian ? 'Analitika' : 'Analytics page',
+      body: isSlovenian
+        ? 'Spremljajte rezervacije, prihodke, aktivnost strank in poslovne trende. Z analitiko lažje razumete uspešnost in sprejemate boljše odločitve.'
+        : 'Track bookings, revenue, client activity, and business trends. Use analytics to understand performance and make better decisions.',
       spotlight: 'analytics',
     },
     ...(servicesModuleEnabled
       ? [{
           id: 'services' as const,
           path: '/session-types',
-          title: 'Services page',
-          body: 'Create and manage your services. Set names, durations, prices, availability, and online booking options for each offering.',
+          title: isSlovenian ? 'Storitve' : 'Services page',
+          body: isSlovenian
+            ? 'Ustvarjajte in upravljajte svoje storitve. Za vsako ponudbo nastavite ime, trajanje, ceno, razpoložljivost in možnosti spletne rezervacije.'
+            : 'Create and manage your services. Set names, durations, prices, availability, and online booking options for each offering.',
           spotlight: 'services',
         }]
       : []),
@@ -112,8 +128,10 @@ function buildSteps({
       ? [{
           id: 'employees' as const,
           path: '/consultants',
-          title: 'Employees page',
-          body: 'Add your team, assign services, manage schedules, and control permissions so everyone has the right access.',
+          title: isSlovenian ? 'Zaposleni' : 'Employees page',
+          body: isSlovenian
+            ? 'Dodajte svojo ekipo, dodelite storitve, upravljajte urnike in nastavite dovoljenja, da ima vsak ustrezen dostop.'
+            : 'Add your team, assign services, manage schedules, and control permissions so everyone has the right access.',
           spotlight: 'employees',
         }]
       : []),
@@ -121,8 +139,10 @@ function buildSteps({
       ? [{
           id: 'configuration' as const,
           path: '/configuration',
-          title: 'Configuration page',
-          body: 'Configure your workspace here. Manage company information, integrations, notifications, invoice settings, and other preferences in one place.',
+          title: isSlovenian ? 'Nastavitve' : 'Configuration page',
+          body: isSlovenian
+            ? 'Tukaj nastavite svoj delovni prostor. Na enem mestu upravljajte podatke podjetja, integracije, obvestila, nastavitve računov in druge možnosti.'
+            : 'Configure your workspace here. Manage company information, integrations, notifications, invoice settings, and other preferences in one place.',
           spotlight: 'configuration',
         }]
       : []),
@@ -168,16 +188,20 @@ function getHighlightRect(element: Element | null, padding: number, minRadius = 
 
 export function OnboardingTour(props: OnboardingTourProps) {
   const { user, billingModuleEnabled, inboxModuleEnabled, servicesModuleEnabled, employeesModuleEnabled, configurationModuleEnabled, ready = true } = props
+  const { locale } = useLocale()
   const navigate = useNavigate()
   const location = useLocation()
   const [active, setActive] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [navHighlightRect, setNavHighlightRect] = useState<HighlightRect | null>(null)
   const [panelHighlightRect, setPanelHighlightRect] = useState<HighlightRect | null>(null)
-  const steps = useMemo(() => buildSteps(props), [user.packageType, billingModuleEnabled, inboxModuleEnabled, servicesModuleEnabled, employeesModuleEnabled, configurationModuleEnabled])
+  const steps = useMemo(() => buildSteps(props, locale), [user.packageType, billingModuleEnabled, inboxModuleEnabled, servicesModuleEnabled, employeesModuleEnabled, configurationModuleEnabled, locale])
   const step = steps[stepIndex]
   const total = steps.length
   const currentNumber = stepIndex + 1
+  const tourCopy = locale === 'sl'
+    ? { stepLabel: 'Korak', ofLabel: 'od', back: 'Nazaj', skip: 'Preskoči ogled', finish: 'Zaključi', next: 'Naprej' }
+    : { stepLabel: 'Step', ofLabel: 'of', back: 'Back', skip: 'Skip tour', finish: 'Finish', next: 'Next' }
   const highlightTarget = step ? getOnboardingHighlightTarget(step.id) : 'calendar'
 
   useEffect(() => {
@@ -323,7 +347,7 @@ export function OnboardingTour(props: OnboardingTourProps) {
         />
       )}
       <section className={`onboarding-tour__card onboarding-tour__card--${step.id}`}>
-        <div className="onboarding-tour__progress-row" aria-label={`Step ${currentNumber} of ${total}`}>
+        <div className="onboarding-tour__progress-row" aria-label={`${tourCopy.stepLabel} ${currentNumber} ${tourCopy.ofLabel} ${total}`}>
           <span className="onboarding-tour__step-badge">{currentNumber}</span>
           <div className="onboarding-tour__progress-track" aria-hidden>
             {steps.map((tourStep, index) => (
@@ -339,21 +363,21 @@ export function OnboardingTour(props: OnboardingTourProps) {
           {step.badge && <span className="onboarding-tour__badge">{step.badge}</span>}
         </div>
         <p>{step.body}</p>
-        <div className="onboarding-tour__step-label">Step {currentNumber} of {total}</div>
+        <div className="onboarding-tour__step-label">{tourCopy.stepLabel} {currentNumber} {tourCopy.ofLabel} {total}</div>
         <div className="onboarding-tour__divider" />
         <div className="onboarding-tour__actions">
           {stepIndex > 0 && (
             <button type="button" className="onboarding-tour__button onboarding-tour__button--secondary" onClick={goBack}>
-              Back
+              {tourCopy.back}
             </button>
           )}
           {stepIndex < total - 1 && (
             <button type="button" className="onboarding-tour__button onboarding-tour__button--secondary" onClick={finishTour}>
-              Skip tour
+              {tourCopy.skip}
             </button>
           )}
           <button type="button" className="onboarding-tour__button onboarding-tour__button--primary" onClick={goNext}>
-            {stepIndex === total - 1 ? 'Finish' : 'Next'}
+            {stepIndex === total - 1 ? tourCopy.finish : tourCopy.next}
           </button>
         </div>
       </section>

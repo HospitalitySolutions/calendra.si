@@ -1,0 +1,10 @@
+Changes done:
+
+1. Removed the Filter button from Configuration -> Upravljanje računa -> Prejeti računi.
+
+2. Updated the "Podrobnosti paketa" action on Configuration -> Upravljanje računa -> Naročnina:
+   - Opens a new popup instead of doing nothing.
+   - Popup uses the same "Kaj vključuje ta paket" structure as the register page.
+   - Shows the current plan, price/billing interval, and all plan features.
+   - Included features are highlighted, while features outside the current package are shown disabled.
+   - Feature list is based on the register catalog returned by /register/catalog, with the same Slovenian fallback values as register.

@@ -1,0 +1,12 @@
+Changes done:
+- Reworked the App nastavitve modules layout into three fixed vertical columns.
+- Booking + Storitve, Obračun + Komunikacija, and Guest aplikacija + Integracije now stack inside their own columns.
+- Removed the previous manual CSS grid placement that caused large vertical gaps between blocks.
+- Added responsive behavior so tablet/mobile layouts still collapse cleanly without uneven gaps.
+
+Files changed:
+- frontend/src/pages/ConfigurationPage.tsx
+- frontend/src/styles/features/configuration.css
+
+Note:
+- Build was not run in the sandbox because frontend dependencies/node_modules are not available and network download is disabled.

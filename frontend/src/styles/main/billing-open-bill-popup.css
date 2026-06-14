@@ -5708,3 +5708,56 @@
         font-size: 0.86rem;
     }
 }
+
+.billing-bank-transfer-settings-modal {
+    width: min(100%, 520px);
+}
+
+.billing-bank-transfer-settings-list {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.billing-bank-transfer-settings-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(239, 68, 68, 0.18);
+    background: #fff7f7;
+    color: #991b1b;
+    font-weight: 800;
+}
+
+.billing-bank-transfer-settings-list li::before {
+    content: '!';
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #dc2626;
+    font-size: 0.8rem;
+    font-weight: 900;
+}
+
+.billing-bank-transfer-settings-actions {
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+[data-theme="dark"] .billing-bank-transfer-settings-list li {
+    border-color: rgba(248, 113, 113, 0.28);
+    background: rgba(127, 29, 29, 0.28);
+    color: #fecaca;
+}
+
+[data-theme="dark"] .billing-bank-transfer-settings-list li::before {
+    background: rgba(127, 29, 29, 0.65);
+    color: #fecaca;
+}

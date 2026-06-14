@@ -1,0 +1,13 @@
+Bank transfer / UPN QR required data validation
+
+- Added backend validation before closing/issuing a bill with any BANK_TRANSFER amount.
+- Required company data for UPN QR is now checked before the bill is saved/closed:
+  - Company name
+  - Company address
+  - Postal code
+  - City
+  - IBAN
+- If any required data is missing, the backend blocks the close/issue action with a structured error code and missing setting keys.
+- Added a billing popup that explains the bank-transfer QR data is incomplete and lists the exact missing fields in Slovenian/English.
+- Added a shortcut button from the popup to Configuration -> Account management -> Company so the tenant can fill the data.
+- The same popup is used when sending bank-transfer payment instructions for an existing unpaid bill.

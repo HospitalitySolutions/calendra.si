@@ -159,10 +159,31 @@ type AccountRegisterCatalogAddonItem = {
   active?: boolean | null
 }
 
+type AccountRegisterCatalogFeatureItem = {
+  key?: string | null
+  name?: string | null
+  nameSl?: string | null
+  description?: string | null
+  descriptionSl?: string | null
+  minPlan?: string | null
+  active?: boolean | null
+}
+
+type AccountRegisterPlanKey = 'basic' | 'pro' | 'business'
+
+type AccountPlanDetailsFeature = {
+  key: string
+  index: number
+  name: string
+  description: string
+  minPlan: AccountRegisterPlanKey
+}
+
 type AccountRegisterCatalog = {
   plans?: Record<string, number>
   addons?: Record<string, number>
   addonItems?: AccountRegisterCatalogAddonItem[] | null
+  featureItems?: AccountRegisterCatalogFeatureItem[] | null
   annualDiscountPercent?: number | null
   additionalUserMonthly?: number | null
   smsPerMessage?: number | null
@@ -184,6 +205,18 @@ const DEFAULT_ACCOUNT_REGISTER_CATALOG: Required<Pick<AccountRegisterCatalog, 'p
     { key: 'billing', name: 'Billing & invoices', nameSl: 'Obračun in računi', description: 'Invoices, payment records, and exports.', descriptionSl: 'Računi, evidence plačil in izvozi.', monthly: 8, active: true },
     { key: 'whitelabel', name: 'Branded booking experience', nameSl: 'Blagovna znamka pri rezervacijah', description: 'Custom colors, domain, and branded notifications.', descriptionSl: 'Barve, domena in obvestila v vaši blagovni znamki.', monthly: 10, active: true },
   ],
+  featureItems: [
+    { key: 'appointments', name: 'Unlimited appointments', nameSl: 'Neomejeno terminov', description: 'Accept bookings without monthly caps.', descriptionSl: 'Sprejemajte rezervacije brez mesečne omejitve.', minPlan: 'basic', active: true },
+    { key: 'staff', name: 'Team members', nameSl: 'Člani ekipe', description: 'Manage staff schedules and availability.', descriptionSl: 'Upravljajte urnike in razpoložljivost osebja.', minPlan: 'basic', active: true },
+    { key: 'group', name: 'Group bookings', nameSl: 'Skupinske rezervacije', description: 'Classes, sessions, workshops, and shared slots.', descriptionSl: 'Tečaji, delavnice in deljene kapacitete.', minPlan: 'pro', active: true },
+    { key: 'resources', name: 'Resource scheduling', nameSl: 'Razporeditev virov', description: 'Rooms, chairs, courts, equipment, and assets.', descriptionSl: 'Sobe, stoli, igrišča, oprema in drugi viri.', minPlan: 'pro', active: true },
+    { key: 'payments', name: 'Online payments', nameSl: 'Spletna plačila', description: 'Deposits and prepayments during booking.', descriptionSl: 'Akontacije in predplačila med rezervacijo.', minPlan: 'pro', active: true },
+    { key: 'reminders', name: 'SMS & email reminders', nameSl: 'SMS in e-poštni opomniki', description: 'Reduce no-shows automatically.', descriptionSl: 'Manj neprihodov z avtomatskimi opomniki.', minPlan: 'pro', active: true },
+    { key: 'ai', name: 'AI booking assistant', nameSl: 'AI pomočnik za rezervacije', description: 'Voice booking and intelligent scheduling help.', descriptionSl: 'Glasovne rezervacije in pametna pomoč pri urniku.', minPlan: 'pro', active: true },
+    { key: 'integrations', name: 'Integrations', nameSl: 'Integracije', description: 'Google, Outlook, Zoom, payments, automation.', descriptionSl: 'Google, Outlook, Zoom, plačila, avtomatizacija.', minPlan: 'pro', active: true },
+    { key: 'reporting', name: 'Advanced reporting', nameSl: 'Napredno poročanje', description: 'Revenue, utilization, and booking analytics.', descriptionSl: 'Prihodki, izkoriščenost in analitika rezervacij.', minPlan: 'business', active: true },
+    { key: 'multilocation', name: 'Multi-location support', nameSl: 'Več lokacij', description: 'Manage multiple branches in one account.', descriptionSl: 'Več podružnic v enem računu.', minPlan: 'business', active: true },
+  ],
 }
 
 const roundAccountMoney = (value: number) => Math.round(value * 100) / 100
@@ -196,6 +229,17 @@ const positiveAccountInteger = (value: unknown, fallback: number) => {
   return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : fallback
 }
 const normalizeAccountAddonKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+const normalizeAccountRegisterPlanKey = (value: unknown, fallback: AccountRegisterPlanKey = 'pro'): AccountRegisterPlanKey => {
+  const key = String(value ?? '').trim().toLowerCase()
+  if (key === 'basic' || key === 'pro' || key === 'business') return key
+  return fallback
+}
+const accountPackageToRegisterPlanKey = (key: AccountPlanPackageKey): AccountRegisterPlanKey => {
+  if (key === 'BASIC') return 'basic'
+  if (key === 'PREMIUM') return 'business'
+  return 'pro'
+}
+const accountRegisterPlanRank = (key: AccountRegisterPlanKey) => key === 'business' ? 3 : key === 'pro' ? 2 : 1
 const parseAccountAddonKeyCsv = (value: unknown) => {
   const raw = String(value ?? '').trim()
   if (!raw) return [] as string[]
@@ -219,6 +263,7 @@ const normalizeAccountRegisterCatalog = (catalog: AccountRegisterCatalog | null 
     ...(catalog?.usagePrices || {}),
   },
   addonItems: Array.isArray(catalog?.addonItems) ? catalog?.addonItems : DEFAULT_ACCOUNT_REGISTER_CATALOG.addonItems,
+  featureItems: Array.isArray(catalog?.featureItems) ? catalog?.featureItems : DEFAULT_ACCOUNT_REGISTER_CATALOG.featureItems,
   addons: {
     ...(DEFAULT_ACCOUNT_REGISTER_CATALOG.addons || {}),
     ...(catalog?.addons || {}),
@@ -3659,6 +3704,7 @@ export function ConfigurationPage() {
   const [savingSubscriptionAddons, setSavingSubscriptionAddons] = useState(false)
   const [packageChangeTarget, setPackageChangeTarget] = useState<AccountPlanPackageKey | null>(null)
   const [savingPackageChange, setSavingPackageChange] = useState(false)
+  const [accountPlanDetailsOpen, setAccountPlanDetailsOpen] = useState(false)
   const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>('spaces')
   const [billingSubtab, setBillingSubtab] = useState<BillingSubtab>('paymentMethods')
   const [integrationSubtab, setIntegrationSubtab] = useState<IntegrationSubtab>('status')
@@ -3782,6 +3828,27 @@ export function ConfigurationPage() {
     }
   }, [accountCatalogAnnualFactor, accountRegisterCatalog.plans])
 
+  const accountPlanDetailsFeatures = useMemo<AccountPlanDetailsFeature[]>(() => {
+    const rawItems = Array.isArray(accountRegisterCatalog.featureItems) && accountRegisterCatalog.featureItems.length > 0
+      ? accountRegisterCatalog.featureItems
+      : (DEFAULT_ACCOUNT_REGISTER_CATALOG.featureItems || [])
+    return rawItems
+      .filter((item) => item && item.active !== false)
+      .map((item, index) => {
+        const key = normalizeAccountAddonKey(item.key || `feature-${index + 1}`) || `feature-${index + 1}`
+        const name = locale === 'sl' ? (item.nameSl || item.name || key) : (item.name || item.nameSl || key)
+        const description = locale === 'sl' ? (item.descriptionSl || item.description || '') : (item.description || item.descriptionSl || '')
+        return {
+          key,
+          index: index + 1,
+          name,
+          description,
+          minPlan: normalizeAccountRegisterPlanKey(item.minPlan, 'pro'),
+        }
+      })
+  }, [accountRegisterCatalog.featureItems, locale])
+
+
   const accountReceivedInvoiceMetrics = useMemo(() => {
     const now = new Date()
     const currentMonth = now.getMonth()
@@ -3832,11 +3899,19 @@ export function ConfigurationPage() {
     return 'Račun'
   }
 
+  const formatAccountEuro = (value: number) => new Intl.NumberFormat(locale === 'sl' ? 'sl-SI' : 'en-US', { style: 'currency', currency: 'EUR' }).format(value)
+
   const activePlanDetails = accountPlanCatalog[subscriptionPackage] || accountPlanCatalog.PROFESSIONAL
   const subscriptionInterval = subscriptionBillingInterval
   const subscriptionPeriodLabel = subscriptionInterval === 'YEARLY' ? 'leto' : 'mesec'
   const subscriptionPeriodSummaryLabel = subscriptionInterval === 'YEARLY' ? 'Skupaj letno' : 'Skupaj mesečno'
   const planPeriodAmount = subscriptionInterval === 'YEARLY' ? activePlanDetails.annual : activePlanDetails.monthly
+  const accountPlanDetailsPlanKey = accountPackageToRegisterPlanKey(subscriptionPackage)
+  const accountPlanDetailsRank = accountRegisterPlanRank(accountPlanDetailsPlanKey)
+  const accountPlanDetailsPrice = subscriptionInterval === 'YEARLY'
+    ? `${formatAccountEuro(planPeriodAmount)} / leto`
+    : `${formatAccountEuro(planPeriodAmount)} / mes.`
+  const accountPlanDetailsBillingLabel = subscriptionInterval === 'YEARLY' ? 'Letno obračunavanje' : 'Mesečno obračunavanje'
   const additionalUserUnitMonthly = roundAccountMoney(positiveAccountNumber(
     accountRegisterCatalog.additionalUserMonthly ?? accountRegisterCatalog.usagePrices?.additionalUserMonthly,
     DEFAULT_ACCOUNT_REGISTER_CATALOG.additionalUserMonthly || 0,
@@ -3931,8 +4006,6 @@ export function ConfigurationPage() {
     a.click()
     URL.revokeObjectURL(url)
   }
-
-  const formatAccountEuro = (value: number) => new Intl.NumberFormat(locale === 'sl' ? 'sl-SI' : 'en-US', { style: 'currency', currency: 'EUR' }).format(value)
 
   const changeCurrentCycleUserAdd = (delta: number) => {
     const next = Math.max(minimumCurrentCycleUserAdd, currentBillingCycleUserAdd + delta)
@@ -7028,6 +7101,123 @@ export function ConfigurationPage() {
               gap: 12px;
               margin-top: 22px;
             }
+            .account-plan-details-modal {
+              width: min(100%, 860px);
+              max-height: min(88vh, 920px);
+              overflow: auto;
+              border-radius: 28px;
+              padding: 28px;
+            }
+            .account-plan-details-header {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 16px;
+              margin-bottom: 16px;
+            }
+            .account-plan-details-header h3 {
+              margin: 0;
+              font-size: clamp(22px, 2vw, 30px);
+              letter-spacing: -0.04em;
+            }
+            .account-plan-details-close {
+              width: 38px;
+              height: 38px;
+              border-radius: 14px;
+              border: 1px solid #d7e2f4;
+              background: #fff;
+              color: var(--account-muted);
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              cursor: pointer;
+              font-weight: 800;
+            }
+            .account-plan-preview-selected {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 18px;
+              border: 1px solid #cfe0ff;
+              border-radius: 18px;
+              padding: 18px 20px;
+              background: #fff;
+              margin-bottom: 18px;
+            }
+            .account-plan-preview-selected strong {
+              display: block;
+              color: var(--account-ink);
+              font-size: 18px;
+            }
+            .account-plan-preview-selected small {
+              color: var(--account-muted);
+              line-height: 1.45;
+            }
+            .account-plan-preview-price {
+              text-align: right;
+              white-space: nowrap;
+            }
+            .account-plan-preview-price strong {
+              color: #1d4ed8;
+              font-size: 26px;
+              letter-spacing: -0.04em;
+            }
+            .account-feature-preview-list {
+              list-style: none;
+              margin: 0;
+              padding: 0;
+              display: grid;
+              gap: 10px;
+            }
+            .account-feature-preview-item {
+              display: grid;
+              grid-template-columns: auto 1fr;
+              gap: 14px;
+              align-items: center;
+              border: 1px solid #dbe7f7;
+              border-radius: 16px;
+              padding: 14px 16px;
+              background: #fff;
+              color: #94a3b8;
+            }
+            .account-feature-preview-item.enabled {
+              border-color: #bcd5ff;
+              background: #edf5ff;
+              color: var(--account-ink);
+            }
+            .account-feature-preview-number {
+              width: 32px;
+              height: 32px;
+              border-radius: 999px;
+              background: #eef4ff;
+              color: #8aa3cc;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 800;
+            }
+            .account-feature-preview-item.enabled .account-feature-preview-number {
+              background: #dbeafe;
+              color: #2563eb;
+            }
+            .account-feature-preview-copy strong {
+              display: block;
+              font-size: 16px;
+              color: currentColor;
+            }
+            .account-feature-preview-copy span {
+              display: block;
+              margin-top: 3px;
+              color: currentColor;
+              opacity: 0.88;
+              font-size: 14px;
+              line-height: 1.4;
+            }
+            @media (max-width: 640px) {
+              .account-plan-details-modal { padding: 22px; border-radius: 22px; }
+              .account-plan-preview-selected { flex-direction: column; align-items: flex-start; }
+              .account-plan-preview-price { text-align: left; }
+            }
           `}</style>
           <div className="account-subtabs" role="tablist" aria-label="Account management subtabs">
             <button type="button" className={accountSubtab === 'company' ? 'account-subtab active' : 'account-subtab'} onClick={() => setAccountSubtabAndUrl('company')}>Podjetje</button>
@@ -7216,11 +7406,6 @@ export function ConfigurationPage() {
               <section className="account-card account-table-card">
                 <div className="account-table-header">
                   <h3 className="account-table-title">Prejeti računi</h3>
-                  <button type="button" className="account-table-filter">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 6h16" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>
-                    Filter
-                    <span aria-hidden>▾</span>
-                  </button>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="account-table">
@@ -7326,7 +7511,7 @@ export function ConfigurationPage() {
                     </div>
                   )}
                   <div className="account-subscription-actions">
-                    <button type="button" className="account-button-secondary">Podrobnosti paketa</button>
+                    <button type="button" className="account-button-secondary" onClick={() => setAccountPlanDetailsOpen(true)}>Podrobnosti paketa</button>
                   </div>
                 </section>
 
@@ -7516,6 +7701,45 @@ export function ConfigurationPage() {
                   </div>
                 </section>
               </div>
+
+              {accountPlanDetailsOpen && (
+                <div
+                  className="account-modal-overlay"
+                  role="presentation"
+                  onClick={() => setAccountPlanDetailsOpen(false)}
+                >
+                  <div className="account-modal-card account-plan-details-modal" role="dialog" aria-modal="true" aria-label="Podrobnosti paketa" onClick={(event) => event.stopPropagation()}>
+                    <div className="account-plan-details-header">
+                      <h3>Kaj vključuje ta paket</h3>
+                      <button type="button" className="account-plan-details-close" aria-label="Zapri podrobnosti paketa" onClick={() => setAccountPlanDetailsOpen(false)}>×</button>
+                    </div>
+                    <div className="account-plan-preview-selected">
+                      <div>
+                        <strong>{accountPlanCatalog[subscriptionPackage].label}</strong>
+                        <small>{accountPlanCatalog[subscriptionPackage].subtitle}</small>
+                      </div>
+                      <div className="account-plan-preview-price">
+                        <strong>{accountPlanDetailsPrice}</strong>
+                        <small>{accountPlanDetailsBillingLabel}</small>
+                      </div>
+                    </div>
+                    <ul className="account-feature-preview-list">
+                      {accountPlanDetailsFeatures.map((feature) => {
+                        const enabled = accountPlanDetailsRank >= accountRegisterPlanRank(feature.minPlan)
+                        return (
+                          <li key={feature.key} className={enabled ? 'account-feature-preview-item enabled' : 'account-feature-preview-item'}>
+                            <span className="account-feature-preview-number">{feature.index}</span>
+                            <span className="account-feature-preview-copy">
+                              <strong>{feature.name}</strong>
+                              <span>{feature.description}</span>
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              )}
 
               {packageChangeTarget && packageChangePreview && (
                 <div
@@ -10918,13 +11142,23 @@ export function ConfigurationPage() {
         <Card className="settings-card modules-design-card">
           <div className="modules-design-shell">
             <div className="modules-design-grid">
-              {modulesDesignGroups.map((group) => (
-                <ModulesDesignGroupCard
-                  key={group.id}
-                  group={group}
-                  expandedRows={expandedModuleRows}
-                  onToggleExpanded={toggleExpandedModuleRow}
-                />
+              {[
+                ['booking', 'services'],
+                ['billing', 'communication'],
+                ['guest-app', 'integrations'],
+              ].map((columnIds) => (
+                <div key={columnIds.join('-')} className="modules-design-column">
+                  {modulesDesignGroups
+                    .filter((group) => columnIds.includes(group.id))
+                    .map((group) => (
+                      <ModulesDesignGroupCard
+                        key={group.id}
+                        group={group}
+                        expandedRows={expandedModuleRows}
+                        onToggleExpanded={toggleExpandedModuleRow}
+                      />
+                    ))}
+                </div>
               ))}
             </div>
             <div className="gapp-savebar">

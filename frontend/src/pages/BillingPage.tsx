@@ -67,6 +67,66 @@ function grossStringFromService(service: BillingService | null | undefined): str
 }
 
 import { currency, formatDate, fullName } from '../lib/format'
+
+const BANK_TRANSFER_QR_SETTINGS_MISSING_PREFIX = 'BANK_TRANSFER_QR_SETTINGS_MISSING:'
+const BANK_TRANSFER_QR_SETTING_KEYS = ['COMPANY_NAME', 'COMPANY_ADDRESS', 'COMPANY_POSTAL_CODE', 'COMPANY_CITY', 'COMPANY_IBAN'] as const
+
+type BankTransferQrSettingKey = typeof BANK_TRANSFER_QR_SETTING_KEYS[number]
+type BankTransferQrMissingModal = { missingKeys: BankTransferQrSettingKey[]; rawMessage?: string }
+
+const BANK_TRANSFER_QR_FIELD_LABELS: Record<BankTransferQrSettingKey, { sl: string; en: string }> = {
+  COMPANY_NAME: { sl: 'Naziv podjetja', en: 'Company name' },
+  COMPANY_ADDRESS: { sl: 'Naslov podjetja', en: 'Company address' },
+  COMPANY_POSTAL_CODE: { sl: 'Poštna številka', en: 'Postal code' },
+  COMPANY_CITY: { sl: 'Mesto', en: 'City' },
+  COMPANY_IBAN: { sl: 'IBAN', en: 'IBAN' },
+}
+
+function readBillingApiMessage(error: any): string {
+  const data = error?.response?.data
+  if (typeof data === 'string') return data
+  if (typeof data?.message === 'string' && data.message.trim()) return data.message
+  if (typeof data?.error === 'string' && data.error.trim()) return data.error
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message
+  return ''
+}
+
+function extractMissingBankTransferQrKeys(error: any): BankTransferQrSettingKey[] {
+  const candidates = [
+    error?.response?.data?.message,
+    error?.response?.data?.error,
+    error?.response?.data,
+    error?.message,
+  ]
+    .filter((entry) => typeof entry === 'string')
+    .map((entry) => String(entry))
+
+  const found = new Set<BankTransferQrSettingKey>()
+  for (const candidate of candidates) {
+    const idx = candidate.indexOf(BANK_TRANSFER_QR_SETTINGS_MISSING_PREFIX)
+    if (idx >= 0) {
+      const tail = candidate.slice(idx + BANK_TRANSFER_QR_SETTINGS_MISSING_PREFIX.length)
+      BANK_TRANSFER_QR_SETTING_KEYS.forEach((key) => {
+        if (tail.includes(key)) found.add(key)
+      })
+    }
+  }
+  if (found.size > 0) return Array.from(found)
+
+  const haystack = candidates.join(' ').toLowerCase()
+  const legacyMatches: Array<[BankTransferQrSettingKey, string[]]> = [
+    ['COMPANY_NAME', ['company name', 'naziv podjetja']],
+    ['COMPANY_ADDRESS', ['company address', 'naslov podjetja', 'naslov']],
+    ['COMPANY_POSTAL_CODE', ['company postal code', 'postal code', 'poštna številka', 'postna stevilka']],
+    ['COMPANY_CITY', ['company city', 'mesto']],
+    ['COMPANY_IBAN', ['company iban', 'iban']],
+  ]
+  legacyMatches.forEach(([key, tokens]) => {
+    if (tokens.some((token) => haystack.includes(token))) found.add(key)
+  })
+  return Array.from(found)
+}
+
 type DiscountType = 'PERCENT' | 'AMOUNT'
 
 type LineItemDiscountDraft = { type: DiscountType; value: string }
@@ -918,6 +978,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [showCreateBillModal, setShowCreateBillModal] = useState(false)
   const [editingCreateBillPayee, setEditingCreateBillPayee] = useState(false)
   const [creatingBill, setCreatingBill] = useState(false)
+  const [bankTransferQrMissingModal, setBankTransferQrMissingModal] = useState<BankTransferQrMissingModal | null>(null)
   const [creatingFromOpenId, setCreatingFromOpenId] = useState<number | null>(null)
   const [previewingOpenBillId, setPreviewingOpenBillId] = useState<number | null>(null)
   const [emailingOpenBillPreviewId, setEmailingOpenBillPreviewId] = useState<number | null>(null)
@@ -2969,6 +3030,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return { typeLabel, suffix }
   }
 
+  const showBankTransferQrSettingsPopupFromError = (error: any): boolean => {
+    const missingKeys = extractMissingBankTransferQrKeys(error)
+    if (missingKeys.length === 0) return false
+    setBankTransferQrMissingModal({ missingKeys, rawMessage: readBillingApiMessage(error) })
+    return true
+  }
+
   const notifyBillCreationResult = (data: any, pendingLabel = 'Bill created') => {
     if (billBankTransferDueAmount(data) > 0) {
       showToast('success', 'Bank transfer folio with UPN QR has been emailed to the client. Import your bank statement CSV later to mark it paid automatically in folio history.')
@@ -3050,6 +3118,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       if (embeddedCreateBill) {
         await onEmbeddedSaved?.()
         onEmbeddedClose?.()
+      }
+    } catch (error: any) {
+      if (!showBankTransferQrSettingsPopupFromError(error)) {
+        showToast(
+          'error',
+          readBillingApiMessage(error) || (locale === 'sl' ? 'Računa ni bilo mogoče izdati.' : 'Unable to issue the invoice.'),
+        )
       }
     } finally {
       setCreatingBill(false)
@@ -3920,12 +3995,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         if (activeOpenBillId === sourceOpenBill.id) closeDetailOpenBill()
       }
     } catch (error: any) {
-      showToast(
-        'error',
-        error?.response?.data?.message
-          || error?.message
-          || (locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.'),
-      )
+      if (!showBankTransferQrSettingsPopupFromError(error)) {
+        showToast(
+          'error',
+          readBillingApiMessage(error) || (locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.'),
+        )
+      }
     } finally {
       setCreatingFromOpenId(null)
     }
@@ -4066,12 +4141,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setEditingCreateBillPayee(false)
       await load()
     } catch (error: any) {
-      showToast(
-        'error',
-        error?.response?.data?.message
-          || error?.message
-          || (locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.'),
-      )
+      if (!showBankTransferQrSettingsPopupFromError(error)) {
+        showToast(
+          'error',
+          readBillingApiMessage(error) || (locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.'),
+        )
+      }
     } finally {
       setCreatingBill(false)
     }
@@ -6724,6 +6799,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         showToast('success', 'Payment link sent to client email.')
       }
       await load()
+    } catch (error: any) {
+      if (!showBankTransferQrSettingsPopupFromError(error)) {
+        showToast(
+          'error',
+          readBillingApiMessage(error) || (locale === 'sl' ? 'Navodil za plačilo ni bilo mogoče poslati.' : 'Unable to send payment instructions.'),
+        )
+      }
     } finally {
       setCreatingCheckoutBillId(null)
     }
@@ -8049,6 +8131,58 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </svg>
                 </span>
                 <span>{creatingCompany ? billingCopy.creating : billingCopy.create}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bankTransferQrMissingModal && (
+        <div
+          className="billing-entitlement-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setBankTransferQrMissingModal(null)
+          }}
+          role="presentation"
+        >
+          <div className="billing-entitlement-modal billing-bank-transfer-settings-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="billing-entitlement-modal-head">
+              <div>
+                <h3>{locale === 'sl' ? 'Manjkajoči podatki za bančno nakazilo' : 'Missing bank transfer data'}</h3>
+                <p>
+                  {locale === 'sl'
+                    ? 'Računa z bančnim nakazilom in UPN QR kodo ni mogoče zaključiti, dokler niso izpolnjeni vsi obvezni podatki podjetja.'
+                    : 'An invoice with bank transfer and UPN QR cannot be closed until all required company data is filled in.'}
+                </p>
+              </div>
+              <button type="button" className="billing-bill-modal-close" onClick={() => setBankTransferQrMissingModal(null)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            </div>
+            <div className="billing-entitlement-result billing-entitlement-result--error">
+              <strong>{locale === 'sl' ? 'Dopolnite naslednja polja:' : 'Fill in these fields:'}</strong>
+              <span>
+                {locale === 'sl'
+                  ? 'Podatke uredite v Konfiguracija → Upravljanje računa → Podjetje.'
+                  : 'Edit the data in Configuration → Account management → Company.'}
+              </span>
+            </div>
+            <ul className="billing-bank-transfer-settings-list">
+              {bankTransferQrMissingModal.missingKeys.map((key) => (
+                <li key={key}>{BANK_TRANSFER_QR_FIELD_LABELS[key]?.[locale] || key}</li>
+              ))}
+            </ul>
+            <div className="form-actions billing-bank-transfer-settings-actions">
+              <button type="button" className="secondary" onClick={() => setBankTransferQrMissingModal(null)}>
+                {locale === 'sl' ? 'Zapri' : 'Close'}
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setBankTransferQrMissingModal(null)
+                  navigate('/configuration?tab=company')
+                }}
+              >
+                {locale === 'sl' ? 'Odpri podatke podjetja' : 'Open company details'}
               </button>
             </div>
           </div>

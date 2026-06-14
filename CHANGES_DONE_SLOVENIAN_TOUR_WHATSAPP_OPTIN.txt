@@ -1,0 +1,24 @@
+Changes done:
+
+1. Welcome guide Slovenian localization
+- Added Slovenian copy for all onboarding tour guide steps.
+- Localized tour step counter and navigation buttons:
+  - Step -> Korak
+  - of -> od
+  - Back -> Nazaj
+  - Skip tour -> Preskoči ogled
+  - Next -> Naprej
+  - Finish -> Zaključi
+- The tour now follows the active app locale and keeps English copy for English locale.
+
+2. WhatsApp opt-in visibility on client details
+- Client details now checks platform-level inbox messaging capabilities from /inbox/global-capabilities.
+- If WhatsApp is disabled in Platform Admin, the WhatsApp opt-in row is hidden from the Client details Settings tab.
+- If WhatsApp is enabled globally, the existing opt-in switch remains available.
+
+Files changed:
+- frontend/src/components/OnboardingTour.tsx
+- frontend/src/pages/ClientsPage.tsx
+
+Build note:
+- Frontend build was not run in the sandbox because node_modules are not installed and network access is disabled.

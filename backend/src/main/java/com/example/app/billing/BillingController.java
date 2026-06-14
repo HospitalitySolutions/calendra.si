@@ -2111,6 +2111,7 @@ public class BillingController {
         if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
             bill.setPaidAt(timeService.offsetDateTime());
         }
+        requireBankTransferQrSettingsIfNeeded(bill, companyId);
         invoiceOrderIdService.assignIfMissing(bill);
         var saved = billRepo.saveAndFlush(bill);
         if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
@@ -3503,6 +3504,7 @@ public class BillingController {
             bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
             bill.setPaidAt(BillPaymentStatus.PAID.equals(bill.getPaymentStatus()) ? timeService.offsetDateTime() : null);
         }
+        requireBankTransferQrSettingsIfNeeded(bill, companyId);
         invoiceOrderIdService.assignIfMissing(bill);
         // Ensure we map within an open session. Items are cascade-persisted.
         var saved = billRepo.save(bill);
@@ -5320,6 +5322,12 @@ public class BillingController {
         Long itemSessionId = item.getSourceSessionBookingId();
         if (itemSessionId != null) return Objects.equals(itemSessionId, sessionId);
         return openBill.getSessionBooking() != null && Objects.equals(openBill.getSessionBooking().getId(), sessionId);
+    }
+
+    private void requireBankTransferQrSettingsIfNeeded(Bill bill, Long companyId) {
+        if (BillPaymentSplitSupport.resolveBankTransferDueGross(bill).compareTo(BigDecimal.ZERO) > 0) {
+            billFolioPdfService.ensureOwnBankTransferSettings(companyId);
+        }
     }
 
     private static boolean shouldFiscalizeOnBillCreate(PaymentMethod paymentMethod) {

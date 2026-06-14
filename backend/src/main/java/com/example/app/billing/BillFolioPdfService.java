@@ -57,16 +57,23 @@ public class BillFolioPdfService {
         return folioPdfService.generate(req, layout, loadLogoBytes(companyId), loadSignatureBytes(companyId));
     }
 
-    public void ensureOwnBankTransferSettings(Long companyId) {
+    public static final String BANK_TRANSFER_QR_SETTINGS_MISSING_CODE = "BANK_TRANSFER_QR_SETTINGS_MISSING";
+
+    public List<String> missingOwnBankTransferSettingKeys(Long companyId) {
         List<String> missing = new ArrayList<>();
-        if (settingValue(companyId, SettingKey.COMPANY_NAME).isBlank()) missing.add("company name");
-        if (settingValue(companyId, SettingKey.COMPANY_ADDRESS).isBlank()) missing.add("company address");
-        if (settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE).isBlank()) missing.add("company postal code");
-        if (settingValue(companyId, SettingKey.COMPANY_CITY).isBlank()) missing.add("company city");
-        if (settingValue(companyId, SettingKey.COMPANY_IBAN).isBlank()) missing.add("company IBAN");
+        if (settingValue(companyId, SettingKey.COMPANY_NAME).isBlank()) missing.add(SettingKey.COMPANY_NAME.name());
+        if (settingValue(companyId, SettingKey.COMPANY_ADDRESS).isBlank()) missing.add(SettingKey.COMPANY_ADDRESS.name());
+        if (settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE).isBlank()) missing.add(SettingKey.COMPANY_POSTAL_CODE.name());
+        if (settingValue(companyId, SettingKey.COMPANY_CITY).isBlank()) missing.add(SettingKey.COMPANY_CITY.name());
+        if (settingValue(companyId, SettingKey.COMPANY_IBAN).isBlank()) missing.add(SettingKey.COMPANY_IBAN.name());
+        return missing;
+    }
+
+    public void ensureOwnBankTransferSettings(Long companyId) {
+        List<String> missing = missingOwnBankTransferSettingKeys(companyId);
         if (!missing.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Bank transfer folio requires these Configuration fields: " + String.join(", ", missing));
+                    BANK_TRANSFER_QR_SETTINGS_MISSING_CODE + ":" + String.join(",", missing));
         }
     }
 

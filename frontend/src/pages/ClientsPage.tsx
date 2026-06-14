@@ -13,6 +13,7 @@ import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
 type EntityTab = 'clients' | 'companies' | 'groups'
+type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
 
 type ClientForm = {
   firstName: string
@@ -1048,6 +1049,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [addingMember, setAddingMember] = useState(false)
   const [removingMemberId, setRemovingMemberId] = useState<number | null>(null)
   const [settings, setSettings] = useState<Record<string, string>>({})
+  const [globalWhatsAppEnabled, setGlobalWhatsAppEnabled] = useState(false)
   const groupBookingEnabled = settings.GROUP_BOOKING_ENABLED === 'true'
 
   const companyInvoiceStatusPill = (bill: CompanyBillSummary): { label: string; variant: 'paid' | 'payment-pending' | 'fiscal-failed' } | null => {
@@ -1109,9 +1111,19 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     } catch { /* ignore */ }
   }
 
+  async function loadInboxGlobalCapabilities() {
+    try {
+      const response = await api.get<InboxGlobalCapabilities>('/inbox/global-capabilities')
+      setGlobalWhatsAppEnabled(response.data?.whatsappEnabled !== false)
+    } catch {
+      setGlobalWhatsAppEnabled(false)
+    }
+  }
+
   useEffect(() => {
     loadClients()
     loadSettings()
+    loadInboxGlobalCapabilities()
   }, [])
 
   useEffect(() => {
@@ -3531,17 +3543,19 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       {renderClientEditableField('assignedToId', clientsCopy.assignedConsultant, true)}
                     </div>
                     <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
-                      <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                        <span>{clientsCopy.whatsappOptIn}</span>
-                        <button
-                          type="button"
-                          className={`clients-batch-switch${detailEditDraft.whatsappOptIn ? ' clients-batch-switch--on' : ''}`}
-                          onClick={() => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: !detailEditDraft.whatsappOptIn })}
-                          aria-pressed={detailEditDraft.whatsappOptIn}
-                        >
-                          {detailEditDraft.whatsappOptIn ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                        </button>
-                      </div>
+                      {globalWhatsAppEnabled && (
+                        <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                          <span>{clientsCopy.whatsappOptIn}</span>
+                          <button
+                            type="button"
+                            className={`clients-batch-switch${detailEditDraft.whatsappOptIn ? ' clients-batch-switch--on' : ''}`}
+                            onClick={() => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: !detailEditDraft.whatsappOptIn })}
+                            aria-pressed={detailEditDraft.whatsappOptIn}
+                          >
+                            {detailEditDraft.whatsappOptIn ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                          </button>
+                        </div>
+                      )}
                       <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
                         <span>{clientsCopy.batchPayment}</span>
                         <button
