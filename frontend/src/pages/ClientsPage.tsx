@@ -165,6 +165,21 @@ function walletProductTypeTone(productType: string | null | undefined): 'pack' |
   return 'pack'
 }
 
+function walletEntitlementKindLabel(kind: ReturnType<typeof entitlementKind>, locale: string): string {
+  if (locale === 'sl') {
+    if (kind === 'membership') return 'Članarina'
+    if (kind === 'gift_card') return 'Darilna kartica'
+    if (kind === 'ticket') return 'Karta'
+    if (kind === 'course') return 'Tečaj'
+    return 'Paket'
+  }
+  if (kind === 'membership') return 'Membership'
+  if (kind === 'gift_card') return 'Gift card'
+  if (kind === 'ticket') return 'Ticket'
+  if (kind === 'course') return 'Course'
+  return 'Pack'
+}
+
 function walletProductPrice(product: WalletProduct): number {
   const raw = typeof product.priceGross === 'string' ? Number(product.priceGross) : product.priceGross
   return Number.isFinite(raw ?? NaN) ? Number(raw) : 0
@@ -972,7 +987,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [companyFilesDropActive, setCompanyFilesDropActive] = useState(false)
   const [clientFileSearch, setClientFileSearch] = useState('')
   const [companyFileSearch, setCompanyFileSearch] = useState('')
-  const [walletFilter, setWalletFilter] = useState<'all' | 'packs' | 'memberships' | 'giftCards'>('all')
+  const [walletFilter, setWalletFilter] = useState<'all' | 'packs' | 'memberships' | 'giftCards' | 'courses'>('all')
   const [walletPurchaseDrawerOpen, setWalletPurchaseDrawerOpen] = useState(false)
   const [walletProducts, setWalletProducts] = useState<WalletProduct[]>([])
   const [walletProductsLoading, setWalletProductsLoading] = useState(false)
@@ -1436,6 +1451,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     const activeEntitlements = detailWallet?.activeEntitlements ?? []
     if (walletFilter === 'giftCards') return activeEntitlements.filter((entitlement) => entitlementKind(entitlement) === 'gift_card')
     if (walletFilter === 'memberships') return activeEntitlements.filter((entitlement) => entitlementKind(entitlement) === 'membership')
+    if (walletFilter === 'courses') return activeEntitlements.filter((entitlement) => entitlementKind(entitlement) === 'course')
     if (walletFilter === 'packs') return activeEntitlements.filter((entitlement) => {
       const kind = entitlementKind(entitlement)
       return kind === 'pack' || kind === 'ticket'
@@ -3307,6 +3323,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <button type="button" className={walletFilter === 'memberships' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('memberships')}>
                                 {locale === 'sl' ? 'Članstva' : 'Memberships'}
                               </button>
+                              <button type="button" className={walletFilter === 'courses' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('courses')}>
+                                {locale === 'sl' ? 'Tečaji' : 'Courses'}
+                              </button>
                               <button type="button" className={walletFilter === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('giftCards')}>
                                 {locale === 'sl' ? 'Darilne kartice' : 'Gift cards'}
                               </button>
@@ -3345,7 +3364,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                   >
                                     <div className="clients-wallet-entitlement-main">
                                       <div className="clients-wallet-entitlement-title-row">
-                                        <span className="clients-wallet-entitlement-tag">{isMembership ? 'MEMBERSHIP' : kind === 'gift_card' ? 'GIFT CARD' : kind === 'ticket' ? 'TICKET' : 'PACK'}</span>
+                                        <span className="clients-wallet-entitlement-tag">{walletEntitlementKindLabel(kind, locale)}</span>
                                         <strong>{entitlement.productName}</strong>
                                       </div>
                                       <div className="clients-wallet-entitlement-meta">

@@ -443,44 +443,57 @@
 .clients-row-actions-inline {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 18px;
+    color: #2563eb;
+    font-weight: 700;
+    white-space: nowrap;
 }
 
 .clients-row-action-btn.secondary {
-    min-height: 34px;
+    appearance: none;
+    min-height: 0;
     min-width: 0;
-    padding: 7px 12px;
-    border-radius: 10px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    border: 1px solid #fecaca;
-    background: #fff;
-    color: #dc2626;
-    font-size: 0.78rem;
-    font-weight: 900;
+    gap: 8px;
+    background: transparent;
+    color: inherit;
+    font-size: 0.84rem;
+    font-weight: inherit;
     line-height: 1;
     box-shadow: none;
     white-space: nowrap;
-    transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.clients-row-action-btn.secondary:hover {
+    background: transparent;
+    color: #1d4ed8;
+    box-shadow: none;
+    text-decoration: none;
+}
+
+.clients-row-action-btn.secondary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .clients-row-action-btn.secondary svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
 }
 
 .clients-row-action-btn--danger.secondary {
-    border-color: #fecaca;
-    background: #fff;
-    color: #dc2626;
+    color: #ef4444;
 }
 
 .clients-row-action-btn--danger.secondary:hover {
-    border-color: #fca5a5;
-    background: #fef2f2;
-    color: #b91c1c;
+    color: #dc2626;
 }
 
 .clients-row-action-btn__label {

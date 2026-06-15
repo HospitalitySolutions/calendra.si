@@ -4644,6 +4644,10 @@
     line-height: 1.3;
 }
 
+.billing-invoice-discount-foot--amount-only {
+    justify-content: flex-end;
+}
+
 .billing-invoice-discount-foot strong,
 .billing-bill-modal-summary-line--discount strong {
     color: #7c3aed;

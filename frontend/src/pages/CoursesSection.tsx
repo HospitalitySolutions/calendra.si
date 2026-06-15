@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
   type FormEvent,
+  type ReactNode,
 } from 'react'
 import { api } from '../api'
 import { EmptyState, Field } from '../components/ui'
@@ -156,6 +157,59 @@ async function uploadVideoToBunnyTus(file: File, session: DirectVideoUploadSessi
   onProgress(100)
 }
 
+const COURSE_ICON_TONES = ['blue', 'green', 'orange', 'purple', 'yellow', 'pink'] as const
+
+function CourseIcon({ index }: { index: number }) {
+  const tone = COURSE_ICON_TONES[index % COURSE_ICON_TONES.length]
+  return (
+    <span className={`service-config-icon service-config-icon--${tone}`}>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        <path d="m10 8 5 3-5 3V8z" />
+      </svg>
+    </span>
+  )
+}
+
+function CourseNameCell({ course, index, locale }: { course: Course; index: number; locale: string }) {
+  return (
+    <div className="service-config-name-cell">
+      <CourseIcon index={index} />
+      <div className="service-config-name-stack">
+        <strong>{course.title}</strong>
+        <span>{course.description?.trim() ? course.description : (locale === 'sl' ? 'Brez opisa' : 'No description')}</span>
+      </div>
+    </div>
+  )
+}
+
+function CourseSortableHeader({ children }: { children: ReactNode }) {
+  return (
+    <span className="service-config-sortable-header">
+      {children}
+      <span className="service-config-sort-icon" aria-hidden>↕</span>
+    </span>
+  )
+}
+
+function courseMediaLabel(course: Course, locale: string) {
+  return course.mediaType === 'AUDIO' ? (locale === 'sl' ? 'Audio' : 'Audio') : (locale === 'sl' ? 'Video' : 'Video')
+}
+
+function courseBunnyLabel(course: Course, locale: string) {
+  if (course.mediaType === 'VIDEO') return course.bunnyVideoId ? `Video ${course.bunnyVideoId}` : (locale === 'sl' ? 'Ni videa' : 'No video')
+  return course.bunnyStoragePath || (locale === 'sl' ? 'Ni audio datoteke' : 'No audio file')
+}
+
+function courseStatusLabel(course: Course, locale: string) {
+  if (course.active === false) return locale === 'sl' ? 'Neaktivno' : 'Inactive'
+  if (course.status === 'DRAFT') return 'DRAFT'
+  if (course.status === 'PROCESSING') return locale === 'sl' ? 'Obdelava' : 'Processing'
+  if (course.status === 'HIDDEN') return locale === 'sl' ? 'Skrito' : 'Hidden'
+  return locale === 'sl' ? 'Aktivno' : 'Active'
+}
+
 export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionProps>(function CoursesSection(
   { searchQuery, activeFilter, onFilteredCountChange },
   ref,
@@ -172,6 +226,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
   const [uploadingId, setUploadingId] = useState<number | null>(null)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [openCourseMenuId, setOpenCourseMenuId] = useState<number | null>(null)
   const [deleteOldMediaOnReplace, setDeleteOldMediaOnReplace] = useState(true)
 
   const load = useCallback(async () => {
@@ -309,6 +364,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
   }
 
   const archiveToggle = async (course: Course) => {
+    setOpenCourseMenuId(null)
     const nextActive = !course.active
     try {
       await api.put(`/courses/${course.id}`, {
@@ -330,6 +386,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
   }
 
   const deleteCourse = async (course: Course) => {
+    setOpenCourseMenuId(null)
     if (deletingId != null) return
     const hasBunnyMedia = Boolean(course.bunnyVideoId || course.bunnyStoragePath)
     const message = hasBunnyMedia
@@ -362,39 +419,201 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
           text={locale === 'sl' ? 'Dodajte prvi video ali audio tečaj. Prodaja se nastavi posebej v zavihku Ugodnosti.' : 'Add your first video or audio course. Selling/access is configured separately in Entitlements.'}
         />
       ) : (
-        <table className="services-table service-config-table">
-          <thead>
-            <tr>
-              <th>{locale === 'sl' ? 'Tečaj' : 'Course'}</th>
-              <th>{locale === 'sl' ? 'Tip' : 'Type'}</th>
-              <th>{locale === 'sl' ? 'Status' : 'Status'}</th>
-              <th>Bunny</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((course) => (
-              <tr key={course.id}>
-                <td>
-                  <strong>{course.title}</strong>
-                  <div className="muted">{course.description || (locale === 'sl' ? 'Brez opisa' : 'No description')}</div>
-                </td>
-                <td>{course.mediaType === 'AUDIO' ? (locale === 'sl' ? 'Audio' : 'Audio') : (locale === 'sl' ? 'Video' : 'Video')}</td>
-                <td><span className="status-pill">{course.status}</span></td>
-                <td>
-                  {course.mediaType === 'VIDEO'
-                    ? (course.bunnyVideoId ? `Video ${course.bunnyVideoId}` : (locale === 'sl' ? 'Ni videa' : 'No video'))
-                    : (course.bunnyStoragePath || (locale === 'sl' ? 'Ni audio datoteke' : 'No audio file'))}
-                </td>
-                <td className="service-config-actions-cell">
-                  <button type="button" className="secondary" onClick={() => openEdit(course)} disabled={deletingId === course.id}>{locale === 'sl' ? 'Uredi' : 'Edit'}</button>
-                  <button type="button" className="secondary" onClick={() => archiveToggle(course)} disabled={deletingId === course.id}>{course.active ? (locale === 'sl' ? 'Arhiviraj' : 'Archive') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}</button>
-                  <button type="button" className="danger secondary" onClick={() => void deleteCourse(course)} disabled={deletingId === course.id}>{deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}</button>
-                </td>
-              </tr>
+        <div className="clients-list-shell service-config-list-shell">
+          <div className="clients-mobile-list service-config-mobile-list">
+            {filtered.map((course, index) => (
+              <article
+                key={course.id}
+                className="clients-mobile-card service-config-mobile-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => openEdit(course)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    openEdit(course)
+                  }
+                }}
+              >
+                <div className="clients-mobile-card-head">
+                  <CourseNameCell course={course} index={index} locale={locale} />
+                  <div
+                    className="clients-mobile-card-head-tools"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    role="presentation"
+                  >
+                    <div className="clients-card-menu-wrap">
+                      <button
+                        type="button"
+                        className="secondary clients-card-menu-trigger service-config-menu-trigger"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenCourseMenuId((prev) => (prev === course.id ? null : course.id))
+                        }}
+                        aria-label="Course actions"
+                        aria-expanded={openCourseMenuId === course.id}
+                      >
+                        ⋮
+                      </button>
+                      {openCourseMenuId === course.id && (
+                        <div className="clients-card-menu-popover" role="dialog" aria-label="Course actions">
+                          <button
+                            type="button"
+                            disabled={deletingId === course.id}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void archiveToggle(course)
+                            }}
+                          >
+                            {course.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}
+                          </button>
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={deletingId === course.id}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void deleteCourse(course)
+                            }}
+                          >
+                            {deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="clients-mobile-meta">
+                  <div>
+                    <span>{locale === 'sl' ? 'Tip' : 'Type'}</span>
+                    <strong>{courseMediaLabel(course, locale)}</strong>
+                  </div>
+                  <div>
+                    <span>Bunny</span>
+                    <strong>{courseBunnyLabel(course, locale)}</strong>
+                  </div>
+                  <div>
+                    <span>{locale === 'sl' ? 'Dostop' : 'Access'}</span>
+                    <strong>{course.guestVisible ? (locale === 'sl' ? 'Viden gostom' : 'Guest visible') : (locale === 'sl' ? 'Skrit gostom' : 'Hidden from guests')}</strong>
+                  </div>
+                  <div>
+                    <span>{locale === 'sl' ? 'Status' : 'Status'}</span>
+                    <strong>
+                      <button
+                        type="button"
+                        className={`clients-status-pill clients-status-pill-btn${course.active === false ? ' clients-status-pill--inactive' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void archiveToggle(course)
+                        }}
+                        disabled={deletingId === course.id}
+                      >
+                        <span />
+                        {courseStatusLabel(course, locale)}
+                      </button>
+                    </strong>
+                  </div>
+                </div>
+              </article>
             ))}
-          </tbody>
-        </table>
+          </div>
+          <div className="simple-table-wrap clients-table-wrap clients-table-desktop session-types-table-wrap service-config-table-wrap">
+            <table className="clients-table session-types-table service-config-table">
+              <thead>
+                <tr>
+                  <th><CourseSortableHeader>{locale === 'sl' ? 'Naziv' : 'Name'}</CourseSortableHeader></th>
+                  <th><CourseSortableHeader>{locale === 'sl' ? 'Tip' : 'Type'}</CourseSortableHeader></th>
+                  <th><CourseSortableHeader>Bunny</CourseSortableHeader></th>
+                  <th><CourseSortableHeader>{locale === 'sl' ? 'Dostop' : 'Access'}</CourseSortableHeader></th>
+                  <th><CourseSortableHeader>{locale === 'sl' ? 'Status' : 'Status'}</CourseSortableHeader></th>
+                  <th>{locale === 'sl' ? 'Dejanje' : 'Action'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((course, index) => (
+                  <tr
+                    key={course.id}
+                    className="clients-row clients-row--clickable"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openEdit(course)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        openEdit(course)
+                      }
+                    }}
+                  >
+                    <td><CourseNameCell course={course} index={index} locale={locale} /></td>
+                    <td className="clients-muted service-config-category-cell">{courseMediaLabel(course, locale)}</td>
+                    <td className="clients-muted service-config-category-cell">{courseBunnyLabel(course, locale)}</td>
+                    <td className="clients-muted service-config-category-cell">
+                      {course.guestVisible ? (locale === 'sl' ? 'Viden gostom' : 'Guest visible') : (locale === 'sl' ? 'Skrit gostom' : 'Hidden from guests')}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`clients-status-pill clients-status-pill-btn${course.active === false ? ' clients-status-pill--inactive' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void archiveToggle(course)
+                        }}
+                        disabled={deletingId === course.id}
+                      >
+                        <span />
+                        {courseStatusLabel(course, locale)}
+                      </button>
+                    </td>
+                    <td className="clients-actions service-config-actions">
+                      <div className="clients-actions-inner">
+                        <div className="clients-card-menu-wrap">
+                          <button
+                            type="button"
+                            className="secondary clients-card-menu-trigger service-config-menu-trigger"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setOpenCourseMenuId((prev) => (prev === course.id ? null : course.id))
+                            }}
+                            aria-label="Course actions"
+                            aria-expanded={openCourseMenuId === course.id}
+                          >
+                            ⋮
+                          </button>
+                          {openCourseMenuId === course.id && (
+                            <div className="clients-card-menu-popover" role="dialog" aria-label="Course actions">
+                              <button
+                                type="button"
+                                disabled={deletingId === course.id}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void archiveToggle(course)
+                                }}
+                              >
+                                {course.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}
+                              </button>
+                              <button
+                                type="button"
+                                className="danger"
+                                disabled={deletingId === course.id}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void deleteCourse(course)
+                                }}
+                              >
+                                {deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {showModal && (

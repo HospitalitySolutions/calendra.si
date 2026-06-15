@@ -1,0 +1,25 @@
+Changes done from uploaded Word document:
+
+1. Clients / Companies / Groups row action buttons
+- Restyled the inline row actions on Clients, Companies and Groups to match the link-style action design used in Upravljanje računa -> Prejeti računi -> Dejanja.
+- Actions are now compact, borderless, icon + text links rather than filled/bordered pills.
+
+2. Client details -> Denarnica
+- Added the missing Tečaji / Courses wallet filter tab.
+- Course entitlements are now filtered separately under this new tab.
+
+3. Client wallet entitlement labels
+- Localized entitlement type badges.
+- PACK now shows as Paket when Slovenian is selected.
+- Added Slovenian labels for Članarina, Darilna kartica, Karta and Tečaj.
+
+4. Uredi račun popup
+- Open status badge now shows Odprto when Slovenian is selected.
+- Summary strip labels are translated to Slovenian when Slovenian is selected.
+- Removed the explanatory discount text: "Popust za celoten račun je vedno v %. Najprej se upoštevajo popusti postavk, nato še ta popust."
+
+5. Billing -> Odprti računi
+- Translated Description, Employee, Amount, Action and the results footer to Slovenian when Slovenian is selected.
+- Delete labels on the open bill row/modal now also switch to Slovenian.
+
+Note: I attempted to run the frontend build, but dependencies are not installed in this sandbox (missing react/axios modules), so the build could not complete here.

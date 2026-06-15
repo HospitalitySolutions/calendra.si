@@ -1790,7 +1790,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function openBillListGroupGross(ob: OpenBill): number {
-    return getOpenBillListGroupMembers(ob).reduce((sum, entry) => sum + openBillPayableGross(entry), 0)
+    return getOpenBillListGroupMembers(ob).reduce((sum, entry) => sum + estimateGross(getOpenBillItems(entry)), 0)
   }
 
   function openBillListGroupClientLabel(ob: OpenBill): string {
@@ -2814,11 +2814,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return (safeA - safeB) * factor
     })
     return list
-  }, [filteredOpenBills, openBillsSortField, openBillsSortDir, openBillEdits, openBillDiscountEdits, services, openBills, locale])
+  }, [filteredOpenBills, openBillsSortField, openBillsSortDir, openBillEdits, services, openBills, locale])
 
   const openBillsSummaryGross = useMemo(
     () => sortedOpenBills.reduce((sum, ob) => sum + openBillListGroupGross(ob), 0),
-    [sortedOpenBills, openBillEdits, openBillDiscountEdits, services, openBills],
+    [sortedOpenBills, openBillEdits, services, openBills],
   )
 
   const openBillsSortLabel = useMemo(() => {
@@ -4827,9 +4827,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   ) => {
     const realDiscountGross = calculateWholeBillDiscountGross(subtotalGross, draft, items)
     const wholeBillValue = draft.wholeBillPercent ?? '0'
-    const discountText = locale === 'sl'
-      ? 'Popust za celoten račun je vedno v %. Najprej se upoštevajo popusti postavk, nato še ta popust.'
-      : 'Whole-bill discounts are percentage-only. Item discounts are applied first, then this discount.'
     return (
       <section className="billing-invoice-discount-card billing-invoice-discount-card--whole-bill">
         <div className="billing-invoice-discount-head">
@@ -4855,8 +4852,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <em>%</em>
           </label>
         </div>
-        <div className="billing-invoice-discount-foot">
-          <span>{discountText}</span>
+        <div className="billing-invoice-discount-foot billing-invoice-discount-foot--amount-only">
           <strong>{realDiscountGross > 0 ? `- ${currency(realDiscountGross)}` : currency(0)}</strong>
         </div>
       </section>
@@ -6732,10 +6728,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         </section>
 
         <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek vseh računov' : 'All bills summary'}>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>All bills summary</span><strong>{totalOpenBills} {totalOpenBills === 1 ? 'bill' : 'bills'}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>Total line items</span><strong>{totalLineItems}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--orange">◈</span><span>Total across all bills</span><strong>{currency(totalAcrossBills)}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>Total unpaid</span><strong>{currency(totalAcrossBills)}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{locale === 'sl' ? 'Povzetek vseh računov' : 'All bills summary'}</span><strong>{totalOpenBills} {locale === 'sl' ? (totalOpenBills === 1 ? 'račun' : totalOpenBills === 2 ? 'računa' : totalOpenBills === 3 || totalOpenBills === 4 ? 'računi' : 'računov') : (totalOpenBills === 1 ? 'bill' : 'bills')}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Skupaj postavk' : 'Total line items'}</span><strong>{totalLineItems}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--orange">◈</span><span>{locale === 'sl' ? 'Skupaj vsi računi' : 'Total across all bills'}</span><strong>{currency(totalAcrossBills)}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Skupaj neplačano' : 'Total unpaid'}</span><strong>{currency(totalAcrossBills)}</strong></div>
         </section>
         {renderOpenBillPayeeEditorDialog()}
         {renderAddOpenBillDialog()}
@@ -7210,11 +7206,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <tr>
                           <th>{billingCopy.openBillsColSessionId}</th>
                           <th>{billingCopy.client}</th>
-                          <th>{billingCopy.openBillsColSession} / Description</th>
-                          <th>Employee</th>
+                          <th>{billingCopy.openBillsColSession} / {locale === 'sl' ? 'Opis' : 'Description'}</th>
+                          <th>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</th>
                           <th>{billingCopy.paymentMethod}</th>
-                          <th>Amount</th>
-                          <th>Action</th>
+                          <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
+                          <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -7269,7 +7265,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                     : (groupBillCount > 1 ? (locale === 'sl' ? 'Uredi račune' : 'Edit bills') : (locale === 'sl' ? 'Zapri račun' : 'Close Invoice'))}
                                 </button>
                                 <button type="button" className="billing-open-row-action billing-open-row-action--danger" onClick={() => deleteOpenBill(ob)} disabled={deletingOpenId === ob.id || groupBillCount > 1}>
-                                  {deletingOpenId === ob.id ? 'Deleting…' : 'Delete'}
+                                  {deletingOpenId === ob.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
                                 </button>
                               </td>
                             </tr>
@@ -7278,7 +7274,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </tbody>
                     </table>
                     <div className="billing-modern-footer">
-                      <span>Showing 1 to {Math.min(sortedOpenBills.length, 6)} of {sortedOpenBills.length} results</span>
+                      <span>{locale === 'sl' ? `Prikazujem 1 do ${Math.min(sortedOpenBills.length, 6)} od ${sortedOpenBills.length} rezultatov` : `Showing 1 to ${Math.min(sortedOpenBills.length, 6)} of ${sortedOpenBills.length} results`}</span>
                       <div className="clients-modern-pagination" aria-hidden="true">
                         <button type="button" className="secondary">‹</button>
                         <span>1</span>
@@ -7326,8 +7322,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           <th>Payer</th>
                           <th>Date</th>
                           <th>Due Date</th>
-                          <th>Amount</th>
-                          <th>Action</th>
+                          <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
+                          <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -7445,7 +7441,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           <th>Original Amount</th>
                           <th>Remaining Balance</th>
                           <th>Issued Date</th>
-                          <th>Action</th>
+                          <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -7616,13 +7612,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           <th>Order ID</th>
                           <th>Session Id</th>
                           <th>{billingCopy.client} / Company</th>
-                          <th>Employee</th>
+                          <th>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</th>
                           <th>Description</th>
                           <th>Issue Date</th>
-                          <th>Amount</th>
+                          <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
                           <th>Payment Status</th>
                           <th>Fiscal Status</th>
-                          <th>Action</th>
+                          <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -7701,7 +7697,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <div>
                 <div className="billing-bill-modal-title-row">
                   <h2>{locale === 'sl' ? 'Uredi račun' : 'Edit invoice'}</h2>
-                  <span className="billing-bill-modal-status billing-bill-modal-status--open">Open</span>
+                  <span className="billing-bill-modal-status billing-bill-modal-status--open">{locale === 'sl' ? 'Odprto' : 'Open'}</span>
                 </div>
                 <p>{locale === 'sl' ? 'Nalaganje podatkov računa…' : 'Loading bill data…'}</p>
               </div>
@@ -7788,7 +7784,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <div>
                   <div className="billing-bill-modal-title-row">
                     <h2>{locale === 'sl' ? 'Uredi račun' : 'Edit Invoice'}</h2>
-                    <span className="billing-bill-modal-status billing-bill-modal-status--open">Open</span>
+                    <span className="billing-bill-modal-status billing-bill-modal-status--open">{locale === 'sl' ? 'Odprto' : 'Open'}</span>
                   </div>
                   <p>{openBillEditorSubtitle(detailOpenBill)}</p>
                 </div>
@@ -7799,7 +7795,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
               <div className="billing-bill-modal-footer">
                 <button type="button" className="billing-bill-modal-delete" onClick={() => deleteOpenBill(detailOpenBill)} disabled={deletingOpenId === detailOpenBill.id}>
-                  🗑 {deletingOpenId === detailOpenBill.id ? 'Deleting…' : 'Delete'}
+                  🗑 {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
                 </button>
                 <div className="billing-preview-choice-anchor">
                   <button
