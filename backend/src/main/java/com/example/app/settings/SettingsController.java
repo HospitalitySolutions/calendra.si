@@ -4,7 +4,9 @@ import com.example.app.company.PlatformTenantAccountLinkService;
 import com.example.app.files.TenantFileS3Service;
 import java.util.Locale;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,6 +22,16 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/settings")
 public class SettingsController {
+    private static final String MASKED_SECRET_VALUE = "••••••••";
+    private static final Set<SettingKey> SECRET_KEYS = EnumSet.of(
+            SettingKey.FISCAL_CERTIFICATE_PASSWORD,
+            SettingKey.INBOX_INFOBIP_API_KEY,
+            SettingKey.INBOX_WHATSAPP_ACCESS_TOKEN,
+            SettingKey.INBOX_WHATSAPP_APP_SECRET,
+            SettingKey.INBOX_VIBER_BOT_TOKEN,
+            SettingKey.WIDGET_TURNSTILE_SECRET_KEY
+    );
+
     private final AppSettingRepository repository;
     private final SettingsCryptoService crypto;
     private final TenantFileS3Service fileStorage;
@@ -80,13 +92,17 @@ public class SettingsController {
         }
         Arrays.stream(SettingKey.values()).forEach(key -> {
             if (payload.containsKey(key.name())) {
+                String submittedValue = payload.get(key.name());
+                if (isSecretKey(key) && isMaskedSecretValue(submittedValue)) {
+                    return;
+                }
                 var s = repository.findByCompanyIdAndKey(companyId, key).orElseGet(() -> {
                     var ns = new AppSetting();
                     ns.setCompany(me.getCompany());
                     return ns;
                 });
                 s.setKey(key.name());
-                s.setValue(encodeForSave(key, payload.get(key.name())));
+                s.setValue(encodeForSave(key, submittedValue));
                 repository.save(s);
             }
         });
@@ -129,25 +145,41 @@ public class SettingsController {
     }
 
     private String encodeForSave(SettingKey key, String value) {
-        if (key == SettingKey.FISCAL_CERTIFICATE_PASSWORD
-                || key == SettingKey.INBOX_INFOBIP_API_KEY
-                || key == SettingKey.INBOX_WHATSAPP_ACCESS_TOKEN
-                || key == SettingKey.INBOX_WHATSAPP_APP_SECRET
-                || key == SettingKey.INBOX_VIBER_BOT_TOKEN) {
-            return crypto.encrypt(value);
+        if (isSecretKey(key)) {
+            String raw = value == null ? "" : value.trim();
+            return raw.isBlank() ? "" : crypto.encrypt(raw);
         }
         return value;
     }
 
     private String decodeForRead(String keyName, String value) {
-        if (SettingKey.FISCAL_CERTIFICATE_PASSWORD.name().equals(keyName)
-                || SettingKey.INBOX_INFOBIP_API_KEY.name().equals(keyName)
-                || SettingKey.INBOX_WHATSAPP_ACCESS_TOKEN.name().equals(keyName)
-                || SettingKey.INBOX_WHATSAPP_APP_SECRET.name().equals(keyName)
-                || SettingKey.INBOX_VIBER_BOT_TOKEN.name().equals(keyName)) {
-            return crypto.decryptIfEncrypted(value);
+        SettingKey key = parseSettingKey(keyName);
+        if (key != null && isSecretKey(key)) {
+            String decrypted = crypto.decryptIfEncrypted(value);
+            return decrypted == null || decrypted.isBlank() ? "" : MASKED_SECRET_VALUE;
         }
         return value;
+    }
+
+    private boolean isSecretKey(SettingKey key) {
+        return key != null && SECRET_KEYS.contains(key);
+    }
+
+    private boolean isMaskedSecretValue(String value) {
+        if (value == null) return false;
+        String trimmed = value.trim();
+        return MASKED_SECRET_VALUE.equals(trimmed)
+                || "********".equals(trimmed)
+                || "••••••••••••••••".equals(trimmed);
+    }
+
+    private SettingKey parseSettingKey(String keyName) {
+        if (keyName == null || keyName.isBlank()) return null;
+        try {
+            return SettingKey.valueOf(keyName);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private boolean isKnownSettingKey(String keyName) {

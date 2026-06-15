@@ -2,6 +2,7 @@ package com.example.app.widget;
 
 import com.example.app.company.Company;
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingsCryptoService;
 import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class WidgetTurnstileService {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final AppSettingRepository settings;
+    private final SettingsCryptoService crypto;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final String globalSiteKey;
     private final String globalSecretKey;
@@ -28,11 +30,13 @@ public class WidgetTurnstileService {
 
     public WidgetTurnstileService(
             AppSettingRepository settings,
+            SettingsCryptoService crypto,
             @Value("${app.widget.turnstile.site-key:}") String globalSiteKey,
             @Value("${app.widget.turnstile.secret-key:}") String globalSecretKey,
             @Value("${app.widget.turnstile.required-for-public-actions:false}") boolean requiredForPublicActions
     ) {
         this.settings = settings;
+        this.crypto = crypto;
         this.globalSiteKey = globalSiteKey == null ? "" : globalSiteKey.trim();
         this.globalSecretKey = globalSecretKey == null ? "" : globalSecretKey.trim();
         this.requiredForPublicActions = requiredForPublicActions;
@@ -94,8 +98,9 @@ public class WidgetTurnstileService {
 
     private String secretKey(Company company) {
         return settings.findByCompanyIdAndKey(company.getId(), SettingKey.WIDGET_TURNSTILE_SECRET_KEY)
-                .map(s -> s.getValue())
-                .filter(v -> v != null && !v.isBlank())
+                .map(s -> crypto.decryptIfEncrypted(s.getValue()))
+                .map(String::trim)
+                .filter(v -> !v.isBlank())
                 .orElse(globalSecretKey);
     }
 

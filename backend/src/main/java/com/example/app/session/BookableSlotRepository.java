@@ -42,6 +42,38 @@ public interface BookableSlotRepository extends JpaRepository<BookableSlot, Long
 
     List<BookableSlot> findByConsultantIdAndCompanyId(Long consultantId, Long companyId);
 
+    @Query("""
+        select s from BookableSlot s
+        join fetch s.consultant c
+        where s.company.id = :companyId
+          and (s.indefinite = true
+               or ((s.startDate is null or s.startDate <= :toDate)
+                   and (s.endDate is null or s.endDate >= :fromDate)))
+        order by s.dayOfWeek asc, s.startTime asc, s.id asc
+        """)
+    List<BookableSlot> findVisibleByCompanyAndDateRange(
+            @Param("companyId") Long companyId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
+
+    @Query("""
+        select s from BookableSlot s
+        join fetch s.consultant c
+        where s.company.id = :companyId
+          and c.id = :consultantId
+          and (s.indefinite = true
+               or ((s.startDate is null or s.startDate <= :toDate)
+                   and (s.endDate is null or s.endDate >= :fromDate)))
+        order by s.dayOfWeek asc, s.startTime asc, s.id asc
+        """)
+    List<BookableSlot> findVisibleByConsultantAndCompanyAndDateRange(
+            @Param("consultantId") Long consultantId,
+            @Param("companyId") Long companyId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
+
     Optional<BookableSlot> findByIdAndCompanyId(Long id, Long companyId);
 
     @Query("""

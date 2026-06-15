@@ -1,3 +1,8 @@
+# Local-only Docker Compose stack.
+#
+# This file is intentionally separate from docker-compose.prod.yml and uses the local
+# Spring profile, local-only credentials, localhost-bound ports, and no AWS Secrets
+# Manager imports. Do not use this file for staging or production.
 services:
   db:
     image: postgres:16
@@ -7,13 +12,27 @@ services:
       POSTGRES_USER: calendra
       POSTGRES_PASSWORD: calendra
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data_local:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U calendra -d calendradb"]
       interval: 5s
       timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data_local:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
       retries: 20
 
   backend:
@@ -24,22 +43,28 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      # Staging profile + Secrets Manager. If needed, pass AWS creds from host/.env.
-      SPRING_PROFILES_ACTIVE: staging
+      SPRING_PROFILES_ACTIVE: local
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: 4000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/calendradb
+      SPRING_DATASOURCE_USERNAME: calendra
+      SPRING_DATASOURCE_PASSWORD: calendra
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      APP_RATE_LIMIT_BACKEND: memory
+      APP_WIDGET_RATE_LIMIT_BACKEND: memory
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-local-development-jwt-secret-change-me}
       APP_JWT_EXPIRATION_MS: 86400000
+      APP_SETTINGS_ENCRYPTION_KEY: ${APP_SETTINGS_ENCRYPTION_KEY:-local-development-settings-key-change-me}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:3000}
+      APP_AUTH_FRONTEND_URL: ${APP_AUTH_FRONTEND_URL:-http://localhost:3000}
+      APP_WEBAUTHN_RP_ID: ${APP_WEBAUTHN_RP_ID:-localhost}
       APP_WEBAUTHN_ALLOWED_ORIGINS: ${APP_WEBAUTHN_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-      AWS_REGION: ${AWS_REGION:-eu-central-1}
-      AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
-      AWS_STAGING_SECRET_ID: ${AWS_STAGING_SECRET_ID:-arn:aws:secretsmanager:eu-central-1:345362761828:secret:calendra/staging-2jqRIf}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
 
   frontend:
     build:
@@ -51,7 +76,8 @@ services:
     environment:
       VITE_WEB_API_URL: http://localhost:4000/api
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
 volumes:
   postgres_data_local:
+  redis_data_local:

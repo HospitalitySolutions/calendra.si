@@ -178,6 +178,51 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
     List<SessionBooking> findByConsultantIdAndCompanyId(Long consultantId, Long companyId);
     List<SessionBooking> findByConsultantIdAndCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(Long consultantId, Long companyId, LocalDateTime from, LocalDateTime to);
     List<SessionBooking> findByCompanyIdAndStartTimeGreaterThanEqualAndStartTimeLessThan(Long companyId, LocalDateTime from, LocalDateTime to);
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.client c
+            LEFT JOIN FETCH c.billingCompany
+            LEFT JOIN FETCH sb.payeeCompany
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.space
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.clientGroup
+            LEFT JOIN FETCH sb.sessionGroupBillingCompany
+            WHERE sb.company.id = :companyId
+              AND sb.startTime < :rangeEnd
+              AND sb.endTime > :rangeStart
+            ORDER BY sb.startTime ASC, sb.id ASC
+            """)
+    List<SessionBooking> findOverlappingDateRangeByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.client c
+            LEFT JOIN FETCH c.billingCompany
+            LEFT JOIN FETCH sb.payeeCompany
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.space
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.clientGroup
+            LEFT JOIN FETCH sb.sessionGroupBillingCompany
+            WHERE sb.company.id = :companyId
+              AND sb.consultant.id = :consultantId
+              AND sb.startTime < :rangeEnd
+              AND sb.endTime > :rangeStart
+            ORDER BY sb.startTime ASC, sb.id ASC
+            """)
+    List<SessionBooking> findOverlappingDateRangeByConsultantIdAndCompanyId(
+            @Param("consultantId") Long consultantId,
+            @Param("companyId") Long companyId,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd
+    );
+
     Optional<SessionBooking> findByIdAndCompanyId(Long id, Long companyId);
 
     Optional<SessionBooking> findFirstByCompanyIdAndSourceOrderId(Long companyId, String sourceOrderId);

@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -46,6 +47,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/bookings")
 public class SessionBookingController {
+    private static final long DEFAULT_BOOKING_LIST_PAST_DAYS = 180;
+    private static final long DEFAULT_BOOKING_LIST_FUTURE_DAYS = 365;
+    private static final long MAX_BOOKING_QUERY_DAYS = 731;
+
     private final SessionBookingRepository repo;
     private final BookableSlotRepository bookableSlots;
     private final PersonalCalendarBlockRepository personalBlocks;
@@ -217,11 +222,14 @@ public class SessionBookingController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public List<BookingResponse> list(@AuthenticationPrincipal User me) {
+    public List<BookingResponse> list(
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
+            @AuthenticationPrincipal User me
+    ) {
         var companyId = me.getCompany().getId();
-        var rows = SecurityUtils.isAdmin(me)
-                ? repo.findAllByCompanyId(companyId)
-                : repo.findByConsultantIdAndCompanyId(me.getId(), companyId);
+        DateRange range = resolveBookingListRange(from, to);
+        var rows = loadBookingsForRange(me, companyId, range.rangeStart(), range.rangeEnd());
         return groupedBookingResponsesWithPayments(rows, companyId);
     }
 
@@ -516,16 +524,17 @@ public class SessionBookingController {
     public Map<String, Object> calendar(@RequestParam LocalDate from, @RequestParam LocalDate to, @AuthenticationPrincipal User me) {
         var result = new HashMap<String, Object>();
         var companyId = me.getCompany().getId();
-        var bookingRows = (SecurityUtils.isAdmin(me) ? repo.findAllByCompanyId(companyId) : repo.findByConsultantIdAndCompanyId(me.getId(), companyId)).stream()
-                .filter(b -> !b.getStartTime().toLocalDate().isBefore(from) && !b.getStartTime().toLocalDate().isAfter(to))
-                .toList();
+        DateRange range = resolveRequiredDateRange(from, to);
+        var rangeStart = range.rangeStart();
+        var rangeEnd = range.rangeEnd();
+        var bookingRows = loadBookingsForRange(me, companyId, rangeStart, rangeEnd);
         var bookings = groupedBookingResponsesWithPayments(bookingRows, companyId);
-        var slots = (SecurityUtils.isAdmin(me) ? bookableSlots.findAllByCompanyId(companyId) : bookableSlots.findByConsultantIdAndCompanyId(me.getId(), companyId)).stream()
-                .filter(s -> s.isIndefinite() || (s.getStartDate() != null && s.getEndDate() != null && !(to.isBefore(s.getStartDate()) || from.isAfter(s.getEndDate()))))
+        var slots = (SecurityUtils.isAdmin(me)
+                ? bookableSlots.findVisibleByCompanyAndDateRange(companyId, range.from(), range.to())
+                : bookableSlots.findVisibleByConsultantAndCompanyAndDateRange(me.getId(), companyId, range.from(), range.to()))
+                .stream()
                 .map(SessionBookingController::toResponse)
                 .toList();
-        var rangeStart = from.atStartOfDay();
-        var rangeEnd = to.plusDays(1).atStartOfDay();
         var overlappingPersonalRows = SecurityUtils.isAdmin(me)
                 ? personalBlocks.findOverlappingByCompany(companyId, rangeStart, rangeEnd)
                 : personalBlocks.findOverlapping(me.getId(), companyId, rangeStart, rangeEnd);
@@ -559,6 +568,39 @@ public class SessionBookingController {
         result.put("todos", todos);
         return result;
     }
+
+    private List<SessionBooking> loadBookingsForRange(User me, Long companyId, LocalDateTime rangeStart, LocalDateTime rangeEnd) {
+        return SecurityUtils.isAdmin(me)
+                ? repo.findOverlappingDateRangeByCompanyId(companyId, rangeStart, rangeEnd)
+                : repo.findOverlappingDateRangeByConsultantIdAndCompanyId(me.getId(), companyId, rangeStart, rangeEnd);
+    }
+
+    private DateRange resolveBookingListRange(LocalDate from, LocalDate to) {
+        LocalDate today = timeService.localDate();
+        LocalDate resolvedFrom = from == null ? today.minusDays(DEFAULT_BOOKING_LIST_PAST_DAYS) : from;
+        LocalDate resolvedTo = to == null ? today.plusDays(DEFAULT_BOOKING_LIST_FUTURE_DAYS) : to;
+        return validateDateRange(resolvedFrom, resolvedTo);
+    }
+
+    private DateRange resolveRequiredDateRange(LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Both from and to dates are required.");
+        }
+        return validateDateRange(from, to);
+    }
+
+    private DateRange validateDateRange(LocalDate from, LocalDate to) {
+        if (to.isBefore(from)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The to date must be on or after the from date.");
+        }
+        long days = ChronoUnit.DAYS.between(from, to) + 1;
+        if (days > MAX_BOOKING_QUERY_DAYS) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The requested booking date range is too large.");
+        }
+        return new DateRange(from, to, from.atStartOfDay(), to.plusDays(1).atStartOfDay());
+    }
+
+    private record DateRange(LocalDate from, LocalDate to, LocalDateTime rangeStart, LocalDateTime rangeEnd) {}
 
     static BookingResponse toResponse(SessionBooking b) {
         return toGroupedResponse(List.of(b));
@@ -626,7 +668,7 @@ public class SessionBookingController {
         List<Bill> linkedBills = sessionIds.isEmpty() ? List.of() : bills.findAllLinkedToSessionIds(companyId, sessionIds);
         Map<Long, Long> openBillIdBySessionId = sessionIds.isEmpty()
                 ? Map.of()
-                : openBills.findAllWithItemsByCompanyId(companyId).stream()
+                : openBills.findAllContainingSessionIds(companyId, sessionIds).stream()
                 .flatMap(openBill -> openBillSessionIds(openBill).stream()
                         .map(sessionId -> Map.entry(sessionId, openBill.getId())))
                 .filter(entry -> sessionIds.contains(entry.getKey()))
