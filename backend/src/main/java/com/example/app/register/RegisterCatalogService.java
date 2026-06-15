@@ -97,6 +97,8 @@ public class RegisterCatalogService {
             }
         }
 
+        Map<String, RegisterPriceCatalog.PlanName> planNames = normalizePlanNames(base.getPlanNames(), patch.getPlanNames());
+
         List<RegisterPriceCatalog.AddonItem> addonItems = patch.getAddonItems() != null
                 ? normalizeAddonItems(patch.getAddonItems(), base.getAddonItems())
                 : normalizeLegacyAddonMap(base.getAddonItems(), patch.getAddons());
@@ -124,6 +126,7 @@ public class RegisterCatalogService {
         );
 
         RegisterPriceCatalog out = new RegisterPriceCatalog(plans, addons);
+        out.setPlanNames(planNames);
         out.setAnnualDiscountPercent(annualDiscountPercent);
         out.setAddonItems(addonItems);
         out.setFeatureItems(featureItems);
@@ -155,6 +158,30 @@ public class RegisterCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Body required");
         }
         return merge(base, incoming);
+    }
+
+    private static Map<String, RegisterPriceCatalog.PlanName> normalizePlanNames(
+            Map<String, RegisterPriceCatalog.PlanName> base,
+            Map<String, RegisterPriceCatalog.PlanName> patch
+    ) {
+        Map<String, RegisterPriceCatalog.PlanName> out = new LinkedHashMap<>();
+        for (String key : List.of("basic", "pro", "business")) {
+            RegisterPriceCatalog.PlanName fallback = base == null ? null : base.get(key);
+            String defaultName = fallback == null ? titleFromKey(key) : text(fallback.getName(), titleFromKey(key));
+            String defaultNameSl = fallback == null ? defaultName : text(fallback.getNameSl(), defaultName);
+            out.put(key, new RegisterPriceCatalog.PlanName(defaultName, defaultNameSl));
+        }
+        if (patch != null) {
+            for (String key : List.of("basic", "pro", "business")) {
+                RegisterPriceCatalog.PlanName incoming = patch.get(key);
+                if (incoming == null) continue;
+                RegisterPriceCatalog.PlanName fallback = out.get(key);
+                String name = text(incoming.getName(), fallback == null ? titleFromKey(key) : fallback.getName());
+                String nameSl = text(incoming.getNameSl(), fallback == null ? name : fallback.getNameSl());
+                out.put(key, new RegisterPriceCatalog.PlanName(name, nameSl));
+            }
+        }
+        return out;
     }
 
     private static List<RegisterPriceCatalog.AddonItem> normalizeLegacyAddonMap(

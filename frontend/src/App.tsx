@@ -16,7 +16,7 @@ import { ZoomInstallPage } from './pages/ZoomInstallPage'
 import { CourseAccessPage } from './pages/CourseAccessPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
-import { getDefaultAllowedRoute, hasBillingAccess, hasInboxAccess } from './lib/packageAccess'
+import { getDefaultAllowedRoute } from './lib/packageAccess'
 import { storeAuthenticatedSession } from './lib/session'
 import { startClockSync, stopClockSync } from './lib/clock'
 import { clearAuthStoragePreservingTheme } from './theme'
@@ -312,9 +312,9 @@ export default function App() {
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
-  const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
+  const billingAllowed = isPlatformAdmin || billingModuleEnabled
   const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
-  const inboxAllowed = hasInboxAccess(user.packageType) && inboxModuleEnabled
+  const inboxAllowed = isPlatformAdmin || inboxModuleEnabled
   const canScanWalletEntitlements = scannerModuleEnabled && (isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN'))
   const fallbackRoute = getDefaultAllowedRoute(user.packageType)
 

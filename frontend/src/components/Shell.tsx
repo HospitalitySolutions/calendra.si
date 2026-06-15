@@ -6,7 +6,6 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { applyTheme, clearAuthStoragePreservingTheme, getStoredTheme, type ThemeMode } from '../theme'
 import { useLocale } from '../locale'
-import { hasBillingAccess, hasInboxAccess } from '../lib/packageAccess'
 import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
@@ -160,9 +159,9 @@ function ShellInner({ children }: PropsWithChildren) {
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
-  const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
+  const billingAllowed = isPlatformAdmin || billingModuleEnabled
   const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
-  const inboxAllowed = hasInboxAccess(user.packageType) && inboxModuleEnabled
+  const inboxAllowed = isPlatformAdmin || inboxModuleEnabled
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const [companyName, setCompanyName] = useState(defaultCompanyName)

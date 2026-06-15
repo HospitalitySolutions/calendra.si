@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { hasBillingAccess, hasInboxAccess } from '../lib/packageAccess'
 import { useLocale, type AppLocale } from '../locale'
 import type { User } from '../lib/types'
 import {
@@ -49,8 +48,8 @@ function buildSteps({
   employeesModuleEnabled,
   configurationModuleEnabled,
 }: OnboardingTourProps, locale: AppLocale): OnboardingStep[] {
-  const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
-  const inboxAllowed = hasInboxAccess(user.packageType) && inboxModuleEnabled
+  const billingAllowed = billingModuleEnabled
+  const inboxAllowed = inboxModuleEnabled
   const isSlovenian = locale === 'sl'
 
   return [

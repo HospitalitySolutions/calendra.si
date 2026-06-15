@@ -1,21 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
-import axios from 'axios'
-import { useLocation, useNavigate } from 'react-router-dom'
-import loginLogo from '../assets/login-logo.png'
-import { api } from '../api'
-import { getStoredUser } from '../auth'
-import { useToast } from '../components/Toast'
-import { ensureRegisterCatalogLoaded } from '../lib/registerCatalogBootstrap'
-import { markOnboardingTourPending } from '../lib/onboardingTour'
-import { useLocale } from '../locale'
-import { registerPageStyles } from './registerPageStyles'
+import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
+import { useLocation, useNavigate } from "react-router-dom";
+import loginLogo from "../assets/login-logo.png";
+import { api } from "../api";
+import { getStoredUser } from "../auth";
+import { useToast } from "../components/Toast";
+import { ensureRegisterCatalogLoaded } from "../lib/registerCatalogBootstrap";
+import { markOnboardingTourPending } from "../lib/onboardingTour";
+import { useLocale } from "../locale";
+import { registerPageStyles } from "./registerPageStyles";
 import {
   getBillingInterval,
   getEstimatedUserCount,
   parseRegisterSelection,
   registerPlanToPackage,
   selectionToSearch,
-} from './registerFlow'
+} from "./registerFlow";
 import {
   buildSummary,
   getActiveAddonKeys,
@@ -23,24 +23,31 @@ import {
   plansForLocale,
   selectionRequiresBillingDetails,
   type RegisterLocale,
-} from './registerPlanCopy'
+} from "./registerPlanCopy";
 
-const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
-const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
-type RegisterPaymentMethod = 'BANK_TRANSFER' | 'CARD' | 'PAYPAL'
-type RegisterPaymentCapabilities = { stripeEnabled: boolean; paypalEnabled: boolean }
+const REGISTER_BILLING_DETAILS_REQUIRED_KEY =
+  "calendra.register.requiresBillingDetails";
+const REGISTER_BILLING_DETAILS_SEARCH_KEY =
+  "calendra.register.billingDetailsSearch";
+type RegisterPaymentMethod = "BANK_TRANSFER" | "CARD" | "PAYPAL";
+type RegisterPaymentCapabilities = {
+  stripeEnabled: boolean;
+  paypalEnabled: boolean;
+};
 
 function clearPendingBillingDetailsRedirect() {
   try {
-    window.sessionStorage.removeItem(REGISTER_BILLING_DETAILS_REQUIRED_KEY)
-    window.sessionStorage.removeItem(REGISTER_BILLING_DETAILS_SEARCH_KEY)
+    window.sessionStorage.removeItem(REGISTER_BILLING_DETAILS_REQUIRED_KEY);
+    window.sessionStorage.removeItem(REGISTER_BILLING_DETAILS_SEARCH_KEY);
   } catch {
     // Session storage is best-effort only.
   }
 }
 
-function getSelectedAddonKeys(selection: ReturnType<typeof parseRegisterSelection>) {
-  return getActiveAddonKeys().filter((key) => Boolean(selection.addons[key]))
+function getSelectedAddonKeys(
+  selection: ReturnType<typeof parseRegisterSelection>,
+) {
+  return getActiveAddonKeys().filter((key) => Boolean(selection.addons[key]));
 }
 
 const registerBillingDetailsStyles = `
@@ -740,222 +747,259 @@ const registerBillingDetailsStyles = `
       width: 100%;
     }
   }
-`
+`;
 
 const copyByLocale = {
   en: {
-    noticeTitle: 'Almost there!',
-    noticeText: 'Add your billing details to activate your plan. You won’t be charged until the end of your trial.',
-    title: 'Billing details',
-    subtitle: 'Please provide your billing information. All fields marked with * are required.',
-    firstName: 'First name',
-    lastName: 'Last name',
-    companyName: 'Company / business name',
-    tenantType: 'Tenant type',
-    vatId: 'VAT ID / Tax number',
-    address: 'Address',
-    postalCode: 'Postal code',
-    city: 'City',
-    paymentMethod: 'Preferred payment method',
-    bankTransfer: 'Bank transfer',
-    bankTransferDescription: 'Pay via bank transfer',
-    card: 'Card payment',
-    cardDescription: 'Pay securely by card',
-    paypal: 'PayPal',
-    paypalDescription: 'Pay securely with PayPal',
-    paymentHelp: 'Your payment information is secure and encrypted.',
-    summaryTitle: 'Selected package',
-    summaryLabel: 'Package',
-    estimatedTotal: 'Estimated total',
-    summaryHelp: 'You can change or cancel anytime.',
-    back: 'Back to account setup',
-    submit: 'Save and continue to app',
-    saving: 'Saving…',
-    required: 'Please fill in all required billing fields.',
-    saved: 'Billing details saved.',
-    failed: 'Could not save billing details. Please try again.',
+    noticeTitle: "Almost there!",
+    noticeText:
+      "Add your billing details to activate your plan. You won’t be charged until the end of your trial.",
+    title: "Billing details",
+    subtitle:
+      "Please provide your billing information. All fields marked with * are required.",
+    firstName: "First name",
+    lastName: "Last name",
+    companyName: "Company / business name",
+    tenantType: "Tenant type",
+    vatId: "VAT ID / Tax number",
+    address: "Address",
+    postalCode: "Postal code",
+    city: "City",
+    paymentMethod: "Preferred payment method",
+    bankTransfer: "Bank transfer",
+    bankTransferDescription: "Pay via bank transfer",
+    card: "Card payment",
+    cardDescription: "Pay securely by card",
+    paypal: "PayPal",
+    paypalDescription: "Pay securely with PayPal",
+    paymentHelp: "Your payment information is secure and encrypted.",
+    summaryTitle: "Selected package",
+    summaryLabel: "Package",
+    estimatedTotal: "Estimated total",
+    summaryHelp: "You can change or cancel anytime.",
+    back: "Back to account setup",
+    submit: "Save and continue to app",
+    saving: "Saving…",
+    required: "Please fill in all required billing fields.",
+    saved: "Billing details saved.",
+    failed: "Could not save billing details. Please try again.",
   },
   sl: {
-    noticeTitle: 'Skoraj končano!',
-    noticeText: 'Dodajte podatke za obračun za aktivacijo paketa. Do konca preizkusnega obdobja vam ne bomo zaračunali.',
-    title: 'Podatki za obračun',
-    subtitle: 'Vnesite podatke za obračun. Vsa polja, označena z *, so obvezna.',
-    firstName: 'Ime',
-    lastName: 'Priimek',
-    companyName: 'Naziv podjetja / dejavnosti',
-    tenantType: 'Vrsta podjetja',
-    vatId: 'ID za DDV / Davčna številka',
-    address: 'Naslov',
-    postalCode: 'Poštna številka',
-    city: 'Kraj',
-    paymentMethod: 'Želeni način plačila',
-    bankTransfer: 'Bančno nakazilo',
-    bankTransferDescription: 'Plačilo z bančnim nakazilom',
-    card: 'Plačilna kartica',
-    cardDescription: 'Varno plačilo s kartico',
-    paypal: 'PayPal',
-    paypalDescription: 'Varno plačilo s PayPalom',
-    paymentHelp: 'Vaši plačilni podatki so varni in šifrirani.',
-    summaryTitle: 'Izbrani paket',
-    summaryLabel: 'Paket',
-    estimatedTotal: 'Skupaj (ocena)',
-    summaryHelp: 'Paket lahko kadarkoli spremenite ali prekličete.',
-    back: 'Nazaj na nastavitev računa',
-    submit: 'Shrani in nadaljuj v aplikacijo',
-    saving: 'Shranjevanje…',
-    required: 'Izpolnite vsa obvezna polja za obračun.',
-    saved: 'Podatki za obračun so shranjeni.',
-    failed: 'Podatkov za obračun ni bilo mogoče shraniti. Poskusite znova.',
+    noticeTitle: "Skoraj končano!",
+    noticeText:
+      "Dodajte podatke za obračun za aktivacijo paketa. Do konca preizkusnega obdobja vam ne bomo zaračunali.",
+    title: "Podatki za obračun",
+    subtitle:
+      "Vnesite podatke za obračun. Vsa polja, označena z *, so obvezna.",
+    firstName: "Ime",
+    lastName: "Priimek",
+    companyName: "Naziv podjetja / dejavnosti",
+    tenantType: "Vrsta podjetja",
+    vatId: "ID za DDV / Davčna številka",
+    address: "Naslov",
+    postalCode: "Poštna številka",
+    city: "Kraj",
+    paymentMethod: "Želeni način plačila",
+    bankTransfer: "Bančno nakazilo",
+    bankTransferDescription: "Plačilo z bančnim nakazilom",
+    card: "Plačilna kartica",
+    cardDescription: "Varno plačilo s kartico",
+    paypal: "PayPal",
+    paypalDescription: "Varno plačilo s PayPalom",
+    paymentHelp: "Vaši plačilni podatki so varni in šifrirani.",
+    summaryTitle: "Izbrani paket",
+    summaryLabel: "Paket",
+    estimatedTotal: "Skupaj (ocena)",
+    summaryHelp: "Paket lahko kadarkoli spremenite ali prekličete.",
+    back: "Nazaj na nastavitev računa",
+    submit: "Shrani in nadaljuj v aplikacijo",
+    saving: "Shranjevanje…",
+    required: "Izpolnite vsa obvezna polja za obračun.",
+    saved: "Podatki za obračun so shranjeni.",
+    failed: "Podatkov za obračun ni bilo mogoče shraniti. Poskusite znova.",
   },
-} as const
+} as const;
 
-type RegisterTenantType = 'salon' | 'gym' | 'therapy' | 'spa' | 'personal_training'
+type RegisterTenantType =
+  | "salon"
+  | "gym"
+  | "therapy"
+  | "spa"
+  | "personal_training";
 
-const tenantTypeOptions: Record<RegisterLocale, Array<{ value: RegisterTenantType; label: string }>> = {
+const tenantTypeOptions: Record<
+  RegisterLocale,
+  Array<{ value: RegisterTenantType; label: string }>
+> = {
   en: [
-    { value: 'salon', label: 'Salon' },
-    { value: 'gym', label: 'Gym' },
-    { value: 'therapy', label: 'Therapy' },
-    { value: 'spa', label: 'Spa' },
-    { value: 'personal_training', label: 'Personal Training' },
+    { value: "salon", label: "Salon" },
+    { value: "gym", label: "Gym" },
+    { value: "therapy", label: "Therapy" },
+    { value: "spa", label: "Spa" },
+    { value: "personal_training", label: "Personal Training" },
   ],
   sl: [
-    { value: 'salon', label: 'Salon' },
-    { value: 'gym', label: 'Fitnes' },
-    { value: 'therapy', label: 'Terapija' },
-    { value: 'spa', label: 'Spa' },
-    { value: 'personal_training', label: 'Osebni trening' },
+    { value: "salon", label: "Salon" },
+    { value: "gym", label: "Fitnes" },
+    { value: "therapy", label: "Terapija" },
+    { value: "spa", label: "Spa" },
+    { value: "personal_training", label: "Osebni trening" },
   ],
-}
+};
 
 function stepLabel(raw: string) {
-  return raw.replace(/^\d+\s*/, '')
+  return raw.replace(/^\d+\s*/, "");
 }
 
 function fieldLabel(label: string, required = false) {
   return (
     <>
-      {label}{required ? <span className="register-billing-required"> *</span> : null}
+      {label}
+      {required ? <span className="register-billing-required"> *</span> : null}
     </>
-  )
+  );
 }
 
 export function RegisterBillingDetailsPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { locale, setLocale, t } = useLocale()
-  const { showToast } = useToast()
-  const lang: RegisterLocale = locale === 'sl' ? 'sl' : 'en'
-  const copy = copyByLocale[lang]
-  const pageCopy = useMemo(() => getRegisterPlanPageCopy(lang), [lang])
-  const selection = useMemo(() => parseRegisterSelection(location.search), [location.search])
-  const summary = useMemo(() => buildSummary(selection, lang), [selection, lang])
-  const plans = useMemo(() => plansForLocale(lang), [lang])
-  const storedUser = getStoredUser()
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { locale, setLocale, t } = useLocale();
+  const { showToast } = useToast();
+  const lang: RegisterLocale = locale === "sl" ? "sl" : "en";
+  const copy = copyByLocale[lang];
+  const [registerCatalogRevision, setRegisterCatalogRevision] = useState(0);
+  const pageCopy = useMemo(() => getRegisterPlanPageCopy(lang), [lang]);
+  const selection = useMemo(
+    () => parseRegisterSelection(location.search),
+    [location.search],
+  );
+  const summary = useMemo(
+    () => buildSummary(selection, lang),
+    [selection, lang, registerCatalogRevision],
+  );
+  const plans = useMemo(
+    () => plansForLocale(lang),
+    [lang, registerCatalogRevision],
+  );
+  const storedUser = getStoredUser();
 
-  const [firstName, setFirstName] = useState(storedUser?.firstName || '')
-  const [lastName, setLastName] = useState(storedUser?.lastName || '')
-  const [companyName, setCompanyName] = useState('')
-  const [vatId, setVatId] = useState('')
-  const [address, setAddress] = useState('')
-  const [postalCode, setPostalCode] = useState('')
-  const [city, setCity] = useState('')
-  const [tenantType, setTenantType] = useState<RegisterTenantType>('salon')
-  const [paymentMethod, setPaymentMethod] = useState<RegisterPaymentMethod>('BANK_TRANSFER')
-  const [paymentCapabilities, setPaymentCapabilities] = useState<RegisterPaymentCapabilities>({
-    stripeEnabled: true,
-    paypalEnabled: false,
-  })
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const [, setRegisterCatalogRevision] = useState(0)
+  const [firstName, setFirstName] = useState(storedUser?.firstName || "");
+  const [lastName, setLastName] = useState(storedUser?.lastName || "");
+  const [companyName, setCompanyName] = useState("");
+  const [vatId, setVatId] = useState("");
+  const [address, setAddress] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [city, setCity] = useState("");
+  const [tenantType, setTenantType] = useState<RegisterTenantType>("salon");
+  const [paymentMethod, setPaymentMethod] =
+    useState<RegisterPaymentMethod>("BANK_TRANSFER");
+  const [paymentCapabilities, setPaymentCapabilities] =
+    useState<RegisterPaymentCapabilities>({
+      stripeEnabled: true,
+      paypalEnabled: false,
+    });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    let alive = true
+    let alive = true;
     void ensureRegisterCatalogLoaded().then((changed) => {
-      if (alive && changed) setRegisterCatalogRevision((value) => value + 1)
-    })
+      if (alive && changed) setRegisterCatalogRevision((value) => value + 1);
+    });
     return () => {
-      alive = false
-    }
-  }, [])
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
-    let cancelled = false
-    void api.get<RegisterPaymentCapabilities>('/register/payment-capabilities')
+    let cancelled = false;
+    void api
+      .get<RegisterPaymentCapabilities>("/register/payment-capabilities")
       .then(({ data }) => {
-        if (cancelled || !data) return
+        if (cancelled || !data) return;
         setPaymentCapabilities({
           stripeEnabled: data.stripeEnabled !== false,
           paypalEnabled: data.paypalEnabled === true,
-        })
+        });
       })
       .catch(() => {
         if (!cancelled) {
-          setPaymentCapabilities({ stripeEnabled: true, paypalEnabled: false })
+          setPaymentCapabilities({ stripeEnabled: true, paypalEnabled: false });
         }
-      })
+      });
     return () => {
-      cancelled = true
-    }
-  }, [])
+      cancelled = true;
+    };
+  }, []);
 
   const availablePaymentMethods = useMemo<RegisterPaymentMethod[]>(() => {
-    const methods: RegisterPaymentMethod[] = ['BANK_TRANSFER']
-    if (paymentCapabilities.stripeEnabled) methods.push('CARD')
-    if (paymentCapabilities.paypalEnabled) methods.push('PAYPAL')
-    return methods
-  }, [paymentCapabilities.paypalEnabled, paymentCapabilities.stripeEnabled])
+    const methods: RegisterPaymentMethod[] = ["BANK_TRANSFER"];
+    if (paymentCapabilities.stripeEnabled) methods.push("CARD");
+    if (paymentCapabilities.paypalEnabled) methods.push("PAYPAL");
+    return methods;
+  }, [paymentCapabilities.paypalEnabled, paymentCapabilities.stripeEnabled]);
 
   useEffect(() => {
-    if (availablePaymentMethods.includes(paymentMethod)) return
-    setPaymentMethod(availablePaymentMethods[0] || 'BANK_TRANSFER')
-  }, [availablePaymentMethods, paymentMethod])
+    if (availablePaymentMethods.includes(paymentMethod)) return;
+    setPaymentMethod(availablePaymentMethods[0] || "BANK_TRANSFER");
+  }, [availablePaymentMethods, paymentMethod]);
 
   useEffect(() => {
     if (!selectionRequiresBillingDetails(selection)) {
-      clearPendingBillingDetailsRedirect()
-      navigate('/calendar', { replace: true })
+      clearPendingBillingDetailsRedirect();
+      navigate("/calendar", { replace: true });
     }
-  }, [navigate, selection])
+  }, [navigate, selection]);
 
   useEffect(() => {
-    let cancelled = false
-    api.get('/auth/me')
+    let cancelled = false;
+    api
+      .get("/auth/me")
       .then((res) => {
-        if (cancelled) return
-        const user = res.data?.user
+        if (cancelled) return;
+        const user = res.data?.user;
         if (user) {
-          if (!firstName.trim() && user.firstName) setFirstName(String(user.firstName))
-          if (!lastName.trim() && user.lastName) setLastName(String(user.lastName))
+          if (!firstName.trim() && user.firstName)
+            setFirstName(String(user.firstName));
+          if (!lastName.trim() && user.lastName)
+            setLastName(String(user.lastName));
         }
       })
       .catch((err) => {
         if (axios.isAxiosError(err) && err.response?.status === 401) {
-          navigate('/login', { replace: true })
+          navigate("/login", { replace: true });
         }
-      })
+      });
     return () => {
-      cancelled = true
-    }
+      cancelled = true;
+    };
     // Intentionally only hydrate once on entry; the form itself owns edits afterwards.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate])
+  }, [navigate]);
 
-  const submitBillingDetails = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setError('')
+  const submitBillingDetails = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    setError("");
 
-    const required = [firstName, lastName, companyName, address, postalCode, city, tenantType].every((value) => value.trim())
+    const required = [
+      firstName,
+      lastName,
+      companyName,
+      address,
+      postalCode,
+      city,
+      tenantType,
+    ].every((value) => value.trim());
     if (!required) {
-      setError(copy.required)
-      return
+      setError(copy.required);
+      return;
     }
 
-    setSaving(true)
+    setSaving(true);
     try {
-      const { data } = await api.post('/auth/signup/billing-details', {
+      const { data } = await api.post("/auth/signup/billing-details", {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         companyName: companyName.trim(),
@@ -970,29 +1014,29 @@ export function RegisterBillingDetailsPage() {
         addonKeys: getSelectedAddonKeys(selection),
         billingInterval: getBillingInterval(selection),
         paymentMethod,
-      })
-      clearPendingBillingDetailsRedirect()
-      markOnboardingTourPending()
-      showToast('success', copy.saved)
+      });
+      clearPendingBillingDetailsRedirect();
+      markOnboardingTourPending();
+      showToast("success", copy.saved);
       if (data?.checkoutUrl) {
-        window.location.assign(String(data.checkoutUrl))
-        return
+        window.location.assign(String(data.checkoutUrl));
+        return;
       }
-      window.location.assign('/calendar')
+      window.location.assign("/calendar");
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || copy.failed)
+        setError(err.response?.data?.message || copy.failed);
       } else {
-        setError(copy.failed)
+        setError(copy.failed);
       }
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const backToAccount = () => {
-    navigate(`/register/account?${selectionToSearch(selection)}`)
-  }
+    navigate(`/register/account?${selectionToSearch(selection)}`);
+  };
 
   return (
     <div className="register-flow register-billing-details-page">
@@ -1004,20 +1048,24 @@ export function RegisterBillingDetailsPage() {
         </div>
 
         <div className="top-actions">
-          <div className="lang-switch" role="group" aria-label={t('language')}>
+          <div className="lang-switch" role="group" aria-label={t("language")}>
             <button
               type="button"
-              className={locale === 'sl' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-              aria-pressed={locale === 'sl'}
-              onClick={() => setLocale('sl')}
+              className={
+                locale === "sl" ? "lang-switch-btn active" : "lang-switch-btn"
+              }
+              aria-pressed={locale === "sl"}
+              onClick={() => setLocale("sl")}
             >
               SL
             </button>
             <button
               type="button"
-              className={locale === 'en' ? 'lang-switch-btn active' : 'lang-switch-btn'}
-              aria-pressed={locale === 'en'}
-              onClick={() => setLocale('en')}
+              className={
+                locale === "en" ? "lang-switch-btn active" : "lang-switch-btn"
+              }
+              aria-pressed={locale === "en"}
+              onClick={() => setLocale("en")}
             >
               EN
             </button>
@@ -1029,28 +1077,60 @@ export function RegisterBillingDetailsPage() {
         <main className="content">
           <div className="register-billing-wrap">
             <div className="register-billing-stepper-row">
-              <div className="register-billing-stepper" aria-label={pageCopy.stepperAria}>
+              <div
+                className="register-billing-stepper"
+                aria-label={pageCopy.stepperAria}
+              >
                 <span className="register-billing-step register-billing-step--done">
-                  <span className="register-billing-step-icon" aria-hidden="true">✓</span>
+                  <span
+                    className="register-billing-step-icon"
+                    aria-hidden="true"
+                  >
+                    ✓
+                  </span>
                   <span>{stepLabel(pageCopy.step1)}</span>
                 </span>
-                <span className="register-billing-stepper-line" aria-hidden="true" />
+                <span
+                  className="register-billing-stepper-line"
+                  aria-hidden="true"
+                />
                 <span className="register-billing-step register-billing-step--done">
-                  <span className="register-billing-step-icon" aria-hidden="true">✓</span>
+                  <span
+                    className="register-billing-step-icon"
+                    aria-hidden="true"
+                  >
+                    ✓
+                  </span>
                   <span>{stepLabel(pageCopy.step2)}</span>
                 </span>
-                <span className="register-billing-stepper-line" aria-hidden="true" />
+                <span
+                  className="register-billing-stepper-line"
+                  aria-hidden="true"
+                />
                 <span className="register-billing-step register-billing-step--current">
-                  <span className="register-billing-step-icon" aria-hidden="true">3</span>
+                  <span
+                    className="register-billing-step-icon"
+                    aria-hidden="true"
+                  >
+                    3
+                  </span>
                   <span>{stepLabel(pageCopy.step3)}</span>
                 </span>
               </div>
             </div>
 
             <div className="register-billing-card">
-              <section className="register-billing-main" aria-labelledby="register-billing-title">
+              <section
+                className="register-billing-main"
+                aria-labelledby="register-billing-title"
+              >
                 <div className="register-billing-notice">
-                  <span className="register-billing-notice-icon" aria-hidden="true">▣</span>
+                  <span
+                    className="register-billing-notice-icon"
+                    aria-hidden="true"
+                  >
+                    ▣
+                  </span>
                   <span>
                     <strong>{copy.noticeTitle}</strong>
                     <span>{copy.noticeText}</span>
@@ -1058,47 +1138,106 @@ export function RegisterBillingDetailsPage() {
                 </div>
 
                 <div className="register-billing-header">
-                  <h1 id="register-billing-title" className="register-billing-title">{copy.title}</h1>
+                  <h1
+                    id="register-billing-title"
+                    className="register-billing-title"
+                  >
+                    {copy.title}
+                  </h1>
                   <p className="register-billing-copy">{copy.subtitle}</p>
                 </div>
 
-                <form className="register-billing-form" onSubmit={submitBillingDetails}>
+                <form
+                  className="register-billing-form"
+                  onSubmit={submitBillingDetails}
+                >
                   <div className="register-billing-grid">
                     <div className="register-billing-field">
-                      <label htmlFor="billing-first-name">{fieldLabel(copy.firstName, true)}</label>
+                      <label htmlFor="billing-first-name">
+                        {fieldLabel(copy.firstName, true)}
+                      </label>
                       <div className="register-billing-input-wrap">
-                        <span className="register-billing-field-icon" aria-hidden="true">♡</span>
-                        <input id="billing-first-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ♡
+                        </span>
+                        <input
+                          id="billing-first-name"
+                          value={firstName}
+                          onChange={(event) => setFirstName(event.target.value)}
+                          autoComplete="given-name"
+                        />
                       </div>
                     </div>
 
                     <div className="register-billing-field">
-                      <label htmlFor="billing-last-name">{fieldLabel(copy.lastName, true)}</label>
+                      <label htmlFor="billing-last-name">
+                        {fieldLabel(copy.lastName, true)}
+                      </label>
                       <div className="register-billing-input-wrap">
-                        <span className="register-billing-field-icon" aria-hidden="true">♡</span>
-                        <input id="billing-last-name" value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ♡
+                        </span>
+                        <input
+                          id="billing-last-name"
+                          value={lastName}
+                          onChange={(event) => setLastName(event.target.value)}
+                          autoComplete="family-name"
+                        />
                       </div>
                     </div>
 
                     <div className="register-billing-field register-billing-field--full">
-                      <label htmlFor="billing-company-name">{fieldLabel(copy.companyName, true)}</label>
+                      <label htmlFor="billing-company-name">
+                        {fieldLabel(copy.companyName, true)}
+                      </label>
                       <div className="register-billing-input-wrap">
-                        <span className="register-billing-field-icon" aria-hidden="true">▥</span>
-                        <input id="billing-company-name" value={companyName} onChange={(event) => setCompanyName(event.target.value)} autoComplete="organization" />
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ▥
+                        </span>
+                        <input
+                          id="billing-company-name"
+                          value={companyName}
+                          onChange={(event) =>
+                            setCompanyName(event.target.value)
+                          }
+                          autoComplete="organization"
+                        />
                       </div>
                     </div>
 
                     <div className="register-billing-field register-billing-field--full">
-                      <label htmlFor="billing-tenant-type">{fieldLabel(copy.tenantType, true)}</label>
+                      <label htmlFor="billing-tenant-type">
+                        {fieldLabel(copy.tenantType, true)}
+                      </label>
                       <div className="register-billing-input-wrap register-billing-input-wrap--select">
-                        <span className="register-billing-field-icon" aria-hidden="true">▦</span>
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ▦
+                        </span>
                         <select
                           id="billing-tenant-type"
                           value={tenantType}
-                          onChange={(event) => setTenantType(event.target.value as RegisterTenantType)}
+                          onChange={(event) =>
+                            setTenantType(
+                              event.target.value as RegisterTenantType,
+                            )
+                          }
                         >
                           {tenantTypeOptions[lang].map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -1107,45 +1246,113 @@ export function RegisterBillingDetailsPage() {
                     <div className="register-billing-field">
                       <label htmlFor="billing-vat-id">{copy.vatId}</label>
                       <div className="register-billing-input-wrap">
-                        <span className="register-billing-field-icon" aria-hidden="true">▤</span>
-                        <input id="billing-vat-id" value={vatId} onChange={(event) => setVatId(event.target.value)} autoComplete="off" placeholder="SI12345678" />
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ▤
+                        </span>
+                        <input
+                          id="billing-vat-id"
+                          value={vatId}
+                          onChange={(event) => setVatId(event.target.value)}
+                          autoComplete="off"
+                          placeholder="SI12345678"
+                        />
                       </div>
                     </div>
 
                     <div className="register-billing-field">
-                      <label htmlFor="billing-city">{fieldLabel(copy.city, true)}</label>
+                      <label htmlFor="billing-city">
+                        {fieldLabel(copy.city, true)}
+                      </label>
                       <div className="register-billing-input-wrap">
-                        <span className="register-billing-field-icon" aria-hidden="true">⌖</span>
-                        <input id="billing-city" value={city} onChange={(event) => setCity(event.target.value)} autoComplete="address-level2" />
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ⌖
+                        </span>
+                        <input
+                          id="billing-city"
+                          value={city}
+                          onChange={(event) => setCity(event.target.value)}
+                          autoComplete="address-level2"
+                        />
                       </div>
                     </div>
 
                     <div className="register-billing-field register-billing-field--full">
-                      <label htmlFor="billing-address">{fieldLabel(copy.address, true)}</label>
+                      <label htmlFor="billing-address">
+                        {fieldLabel(copy.address, true)}
+                      </label>
                       <div className="register-billing-input-wrap">
-                        <span className="register-billing-field-icon" aria-hidden="true">⌖</span>
-                        <input id="billing-address" value={address} onChange={(event) => setAddress(event.target.value)} autoComplete="street-address" />
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ⌖
+                        </span>
+                        <input
+                          id="billing-address"
+                          value={address}
+                          onChange={(event) => setAddress(event.target.value)}
+                          autoComplete="street-address"
+                        />
                       </div>
                     </div>
 
                     <div className="register-billing-field register-billing-field--full">
-                      <label htmlFor="billing-postal-code">{fieldLabel(copy.postalCode, true)}</label>
+                      <label htmlFor="billing-postal-code">
+                        {fieldLabel(copy.postalCode, true)}
+                      </label>
                       <div className="register-billing-input-wrap">
-                        <span className="register-billing-field-icon" aria-hidden="true">✉</span>
-                        <input id="billing-postal-code" value={postalCode} onChange={(event) => setPostalCode(event.target.value)} autoComplete="postal-code" />
+                        <span
+                          className="register-billing-field-icon"
+                          aria-hidden="true"
+                        >
+                          ✉
+                        </span>
+                        <input
+                          id="billing-postal-code"
+                          value={postalCode}
+                          onChange={(event) =>
+                            setPostalCode(event.target.value)
+                          }
+                          autoComplete="postal-code"
+                        />
                       </div>
                     </div>
                   </div>
 
                   <div className="register-billing-payment-section">
-                    <span className="register-billing-payment-label">{fieldLabel(copy.paymentMethod, true)}</span>
+                    <span className="register-billing-payment-label">
+                      {fieldLabel(copy.paymentMethod, true)}
+                    </span>
                     <div className="register-billing-payment-options">
                       {availablePaymentMethods.map((method) => {
-                        const selected = paymentMethod === method
-                        const title = method === 'BANK_TRANSFER' ? copy.bankTransfer : method === 'CARD' ? copy.card : copy.paypal
-                        const description = method === 'BANK_TRANSFER' ? copy.bankTransferDescription : method === 'CARD' ? copy.cardDescription : copy.paypalDescription
+                        const selected = paymentMethod === method;
+                        const title =
+                          method === "BANK_TRANSFER"
+                            ? copy.bankTransfer
+                            : method === "CARD"
+                              ? copy.card
+                              : copy.paypal;
+                        const description =
+                          method === "BANK_TRANSFER"
+                            ? copy.bankTransferDescription
+                            : method === "CARD"
+                              ? copy.cardDescription
+                              : copy.paypalDescription;
                         return (
-                          <label className={selected ? 'register-billing-payment-option is-selected' : 'register-billing-payment-option'} key={method}>
+                          <label
+                            className={
+                              selected
+                                ? "register-billing-payment-option is-selected"
+                                : "register-billing-payment-option"
+                            }
+                            key={method}
+                          >
                             <input
                               className="register-billing-payment-radio"
                               type="radio"
@@ -1153,32 +1360,65 @@ export function RegisterBillingDetailsPage() {
                               checked={selected}
                               onChange={() => setPaymentMethod(method)}
                             />
-                            <span className="register-billing-payment-check" aria-hidden="true">✓</span>
-                            <span className={method === 'CARD' ? 'register-billing-payment-icon is-card' : 'register-billing-payment-icon'} aria-hidden="true">
-                              {method === 'BANK_TRANSFER' ? '▥' : method === 'CARD' ? '▭' : 'P'}
+                            <span
+                              className="register-billing-payment-check"
+                              aria-hidden="true"
+                            >
+                              ✓
+                            </span>
+                            <span
+                              className={
+                                method === "CARD"
+                                  ? "register-billing-payment-icon is-card"
+                                  : "register-billing-payment-icon"
+                              }
+                              aria-hidden="true"
+                            >
+                              {method === "BANK_TRANSFER"
+                                ? "▥"
+                                : method === "CARD"
+                                  ? "▭"
+                                  : "P"}
                             </span>
                             <span className="register-billing-payment-text">
                               <strong>{title}</strong>
                               <small>{description}</small>
                             </span>
                           </label>
-                        )
+                        );
                       })}
                     </div>
                     <div className="register-billing-help">
-                      <span className="register-billing-help-icon" aria-hidden="true">♢</span>
+                      <span
+                        className="register-billing-help-icon"
+                        aria-hidden="true"
+                      >
+                        ♢
+                      </span>
                       <span>{copy.paymentHelp}</span>
                     </div>
                   </div>
 
-                  {error ? <div className="register-billing-error" role="alert">{error}</div> : null}
+                  {error ? (
+                    <div className="register-billing-error" role="alert">
+                      {error}
+                    </div>
+                  ) : null}
 
                   <div className="register-billing-actions">
-                    <button type="button" className="register-billing-back" onClick={backToAccount}>
+                    <button
+                      type="button"
+                      className="register-billing-back"
+                      onClick={backToAccount}
+                    >
                       <span aria-hidden="true">←</span>
                       <span>{copy.back}</span>
                     </button>
-                    <button type="submit" className="register-billing-submit" disabled={saving}>
+                    <button
+                      type="submit"
+                      className="register-billing-submit"
+                      disabled={saving}
+                    >
                       <span>{saving ? copy.saving : copy.submit}</span>
                       <span aria-hidden="true">→</span>
                     </button>
@@ -1186,10 +1426,20 @@ export function RegisterBillingDetailsPage() {
                 </form>
               </section>
 
-              <aside className="register-billing-summary" aria-label={copy.summaryTitle}>
+              <aside
+                className="register-billing-summary"
+                aria-label={copy.summaryTitle}
+              >
                 <div className="register-billing-summary-heading">
-                  <span className="register-billing-summary-badge" aria-hidden="true">★</span>
-                  <h2 className="register-billing-summary-title">{copy.summaryTitle}</h2>
+                  <span
+                    className="register-billing-summary-badge"
+                    aria-hidden="true"
+                  >
+                    ★
+                  </span>
+                  <h2 className="register-billing-summary-title">
+                    {copy.summaryTitle}
+                  </h2>
                 </div>
 
                 <div className="register-billing-summary-box">
@@ -1199,7 +1449,10 @@ export function RegisterBillingDetailsPage() {
                   </div>
                   <ul className="register-billing-summary-list">
                     {summary.rows.map((row) => (
-                      <li key={`${row.label}-${row.value}`} className="register-billing-summary-row">
+                      <li
+                        key={`${row.label}-${row.value}`}
+                        className="register-billing-summary-row"
+                      >
                         <span>{row.label}</span>
                         <strong>{row.value}</strong>
                       </li>
@@ -1212,7 +1465,12 @@ export function RegisterBillingDetailsPage() {
                 </div>
 
                 <div className="register-billing-summary-note">
-                  <span className="register-billing-summary-note-icon" aria-hidden="true">▣</span>
+                  <span
+                    className="register-billing-summary-note-icon"
+                    aria-hidden="true"
+                  >
+                    ▣
+                  </span>
                   <span>{copy.summaryHelp}</span>
                 </div>
               </aside>
@@ -1221,5 +1479,5 @@ export function RegisterBillingDetailsPage() {
         </main>
       </div>
     </div>
-  )
+  );
 }

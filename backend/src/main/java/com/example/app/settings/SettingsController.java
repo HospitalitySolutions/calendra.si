@@ -5,6 +5,7 @@ import com.example.app.files.TenantFileS3Service;
 import java.util.Locale;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.example.app.user.User;
+import com.example.app.user.Role;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.server.ResponseStatusException;
@@ -30,6 +34,44 @@ public class SettingsController {
             SettingKey.INBOX_WHATSAPP_APP_SECRET,
             SettingKey.INBOX_VIBER_BOT_TOKEN,
             SettingKey.WIDGET_TURNSTILE_SECRET_KEY
+    );
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Set<String> MODULE_VISIBILITY_SETTING_KEYS = Set.of(
+            SettingKey.SPACES_ENABLED.name(),
+            SettingKey.TYPES_ENABLED.name(),
+            SettingKey.COURSES_ENABLED.name(),
+            SettingKey.BOOKABLE_ENABLED.name(),
+            SettingKey.NO_SHOW_ENABLED.name(),
+            SettingKey.ONLINE_SESSION_BOOKING_ENABLED.name(),
+            SettingKey.WEBSITE_WIDGET_ENABLED.name(),
+            SettingKey.AI_BOOKING_ENABLED.name(),
+            SettingKey.PERSONAL_ENABLED.name(),
+            SettingKey.TODOS_ENABLED.name(),
+            SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED.name(),
+            SettingKey.MULTIPLE_CLIENTS_PER_SESSION_ENABLED.name(),
+            SettingKey.GROUP_BOOKING_ENABLED.name(),
+            SettingKey.BILLING_ENABLED.name(),
+            SettingKey.BILLING_INVOICES_ENABLED.name(),
+            SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED.name(),
+            SettingKey.BILLING_BANK_TRANSFER_ENABLED.name(),
+            SettingKey.BILLING_PAYPAL_ENABLED.name(),
+            SettingKey.BILLING_GIFT_CARDS_ENABLED.name(),
+            SettingKey.BILLING_ADVANCE_ENABLED.name(),
+            SettingKey.COMMUNICATION_ENABLED.name(),
+            SettingKey.INBOX_ENABLED.name(),
+            SettingKey.NOTIFICATIONS_ENABLED.name(),
+            SettingKey.NOTIFICATIONS_EMAIL_ALERTS_ENABLED.name(),
+            SettingKey.NOTIFICATIONS_SMS_ALERTS_ENABLED.name(),
+            SettingKey.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED.name(),
+            SettingKey.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED.name(),
+            SettingKey.GOOGLE_CALENDAR_MODULE_ENABLED.name(),
+            SettingKey.SCANNER_MODULE_ENABLED.name(),
+            SettingKey.WHATSAPP_MODULE_ENABLED.name(),
+            SettingKey.VIBER_MODULE_ENABLED.name(),
+            SettingKey.SECURITY_MODULE_ENABLED.name(),
+            SettingKey.SECURITY_SESSION_SECURITY_ENABLED.name(),
+            SettingKey.SECURITY_PASSKEYS_ENABLED.name(),
+            SettingKey.SECURITY_API_INTEGRATIONS_ENABLED.name()
     );
 
     private final AppSettingRepository repository;
@@ -77,9 +119,21 @@ public class SettingsController {
     @GetMapping
     public Map<String, String> all(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
-        return repository.findAllByCompanyId(companyId).stream()
+        Map<String, String> values = repository.findAllByCompanyId(companyId).stream()
                 .filter(s -> isKnownSettingKey(s.getKey()))
-                .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, s -> decodeForRead(s.getKey(), s.getValue())));
+                .collect(java.util.stream.Collectors.toMap(
+                        AppSetting::getKey,
+                        s -> decodeForRead(s.getKey(), s.getValue()),
+                        (a, b) -> b,
+                        LinkedHashMap::new
+                ));
+
+        latestGlobalSettingValue(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON)
+                .ifPresent(v -> values.put(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON.name(), v));
+        if (!isSuperAdmin(me)) {
+            applyPlatformModuleVisibilityRules(values);
+        }
+        return values;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -92,6 +146,9 @@ public class SettingsController {
         }
         Arrays.stream(SettingKey.values()).forEach(key -> {
             if (payload.containsKey(key.name())) {
+                if (key == SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON && !isSuperAdmin(me)) {
+                    return;
+                }
                 String submittedValue = payload.get(key.name());
                 if (isSecretKey(key) && isMaskedSecretValue(submittedValue)) {
                     return;
@@ -142,6 +199,114 @@ public class SettingsController {
     @GetMapping("/module-capabilities")
     public ModuleCapabilitiesResponse moduleCapabilities(@AuthenticationPrincipal User me) {
         return new ModuleCapabilitiesResponse(globalConsumablesFeatureService.isEnabledForUser(me));
+    }
+
+    private java.util.Optional<String> latestGlobalSettingValue(SettingKey key) {
+        return repository.findAllByKey(key).stream()
+                .max((a, b) -> {
+                    var au = a.getUpdatedAt();
+                    var bu = b.getUpdatedAt();
+                    if (au == null && bu == null) return 0;
+                    if (au == null) return -1;
+                    if (bu == null) return 1;
+                    return au.compareTo(bu);
+                })
+                .map(AppSetting::getValue)
+                .map(v -> decodeForRead(key.name(), v));
+    }
+
+    private void applyPlatformModuleVisibilityRules(Map<String, String> values) {
+        String rawRules = values.get(SettingKey.PLATFORM_MODULE_VISIBILITY_RULES_JSON.name());
+        Map<String, Map<String, Object>> rules = Map.of();
+        if (rawRules != null && !rawRules.isBlank()) {
+            try {
+                rules = JSON.readValue(rawRules, new TypeReference<>() {});
+            } catch (Exception ignored) {
+                rules = Map.of();
+            }
+        }
+        String tenantPackage = values.getOrDefault(SettingKey.SIGNUP_PACKAGE_NAME.name(), "BASIC");
+        String tenantConfigType = normalizeModuleConfigType(values.get(SettingKey.MODULE_CONFIG_TYPE.name()));
+        Map<String, Map<String, Object>> finalRules = rules;
+        MODULE_VISIBILITY_SETTING_KEYS.forEach(moduleKey -> {
+            Map<String, Object> rule = finalRules.get(moduleKey);
+            if (moduleVisibleForTenant(moduleKey, rule, tenantPackage, tenantConfigType)) {
+                return;
+            }
+            values.put(moduleKey, "false");
+        });
+    }
+
+    private boolean moduleVisibleForTenant(String moduleKey, Map<String, Object> rule, String tenantPackage, String tenantConfigType) {
+        String minPackage = defaultModuleVisibilityPackage(moduleKey);
+        String configType = "";
+        if (rule != null) {
+            minPackage = normalizeModuleVisibilityPackage(rule.get("minPackage"));
+            configType = normalizeOptionalModuleConfigType(rule.get("configType"));
+        }
+        if (packageRank(tenantPackage) < packageRank(minPackage)) {
+            return false;
+        }
+        return configType.isBlank() || configType.equals(tenantConfigType);
+    }
+
+    private static String defaultModuleVisibilityPackage(String moduleKey) {
+        return switch (moduleKey) {
+            case "BILLING_ENABLED",
+                    "BILLING_INVOICES_ENABLED",
+                    "BILLING_ONLINE_CARD_PAYMENTS_ENABLED",
+                    "BILLING_BANK_TRANSFER_ENABLED",
+                    "BILLING_PAYPAL_ENABLED",
+                    "BILLING_GIFT_CARDS_ENABLED",
+                    "BILLING_ADVANCE_ENABLED",
+                    "SPACES_ENABLED",
+                    "MULTIPLE_SESSIONS_PER_SPACE_ENABLED",
+                    "GROUP_BOOKING_ENABLED",
+                    "MULTIPLE_CLIENTS_PER_SESSION_ENABLED" -> "PROFESSIONAL";
+            case "INBOX_ENABLED", "AI_BOOKING_ENABLED" -> "PREMIUM";
+            default -> "BASIC";
+        };
+    }
+
+    private static int packageRank(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return switch (normalized) {
+            case "PREMIUM", "CUSTOM" -> 3;
+            case "PROFESSIONAL", "PRO", "TRIAL" -> 2;
+            default -> 1;
+        };
+    }
+
+    private static String normalizeModuleVisibilityPackage(Object raw) {
+        String normalized = raw == null ? "" : String.valueOf(raw).trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return switch (normalized) {
+            case "PREMIUM" -> "PREMIUM";
+            case "PROFESSIONAL", "PRO" -> "PROFESSIONAL";
+            default -> "BASIC";
+        };
+    }
+
+    private static String normalizeOptionalModuleConfigType(Object raw) {
+        String normalized = raw == null ? "" : String.valueOf(raw).trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        if (normalized.equals("all") || normalized.equals("any") || normalized.equals("*") || normalized.equals("none")) {
+            return "";
+        }
+        return switch (normalized) {
+            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
+            default -> "";
+        };
+    }
+
+    private static String normalizeModuleConfigType(String raw) {
+        String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        return switch (normalized) {
+            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
+            default -> "salon";
+        };
+    }
+
+    private static boolean isSuperAdmin(User user) {
+        return user != null && user.getRole() == Role.SUPER_ADMIN;
     }
 
     private String encodeForSave(SettingKey key, String value) {

@@ -745,14 +745,17 @@ public class PlatformSubscriptionBillingService {
         BigDecimal basic = money(prices.getOrDefault("basic", 18.90));
         BigDecimal pro = money(prices.getOrDefault("pro", 34.90));
         BigDecimal business = money(prices.getOrDefault("business", 59.90));
+        String basicName = planDisplayName(catalog, "basic", "Basic");
+        String proName = planDisplayName(catalog, "pro", "Pro");
+        String businessName = planDisplayName(catalog, "business", "Business");
 
         Map<String, PlatformPlan> plans = new LinkedHashMap<>();
-        plans.put("BASIC:MONTHLY", plan(platformCompany, "basicMonthly", "BASIC_M", "Basic Package - Monthly", PackageType.BASIC, BillingInterval.MONTHLY, basic, planMappings));
-        plans.put("BASIC:YEARLY", plan(platformCompany, "basicAnnual", "BASIC_Y", "Basic Package - Annual", PackageType.BASIC, BillingInterval.YEARLY, annualGross(basic, annualDiscount), planMappings));
-        plans.put("PROFESSIONAL:MONTHLY", plan(platformCompany, "proMonthly", "PRO_M", "Pro Package - Monthly", PackageType.PROFESSIONAL, BillingInterval.MONTHLY, pro, planMappings));
-        plans.put("PROFESSIONAL:YEARLY", plan(platformCompany, "proAnnual", "PRO_Y", "Pro Package - Annual", PackageType.PROFESSIONAL, BillingInterval.YEARLY, annualGross(pro, annualDiscount), planMappings));
-        plans.put("PREMIUM:MONTHLY", plan(platformCompany, "businessMonthly", "BUS_M", "Business Package - Monthly", PackageType.PREMIUM, BillingInterval.MONTHLY, business, planMappings));
-        plans.put("PREMIUM:YEARLY", plan(platformCompany, "businessAnnual", "BUS_Y", "Business Package - Annual", PackageType.PREMIUM, BillingInterval.YEARLY, annualGross(business, annualDiscount), planMappings));
+        plans.put("BASIC:MONTHLY", plan(platformCompany, "basicMonthly", "BASIC_M", basicName + " Package - Monthly", PackageType.BASIC, BillingInterval.MONTHLY, basic, planMappings));
+        plans.put("BASIC:YEARLY", plan(platformCompany, "basicAnnual", "BASIC_Y", basicName + " Package - Annual", PackageType.BASIC, BillingInterval.YEARLY, annualGross(basic, annualDiscount), planMappings));
+        plans.put("PROFESSIONAL:MONTHLY", plan(platformCompany, "proMonthly", "PRO_M", proName + " Package - Monthly", PackageType.PROFESSIONAL, BillingInterval.MONTHLY, pro, planMappings));
+        plans.put("PROFESSIONAL:YEARLY", plan(platformCompany, "proAnnual", "PRO_Y", proName + " Package - Annual", PackageType.PROFESSIONAL, BillingInterval.YEARLY, annualGross(pro, annualDiscount), planMappings));
+        plans.put("PREMIUM:MONTHLY", plan(platformCompany, "businessMonthly", "BUS_M", businessName + " Package - Monthly", PackageType.PREMIUM, BillingInterval.MONTHLY, business, planMappings));
+        plans.put("PREMIUM:YEARLY", plan(platformCompany, "businessAnnual", "BUS_Y", businessName + " Package - Annual", PackageType.PREMIUM, BillingInterval.YEARLY, annualGross(business, annualDiscount), planMappings));
 
         BigDecimal additionalUserMonthly = money(catalog == null || catalog.getAdditionalUserMonthly() == null ? 9.9 : catalog.getAdditionalUserMonthly());
         BigDecimal smsPerMessage = money4(catalog == null || catalog.getSmsPerMessage() == null ? 0.05 : catalog.getSmsPerMessage());
@@ -789,6 +792,14 @@ public class PlatformSubscriptionBillingService {
             }
         }
         return new PlatformBillingCatalog(plans, addons, additionalUserService, additionalUserMonthly, smsService, smsPerMessage, annualDiscount);
+    }
+
+    private String planDisplayName(RegisterPriceCatalog catalog, String key, String fallback) {
+        if (catalog == null || catalog.getPlanNames() == null) {
+            return fallback;
+        }
+        RegisterPriceCatalog.PlanName planName = catalog.getPlanNames().get(key);
+        return firstNonBlank(planName == null ? null : planName.getName(), fallback);
     }
 
     private PlatformPlan plan(

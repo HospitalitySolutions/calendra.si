@@ -141,6 +141,8 @@ public enum SettingKey {
     FOLIO_TEMPLATE_LAYOUT_JSON,
     /** JSON array of folio layout styles saved on the platform-admin tenancy and offered to all tenants. */
     PLATFORM_FOLIO_STYLES_JSON,
+    /** JSON: minimum package/config-type visibility rules for App settings switches, saved on the platform-admin tenancy. */
+    PLATFORM_MODULE_VISIBILITY_RULES_JSON,
     COMPANY_LOGO_BASE64,
     FOLIO_SIGNATURE_BASE64,
 

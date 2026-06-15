@@ -12,6 +12,8 @@ public class RegisterPriceCatalog {
     public static final Set<String> PLAN_KEYS = Set.of("basic", "pro", "business");
 
     private Map<String, Double> plans;
+    /** Localized public package names used by the register flow. */
+    private Map<String, PlanName> planNames;
     /** Legacy/simple add-on price map, kept for backwards compatibility. */
     private Map<String, Double> addons;
     private Double annualDiscountPercent;
@@ -39,6 +41,12 @@ public class RegisterPriceCatalog {
         p.put("pro", 34.9);
         p.put("business", 59.9);
         out.setPlans(p);
+
+        Map<String, PlanName> planNames = new LinkedHashMap<>();
+        planNames.put("basic", new PlanName("Basic", "Osnovni"));
+        planNames.put("pro", new PlanName("Pro", "Pro"));
+        planNames.put("business", new PlanName("Business", "Poslovni"));
+        out.setPlanNames(planNames);
 
         List<AddonItem> addOns = new ArrayList<>();
         addOns.add(new AddonItem("voice", "AI voice booking", "AI glasovne rezervacije", "Hands-free assistant for faster scheduling.", "Pomočnik brez rok za hitrejše naročanje terminov.", 12.0, true));
@@ -82,6 +90,8 @@ public class RegisterPriceCatalog {
 
     public Map<String, Double> getPlans() { return plans; }
     public void setPlans(Map<String, Double> plans) { this.plans = plans; }
+    public Map<String, PlanName> getPlanNames() { return planNames; }
+    public void setPlanNames(Map<String, PlanName> planNames) { this.planNames = planNames; }
     public Map<String, Double> getAddons() { return addons; }
     public void setAddons(Map<String, Double> addons) { this.addons = addons; }
     public Double getAnnualDiscountPercent() { return annualDiscountPercent; }
@@ -102,6 +112,22 @@ public class RegisterPriceCatalog {
     public void setAdditionalUserTransactionServiceId(Long additionalUserTransactionServiceId) { this.additionalUserTransactionServiceId = additionalUserTransactionServiceId; }
     public Long getSmsTransactionServiceId() { return smsTransactionServiceId; }
     public void setSmsTransactionServiceId(Long smsTransactionServiceId) { this.smsTransactionServiceId = smsTransactionServiceId; }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class PlanName {
+        private String name;
+        private String nameSl;
+
+        public PlanName() {}
+        public PlanName(String name, String nameSl) {
+            this.name = name;
+            this.nameSl = nameSl;
+        }
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public String getNameSl() { return nameSl; }
+        public void setNameSl(String nameSl) { this.nameSl = nameSl; }
+    }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class AddonItem {
