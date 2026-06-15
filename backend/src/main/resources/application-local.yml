@@ -1,0 +1,9 @@
+# Profile: local — local machine / Docker development profile.
+# Keep Hibernate schema updates enabled for quick local iteration and keep Flyway disabled.
+# Staging/production profiles override this with Flyway enabled and ddl-auto=validate.
+spring:
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
