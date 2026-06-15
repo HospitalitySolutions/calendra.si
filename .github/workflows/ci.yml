@@ -68,4 +68,10 @@ jobs:
         run: docker build -t calendra-frontend-ci -f ./frontend/Dockerfile.prod ./frontend
 
       - name: Validate staging compose file
+        env:
+          # CI only validates that docker-compose.staging.yml renders correctly.
+          # Real staging still loads POSTGRES_PASSWORD from AWS Secrets Manager via
+          # scripts/docker-compose-with-aws-secrets.sh. Do not commit real secrets here.
+          POSTGRES_PASSWORD: ci-compose-config-placeholder
+          APP_JWT_SECRET: ci-compose-config-placeholder-at-least-32-characters
         run: docker compose -f docker-compose.staging.yml --env-file .env.staging.example config >/tmp/calendra-staging-compose.yml
