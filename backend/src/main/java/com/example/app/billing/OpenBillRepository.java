@@ -59,7 +59,7 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
             "AND o.batchScope = 'NONE' " +
             "AND i.id IS NOT NULL " +
             "ORDER BY o.id ASC")
-    List<Long> findBatchMergeCandidateIds(Long companyId);
+    List<Long> findBatchMergeCandidateIds(@Param("companyId") Long companyId, Pageable pageable);
 
     @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
             "LEFT JOIN FETCH o.client c LEFT JOIN FETCH c.billingCompany LEFT JOIN FETCH o.consultant " +

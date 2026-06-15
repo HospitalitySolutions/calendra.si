@@ -86,6 +86,11 @@ management:
 
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  open-bills:
+    sync-cron: "${APP_OPEN_BILLS_SYNC_CRON:0/30 * * * * *}"
+    max-queued-items-per-run: ${APP_OPEN_BILLS_MAX_QUEUED_ITEMS_PER_RUN:200}
+    max-company-backfill-sessions-per-run: ${APP_OPEN_BILLS_MAX_COMPANY_BACKFILL_SESSIONS_PER_RUN:200}
+    max-batch-merge-candidates-per-run: ${APP_OPEN_BILLS_MAX_BATCH_MERGE_CANDIDATES_PER_RUN:100}
   security:
     rate-limit:
       enabled: ${APP_RATE_LIMIT_ENABLED:true}

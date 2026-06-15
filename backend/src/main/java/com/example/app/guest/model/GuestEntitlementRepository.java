@@ -4,14 +4,28 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface GuestEntitlementRepository extends JpaRepository<GuestEntitlement, Long> {
+    @EntityGraph(attributePaths = {"product", "product.sessionType"})
     List<GuestEntitlement> findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(Long clientId, Long companyId);
+
+    @EntityGraph(attributePaths = {"product", "product.sessionType"})
+    List<GuestEntitlement> findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(Long clientId, Long companyId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"product", "product.sessionType"})
     List<GuestEntitlement> findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(Long clientId, Long companyId, java.util.Collection<EntitlementStatus> statuses);
+
+    @EntityGraph(attributePaths = {"product", "product.sessionType"})
+    List<GuestEntitlement> findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(Long clientId, Long companyId, java.util.Collection<EntitlementStatus> statuses, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"product", "product.sessionType"})
+    List<GuestEntitlement> findAllByClientIdAndCompanyIdAndStatusNotOrderByCreatedAtDesc(Long clientId, Long companyId, EntitlementStatus status, Pageable pageable);
     Optional<GuestEntitlement> findBySourceOrderId(Long sourceOrderId);
     Optional<GuestEntitlement> findBySourceOrderIdAndProductId(Long sourceOrderId, Long productId);
     Optional<GuestEntitlement> findFirstBySourceOrderIdOrderByCreatedAtAsc(Long sourceOrderId);

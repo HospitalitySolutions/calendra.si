@@ -17,6 +17,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,9 +28,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -44,6 +50,12 @@ public class OpenBillSyncService {
     private final AppSettingRepository settings;
     private final TransactionServiceRepository txRepo;
     private final TimeService timeService;
+    private final OpenBillSyncQueueRepository syncQueue;
+    private final MeterRegistry meterRegistry;
+    private final TransactionTemplate transactionTemplate;
+    private final int maxQueuedItemsPerRun;
+    private final int maxCompanyBackfillSessionsPerRun;
+    private final int maxBatchMergeCandidatesPerRun;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -58,7 +70,13 @@ public class OpenBillSyncService {
             ClientCompanyRepository clientCompanies,
             AppSettingRepository settings,
             TransactionServiceRepository txRepo,
-            TimeService timeService
+            TimeService timeService,
+            OpenBillSyncQueueRepository syncQueue,
+            MeterRegistry meterRegistry,
+            TransactionTemplate transactionTemplate,
+            @Value("${app.open-bills.max-queued-items-per-run:200}") int maxQueuedItemsPerRun,
+            @Value("${app.open-bills.max-company-backfill-sessions-per-run:200}") int maxCompanyBackfillSessionsPerRun,
+            @Value("${app.open-bills.max-batch-merge-candidates-per-run:100}") int maxBatchMergeCandidatesPerRun
     ) {
         this.sessionBookings = sessionBookings;
         this.users = users;
@@ -70,21 +88,179 @@ public class OpenBillSyncService {
         this.settings = settings;
         this.txRepo = txRepo;
         this.timeService = timeService;
-    }
-
-    @Transactional
-    public void syncCompany(Long companyId) {
-        var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(timeService.localDateTime(java.time.ZoneId.systemDefault(), companyId), companyId);
-        for (SessionBooking sb : past) {
-            syncSessionRow(companyId, sb);
-        }
-        syncOpenBillsByBatchSettings(companyId);
+        this.syncQueue = syncQueue;
+        this.meterRegistry = meterRegistry;
+        this.transactionTemplate = transactionTemplate;
+        this.maxQueuedItemsPerRun = Math.max(1, maxQueuedItemsPerRun);
+        this.maxCompanyBackfillSessionsPerRun = Math.max(1, maxCompanyBackfillSessionsPerRun);
+        this.maxBatchMergeCandidatesPerRun = Math.max(1, maxBatchMergeCandidatesPerRun);
     }
 
     /**
-     * Keeps already-created session open bills aligned when clients are added to or removed from
-     * a multi-client booking after the open bill was created. It intentionally does not create
-     * open bills for a booking group that has no existing open bill yet.
+     * Bounded backfill for old/unbilled sessions. This is intentionally page/cursor based and should
+     * be used only for manual maintenance/backfill jobs, not from guest booking request paths.
+     */
+    @Transactional
+    public OpenBillSyncRunReport syncCompany(Long companyId) {
+        if (companyId == null) {
+            return new OpenBillSyncRunReport(0, 0, 0);
+        }
+        Timer.Sample sample = Timer.start(meterRegistry);
+        int sessionsProcessed = 0;
+        int failures = 0;
+        Long lastId = 0L;
+        var now = timeService.localDateTime(java.time.ZoneId.systemDefault(), companyId);
+        while (sessionsProcessed < maxCompanyBackfillSessionsPerRun) {
+            int pageSize = Math.min(100, maxCompanyBackfillSessionsPerRun - sessionsProcessed);
+            var ids = sessionBookings.findPastSessionIdsWithTypeAndCompanyIdAfterId(
+                    now, companyId, lastId, PageRequest.of(0, pageSize)
+            );
+            if (ids.isEmpty()) {
+                break;
+            }
+            lastId = ids.get(ids.size() - 1);
+            for (SessionBooking sb : sessionBookings.findAllForOpenBillSyncByCompanyIdAndIds(companyId, ids)) {
+                try {
+                    syncSessionRow(companyId, sb);
+                    sessionsProcessed++;
+                } catch (Exception ex) {
+                    failures++;
+                    meterRegistry.counter("open_bill_sync.session.failures", "mode", "company_backfill").increment();
+                }
+            }
+            openBillRepo.flush();
+            advanceAllocationRepo.flush();
+            entityManager.clear();
+            if (ids.size() < pageSize) {
+                break;
+            }
+        }
+        int batchCandidates = syncOpenBillsByBatchSettings(companyId);
+        sample.stop(Timer.builder("open_bill_sync.duration")
+                .tag("mode", "company_backfill")
+                .register(meterRegistry));
+        meterRegistry.counter("open_bill_sync.sessions.processed", "mode", "company_backfill").increment(sessionsProcessed);
+        if (failures > 0) {
+            meterRegistry.counter("open_bill_sync.failures", "mode", "company_backfill").increment(failures);
+        }
+        return new OpenBillSyncRunReport(sessionsProcessed, batchCandidates, failures);
+    }
+
+    public record OpenBillSyncRunReport(int sessionsProcessed, int batchMergeCandidatesProcessed, int failures) {}
+
+    public void enqueueSessionSync(Long companyId, Long sessionBookingId) {
+        enqueueSessionSync(companyId, sessionBookingId, Instant.now());
+    }
+
+    public void enqueueSessionSync(Long companyId, Long sessionBookingId, Instant dueAt) {
+        if (companyId == null || sessionBookingId == null || sessionBookingId <= 0) {
+            return;
+        }
+        syncQueue.enqueueSession(companyId, sessionBookingId, dueAt == null ? Instant.now() : dueAt);
+        meterRegistry.counter("open_bill_sync.queue.enqueued", "type", "session").increment();
+    }
+
+    public void enqueueSessionGroupSync(Long companyId, String bookingGroupKey) {
+        enqueueSessionGroupSync(companyId, bookingGroupKey, Instant.now());
+    }
+
+    public void enqueueSessionGroupSync(Long companyId, String bookingGroupKey, Instant dueAt) {
+        if (companyId == null || bookingGroupKey == null || bookingGroupKey.isBlank()) {
+            return;
+        }
+        syncQueue.enqueueGroup(companyId, bookingGroupKey, dueAt == null ? Instant.now() : dueAt);
+        meterRegistry.counter("open_bill_sync.queue.enqueued", "type", "group").increment();
+    }
+
+    public void enqueueSessionsSync(Long companyId, Collection<Long> sessionBookingIds) {
+        if (sessionBookingIds == null || sessionBookingIds.isEmpty()) {
+            return;
+        }
+        sessionBookingIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .distinct()
+                .forEach(id -> enqueueSessionSync(companyId, id));
+    }
+
+    public void enqueueBookingsSync(Long companyId, Collection<SessionBooking> bookings) {
+        if (companyId == null || bookings == null || bookings.isEmpty()) {
+            return;
+        }
+        var byGroup = new LinkedHashMap<String, Instant>();
+        for (SessionBooking booking : bookings) {
+            if (booking == null || booking.getId() == null) {
+                continue;
+            }
+            Instant dueAt = dueAtForOpenBillSync(booking, companyId);
+            String groupKey = booking.getBookingGroupKey();
+            if (groupKey != null && !groupKey.isBlank()) {
+                byGroup.merge(groupKey, dueAt, (a, b) -> a.isBefore(b) ? a : b);
+            } else {
+                enqueueSessionSync(companyId, booking.getId(), dueAt);
+            }
+        }
+        byGroup.forEach((groupKey, dueAt) -> enqueueSessionGroupSync(companyId, groupKey, dueAt));
+    }
+
+    public int processDueQueue() {
+        var ids = syncQueue.findDueIds(Instant.now(), PageRequest.of(0, maxQueuedItemsPerRun));
+        int processed = 0;
+        for (Long id : ids) {
+            try {
+                transactionTemplate.executeWithoutResult(status -> processQueuedSync(id));
+                processed++;
+            } catch (Exception ex) {
+                meterRegistry.counter("open_bill_sync.failures", "mode", "queue_transaction").increment();
+            }
+        }
+        if (processed > 0) {
+            meterRegistry.counter("open_bill_sync.queue.processed").increment(processed);
+        }
+        return processed;
+    }
+
+    void processQueuedSync(Long queueId) {
+        var queueItem = syncQueue.findById(queueId).orElse(null);
+        if (queueItem == null) {
+            return;
+        }
+        Timer.Sample sample = Timer.start(meterRegistry);
+        String mode = queueItem.getBookingGroupKey() != null && !queueItem.getBookingGroupKey().isBlank() ? "group" : "session";
+        try {
+            if ("group".equals(mode)) {
+                syncSessionGroup(queueItem.getCompanyId(), queueItem.getBookingGroupKey());
+            } else {
+                syncSession(queueItem.getCompanyId(), queueItem.getSessionBookingId());
+            }
+            syncQueue.delete(queueItem);
+            sample.stop(Timer.builder("open_bill_sync.duration").tag("mode", mode).register(meterRegistry));
+        } catch (Exception ex) {
+            String message = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+            syncQueue.markFailed(queueItem.getId(), Instant.now().plusSeconds(retryDelaySeconds(queueItem.getAttempts())), truncate(message, 1000));
+            meterRegistry.counter("open_bill_sync.failures", "mode", mode).increment();
+            sample.stop(Timer.builder("open_bill_sync.duration").tag("mode", mode).tag("status", "failed").register(meterRegistry));
+        }
+    }
+
+    @Transactional
+    public void syncSession(Long companyId, Long sessionBookingId) {
+        if (companyId == null || sessionBookingId == null) {
+            return;
+        }
+        var session = sessionBookings.findForOpenBillSyncByIdAndCompanyId(sessionBookingId, companyId).orElse(null);
+        if (session == null) {
+            removeSessionRowsFromOpenBills(companyId, List.of(sessionBookingId));
+            return;
+        }
+        syncSessionRow(companyId, session);
+        syncOpenBillsByBatchSettings(companyId);
+        meterRegistry.counter("open_bill_sync.sessions.processed", "mode", "session").increment();
+    }
+
+    /**
+     * Keeps the affected booking group aligned without scanning the whole tenant.
+     * New generated open bills are created only for due/past/no-show rows; future rows are ignored.
      */
     @Transactional
     public void syncSessionGroup(Long companyId, String bookingGroupKey) {
@@ -107,6 +283,10 @@ public class OpenBillSyncService {
 
         var relatedOpenBills = findOpenBillsContainingAnySession(companyId, activeSessionIds);
         if (relatedOpenBills.isEmpty()) {
+            for (SessionBooking row : billableRows) {
+                syncSessionRow(companyId, row);
+            }
+            syncOpenBillsByBatchSettings(companyId);
             return;
         }
 
@@ -194,6 +374,9 @@ public class OpenBillSyncService {
 
     private void syncSessionRow(Long companyId, SessionBooking sb) {
         if (sb == null || sb.getId() == null) {
+            return;
+        }
+        if (!isDueForGeneratedOpenBill(sb, companyId)) {
             return;
         }
         if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(sb.getBookingStatus()))) {
@@ -291,38 +474,25 @@ public class OpenBillSyncService {
         if (sessionIds == null || sessionIds.isEmpty()) {
             return List.of();
         }
-        return openBillRepo.findAllWithItemsByCompanyId(companyId).stream()
-                .filter(open -> openBillContainsAnySession(open, sessionIds))
+        return openBillRepo.findAllContainingSessionIds(companyId, sessionIds).stream()
                 .sorted(Comparator.comparing(OpenBill::getId))
                 .toList();
     }
 
-    private boolean openBillContainsAnySession(OpenBill open, Set<Long> sessionIds) {
-        if (open == null || sessionIds == null || sessionIds.isEmpty()) {
-            return false;
-        }
-        if (open.getSessionBooking() != null
-                && open.getSessionBooking().getId() != null
-                && sessionIds.contains(open.getSessionBooking().getId())) {
-            return true;
-        }
-        if (open.getItems() == null) {
-            return false;
-        }
-        return open.getItems().stream()
-                .map(OpenBillItem::getSourceSessionBookingId)
-                .filter(Objects::nonNull)
-                .anyMatch(sessionIds::contains);
-    }
-
-    private void syncOpenBillsByBatchSettings(Long companyId) {
-        var sourceIds = openBillRepo.findBatchMergeCandidateIds(companyId);
+    private int syncOpenBillsByBatchSettings(Long companyId) {
+        var sourceIds = openBillRepo.findBatchMergeCandidateIds(companyId, PageRequest.of(0, maxBatchMergeCandidatesPerRun));
+        int processed = 0;
         for (Long sourceId : sourceIds) {
             mergeOpenBillIntoConfiguredBatch(companyId, sourceId);
+            processed++;
             openBillRepo.flush();
             advanceAllocationRepo.flush();
             entityManager.clear();
         }
+        if (processed > 0) {
+            meterRegistry.counter("open_bill_sync.batch_candidates.processed").increment(processed);
+        }
+        return processed;
     }
 
     private void mergeOpenBillIntoConfiguredBatch(Long companyId, Long sourceId) {
@@ -988,6 +1158,53 @@ public class OpenBillSyncService {
             return session.getBookingGroupKey();
         }
         return session == null || session.getId() == null ? "" : "legacy-" + session.getId();
+    }
+
+    private boolean isDueForGeneratedOpenBill(SessionBooking session, Long companyId) {
+        if (session == null || session.getId() == null) {
+            return false;
+        }
+        if (session.getBilledAt() != null) {
+            return false;
+        }
+        String status = SessionBookingStatus.normalizeStored(session.getBookingStatus());
+        if (SessionBookingStatus.CANCELLED.equals(status)) {
+            return true;
+        }
+        if (SessionBookingStatus.NO_SHOW.equals(status)) {
+            return true;
+        }
+        if (session.getEndTime() == null) {
+            return false;
+        }
+        return session.getEndTime().isBefore(timeService.localDateTime(java.time.ZoneId.systemDefault(), companyId));
+    }
+
+    private Instant dueAtForOpenBillSync(SessionBooking session, Long companyId) {
+        if (session == null || session.getEndTime() == null) {
+            return Instant.now();
+        }
+        if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(session.getBookingStatus()))
+                || SessionBookingStatus.NO_SHOW.equals(SessionBookingStatus.normalizeStored(session.getBookingStatus()))) {
+            return Instant.now();
+        }
+        var now = timeService.localDateTime(java.time.ZoneId.systemDefault(), companyId);
+        if (!session.getEndTime().isAfter(now)) {
+            return Instant.now();
+        }
+        return session.getEndTime().atZone(java.time.ZoneId.systemDefault()).toInstant();
+    }
+
+    private static long retryDelaySeconds(int attempts) {
+        int nextAttempt = Math.max(1, attempts + 1);
+        return Math.min(3600L, 30L * nextAttempt);
+    }
+
+    private static String truncate(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
     private boolean ensureAdvanceOffsetLines(OpenBill open, SessionBooking session, Long companyId) {

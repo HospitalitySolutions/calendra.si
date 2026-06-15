@@ -1,6 +1,7 @@
 package com.example.app.session;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -230,6 +231,68 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
     @Query("SELECT sb FROM SessionBooking sb LEFT JOIN FETCH sb.consultant WHERE sb.client.id = :clientId AND sb.company.id = :companyId")
     List<SessionBooking> findByClientIdAndCompanyId(@Param("clientId") Long clientId, @Param("companyId") Long companyId);
 
+    @Query("""
+            SELECT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            WHERE sb.client.id = :clientId
+              AND sb.company.id = :companyId
+            ORDER BY sb.startTime DESC, sb.id DESC
+            """)
+    List<SessionBooking> findByClientIdAndCompanyIdOrderByStartTimeDesc(
+            @Param("clientId") Long clientId,
+            @Param("companyId") Long companyId,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            WHERE sb.client.id = :clientId
+              AND sb.company.id = :companyId
+              AND sb.consultant.id = :consultantId
+            ORDER BY sb.startTime DESC, sb.id DESC
+            """)
+    List<SessionBooking> findByClientIdAndCompanyIdAndConsultantIdOrderByStartTimeDesc(
+            @Param("clientId") Long clientId,
+            @Param("companyId") Long companyId,
+            @Param("consultantId") Long consultantId,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            WHERE sb.client.id = :clientId
+              AND sb.company.id = :companyId
+              AND sb.startTime > :now
+            ORDER BY sb.startTime ASC, sb.id ASC
+            """)
+    List<SessionBooking> findUpcomingByClientIdAndCompanyId(
+            @Param("clientId") Long clientId,
+            @Param("companyId") Long companyId,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            WHERE sb.client.id = :clientId
+              AND sb.company.id = :companyId
+              AND sb.startTime < :now
+            ORDER BY sb.startTime DESC, sb.id DESC
+            """)
+    List<SessionBooking> findHistoryByClientIdAndCompanyId(
+            @Param("clientId") Long clientId,
+            @Param("companyId") Long companyId,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
+
     @Query("SELECT sb FROM SessionBooking sb WHERE sb.company.id = :companyId AND sb.client.id = :clientId " +
            "AND sb.consultant.id = :consultantId AND sb.billedAt IS NULL ORDER BY sb.startTime DESC")
     List<SessionBooking> findUnbilledByClientAndConsultant(
@@ -265,6 +328,62 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) <> 'CANCELLED'")
     List<SessionBooking> findPastSessionsWithTypeAndCompanyId(
             @Param("now") LocalDateTime now,
+            @Param("companyId") Long companyId
+    );
+
+    @Query("""
+            SELECT sb.id FROM SessionBooking sb
+            WHERE sb.endTime < :now
+              AND sb.company.id = :companyId
+              AND sb.id > :afterId
+              AND sb.type IS NOT NULL
+              AND sb.billedAt IS NULL
+              AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) <> 'CANCELLED'
+              AND NOT EXISTS (
+                    SELECT 1 FROM OpenBill o LEFT JOIN o.items i
+                    WHERE o.company.id = :companyId
+                      AND (o.sessionBooking.id = sb.id OR i.sourceSessionBookingId = sb.id)
+              )
+            ORDER BY sb.id ASC
+            """)
+    List<Long> findPastSessionIdsWithTypeAndCompanyIdAfterId(
+            @Param("now") LocalDateTime now,
+            @Param("companyId") Long companyId,
+            @Param("afterId") Long afterId,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.company
+            LEFT JOIN FETCH sb.client c
+            LEFT JOIN FETCH c.billingCompany
+            LEFT JOIN FETCH sb.payeeCompany
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type t
+            LEFT JOIN FETCH t.linkedServices ls
+            LEFT JOIN FETCH ls.transactionService
+            WHERE sb.company.id = :companyId AND sb.id IN :ids
+            """)
+    List<SessionBooking> findAllForOpenBillSyncByCompanyIdAndIds(
+            @Param("companyId") Long companyId,
+            @Param("ids") Collection<Long> ids
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.company
+            LEFT JOIN FETCH sb.client c
+            LEFT JOIN FETCH c.billingCompany
+            LEFT JOIN FETCH sb.payeeCompany
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type t
+            LEFT JOIN FETCH t.linkedServices ls
+            LEFT JOIN FETCH ls.transactionService
+            WHERE sb.company.id = :companyId AND sb.id = :id
+            """)
+    Optional<SessionBooking> findForOpenBillSyncByIdAndCompanyId(
+            @Param("id") Long id,
             @Param("companyId") Long companyId
     );
 

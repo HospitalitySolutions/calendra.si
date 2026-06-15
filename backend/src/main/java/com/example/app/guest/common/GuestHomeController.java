@@ -206,16 +206,23 @@ public class GuestHomeController {
             @RequestParam String companyId,
             @RequestParam(name = "ordersPage", defaultValue = "0") int ordersPage,
             @RequestParam(name = "ordersSize", defaultValue = "100") int ordersSize,
+            @RequestParam(name = "entitlementsPage", defaultValue = "0") int entitlementsPage,
+            @RequestParam(name = "entitlementsSize", defaultValue = "100") int entitlementsSize,
             HttpServletRequest request
     ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return walletService.wallet(guestUser, Long.parseLong(companyId), ordersPage, ordersSize);
+        return walletService.wallet(guestUser, Long.parseLong(companyId), ordersPage, ordersSize, entitlementsPage, entitlementsSize);
     }
 
     @GetMapping("/bookings/history")
-    public List<GuestDtos.BookingHistoryItemResponse> bookingHistory(@RequestParam String companyId, HttpServletRequest request) {
+    public List<GuestDtos.BookingHistoryItemResponse> bookingHistory(
+            @RequestParam String companyId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "50") int size,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return walletService.history(guestUser, Long.parseLong(companyId));
+        return walletService.history(guestUser, Long.parseLong(companyId), page, size);
     }
 
     @PostMapping("/wallet/entitlements/{entitlementId}/auto-renew")
@@ -226,9 +233,14 @@ public class GuestHomeController {
     }
 
     @GetMapping("/notifications")
-    public GuestDtos.NotificationsResponse notifications(@RequestParam String companyId, HttpServletRequest request) {
+    public GuestDtos.NotificationsResponse notifications(
+            @RequestParam String companyId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return notificationService.list(guestUser, Long.parseLong(companyId));
+        return notificationService.list(guestUser, Long.parseLong(companyId), page, size);
     }
 
     @PostMapping("/notifications/{notificationId}/read")

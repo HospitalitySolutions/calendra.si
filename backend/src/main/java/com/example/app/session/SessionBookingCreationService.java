@@ -224,7 +224,7 @@ public class SessionBookingCreationService {
                 response.endTime(),
                 BookingChangePublisher.BOOKING_CREATED
         );
-        openBillSyncService.syncCompany(companyId);
+        openBillSyncService.enqueueBookingsSync(companyId, saved);
         return response;
     }
 
@@ -411,6 +411,7 @@ public class SessionBookingCreationService {
             consumableService.applySessionUsageIfCheckedOut(me, saved, previouslyStoredStatusById);
         }
         openBillSyncService.syncSessionGroup(companyId, groupKey);
+        openBillSyncService.enqueueBookingsSync(companyId, saved);
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved);
         bookingChangePublisher.publish(
                 companyId,
@@ -419,7 +420,6 @@ public class SessionBookingCreationService {
                 response.endTime(),
                 BookingChangePublisher.BOOKING_UPDATED
         );
-        openBillSyncService.syncCompany(companyId);
         return response;
     }
 
@@ -553,7 +553,7 @@ public class SessionBookingCreationService {
                 booking.getEndTime(),
                 BookingChangePublisher.BOOKING_CREATED
         );
-        openBillSyncService.syncCompany(companyId);
+        openBillSyncService.enqueueBookingsSync(companyId, java.util.List.of(booking));
         return booking;
     }
 
@@ -657,7 +657,7 @@ public class SessionBookingCreationService {
         );
         repo.flush();
         openBillSyncService.syncSessionGroup(companyId, SessionBookingController.groupKey(representative));
-        openBillSyncService.syncCompany(companyId);
+        openBillSyncService.enqueueBookingsSync(companyId, java.util.List.of(representative, joined));
         return joined;
     }
 
@@ -1264,7 +1264,7 @@ public class SessionBookingCreationService {
                 BookingChangePublisher.BOOKING_UPDATED
         );
         openBillSyncService.syncSessionGroup(companyId, groupKey);
-        openBillSyncService.syncCompany(companyId);
+        openBillSyncService.enqueueBookingsSync(companyId, java.util.List.of(keep));
         return response;
     }
 

@@ -370,7 +370,12 @@ public class SessionBookingController {
                 bRep.getEndTime(),
                 BookingChangePublisher.BOOKING_SWAPPED
         );
-        openBillSyncService.syncCompany(companyId);
+        openBillSyncService.syncSessionGroup(companyId, groupKey(aRep));
+        openBillSyncService.syncSessionGroup(companyId, groupKey(bRep));
+        var dirtyGroups = new java.util.ArrayList<SessionBooking>();
+        dirtyGroups.addAll(aGroup);
+        dirtyGroups.addAll(bGroup);
+        openBillSyncService.enqueueBookingsSync(companyId, dirtyGroups);
         return List.of(withPaymentStatuses(toGroupedResponse(aGroup), aGroup, companyId), withPaymentStatuses(toGroupedResponse(bGroup), bGroup, companyId));
     }
 
@@ -446,6 +451,7 @@ public class SessionBookingController {
         repo.saveAll(updatedRows);
         repo.flush();
         openBillSyncService.syncSessionGroup(companyId, SessionBookingController.groupKey(representative));
+        openBillSyncService.enqueueBookingsSync(companyId, updatedRows);
         bookingChangePublisher.publish(
                 companyId,
                 representative.getId(),
@@ -453,7 +459,6 @@ public class SessionBookingController {
                 representative.getEndTime(),
                 BookingChangePublisher.BOOKING_UPDATED
         );
-        openBillSyncService.syncCompany(companyId);
 
         var refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey(representative), companyId);
         if (refreshed == null || refreshed.isEmpty()) {

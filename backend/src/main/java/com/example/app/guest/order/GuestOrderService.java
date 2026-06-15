@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -549,7 +550,9 @@ public class GuestOrderService {
     private void cancelOpenExternalCheckoutsForGuest(GuestUser guestUser, Long companyId, GuestPaymentMethodType newPaymentMethodType) {
         if (guestUser == null || companyId == null) return;
         if (newPaymentMethodType != GuestPaymentMethodType.CARD && newPaymentMethodType != GuestPaymentMethodType.PAYPAL) return;
-        orders.findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(guestUser.getId(), companyId, OrderStatus.PENDING)
+        orders.findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(
+                        guestUser.getId(), companyId, OrderStatus.PENDING, PageRequest.of(0, 50)
+                )
                 .stream()
                 .filter(order -> order.getPaymentMethodType() == GuestPaymentMethodType.CARD
                         || order.getPaymentMethodType() == GuestPaymentMethodType.PAYPAL)

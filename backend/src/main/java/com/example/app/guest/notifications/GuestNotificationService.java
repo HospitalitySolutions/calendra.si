@@ -8,6 +8,7 @@ import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,8 +73,17 @@ public class GuestNotificationService {
 
     @Transactional(readOnly = true)
     public GuestDtos.NotificationsResponse list(GuestUser guestUser, Long companyId) {
+        return list(guestUser, companyId, 0, 100);
+    }
+
+    @Transactional(readOnly = true)
+    public GuestDtos.NotificationsResponse list(GuestUser guestUser, Long companyId, int page, int size) {
         return new GuestDtos.NotificationsResponse(
-                notifications.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(guestUser.getId(), companyId).stream()
+                notifications.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(
+                                guestUser.getId(),
+                                companyId,
+                                PageRequest.of(safePage(page), safeSize(size, 100, 200))
+                        ).stream()
                         .map(GuestMapper::toNotification)
                         .toList()
         );
@@ -89,21 +99,26 @@ public class GuestNotificationService {
 
     @Transactional
     public GuestDtos.MarkAllReadResponse markAllRead(GuestUser guestUser, Long companyId) {
-        List<GuestNotification> all = notifications.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(guestUser.getId(), companyId);
-        Instant now = Instant.now();
-        int updated = 0;
-        for (GuestNotification n : all) {
-            if (n.getReadAt() == null) {
-                n.setReadAt(now);
-                notifications.save(n);
-                updated++;
-            }
-        }
+        int updated = notifications.markAllUnreadAsRead(guestUser.getId(), companyId, Instant.now());
         return new GuestDtos.MarkAllReadResponse(updated);
     }
 
     @Transactional(readOnly = true)
     public List<GuestNotification> allForUserAndCompany(Long guestUserId, Long companyId) {
-        return notifications.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(guestUserId, companyId);
+        return notifications.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(
+                guestUserId,
+                companyId,
+                PageRequest.of(0, 200)
+        );
+    }
+
+    private static int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private static int safeSize(int size, int defaultSize, int maxSize) {
+        if (size <= 0) return defaultSize;
+        return Math.min(size, maxSize);
     }
 }
+

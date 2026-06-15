@@ -280,19 +280,22 @@ public class ClientController {
 
     @GetMapping("/{id}/bookings")
     @Transactional(readOnly = true)
-    public List<ClientSessionResponse> clientBookings(@PathVariable Long id, @AuthenticationPrincipal User me) {
+    public List<ClientSessionResponse> clientBookings(
+            @PathVariable Long id,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size,
+            @AuthenticationPrincipal User me
+    ) {
         var companyId = me.getCompany().getId();
         var c = repository.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (!SecurityUtils.isAdmin(me) && (c.getAssignedTo() == null || !c.getAssignedTo().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        var list = bookings.findByClientIdAndCompanyId(id, companyId);
-        if (!SecurityUtils.isAdmin(me)) {
-            list = list.stream()
-                    .filter(b -> b.getConsultant() != null && b.getConsultant().getId().equals(me.getId()))
-                    .toList();
-        }
+        var pageRequest = PageRequest.of(safePage(page), safeSize(size, 100, 200));
+        var list = SecurityUtils.isAdmin(me)
+                ? bookings.findByClientIdAndCompanyIdOrderByStartTimeDesc(id, companyId, pageRequest)
+                : bookings.findByClientIdAndCompanyIdAndConsultantIdOrderByStartTimeDesc(id, companyId, me.getId(), pageRequest);
         return list.stream().map(ClientController::toClientSessionResponse).toList();
     }
 
@@ -302,7 +305,8 @@ public class ClientController {
     public ClientWalletResponse clientWallet(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var client = loadClientForWalletAccess(id, me);
         guestOrderService.ensurePaidWalletEntitlementsForClient(client.getId(), me.getCompany().getId());
-        var allEntitlements = guestEntitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(client.getId(), me.getCompany().getId());
+        var allEntitlements = guestEntitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(
+                client.getId(), me.getCompany().getId(), PageRequest.of(0, 500));
         var activeEntitlements = allEntitlements.stream()
                 .filter(entitlement -> entitlement.getStatus() == EntitlementStatus.ACTIVE || entitlement.getStatus() == EntitlementStatus.PENDING)
                 .sorted(Comparator.comparing(GuestEntitlement::getCreatedAt).reversed())
@@ -313,9 +317,13 @@ public class ClientController {
                 .sorted(Comparator.comparing(GuestEntitlement::getCreatedAt).reversed())
                 .map(this::toWalletEntitlementResponse)
                 .toList();
-        var usageHistory = allEntitlements.stream()
-                .flatMap(entitlement -> guestEntitlementUsages.findAllByEntitlementIdOrderByUsedAtDesc(entitlement.getId()).stream())
-                .sorted(Comparator.comparing(GuestEntitlementUsage::getUsedAt).reversed())
+        var entitlementIds = allEntitlements.stream()
+                .map(GuestEntitlement::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        var usageHistory = entitlementIds.isEmpty()
+                ? List.<WalletUsageResponse>of()
+                : guestEntitlementUsages.findAllByEntitlementIdInOrderByUsedAtDesc(entitlementIds, PageRequest.of(0, 500)).stream()
                 .map(this::toWalletUsageResponse)
                 .toList();
         return new ClientWalletResponse(activeEntitlements, inactiveEntitlements, usageHistory);

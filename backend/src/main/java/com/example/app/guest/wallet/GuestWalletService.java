@@ -12,8 +12,12 @@ import com.example.app.settings.SettingKey;
 import com.example.app.session.SessionBookingRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,29 +48,85 @@ public class GuestWalletService {
 
     @Transactional(readOnly = true)
     public GuestDtos.WalletResponse wallet(GuestUser guestUser, Long companyId) {
-        return wallet(guestUser, companyId, 0, 100);
+        return wallet(guestUser, companyId, 0, 100, 0, 100);
     }
 
     @Transactional(readOnly = true)
     public GuestDtos.WalletResponse wallet(GuestUser guestUser, Long companyId, int ordersPage, int ordersSize) {
+        return wallet(guestUser, companyId, ordersPage, ordersSize, 0, 100);
+    }
+
+    @Transactional(readOnly = true)
+    public GuestDtos.WalletResponse wallet(
+            GuestUser guestUser,
+            Long companyId,
+            int ordersPage,
+            int ordersSize,
+            int entitlementsPage,
+            int entitlementsSize
+    ) {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
+        var entitlementRows = entitlements.findAllByClientIdAndCompanyIdAndStatusNotOrderByCreatedAtDesc(
+                link.getClient().getId(),
+                companyId,
+                EntitlementStatus.CANCELLED,
+                PageRequest.of(safePage(entitlementsPage), safeSize(entitlementsSize, 100, 500))
+        );
+        var orderRows = orders.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(
+                guestUser.getId(),
+                companyId,
+                PageRequest.of(safePage(ordersPage), safeSize(ordersSize, 100, 500))
+        );
+        Map<Long, Bill> billById = loadBillsById(orderRows.stream()
+                .map(GuestOrder::getBillId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
+        Map<Long, ProductSummary> productByOrderId = loadProductSummariesByOrderId(orderRows.stream()
+                .map(GuestOrder::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
+
         return new GuestDtos.WalletResponse(
-                entitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(link.getClient().getId(), companyId).stream()
-                        .filter(entitlement -> entitlement.getStatus() != EntitlementStatus.CANCELLED)
+                entitlementRows.stream()
                         .map(GuestMapper::toEntitlement)
                         .toList(),
-                orders.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(
-                                guestUser.getId(),
-                                companyId,
-                                PageRequest.of(safePage(ordersPage), safeSize(ordersSize, 100, 500))
-                        ).stream()
-                        .map(this::toWalletOrder)
+                orderRows.stream()
+                        .map(order -> toWalletOrder(order, billById, productByOrderId))
                         .toList()
         );
     }
 
-    private GuestDtos.WalletOrderResponse toWalletOrder(GuestOrder order) {
-        Bill bill = order.getBillId() == null ? null : bills.findById(order.getBillId()).orElse(null);
+    private Map<Long, Bill> loadBillsById(Collection<Long> billIds) {
+        if (billIds == null || billIds.isEmpty()) {
+            return Map.of();
+        }
+        return bills.findAllById(billIds).stream()
+                .filter(bill -> bill.getId() != null)
+                .collect(Collectors.toMap(Bill::getId, bill -> bill));
+    }
+
+    private record ProductSummary(String name, String type) {}
+
+    private Map<Long, ProductSummary> loadProductSummariesByOrderId(Collection<Long> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, ProductSummary> result = new HashMap<>();
+        for (Object[] row : orders.findFirstEntitlementProductRowsForOrderIds(orderIds)) {
+            if (row == null || row.length < 3 || row[0] == null) {
+                continue;
+            }
+            Long orderId = (Long) row[0];
+            result.putIfAbsent(orderId, new ProductSummary(
+                    row[1] == null ? null : String.valueOf(row[1]),
+                    row[2] == null ? null : String.valueOf(row[2])
+            ));
+        }
+        return result;
+    }
+
+    private GuestDtos.WalletOrderResponse toWalletOrder(GuestOrder order, Map<Long, Bill> billById, Map<Long, ProductSummary> productByOrderId) {
+        Bill bill = order.getBillId() == null ? null : billById.get(order.getBillId());
         String billPaymentStatus = bill == null ? null : bill.getPaymentStatus();
         String invoiceOrderId = bill == null ? null : bill.getOrderId();
         String productName = null;
@@ -79,10 +139,12 @@ public class GuestWalletService {
             if (pName != null) productName = String.valueOf(pName);
         } catch (Exception ignore) {
         }
-        if (productName == null) {
-            productName = entitlements.findFirstBySourceOrderIdOrderByCreatedAtAsc(order.getId())
-                    .map(e -> e.getProduct() == null ? null : e.getProduct().getName())
-                    .orElse(null);
+        ProductSummary productSummary = productByOrderId.get(order.getId());
+        if (productName == null && productSummary != null) {
+            productName = productSummary.name();
+        }
+        if (productType == null && productSummary != null) {
+            productType = productSummary.type();
         }
         boolean isPendingBankTransfer =
                 order.getPaymentMethodType() == GuestPaymentMethodType.BANK_TRANSFER
@@ -134,10 +196,18 @@ public class GuestWalletService {
 
     @Transactional(readOnly = true)
     public List<GuestDtos.BookingHistoryItemResponse> history(GuestUser guestUser, Long companyId) {
+        return history(guestUser, companyId, 0, 50);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestDtos.BookingHistoryItemResponse> history(GuestUser guestUser, Long companyId, int page, int size) {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
-        return bookings.findByClientIdAndCompanyId(link.getClient().getId(), companyId).stream()
-                .filter(b -> b.getStartTime() != null && b.getStartTime().isBefore(LocalDateTime.now()))
-                .sorted(java.util.Comparator.comparing(com.example.app.session.SessionBooking::getStartTime).reversed())
+        return bookings.findHistoryByClientIdAndCompanyId(
+                        link.getClient().getId(),
+                        companyId,
+                        LocalDateTime.now(),
+                        PageRequest.of(safePage(page), safeSize(size, 50, 200))
+                ).stream()
                 .map(b -> new GuestDtos.BookingHistoryItemResponse(
                         String.valueOf(b.getId()),
                         b.getType() == null ? "Session" : b.getType().getName(),
