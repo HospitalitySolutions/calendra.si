@@ -549,7 +549,7 @@
     padding: 24px;
     background: rgba(15, 23, 42, 0.46);
     backdrop-filter: blur(8px);
-    z-index: 1400;
+    z-index: 10300;
 }
 
 .employees-limit-modal.modal {

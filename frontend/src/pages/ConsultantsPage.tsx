@@ -105,15 +105,53 @@ function employeeListCountLabel(count: number, locale: AppLocale): string {
   return `${count} zaposlenih`
 }
 
-function isUserQuotaError(error: any): boolean {
-  if (error?.response?.status === 402) return true
-  const message = String(error?.response?.data?.message || error?.response?.data?.detail || error?.message || '').toLowerCase()
-  return message.includes('active user') || message.includes('user count') || message.includes('uporabnik')
+function readErrorText(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.map(readErrorText).filter(Boolean).join(' ')
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).map(readErrorText).filter(Boolean).join(' ')
+  }
+  return ''
 }
 
-function fallbackUserQuota(consultants: Consultant[]): UserQuota {
+function userQuotaFromError(error: any): Partial<UserQuota> | null {
+  const text = readErrorText(error?.response?.data || error?.message)
+  const quotaMatch = text.match(/allows\s+(\d+)\s+active\s+users?/i)
+    || text.match(/(\d+)\s*\/?\s*\d*\s+active\s+users?/i)
+    || text.match(/najve[cč]\s+(?:je\s+)?(?:število\s+)?(?:aktivnih\s+)?uporabnikov\s*(?:je|:)\s*(\d+)/i)
+  if (!quotaMatch) return null
+  const maxUsers = Number(quotaMatch[1])
+  return Number.isFinite(maxUsers) && maxUsers > 0 ? { maxUsers, reached: true } : null
+}
+
+function isUserQuotaError(error: any): boolean {
+  const status = Number(error?.response?.status)
+  if (status === 402) return true
+  const message = readErrorText(error?.response?.data || error?.message).toLowerCase()
+  return (
+    message.includes('active user') ||
+    message.includes('user count') ||
+    message.includes('package allows') ||
+    message.includes('upgrade or increase your user count') ||
+    message.includes('user limit') ||
+    message.includes('max users') ||
+    message.includes('maximum users') ||
+    message.includes('uporabnik') ||
+    message.includes('uporabnikov')
+  )
+}
+
+function hasReachedUserQuota(quota: UserQuota | null | undefined): quota is UserQuota {
+  return !!quota && quota.maxUsers != null && quota.activeUsers >= quota.maxUsers
+}
+
+function fallbackUserQuota(consultants: Consultant[], error?: any): UserQuota {
   const activeUsers = consultants.filter((consultant) => consultant.active !== false).length
-  return { activeUsers, maxUsers: activeUsers || 1, reached: true }
+  const parsed = userQuotaFromError(error)
+  const maxUsers = (parsed?.maxUsers ?? activeUsers) || 1
+  return { activeUsers: Math.max(activeUsers, maxUsers), maxUsers, reached: true }
 }
 
 type UserRole = 'ADMIN' | 'CONSULTANT'
@@ -312,10 +350,39 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     }
   }
 
+  const refreshUserQuota = async (): Promise<UserQuota | null> => {
+    if (!isAdmin) return null
+    try {
+      const { data } = await api.get<UserQuota>(`/users/quota`)
+      setUserQuota(data ?? null)
+      return data ?? null
+    } catch {
+      return null
+    }
+  }
+
+  const showEmployeeLimitPopup = async (preferredQuota?: UserQuota | null, error?: any) => {
+    const freshQuota = await refreshUserQuota()
+    const parsedQuota = userQuotaFromError(error)
+    const activeUsers = freshQuota?.activeUsers
+      ?? preferredQuota?.activeUsers
+      ?? consultants.filter((consultant) => consultant.active !== false).length
+    const maxUsers = freshQuota?.maxUsers
+      ?? preferredQuota?.maxUsers
+      ?? parsedQuota?.maxUsers
+      ?? (activeUsers || 1)
+    setErrorMessage('')
+    setEmployeeLimitDialog({
+      activeUsers: Math.max(activeUsers, maxUsers),
+      maxUsers,
+      reached: true,
+    })
+  }
+
   const toggleConsultantActiveById = async (consultantId: number, currentlyActive: boolean) => {
     if (!isAdmin) return
-    if (!currentlyActive && userQuota?.maxUsers != null && userQuota.activeUsers >= userQuota.maxUsers) {
-      setEmployeeLimitDialog(userQuota)
+    if (!currentlyActive && hasReachedUserQuota(userQuota)) {
+      void showEmployeeLimitPopup(userQuota)
       return
     }
     setActivatingEmployeeId(consultantId)
@@ -327,7 +394,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       window.dispatchEvent(new Event('users-updated'))
     } catch (error: any) {
       if (isUserQuotaError(error)) {
-        setEmployeeLimitDialog(userQuota ?? fallbackUserQuota(consultants))
+        await showEmployeeLimitPopup(userQuota ?? fallbackUserQuota(consultants, error), error)
         return
       }
       const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
@@ -389,8 +456,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }, [consultants, search, activeFilter, t])
 
   const startCreate = () => {
-    if (userQuota?.maxUsers != null && userQuota.activeUsers >= userQuota.maxUsers) {
-      setEmployeeLimitDialog(userQuota)
+    if (hasReachedUserQuota(userQuota)) {
+      void showEmployeeLimitPopup(userQuota)
       return
     }
     setEditing(null)
@@ -543,8 +610,9 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       const status = error?.response?.status
       const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
 
-      if (isUserQuotaError(error)) {
-        setEmployeeLimitDialog(userQuota ?? fallbackUserQuota(consultants))
+      const freshQuota = !editing ? await refreshUserQuota() : null
+      if (isUserQuotaError(error) || (!editing && hasReachedUserQuota(freshQuota))) {
+        await showEmployeeLimitPopup(freshQuota ?? userQuota ?? fallbackUserQuota(consultants, error), error)
       } else if (status === 403) {
         setErrorMessage(
           selfService
@@ -600,9 +668,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const statusHeader = locale === 'sl' ? 'Status' : 'Status'
   const myUserId = user?.id
   const employeeLimitTitle = locale === 'sl' ? 'Dosegli ste največje število uporabnikov' : 'User limit reached'
+  const employeeLimitAllowedCount = employeeLimitDialog?.maxUsers ?? userQuota?.maxUsers
+  const employeeLimitAllowedLabel = employeeLimitAllowedCount == null ? '∞' : String(employeeLimitAllowedCount)
   const employeeLimitText = locale === 'sl'
-    ? 'Za dodajanje ali aktivacijo novega zaposlenega povečajte število uporabnikov v Upravljanje računa → Naročnina.'
-    : 'To add or activate another employee, increase the number of users in Account management → Subscription.'
+    ? `Vaš paket omogoča ${employeeLimitAllowedLabel} aktivnih uporabnikov. Za dodajanje novega zaposlenega nadgradite paket ali povečajte število uporabnikov. To spremenite v Upravljanje računa → Naročnina.`
+    : `Your package allows ${employeeLimitAllowedLabel} active users. Upgrade or increase your user count to add more. You can change this in Account management → Subscription.`
   const employeeLimitButtonLabel = locale === 'sl' ? 'Odpri Naročnino' : 'Open Subscription'
   const employeeLimitCloseLabel = locale === 'sl' ? 'Zapri' : 'Close'
   const openSubscriptionSettings = () => {

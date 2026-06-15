@@ -1,0 +1,16 @@
+Employee user-limit popup over employee form
+
+Changed files:
+- frontend/src/pages/ConsultantsPage.tsx
+- frontend/src/styles/features/employees-popup.css
+
+What changed:
+1. User quota failures during employee creation now open the dedicated user-limit popup instead of showing the generic "Failed to create consultant" inline error.
+2. The popup now refreshes /api/users/quota after a failed create, so it still appears if the limit was reached after the form was opened or if the local quota state was stale.
+3. The message now includes the package limit, for example: "Your package allows 6 active users. Upgrade or increase your user count to add more."
+4. The popup explains that the limit can be changed in Upravljanje računa -> Naročnina / Account management -> Subscription.
+5. The existing button still routes to /configuration?tab=company&subtab=subscription.
+6. The popup z-index was raised so it appears above the current New/Edit employee popup.
+
+Build check:
+- Not run in this sandbox because frontend dependencies/node_modules are not included in the uploaded zip.
