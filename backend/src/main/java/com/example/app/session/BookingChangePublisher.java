@@ -78,18 +78,28 @@ public class BookingChangePublisher {
         if (startTime != null) data.put("startTime", startTime.toString());
         if (endTime != null) data.put("endTime", endTime.toString());
 
-        guestTenantLinks.findAllByCompanyIdAndStatus(companyId, GuestTenantLinkStatus.ACTIVE).forEach(link -> {
-            var guestUser = link.getGuestUser();
-            if (guestUser == null) return;
-            guestPushService.notifyGuestReminder(
-                    guestUser,
-                    link.getCompany(),
-                    link.getClient(),
-                    "Booking update",
-                    "A booking has changed. Open the app to see the latest time.",
-                    data
-            );
-        });
+        // Push notifications must be scoped to the guest linked to the changed booking's client.
+        // The realtime event above remains tenant-wide so open apps refresh their cached dashboards,
+        // but the phone notification tray must not fan out to unrelated guests of the same tenant.
+        sessionBookings.findByIdAndCompanyId(bookingId, companyId)
+                .filter(booking -> booking.getClient() != null && booking.getClient().getId() != null)
+                .flatMap(booking -> guestTenantLinks.findByCompanyIdAndClientIdAndStatus(
+                        companyId,
+                        booking.getClient().getId(),
+                        GuestTenantLinkStatus.ACTIVE
+                ))
+                .ifPresent(link -> {
+                    var guestUser = link.getGuestUser();
+                    if (guestUser == null) return;
+                    guestPushService.notifyGuestReminder(
+                            guestUser,
+                            link.getCompany(),
+                            link.getClient(),
+                            "Booking update",
+                            "A booking has changed. Open the app to see the latest time.",
+                            data
+                    );
+                });
     }
 }
 

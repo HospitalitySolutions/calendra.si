@@ -12,3 +12,4 @@ build/
 /androidApp/release/
 *.aab
 *.apk
+/gradle.properties

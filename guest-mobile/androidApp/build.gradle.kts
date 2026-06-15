@@ -82,8 +82,8 @@ android {
         applicationId = "si.calendra.guest.mobile"
         minSdk = 28
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.3.0"
+        versionCode = 7
+        versionName = "1.0.0"
         // Production default: https://app.calendra.si.
         // For local debug builds use, for example:
         //   API_BASE_HOST=10.0.2.2 API_BASE_PROTOCOL=http API_BASE_PORT=4000 ./gradlew :androidApp:assembleDebug
