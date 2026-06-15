@@ -36,20 +36,24 @@ public class GuestInboxController {
     @GetMapping("/threads")
     public List<ClientMessageService.GuestThreadSummary> threads(
             @RequestParam String companyId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size,
             HttpServletRequest request
     ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return messageService.listGuestThreads(guestUser, Long.parseLong(companyId));
+        return messageService.listGuestThreads(guestUser, Long.parseLong(companyId), page, size);
     }
 
     @GetMapping("/messages")
     public List<ClientMessageService.MessageView> messages(
             @RequestParam String companyId,
             @RequestParam(required = false) Integer limit,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size,
             HttpServletRequest request
     ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return messageService.listGuestMessages(guestUser, Long.parseLong(companyId), limit);
+        return messageService.listGuestMessages(guestUser, Long.parseLong(companyId), limit, page, size);
     }
 
     @PostMapping("/messages")

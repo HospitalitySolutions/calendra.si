@@ -1,5 +1,6 @@
 package com.example.app.billing;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Modifying;
@@ -21,6 +22,22 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
             "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +
             "WHERE o.company.id = :companyId")
     List<OpenBill> findAllWithItemsByCompanyId(Long companyId);
+
+    @Query("""
+            SELECT o.id FROM OpenBill o
+            WHERE o.company.id = :companyId
+            ORDER BY o.id DESC
+            """)
+    List<Long> findPageIdsByCompanyId(@Param("companyId") Long companyId, Pageable pageable);
+
+    @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
+            "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +
+            "WHERE o.company.id = :companyId AND o.id IN :ids")
+    List<OpenBill> findAllWithItemsByCompanyIdAndIdIn(
+            @Param("companyId") Long companyId,
+            @Param("ids") java.util.Collection<Long> ids
+    );
+
 
     @Query("SELECT DISTINCT o FROM OpenBill o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.transactionService " +
             "LEFT JOIN FETCH o.client LEFT JOIN FETCH o.consultant LEFT JOIN FETCH o.paymentMethod LEFT JOIN FETCH o.sessionBooking " +

@@ -46,6 +46,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -257,9 +258,18 @@ public class ClientMessageService {
 
     @Transactional(readOnly = true)
     public List<GuestThreadSummary> listGuestThreads(GuestUser guestUser, Long companyId) {
+        return listGuestThreads(guestUser, companyId, 0, 100);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestThreadSummary> listGuestThreads(GuestUser guestUser, Long companyId, int page, int size) {
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
         requireGuestInboxEnabled(companyId);
-        List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
+        List<ClientMessage> rows = messages.findPageByCompanyIdAndClientIdOrderByCreatedAtDesc(
+                        companyId,
+                        link.getClient().getId(),
+                        PageRequest.of(safePage(page), safeSize(size, 100, 500))
+                ).stream()
                 .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
                 .toList();
         if (rows.isEmpty()) return List.of();
@@ -288,19 +298,29 @@ public class ClientMessageService {
 
     @Transactional
     public List<MessageView> listGuestMessages(GuestUser guestUser, Long companyId, Integer limit) {
+        return listGuestMessages(guestUser, companyId, limit, 0, limit == null || limit <= 0 ? 100 : limit);
+    }
+
+    @Transactional
+    public List<MessageView> listGuestMessages(GuestUser guestUser, Long companyId, Integer limit, int page, int size) {
         GuestTenantLink link = requireActiveGuestLink(guestUser, companyId);
         requireGuestInboxEnabled(companyId);
-        List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(companyId, link.getClient().getId()).stream()
+        int effectiveSize = limit != null && limit > 0 ? Math.min(limit, safeSize(size, 100, 500)) : safeSize(size, 100, 500);
+        List<ClientMessage> rows = messages.findPageByCompanyIdAndClientIdOrderByCreatedAtDesc(
+                        companyId,
+                        link.getClient().getId(),
+                        PageRequest.of(safePage(page), effectiveSize)
+                ).stream()
                 .filter(row -> row.getChannel() == MessageChannel.GUEST_APP)
                 .toList();
         String latestKey = latestConversationKey(rows);
         List<ClientMessage> selectedRows = latestKey == null ? rows : rows.stream()
                 .filter(row -> Objects.equals(conversationKey(row), latestKey))
                 .toList();
-        markGuestMessagesRead(link, selectedRows);
-        List<MessageView> out = selectedRows.stream().map(this::toView).toList();
-        if (limit != null && limit > 0 && out.size() > limit) return out.subList(out.size() - limit, out.size());
-        return out;
+        List<ClientMessage> chronological = new ArrayList<>(selectedRows);
+        chronological.sort(Comparator.comparing(ClientMessage::getCreatedAt).thenComparing(ClientMessage::getId));
+        markGuestMessagesRead(link, chronological);
+        return chronological.stream().map(this::toView).toList();
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)
@@ -406,7 +426,12 @@ public class ClientMessageService {
 
     @Transactional(readOnly = true)
     public List<ThreadSummary> listThreads(User me, ThreadFilter filter) {
-        List<ClientMessage> visible = filterVisibleMessages(me);
+        return listThreads(me, filter, 0, 100);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ThreadSummary> listThreads(User me, ThreadFilter filter, int page, int size) {
+        List<ClientMessage> visible = filterVisibleMessages(me, page, size);
         List<ClientMessage> filtered = visible.stream().filter(row -> matchesFilter(row, filter)).toList();
         Map<Long, GuestTenantLink> activeGuestLinksByClientId = guestTenantLinks.findAllByCompanyIdAndStatus(me.getCompany().getId(), GuestTenantLinkStatus.ACTIVE).stream()
                 .collect(Collectors.toMap(link -> link.getClient().getId(), link -> link, (left, right) -> left, LinkedHashMap::new));
@@ -451,21 +476,41 @@ public class ClientMessageService {
 
     @Transactional
     public List<MessageView> listClientMessages(User me, Long clientId, String threadKey, MessageChannel channel, Integer limit) {
+        return listClientMessages(me, clientId, threadKey, channel, limit, 0, limit == null || limit <= 0 ? 100 : limit);
+    }
+
+    @Transactional
+    public List<MessageView> listClientMessages(User me, Long clientId, String threadKey, MessageChannel channel, Integer limit, int page, int size) {
         Client client = requireVisibleClient(me, clientId);
-        List<ClientMessage> rows = messages.findAllByCompanyIdAndClientIdOrderByCreatedAtAsc(me.getCompany().getId(), client.getId());
         String selectedThreadKey = blankToNull(threadKey);
-        if (selectedThreadKey == null) selectedThreadKey = latestConversationKey(rows);
-        final String effectiveThreadKey = selectedThreadKey;
-        List<ClientMessage> selectedRows = rows.stream()
-                .filter(row -> effectiveThreadKey == null || Objects.equals(conversationKey(row), effectiveThreadKey))
-                .filter(row -> channel == null || row.getChannel() == channel)
-                .toList();
-        if (channel == null || channel == MessageChannel.GUEST_APP) markStaffMessagesRead(me.getCompany().getId(), client.getId(), selectedRows);
-        List<MessageView> out = selectedRows.stream()
+        int effectiveSize = limit != null && limit > 0 ? Math.min(limit, safeSize(size, 100, 500)) : safeSize(size, 100, 500);
+        var pageable = PageRequest.of(safePage(page), effectiveSize);
+        List<ClientMessage> selectedRows;
+        if (selectedThreadKey == null) {
+            selectedRows = messages.findPageByCompanyIdAndClientIdOrderByCreatedAtDesc(me.getCompany().getId(), client.getId(), pageable);
+            selectedThreadKey = latestConversationKey(selectedRows);
+            final String effectiveThreadKey = selectedThreadKey;
+            selectedRows = selectedRows.stream()
+                    .filter(row -> effectiveThreadKey == null || Objects.equals(conversationKey(row), effectiveThreadKey))
+                    .filter(row -> channel == null || row.getChannel() == channel)
+                    .toList();
+        } else {
+            selectedRows = messages.findPageByCompanyIdAndClientIdAndConversationKeyOrderByCreatedAtDesc(
+                            me.getCompany().getId(),
+                            client.getId(),
+                            selectedThreadKey,
+                            selectedThreadKey.startsWith(LEGACY_CONVERSATION_PREFIX),
+                            pageable
+                    ).stream()
+                    .filter(row -> channel == null || row.getChannel() == channel)
+                    .toList();
+        }
+        List<ClientMessage> chronological = new ArrayList<>(selectedRows);
+        chronological.sort(Comparator.comparing(ClientMessage::getCreatedAt).thenComparing(ClientMessage::getId));
+        if (channel == null || channel == MessageChannel.GUEST_APP) markStaffMessagesRead(me.getCompany().getId(), client.getId(), chronological);
+        return chronological.stream()
                 .map(this::toView)
                 .toList();
-        if (limit != null && limit > 0 && out.size() > limit) return out.subList(out.size() - limit, out.size());
-        return out;
     }
 
     /**
@@ -1079,13 +1124,24 @@ public class ClientMessageService {
     }
 
     private List<ClientMessage> filterVisibleMessages(User me) {
-        List<ClientMessage> all = messages.findAllByCompanyIdOrderByCreatedAtDesc(me.getCompany().getId());
-        if (SecurityUtils.isAdmin(me)) return all;
-        return all.stream()
-                .filter(row -> row.getClient() != null
-                        && row.getClient().getAssignedTo() != null
-                        && Objects.equals(row.getClient().getAssignedTo().getId(), me.getId()))
-                .toList();
+        return filterVisibleMessages(me, 0, 100);
+    }
+
+    private List<ClientMessage> filterVisibleMessages(User me, int page, int size) {
+        var pageable = PageRequest.of(safePage(page), safeSize(size, 100, 500));
+        if (SecurityUtils.isAdmin(me)) {
+            return messages.findPageByCompanyIdOrderByCreatedAtDesc(me.getCompany().getId(), pageable);
+        }
+        return messages.findPageByCompanyIdAndAssignedToIdOrderByCreatedAtDesc(me.getCompany().getId(), me.getId(), pageable);
+    }
+
+    private static int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private static int safeSize(int size, int defaultSize, int maxSize) {
+        if (size <= 0) return defaultSize;
+        return Math.min(size, maxSize);
     }
 
     private boolean matchesFilter(ClientMessage row, ThreadFilter filter) {

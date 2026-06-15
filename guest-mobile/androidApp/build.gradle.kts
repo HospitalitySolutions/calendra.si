@@ -57,6 +57,22 @@ fun validateReleaseApiBaseUrl(value: String) {
 
 val resolvedApiBaseUrl = apiBaseUrl()
 val enableReleaseR8 = envOrProp("ENABLE_ANDROID_RELEASE_R8", "false").equals("true", ignoreCase = true)
+val releaseStoreFile = envOrProp("ANDROID_RELEASE_STORE_FILE").trim()
+val releaseStorePassword = envOrProp("ANDROID_RELEASE_STORE_PASSWORD").trim()
+val releaseKeyAlias = envOrProp("ANDROID_RELEASE_KEY_ALIAS").trim()
+val releaseKeyPassword = envOrProp("ANDROID_RELEASE_KEY_PASSWORD").trim()
+val releaseSigningConfigured = releaseStoreFile.isNotBlank() &&
+    releaseStorePassword.isNotBlank() &&
+    releaseKeyAlias.isNotBlank() &&
+    releaseKeyPassword.isNotBlank()
+
+fun validateReleaseSigningConfig() {
+    require(releaseSigningConfigured) {
+        "Release Android guest app builds require signing config. Set ANDROID_RELEASE_STORE_FILE, " +
+            "ANDROID_RELEASE_STORE_PASSWORD, ANDROID_RELEASE_KEY_ALIAS and ANDROID_RELEASE_KEY_PASSWORD " +
+            "as environment variables or Gradle properties. See guest-mobile/ANDROID_RELEASE_SIGNING.md."
+    }
+}
 
 android {
     namespace = "si.calendra.guest.android"
@@ -80,8 +96,20 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             // Keep R8/ProGuard disabled by default so Play Console does not require a
             // deobfuscation mapping file for the current release flow. If you intentionally
             // enable obfuscation with ENABLE_ANDROID_RELEASE_R8=true, upload the generated
@@ -116,6 +144,7 @@ tasks.configureEach {
         doFirst {
             validateReleaseApiBaseUrl(resolvedApiBaseUrl)
             validateReleaseGoogleServicesConfig()
+            validateReleaseSigningConfig()
         }
     }
 }

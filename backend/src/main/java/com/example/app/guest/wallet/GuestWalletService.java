@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,13 +44,22 @@ public class GuestWalletService {
 
     @Transactional(readOnly = true)
     public GuestDtos.WalletResponse wallet(GuestUser guestUser, Long companyId) {
+        return wallet(guestUser, companyId, 0, 100);
+    }
+
+    @Transactional(readOnly = true)
+    public GuestDtos.WalletResponse wallet(GuestUser guestUser, Long companyId, int ordersPage, int ordersSize) {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         return new GuestDtos.WalletResponse(
                 entitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(link.getClient().getId(), companyId).stream()
                         .filter(entitlement -> entitlement.getStatus() != EntitlementStatus.CANCELLED)
                         .map(GuestMapper::toEntitlement)
                         .toList(),
-                orders.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(guestUser.getId(), companyId).stream()
+                orders.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(
+                                guestUser.getId(),
+                                companyId,
+                                PageRequest.of(safePage(ordersPage), safeSize(ordersSize, 100, 500))
+                        ).stream()
                         .map(this::toWalletOrder)
                         .toList()
         );
@@ -103,6 +113,15 @@ public class GuestWalletService {
                 paymentCompanyAddress,
                 paymentIban
         );
+    }
+
+    private static int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private static int safeSize(int size, int defaultSize, int maxSize) {
+        if (size <= 0) return defaultSize;
+        return Math.min(size, maxSize);
     }
 
     private String settingValue(Long companyId, SettingKey key, String fallback) {

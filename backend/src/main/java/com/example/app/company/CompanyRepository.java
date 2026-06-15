@@ -18,6 +18,9 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
                     + "or lower(c.tenantCode) like lower(concat('%', :needle, '%'))")
     java.util.List<Long> findIdsByNameOrTenantCodeContainingIgnoreCase(@Param("needle") String needle);
 
+    @Query("select c.id from Company c order by c.id asc")
+    java.util.List<Long> findAllIds();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Company c WHERE c.id = :id")
     Optional<Company> findByIdForUpdate(@Param("id") Long id);

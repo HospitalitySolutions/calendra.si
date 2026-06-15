@@ -202,9 +202,14 @@ public class GuestHomeController {
     }
 
     @GetMapping("/wallet")
-    public GuestDtos.WalletResponse wallet(@RequestParam String companyId, HttpServletRequest request) {
+    public GuestDtos.WalletResponse wallet(
+            @RequestParam String companyId,
+            @RequestParam(name = "ordersPage", defaultValue = "0") int ordersPage,
+            @RequestParam(name = "ordersSize", defaultValue = "100") int ordersSize,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return walletService.wallet(guestUser, Long.parseLong(companyId));
+        return walletService.wallet(guestUser, Long.parseLong(companyId), ordersPage, ordersSize);
     }
 
     @GetMapping("/bookings/history")

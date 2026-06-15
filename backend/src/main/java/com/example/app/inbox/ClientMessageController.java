@@ -44,9 +44,11 @@ public class ClientMessageController {
             @RequestParam(required = false) MessageStatus status,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to,
-            @RequestParam(required = false) Long assignedUserId
+            @RequestParam(required = false) Long assignedUserId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size
     ) {
-        return service.listThreads(me, new ClientMessageService.ThreadFilter(search, clientId, channel, status, from, to, assignedUserId));
+        return service.listThreads(me, new ClientMessageService.ThreadFilter(search, clientId, channel, status, from, to, assignedUserId), page, size);
     }
 
     @GetMapping("/global-capabilities")
@@ -61,9 +63,11 @@ public class ClientMessageController {
             @PathVariable Long clientId,
             @RequestParam(required = false) String threadKey,
             @RequestParam(required = false) MessageChannel channel,
-            @RequestParam(required = false) Integer limit
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size
     ) {
-        return service.listClientMessages(me, clientId, threadKey, channel, limit);
+        return service.listClientMessages(me, clientId, threadKey, channel, limit, page, size);
     }
 
     @PostMapping("/messages")

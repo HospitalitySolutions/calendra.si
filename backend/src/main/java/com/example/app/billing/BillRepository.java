@@ -1,5 +1,6 @@
 package com.example.app.billing;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -23,6 +24,14 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyId(Long companyId);
+
+    @Query("""
+            select b.id from Bill b
+            where b.company.id = :companyId
+            order by b.issueDate desc, b.id desc
+            """)
+    List<Long> findPageIdsByCompanyId(@Param("companyId") Long companyId, Pageable pageable);
+
 
     @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(Long companyId, BillType billType);
@@ -68,6 +77,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
             "WHERE b.company.id = :companyId AND (b.sourceSessionIdSnapshot IN :sessionIds OR i.sourceSessionBookingId IN :sessionIds)")
     List<Bill> findAllLinkedToSessionIds(@Param("companyId") Long companyId, @Param("sessionIds") Collection<Long> sessionIds);
 
+    @EntityGraph(attributePaths = {"client", "consultant", "paymentMethod", "items", "items.transactionService"})
     List<Bill> findAllByCompanyIdAndIdIn(Long companyId, Collection<Long> ids);
 
     @Query(

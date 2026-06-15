@@ -29,6 +29,7 @@ import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.settings.AppSetting;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.PageRequest;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -675,29 +676,32 @@ public class BillingController {
 
     @GetMapping("/bills")
     @Transactional(readOnly = true)
-    public List<BillResponse> bills(@AuthenticationPrincipal User me) {
+    public List<BillResponse> bills(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size
+    ) {
         var companyId = me.getCompany().getId();
-        return billRepo.findAllByCompanyId(companyId).stream()
+        var ids = billRepo.findPageIdsByCompanyId(companyId, PageRequest.of(safePage(page), safeSize(size, 100, 500)));
+        if (ids.isEmpty()) return List.of();
+        Map<Long, Integer> order = new HashMap<>();
+        for (int i = 0; i < ids.size(); i++) order.put(ids.get(i), i);
+        return billRepo.findAllByCompanyIdAndIdIn(companyId, ids).stream()
+                .sorted(Comparator.comparingInt(b -> order.getOrDefault(b.getId(), Integer.MAX_VALUE)))
                 .map(this::ensureSnapshotBackfilled)
                 .map(BillingController::toResponse)
                 .toList();
     }
 
     @GetMapping("/open-bills")
-    @Transactional
-    public List<OpenBillResponse> openBills(@AuthenticationPrincipal User me) {
+    @Transactional(readOnly = true)
+    public List<OpenBillResponse> openBills(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size
+    ) {
         var companyId = me.getCompany().getId();
-        syncOpenBillsFromPastSessions(companyId);
-        openBillRepo.flush();
-        advanceAllocationRepo.flush();
-        entityManager.clear();
-
-        syncOpenBillsByBatchSettings(companyId);
-        openBillRepo.flush();
-        advanceAllocationRepo.flush();
-        entityManager.clear();
-
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId);
+        return openBillResponsePage(companyId, page, size);
     }
 
 
@@ -758,11 +762,7 @@ public class BillingController {
             open = openBillRepo.saveAndFlush(open);
         }
         final Long openBillId = open.getId();
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId)
-                .stream()
-                .filter(response -> Objects.equals(response.id(), openBillId))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return openBillResponseById(companyId, openBillId);
     }
 
     private boolean hasMultipleBillableRowsInBookingGroup(SessionBooking sourceSession, Long companyId) {
@@ -824,11 +824,7 @@ public class BillingController {
         }
 
         final Long responseOpenBillId = selectedOpenBillId != null ? selectedOpenBillId : fallbackOpenBillId;
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId)
-                .stream()
-                .filter(response -> Objects.equals(response.id(), responseOpenBillId))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return openBillResponseById(companyId, responseOpenBillId);
     }
 
     private OpenBillResponse createSharedOpenBillForSessionGroup(SessionBooking sourceSession, Long companyId) {
@@ -892,11 +888,7 @@ public class BillingController {
             open = openBillRepo.saveAndFlush(open);
         }
         final Long openBillId = open.getId();
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId)
-                .stream()
-                .filter(response -> Objects.equals(response.id(), openBillId))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return openBillResponseById(companyId, openBillId);
     }
 
     /**
@@ -970,11 +962,7 @@ public class BillingController {
 
         var saved = openBillRepo.saveAndFlush(additional);
         final Long openBillId = saved.getId();
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId)
-                .stream()
-                .filter(response -> Objects.equals(response.id(), openBillId))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return openBillResponseById(companyId, openBillId);
     }
 
     @PostMapping("/open-bills/manual")
@@ -1152,8 +1140,7 @@ public class BillingController {
 
         openBillRepo.save(open);
 
-        syncOpenBillsFromPastSessions(companyId);
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId);
+        return openBillResponsePage(companyId, 0, 100);
     }
 
     private Client resolveClientForCompanyTarget(
@@ -1647,11 +1634,7 @@ public class BillingController {
                 open.getBillType() == null || open.getBillType() == BillType.INVOICE
         );
         openBillRepo.save(open);
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId)
-                .stream()
-                .filter(o -> o.id().equals(id))
-                .findFirst()
-                .orElseThrow();
+        return openBillResponseById(companyId, id);
     }
 
     @PostMapping(value = "/open-bills/{id}/preview-pdf", produces = MediaType.APPLICATION_PDF_VALUE)
@@ -1840,7 +1823,7 @@ public class BillingController {
             openBillRepo.save(source);
         }
 
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId);
+        return openBillResponsePage(companyId, 0, 100);
     }
 
 
@@ -1921,7 +1904,7 @@ public class BillingController {
         refreshed.setBatchTargetCompanyId(null);
         refreshed.setManualSplitLocked(true);
         openBillRepo.saveAndFlush(refreshed);
-        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyId(companyId), companyId);
+        return openBillResponsePage(companyId, 0, 100);
     }
 
     private Set<Long> relatedOpenBillIdsForSameBookingGroup(OpenBill target, Long companyId) {
@@ -2416,6 +2399,35 @@ public class BillingController {
         } catch (Exception e) {
             log.warn("Could not archive folio PDF to S3 for billId={}", bill.getId(), e);
         }
+    }
+
+
+    private OpenBillResponse openBillResponseById(Long companyId, Long openBillId) {
+        if (openBillId == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        return toOpenBillResponses(openBillRepo.findAllWithItemsByCompanyIdAndIdIn(companyId, List.of(openBillId)), companyId)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    private List<OpenBillResponse> openBillResponsePage(Long companyId, int page, int size) {
+        var ids = openBillRepo.findPageIdsByCompanyId(companyId, PageRequest.of(safePage(page), safeSize(size, 100, 500)));
+        if (ids.isEmpty()) return List.of();
+        Map<Long, Integer> order = new HashMap<>();
+        for (int i = 0; i < ids.size(); i++) order.put(ids.get(i), i);
+        var rows = openBillRepo.findAllWithItemsByCompanyIdAndIdIn(companyId, ids).stream()
+                .sorted(Comparator.comparingInt(open -> order.getOrDefault(open.getId(), Integer.MAX_VALUE)))
+                .toList();
+        return toOpenBillResponses(rows, companyId);
+    }
+
+    private static int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private static int safeSize(int size, int defaultSize, int maxSize) {
+        if (size <= 0) return defaultSize;
+        return Math.min(size, maxSize);
     }
 
     private void syncOpenBillsFromPastSessions(Long companyId) {

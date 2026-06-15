@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -184,11 +185,18 @@ public class ClientController {
 
     @GetMapping
     @Transactional(readOnly = true)
-    public List<ClientResponse> list(@AuthenticationPrincipal User me) {
+    public List<ClientResponse> list(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "100") int size,
+            @RequestParam(name = "search", required = false) String search
+    ) {
         var companyId = me.getCompany().getId();
+        var pageable = PageRequest.of(safePage(page), safeSize(size, 100, 500));
+        String normalizedSearch = blankToNull(search);
         List<Client> rows = SecurityUtils.isAdmin(me)
-                ? repository.findAllByCompanyId(companyId)
-                : repository.findByAssignedToIdAndCompanyId(me.getId(), companyId);
+                ? repository.findPageByCompanyId(companyId, normalizedSearch, pageable)
+                : repository.findPageByAssignedToIdAndCompanyId(me.getId(), companyId, normalizedSearch, pageable);
         Set<Long> blockedIds = clientRemovalGuard.clientIdsWithRemovalBlock(
                 companyId,
                 rows.stream().map(Client::getId).toList());
@@ -593,6 +601,15 @@ public class ClientController {
         );
     }
 
+
+    private static int safePage(int page) {
+        return Math.max(0, page);
+    }
+
+    private static int safeSize(int size, int defaultSize, int maxSize) {
+        if (size <= 0) return defaultSize;
+        return Math.min(size, maxSize);
+    }
 
     private static String blankToNull(String value) {
         if (value == null) return null;
