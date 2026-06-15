@@ -501,6 +501,7 @@ type ModulesDesignIconKind =
   | 'key'
   | 'link'
   | 'sliders'
+  | 'scanner'
 
 type ModulesDesignLine = {
   id: string
@@ -578,6 +579,8 @@ function ModulesDesignIcon({ kind }: { kind: ModulesDesignIconKind }) {
         <><circle cx="8" cy="13" r="3" {...common} /><path d="m11 13 8-8M16 8l2 2M14 10l2 2" {...common} /></>
       ) : kind === 'sliders' ? (
         <><path d="M5 7h14M5 17h14M9 7a2 2 0 1 0 0 .01M15 17a2 2 0 1 0 0 .01M14 12H5M19 12h-4M15 12a2 2 0 1 0 0 .01" {...common} /></>
+      ) : kind === 'scanner' ? (
+        <><path d="M4 7V5a1 1 0 0 1 1-1h2" {...common} /><path d="M17 4h2a1 1 0 0 1 1 1v2" {...common} /><path d="M20 17v2a1 1 0 0 1-1 1h-2" {...common} /><path d="M7 20H5a1 1 0 0 1-1-1v-2" {...common} /><path d="M7 8h10M7 12h10M7 16h6" {...common} /></>
       ) : (
         <><path d="M9.5 14.5 14.5 9.5" {...common} /><path d="M8 9.5 6.8 10.7a4 4 0 0 0 5.7 5.7L14 15" {...common} /><path d="m10 9 1.5-1.5a4 4 0 0 1 5.7 5.7L16 14.5" {...common} /></>
       )}
@@ -3457,6 +3460,7 @@ type ModulesDraft = {
   NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: string
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: string
   GOOGLE_CALENDAR_MODULE_ENABLED: string
+  SCANNER_MODULE_ENABLED: string
   INBOX_ENABLED: string
   WHATSAPP_MODULE_ENABLED: string
   VIBER_MODULE_ENABLED: string
@@ -3510,6 +3514,7 @@ const buildModulesDraftFromCommitted = (s: Record<string, string>, g: GuestAppSe
   NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED', true),
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesStringSetting(s, 'NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED', true),
   GOOGLE_CALENDAR_MODULE_ENABLED: modulesStringSetting(s, 'GOOGLE_CALENDAR_MODULE_ENABLED', true),
+  SCANNER_MODULE_ENABLED: modulesStringSetting(s, 'SCANNER_MODULE_ENABLED', true),
   INBOX_ENABLED: modulesStringSetting(s, 'INBOX_ENABLED', true),
   WHATSAPP_MODULE_ENABLED: modulesStringSetting(s, 'WHATSAPP_MODULE_ENABLED', true),
   VIBER_MODULE_ENABLED: modulesStringSetting(s, 'VIBER_MODULE_ENABLED', false),
@@ -3691,6 +3696,7 @@ const modulesDraftToSettingsPatch = (draft: ModulesDraft): Record<string, string
   NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: draft.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED,
   NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: draft.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED,
   GOOGLE_CALENDAR_MODULE_ENABLED: draft.GOOGLE_CALENDAR_MODULE_ENABLED,
+  SCANNER_MODULE_ENABLED: draft.SCANNER_MODULE_ENABLED,
   INBOX_ENABLED: draft.INBOX_ENABLED,
   WHATSAPP_MODULE_ENABLED: draft.WHATSAPP_MODULE_ENABLED,
   VIBER_MODULE_ENABLED: draft.VIBER_MODULE_ENABLED,
@@ -4792,6 +4798,7 @@ export function ConfigurationPage() {
           NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED: modulesDraftForSave.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED,
           NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED: modulesDraftForSave.NOTIFICATIONS_REMINDER_TEMPLATES_ENABLED,
           GOOGLE_CALENDAR_MODULE_ENABLED: modulesDraftForSave.GOOGLE_CALENDAR_MODULE_ENABLED,
+          SCANNER_MODULE_ENABLED: modulesDraftForSave.SCANNER_MODULE_ENABLED,
           INBOX_ENABLED: modulesDraftForSave.INBOX_ENABLED,
           WHATSAPP_MODULE_ENABLED: modulesDraftForSave.WHATSAPP_MODULE_ENABLED,
           VIBER_MODULE_ENABLED: modulesDraftForSave.VIBER_MODULE_ENABLED,
@@ -5913,6 +5920,7 @@ export function ConfigurationPage() {
   ]
   const integrationModuleKeys: ModulesStringKey[] = [
     'GOOGLE_CALENDAR_MODULE_ENABLED',
+    'SCANNER_MODULE_ENABLED',
   ]
 
   const modulesDesignGroups: ModulesDesignGroup[] = [
@@ -6152,6 +6160,7 @@ export function ConfigurationPage() {
       onChange: (checked) => setModuleStringSettings(integrationModuleKeys, checked),
       rows: [
         { id: 'integrations-google-calendar', icon: 'calendar', title: t('tabGoogleCalendar'), checked: moduleOn('GOOGLE_CALENDAR_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('GOOGLE_CALENDAR_MODULE_ENABLED', checked) },
+        { id: 'integrations-scanner', icon: 'scanner', title: locale === 'sl' ? 'Skener' : 'Scanner', checked: moduleOn('SCANNER_MODULE_ENABLED'), onChange: (checked) => setModuleStringSetting('SCANNER_MODULE_ENABLED', checked) },
       ],
     },
   ]

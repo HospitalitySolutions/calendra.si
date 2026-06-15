@@ -99,6 +99,7 @@ export default function App() {
   const handledRef = useRef(false)
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
+  const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
 
 
@@ -128,6 +129,7 @@ export default function App() {
     if (!user) {
       setBillingModuleEnabled(true)
       setInboxModuleEnabled(true)
+      setScannerModuleEnabled(true)
       return
     }
 
@@ -138,12 +140,14 @@ export default function App() {
           if (!cancelled) {
             setBillingModuleEnabled(res.data?.BILLING_ENABLED !== 'false')
             setInboxModuleEnabled(res.data?.INBOX_ENABLED !== 'false')
+            setScannerModuleEnabled(res.data?.SCANNER_MODULE_ENABLED !== 'false')
           }
         })
         .catch(() => {
           if (!cancelled) {
             setBillingModuleEnabled(true)
             setInboxModuleEnabled(true)
+            setScannerModuleEnabled(true)
           }
         })
     }
@@ -311,7 +315,7 @@ export default function App() {
   const billingAllowed = hasBillingAccess(user.packageType) && billingModuleEnabled
   const consumablesAllowed = isAdmin && (isPlatformAdmin || consumablesModuleEnabled)
   const inboxAllowed = hasInboxAccess(user.packageType) && inboxModuleEnabled
-  const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
+  const canScanWalletEntitlements = scannerModuleEnabled && (isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN'))
   const fallbackRoute = getDefaultAllowedRoute(user.packageType)
 
   return (

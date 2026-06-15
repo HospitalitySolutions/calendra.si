@@ -155,7 +155,7 @@ function ShellInner({ children }: PropsWithChildren) {
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const isAdmin = user.role === 'ADMIN' || isPlatformAdmin
-  const canScanWalletEntitlements = isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN')
+  const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
@@ -172,6 +172,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
   const [typesModuleEnabled, setTypesModuleEnabled] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const canScanWalletEntitlements = settingsLoaded && scannerModuleEnabled && (isAdmin || user.permissions?.includes('WALLET_ENTITLEMENT_SCAN'))
   const [bellOpen, setBellOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -255,6 +256,7 @@ function ShellInner({ children }: PropsWithChildren) {
         setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
         setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
         setInboxModuleEnabled(settingsData.INBOX_ENABLED !== 'false')
+        setScannerModuleEnabled(settingsData.SCANNER_MODULE_ENABLED !== 'false')
       })
       .catch(() => {})
       .finally(() => setSettingsLoaded(true))
