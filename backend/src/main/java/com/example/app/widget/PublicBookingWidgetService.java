@@ -574,10 +574,11 @@ public class PublicBookingWidgetService {
                 }
                 if (isActuallyBookable(company.getId(), window.getConsultant().getId(), start, end, type.getId())) {
                     String iso = DATE_TIME_FORMAT.format(start);
-                    String key = consultantId == null
-                            ? iso + "::" + window.getConsultant().getId()
-                            : iso;
-                    deduped.putIfAbsent(key, new PublicBookingWidgetController.AvailabilitySlotResponse(
+                    // The public widget represents availability as "time is available if any matching
+                    // consultant can take it". Keep only one chip per start time when no consultant
+                    // was explicitly selected; the retained response still carries the consultant id
+                    // that should receive the booking.
+                    deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             window.getConsultant().getId() + "|" + start + "|" + end,
                             cursor.format(SLOT_LABEL_FORMAT),
                             iso,
@@ -632,10 +633,11 @@ public class PublicBookingWidgetService {
                 }
                 if (isActuallyBookable(company.getId(), consultant.getId(), start, end, type.getId())) {
                     String iso = DATE_TIME_FORMAT.format(start);
-                    String key = consultantId == null
-                            ? iso + "::" + consultant.getId()
-                            : iso;
-                    deduped.putIfAbsent(key, new PublicBookingWidgetController.AvailabilitySlotResponse(
+                    // The public widget represents availability as "time is available if any matching
+                    // consultant can take it". Keep only one chip per start time when no consultant
+                    // was explicitly selected; the retained response still carries the consultant id
+                    // that should receive the booking.
+                    deduped.putIfAbsent(iso, new PublicBookingWidgetController.AvailabilitySlotResponse(
                             consultant.getId() + "|" + start + "|" + end,
                             cursor.format(SLOT_LABEL_FORMAT),
                             iso,
@@ -702,9 +704,10 @@ public class PublicBookingWidgetService {
     private record TimeWindow(LocalTime start, LocalTime end) {}
 
     private static String widgetSlotMergeKey(PublicBookingWidgetController.AvailabilitySlotResponse s, Long requestConsultantId) {
-        if (requestConsultantId == null) {
-            return s.startTime() + "::" + (s.consultantId() == null ? "0" : s.consultantId());
-        }
+        // Without the employee-selection step the widget should show a slot once if at least one
+        // consultant is free at that time. With an explicit consultant selected, only that consultant
+        // is queried, so the same start-time key is still correct and also removes overlapping
+        // bookable-window/working-hours duplicates.
         return s.startTime();
     }
 

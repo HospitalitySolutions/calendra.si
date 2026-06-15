@@ -762,7 +762,7 @@
         if (currentKey !== requestKey) return;
 
         const filteredSlots = this.filterSlotsForSelectedConsultant(data.slots || [], selectedConsultantId);
-        const filteredGroupSessions = this.filterSlotsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
+        const filteredGroupSessions = this.filterItemsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
         this.setState({
           slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots),
           groupSessions: filteredGroupSessions,
@@ -778,10 +778,28 @@
 
     filterSlotsForSelectedConsultant(items, consultantId = this.state.selectedConsultantId) {
       const list = Array.isArray(items) ? items : [];
+      if (consultantId == null || consultantId === '') return this.mergeSlotsByStartTime(list);
+      const requested = Number(consultantId);
+      if (!Number.isFinite(requested)) return this.mergeSlotsByStartTime(list);
+      return list.filter((item) => Number(item?.consultantId) === requested);
+    }
+
+    filterItemsForSelectedConsultant(items, consultantId = this.state.selectedConsultantId) {
+      const list = Array.isArray(items) ? items : [];
       if (consultantId == null || consultantId === '') return list;
       const requested = Number(consultantId);
       if (!Number.isFinite(requested)) return list;
       return list.filter((item) => Number(item?.consultantId) === requested);
+    }
+
+    mergeSlotsByStartTime(items) {
+      const merged = new Map();
+      for (const item of Array.isArray(items) ? items : []) {
+        const key = item?.startTime || item?.label || '';
+        if (!key || merged.has(key)) continue;
+        merged.set(key, item);
+      }
+      return Array.from(merged.values());
     }
 
     async loadMonthAvailability() {
