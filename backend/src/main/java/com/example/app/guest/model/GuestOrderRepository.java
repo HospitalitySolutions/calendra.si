@@ -25,11 +25,11 @@ public interface GuestOrderRepository extends JpaRepository<GuestOrder, Long> {
     List<GuestOrder> findAllByClientIdAndCompanyIdAndStatusOrderByCreatedAtDesc(Long clientId, Long companyId, OrderStatus status);
 
     @Query("""
-            SELECT e.sourceOrderId, p.name, p.productType
+            SELECT e.sourceOrder.id, p.name, p.productType
             FROM GuestEntitlement e
             LEFT JOIN e.product p
-            WHERE e.sourceOrderId IN :orderIds
-            ORDER BY e.sourceOrderId ASC, e.createdAt ASC
+            WHERE e.sourceOrder.id IN :orderIds
+            ORDER BY e.sourceOrder.id ASC, e.createdAt ASC
             """)
     List<Object[]> findFirstEntitlementProductRowsForOrderIds(@Param("orderIds") Collection<Long> orderIds);
 }
