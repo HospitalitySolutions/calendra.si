@@ -169,7 +169,8 @@ class BillingControllerCompanyProxyClientFallbackTest {
             openBills.add(open);
             return open;
         });
-        when(openBillRepo.findAllWithItemsByCompanyId(1L)).thenAnswer(inv -> openBills);
+        when(openBillRepo.findPageIdsByCompanyId(org.mockito.ArgumentMatchers.eq(1L), any())).thenReturn(List.of(200L));
+        when(openBillRepo.findAllWithItemsByCompanyIdAndIdIn(1L, List.of(200L))).thenAnswer(inv -> openBills);
 
         BillingController.ManualOpenBillRequest req = new BillingController.ManualOpenBillRequest(
                 null,
@@ -228,7 +229,7 @@ class BillingControllerCompanyProxyClientFallbackTest {
             openBills.add(open);
             return open;
         });
-        when(openBillRepo.findAllWithItemsByCompanyId(1L)).thenAnswer(inv -> openBills);
+        when(openBillRepo.findAllWithItemsByCompanyIdAndIdIn(1L, List.of(201L))).thenAnswer(inv -> openBills);
 
         BillingController.AdditionalOpenBillRequest req = new BillingController.AdditionalOpenBillRequest(null, 77L, null);
 

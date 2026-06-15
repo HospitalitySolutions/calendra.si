@@ -325,7 +325,7 @@ class TenantIsolationControllerAccessTest {
                 null,
                 java.util.List.of());
         assertNotFound(() -> productAdmin.update(44L, req, tenantA));
-        verify(products).findByIdAndCompanyId(44L, 1L);
+        verify(products, times(2)).findByIdAndCompanyId(44L, 1L);
     }
 
     @Test

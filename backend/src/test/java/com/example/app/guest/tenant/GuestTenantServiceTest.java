@@ -180,7 +180,7 @@ class GuestTenantServiceTest {
         User owner = new User();
         owner.setId(5L);
         owner.setActive(true);
-        when(users.findAllByCompanyId(company.getId())).thenReturn(List.of(owner));
+        when(users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(company.getId())).thenReturn(Optional.of(owner));
         ClientRepository clients = mock(ClientRepository.class);
         when(clients.save(org.mockito.ArgumentMatchers.any(Client.class))).thenAnswer(invocation -> {
             Client created = invocation.getArgument(0);

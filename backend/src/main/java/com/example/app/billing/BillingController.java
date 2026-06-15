@@ -1623,7 +1623,7 @@ public class BillingController {
         BigDecimal discountValueForSave = req.discountValue() != null ? req.discountValue() : open.getDiscountValue();
         Integer discountItemIndexForSave = req.discountItemIndex() != null ? req.discountItemIndex() : open.getDiscountItemIndex();
         BigDecimal wholeBillDiscountPercentForSave = req.wholeBillDiscountPercent() != null ? req.wholeBillDiscountPercent() : open.getWholeBillDiscountPercent();
-        List<ItemDiscountRequest> itemDiscountsForSave = req.itemDiscounts() != null ? req.itemDiscounts() : parseOpenBillItemDiscounts(open);
+        List<ItemDiscountRequest> itemDiscountsForSave = req.itemDiscounts() != null ? req.itemDiscounts() : parseOpenBillItemDiscountsOrNull(open);
         applyOpenBillDiscountDraft(
                 open,
                 discountTypeForSave,
@@ -2081,7 +2081,7 @@ public class BillingController {
                 open.getDiscountValue(),
                 open.getDiscountItemIndex(),
                 open.getWholeBillDiscountPercent(),
-                parseOpenBillItemDiscounts(open),
+                parseOpenBillItemDiscountsOrNull(open),
                 resolvedBillType == BillType.INVOICE
         );
         totalNet = discountedTotals.net();
@@ -2246,7 +2246,7 @@ public class BillingController {
                 : open.getWholeBillDiscountPercent();
         List<ItemDiscountRequest> itemDiscountsForPreview = req != null && req.itemDiscounts() != null
                 ? req.itemDiscounts()
-                : parseOpenBillItemDiscounts(open);
+                : parseOpenBillItemDiscountsOrNull(open);
         Totals previewTotals = applyDiscountToBillItems(
                 bill,
                 discountTypeForPreview,
@@ -4491,6 +4491,13 @@ public class BillingController {
         } catch (Exception ex) {
             return List.of();
         }
+    }
+
+    private static List<ItemDiscountRequest> parseOpenBillItemDiscountsOrNull(OpenBill open) {
+        if (open == null || open.getItemDiscountsJson() == null || open.getItemDiscountsJson().isBlank()) {
+            return null;
+        }
+        return parseOpenBillItemDiscounts(open);
     }
 
     private static String serializeItemDiscounts(List<ItemDiscountRequest> discounts) {

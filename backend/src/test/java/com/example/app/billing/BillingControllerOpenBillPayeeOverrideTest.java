@@ -128,7 +128,7 @@ class BillingControllerOpenBillPayeeOverrideTest {
 
         org.mockito.Mockito.lenient().when(openBillRepo.findById(18L)).thenReturn(Optional.of(openBill));
         org.mockito.Mockito.lenient().when(openBillRepo.save(any(OpenBill.class))).thenAnswer(inv -> inv.getArgument(0));
-        org.mockito.Mockito.lenient().when(openBillRepo.findAllWithItemsByCompanyId(1L)).thenReturn(List.of(openBill));
+        org.mockito.Mockito.lenient().when(openBillRepo.findAllWithItemsByCompanyIdAndIdIn(1L, List.of(18L))).thenReturn(List.of(openBill));
     }
 
     @Test

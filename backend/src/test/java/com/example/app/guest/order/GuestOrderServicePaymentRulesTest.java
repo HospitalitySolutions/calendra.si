@@ -171,6 +171,8 @@ class GuestOrderServicePaymentRulesTest {
             return order;
         });
 
+        when(settingsService.billingEnabled(any(Long.class))).thenReturn(true);
+        when(settingsService.advanceBillingEnabled(any(Long.class))).thenReturn(true);
         when(settingsService.acceptedPaymentMethods(any(Long.class))).thenReturn(acceptedPaymentMethods);
         // Default: PayPal merchant configured, PayPal method present.
         // guestEnabled is intentionally false to verify guest channel no longer depends on it.

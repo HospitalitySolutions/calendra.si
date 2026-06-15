@@ -116,8 +116,7 @@ class SessionBookingCreationServiceSyncTriggerTest {
 
         when(clients.findByIdAndCompanyId(10L, 1L)).thenReturn(Optional.of(client));
         when(companies.findByIdForUpdate(1L)).thenReturn(Optional.of(company));
-        when(users.findAllByCompanyId(1L)).thenReturn(List.of(admin));
-        when(repo.findAllByCompanyId(1L)).thenReturn(List.of());
+        when(users.findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(1L, Role.ADMIN)).thenReturn(Optional.of(admin));
         when(repo.save(any(SessionBooking.class))).thenAnswer(inv -> {
             SessionBooking row = inv.getArgument(0);
             row.setId(111L);
@@ -127,7 +126,7 @@ class SessionBookingCreationServiceSyncTriggerTest {
         SessionBooking saved = service.createChannelBooking(request);
 
         assertEquals(111L, saved.getId());
-        verify(openBillSyncService).syncCompany(1L);
+        verify(openBillSyncService).enqueueBookingsSync(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -158,14 +157,13 @@ class SessionBookingCreationServiceSyncTriggerTest {
                 null,
                 null,
                 null,
-                null,
+                SessionBookingStatus.CHECKED_OUT,
                 null
         );
 
         when(repo.findByIdAndCompanyId(50L, 1L)).thenReturn(Optional.of(existing));
         when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("g-1", 1L)).thenReturn(List.of(existing));
         when(companies.findByIdForUpdate(1L)).thenReturn(Optional.of(company));
-        when(repo.findAllByCompanyId(1L)).thenReturn(List.of(existing));
         when(clients.findByIdAndCompanyId(10L, 1L)).thenReturn(Optional.of(client));
         when(users.findByIdAndCompanyId(20L, 1L)).thenReturn(Optional.of(admin));
         when(repo.save(any(SessionBooking.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -173,7 +171,7 @@ class SessionBookingCreationServiceSyncTriggerTest {
         var response = service.update(50L, request, admin);
 
         assertEquals(50L, response.id());
-        verify(openBillSyncService).syncCompany(1L);
+        verify(openBillSyncService).enqueueBookingsSync(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -212,7 +210,6 @@ class SessionBookingCreationServiceSyncTriggerTest {
         when(repo.findByIdAndCompanyId(50L, 1L)).thenReturn(Optional.of(existing));
         when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("g-1", 1L)).thenReturn(List.of(existing));
         when(companies.findByIdForUpdate(1L)).thenReturn(Optional.of(company));
-        when(repo.findAllByCompanyId(1L)).thenReturn(List.of(existing));
         when(clients.findByIdAndCompanyId(10L, 1L)).thenReturn(Optional.of(client));
         when(users.findByIdAndCompanyId(20L, 1L)).thenReturn(Optional.of(admin));
         when(repo.save(any(SessionBooking.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -258,7 +255,6 @@ class SessionBookingCreationServiceSyncTriggerTest {
         when(repo.findByIdAndCompanyId(50L, 1L)).thenReturn(Optional.of(existing));
         when(repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc("g-1", 1L)).thenReturn(List.of(existing));
         when(companies.findByIdForUpdate(1L)).thenReturn(Optional.of(company));
-        when(repo.findAllByCompanyId(1L)).thenReturn(List.of(existing));
         when(clients.findByIdAndCompanyId(10L, 1L)).thenReturn(Optional.of(client));
         when(users.findByIdAndCompanyId(20L, 1L)).thenReturn(Optional.of(admin));
         when(repo.save(any(SessionBooking.class))).thenAnswer(inv -> inv.getArgument(0));

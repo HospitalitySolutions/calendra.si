@@ -80,6 +80,7 @@ class GuestHomeServiceTest {
                 .thenReturn(
                         new GuestSettingsService.GuestBookingRules(
                                 24, 24, false, false, false, false, List.of(), List.of(), List.of(), false, "none", 20));
+        when(settingsService.acceptedPaymentMethods(10L)).thenReturn(List.of());
 
         User consultant = new User();
         consultant.setFirstName("Jane");
@@ -102,7 +103,12 @@ class GuestHomeServiceTest {
         booking.setBookingStatus("CONFIRMED");
 
         SessionBookingRepository bookings = mock(SessionBookingRepository.class);
-        when(bookings.findByClientIdAndCompanyId(100L, 10L)).thenReturn(List.of(booking));
+        when(bookings.findUpcomingByClientIdAndCompanyId(
+                org.mockito.ArgumentMatchers.eq(100L),
+                org.mockito.ArgumentMatchers.eq(10L),
+                org.mockito.ArgumentMatchers.any(LocalDateTime.class),
+                org.mockito.ArgumentMatchers.any(org.springframework.data.domain.Pageable.class)
+        )).thenReturn(List.of(booking));
 
         GuestHomeService service =
                 new GuestHomeService(
