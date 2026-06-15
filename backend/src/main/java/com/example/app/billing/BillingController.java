@@ -2477,7 +2477,7 @@ public class BillingController {
     }
 
     private void syncOpenBillsByBatchSettings(Long companyId) {
-        var sourceIds = openBillRepo.findBatchMergeCandidateIds(companyId);
+        var sourceIds = openBillRepo.findBatchMergeCandidateIds(companyId, PageRequest.of(0, 100));
         for (Long sourceId : sourceIds) {
             mergeOpenBillIntoConfiguredBatch(companyId, sourceId);
             openBillRepo.flush();

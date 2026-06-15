@@ -27,6 +27,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ContentDisposition;
@@ -322,7 +323,7 @@ public class ClientController {
                 .filter(Objects::nonNull)
                 .toList();
         var usageHistory = entitlementIds.isEmpty()
-                ? List.<WalletUsageResponse>of()
+                ? List.<ClientWalletUsageResponse>of()
                 : guestEntitlementUsages.findAllByEntitlementIdInOrderByUsedAtDesc(entitlementIds, PageRequest.of(0, 500)).stream()
                 .map(this::toWalletUsageResponse)
                 .toList();
