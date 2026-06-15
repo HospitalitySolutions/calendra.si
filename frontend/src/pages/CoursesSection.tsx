@@ -527,7 +527,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                   <th><CourseSortableHeader>Bunny</CourseSortableHeader></th>
                   <th><CourseSortableHeader>{locale === 'sl' ? 'Dostop' : 'Access'}</CourseSortableHeader></th>
                   <th><CourseSortableHeader>{locale === 'sl' ? 'Status' : 'Status'}</CourseSortableHeader></th>
-                  <th>{locale === 'sl' ? 'Dejanje' : 'Action'}</th>
+                  <th>{locale === 'sl' ? 'Dejanja' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -565,48 +565,28 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                         {courseStatusLabel(course, locale)}
                       </button>
                     </td>
-                    <td className="clients-actions service-config-actions">
-                      <div className="clients-actions-inner">
-                        <div className="clients-card-menu-wrap">
-                          <button
-                            type="button"
-                            className="secondary clients-card-menu-trigger service-config-menu-trigger"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setOpenCourseMenuId((prev) => (prev === course.id ? null : course.id))
-                            }}
-                            aria-label="Course actions"
-                            aria-expanded={openCourseMenuId === course.id}
-                          >
-                            ⋮
-                          </button>
-                          {openCourseMenuId === course.id && (
-                            <div className="clients-card-menu-popover" role="dialog" aria-label="Course actions">
-                              <button
-                                type="button"
-                                disabled={deletingId === course.id}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void archiveToggle(course)
-                                }}
-                              >
-                                {course.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}
-                              </button>
-                              <button
-                                type="button"
-                                className="danger"
-                                disabled={deletingId === course.id}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void deleteCourse(course)
-                                }}
-                              >
-                                {deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                    <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        disabled={deletingId === course.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void archiveToggle(course)
+                        }}
+                      >
+                        {course.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}
+                      </button>
+                      <button
+                        type="button"
+                        className="account-table-action-danger"
+                        disabled={deletingId === course.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void deleteCourse(course)
+                        }}
+                      >
+                        {deletingId === course.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
+                      </button>
                     </td>
                   </tr>
                 ))}

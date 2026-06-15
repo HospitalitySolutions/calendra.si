@@ -967,6 +967,25 @@ export function FolioLayoutEditor() {
 
   const selectedField = selection?.type === 'field' ? layout.fields[selection.index] : null
   const selectedFooterItem = selection?.type === 'footer' ? layout.footer.items[selection.index] : null
+  const copy = {
+    styleLabel: locale === 'sl' ? 'Slog računa' : 'Invoice style',
+    selectStyle: locale === 'sl' ? 'Izberite slog...' : 'Select style...',
+    loadStyle: locale === 'sl' ? 'Naloži slog' : 'Load style',
+    zoom: locale === 'sl' ? 'Povečava' : 'Zoom',
+    snap: locale === 'sl' ? 'Pripni na mrežo' : 'Snap',
+    header: locale === 'sl' ? 'Glava' : 'Header',
+    footer: locale === 'sl' ? 'Noga' : 'Footer',
+    textField: locale === 'sl' ? 'Besedilno polje' : 'Text field',
+    import: locale === 'sl' ? 'Uvozi' : 'Import',
+    export: locale === 'sl' ? 'Izvozi' : 'Export',
+    reset: locale === 'sl' ? 'Ponastavi' : 'Reset',
+    save: locale === 'sl' ? 'Shrani' : 'Save',
+    saving: locale === 'sl' ? 'Shranjujem...' : 'Saving...',
+    emptyText: locale === 'sl'
+      ? 'Kliknite polje, prostor strani, tabelo storitev, tabelo predplačil, tabelo razčlenitve DDV, logotip, plačilni QR, davčni QR, podpis ali element noge, da uredite njegove lastnosti.'
+      : 'Click a field, page space, services table, advance payments table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.',
+    editPageSpaces: locale === 'sl' ? 'Uredi razmike strani' : 'Edit page spaces',
+  }
 
   /* ── Render ── */
 
@@ -975,15 +994,15 @@ export function FolioLayoutEditor() {
       {/* Toolbar */}
       <div className="fle-toolbar">
         <label className="fle-toolbar-item fle-style-picker">
-          Folio style
+          {copy.styleLabel}
           <select className="fle-style-select" value={selectedStyleId} onChange={(e) => selectFolioStyle(e.target.value)}>
-            <option value="">Select style...</option>
+            <option value="">{copy.selectStyle}</option>
             {folioStyles.map((style) => (
               <option key={style.id} value={style.id}>{style.name}</option>
             ))}
           </select>
         </label>
-        <button type="button" className="fle-btn" onClick={loadSelectedFolioStyle} disabled={!selectedStyleId}>Load style</button>
+        <button type="button" className="fle-btn" onClick={loadSelectedFolioStyle} disabled={!selectedStyleId}>{copy.loadStyle}</button>
         {isPlatformAdmin && (
           <div className="fle-platform-style-tools">
             <input
@@ -1006,16 +1025,16 @@ export function FolioLayoutEditor() {
           </div>
         )}
         <label className="fle-toolbar-item">
-          Zoom
+          {copy.zoom}
           <input type="range" min={0.4} max={1.5} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
           <span>{Math.round(zoom * 100)}%</span>
         </label>
         <label className="fle-toolbar-item fle-snap-toggle">
           <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
-          Snap
+          {copy.snap}
         </label>
         <label className="fle-toolbar-item">
-          Header
+          {copy.header}
           <input
             className="fle-toolbar-number"
             type="number"
@@ -1027,7 +1046,7 @@ export function FolioLayoutEditor() {
           pt
         </label>
         <label className="fle-toolbar-item">
-          Footer
+          {copy.footer}
           <input
             className="fle-toolbar-number"
             type="number"
@@ -1039,12 +1058,12 @@ export function FolioLayoutEditor() {
           pt
         </label>
         <div className="fle-toolbar-spacer" />
-        <button type="button" className="fle-btn fle-btn-add" onClick={addCustomField}>+ Text field</button>
-        <button type="button" className="fle-btn" onClick={importJson}>Import</button>
-        <button type="button" className="fle-btn" onClick={exportJson}>Export</button>
-        <button type="button" className="fle-btn fle-btn-secondary" onClick={reset}>Reset</button>
+        <button type="button" className="fle-btn fle-btn-add" onClick={addCustomField}>+ {copy.textField}</button>
+        <button type="button" className="fle-btn" onClick={importJson}>{copy.import}</button>
+        <button type="button" className="fle-btn" onClick={exportJson}>{copy.export}</button>
+        <button type="button" className="fle-btn fle-btn-secondary" onClick={reset}>{copy.reset}</button>
         <button type="button" className="fle-btn fle-btn-primary" onClick={save} disabled={saving || !dirty}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? copy.saving : copy.save}
         </button>
       </div>
       {styleNotice && (
@@ -1524,8 +1543,8 @@ export function FolioLayoutEditor() {
         <div className="fle-panel">
           {selection === null && (
             <div className="fle-panel-empty">
-              <p className="muted">Click a field, page space, services table, advance payments table, VAT breakdown table, logo, payment QR, fiscal QR, signature, or a footer item to edit its properties.</p>
-              <button type="button" className="fle-btn" onClick={() => setSelection({ type: 'pageSections' })}>Edit page spaces</button>
+              <p className="muted">{copy.emptyText}</p>
+              <button type="button" className="fle-btn" onClick={() => setSelection({ type: 'pageSections' })}>{copy.editPageSpaces}</button>
             </div>
           )}
 

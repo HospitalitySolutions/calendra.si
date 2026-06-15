@@ -664,7 +664,7 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                   <th><CardsMembershipSortableHeader>{t('sessionTypesCardsColPrice')}</CardsMembershipSortableHeader></th>
                   <th><CardsMembershipSortableHeader>{t('sessionTypesCardsColValidity')}</CardsMembershipSortableHeader></th>
                   <th><CardsMembershipSortableHeader>{t('sessionTypesCardsColStatus')}</CardsMembershipSortableHeader></th>
-                  <th>{locale === 'sl' ? 'Dejanje' : 'Action'}</th>
+                  <th>{locale === 'sl' ? 'Dejanja' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -703,47 +703,27 @@ export const CardsMembershipsSection = forwardRef<CardsMembershipsSectionHandle,
                         {product.active === false ? inactiveStatusLabel : activeStatusLabel}
                       </button>
                     </td>
-                    <td className="clients-actions service-config-actions">
-                      <div className="clients-actions-inner">
-                        <button
-                          type="button"
-                          className="secondary slim-btn cards-product-delete-btn cards-product-row-delete"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void deleteGuestProduct(product)
-                          }}
-                        >
-                          {locale === 'sl' ? 'Izbriši kartico' : 'Delete entitlement'}
-                        </button>
-                        <div className="clients-card-menu-wrap">
-                          <button
-                            type="button"
-                            className="secondary clients-card-menu-trigger service-config-menu-trigger"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setOpenProductMenuId((prev) => (prev === product.id ? null : product.id))
-                            }}
-                            aria-label="Card actions"
-                            aria-expanded={openProductMenuId === product.id}
-                          >
-                            ⋮
-                          </button>
-                          {openProductMenuId === product.id && (
-                            <div className="clients-card-menu-popover" role="dialog" aria-label="Card actions">
-                              <button
-                                type="button"
-                                disabled={activatingGuestProductId === product.id}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void toggleGuestProductActive(product, !product.active)
-                                }}
-                              >
-                                {product.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : 'Activate'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                    <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        disabled={activatingGuestProductId === product.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void toggleGuestProductActive(product, !product.active)
+                        }}
+                      >
+                        {product.active ? (locale === 'sl' ? 'Deaktiviraj' : 'Deactivate') : (locale === 'sl' ? 'Aktiviraj' : 'Activate')}
+                      </button>
+                      <button
+                        type="button"
+                        className="account-table-action-danger"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void deleteGuestProduct(product)
+                        }}
+                      >
+                        {locale === 'sl' ? 'Izbriši' : 'Delete'}
+                      </button>
                     </td>
                   </tr>
                 ))}

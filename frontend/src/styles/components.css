@@ -992,3 +992,43 @@ tr.tenancy-row-clickable:focus-visible {
     outline: 2px solid var(--color-primary, #6366f1);
     outline-offset: -2px;
 }
+/* Reusable compact table action links matching Upravljanje računa → Prejeti računi → Dejanja. */
+.account-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: #0878f7;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.account-table-actions button,
+.account-table-actions a {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+  line-height: 1.2;
+  box-shadow: none;
+}
+
+.account-table-actions button:disabled,
+.account-table-actions a[aria-disabled="true"] {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.account-table-actions .account-table-action-danger {
+  color: #ef4444;
+}
+
+.account-table-actions svg {
+  flex: 0 0 16px;
+}

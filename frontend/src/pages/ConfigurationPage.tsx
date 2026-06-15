@@ -1246,7 +1246,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
         }
         .notif-event-row {
           display: grid;
-          grid-template-columns: 52px minmax(220px, 1fr) minmax(218px, 0.34fr) 52px auto 24px;
+          grid-template-columns: 52px minmax(220px, 1fr) minmax(218px, 0.34fr) 52px auto;
           align-items: center;
           gap: 18px;
           min-height: 88px;
@@ -1258,7 +1258,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
           transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
         }
         .notif-layout.has-editor .notif-event-row {
-          grid-template-columns: 52px minmax(170px, 1fr) minmax(190px, 0.34fr) 52px auto 24px;
+          grid-template-columns: 52px minmax(170px, 1fr) minmax(190px, 0.34fr) 52px auto;
           gap: 14px;
         }
         .notif-event-row.is-editing {
@@ -1318,6 +1318,9 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
           transform: translateX(22px);
         }
         .notif-row-action {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
           border: 0;
           background: transparent;
           color: var(--notif-ink);
@@ -1326,9 +1329,20 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
           white-space: nowrap;
           cursor: pointer;
         }
+        .notif-row-action-icon {
+          display: inline-grid;
+          place-items: center;
+          width: 19px;
+          height: 19px;
+          flex: 0 0 auto;
+          transition: transform 160ms ease;
+        }
         .notif-row-action:hover,
         .notif-row-action.is-active {
           color: var(--notif-blue);
+        }
+        .notif-row-action.is-active .notif-row-action-icon {
+          transform: rotate(180deg);
         }
         .notif-row-chevron {
           display: grid;
@@ -1642,7 +1656,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
             gap: 14px;
           }
           .notif-row-action {
-            display: none;
+            display: inline-flex;
           }
           .notif-reminder-select-wrap,
           .notif-reminder-placeholder {
@@ -1758,7 +1772,7 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
             grid-template-areas:
               'icon copy switch'
               'reminder reminder reminder'
-              'action action chevron';
+              'action action action';
             align-items: center;
             gap: 0 14px;
             min-height: 0;
@@ -1845,13 +1859,17 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
             display: flex !important;
             align-items: center;
             min-height: 42px;
-            margin: 0 0 0 -14px;
-            padding: 0 0 0 14px;
+            margin: 0 -14px;
+            padding: 0 14px;
             border-top: 1px solid #e8eef7;
             color: var(--notif-blue);
             font-size: 13px;
             font-weight: 850;
             text-align: left;
+          }
+          .notif-row-action-icon svg {
+            width: 19px;
+            height: 19px;
           }
           .notif-row-chevron {
             grid-area: chevron;
@@ -2066,9 +2084,16 @@ function ConfigurationNotificationsSection({ settings, setSettings, savingSettin
                         </span>
                       ) : <span className="notif-reminder-placeholder" aria-hidden />}
                       <NotificationSwitch checked={checked} onChange={(next) => setNotificationEnabled(event.id, next)} />
-                      <button type="button" className={isEditing ? 'notif-row-action is-active' : 'notif-row-action'} onClick={openEditor}>{channelCopy[channel].editLabel}</button>
-                      <button type="button" className={isEditing ? 'notif-row-chevron is-active' : 'notif-row-chevron'} aria-label={`${channelCopy[channel].editLabel}: ${event.title}`} onClick={openEditor}>
-                        <NotificationChevronIcon expanded={isEditing} />
+                      <button
+                        type="button"
+                        className={isEditing ? 'notif-row-action is-active' : 'notif-row-action'}
+                        aria-label={`${channelCopy[channel].editLabel}: ${event.title}`}
+                        onClick={openEditor}
+                      >
+                        <span>{channelCopy[channel].editLabel}</span>
+                        <span className="notif-row-action-icon" aria-hidden>
+                          <NotificationChevronIcon expanded={isEditing} />
+                        </span>
                       </button>
                     </div>
                   )
@@ -4899,14 +4924,14 @@ export function ConfigurationPage() {
   }, [stripeConnectStatus])
 
   const stripeStatusLabel = useMemo(() => {
-    if (!stripeConnectStatus || !activeStripeAccount) return 'Not connected'
-    if (!activeStripeAccount.connected) return 'Not connected'
-    if (activeStripeAccount.chargesEnabled && activeStripeAccount.payoutsEnabled) return 'Payments and payouts enabled'
-    if (activeStripeAccount.chargesEnabled) return 'Payments enabled · payouts pending'
-    if (activeStripeAccount.detailsSubmitted) return 'Verification pending'
-    if (activeStripeAccount.onboardingStatus === 'ONBOARDING_LINK_CREATED') return 'Onboarding started'
-    return activeStripeAccount.onboardingStatus?.replace(/_/g, ' ') || 'Action required'
-  }, [stripeConnectStatus, activeStripeAccount])
+    if (!stripeConnectStatus || !activeStripeAccount) return locale === 'sl' ? 'Ni povezano' : 'Not connected'
+    if (!activeStripeAccount.connected) return locale === 'sl' ? 'Ni povezano' : 'Not connected'
+    if (activeStripeAccount.chargesEnabled && activeStripeAccount.payoutsEnabled) return locale === 'sl' ? 'Plačila in izplačila omogočena' : 'Payments and payouts enabled'
+    if (activeStripeAccount.chargesEnabled) return locale === 'sl' ? 'Plačila omogočena · izplačila v čakanju' : 'Payments enabled · payouts pending'
+    if (activeStripeAccount.detailsSubmitted) return locale === 'sl' ? 'Preverjanje v teku' : 'Verification pending'
+    if (activeStripeAccount.onboardingStatus === 'ONBOARDING_LINK_CREATED') return locale === 'sl' ? 'Onboarding začet' : 'Onboarding started'
+    return activeStripeAccount.onboardingStatus?.replace(/_/g, ' ') || (locale === 'sl' ? 'Potrebno ukrepanje' : 'Action required')
+  }, [stripeConnectStatus, activeStripeAccount, locale])
 
   const activeGoogleCalendarConnection = useMemo(() => (
     googleCalendarConnections.find((entry) => entry.status && entry.status !== 'DISABLED') || null
@@ -5660,7 +5685,7 @@ export function ConfigurationPage() {
     ...(paymentGlobalCapabilities.paypalEnabled ? [{ id: 'paypal', label: 'PayPal' } satisfies { id: BillingSubtab; label: string }] : []),
     { id: 'fiscal', label: t('configBillingFiscalTab') },
     { id: 'invoiceDelivery', label: t('configBillingInvoiceDeliveryTab') },
-    { id: 'folioLayout', label: 'Folio layout' },
+    { id: 'folioLayout', label: locale === 'sl' ? 'Postavitev računa' : 'Invoice layout' },
   ]
 
   useEffect(() => {
@@ -9391,7 +9416,7 @@ export function ConfigurationPage() {
                 <div className="billing-card billing-overview-card">
                   <span className="billing-overview-icon"><BillingLinkIcon /></span>
                   <span>
-                    <span className="billing-overview-label">{locale === 'sl' ? 'Stripe Connect status' : 'Stripe Connect status'}</span>
+                    <span className="billing-overview-label">{locale === 'sl' ? 'Status Stripe Connect' : 'Stripe Connect status'}</span>
                     <span className={activeStripeAccount?.chargesEnabled ? 'billing-pill billing-pill--success' : 'billing-pill billing-pill--neutral'}>
                       <span className="billing-status-dot" /> {stripeStatusLabel}
                     </span>
@@ -9400,7 +9425,7 @@ export function ConfigurationPage() {
                 <div className="billing-card billing-overview-card">
                   <span className="billing-overview-icon"><BillingUserBadgeIcon /></span>
                   <span>
-                    <span className="billing-overview-label">Account ID</span>
+                    <span className="billing-overview-label">{locale === 'sl' ? 'ID računa' : 'Account ID'}</span>
                     <span className="billing-overview-value">{activeStripeAccount?.accountId || '—'}</span>
                   </span>
                 </div>
@@ -9476,7 +9501,7 @@ export function ConfigurationPage() {
                     <strong>Stripe zbira občutljive podatke</strong><br />
                     Tenant se onboarda na Stripe hosted strani. Calendra shrani samo connected account ID in status; IBAN, KYC in dokumenti ostanejo pri Stripe.
                     <br />
-                    Account ID: {activeStripeAccount?.accountId || '—'} · Charges: {activeStripeAccount?.chargesEnabled ? 'ON' : 'OFF'} · Payouts: {activeStripeAccount?.payoutsEnabled ? 'ON' : 'OFF'}
+                    {locale === 'sl' ? 'ID računa' : 'Account ID'}: {activeStripeAccount?.accountId || '—'} · {locale === 'sl' ? 'Plačila' : 'Charges'}: {activeStripeAccount?.chargesEnabled ? 'ON' : 'OFF'} · {locale === 'sl' ? 'Izplačila' : 'Payouts'}: {activeStripeAccount?.payoutsEnabled ? 'ON' : 'OFF'}
                   </span>
                 </div>
 

@@ -1850,3 +1850,80 @@
     border-color: rgba(96, 165, 250, 0.18);
 }
 
+
+/* Match billing table actions to Upravljanje računa → Prejeti računi → Dejanja. */
+.billing-modern-actions,
+.billing-modern-actions--history {
+    justify-content: flex-start;
+    gap: 18px;
+    color: #0878f7;
+    font-weight: 700;
+}
+
+.billing-action-btn,
+.billing-open-row-action,
+.billing-action-btn--primary,
+.billing-open-row-action--primary,
+.billing-action-btn--danger,
+.billing-open-row-action--danger {
+    appearance: none;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font: inherit;
+    line-height: 1.2;
+    letter-spacing: 0;
+    text-decoration: none;
+    text-transform: none;
+    transition: opacity .18s ease;
+}
+
+.billing-action-btn:hover,
+.billing-open-row-action:hover,
+.billing-action-btn--primary:hover,
+.billing-open-row-action--primary:hover,
+.billing-action-btn--danger:hover,
+.billing-open-row-action--danger:hover {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    transform: none;
+    text-decoration: none;
+    opacity: .78;
+}
+
+.billing-action-btn--danger,
+.billing-open-row-action--danger {
+    color: #ef4444;
+}
+
+.billing-action-btn:disabled,
+.billing-open-row-action:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    transform: none;
+}
+
+[data-theme="dark"] .billing-action-btn,
+[data-theme="dark"] .billing-open-row-action,
+[data-theme="dark"] .billing-action-btn--primary,
+[data-theme="dark"] .billing-open-row-action--primary {
+    background: transparent;
+    color: #60a5fa;
+}
+
+[data-theme="dark"] .billing-action-btn--danger,
+[data-theme="dark"] .billing-open-row-action--danger {
+    background: transparent;
+    color: #f87171;
+}

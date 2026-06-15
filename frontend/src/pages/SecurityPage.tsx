@@ -3,7 +3,7 @@ import axios from 'axios'
 import { api } from '../api'
 import { PageHeader } from '../components/ui'
 import { useLocale } from '../locale'
-import { createPasskeyFromOptions, passkeyCapabilityMessage, supportsWebAuthn } from '../lib/webauthn'
+import { createPasskeyFromOptions, supportsWebAuthn } from '../lib/webauthn'
 import { clearAuthStoragePreservingTheme } from '../theme'
 
 type PasskeyRow = {
@@ -86,26 +86,27 @@ const securityTabs: Array<{ id: SecurityTab; label: string; icon: SecurityIconNa
   { id: 'alerts', label: 'Alerts', icon: 'bell' },
 ]
 
-function formatDateTime(value?: string | null) {
+function formatDateTime(value?: string | null, locale?: string) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString()
+  return date.toLocaleString(locale === 'sl' ? 'sl-SI' : undefined)
 }
 
-function formatAgo(value?: string | null) {
+function formatAgo(value?: string | null, locale?: string) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   const diffMs = Date.now() - date.getTime()
   const diffMinutes = Math.round(diffMs / 60000)
-  if (diffMinutes < 1) return 'just now'
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
+  const isSl = locale === 'sl'
+  if (diffMinutes < 1) return isSl ? 'pravkar' : 'just now'
+  if (diffMinutes < 60) return isSl ? `pred ${diffMinutes} min` : `${diffMinutes}m ago`
   const diffHours = Math.round(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffHours < 24) return isSl ? `pred ${diffHours} h` : `${diffHours}h ago`
   const diffDays = Math.round(diffHours / 24)
-  if (diffDays < 14) return `${diffDays}d ago`
-  return formatDateTime(value)
+  if (diffDays < 14) return isSl ? `pred ${diffDays} d` : `${diffDays}d ago`
+  return formatDateTime(value, locale)
 }
 
 async function copyText(value: string) {
@@ -318,14 +319,133 @@ function SecurityToggle({ checked, onChange }: { checked: boolean; onChange: (ch
 }
 
 export function SecurityPage({ embedded = false }: SecurityPageProps) {
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
+  const sl = locale === 'sl'
+  const securityCopy = {
+    loadError: sl ? 'Pregleda varnosti ni bilo mogoče naložiti.' : 'Could not load your security overview.',
+    updateError: sl ? 'Posodobitev varnosti ni uspela.' : 'Security update failed.',
+    noReauthToken: sl ? 'Žeton za ponovno potrditev ni bil vrnjen.' : 'No re-authentication token returned.',
+    reauthFailed: sl ? 'Ponovna potrditev ni uspela.' : 'Re-authentication failed.',
+    checkingSecurity: sl ? 'Preverjam varnost' : 'Checking security',
+    securityScore: sl ? 'Varnostna ocena' : 'Security score',
+    goodSecurity: sl ? 'Dobra varnost' : 'Good security',
+    needsAttention: sl ? 'Potrebuje pozornost' : 'Needs attention',
+    setupRecommended: sl ? 'Priporočena nastavitev' : 'Setup recommended',
+    pageSubtitle: sl ? 'Upravljajte prijavne ključe, aktivne seje, opozorila in nedavno varnostno aktivnost računa.' : 'Manage passkeys, active sessions, alerts, and recent account security activity.',
+    heroEyebrow: sl ? 'Pregled varnosti' : 'Security overview',
+    heroTitle: sl ? 'Varnost računa na enem mestu' : 'Your account security in one place',
+    heroText: sl ? 'Preglejte načine prijave, aktivne seje, možnosti obnovitve in varnostna opozorila. Ohranite račun zaščiten in pod nadzorom.' : 'Review your sign-in methods, active sessions, recovery options and security alerts. Keep your account protected and stay in control.',
+    tabs: {
+      overview: sl ? 'Pregled' : 'Overview',
+      signIn: sl ? 'Načini prijave' : 'Sign-in methods',
+      sessions: sl ? 'Seje' : 'Sessions',
+      alerts: sl ? 'Opozorila' : 'Alerts',
+    } as Record<SecurityTab, string>,
+    passkeys: sl ? 'Prijavni ključi' : 'Passkeys',
+    strongSecure: sl ? 'Močno in varno' : 'Strong and secure',
+    addRecommended: sl ? 'Priporočeno dodajanje' : 'Add recommended',
+    activeSessions: sl ? 'Aktivne seje' : 'Active sessions',
+    acrossDevices: sl ? 'Med napravami' : 'Across devices',
+    recoveryCodes: sl ? 'Kode za obnovitev' : 'Recovery codes',
+    available: sl ? 'Na voljo' : 'Available',
+    generateBackup: sl ? 'Ustvarite varnostno kopijo' : 'Generate backup',
+    securityAlerts: sl ? 'Varnostna opozorila' : 'Security alerts',
+    emailAlertsEnabled: sl ? 'E-poštna opozorila vklopljena' : 'Email alerts enabled',
+    signInTitle: sl ? 'Načini prijave' : 'Sign-in methods',
+    signInText: sl ? 'Uporabite prijavne ključe in strojne varnostne ključe za zaščito računa. Občutljive spremembe zahtevajo potrditev gesla.' : 'Use passkeys and hardware keys to keep your account protected. Sensitive changes require password confirmation.',
+    ready: sl ? 'Pripravljeno' : 'Ready',
+    unavailable: sl ? 'Ni na voljo' : 'Unavailable',
+    passkeysDevices: sl ? 'Prijavni ključi na vaših napravah' : 'Passkeys on your devices',
+    passkeysDevicesText: sl ? 'Sinhronizirani prijavni ključi, ki se običajno prenašajo z vašim platformnim računom.' : 'Synced passkeys that can usually travel with your platform account.',
+    passkeysUnsupported: sl ? 'Ta brskalnik ali vgrajeni spletni pogled ne podpira WebAuthn/prijavnih ključev. Tukaj uporabite kodo za obnovitev ali se prijavite iz podprtega brskalnika.' : 'This browser or embedded webview does not expose WebAuthn/passkeys. Use a recovery code here, or sign in from a supported browser.',
+    noSyncedPasskeys: sl ? 'Sinhroniziranih prijavnih ključev še ni' : 'No synced passkeys yet',
+    noSyncedPasskeysText: sl ? 'Dodajte prijavni ključ iz tega brskalnika ali naprave za lažjo prijavo in boljšo zaščito pred lažnim predstavljanjem.' : 'Add a passkey from this browser or device to make sign-in easier and phishing-resistant.',
+    unnamedPasskey: sl ? 'Neimenovan prijavni ključ' : 'Unnamed passkey',
+    hardwareKeys: sl ? 'Strojni varnostni ključi' : 'Hardware security keys',
+    hardwareKeysText: sl ? 'Strojni ključi ostanejo na fizičnem avtentikatorju in delujejo kot odstranljiv varnostni dejavnik.' : 'Hardware keys stay on a physical authenticator and work as a removable security factor.',
+    noHardwareKeys: sl ? 'Ni strojnih varnostnih ključev' : 'No hardware security keys',
+    noHardwareKeysText: sl ? 'Dodate ga lahko iz podprtega brskalnika, kadar želite odstranljiv strojni dejavnik.' : 'You can still add one from a supported browser whenever you want a removable hardware factor.',
+    unnamedSecurityKey: sl ? 'Neimenovan varnostni ključ' : 'Unnamed security key',
+    newPasskeyLabel: sl ? 'Oznaka novega prijavnega ključa' : 'New passkey label',
+    thisDevice: sl ? 'Ta naprava' : 'This device',
+    working: sl ? 'Delam…' : 'Working…',
+    addPasskey: sl ? 'Dodaj prijavni ključ' : 'Add passkey',
+    activeSessionsText: sl ? 'Preglejte, kje ste prijavljeni, in prekličite seje, ki jim ne zaupate več.' : 'Review where you are signed in and revoke sessions you no longer trust.',
+    signOutAllOtherSessions: sl ? 'Odjavi vse druge seje' : 'Sign out all other sessions',
+    noTrackedSessions: sl ? 'Sledenih sej še ni' : 'No tracked sessions yet',
+    noTrackedSessionsText: sl ? 'Seje se bodo prikazale tukaj, ko se prijavite iz naprav in brskalnikov.' : 'Sessions will appear here as you sign in from devices and browsers.',
+    unknownDevice: sl ? 'Neznana naprava' : 'Unknown device',
+    currentDevice: sl ? 'Ta naprava' : 'This device',
+    started: sl ? 'Začetek' : 'Started',
+    lastActive: sl ? 'Zadnja aktivnost' : 'Last active',
+    ipUnavailable: sl ? 'IP ni na voljo' : 'IP unavailable',
+    current: sl ? 'Trenutno' : 'Current',
+    signOut: sl ? 'Odjava' : 'Sign out',
+    showFewerSessions: sl ? 'Prikaži manj sej' : 'Show fewer sessions',
+    viewAllSessions: sl ? 'Prikaži vse seje' : 'View all sessions',
+    recovery: sl ? 'Obnovitev' : 'Recovery',
+    recoveryText: sl ? 'Kode za obnovitev vam pomagajo pri prijavi, če izgubite dostop do običajnih načinov.' : 'Recovery codes help you sign in if you lose access to your usual methods.',
+    left: sl ? 'preostalo' : 'left',
+    recoveryVault: sl ? 'Shramba kod za obnovitev' : 'Recovery code vault',
+    unusedRecoveryCodesPrefix: sl ? 'Imate' : 'You have',
+    unusedRecoveryCodesSuffix: sl ? 'neuporabljenih kod za obnovitev.' : 'unused recovery codes.',
+    generateRecoveryCodes: sl ? 'Ustvari nove kode za obnovitev' : 'Generate new recovery codes',
+    saveTheseNow: sl ? 'Shranite jih zdaj' : 'Save these now',
+    codesShownOnce: sl ? 'Te kode so v celoti prikazane samo enkrat.' : 'These codes are shown only once in full.',
+    copy: sl ? 'Kopiraj' : 'Copy',
+    download: sl ? 'Prenesi' : 'Download',
+    alertsText: sl ? 'Prejemajte obvestila o pomembnih varnostnih dogodkih.' : 'Get notified about important security events.',
+    factorChangeAlerts: sl ? 'Opozorila o spremembah varnostnih dejavnikov' : 'Factor change alerts',
+    factorChangeAlertsText: sl ? 'Pošljite mi e-pošto, ko se spremenijo prijavni ključi ali kode za obnovitev.' : 'Email me when passkeys or recovery codes change.',
+    suspiciousSignInAlerts: sl ? 'Opozorila o sumljivi prijavi' : 'Suspicious sign-in alerts',
+    suspiciousSignInAlertsText: sl ? 'Pošljite mi e-pošto, ko je prijava za moj račun videti neobičajna.' : 'Email me when a sign-in looks unusual for my account.',
+    saveAlertPreferences: sl ? 'Shrani nastavitve opozoril' : 'Save alert preferences',
+    activity: sl ? 'Varnostna aktivnost' : 'Security activity',
+    activityText: sl ? 'Nedavni varnostni dogodki v vašem računu.' : 'Recent security-related events on your account.',
+    showLess: sl ? 'Prikaži manj' : 'Show less',
+    viewAll: sl ? 'Prikaži vse' : 'View all',
+    noSecurityActivity: sl ? 'Varnostne aktivnosti še ni' : 'No security activity yet',
+    noSecurityActivityText: sl ? 'Ko se zgodijo varnostni dogodki, bodo prikazani tukaj.' : 'When security events happen, they will show up here.',
+    passkeyLabel: sl ? 'Oznaka prijavnega ključa' : 'Passkey label',
+    save: sl ? 'Shrani' : 'Save',
+    cancel: sl ? 'Prekliči' : 'Cancel',
+    added: sl ? 'Dodano' : 'Added',
+    lastUsed: sl ? 'Nazadnje uporabljeno' : 'Last used',
+    rename: sl ? 'Preimenuj' : 'Rename',
+    remove: sl ? 'Odstrani' : 'Remove',
+    confirmItsYou: sl ? 'Potrdite, da ste to vi' : 'Confirm it’s you',
+    password: sl ? 'Geslo' : 'Password',
+    enterPassword: sl ? 'Vnesite geslo' : 'Enter your password',
+    checking: sl ? 'Preverjam…' : 'Checking…',
+    continue: sl ? 'Nadaljuj' : 'Continue',
+    confirmAddPasskey: sl ? 'Potrdite geslo za dodajanje novega prijavnega ključa.' : 'Confirm your password to add a new passkey.',
+    passkeyAdded: sl ? 'Prijavni ključ je bil uspešno dodan.' : 'Passkey added successfully.',
+    confirmRenamePasskey: sl ? 'Potrdite geslo za preimenovanje tega prijavnega ključa.' : 'Confirm your password to rename this passkey.',
+    passkeyRenamed: sl ? 'Prijavni ključ je bil preimenovan.' : 'Passkey renamed.',
+    removeConfirm: sl ? 'Odstraniti' : 'Remove',
+    confirmRemovePasskey: sl ? 'Potrdite geslo za odstranitev tega prijavnega ključa.' : 'Confirm your password to remove this passkey.',
+    passkeyRemoved: sl ? 'Prijavni ključ je bil odstranjen.' : 'Passkey removed.',
+    confirmGenerateRecovery: sl ? 'Potrdite geslo za ustvarjanje novega nabora kod za obnovitev.' : 'Confirm your password to generate a new set of recovery codes.',
+    recoveryRegenerated: sl ? 'Kode za obnovitev so bile ponovno ustvarjene. Novi nabor shranite zdaj; prejšnje kode ne delujejo več.' : 'Recovery codes regenerated. Save the new set now; the previous codes no longer work.',
+    confirmUpdateAlerts: sl ? 'Potrdite geslo za posodobitev varnostnih opozoril.' : 'Confirm your password to update security alerts.',
+    alertsUpdated: sl ? 'Nastavitve opozoril so posodobljene.' : 'Alert preferences updated.',
+    signOutThisDeviceConfirm: sl ? 'Odjaviti to napravo?' : 'Sign out this device?',
+    signOutSessionConfirm: sl ? 'Odjaviti sejo' : 'Sign out',
+    confirmSignOutSession: sl ? 'Potrdite geslo za odjavo te seje.' : 'Confirm your password to sign out this session.',
+    sessionSignedOut: sl ? 'Seja je bila odjavljena.' : 'Session signed out.',
+    signOutOtherSessionsConfirm: sl ? 'Odjaviti vse druge seje?' : 'Sign out all other sessions?',
+    confirmSignOutOtherSessions: sl ? 'Potrdite geslo za odjavo drugih sej.' : 'Confirm your password to sign out your other sessions.',
+    otherSessionsSignedOut: sl ? 'Druge seje so bile odjavljene.' : 'Other sessions signed out.',
+    recoveryCodesCopied: sl ? 'Kode za obnovitev so kopirane.' : 'Recovery codes copied.',
+    recoveryCodesCopyError: sl ? 'Kod za obnovitev ni bilo mogoče kopirati.' : 'Could not copy the recovery codes.',
+  }
   const [overview, setOverview] = useState<SecurityOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([])
-  const [newPasskeyLabel, setNewPasskeyLabel] = useState('This device')
+  const [newPasskeyLabel, setNewPasskeyLabel] = useState(() => securityCopy.thisDevice)
   const [editingPasskeyId, setEditingPasskeyId] = useState<string | null>(null)
   const [editingPasskeyLabel, setEditingPasskeyLabel] = useState('')
   const [draftAlerts, setDraftAlerts] = useState<Alerts>({
@@ -348,7 +468,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
       setOverview(data)
       setDraftAlerts(data.alerts)
     } catch {
-      setError('Could not load your security overview.')
+      setError(securityCopy.loadError)
     } finally {
       setLoading(false)
     }
@@ -385,7 +505,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
     return Math.min(100, passkeyScore + recoveryScore + alertsScore + sessionsScore)
   }, [overview])
 
-  const securityScoreLabel = securityScore >= 80 ? 'Good security' : securityScore >= 55 ? 'Needs attention' : 'Setup recommended'
+  const securityScoreLabel = securityScore >= 80 ? securityCopy.goodSecurity : securityScore >= 55 ? securityCopy.needsAttention : securityCopy.setupRecommended
   const securityScoreTone = securityScore >= 80 ? 'good' : securityScore >= 55 ? 'medium' : 'low'
 
   const resetFeedback = () => {
@@ -419,7 +539,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
         if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0)) {
           clearReauthToken()
         } else {
-          applyError(err, 'Security update failed.')
+          applyError(err, securityCopy.updateError)
           return
         }
       }
@@ -437,7 +557,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
     try {
       const { data } = await api.post('/security/reauth', { password: reauthPassword })
       const token = String(data?.reauthToken || '')
-      if (!token) throw new Error('No re-authentication token returned.')
+      if (!token) throw new Error(securityCopy.noReauthToken)
       persistReauthToken(token)
       await reauthRequest.execute(token)
       setReauthRequest(null)
@@ -445,7 +565,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.data?.message) setReauthError(String(err.response.data.message))
       else if (err instanceof Error) setReauthError(err.message)
-      else setReauthError('Re-authentication failed.')
+      else setReauthError(securityCopy.reauthFailed)
     } finally {
       setReauthBusy(false)
     }
@@ -461,10 +581,10 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   }
 
   const registerPasskey = async () => {
-    await runProtected('Confirm your password to add a new passkey.', async (token) => {
+    await runProtected(securityCopy.confirmAddPasskey, async (token) => {
       await withBusy(async () => {
         if (!supportsWebAuthn()) {
-          setError(passkeyCapabilityMessage())
+          setError(securityCopy.passkeysUnsupported)
           return
         }
         const start = await api.post('/security/passkeys/register/start', undefined, {
@@ -480,14 +600,14 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
         })
         const codes = Array.isArray(finish.data?.recoveryCodes) ? finish.data.recoveryCodes : []
         setRecoveryCodes(codes)
-        setSuccess('Passkey added successfully.')
+        setSuccess(securityCopy.passkeyAdded)
         await loadOverview()
       })
     })
   }
 
   const savePasskeyLabel = async (credentialId: string) => {
-    await runProtected('Confirm your password to rename this passkey.', async (token) => {
+    await runProtected(securityCopy.confirmRenamePasskey, async (token) => {
       await withBusy(async () => {
         await api.patch(`/security/passkeys/${encodeURIComponent(credentialId)}`, {
           label: editingPasskeyLabel,
@@ -496,55 +616,55 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
         })
         setEditingPasskeyId(null)
         setEditingPasskeyLabel('')
-        setSuccess('Passkey renamed.')
+        setSuccess(securityCopy.passkeyRenamed)
         await loadOverview()
       })
     })
   }
 
   const removePasskey = async (credentialId: string, label: string) => {
-    if (!window.confirm(`Remove “${label}”?`)) return
-    await runProtected('Confirm your password to remove this passkey.', async (token) => {
+    if (!window.confirm(`${securityCopy.removeConfirm} “${label}”?`)) return
+    await runProtected(securityCopy.confirmRemovePasskey, async (token) => {
       await withBusy(async () => {
         await api.delete(`/security/passkeys/${encodeURIComponent(credentialId)}`, {
           headers: { 'X-Reauth-Token': token },
         })
-        setSuccess('Passkey removed.')
+        setSuccess(securityCopy.passkeyRemoved)
         await loadOverview()
       })
     })
   }
 
   const regenerateCodes = async () => {
-    await runProtected('Confirm your password to generate a new set of recovery codes.', async (token) => {
+    await runProtected(securityCopy.confirmGenerateRecovery, async (token) => {
       await withBusy(async () => {
         const { data } = await api.post('/security/recovery/regenerate', undefined, {
           headers: { 'X-Reauth-Token': token },
         })
         setRecoveryCodes(Array.isArray(data?.recoveryCodes) ? data.recoveryCodes : [])
-        setSuccess('Recovery codes regenerated. Save the new set now; the previous codes no longer work.')
+        setSuccess(securityCopy.recoveryRegenerated)
         await loadOverview()
       })
     })
   }
 
   const saveAlerts = async () => {
-    await runProtected('Confirm your password to update security alerts.', async (token) => {
+    await runProtected(securityCopy.confirmUpdateAlerts, async (token) => {
       await withBusy(async () => {
         const { data } = await api.put('/security/alerts', draftAlerts, {
           headers: { 'X-Reauth-Token': token },
         })
         setDraftAlerts(data)
-        setSuccess('Alert preferences updated.')
+        setSuccess(securityCopy.alertsUpdated)
         await loadOverview()
       })
     })
   }
 
   const revokeSession = async (session: SessionRow) => {
-    const copy = session.current ? 'Sign out this device?' : `Sign out ${session.label}?`
+    const copy = session.current ? securityCopy.signOutThisDeviceConfirm : `${securityCopy.signOutSessionConfirm} ${session.label}?`
     if (!window.confirm(copy)) return
-    await runProtected('Confirm your password to sign out this session.', async (token) => {
+    await runProtected(securityCopy.confirmSignOutSession, async (token) => {
       await withBusy(async () => {
         await api.delete(`/security/sessions/${encodeURIComponent(session.sessionKey)}`, {
           headers: { 'X-Reauth-Token': token },
@@ -554,20 +674,20 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
           window.location.assign('/')
           return
         }
-        setSuccess('Session signed out.')
+        setSuccess(securityCopy.sessionSignedOut)
         await loadOverview()
       })
     })
   }
 
   const revokeOtherSessions = async () => {
-    if (!window.confirm('Sign out all other sessions?')) return
-    await runProtected('Confirm your password to sign out your other sessions.', async (token) => {
+    if (!window.confirm(securityCopy.signOutOtherSessionsConfirm)) return
+    await runProtected(securityCopy.confirmSignOutOtherSessions, async (token) => {
       await withBusy(async () => {
         await api.post('/security/sessions/revoke-others', undefined, {
           headers: { 'X-Reauth-Token': token },
         })
-        setSuccess('Other sessions signed out.')
+        setSuccess(securityCopy.otherSessionsSignedOut)
         await loadOverview()
       })
     })
@@ -588,9 +708,9 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   const copyRecoveryCodes = async () => {
     try {
       await copyText(recoveryCodes.join('\n'))
-      setSuccess('Recovery codes copied.')
+      setSuccess(securityCopy.recoveryCodesCopied)
     } catch {
-      setError('Could not copy the recovery codes.')
+      setError(securityCopy.recoveryCodesCopyError)
     }
   }
 
@@ -607,13 +727,13 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
             <div className="security-method-body">
               {editingPasskeyId === passkey.credentialId ? (
                 <div className="security-inline-editor-v2">
-                  <input value={editingPasskeyLabel} onChange={(e) => setEditingPasskeyLabel(e.target.value)} placeholder="Passkey label" />
+                  <input value={editingPasskeyLabel} onChange={(e) => setEditingPasskeyLabel(e.target.value)} placeholder={securityCopy.passkeyLabel} />
                   <div className="security-row-actions">
                     <button type="button" className="security-primary-button security-button-sm" onClick={() => void savePasskeyLabel(passkey.credentialId)} disabled={busy || !editingPasskeyLabel.trim()}>
-                      Save
+                      {securityCopy.save}
                     </button>
                     <button type="button" className="security-soft-button security-button-sm" onClick={() => setEditingPasskeyId(null)} disabled={busy}>
-                      Cancel
+                      {securityCopy.cancel}
                     </button>
                   </div>
                 </div>
@@ -624,8 +744,8 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
                     <span className={`security-chip security-chip--${pillTone}`}>{passkey.kind}</span>
                   </div>
                   <div className="security-method-meta">
-                    <span>Added {formatDateTime(passkey.createdAt)}</span>
-                    <span>Last used {formatAgo(passkey.lastUsedAt)}</span>
+                    <span>{securityCopy.added} {formatDateTime(passkey.createdAt, locale)}</span>
+                    <span>{securityCopy.lastUsed} {formatAgo(passkey.lastUsedAt, locale)}</span>
                   </div>
                 </>
               )}
@@ -641,10 +761,10 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
                     setEditingPasskeyLabel(passkey.label || '')
                   }}
                 >
-                  Rename
+                  {securityCopy.rename}
                 </button>
                 <button type="button" className="security-danger-button security-button-sm" disabled={busy} onClick={() => void removePasskey(passkey.credentialId, passkey.label || defaultName)}>
-                  Remove
+                  {securityCopy.remove}
                 </button>
               </div>
             )}
@@ -657,9 +777,9 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   const signInMethodsCard = (
     <section className="security-card-v2 security-card-v2--large">
       <SecuritySectionHeader
-        title="Sign-in methods"
-        text="Use passkeys and hardware keys to keep your account protected. Sensitive changes require password confirmation."
-        action={<span className={`security-chip ${supportsPasskeys ? 'security-chip--green' : 'security-chip--slate'}`}>{supportsPasskeys ? 'Ready' : 'Unavailable'}</span>}
+        title={securityCopy.signInTitle}
+        text={securityCopy.signInText}
+        action={<span className={`security-chip ${supportsPasskeys ? 'security-chip--green' : 'security-chip--slate'}`}>{supportsPasskeys ? securityCopy.ready : securityCopy.unavailable}</span>}
       />
 
       <div className="security-method-group">
@@ -668,15 +788,15 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
             <SecurityIcon name="fingerprint" />
           </div>
           <div>
-            <strong>Passkeys on your devices</strong>
-            <p>Synced passkeys that can usually travel with your platform account.</p>
+            <strong>{securityCopy.passkeysDevices}</strong>
+            <p>{securityCopy.passkeysDevicesText}</p>
           </div>
         </div>
         {renderPasskeyCollection(
           syncedPasskeys,
-          'No synced passkeys yet',
-          'Add a passkey from this browser or device to make sign-in easier and phishing-resistant.',
-          'Unnamed passkey',
+          securityCopy.noSyncedPasskeys,
+          securityCopy.noSyncedPasskeysText,
+          securityCopy.unnamedPasskey,
           'blue',
         )}
       </div>
@@ -687,28 +807,28 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
             <SecurityIcon name="key" />
           </div>
           <div>
-            <strong>Hardware security keys</strong>
-            <p>Hardware keys stay on a physical authenticator and work as a removable security factor.</p>
+            <strong>{securityCopy.hardwareKeys}</strong>
+            <p>{securityCopy.hardwareKeysText}</p>
           </div>
         </div>
         {renderPasskeyCollection(
           securityKeys,
-          'No hardware security keys',
-          'You can still add one from a supported browser whenever you want a removable hardware factor.',
-          'Unnamed security key',
+          securityCopy.noHardwareKeys,
+          securityCopy.noHardwareKeysText,
+          securityCopy.unnamedSecurityKey,
           'slate',
         )}
       </div>
 
       <div className="security-add-passkey-box">
         <label className="security-field-v2">
-          <span>New passkey label</span>
-          <input value={newPasskeyLabel} onChange={(e) => setNewPasskeyLabel(e.target.value)} placeholder="This device" />
+          <span>{securityCopy.newPasskeyLabel}</span>
+          <input value={newPasskeyLabel} onChange={(e) => setNewPasskeyLabel(e.target.value)} placeholder={securityCopy.thisDevice} />
         </label>
         <button type="button" className="security-primary-button" disabled={busy || loading || !supportsPasskeys} onClick={() => void registerPasskey()}>
-          {busy ? 'Working…' : 'Add passkey'}
+          {busy ? securityCopy.working : securityCopy.addPasskey}
         </button>
-        {!supportsPasskeys && <p className="security-inline-help">{passkeyCapabilityMessage()}</p>}
+        {!supportsPasskeys && <p className="security-inline-help">{securityCopy.passkeysUnsupported}</p>}
       </div>
     </section>
   )
@@ -716,16 +836,16 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   const activeSessionsCard = (
     <section className="security-card-v2 security-card-v2--large">
       <SecuritySectionHeader
-        title="Active sessions"
-        text="Review where you are signed in and revoke sessions you no longer trust."
+        title={securityCopy.activeSessions}
+        text={securityCopy.activeSessionsText}
         action={
           <button type="button" className="security-soft-button security-soft-button--blue" disabled={busy || activeSessions.length <= 1} onClick={() => void revokeOtherSessions()}>
-            Sign out all other sessions
+            {securityCopy.signOutAllOtherSessions}
           </button>
         }
       />
       {activeSessions.length === 0 ? (
-        <SecurityEmptyPanel title="No tracked sessions yet" text="Sessions will appear here as you sign in from devices and browsers." />
+        <SecurityEmptyPanel title={securityCopy.noTrackedSessions} text={securityCopy.noTrackedSessionsText} />
       ) : (
         <>
           <div className="security-session-list">
@@ -738,22 +858,22 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
                   </div>
                   <div className="security-session-main">
                     <div className="security-session-title-line">
-                      <strong>{session.label || 'Unknown device'}</strong>
-                      {session.current && <span className="security-chip security-chip--blue">This device</span>}
+                      <strong>{session.label || securityCopy.unknownDevice}</strong>
+                      {session.current && <span className="security-chip security-chip--blue">{securityCopy.currentDevice}</span>}
                     </div>
                     <div className="security-session-meta">
-                      <span>Started {formatDateTime(session.issuedAt)}</span>
-                      <span>Last active {formatAgo(session.lastSeenAt)}</span>
-                      <span>{session.ipAddress || 'IP unavailable'}</span>
+                      <span>{securityCopy.started} {formatDateTime(session.issuedAt, locale)}</span>
+                      <span>{securityCopy.lastActive} {formatAgo(session.lastSeenAt, locale)}</span>
+                      <span>{session.ipAddress || securityCopy.ipUnavailable}</span>
                     </div>
                   </div>
                   <div className="security-session-status">
-                    <span>{formatAgo(session.lastSeenAt)}</span>
+                    <span>{formatAgo(session.lastSeenAt, locale)}</span>
                     {session.current ? (
-                      <span className="security-chip security-chip--green">Current</span>
+                      <span className="security-chip security-chip--green">{securityCopy.current}</span>
                     ) : (
                       <button type="button" className="security-danger-button security-button-sm" disabled={busy} onClick={() => void revokeSession(session)}>
-                        Sign out
+                        {securityCopy.signOut}
                       </button>
                     )}
                   </div>
@@ -763,7 +883,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
           </div>
           {activeSessions.length > 5 && (
             <button type="button" className="security-link-button security-centered-link" onClick={() => setShowAllSessions((value) => !value)}>
-              {showAllSessions ? 'Show fewer sessions' : 'View all sessions'} <SecurityIcon name="chevronDown" />
+              {showAllSessions ? securityCopy.showFewerSessions : securityCopy.viewAllSessions} <SecurityIcon name="chevronDown" />
             </button>
           )}
         </>
@@ -774,28 +894,28 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   const recoveryCard = (
     <section className="security-card-v2">
       <SecuritySectionHeader
-        title="Recovery"
-        text="Recovery codes help you sign in if you lose access to your usual methods."
-        action={<span className="security-chip security-chip--slate">{overview?.recoveryCodesRemaining ?? 0} left</span>}
+        title={securityCopy.recovery}
+        text={securityCopy.recoveryText}
+        action={<span className="security-chip security-chip--slate">{overview?.recoveryCodesRemaining ?? 0} {securityCopy.left}</span>}
       />
       <div className="security-recovery-hero">
         <div className="security-recovery-icon">
           <SecurityIcon name="lock" />
         </div>
         <div>
-          <strong>Recovery code vault</strong>
-          <p>You have {overview?.recoveryCodesRemaining ?? 0} unused recovery codes.</p>
+          <strong>{securityCopy.recoveryVault}</strong>
+          <p>{securityCopy.unusedRecoveryCodesPrefix} {overview?.recoveryCodesRemaining ?? 0} {securityCopy.unusedRecoveryCodesSuffix}</p>
         </div>
       </div>
       <button type="button" className="security-primary-button security-button-full" onClick={() => void regenerateCodes()} disabled={busy || loading || !overview?.passkeyCount}>
         <SecurityIcon name="key" />
-        {busy ? 'Working…' : 'Generate new recovery codes'}
+        {busy ? securityCopy.working : securityCopy.generateRecoveryCodes}
       </button>
       {recoveryCodes.length > 0 && (
         <div className="security-recovery-box-v2">
           <div>
-            <strong>Save these now</strong>
-            <p>These codes are shown only once in full.</p>
+            <strong>{securityCopy.saveTheseNow}</strong>
+            <p>{securityCopy.codesShownOnce}</p>
           </div>
           <div className="security-recovery-grid-v2">
             {recoveryCodes.map((code) => (
@@ -805,11 +925,11 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
           <div className="security-row-actions">
             <button type="button" className="security-soft-button" onClick={() => void copyRecoveryCodes()}>
               <SecurityIcon name="copy" />
-              Copy
+              {securityCopy.copy}
             </button>
             <button type="button" className="security-soft-button" onClick={downloadRecoveryCodes}>
               <SecurityIcon name="download" />
-              Download
+              {securityCopy.download}
             </button>
           </div>
         </div>
@@ -820,9 +940,9 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   const alertsCard = (
     <section className="security-card-v2">
       <SecuritySectionHeader
-        title="Security alerts"
-        text="Get notified about important security events."
-        action={<span className="security-chip security-chip--green">Alerts</span>}
+        title={securityCopy.securityAlerts}
+        text={securityCopy.alertsText}
+        action={<span className="security-chip security-chip--green">{securityCopy.tabs.alerts}</span>}
       />
       <div className="security-alert-list">
         <div className="security-alert-row">
@@ -830,8 +950,8 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
             <SecurityIcon name="bell" />
           </div>
           <div>
-            <strong>Factor change alerts</strong>
-            <p>Email me when passkeys or recovery codes change.</p>
+            <strong>{securityCopy.factorChangeAlerts}</strong>
+            <p>{securityCopy.factorChangeAlertsText}</p>
           </div>
           <SecurityToggle checked={draftAlerts.factorChangeAlertsEnabled} onChange={(checked) => setDraftAlerts((prev) => ({ ...prev, factorChangeAlertsEnabled: checked }))} />
         </div>
@@ -840,14 +960,14 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
             <SecurityIcon name="shield" />
           </div>
           <div>
-            <strong>Suspicious sign-in alerts</strong>
-            <p>Email me when a sign-in looks unusual for my account.</p>
+            <strong>{securityCopy.suspiciousSignInAlerts}</strong>
+            <p>{securityCopy.suspiciousSignInAlertsText}</p>
           </div>
           <SecurityToggle checked={draftAlerts.suspiciousSignInAlertsEnabled} onChange={(checked) => setDraftAlerts((prev) => ({ ...prev, suspiciousSignInAlertsEnabled: checked }))} />
         </div>
       </div>
       <button type="button" className="security-link-button security-link-button--full" onClick={() => void saveAlerts()} disabled={busy || loading}>
-        Save alert preferences <SecurityIcon name="arrowRight" />
+        {securityCopy.saveAlertPreferences} <SecurityIcon name="arrowRight" />
       </button>
     </section>
   )
@@ -855,12 +975,12 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   const activityCard = (
     <section className="security-card-v2">
       <SecuritySectionHeader
-        title="Security activity"
-        text="Recent security-related events on your account."
-        action={overview?.activity?.length ? <button type="button" className="security-soft-button" onClick={() => setShowAllActivity((value) => !value)}>{showAllActivity ? 'Show less' : 'View all'}</button> : undefined}
+        title={securityCopy.activity}
+        text={securityCopy.activityText}
+        action={overview?.activity?.length ? <button type="button" className="security-soft-button" onClick={() => setShowAllActivity((value) => !value)}>{showAllActivity ? securityCopy.showLess : securityCopy.viewAll}</button> : undefined}
       />
       {!loading && (!overview?.activity || overview.activity.length === 0) ? (
-        <SecurityEmptyPanel title="No security activity yet" text="When security events happen, they will show up here." />
+        <SecurityEmptyPanel title={securityCopy.noSecurityActivity} text={securityCopy.noSecurityActivityText} />
       ) : (
         <div className="security-activity-list">
           {visibleActivity.map((event, index) => {
@@ -876,7 +996,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
                 <div className="security-activity-copy">
                   <div>
                     <strong>{event.title}</strong>
-                    <span>{formatAgo(event.occurredAt)}</span>
+                    <span>{formatAgo(event.occurredAt, locale)}</span>
                   </div>
                   {event.detail && <p>{event.detail}</p>}
                 </div>
@@ -925,34 +1045,34 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
 
   return (
     <div className={embedded ? 'security-page security-page-modern security-page-embedded' : 'security-page security-page-modern content content-android-native'}>
-      {!embedded && <PageHeader title={t('tabSecurity')} subtitle="Manage passkeys, active sessions, alerts, and recent account security activity." />}
+      {!embedded && <PageHeader title={t('tabSecurity')} subtitle={securityCopy.pageSubtitle} />}
       {error && <div className="security-feedback security-feedback--error">{error}</div>}
       {success && <div className="security-feedback security-feedback--success">{success}</div>}
 
       <section className="security-hero-v2">
         <div className="security-hero-copy-v2">
-          <span className="security-eyebrow-v2">Security overview</span>
-          <h2>Your account security in one place</h2>
-          <p>Review your sign-in methods, active sessions, recovery options and security alerts. Keep your account protected and stay in control.</p>
+          <span className="security-eyebrow-v2">{securityCopy.heroEyebrow}</span>
+          <h2>{securityCopy.heroTitle}</h2>
+          <p>{securityCopy.heroText}</p>
         </div>
         <div className={`security-score-card security-score-card--${securityScoreTone}`}>
           <div className="security-score-icon">
             <SecurityIcon name="shield" />
           </div>
           <div>
-            <strong>{loading ? 'Checking security' : securityScoreLabel}</strong>
-            <span>Security score</span>
+            <strong>{loading ? securityCopy.checkingSecurity : securityScoreLabel}</strong>
+            <span>{securityCopy.securityScore}</span>
           </div>
           <b>{loading ? '—' : `${securityScore} / 100`}</b>
           <SecurityIcon name="arrowRight" className="security-score-arrow" />
         </div>
       </section>
 
-      <nav className="security-tabbar" aria-label="Security sections">
+      <nav className="security-tabbar" aria-label={securityCopy.securityAlerts}>
         {securityTabs.map((tab) => (
           <button key={tab.id} type="button" className={`security-tab ${activeSecurityTab === tab.id ? 'active' : ''}`} onClick={() => setActiveSecurityTab(tab.id)}>
             <SecurityIcon name={tab.icon} />
-            {tab.label}
+            {securityCopy.tabs[tab.id]}
           </button>
         ))}
       </nav>
@@ -962,23 +1082,23 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
           icon="fingerprint"
           tone="blue"
           value={overview?.passkeyCount ?? '—'}
-          label="Passkeys"
-          detail={(overview?.passkeyCount || 0) > 0 ? 'Strong and secure' : 'Add recommended'}
+          label={securityCopy.passkeys}
+          detail={(overview?.passkeyCount || 0) > 0 ? securityCopy.strongSecure : securityCopy.addRecommended}
         />
-        <SecurityStatCard icon="desktop" tone="violet" value={overview?.activeSessionCount ?? '—'} label="Active sessions" detail="Across devices" />
+        <SecurityStatCard icon="desktop" tone="violet" value={overview?.activeSessionCount ?? '—'} label={securityCopy.activeSessions} detail={securityCopy.acrossDevices} />
         <SecurityStatCard
           icon="shield"
           tone="green"
           value={overview?.recoveryCodesRemaining ?? '—'}
-          label="Recovery codes"
-          detail={(overview?.recoveryCodesRemaining || 0) > 0 ? 'Available' : 'Generate backup'}
+          label={securityCopy.recoveryCodes}
+          detail={(overview?.recoveryCodesRemaining || 0) > 0 ? securityCopy.available : securityCopy.generateBackup}
         />
         <SecurityStatCard
           icon="bell"
           tone="amber"
           value={[draftAlerts.factorChangeAlertsEnabled, draftAlerts.suspiciousSignInAlertsEnabled].filter(Boolean).length}
-          label="Security alerts"
-          detail="Email alerts enabled"
+          label={securityCopy.securityAlerts}
+          detail={securityCopy.emailAlertsEnabled}
         />
       </section>
 
@@ -987,23 +1107,23 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
       {reauthRequest && (
         <div className="security-modal-backdrop" role="presentation">
           <div className="card security-reauth-card" role="dialog" aria-modal="true" aria-labelledby="security-reauth-title">
-            <h3 id="security-reauth-title">Confirm it’s you</h3>
+            <h3 id="security-reauth-title">{securityCopy.confirmItsYou}</h3>
             <p className="muted">{reauthRequest.title}</p>
             {reauthError && <div className="error">{reauthError}</div>}
             <form onSubmit={submitReauth} className="security-reauth-form">
               <label className="field">
-                <span className="field-label">Password</span>
+                <span className="field-label">{securityCopy.password}</span>
                 <input
                   type="password"
                   autoFocus
                   value={reauthPassword}
                   onChange={(e) => setReauthPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={securityCopy.enterPassword}
                 />
               </label>
               <div className="security-row-actions">
                 <button type="submit" className="security-primary-button" disabled={reauthBusy || !reauthPassword.trim()}>
-                  {reauthBusy ? 'Checking…' : 'Continue'}
+                  {reauthBusy ? securityCopy.checking : securityCopy.continue}
                 </button>
                 <button
                   type="button"
@@ -1015,7 +1135,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
                   }}
                   disabled={reauthBusy}
                 >
-                  Cancel
+                  {securityCopy.cancel}
                 </button>
               </div>
             </form>

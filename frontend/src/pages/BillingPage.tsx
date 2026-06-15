@@ -7317,11 +7317,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <table className="billing-modern-table billing-modern-payments-table">
                       <thead>
                         <tr>
-                          <th>Order ID</th>
-                          <th>Bill No.</th>
-                          <th>Payer</th>
-                          <th>Date</th>
-                          <th>Due Date</th>
+                          <th>{locale === 'sl' ? 'ID naročila' : 'Order ID'}</th>
+                          <th>{locale === 'sl' ? 'Št. računa' : 'Bill No.'}</th>
+                          <th>{locale === 'sl' ? 'Plačnik' : 'Payer'}</th>
+                          <th>{locale === 'sl' ? 'Datum' : 'Date'}</th>
+                          <th>{locale === 'sl' ? 'Rok plačila' : 'Due Date'}</th>
                           <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
@@ -7346,7 +7346,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                               <td className="billing-modern-amount">{currency(billBankTransferDueAmount(bill))}</td>
                               <td className="billing-modern-actions" onClick={(e) => e.stopPropagation()}>
                                 <button type="button" className="billing-action-btn billing-action-btn--wide" onClick={() => markBillPaid(bill)} disabled={markingPaidBillId === bill.id}>
-                                  {markingPaidBillId === bill.id ? 'SAVING…' : 'MARK AS PAID'}
+                                  {markingPaidBillId === bill.id ? (locale === 'sl' ? 'SHRANJUJEM…' : 'SAVING…') : (locale === 'sl' ? 'OZNAČI KOT PLAČANO' : 'MARK AS PAID')}
                                 </button>
                               </td>
                             </tr>
@@ -7356,7 +7356,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </table>
                     <div className="billing-modern-footer">
                       <span>
-                        Showing {openPaymentsPagination.showFrom} to {openPaymentsPagination.showTo} of {openPaymentsPagination.total} results
+                        {locale === 'sl'
+                          ? `Prikazujem ${openPaymentsPagination.showFrom} do ${openPaymentsPagination.showTo} od ${openPaymentsPagination.total} rezultatov`
+                          : `Showing ${openPaymentsPagination.showFrom} to ${openPaymentsPagination.showTo} of ${openPaymentsPagination.total} results`}
                       </span>
                       <div
                         className="clients-modern-pagination"
@@ -7435,12 +7437,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <table className="billing-modern-table">
                       <thead>
                         <tr>
-                          <th>Advance No.</th>
-                          <th>{billingCopy.client} / Company</th>
-                          <th>Session Id</th>
-                          <th>Original Amount</th>
-                          <th>Remaining Balance</th>
-                          <th>Issued Date</th>
+                          <th>{locale === 'sl' ? 'Št. predplačila' : 'Advance No.'}</th>
+                          <th>{locale === 'sl' ? `${billingCopy.client} / Podjetje` : `${billingCopy.client} / Company`}</th>
+                          <th>{locale === 'sl' ? 'ID seje' : 'Session ID'}</th>
+                          <th>{locale === 'sl' ? 'Prvotni znesek' : 'Original Amount'}</th>
+                          <th>{locale === 'sl' ? 'Preostalo stanje' : 'Remaining Balance'}</th>
+                          <th>{locale === 'sl' ? 'Datum izdaje' : 'Issued Date'}</th>
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
@@ -7459,8 +7461,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                 <div className="billing-modern-muted">{formatDate(advance.issueDate)}</div>
                               </td>
                               <td className="billing-modern-actions" onClick={(e) => e.stopPropagation()}>
-                                <button type="button" className="billing-open-row-action billing-open-row-action--primary" onClick={() => setSelectedUnusedAdvanceId(advance.advanceBillId)}>Apply</button>
-                                <button type="button" className="billing-action-btn" onClick={() => setSelectedUnusedAdvanceId(advance.advanceBillId)}>Refund</button>
+                                <button type="button" className="billing-action-btn" onClick={() => setSelectedUnusedAdvanceId(advance.advanceBillId)}>{locale === 'sl' ? 'Vračilo' : 'Refund'}</button>
                               </td>
                             </tr>
                           )
@@ -7469,7 +7470,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </table>
                     <div className="billing-modern-footer">
                       <span>
-                        Showing {unusedAdvancesPagination.showFrom} to {unusedAdvancesPagination.showTo} of {unusedAdvancesPagination.total} results
+                        {locale === 'sl'
+                          ? `Prikazujem ${unusedAdvancesPagination.showFrom} do ${unusedAdvancesPagination.showTo} od ${unusedAdvancesPagination.total} rezultatov`
+                          : `Showing ${unusedAdvancesPagination.showFrom} to ${unusedAdvancesPagination.showTo} of ${unusedAdvancesPagination.total} results`}
                       </span>
                       <div
                         className="clients-modern-pagination"
@@ -7590,15 +7593,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                   <div className="billing-modern-stat-card">
                     <span className="billing-modern-stat-icon billing-modern-stat-icon--red" aria-hidden>↺</span>
-                    <div><span className="billing-modern-stat-label">Refunds</span><strong>{folioStats.refundsCount}</strong><small>Total refunded folios</small></div>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Vračila' : 'Refunds'}</span><strong>{folioStats.refundsCount}</strong><small>{locale === 'sl' ? 'Skupaj vrnjenih računov' : 'Total refunded folios'}</small></div>
                   </div>
                   <div className="billing-modern-stat-card">
                     <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>▣</span>
-                    <div><span className="billing-modern-stat-label">Advances</span><strong>{folioStats.advancesCount}</strong><small>Total advances applied</small></div>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Predplačila' : 'Advances'}</span><strong>{folioStats.advancesCount}</strong><small>{locale === 'sl' ? 'Skupaj uporabljenih predplačil' : 'Total advances applied'}</small></div>
                   </div>
                   <div className="billing-modern-stat-card">
                     <span className="billing-modern-stat-icon billing-modern-stat-icon--purple" aria-hidden>€</span>
-                    <div><span className="billing-modern-stat-label">Total Amount</span><strong>{currency(folioStats.totalAmount)}</strong><small>Across all folios</small></div>
+                    <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Skupni znesek' : 'Total Amount'}</span><strong>{currency(folioStats.totalAmount)}</strong><small>{locale === 'sl' ? 'Skupaj za vse račune' : 'Across all folios'}</small></div>
                   </div>
                 </div>
 
@@ -7607,17 +7610,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <table className="billing-modern-table billing-modern-history-table">
                       <thead>
                         <tr>
-                          <th>Folio No.</th>
+                          <th>{locale === 'sl' ? 'Št. računa' : 'Invoice No.'}</th>
                           <th>{billingCopy.historyInvoiceTypeColumn}</th>
-                          <th>Order ID</th>
-                          <th>Session Id</th>
-                          <th>{billingCopy.client} / Company</th>
+                          <th>{locale === 'sl' ? 'ID naročila' : 'Order ID'}</th>
+                          <th>{locale === 'sl' ? 'ID seje' : 'Session ID'}</th>
+                          <th>{locale === 'sl' ? `${billingCopy.client} / Podjetje` : `${billingCopy.client} / Company`}</th>
                           <th>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</th>
-                          <th>Description</th>
-                          <th>Issue Date</th>
+                          <th>{locale === 'sl' ? 'Opis' : 'Description'}</th>
+                          <th>{locale === 'sl' ? 'Datum izdaje' : 'Issue Date'}</th>
                           <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
-                          <th>Payment Status</th>
-                          <th>Fiscal Status</th>
+                          <th>{locale === 'sl' ? 'Status plačila' : 'Payment Status'}</th>
+                          <th>{locale === 'sl' ? 'Fiskalni status' : 'Fiscal Status'}</th>
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
@@ -7632,7 +7635,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             <td>{fullName(bill.consultant)}</td>
                             <td>
                               <div className="billing-modern-main-text">{bill.items?.[0]?.transactionService?.description || normalizeBillType(bill)}</div>
-                              <div className="billing-modern-muted">Invoice {bill.billNumber}</div>
+                              <div className="billing-modern-muted">{locale === 'sl' ? 'Račun' : 'Invoice'} {bill.billNumber}</div>
                             </td>
                             <td>
                               <div className="billing-modern-main-text">{formatDateShort(bill.issueDate)}</div>
@@ -7642,8 +7645,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             <td><span className={`billing-status-pill billing-status-pill--${paymentStatusClass(bill.paymentStatus)}`}>{paymentStatusLabel(bill.paymentStatus)}</span></td>
                             <td><span className={`billing-status-pill billing-status-pill--${fiscalStatusClass(bill)}`}>{fiscalStatusLabel(bill)}</span></td>
                             <td className="billing-modern-actions billing-modern-actions--history" onClick={(e) => e.stopPropagation()}>
-                              <button type="button" className="billing-action-btn billing-action-btn--danger" onClick={() => refundBill(bill)} disabled={!canRefundBill(bill) || refundingBillId === bill.id}>{refundingBillId === bill.id ? 'Refunding…' : 'Refund'}</button>
-                              <button type="button" className="billing-action-btn" onClick={() => sendCheckoutLink(bill)} disabled={creatingCheckoutBillId === bill.id}>{creatingCheckoutBillId === bill.id ? 'Sending…' : 'Send'}</button>
+                              <button type="button" className="billing-action-btn billing-action-btn--danger" onClick={() => refundBill(bill)} disabled={!canRefundBill(bill) || refundingBillId === bill.id}>{refundingBillId === bill.id ? (locale === 'sl' ? 'Vračilo…' : 'Refunding…') : (locale === 'sl' ? 'Vračilo' : 'Refund')}</button>
+                              <button type="button" className="billing-action-btn" onClick={() => sendCheckoutLink(bill)} disabled={creatingCheckoutBillId === bill.id}>{creatingCheckoutBillId === bill.id ? (locale === 'sl' ? 'Pošiljanje…' : 'Sending…') : (locale === 'sl' ? 'Pošlji' : 'Send')}</button>
                               <button type="button" className="billing-action-btn" onClick={() => downloadFolioPdf(bill)}>PDF</button>
                             </td>
                           </tr>
@@ -7652,7 +7655,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </table>
                     <div className="billing-modern-footer">
                       <span>
-                        Showing {historyPagination.showFrom} to {historyPagination.showTo} of {historyPagination.total} results
+                        {locale === 'sl'
+                          ? `Prikazujem ${historyPagination.showFrom} do ${historyPagination.showTo} od ${historyPagination.total} rezultatov`
+                          : `Showing ${historyPagination.showFrom} to ${historyPagination.showTo} of ${historyPagination.total} results`}
                       </span>
                       <div
                         className="clients-modern-pagination"

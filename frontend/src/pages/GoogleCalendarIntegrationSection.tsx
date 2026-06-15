@@ -108,15 +108,15 @@ function statusClass(status: ConnectionStatus) {
   return 'google-calendar-status muted'
 }
 
-function statusLabel(status?: ConnectionStatus | null) {
-  if (status === 'ACTIVE') return 'Connected'
-  if (status === 'NEEDS_RECONNECT') return 'Needs reconnect'
-  if (status === 'ERROR') return 'Attention needed'
-  return 'Not connected'
+function statusLabel(status?: ConnectionStatus | null, locale?: string) {
+  if (status === 'ACTIVE') return locale === 'sl' ? 'Povezano' : 'Connected'
+  if (status === 'NEEDS_RECONNECT') return locale === 'sl' ? 'Potrebna ponovna povezava' : 'Needs reconnect'
+  if (status === 'ERROR') return locale === 'sl' ? 'Potrebna pozornost' : 'Attention needed'
+  return locale === 'sl' ? 'Ni povezano' : 'Not connected'
 }
 
 export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const { showToast } = useToast()
   const companyId = me.companyId
   const [connections, setConnections] = useState<GoogleCalendarConnection[]>([])
@@ -138,6 +138,23 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
     ),
     [connections, me.id],
   )
+  const copy = {
+    description: locale === 'sl'
+      ? 'Povežite en Google Calendar za tenant ali svetovalca. Rezervacije, osebni termini in opravila se sinhronizirajo z Googlom, zunanji Google dogodki pa lahko blokirajo razpoložljivost kot zaseden čas.'
+      : 'Connect one Google calendar per tenant or consultant. Bookings, personal sessions and ToDos sync with Google, while external Google events can block availability as busy time.',
+    connecting: locale === 'sl' ? 'Povezujem…' : 'Connecting…',
+    reconnect: locale === 'sl' ? 'Ponovno poveži Google' : 'Reconnect Google',
+    connectMy: locale === 'sl' ? 'Poveži moj Google Calendar' : 'Connect my Google Calendar',
+    refresh: locale === 'sl' ? 'Osveži' : 'Refresh',
+    connections: locale === 'sl' ? 'Povezave' : 'Connections',
+    activeAccount: locale === 'sl' ? 'Aktiven račun' : 'Active account',
+    notConnected: locale === 'sl' ? 'Ni povezano' : 'Not connected',
+    openConflicts: locale === 'sl' ? 'Odprti konflikti' : 'Open conflicts',
+    noConnection: locale === 'sl' ? 'Ni povezave z Google Calendar' : 'No Google Calendar connection',
+    emptyText: locale === 'sl'
+      ? 'Povežite svoj Google račun, da začnete sinhronizirati koledarske elemente tega tenanta, rezervacije svetovalcev, osebne termine in zunanje zasedene termine.'
+      : 'Connect your Google account to start syncing this tenant\'s calendar items, consultant bookings, personal sessions and external busy blocks.',
+  }
 
   const hasActiveConnection = useMemo(
     () => connections.some((entry) => entry.status === 'ACTIVE'),
@@ -692,29 +709,29 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
             <div className="google-calendar-hero-copy">
               <h3>Google Calendar</h3>
               <p>
-                Connect one Google calendar per tenant or consultant. Bookings, personal sessions and ToDos sync with Google, while external Google events can block availability as busy time.
+                {copy.description}
               </p>
               <span className={hasActiveConnection ? 'google-calendar-chip success' : 'google-calendar-chip danger'}>
-                {statusLabel(activeConnection?.status)}
+                {statusLabel(activeConnection?.status, locale)}
               </span>
             </div>
           </div>
           <div className="google-calendar-actions google-calendar-actions--hero">
             {!hasActiveConnection ? (
               <button type="button" className="google-calendar-primary" onClick={connect} disabled={connecting}>
-                {connecting ? 'Connecting…' : activeConnection ? 'Reconnect Google' : 'Connect my Google Calendar'}
+                {connecting ? copy.connecting : activeConnection ? copy.reconnect : copy.connectMy}
               </button>
             ) : null}
             <button type="button" className="google-calendar-secondary" onClick={() => void refresh()} disabled={loading}>
-              Refresh
+              {copy.refresh}
             </button>
           </div>
         </div>
 
         <div className="google-calendar-grid">
-          <div className="google-calendar-metric"><span>Connections</span><strong>{connections.length}</strong></div>
-          <div className="google-calendar-metric"><span>Active account</span><strong>{activeConnection?.googleAccountEmail || 'Not connected'}</strong></div>
-          <div className="google-calendar-metric"><span>Open conflicts</span><strong>{conflicts.length}</strong></div>
+          <div className="google-calendar-metric"><span>{copy.connections}</span><strong>{connections.length}</strong></div>
+          <div className="google-calendar-metric"><span>{copy.activeAccount}</span><strong>{activeConnection?.googleAccountEmail || copy.notConnected}</strong></div>
+          <div className="google-calendar-metric"><span>{copy.openConflicts}</span><strong>{conflicts.length}</strong></div>
         </div>
 
         {conflicts.length > 0 ? (
@@ -739,8 +756,8 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
             <span className="google-calendar-empty-logo" aria-hidden>
               <img src={googleCalendarLogo} alt="" />
             </span>
-            <strong>No Google Calendar connection</strong>
-            <p>Connect your Google account to start syncing this tenant&apos;s calendar items, consultant bookings, personal sessions and external busy blocks.</p>
+            <strong>{copy.noConnection}</strong>
+            <p>{copy.emptyText}</p>
           </div>
         ) : (
           connections.map((connection) => {

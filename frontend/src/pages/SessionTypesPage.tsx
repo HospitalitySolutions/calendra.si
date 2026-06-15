@@ -1680,7 +1680,7 @@ export function SessionTypesPage() {
                     {locale === "sl" ? "Status" : "Status"}
                   </ServiceConfigSortableHeader>
                 </th>
-                <th>{locale === "sl" ? "Dejanje" : "Action"}</th>
+                <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
             </thead>
             <tbody>
@@ -1738,61 +1738,29 @@ export function SessionTypesPage() {
                           : activeStatusLabel}
                       </button>
                     </td>
-                    <td className="clients-actions service-config-actions">
-                      <div className="clients-actions-inner">
-                        <div className="clients-card-menu-wrap">
-                          <button
-                            type="button"
-                            className="secondary clients-card-menu-trigger service-config-menu-trigger"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenTypeMenuId((prev) =>
-                                prev === type.id ? null : type.id,
-                              );
-                            }}
-                            aria-label="Session type actions"
-                            aria-expanded={openTypeMenuId === type.id}
-                          >
-                            ⋮
-                          </button>
-                          {openTypeMenuId === type.id && (
-                            <div
-                              className="clients-card-menu-popover"
-                              role="dialog"
-                              aria-label="Session type actions"
-                            >
-                              <button
-                                type="button"
-                                disabled={activatingSessionTypeId === type.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void toggleTypeActive(
-                                    type,
-                                    type.active === false,
-                                  );
-                                }}
-                              >
-                                {type.active === false
-                                  ? "Activate"
-                                  : locale === "sl"
-                                    ? "Deaktiviraj"
-                                    : "Deactivate"}
-                              </button>
-                              <button
-                                type="button"
-                                className="danger"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenTypeMenuId(null);
-                                  void removeType(type.id);
-                                }}
-                              >
-                                {t("formDelete")}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                    <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        disabled={activatingSessionTypeId === type.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleTypeActive(type, type.active === false);
+                        }}
+                      >
+                        {type.active === false
+                          ? (locale === "sl" ? "Aktiviraj" : "Activate")
+                          : (locale === "sl" ? "Deaktiviraj" : "Deactivate")}
+                      </button>
+                      <button
+                        type="button"
+                        className="account-table-action-danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void removeType(type.id);
+                        }}
+                      >
+                        {t("formDelete")}
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1960,7 +1928,7 @@ export function SessionTypesPage() {
                     {locale === "sl" ? "Status" : "Status"}
                   </ServiceConfigSortableHeader>
                 </th>
-                <th>{locale === "sl" ? "Dejanje" : "Action"}</th>
+                <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
             </thead>
             <tbody>
@@ -2015,61 +1983,29 @@ export function SessionTypesPage() {
                           : activeStatusLabel}
                       </button>
                     </td>
-                    <td className="clients-actions service-config-actions">
-                      <div className="clients-actions-inner">
-                        <div className="clients-card-menu-wrap">
-                          <button
-                            type="button"
-                            className="secondary clients-card-menu-trigger service-config-menu-trigger"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenServiceMenuId((prev) =>
-                                prev === s.id ? null : s.id,
-                              );
-                            }}
-                            aria-label="Transaction service actions"
-                            aria-expanded={openServiceMenuId === s.id}
-                          >
-                            ⋮
-                          </button>
-                          {openServiceMenuId === s.id && (
-                            <div
-                              className="clients-card-menu-popover"
-                              role="dialog"
-                              aria-label="Transaction service actions"
-                            >
-                              <button
-                                type="button"
-                                disabled={activatingServiceId === s.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void toggleServiceActive(
-                                    s,
-                                    s.active === false,
-                                  );
-                                }}
-                              >
-                                {s.active === false
-                                  ? "Activate"
-                                  : locale === "sl"
-                                    ? "Deaktiviraj"
-                                    : "Deactivate"}
-                              </button>
-                              <button
-                                type="button"
-                                className="danger"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenServiceMenuId(null);
-                                  void deleteService(s.id);
-                                }}
-                              >
-                                {t("formDelete")}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                    <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        disabled={activatingServiceId === s.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleServiceActive(s, s.active === false);
+                        }}
+                      >
+                        {s.active === false
+                          ? (locale === "sl" ? "Aktiviraj" : "Activate")
+                          : (locale === "sl" ? "Deaktiviraj" : "Deactivate")}
+                      </button>
+                      <button
+                        type="button"
+                        className="account-table-action-danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteService(s.id);
+                        }}
+                      >
+                        {t("formDelete")}
+                      </button>
                     </td>
                   </tr>
                 );

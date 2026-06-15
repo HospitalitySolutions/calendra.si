@@ -590,3 +590,26 @@
     color: #94a3b8;
 }
 
+
+/* Desktop table action links use the same compact style as Account management received invoices. */
+.service-config-actions.account-table-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  text-align: left;
+}
+
+.service-config-actions.account-table-actions button {
+  min-width: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 700;
+}

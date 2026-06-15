@@ -95,13 +95,6 @@ export function RichTextEditor({ valueHtml, onChangeHtml, placeholder, ariaLabel
     sync()
   }
 
-  const applyBlockStyle = (style: string) => {
-    if (style === 'normal') exec('formatBlock', 'p')
-    else if (style === 'heading') exec('formatBlock', 'h2')
-    else if (style === 'subheading') exec('formatBlock', 'h3')
-    else if (style === 'small') exec('formatBlock', 'blockquote')
-  }
-
   const insertLink = () => {
     const url = window.prompt('URL', 'https://')
     if (!url) return
@@ -111,18 +104,6 @@ export function RichTextEditor({ valueHtml, onChangeHtml, placeholder, ariaLabel
   return (
     <div className="rte-editor">
       <div className="rte-toolbar" aria-label="Orodna vrstica">
-        <select
-          className="rte-format"
-          defaultValue="normal"
-          onMouseDown={keepSelectionOnMouseDown}
-          onChange={(event) => applyBlockStyle(event.target.value)}
-        >
-          <option value="normal">Normalno</option>
-          <option value="heading">Naslov</option>
-          <option value="subheading">Podnaslov</option>
-          <option value="small">Citat</option>
-        </select>
-        <span className="rte-divider" aria-hidden />
         <button type="button" className="rte-button" aria-label="Krepko" title="Krepko" onMouseDown={keepSelectionOnMouseDown} onClick={() => exec('bold')}>
           <ToolbarIcon kind="bold" />
         </button>
