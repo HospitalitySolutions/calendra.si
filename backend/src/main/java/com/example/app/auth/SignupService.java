@@ -987,7 +987,6 @@ public class SignupService {
         m.put("lastName", request.lastName());
         m.put("email", normalizedEmail);
         m.put("phone", request.phone());
-        m.put("password", request.password());
         m.put("packageName", request.packageName());
         m.put("userCount", request.userCount());
         m.put("smsCount", request.smsCount());

@@ -3,23 +3,36 @@ package com.example.app.settings;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SettingsCryptoService {
     private static final String PREFIX = "ENC:";
+    private static final String DEFAULT_DEVELOPMENT_KEY = "calendra-default-settings-key-change-me";
+    private static final int MIN_PRODUCTION_KEY_LENGTH = 32;
     private static final int IV_LENGTH = 12;
     private static final int GCM_TAG_BITS = 128;
     private final byte[] keyBytes;
     private final SecureRandom random = new SecureRandom();
 
-    public SettingsCryptoService(@Value("${app.settings.encryption-key:}") String configuredKey) {
-        this.keyBytes = deriveKey(configuredKey);
+    @Autowired
+    public SettingsCryptoService(
+            @Value("${app.settings.encryption-key:}") String configuredKey,
+            Environment environment
+    ) {
+        this.keyBytes = deriveKey(resolveConfiguredKey(configuredKey, environment));
+    }
+
+    public SettingsCryptoService(String configuredKey) {
+        this.keyBytes = deriveKey(resolveConfiguredKey(configuredKey, null));
     }
 
     public String encrypt(String raw) {
@@ -53,12 +66,31 @@ public class SettingsCryptoService {
         }
     }
 
-    private byte[] deriveKey(String configuredKey) {
+    private static String resolveConfiguredKey(String configuredKey, Environment environment) {
+        String trimmed = configuredKey == null ? "" : configuredKey.trim();
+        if (isProduction(environment)) {
+            if (trimmed.isBlank() || DEFAULT_DEVELOPMENT_KEY.equals(trimmed)) {
+                throw new IllegalStateException(
+                        "APP_SETTINGS_ENCRYPTION_KEY must be set to a unique production secret when the production profile is active."
+                );
+            }
+            if (trimmed.length() < MIN_PRODUCTION_KEY_LENGTH) {
+                throw new IllegalStateException(
+                        "APP_SETTINGS_ENCRYPTION_KEY must be at least " + MIN_PRODUCTION_KEY_LENGTH + " characters in production."
+                );
+            }
+            return trimmed;
+        }
+        return trimmed.isBlank() ? DEFAULT_DEVELOPMENT_KEY : trimmed;
+    }
+
+    private static boolean isProduction(Environment environment) {
+        return environment != null && Arrays.asList(environment.getActiveProfiles()).contains("production");
+    }
+
+    private static byte[] deriveKey(String configuredKey) {
         try {
-            String source = (configuredKey == null || configuredKey.isBlank())
-                    ? "calendra-default-settings-key-change-me"
-                    : configuredKey;
-            return MessageDigest.getInstance("SHA-256").digest(source.getBytes(StandardCharsets.UTF_8));
+            return MessageDigest.getInstance("SHA-256").digest(configuredKey.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new IllegalStateException("Unable to derive settings encryption key.", e);
         }

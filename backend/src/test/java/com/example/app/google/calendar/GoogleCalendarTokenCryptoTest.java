@@ -3,6 +3,7 @@ package com.example.app.google.calendar;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 class GoogleCalendarTokenCryptoTest {
     @Test
@@ -34,5 +35,18 @@ class GoogleCalendarTokenCryptoTest {
 
         assertEquals("token", crypto.encrypt("token"));
         assertEquals("token", crypto.decrypt("token"));
+    }
+
+    @Test
+    void productionProfileRequiresDedicatedTokenEncryptionSecretWhenEnabled() {
+        GoogleCalendarConfig config = new GoogleCalendarConfig();
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("production");
+        GoogleCalendarProductionSecretValidator validator = new GoogleCalendarProductionSecretValidator(config, environment);
+
+        assertThrows(IllegalStateException.class, validator::validateProductionTokenEncryptionSecret);
+
+        config.setTokenEncryptionSecret("a-long-production-secret-for-google-calendar-tokens");
+        assertDoesNotThrow(validator::validateProductionTokenEncryptionSecret);
     }
 }

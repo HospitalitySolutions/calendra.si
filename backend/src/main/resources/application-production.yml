@@ -35,6 +35,12 @@ spring:
       timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  settings:
+    # Must be provided by AWS Secrets Manager/env in production. Backend fails startup if blank/default/too short.
+    encryption-key: ${APP_SETTINGS_ENCRYPTION_KEY:}
+  google-calendar:
+    # Dedicated token key is required in production when Google Calendar is enabled; no APP_JWT_SECRET fallback here.
+    token-encryption-secret: ${GOOGLE_CALENDAR_TOKEN_ENCRYPTION_SECRET:}
   security:
     rate-limit:
       backend: ${APP_RATE_LIMIT_BACKEND:redis}

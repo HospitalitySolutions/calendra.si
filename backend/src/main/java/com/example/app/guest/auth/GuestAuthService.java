@@ -2,6 +2,7 @@ package com.example.app.guest.auth;
 
 import com.example.app.auth.SignupEmailIntent;
 import com.example.app.auth.SignupEmailIntentRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Map;
 import java.security.SecureRandom;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,7 +71,7 @@ public class GuestAuthService {
 
     private record PendingGuestSignupPayload(
             String email,
-            String password,
+            String passwordHash,
             String firstName,
             String lastName,
             String phone,
@@ -112,7 +114,7 @@ public class GuestAuthService {
         Instant expiresAt = Instant.now().plus(SIGNUP_CODE_TTL_MINUTES, ChronoUnit.MINUTES);
         PendingGuestSignupPayload payload = new PendingGuestSignupPayload(
                 email,
-                request.password(),
+                passwords.hash(request.password()),
                 request.firstName(),
                 request.lastName(),
                 request.phone(),
@@ -155,7 +157,7 @@ public class GuestAuthService {
 
         GuestUser guestUser = new GuestUser();
         guestUser.setEmail(payload.email());
-        guestUser.setPasswordHash(passwords.hash(payload.password()));
+        guestUser.setPasswordHash(requiredPasswordHash(payload));
         guestUser.setFirstName(requiredName(payload.firstName(), "First name is required."));
         guestUser.setLastName(requiredName(payload.lastName(), "Last name is required."));
         guestUser.setPhone(blankToNull(payload.phone()));
@@ -183,7 +185,7 @@ public class GuestAuthService {
         Instant expiresAt = Instant.now().plus(SIGNUP_CODE_TTL_MINUTES, ChronoUnit.MINUTES);
         PendingGuestSignupPayload refreshed = new PendingGuestSignupPayload(
                 oldPayload.email(),
-                oldPayload.password(),
+                requiredPasswordHash(oldPayload),
                 oldPayload.firstName(),
                 oldPayload.lastName(),
                 oldPayload.phone(),
@@ -292,10 +294,44 @@ public class GuestAuthService {
 
     private PendingGuestSignupPayload parsePayload(String raw) {
         try {
-            return objectMapper.readValue(raw, PendingGuestSignupPayload.class);
+            Map<String, Object> map = objectMapper.readValue(raw, new TypeReference<>() {});
+            String passwordHash = blankToNull(stringValue(map, "passwordHash"));
+            if (passwordHash == null) {
+                String legacyRawPassword = blankToNull(stringValue(map, "password"));
+                if (legacyRawPassword != null) {
+                    // Backward-compatible read for already-created, short-lived signup challenges.
+                    // New and refreshed challenges only persist passwordHash and never raw passwords.
+                    passwordHash = passwords.hash(legacyRawPassword);
+                }
+            }
+            return new PendingGuestSignupPayload(
+                    normalizeEmail(stringValue(map, "email")),
+                    passwordHash,
+                    stringValue(map, "firstName"),
+                    stringValue(map, "lastName"),
+                    stringValue(map, "phone"),
+                    stringValue(map, "language"),
+                    blankToNull(stringValue(map, "code"))
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Signup challenge payload is invalid.");
         }
+    }
+
+    private String requiredPasswordHash(PendingGuestSignupPayload payload) {
+        String passwordHash = payload == null ? null : blankToNull(payload.passwordHash());
+        if (passwordHash == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Signup challenge payload is invalid.");
+        }
+        return passwordHash;
+    }
+
+    private static String stringValue(Map<String, Object> values, String key) {
+        if (values == null) return null;
+        Object value = values.get(key);
+        return value == null ? null : String.valueOf(value);
     }
 
     private String writePayload(PendingGuestSignupPayload payload) {
