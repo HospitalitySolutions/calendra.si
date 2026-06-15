@@ -7,7 +7,7 @@ The Android guest app release build is now signed from environment variables or 
 Set these before creating a Play Store AAB/APK:
 
 ```bash
-export ANDROID_RELEASE_STORE_FILE=/secure/path/calendra-guest-upload.jks
+export ANDROID_RELEASE_STORE_FILE=C:\DEVELOPMENT\keys\calendra-book.jks
 export ANDROID_RELEASE_STORE_PASSWORD='your-store-password'
 export ANDROID_RELEASE_KEY_ALIAS=calendra-guest-upload
 export ANDROID_RELEASE_KEY_PASSWORD='your-key-password'
