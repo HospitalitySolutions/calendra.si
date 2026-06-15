@@ -30,6 +30,36 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
 
     List<Client> findAllByCompanyIdAndBillingCompanyId(Long companyId, Long billingCompanyId);
 
+
+    @Query(
+            """
+            select c from Client c
+            left join fetch c.assignedTo
+            left join fetch c.billingCompany
+            where c.company.id = :companyId
+              and c.email is not null
+              and trim(c.email) <> ''
+              and lower(trim(c.email)) = :normalizedEmail
+            order by c.id asc
+            """)
+    List<Client> findFirstCandidatesByCompanyIdAndNormalizedEmail(
+            @Param("companyId") Long companyId,
+            @Param("normalizedEmail") String normalizedEmail);
+
+    @Query(
+            """
+            select c from Client c
+            left join fetch c.assignedTo
+            left join fetch c.billingCompany
+            where c.company.id = :companyId
+              and c.phone is not null
+              and trim(c.phone) <> ''
+              and trim(c.phone) = :normalizedPhone
+            order by c.id asc
+            """)
+    List<Client> findFirstCandidatesByCompanyIdAndNormalizedPhone(
+            @Param("companyId") Long companyId,
+            @Param("normalizedPhone") String normalizedPhone);
     @Query(
             """
             select c from Client c

@@ -170,7 +170,7 @@ public class SessionBookingCreationService {
                 start,
                 end,
                 req.typeId(),
-                bookingExcludeIds(null),
+                bookingExcludeIds((Long) null),
                 spacesEnabled,
                 multipleSessionsPerSpaceEnabled,
                 clientGroup != null || multipleClientsPerSessionEnabled,
@@ -538,6 +538,7 @@ public class SessionBookingCreationService {
         booking.setClient(client);
         applyChannelMetadata(booking, companyId, request.sourceChannel(), request.sourceOrderId(), request.guestUserId(), request.bookingStatus());
         booking = repo.save(booking);
+        repo.flush();
         if (request.sendConfirmation()) {
             reminderService.sendBookingConfirmation(booking);
         }
@@ -667,28 +668,18 @@ public class SessionBookingCreationService {
         if (!multipleClientsPerSessionEnabled && requestedClientIds.size() > 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Multiple clients per session is disabled.");
         }
+        final List<Long> safeExcludeIds = bookingExcludeIds(excludeIds);
         final int requestedBreakMinutes = getRequestedBreakMinutes(companyId, typeId);
         final LocalDateTime requestedBusyEnd = effectiveEnd(end, requestedBreakMinutes);
-        final var companyBookings = repo.findAllByCompanyId(companyId);
 
         for (Long clientId : requestedClientIds) {
-            boolean clientOverlap = companyBookings.stream()
-                    .filter(existing -> !excludeIds.contains(existing.getId()))
-                    .filter(existing -> SessionBookingStatus.isAvailabilityBlocking(existing.getBookingStatus()))
-                    .filter(existing -> existing.getClient() != null && clientId.equals(existing.getClient().getId()))
-                    .anyMatch(existing -> intervalsOverlap(start, end, existing.getStartTime(), existing.getEndTime()));
-            if (clientOverlap) {
+            if (repo.existsAvailabilityBlockingOverlapForClient(companyId, clientId, start, end, safeExcludeIds)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "One of the selected clients already has a session at that time.");
             }
         }
 
         if (consultantId != null) {
-            boolean consultantOverlap = companyBookings.stream()
-                    .filter(existing -> !excludeIds.contains(existing.getId()))
-                    .filter(existing -> SessionBookingStatus.isAvailabilityBlocking(existing.getBookingStatus()))
-                    .filter(existing -> existing.getConsultant() != null && consultantId.equals(existing.getConsultant().getId()))
-                    .anyMatch(existing -> intervalsOverlap(start, requestedBusyEnd, existing.getStartTime(), effectiveEnd(existing)));
-            if (consultantOverlap) {
+            if (repo.existsAvailabilityBlockingOverlapForConsultant(companyId, consultantId, start, requestedBusyEnd, safeExcludeIds)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This consultant already has a session at that time.");
             }
             if (!allowPersonalBlockOverlap && hasOverlappingPersonalOrAvailabilityBlock(consultantId, companyId, start, requestedBusyEnd)) {
@@ -703,12 +694,9 @@ public class SessionBookingCreationService {
                 spaceId
         );
         if (enforceSpaceOverlapProtection) {
-            boolean spaceOverlap = companyBookings.stream()
-                    .filter(existing -> !excludeIds.contains(existing.getId()))
-                    .filter(existing -> SessionBookingStatus.isAvailabilityBlocking(existing.getBookingStatus()))
-                    .filter(existing -> existing.getMeetingLink() == null || existing.getMeetingLink().isBlank())
-                    .filter(existing -> spaceId == null || (existing.getSpace() != null && spaceId.equals(existing.getSpace().getId())))
-                    .anyMatch(existing -> intervalsOverlap(start, requestedBusyEnd, existing.getStartTime(), effectiveEnd(existing)));
+            boolean spaceOverlap = spaceId == null
+                    ? repo.existsAvailabilityBlockingOverlapForAnyPhysicalSpace(companyId, start, requestedBusyEnd, safeExcludeIds)
+                    : repo.existsAvailabilityBlockingOverlapForSpace(companyId, spaceId, start, requestedBusyEnd, safeExcludeIds);
             if (spaceOverlap) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This space is already booked at that time.");
             }
@@ -799,8 +787,22 @@ public class SessionBookingCreationService {
         return excludeId == null ? List.of(EXCLUDE_NONE_SENTINEL) : List.of(excludeId);
     }
 
+    public static List<Long> bookingExcludeIds(List<Long> excludeIds) {
+        if (excludeIds == null || excludeIds.isEmpty()) {
+            return List.of(EXCLUDE_NONE_SENTINEL);
+        }
+        List<Long> sanitized = excludeIds.stream()
+                .filter(id -> id != null && id > 0)
+                .distinct()
+                .toList();
+        return sanitized.isEmpty() ? List.of(EXCLUDE_NONE_SENTINEL) : sanitized;
+    }
+
     public static List<Long> bookingExcludeIds(Long id1, Long id2) {
-        return List.of(id1, id2);
+        List<Long> ids = new ArrayList<>();
+        ids.add(id1);
+        ids.add(id2);
+        return bookingExcludeIds(ids);
     }
 
     public boolean isSpacesEnabled(Long companyId) {
@@ -846,10 +848,7 @@ public class SessionBookingCreationService {
     }
 
     private User resolveAdminActor(Long companyId) {
-        return users.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .filter(user -> user.getRole() == Role.ADMIN)
-                .findFirst()
+        return users.findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(companyId, Role.ADMIN)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No admin user available for tenancy."));
     }
 

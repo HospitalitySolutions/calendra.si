@@ -19,6 +19,21 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByCompanyId(Long companyId);
     long countByCompanyIdAndActiveTrue(Long companyId);
     Optional<User> findByIdAndCompanyId(Long id, Long companyId);
+    Optional<User> findByIdAndCompanyIdAndActiveTrue(Long id, Long companyId);
+    Optional<User> findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(Long companyId, Role role);
+    Optional<User> findFirstByCompanyIdAndActiveTrueOrderByIdAsc(Long companyId);
+
+    @Query("""
+            select distinct u from User u
+            left join fetch u.types
+            where u.company.id = :companyId
+              and u.active = true
+              and (u.consultant = true or u.role = :consultantRole)
+            """)
+    List<User> findActiveBookableByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("consultantRole") Role consultantRole);
+
     boolean existsByCompanyIdAndEmailIgnoreCase(Long companyId, String email);
     Optional<User> findByEmailIgnoreCaseAndCompanyId(String email, Long companyId);
     Optional<User> findByWebauthnUserHandle(String webauthnUserHandle);

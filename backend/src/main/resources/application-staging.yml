@@ -13,6 +13,11 @@ server:
 # Docker env, or export before java -jar) with at least secretsmanager:GetSecretValue on this secret — otherwise the
 # JVM cannot fetch the secret on first start. Use a narrow IAM user; optional duplicate keys in SM for one place to edit.
 spring:
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+  jpa:
+    hibernate:
+      ddl-auto: validate
   config:
     # Friendly name or full ARN (see AWS console) both work.
     # Override with AWS_STAGING_SECRET_ID to force exact lookup (recommended: full ARN).

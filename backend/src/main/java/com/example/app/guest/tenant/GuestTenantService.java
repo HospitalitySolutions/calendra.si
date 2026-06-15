@@ -253,9 +253,10 @@ public class GuestTenantService {
     }
 
     private MatchResult matchOrCreateClient(Company company, GuestUser guestUser) {
-        List<Client> companyClients = clients.findAllByCompanyId(company.getId());
-        List<Client> emailMatches = findByEmail(companyClients, guestUser.getEmail());
-        List<Client> phoneMatches = findByPhone(companyClients, guestUser.getPhone());
+        companies.findByIdForUpdate(company.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
+        List<Client> emailMatches = findByEmail(company.getId(), guestUser.getEmail());
+        List<Client> phoneMatches = findByPhone(company.getId(), guestUser.getPhone());
 
         if (emailMatches.size() > 1 || phoneMatches.size() > 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Duplicate clients found for this tenant. Please clean up tenant client data first.");
@@ -285,9 +286,7 @@ public class GuestTenantService {
     }
 
     private Client createClient(Company company, GuestUser guestUser) {
-        User assigned = users.findAllByCompanyId(company.getId()).stream()
-                .filter(User::isActive)
-                .min(Comparator.comparing(User::getId))
+        User assigned = users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(company.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No active tenant staff user is available to own new clients."));
         Client client = new Client();
         client.setCompany(company);
@@ -304,21 +303,19 @@ public class GuestTenantService {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
 
-    private static List<Client> findByEmail(List<Client> companyClients, String email) {
+    private List<Client> findByEmail(Long companyId, String email) {
         String normalized = normalizeEmail(email);
         if (normalized == null) return List.of();
-        return companyClients.stream()
+        return clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(companyId, normalized).stream()
                 .filter(c -> !c.isAnonymized())
-                .filter(c -> normalized.equals(normalizeEmail(c.getEmail())))
                 .toList();
     }
 
-    private static List<Client> findByPhone(List<Client> companyClients, String phone) {
+    private List<Client> findByPhone(Long companyId, String phone) {
         String normalized = normalizePhone(phone);
         if (normalized == null) return List.of();
-        return companyClients.stream()
+        return clients.findFirstCandidatesByCompanyIdAndNormalizedPhone(companyId, normalized).stream()
                 .filter(c -> !c.isAnonymized())
-                .filter(c -> normalized.equals(normalizePhone(c.getPhone())))
                 .toList();
     }
 

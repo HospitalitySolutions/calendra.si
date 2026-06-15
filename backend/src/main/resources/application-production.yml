@@ -10,7 +10,16 @@
 # be able to call secretsmanager:GetSecretValue for this secret before the JSON is loaded (see application-staging.yml).
 server:
   forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
 spring:
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+  jpa:
+    hibernate:
+      ddl-auto: validate
   config:
     # Override with AWS_PRODUCTION_SECRET_ID to force exact lookup (recommended: full ARN).
     import: optional:aws-secretsmanager:${AWS_PRODUCTION_SECRET_ID:calendra-app},optional:aws-secretsmanager:/${AWS_PRODUCTION_SECRET_ID:calendra-app}

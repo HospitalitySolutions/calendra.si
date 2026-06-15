@@ -97,7 +97,76 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("end") LocalDateTime end,
             @Param("excludeBookingId") Long excludeBookingId);
 
+    @Query(value = """
+            select count(*) > 0
+            from session_booking sb
+            where sb.company_id = :companyId
+              and sb.client_id = :clientId
+              and sb.id not in (:excludeIds)
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+              and sb.start_time < :end
+              and sb.end_time > :start
+            """, nativeQuery = true)
+    boolean existsAvailabilityBlockingOverlapForClient(
+            @Param("companyId") Long companyId,
+            @Param("clientId") Long clientId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("excludeIds") List<Long> excludeIds);
 
+    @Query(value = """
+            select count(*) > 0
+            from session_booking sb
+            left join session_type st on st.id = sb.type_id
+            where sb.company_id = :companyId
+              and sb.consultant_id = :consultantId
+              and sb.id not in (:excludeIds)
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+              and sb.start_time < :requestedBusyEnd
+              and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+            """, nativeQuery = true)
+    boolean existsAvailabilityBlockingOverlapForConsultant(
+            @Param("companyId") Long companyId,
+            @Param("consultantId") Long consultantId,
+            @Param("start") LocalDateTime start,
+            @Param("requestedBusyEnd") LocalDateTime requestedBusyEnd,
+            @Param("excludeIds") List<Long> excludeIds);
+
+    @Query(value = """
+            select count(*) > 0
+            from session_booking sb
+            left join session_type st on st.id = sb.type_id
+            where sb.company_id = :companyId
+              and sb.space_id = :spaceId
+              and sb.id not in (:excludeIds)
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+              and (sb.meeting_link is null or sb.meeting_link = '')
+              and sb.start_time < :requestedBusyEnd
+              and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+            """, nativeQuery = true)
+    boolean existsAvailabilityBlockingOverlapForSpace(
+            @Param("companyId") Long companyId,
+            @Param("spaceId") Long spaceId,
+            @Param("start") LocalDateTime start,
+            @Param("requestedBusyEnd") LocalDateTime requestedBusyEnd,
+            @Param("excludeIds") List<Long> excludeIds);
+
+    @Query(value = """
+            select count(*) > 0
+            from session_booking sb
+            left join session_type st on st.id = sb.type_id
+            where sb.company_id = :companyId
+              and sb.id not in (:excludeIds)
+              and upper(coalesce(sb.booking_status, 'RESERVED')) not in ('CANCELLED', 'NO_SHOW')
+              and (sb.meeting_link is null or sb.meeting_link = '')
+              and sb.start_time < :requestedBusyEnd
+              and (sb.end_time + (coalesce(st.break_minutes, 0) * interval '1 minute')) > :start
+            """, nativeQuery = true)
+    boolean existsAvailabilityBlockingOverlapForAnyPhysicalSpace(
+            @Param("companyId") Long companyId,
+            @Param("start") LocalDateTime start,
+            @Param("requestedBusyEnd") LocalDateTime requestedBusyEnd,
+            @Param("excludeIds") List<Long> excludeIds);
 
     List<SessionBooking> findByBookingGroupKeyAndCompanyIdOrderByIdAsc(String bookingGroupKey, Long companyId);
 
@@ -123,6 +192,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("clientId") Long clientId,
             @Param("consultantId") Long consultantId
     );
+
 
     @Query("SELECT DISTINCT sb FROM SessionBooking sb " +
            "LEFT JOIN FETCH sb.company " +

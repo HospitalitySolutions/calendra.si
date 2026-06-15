@@ -19,7 +19,6 @@ import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.http.HttpHeaders;
@@ -260,6 +259,8 @@ public class PublicWidgetOrderService {
         if (existing != null && existing.getClient() != null) {
             client = existing.getClient();
         } else {
+            companies.findByIdForUpdate(company.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
             client = matchOrCreateClient(company, firstName, lastName, email, phone);
         }
         // When the widget includes a company name, resolve (or create) a ClientCompany for the
@@ -284,14 +285,13 @@ public class PublicWidgetOrderService {
     }
 
     private Client matchOrCreateClient(Company company, String firstName, String lastName, String email, String phone) {
-        List<Client> companyClients = clients.findAllByCompanyId(company.getId());
-        Client match = companyClients.stream()
-                .filter(c -> email != null && email.equalsIgnoreCase(normalizeEmail(c.getEmail())))
-                .findFirst()
-                .orElse(null);
+        Client match = email == null
+                ? null
+                : clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), email).stream()
+                        .findFirst()
+                        .orElse(null);
         if (match == null && phone != null) {
-            match = companyClients.stream()
-                    .filter(c -> phone.equals(normalizePhone(c.getPhone())))
+            match = clients.findFirstCandidatesByCompanyIdAndNormalizedPhone(company.getId(), phone).stream()
                     .findFirst()
                     .orElse(null);
         }
@@ -304,9 +304,7 @@ public class PublicWidgetOrderService {
             }
             return clients.save(match);
         }
-        User assigned = users.findAllByCompanyId(company.getId()).stream()
-                .filter(User::isActive)
-                .min(Comparator.comparing(User::getId))
+        User assigned = users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(company.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No active tenant staff user is available to own new clients."));
         Client client = new Client();
         client.setCompany(company);

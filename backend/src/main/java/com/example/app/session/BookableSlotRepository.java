@@ -3,6 +3,8 @@ package com.example.app.session;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +21,24 @@ public interface BookableSlotRepository extends JpaRepository<BookableSlot, Long
         where s.company.id = :companyId
         """)
     List<BookableSlot> findAllForWidgetByCompanyId(@Param("companyId") Long companyId);
+
+    @Query("""
+        select distinct s from BookableSlot s
+        join fetch s.consultant c
+        left join fetch c.types
+        where s.company.id = :companyId
+          and s.dayOfWeek = :dayOfWeek
+          and c.active = true
+          and (:consultantId is null or c.id = :consultantId)
+          and (s.indefinite = true
+               or ((s.startDate is null or s.startDate <= :date)
+                   and (s.endDate is null or s.endDate >= :date)))
+        """)
+    List<BookableSlot> findAllForWidgetByCompanyIdAndDate(
+            @Param("companyId") Long companyId,
+            @Param("dayOfWeek") DayOfWeek dayOfWeek,
+            @Param("date") LocalDate date,
+            @Param("consultantId") Long consultantId);
 
     List<BookableSlot> findByConsultantIdAndCompanyId(Long consultantId, Long companyId);
 

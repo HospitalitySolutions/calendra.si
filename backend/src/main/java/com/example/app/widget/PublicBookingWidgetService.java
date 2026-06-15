@@ -339,6 +339,7 @@ public class PublicBookingWidgetService {
 
             User consultant = resolveConsultantForBooking(company.getId(), request.consultantId(), cfg.availabilityEnabled());
             User actor = consultant != null ? consultant : resolveAdminActor(company.getId());
+            lockTenantForClientMatch(company);
             Client client = findOrCreateClient(company, actor, request);
 
             PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(company, "booking", idempotencyKey, request, PublicBookingWidgetController.BookingResponse.class, () -> {
@@ -404,6 +405,7 @@ public class PublicBookingWidgetService {
         }
 
         User actor = representative.getConsultant() != null ? representative.getConsultant() : resolveAdminActor(company.getId());
+        lockTenantForClientMatch(company);
         Client client = findOrCreateClient(company, actor, request);
         SessionBooking joined = bookingCreationService.joinClientToGroupSession(new SessionBookingCreationService.GroupJoinRequest(
                 company.getId(),
@@ -555,12 +557,8 @@ public class PublicBookingWidgetService {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
 
         Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
-        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(company.getId()).stream()
+        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(company.getId(), dayOfWeek, date, consultantId).stream()
                 .filter(slot -> slot.getConsultant() != null)
-                .filter(slot -> slot.getConsultant().isActive())
-                .filter(slot -> slot.getDayOfWeek() == dayOfWeek)
-                .filter(slot -> consultantId == null || slot.getConsultant().getId().equals(consultantId))
-                .filter(slot -> slot.isIndefinite() || withinDateRange(slot, date))
                 .filter(slot -> consultantSupportsType(slot.getConsultant(), type))
                 .sorted(Comparator.comparing((BookableSlot s) -> s.getConsultant().getId()).thenComparing(BookableSlot::getStartTime))
                 .toList();
@@ -745,9 +743,7 @@ public class PublicBookingWidgetService {
         LocalTime rangeStart;
         LocalTime rangeEnd;
         if (consultantId != null) {
-            User consultant = users.findAllByCompanyId(company.getId()).stream()
-                    .filter(u -> u.getId().equals(consultantId))
-                    .findFirst()
+            User consultant = users.findByIdAndCompanyIdAndActiveTrue(consultantId, company.getId())
                     .orElse(null);
             if (consultant == null) {
                 return new ArrayList<>();
@@ -819,16 +815,22 @@ public class PublicBookingWidgetService {
         }
     }
 
+
+    private void lockTenantForClientMatch(Company company) {
+        companies.findByIdForUpdate(company.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
+    }
+
     private Client findOrCreateClient(Company company, User actor, PublicBookingWidgetController.BookingRequest request) {
         String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
         String normalizedPhone = request.phone().trim();
 
-        Optional<Client> existing = clients.findAllByCompanyId(company.getId()).stream()
-                .filter(client -> client.getEmail() != null && client.getEmail().trim().equalsIgnoreCase(normalizedEmail))
+        Optional<Client> existing = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), normalizedEmail)
+                .stream()
                 .findFirst();
         if (existing.isEmpty()) {
-            existing = clients.findAllByCompanyId(company.getId()).stream()
-                    .filter(client -> client.getPhone() != null && client.getPhone().trim().equals(normalizedPhone))
+            existing = clients.findFirstCandidatesByCompanyIdAndNormalizedPhone(company.getId(), normalizedPhone)
+                    .stream()
                     .findFirst();
         }
         if (existing.isPresent()) {
@@ -868,26 +870,21 @@ public class PublicBookingWidgetService {
             return null;
         }
 
-        return users.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .filter(user -> user.getId().equals(consultantId))
-                .filter(this::isBookableConsultant)
-                .findFirst()
+        User consultant = users.findByIdAndCompanyIdAndActiveTrue(consultantId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant."));
+        if (!isBookableConsultant(consultant)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant.");
+        }
+        return consultant;
     }
 
     private User resolveAdminActor(Long companyId) {
-        return users.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .filter(user -> user.getRole() == Role.ADMIN)
-                .findFirst()
+        return users.findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(companyId, Role.ADMIN)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No admin user available for tenancy."));
     }
 
     private List<User> supportedConsultants(Long companyId, SessionType type) {
-        return users.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .filter(this::isBookableConsultant)
+        return users.findActiveBookableByCompanyId(companyId, Role.CONSULTANT).stream()
                 .filter(consultant -> consultantSupportsType(consultant, type))
                 .sorted(Comparator.comparing(this::consultantFullName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
