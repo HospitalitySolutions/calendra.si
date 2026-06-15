@@ -1,0 +1,11 @@
+Open bill amount synchronization fix
+
+Changed the Open Bills list amount calculation so it uses the same payable gross total as the edit popup "Skupaj" amount.
+
+What changed:
+- The Odprti računi row Amount now uses the open bill payable total, including whole-bill and line-item discounts.
+- Grouped open-bill rows now sum the same payable totals for all included bills.
+- Open-bill sorting and summary totals now refresh when discount drafts change, so the list stays aligned with the editor without needing a reload.
+
+Result:
+- The "Skupaj" amount inside Uredi račun and the Amount shown in the Odprti računi row stay consistent.

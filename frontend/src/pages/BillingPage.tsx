@@ -1790,7 +1790,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function openBillListGroupGross(ob: OpenBill): number {
-    return getOpenBillListGroupMembers(ob).reduce((sum, entry) => sum + estimateGross(getOpenBillItems(entry)), 0)
+    return getOpenBillListGroupMembers(ob).reduce((sum, entry) => sum + openBillPayableGross(entry), 0)
   }
 
   function openBillListGroupClientLabel(ob: OpenBill): string {
@@ -2814,11 +2814,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return (safeA - safeB) * factor
     })
     return list
-  }, [filteredOpenBills, openBillsSortField, openBillsSortDir, openBillEdits, services, openBills, locale])
+  }, [filteredOpenBills, openBillsSortField, openBillsSortDir, openBillEdits, openBillDiscountEdits, services, openBills, locale])
 
   const openBillsSummaryGross = useMemo(
     () => sortedOpenBills.reduce((sum, ob) => sum + openBillListGroupGross(ob), 0),
-    [sortedOpenBills, openBillEdits, services, openBills],
+    [sortedOpenBills, openBillEdits, openBillDiscountEdits, services, openBills],
   )
 
   const openBillsSortLabel = useMemo(() => {
