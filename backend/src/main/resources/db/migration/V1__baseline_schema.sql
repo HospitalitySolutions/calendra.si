@@ -1787,7 +1787,7 @@ CREATE TABLE IF NOT EXISTS course_access_progress (
     course_id BIGINT NOT NULL,
     position_seconds INTEGER NOT NULL DEFAULT 0,
     duration_seconds INTEGER,
-    progress_percent NUMERIC(6, 2) NOT NULL DEFAULT 0,
+    progress_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
     completed BOOLEAN NOT NULL DEFAULT FALSE,
     last_played_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT uk_course_access_progress_entitlement_course UNIQUE (entitlement_id, course_id),
