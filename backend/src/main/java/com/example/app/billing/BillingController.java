@@ -2030,6 +2030,8 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
         }
         bill.setBillType(resolvedBillType);
+        PaymentMethod openPaymentMethod = open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId);
+        requireStripeCheckoutReadyIfNeeded(me, openPaymentMethod);
         bill.setBillNumber(nextInvoiceNumber(companyId));
         bill.setClient(open.getClient());
         setBillClientSnapshot(bill, open.getClient());
@@ -2044,7 +2046,7 @@ public class BillingController {
             setBillRecipientPersonSnapshot(bill);
         }
         bill.setConsultant(open.getConsultant());
-        bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId));
+        bill.setPaymentMethod(openPaymentMethod);
         bill.setBankTransferReference(open.getReference());
         bill.setIssueDate(timeService.localDate());
         bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
@@ -2114,6 +2116,7 @@ public class BillingController {
         openBillRepo.delete(open);
         openBillRepo.flush();
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
+        tryEmailPaidBillFolioAfterCreate(saved, companyId);
         return toResponse(saved);
     }
 
@@ -3367,6 +3370,8 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var bill = new Bill();
         bill.setCompany(me.getCompany());
+        PaymentMethod requestedPaymentMethod = resolvePaymentMethod(request.paymentMethodId(), companyId);
+        requireStripeCheckoutReadyIfNeeded(me, requestedPaymentMethod);
         String billNumber = nextInvoiceNumber(companyId);
         bill.setBillNumber(billNumber);
         BillType requestedBillType = resolveRequestedBillType(request.billType());
@@ -3425,7 +3430,7 @@ public class BillingController {
             setBillRecipientCompanySnapshot(bill, recipientCompany);
         }
         bill.setConsultant(request.consultantId() != null ? users.findByIdAndCompanyId(request.consultantId(), companyId).orElseThrow() : me);
-        bill.setPaymentMethod(resolvePaymentMethod(request.paymentMethodId(), companyId));
+        bill.setPaymentMethod(requestedPaymentMethod);
         bill.setBankTransferReference(request.bankTransferReference() == null ? null : request.bankTransferReference().trim());
         bill.setIssueDate(timeService.localDate());
         bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
@@ -3530,6 +3535,7 @@ public class BillingController {
         }
 
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
+        tryEmailPaidBillFolioAfterCreate(saved, companyId);
         return toResponse(saved);
     }
 
@@ -5346,6 +5352,28 @@ public class BillingController {
     private void requireBankTransferQrSettingsIfNeeded(Bill bill, Long companyId) {
         if (BillPaymentSplitSupport.resolveBankTransferDueGross(bill).compareTo(BigDecimal.ZERO) > 0) {
             billFolioPdfService.ensureOwnBankTransferSettings(companyId);
+        }
+    }
+
+    private void requireStripeCheckoutReadyIfNeeded(User actor, PaymentMethod paymentMethod) {
+        if (paymentMethod == null || !paymentMethod.isStripeEnabled()) {
+            return;
+        }
+        stripeBillingService.assertCheckoutReadyForCompany(actor == null ? null : actor.getCompany());
+    }
+
+    private void tryEmailPaidBillFolioAfterCreate(Bill bill, Long companyId) {
+        if (bill == null || !BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
+            return;
+        }
+        try {
+            byte[] pdf = invoicePdfS3Service.downloadIfPresent(bill);
+            if (pdf == null) {
+                pdf = billFolioPdfService.generate(bill, companyId, bill.getInvoiceLocale());
+            }
+            billingEmailService.sendInvoiceFolio(bill, pdf);
+        } catch (Exception ex) {
+            log.warn("Paid bill folio email failed for bill {}: {}", bill.getId(), ex.getMessage());
         }
     }
 

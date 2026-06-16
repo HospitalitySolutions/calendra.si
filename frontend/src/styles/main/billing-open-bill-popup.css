@@ -5717,6 +5717,10 @@
     width: min(100%, 520px);
 }
 
+.billing-stripe-setup-modal {
+    width: min(100%, 520px);
+}
+
 .billing-bank-transfer-settings-list {
     display: grid;
     gap: 10px;

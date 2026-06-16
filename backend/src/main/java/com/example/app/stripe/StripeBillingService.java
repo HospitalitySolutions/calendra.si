@@ -72,9 +72,9 @@ public class StripeBillingService {
         metadata.put("client_id", bill.getClient() == null ? "" : String.valueOf(bill.getClient().getId()));
         metadata.put("session_id", bill.getSourceSessionIdSnapshot() == null ? "" : String.valueOf(bill.getSourceSessionIdSnapshot()));
 
+        StripeConnectService.ConnectedAccountRouting routing = checkoutRoutingForCompany(bill.getCompany());
         StripeCheckoutSessionResult session;
-        if (stripeConnectService != null && stripePlatformSettingsService != null && bill.getCompany() != null) {
-            StripeConnectService.ConnectedAccountRouting routing = stripeConnectService.routingForCompany(bill.getCompany());
+        if (routing != null) {
             bill.setStripeConnectMode(routing.mode().apiValue());
             bill.setStripeConnectedAccountId(routing.accountId());
             metadata.put("stripe_connect_mode", routing.mode().apiValue());
@@ -121,6 +121,29 @@ public class StripeBillingService {
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
         bills.save(bill);
         return session;
+    }
+
+    public void assertCheckoutReadyForCompany(com.example.app.company.Company company) {
+        checkoutRoutingForCompany(company);
+    }
+
+    private StripeConnectService.ConnectedAccountRouting checkoutRoutingForCompany(com.example.app.company.Company company) {
+        if (stripeConnectService != null && stripePlatformSettingsService != null && company != null) {
+            try {
+                return stripeConnectService.routingForCompany(company);
+            } catch (ResponseStatusException ex) {
+                throw stripeSetupRequired(firstNonBlank(ex.getReason(), "Stripe Connect is not ready. Finish onboarding first."));
+            }
+        }
+        if (stripeConfig == null || stripeConfig.secretKey() == null || stripeConfig.secretKey().isBlank()) {
+            throw stripeSetupRequired("Stripe is not configured. Add the Stripe secret key before creating card payment links.");
+        }
+        return null;
+    }
+
+    private ResponseStatusException stripeSetupRequired(String detail) {
+        String suffix = detail == null || detail.isBlank() ? "Stripe is not setup." : detail.trim();
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, "STRIPE_SETUP_REQUIRED: " + suffix);
     }
 
     public StripeBankTransferInvoiceResult createOrReuseBankTransferInvoiceForBill(Bill bill, int daysUntilDue) {
