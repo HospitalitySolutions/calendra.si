@@ -45,8 +45,12 @@ final class AppStore: ObservableObject {
         "BOOKING_CONFIRMED",
         "BOOKING_RESCHEDULED",
         "BOOKING_CANCELLED",
+        "BOOKING_UPDATED",
         "BOOKING_REMINDER",
-        "BOOKING_FOLLOW_UP"
+        "BOOKING_FOLLOW_UP",
+        "ENTITLEMENT_ADDED",
+        "ENTITLEMENT_REMOVED",
+        "INVOICE_CREATED"
     ]
 
     private let api: GuestApiClient

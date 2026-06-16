@@ -368,8 +368,11 @@ public class SessionBookingCreationService {
                 reminderService.sendBookingConfirmation(row);
             } else {
                 restoreGuestCreditIfNoLongerBlocking(row, previouslyBlockedAvailability);
-                if (!previousStart.equals(row.getStartTime()) || !previousEnd.equals(row.getEndTime())) {
+                boolean timeChanged = !Objects.equals(previousStart, row.getStartTime()) || !Objects.equals(previousEnd, row.getEndTime());
+                if (timeChanged) {
                     reminderService.sendSessionRescheduled(row, previousStart, previousEnd);
+                } else {
+                    reminderService.recordStaffBookingModified(row);
                 }
             }
         }

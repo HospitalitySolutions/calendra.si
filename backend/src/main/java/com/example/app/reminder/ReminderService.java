@@ -260,15 +260,17 @@ public class ReminderService {
     }
 
     private void sendImmediateTemplateGuestApp(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
+        if (!isStaffWebBookingSource(booking)) {
+            return;
+        }
         try {
             JsonNode node = loadNotificationSettingsRoot(companyId).path("guestApp").path(kind.getJsonKey());
-            if (!node.path("enabled").asBoolean(false)) {
-                return;
-            }
             String title = node.path("title").asText("");
             String body = node.path("body").asText("");
-            if (title.isBlank() && body.isBlank()) {
-                return;
+            boolean templateEnabled = node.path("enabled").asBoolean(false);
+            if (!templateEnabled || (title.isBlank() && body.isBlank())) {
+                title = defaultPushTitle(kind);
+                body = defaultPushBody(kind);
             }
             String renderedTitle = replaceTokens(title, tokens);
             String renderedBody = replaceTokens(body, tokens);
@@ -280,10 +282,10 @@ public class ReminderService {
                     renderedBody,
                     buildPayloadJson(booking)
             );
-            log.info("Sent {} guest app notification for company {}", kind, companyId);
+            log.info("Recorded {} guest app bell notification for company {}", kind, companyId);
             sendReminderPush(created, booking, renderedTitle, renderedBody, kind);
         } catch (Exception e) {
-            log.warn("Failed to send {} guest app notification for company {}: {}", kind, companyId, e.getMessage());
+            log.warn("Failed to record {} guest app notification for company {}: {}", kind, companyId, e.getMessage());
         }
     }
 
@@ -363,19 +365,43 @@ public class ReminderService {
         };
     }
 
-    /** Sends new-session notifications only when the template is enabled in settings. */
+    /** Sends new-session notifications; guest-app bell falls back to a default message when no template is enabled. */
     public void sendBookingConfirmation(SessionBooking booking) {
         sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.NEW_SESSION, null, null);
     }
 
-    /** Sends change-session notifications when the template is enabled. */
+    /** Sends change-session notifications; guest-app bell falls back to a default message when no template is enabled. */
     public void sendSessionRescheduled(SessionBooking booking, LocalDateTime previousStart, LocalDateTime previousEnd) {
         sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.CHANGE_SESSION, previousStart, previousEnd);
     }
 
-    /** Sends cancel-session notifications when the template is enabled (call before deleting the booking entity). */
+    /** Sends cancel-session notifications; guest-app bell falls back to a default message when no template is enabled. */
     public void sendSessionCancelled(SessionBooking booking) {
         sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.CANCEL_SESSION, null, null);
+    }
+
+    /** Records a bell notification for tenant-staff edits that do not already produce a create/reschedule/cancel notice. */
+    public void recordStaffBookingModified(SessionBooking booking) {
+        if (!isStaffWebBookingSource(booking)) {
+            return;
+        }
+        Runnable task = () -> {
+            try {
+                guestNotifications.webBookingUpdated(booking);
+            } catch (Exception e) {
+                log.warn("Failed to record booking-updated guest app notification: {}", e.getMessage());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+            return;
+        }
+        task.run();
     }
 
     private void sendBookingTemplateNotificationsAfterCommit(SessionBooking booking, NotificationKind kind,
@@ -407,6 +433,12 @@ public class ReminderService {
         sendImmediateTemplateEmail(client, companyId, kind, tokens);
         sendImmediateTemplateSms(booking, client, companyId, kind, tokens);
         sendImmediateTemplateGuestApp(booking, client, companyId, kind, tokens);
+    }
+
+    private static boolean isStaffWebBookingSource(SessionBooking booking) {
+        if (booking == null) return false;
+        String sourceChannel = booking.getSourceChannel();
+        return sourceChannel == null || sourceChannel.isBlank() || "STAFF".equalsIgnoreCase(sourceChannel.trim());
     }
 
     private void sendImmediateTemplateEmail(Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {

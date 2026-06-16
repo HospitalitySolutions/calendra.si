@@ -1219,10 +1219,20 @@ public class GuestOrderService {
             Long guestProductIdLong = Long.parseLong(String.valueOf(guestProductId));
             GuestProduct product = catalogService.resolveProduct(order.getCompany().getId(), String.valueOf(guestProductIdLong), order.getGuestUser()).persistedProduct();
             if (product != null) {
-                entitlementService.ensureEntitlementForOrder(order, product);
+                boolean alreadyExists = entitlements.findBySourceOrderIdAndProductId(order.getId(), product.getId()).isPresent();
+                GuestEntitlement entitlement = entitlementService.ensureEntitlementForOrder(order, product);
+                if (!alreadyExists && isStaffClientWalletOrder(map)) {
+                    notifications.webEntitlementAdded(entitlement);
+                }
             }
         } catch (Exception ignore) {
         }
+    }
+
+    private static boolean isStaffClientWalletOrder(Map<?, ?> metadata) {
+        if (metadata == null) return false;
+        Object source = metadata.get("source");
+        return source != null && "STAFF_CLIENT_WALLET".equalsIgnoreCase(String.valueOf(source).trim());
     }
 
     public GuestDtos.OrderSummaryResponse toOrder(GuestOrder order) {

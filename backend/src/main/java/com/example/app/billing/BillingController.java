@@ -2117,6 +2117,7 @@ public class BillingController {
         openBillRepo.flush();
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
         tryEmailPaidBillFolioAfterCreate(saved, companyId);
+        events.publishEvent(new WebInvoiceCreatedEvent(saved.getId(), companyId));
         return toResponse(saved);
     }
 
@@ -3536,6 +3537,7 @@ public class BillingController {
 
         tryArchiveInvoicePdfAfterCreate(saved, companyId);
         tryEmailPaidBillFolioAfterCreate(saved, companyId);
+        events.publishEvent(new WebInvoiceCreatedEvent(saved.getId(), companyId));
         return toResponse(saved);
     }
 

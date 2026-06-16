@@ -450,6 +450,9 @@ public class SessionBookingController {
 
         repo.saveAll(updatedRows);
         repo.flush();
+        for (SessionBooking row : updatedRows) {
+            reminderService.recordStaffBookingModified(row);
+        }
         openBillSyncService.syncSessionGroup(companyId, SessionBookingController.groupKey(representative));
         openBillSyncService.enqueueBookingsSync(companyId, updatedRows);
         bookingChangePublisher.publish(

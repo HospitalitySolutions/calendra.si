@@ -44,14 +44,19 @@ class StripeWebhookServiceTest {
     @Mock
     private InvoicePdfS3Service invoicePdfS3Service;
 
+    @Mock
+    private StripeConnectService connectService;
+
     private StripeWebhookService service;
+    private StripeConfig config;
+    private StripeWebhookVerifier verifier;
     private String secret = "whsec_test_123";
 
     @BeforeEach
     void setUp() {
-        StripeConfig config = new StripeConfig();
+        config = new StripeConfig();
         ReflectionTestUtils.setField(config, "webhookSecret", secret);
-        StripeWebhookVerifier verifier = new StripeWebhookVerifier();
+        verifier = new StripeWebhookVerifier();
         service = new StripeWebhookService(
                 config,
                 verifier,
@@ -129,6 +134,36 @@ class StripeWebhookServiceTest {
         service.handleWebhook(payload, signature(payload));
 
         Assertions.assertEquals(BillPaymentStatus.CANCELLED, bill.getPaymentStatus());
+    }
+
+
+    @Test
+    void deauthorizedConnectAccountClearsTenantStripeState() throws Exception {
+        StripeWebhookService serviceWithConnect = new StripeWebhookService(
+                config,
+                verifier,
+                events,
+                bills,
+                fiscalizationService,
+                billFolioPdfService,
+                billingEmailService,
+                invoicePdfS3Service,
+                null,
+                null,
+                connectService,
+                null
+        );
+        String payload = JSON.writeValueAsString(Map.of(
+                "id", "evt_deauth",
+                "type", "account.application.deauthorized",
+                "account", "acct_deauthorized_123",
+                "data", Map.of("object", Map.of("id", "ca_123"))
+        ));
+        when(events.existsByEventId("evt_deauth")).thenReturn(false);
+
+        serviceWithConnect.handleWebhook(payload, signature(payload));
+
+        verify(connectService, times(1)).handleAccountApplicationDeauthorized("acct_deauthorized_123");
     }
 
     private Bill bill(Long id, String status, String checkoutSessionId) {

@@ -85,7 +85,7 @@ final class GuestPushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotific
         let companyId = (userInfo["companyId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let companyId, !companyId.isEmpty else { return }
         DispatchQueue.main.async {
-            if type == "booking_changed" {
+            if type == "booking_changed" || type == "guest_reminder" {
                 NotificationCenter.default.post(name: .guestPushBookingChanged, object: companyId)
                 return
             }

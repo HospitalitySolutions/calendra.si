@@ -133,8 +133,12 @@ private val GUEST_APP_BELL_NOTIFICATION_TYPES = setOf(
     "BOOKING_CONFIRMED",
     "BOOKING_RESCHEDULED",
     "BOOKING_CANCELLED",
+    "BOOKING_UPDATED",
     "BOOKING_REMINDER",
-    "BOOKING_FOLLOW_UP"
+    "BOOKING_FOLLOW_UP",
+    "ENTITLEMENT_ADDED",
+    "ENTITLEMENT_REMOVED",
+    "INVOICE_CREATED"
 )
 
 private fun openTenantDialer(context: android.content.Context, rawPhone: String?) {
@@ -2049,7 +2053,10 @@ private fun GuestUtilityTopBar(
                 BadgedBox(
                     badge = {
                         if (unreadNotificationCount > 0) {
-                            Badge { Text(unreadNotificationCount.coerceAtMost(99).toString()) }
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ) { Text(unreadNotificationCount.coerceAtMost(99).toString()) }
                         }
                     }
                 ) {

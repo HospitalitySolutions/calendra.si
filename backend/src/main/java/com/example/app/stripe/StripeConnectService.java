@@ -178,6 +178,35 @@ public class StripeConnectService {
         }
     }
 
+    @Transactional
+    public void handleAccountApplicationDeauthorized(String accountId) {
+        if (accountId == null || accountId.isBlank()) return;
+        int cleared = 0;
+        cleared += clearDeauthorizedAccountRows(settings.findAllByKey(SettingKey.STRIPE_SANDBOX_ACCOUNT_ID), accountId.trim(), StripeConnectMode.SANDBOX);
+        cleared += clearDeauthorizedAccountRows(settings.findAllByKey(SettingKey.STRIPE_PRODUCTION_ACCOUNT_ID), accountId.trim(), StripeConnectMode.PRODUCTION);
+        if (cleared == 0) {
+            log.warn("Stripe connected account deauthorized but no matching Calendra tenant setting was found accountId={}", accountId);
+        }
+    }
+
+    private int clearDeauthorizedAccountRows(List<AppSetting> rows, String accountId, StripeConnectMode mode) {
+        int cleared = 0;
+        for (AppSetting row : rows) {
+            String storedAccountId = row.getValue() == null ? "" : row.getValue().trim();
+            if (!accountId.equals(storedAccountId)) continue;
+            Company company = row.getCompany();
+            put(company, accountIdKey(mode), "");
+            put(company, statusKey(mode), STATUS_NOT_CONNECTED);
+            put(company, chargesEnabledKey(mode), "false");
+            put(company, payoutsEnabledKey(mode), "false");
+            put(company, detailsSubmittedKey(mode), "false");
+            put(company, requirementsKey(mode), "[]");
+            cleared++;
+            log.warn("Cleared deauthorized Stripe connected account for companyId={} mode={} accountId={}", company.getId(), mode.apiValue(), accountId);
+        }
+        return cleared;
+    }
+
     private JsonNode createConnectedAccount(Company company, User actor, StripePlatformSettingsService.StripeModeSettings cfg, String country, String businessType) {
         Map<String, String> form = new LinkedHashMap<>();
         form.put("type", "express");

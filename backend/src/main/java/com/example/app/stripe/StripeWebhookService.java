@@ -297,7 +297,11 @@ public class StripeWebhookService {
     private void handleAccountApplicationDeauthorized(JsonNode eventNode) {
         if (connectService == null) return;
         String accountId = firstNonBlank(eventNode.path("account").asText(""), eventNode.path("data").path("object").path("id").asText(""));
-        log.warn("Stripe connected account deauthorized accountId={}", accountId);
+        if (accountId.isBlank()) {
+            log.warn("Stripe connected account deauthorized event did not include an account id.");
+            return;
+        }
+        connectService.handleAccountApplicationDeauthorized(accountId);
     }
 
     private String secretKeyForBill(Bill bill) {

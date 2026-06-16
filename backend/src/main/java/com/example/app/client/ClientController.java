@@ -14,6 +14,7 @@ import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.order.GuestOrderService;
+import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
@@ -29,6 +30,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -57,6 +59,9 @@ public class ClientController {
     private final GuestTenantLinkRepository guestTenantLinks;
     private final GuestOrderService guestOrderService;
     private final ClientRemovalGuard clientRemovalGuard;
+
+    @Autowired(required = false)
+    private GuestNotificationService guestNotifications;
 
     public ClientController(
             ClientRepository repository,
@@ -346,6 +351,9 @@ public class ClientController {
         }
         entitlement.setStatus(EntitlementStatus.CANCELLED);
         guestEntitlements.save(entitlement);
+        if (guestNotifications != null) {
+            guestNotifications.webEntitlementRemoved(entitlement);
+        }
     }
 
     @GetMapping("/{id}/files")

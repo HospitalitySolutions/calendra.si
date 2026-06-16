@@ -669,7 +669,7 @@ struct MainTabView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
-                                .background(Capsule(style: .continuous).fill(brandOrange))
+                                .background(Capsule(style: .continuous).fill(Color.red))
                                 .offset(x: 4, y: -2)
                         }
                     }
