@@ -7,15 +7,16 @@ import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,45 +31,57 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/course-access")
 public class CourseAccessController {
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final int MAX_MEDIA_SECONDS = 7 * 24 * 60 * 60;
 
     private final GuestEntitlementRepository entitlements;
     private final CourseRepository courses;
     private final MembershipCourseRepository membershipCourses;
     private final CourseAccessProgressRepository progressRepository;
+    private final BunnyMediaService bunnyMediaService;
 
+    @Autowired
     public CourseAccessController(
             GuestEntitlementRepository entitlements,
             CourseRepository courses,
             MembershipCourseRepository membershipCourses,
-            CourseAccessProgressRepository progressRepository
+            CourseAccessProgressRepository progressRepository,
+            BunnyMediaService bunnyMediaService
     ) {
         this.entitlements = entitlements;
         this.courses = courses;
         this.membershipCourses = membershipCourses;
         this.progressRepository = progressRepository;
+        this.bunnyMediaService = bunnyMediaService;
+    }
+
+    /** Backwards-compatible constructor for older tests. Runtime wiring uses the @Autowired constructor above. */
+    public CourseAccessController(
+            GuestEntitlementRepository entitlements,
+            CourseRepository courses,
+            MembershipCourseRepository membershipCourses
+    ) {
+        this(entitlements, courses, membershipCourses, null, null);
     }
 
     @GetMapping("/{token}")
-    @Transactional(readOnly = true)
+    @Transactional
     public CourseAccessResponse open(@PathVariable String token) {
         GuestEntitlement entitlement = loadActiveCourseEntitlement(token);
         List<Course> accessibleCourses = resolveAccessibleCourses(entitlement);
         if (accessibleCourses.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Course was not found.");
         }
+
+        // Hydrate missing Bunny Stream durations for all included videos so the top
+        // "Skupni čas" card can show the real total immediately, not only after a
+        // learner opens each video in the browser.
+        accessibleCourses.forEach(this::refreshMissingVideoDuration);
+
+        Map<Long, CourseAccessProgress> progressByCourseId = loadProgressByCourseId(entitlement.getId());
         Course primary = accessibleCourses.get(0);
-        Map<Long, CourseAccessProgress> progressByCourseId = progressRepository
-                .findAllByEntitlementIdAndCourseIdIn(
-                        entitlement.getId(),
-                        accessibleCourses.stream().map(Course::getId).toList()
-                )
-                .stream()
-                .collect(Collectors.toMap(row -> row.getCourse().getId(), row -> row));
+        CourseAccessProgress primaryProgress = progressByCourseId.get(primary.getId());
         List<CourseItemResponse> courseItems = accessibleCourses.stream()
                 .map(course -> toItem(course, progressByCourseId.get(course.getId())))
                 .toList();
-        CourseAccessProgress primaryProgress = progressByCourseId.get(primary.getId());
         return new CourseAccessResponse(
                 String.valueOf(primary.getId()),
                 entitlement.getProduct().getName() == null || entitlement.getProduct().getName().isBlank()
@@ -82,11 +95,11 @@ public class CourseAccessController {
                 primary.getBunnyLibraryId(),
                 primary.getBunnyVideoId(),
                 primary.getBunnyCdnUrl(),
-                knownDuration(primary, primaryProgress),
-                primaryProgress == null ? null : primaryProgress.getPositionSeconds(),
-                primaryProgress == null ? null : primaryProgress.getDurationSeconds(),
-                primaryProgress == null ? null : primaryProgress.getProgressPercent(),
-                primaryProgress != null && primaryProgress.isCompleted(),
+                durationSeconds(primary, primaryProgress),
+                progressPositionSeconds(primaryProgress),
+                progressDurationSeconds(primary, primaryProgress),
+                progressPercent(primaryProgress, primary.getDurationSeconds()),
+                primaryProgress == null ? Boolean.FALSE : primaryProgress.isCompleted(),
                 primaryProgress == null || primaryProgress.getLastPlayedAt() == null ? null : primaryProgress.getLastPlayedAt().toString(),
                 entitlement.getValidUntil() == null ? null : entitlement.getValidUntil().toString(),
                 entitlement.getMetadataJson(),
@@ -97,47 +110,47 @@ public class CourseAccessController {
     @PostMapping("/{token}/progress")
     @Transactional
     public CourseProgressResponse saveProgress(@PathVariable String token, @RequestBody CourseProgressRequest request) {
-        if (request == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Progress payload is required.");
         GuestEntitlement entitlement = loadActiveCourseEntitlement(token);
+        if (request == null || request.courseId() == null || request.courseId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Course id is required.");
+        }
         Long courseId = parseCourseId(request.courseId());
         List<Course> accessibleCourses = resolveAccessibleCourses(entitlement);
-        Course course = accessibleCourses.stream()
-                .filter(item -> item.getId().equals(courseId))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course is not part of this access link."));
-
-        int durationSeconds = clampOptionalSeconds(request.durationSeconds());
-        int positionSeconds = clampSeconds(request.positionSeconds());
-        if (durationSeconds > 0) {
-            positionSeconds = Math.min(positionSeconds, durationSeconds);
-            if (course.getDurationSeconds() == null || course.getDurationSeconds() <= 0) {
-                course.setDurationSeconds(durationSeconds);
-                courses.save(course);
-            }
+        Map<Long, Course> coursesById = accessibleCourses.stream()
+                .collect(Collectors.toMap(Course::getId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
+        Course course = coursesById.get(courseId);
+        if (course == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Course was not found for this access link.");
         }
-        int effectiveDuration = durationSeconds > 0
-                ? durationSeconds
-                : (course.getDurationSeconds() == null ? 0 : Math.max(0, course.getDurationSeconds()));
-        BigDecimal progressPercent = calculateProgressPercent(positionSeconds, effectiveDuration);
-        boolean completed = Boolean.TRUE.equals(request.completed()) || progressPercent.compareTo(BigDecimal.valueOf(90)) >= 0;
-        Instant now = Instant.now();
 
-        CourseAccessProgress progress = progressRepository.findByEntitlementIdAndCourseId(entitlement.getId(), course.getId())
+        Integer requestDuration = positiveInteger(request.durationSeconds());
+        if (requestDuration == null) {
+            refreshMissingVideoDuration(course);
+        } else if (course.getDurationSeconds() == null || course.getDurationSeconds() <= 0) {
+            course.setDurationSeconds(requestDuration);
+        }
+
+        CourseAccessProgress progress = progressRepository.findByEntitlement_IdAndCourse_Id(entitlement.getId(), course.getId())
                 .orElseGet(() -> {
                     CourseAccessProgress created = new CourseAccessProgress();
                     created.setEntitlement(entitlement);
                     created.setCourse(course);
                     return created;
                 });
-        progress.setPositionSeconds(positionSeconds);
-        if (effectiveDuration > 0) progress.setDurationSeconds(effectiveDuration);
-        progress.setProgressPercent(completed ? BigDecimal.valueOf(100).setScale(2, RoundingMode.HALF_UP) : progressPercent);
-        progress.setCompleted(progress.isCompleted() || completed);
-        if (progress.isCompleted() && progress.getCompletedAt() == null) progress.setCompletedAt(now);
-        progress.setLastPlayedAt(now);
+        int position = Math.max(0, request.positionSeconds() == null ? progress.getPositionSeconds() : request.positionSeconds());
+        Integer duration = requestDuration != null ? requestDuration : firstPositive(progress.getDurationSeconds(), course.getDurationSeconds());
+        if (duration != null && duration > 0) position = Math.min(position, duration);
+        boolean completed = Boolean.TRUE.equals(request.completed()) || (duration != null && duration > 0 && position >= Math.floor(duration * 0.9));
+        double percent = computePercent(position, duration, completed, request.progressPercent());
+
+        progress.setPositionSeconds(position);
+        progress.setDurationSeconds(duration);
+        progress.setProgressPercent(percent);
+        progress.setCompleted(completed);
+        progress.setLastPlayedAt(Instant.now());
         progress = progressRepository.save(progress);
 
-        return toProgressResponse(progress);
+        return toProgressResponse(progress, course.getDurationSeconds());
     }
 
     private GuestEntitlement loadActiveCourseEntitlement(String token) {
@@ -208,12 +221,37 @@ public class CourseAccessController {
         }
     }
 
+    private Map<Long, CourseAccessProgress> loadProgressByCourseId(Long entitlementId) {
+        if (progressRepository == null || entitlementId == null) return Map.of();
+        return progressRepository.findAllByEntitlement_Id(entitlementId).stream()
+                .filter(progress -> progress.getCourse() != null && progress.getCourse().getId() != null)
+                .collect(Collectors.toMap(progress -> progress.getCourse().getId(), Function.identity(), (left, right) -> left, LinkedHashMap::new));
+    }
+
+    private void refreshMissingVideoDuration(Course course) {
+        if (course == null || course.getMediaType() != CourseMediaType.VIDEO) return;
+        if (course.getDurationSeconds() != null && course.getDurationSeconds() > 0) return;
+        if (bunnyMediaService == null) return;
+        Integer duration = bunnyMediaService.fetchVideoDurationSeconds(course);
+        if (duration != null && duration > 0) {
+            course.setDurationSeconds(duration);
+        }
+    }
+
     private JsonNode readMetadata(String raw) {
         if (raw == null || raw.isBlank()) return JSON.createObjectNode();
         try {
             return JSON.readTree(raw);
         } catch (Exception ex) {
             return JSON.createObjectNode();
+        }
+    }
+
+    private Long parseCourseId(String raw) {
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Course id is invalid.");
         }
     }
 
@@ -227,56 +265,81 @@ public class CourseAccessController {
                 course.getBunnyLibraryId(),
                 course.getBunnyVideoId(),
                 course.getBunnyCdnUrl(),
-                knownDuration(course, progress),
-                progress == null ? null : progress.getPositionSeconds(),
-                progress == null ? null : progress.getDurationSeconds(),
-                progress == null ? null : progress.getProgressPercent(),
-                progress != null && progress.isCompleted(),
+                durationSeconds(course, progress),
+                progressPositionSeconds(progress),
+                progressDurationSeconds(course, progress),
+                progressPercent(progress, course.getDurationSeconds()),
+                progress == null ? Boolean.FALSE : progress.isCompleted(),
                 progress == null || progress.getLastPlayedAt() == null ? null : progress.getLastPlayedAt().toString()
         );
     }
 
-    private CourseProgressResponse toProgressResponse(CourseAccessProgress progress) {
+    private CourseProgressResponse toProgressResponse(CourseAccessProgress progress, Integer courseDurationSeconds) {
         return new CourseProgressResponse(
-                String.valueOf(progress.getCourse().getId()),
                 progress.getPositionSeconds(),
-                progress.getDurationSeconds(),
-                progress.getProgressPercent(),
+                firstPositive(progress.getDurationSeconds(), courseDurationSeconds),
+                computePercent(progress.getPositionSeconds(), firstPositive(progress.getDurationSeconds(), courseDurationSeconds), progress.isCompleted(), progress.getProgressPercent()),
                 progress.isCompleted(),
                 progress.getLastPlayedAt() == null ? null : progress.getLastPlayedAt().toString()
         );
     }
 
-    private Integer knownDuration(Course course, CourseAccessProgress progress) {
-        if (course.getDurationSeconds() != null && course.getDurationSeconds() > 0) return course.getDurationSeconds();
-        if (progress != null && progress.getDurationSeconds() != null && progress.getDurationSeconds() > 0) return progress.getDurationSeconds();
+    private Integer durationSeconds(Course course, CourseAccessProgress progress) {
+        return firstPositive(progress == null ? null : progress.getDurationSeconds(), course == null ? null : course.getDurationSeconds());
+    }
+
+    private Integer progressPositionSeconds(CourseAccessProgress progress) {
+        return progress == null ? 0 : Math.max(0, progress.getPositionSeconds());
+    }
+
+    private Integer progressDurationSeconds(Course course, CourseAccessProgress progress) {
+        return firstPositive(progress == null ? null : progress.getDurationSeconds(), course == null ? null : course.getDurationSeconds());
+    }
+
+    private Double progressPercent(CourseAccessProgress progress, Integer durationSeconds) {
+        if (progress == null) return 0.0;
+        return computePercent(progress.getPositionSeconds(), firstPositive(progress.getDurationSeconds(), durationSeconds), progress.isCompleted(), progress.getProgressPercent());
+    }
+
+    private static double computePercent(Integer positionSeconds, Integer durationSeconds, boolean completed, Double requestedPercent) {
+        if (completed) return 100.0;
+        if (durationSeconds != null && durationSeconds > 0 && positionSeconds != null && positionSeconds > 0) {
+            double value = (positionSeconds.doubleValue() / durationSeconds.doubleValue()) * 100.0;
+            return clampPercent(value);
+        }
+        return clampPercent(requestedPercent == null ? 0.0 : requestedPercent);
+    }
+
+    private static double clampPercent(Double value) {
+        if (value == null || value.isNaN() || value.isInfinite()) return 0.0;
+        return Math.max(0.0, Math.min(100.0, Math.round(value * 10.0) / 10.0));
+    }
+
+    private static Integer positiveInteger(Integer value) {
+        return value == null || value <= 0 ? null : value;
+    }
+
+    private static Integer firstPositive(Integer first, Integer second) {
+        if (first != null && first > 0) return first;
+        if (second != null && second > 0) return second;
         return null;
     }
 
-    private Long parseCourseId(String raw) {
-        if (raw == null || raw.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Course id is required.");
-        try {
-            return Long.parseLong(raw.trim());
-        } catch (NumberFormatException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Course id is invalid.");
-        }
-    }
+    public record CourseProgressRequest(
+            String courseId,
+            Integer positionSeconds,
+            Integer durationSeconds,
+            Double progressPercent,
+            Boolean completed
+    ) {}
 
-    private int clampSeconds(Integer value) {
-        if (value == null) return 0;
-        return Math.max(0, Math.min(MAX_MEDIA_SECONDS, value));
-    }
-
-    private int clampOptionalSeconds(Integer value) {
-        if (value == null || value <= 0) return 0;
-        return clampSeconds(value);
-    }
-
-    private BigDecimal calculateProgressPercent(int positionSeconds, int durationSeconds) {
-        if (durationSeconds <= 0 || positionSeconds <= 0) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-        double rawPercent = Math.max(0, Math.min(100, (positionSeconds * 100.0) / durationSeconds));
-        return BigDecimal.valueOf(rawPercent).setScale(2, RoundingMode.HALF_UP);
-    }
+    public record CourseProgressResponse(
+            Integer positionSeconds,
+            Integer durationSeconds,
+            Double progressPercent,
+            Boolean completed,
+            String lastPlayedAt
+    ) {}
 
     public record CourseItemResponse(
             String courseId,
@@ -290,7 +353,7 @@ public class CourseAccessController {
             Integer durationSeconds,
             Integer progressPositionSeconds,
             Integer progressDurationSeconds,
-            BigDecimal progressPercent,
+            Double progressPercent,
             Boolean completed,
             String lastPlayedAt
     ) {}
@@ -307,27 +370,11 @@ public class CourseAccessController {
             Integer durationSeconds,
             Integer progressPositionSeconds,
             Integer progressDurationSeconds,
-            BigDecimal progressPercent,
+            Double progressPercent,
             Boolean completed,
             String lastPlayedAt,
             String validUntil,
             String accessMetadataJson,
             List<CourseItemResponse> courses
-    ) {}
-
-    public record CourseProgressRequest(
-            String courseId,
-            Integer positionSeconds,
-            Integer durationSeconds,
-            Boolean completed
-    ) {}
-
-    public record CourseProgressResponse(
-            String courseId,
-            Integer positionSeconds,
-            Integer durationSeconds,
-            BigDecimal progressPercent,
-            Boolean completed,
-            String lastPlayedAt
     ) {}
 }

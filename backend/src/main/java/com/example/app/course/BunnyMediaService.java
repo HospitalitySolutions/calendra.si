@@ -122,6 +122,31 @@ public class BunnyMediaService {
         }
     }
 
+
+    public Integer fetchVideoDurationSeconds(Course course) {
+        if (course == null || course.getMediaType() != CourseMediaType.VIDEO) return null;
+        if (!hasText(course.getBunnyLibraryId()) || !hasText(course.getBunnyVideoId())) return null;
+        if (!properties.hasStreamApiKey()) return null;
+        LibraryRef library = getVideoLibrary(course.getBunnyLibraryId(), course.getBunnyLibraryName());
+        if (!hasText(library.id()) || !hasText(library.streamApiKey())) return null;
+        try {
+            JsonNode video = restClient.get()
+                    .uri(properties.effectiveStreamBaseUrl() + "/library/" + library.id().trim() + "/videos/" + course.getBunnyVideoId().trim())
+                    .header("AccessKey", library.streamApiKey())
+                    .retrieve()
+                    .body(JsonNode.class);
+            Integer duration = firstPositiveInt(video, "length", "Length", "duration", "Duration", "durationSeconds", "DurationSeconds");
+            return duration != null && duration > 0 ? duration : null;
+        } catch (RestClientResponseException ex) {
+            String body = ex.getResponseBodyAsString();
+            log.warn("Could not load Bunny Stream duration for video {} in library {}. Bunny returned HTTP {}: {}", course.getBunnyVideoId(), library.id(), ex.getStatusCode(), abbreviate(body));
+            return null;
+        } catch (Exception ex) {
+            log.warn("Could not load Bunny Stream duration for video {} in library {}.", course.getBunnyVideoId(), library.id(), ex);
+            return null;
+        }
+    }
+
     public DirectVideoUploadSession createDirectVideoUploadSession(Course course, String fileName, String contentType) throws IOException {
         if (course.getMediaType() != CourseMediaType.VIDEO) {
             throw new IllegalArgumentException("Direct Bunny Stream upload sessions are only available for video courses.");
@@ -340,6 +365,27 @@ public class BunnyMediaService {
                 String text = value.asText(null);
                 if (text != null && !text.isBlank()) return text;
             }
+        }
+        return null;
+    }
+
+
+    private static Integer firstPositiveInt(JsonNode node, String... names) {
+        if (node == null || names == null) return null;
+        for (String name : names) {
+            JsonNode value = node.get(name);
+            if (value == null || value.isNull()) continue;
+            int parsed;
+            if (value.isNumber()) {
+                parsed = value.asInt(0);
+            } else {
+                try {
+                    parsed = (int) Math.floor(Double.parseDouble(value.asText("").trim()));
+                } catch (Exception ignored) {
+                    parsed = 0;
+                }
+            }
+            if (parsed > 0) return parsed;
         }
         return null;
     }

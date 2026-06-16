@@ -483,6 +483,23 @@
   border: 0;
 }
 
+
+.course-access-iframe-wrap {
+  position: relative;
+}
+
+.course-access-player-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: #0f172a;
+  color: #cbd5e1;
+  text-align: center;
+}
+
 .course-access-media-empty {
   display: grid;
   min-height: 300px;

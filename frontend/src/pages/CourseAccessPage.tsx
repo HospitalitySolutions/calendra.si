@@ -125,9 +125,21 @@ function normalizeSeconds(value: unknown): number | null {
   }
   if (value && typeof value === 'object') {
     const data = value as Record<string, unknown>
-    return normalizeSeconds(data.seconds ?? data.currentTime ?? data.time ?? data.duration)
+    // Bunny Player.js usually emits { seconds, duration }, but some wrappers emit
+    // { data: { seconds, duration } } or { value }. Accept all of them so the UI
+    // does not stay at 0:00 when the event shape changes.
+    return normalizeSeconds(data.seconds ?? data.currentTime ?? data.time ?? data.duration ?? data.value ?? data.data)
   }
   return null
+}
+
+function normalizeDurationFromEvent(value: unknown): number | null {
+  if (value && typeof value === 'object') {
+    const data = value as Record<string, unknown>
+    if (data.duration != null) return normalizeSeconds(data.duration)
+    if (data.data != null) return normalizeDurationFromEvent(data.data)
+  }
+  return normalizeSeconds(value)
 }
 
 function clampPercent(value: unknown): number {
@@ -180,7 +192,15 @@ function getKnownProgress(item: CourseItem, localProgress?: CourseProgress): Cou
   )
   if (item.progressPercent != null) fromItem.progressPercent = clampPercent(item.progressPercent)
   if (item.lastPlayedAt) fromItem.lastPlayedAt = item.lastPlayedAt
-  return localProgress || fromItem
+  if (!localProgress) return fromItem
+  const duration = localProgress.durationSeconds || fromItem.durationSeconds || item.durationSeconds || null
+  const merged = progressFrom(localProgress.positionSeconds || fromItem.positionSeconds || 0, duration, Boolean(localProgress.completed || fromItem.completed))
+  return {
+    ...merged,
+    progressPercent: localProgress.progressPercent > 0 ? localProgress.progressPercent : fromItem.progressPercent,
+    completed: Boolean(localProgress.completed || fromItem.completed || merged.completed),
+    lastPlayedAt: localProgress.lastPlayedAt || fromItem.lastPlayedAt,
+  }
 }
 
 function formatDuration(seconds: number | null | undefined, locale: string, copy?: CourseAccessCopy): string {
@@ -326,25 +346,46 @@ function CourseCard({
 }
 
 const BUNNY_PLAYER_SCRIPT_ID = 'bunny-playerjs-sdk'
-const BUNNY_PLAYER_SCRIPT_SRC = 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js'
+const BUNNY_PLAYER_SCRIPT_SRC = 'https://assets.mediadelivery.net/playerjs/playerjs-latest.min.js'
 
 function loadBunnyPlayerScript(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve()
   if (window.playerjs?.Player) return Promise.resolve()
   const existing = document.getElementById(BUNNY_PLAYER_SCRIPT_ID) as HTMLScriptElement | null
   if (existing) {
+    if (window.playerjs?.Player) return Promise.resolve()
     return new Promise((resolve, reject) => {
-      existing.addEventListener('load', () => resolve(), { once: true })
-      existing.addEventListener('error', () => reject(new Error('Bunny Player.js failed to load.')), { once: true })
+      const timeout = window.setTimeout(() => {
+        if (window.playerjs?.Player) resolve()
+        else reject(new Error('Bunny Player.js timed out while loading.'))
+      }, 8000)
+      existing.addEventListener('load', () => {
+        window.clearTimeout(timeout)
+        resolve()
+      }, { once: true })
+      existing.addEventListener('error', () => {
+        window.clearTimeout(timeout)
+        reject(new Error('Bunny Player.js failed to load.'))
+      }, { once: true })
     })
   }
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
+    const timeout = window.setTimeout(() => {
+      if (window.playerjs?.Player) resolve()
+      else reject(new Error('Bunny Player.js timed out while loading.'))
+    }, 8000)
     script.id = BUNNY_PLAYER_SCRIPT_ID
     script.src = BUNNY_PLAYER_SCRIPT_SRC
     script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Bunny Player.js failed to load.'))
+    script.onload = () => {
+      window.clearTimeout(timeout)
+      resolve()
+    }
+    script.onerror = () => {
+      window.clearTimeout(timeout)
+      reject(new Error('Bunny Player.js failed to load.'))
+    }
     document.head.appendChild(script)
   })
 }
@@ -376,92 +417,119 @@ function BunnyCoursePlayer({
   useEffect(() => {
     if (scriptReady) return
     let cancelled = false
+    const fallback = window.setTimeout(() => {
+      if (!cancelled && !window.playerjs?.Player) setScriptFailed(true)
+    }, 10000)
     loadBunnyPlayerScript()
-      .then(() => { if (!cancelled) setScriptReady(true) })
-      .catch(() => { if (!cancelled) setScriptFailed(true) })
-    return () => { cancelled = true }
+      .then(() => {
+        if (!cancelled) {
+          setScriptReady(true)
+          setScriptFailed(false)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setScriptFailed(true)
+      })
+    return () => {
+      cancelled = true
+      window.clearTimeout(fallback)
+    }
   }, [scriptReady])
 
   useEffect(() => {
     latestPositionRef.current = startSeconds || 0
     latestDurationRef.current = durationSeconds || null
     didSeekRef.current = false
+    lastPersistAtRef.current = 0
   }, [src, startSeconds, durationSeconds])
 
   useEffect(() => {
-    let cancelled = false
     let readyHandler: ((data?: unknown) => void) | null = null
     let durationHandler: ((data?: unknown) => void) | null = null
     let timeHandler: ((data?: unknown) => void) | null = null
     let pauseHandler: ((data?: unknown) => void) | null = null
     let endedHandler: ((data?: unknown) => void) | null = null
+    let pollInterval: number | null = null
+    let readyFallback: number | null = null
 
     if (!scriptReady || !iframeRef.current || !window.playerjs?.Player) return
     const player = new window.playerjs.Player(iframeRef.current)
     playerRef.current = player
 
     const persistCurrent = (force = false) => {
-          const position = latestPositionRef.current
-          const duration = latestDurationRef.current
-          if (!force && position <= 0 && !duration) return
-          onProgress(
-            {
-              positionSeconds: position,
-              durationSeconds: duration,
-              completed: duration ? position >= duration * 0.9 : false,
-            },
-            { persist: true },
-          )
-        }
+      const position = latestPositionRef.current
+      const duration = latestDurationRef.current
+      if (!force && position <= 0 && !duration) return
+      onProgress(
+        {
+          positionSeconds: position,
+          durationSeconds: duration,
+          completed: duration ? position >= duration * 0.9 : false,
+        },
+        { persist: true },
+      )
+    }
 
-        const maybeSeek = () => {
-          if (didSeekRef.current || !player.setCurrentTime) return
-          const start = latestPositionRef.current
-          if (start > 3) {
-            try { player.setCurrentTime(start) } catch { /* Player might reject an early seek while loading. */ }
-          }
-          didSeekRef.current = true
-        }
+    const maybeSeek = () => {
+      if (didSeekRef.current || !player.setCurrentTime) return
+      const start = latestPositionRef.current
+      if (start > 3) {
+        try { player.setCurrentTime(start) } catch { /* Player might reject an early seek while loading. */ }
+      }
+      didSeekRef.current = true
+    }
 
-        const updateDuration = (value: unknown, persist = false) => {
-          const duration = normalizeSeconds(value)
-          if (!duration || duration <= 0) return
-          latestDurationRef.current = duration
-          onProgress({ durationSeconds: duration, positionSeconds: latestPositionRef.current }, { persist })
-        }
+    const updateDuration = (value: unknown, persist = false) => {
+      const duration = normalizeDurationFromEvent(value)
+      if (!duration || duration <= 0) return
+      latestDurationRef.current = duration
+      onProgress({ durationSeconds: duration, positionSeconds: latestPositionRef.current }, { persist })
+    }
 
-        readyHandler = () => {
-          if (player.getDuration) {
-            try { player.getDuration((duration) => updateDuration(duration, true)) } catch { /* Ignore unsupported calls. */ }
-          }
-          maybeSeek()
-        }
-        durationHandler = (data) => updateDuration(data, true)
-        timeHandler = (data) => {
-          const seconds = normalizeSeconds(data)
-          if (seconds == null) return
-          latestPositionRef.current = seconds
-          const duration = latestDurationRef.current
-          onProgress({ positionSeconds: seconds, durationSeconds: duration }, { persist: false })
-          const now = Date.now()
-          if (now - lastPersistAtRef.current > 8000 && seconds > 0) {
-            lastPersistAtRef.current = now
-            persistCurrent(false)
-          }
-        }
-        pauseHandler = () => persistCurrent(true)
-        endedHandler = () => {
-          const duration = latestDurationRef.current
-          onProgress(
-            {
-              positionSeconds: duration || latestPositionRef.current,
-              durationSeconds: duration,
-              progressPercent: 100,
-              completed: true,
-            },
-            { persist: true },
-          )
-        }
+    const updatePosition = (value: unknown, persist = false) => {
+      const seconds = normalizeSeconds(value)
+      if (seconds == null) return
+      latestPositionRef.current = seconds
+      const duration = normalizeDurationFromEvent(value) || latestDurationRef.current
+      if (duration) latestDurationRef.current = duration
+      onProgress({ positionSeconds: seconds, durationSeconds: duration }, { persist })
+    }
+
+    const queryPlayerState = (persist = false) => {
+      if (player.getDuration) {
+        try { player.getDuration((duration) => updateDuration(duration, persist)) } catch { /* Ignore unsupported calls. */ }
+      }
+      if (player.getCurrentTime) {
+        try { player.getCurrentTime((time) => updatePosition(time, persist)) } catch { /* Ignore unsupported calls. */ }
+      }
+    }
+
+    readyHandler = () => {
+      queryPlayerState(true)
+      maybeSeek()
+    }
+    durationHandler = (data) => updateDuration(data, true)
+    timeHandler = (data) => {
+      updatePosition(data, false)
+      const now = Date.now()
+      if (now - lastPersistAtRef.current > 8000 && latestPositionRef.current > 0) {
+        lastPersistAtRef.current = now
+        persistCurrent(false)
+      }
+    }
+    pauseHandler = () => persistCurrent(true)
+    endedHandler = () => {
+      const duration = latestDurationRef.current
+      onProgress(
+        {
+          positionSeconds: duration || latestPositionRef.current,
+          durationSeconds: duration,
+          progressPercent: 100,
+          completed: true,
+        },
+        { persist: true },
+      )
+    }
 
     player.on('ready', readyHandler)
     player.on('durationchange', durationHandler)
@@ -469,16 +537,25 @@ function BunnyCoursePlayer({
     player.on('pause', pauseHandler)
     player.on('ended', endedHandler)
 
+    // Some Bunny/player.js combinations can miss the initial ready/timeupdate callback
+    // after React remounts an iframe. Polling keeps duration/current position live.
+    readyFallback = window.setTimeout(() => {
+      queryPlayerState(true)
+      maybeSeek()
+    }, 1500)
+    pollInterval = window.setInterval(() => queryPlayerState(false), 2500)
+
     return () => {
-      cancelled = true
-      const player = playerRef.current
+      if (pollInterval != null) window.clearInterval(pollInterval)
+      if (readyFallback != null) window.clearTimeout(readyFallback)
+      const currentPlayer = playerRef.current
       try {
-        if (player?.off) {
-          if (readyHandler) player.off('ready', readyHandler)
-          if (durationHandler) player.off('durationchange', durationHandler)
-          if (timeHandler) player.off('timeupdate', timeHandler)
-          if (pauseHandler) player.off('pause', pauseHandler)
-          if (endedHandler) player.off('ended', endedHandler)
+        if (currentPlayer?.off) {
+          if (readyHandler) currentPlayer.off('ready', readyHandler)
+          if (durationHandler) currentPlayer.off('durationchange', durationHandler)
+          if (timeHandler) currentPlayer.off('timeupdate', timeHandler)
+          if (pauseHandler) currentPlayer.off('pause', pauseHandler)
+          if (endedHandler) currentPlayer.off('ended', endedHandler)
         }
       } catch {
         // Best-effort cleanup only.
@@ -487,18 +564,17 @@ function BunnyCoursePlayer({
     }
   }, [onProgress, scriptReady, src])
 
-  if (!scriptReady && !scriptFailed) {
-    return <div className="course-access-media-empty">{loadingLabel}</div>
-  }
-
   return (
-    <iframe
-      ref={iframeRef}
-      title={title}
-      src={src}
-      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-      allowFullScreen
-    />
+    <div className="course-access-iframe-wrap">
+      {!scriptReady && !scriptFailed && <div className="course-access-player-loading">{loadingLabel}</div>}
+      <iframe
+        ref={iframeRef}
+        title={title}
+        src={src}
+        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+        allowFullScreen
+      />
+    </div>
   )
 }
 
@@ -780,7 +856,15 @@ export function CourseAccessPage() {
 
   const videoEmbedUrl = useMemo(() => {
     if (!selectedCourse || selectedCourse.mediaType !== 'VIDEO' || !selectedCourse.bunnyLibraryId || !selectedCourse.bunnyVideoId) return ''
-    return `https://iframe.mediadelivery.net/embed/${encodeURIComponent(selectedCourse.bunnyLibraryId)}/${encodeURIComponent(selectedCourse.bunnyVideoId)}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`
+    const params = new URLSearchParams({
+      autoplay: 'false',
+      loop: 'false',
+      muted: 'false',
+      preload: 'true',
+      responsive: 'true',
+      calendraPlayer: selectedCourse.courseId,
+    })
+    return `https://iframe.mediadelivery.net/embed/${encodeURIComponent(selectedCourse.bunnyLibraryId)}/${encodeURIComponent(selectedCourse.bunnyVideoId)}?${params.toString()}`
   }, [selectedCourse])
 
   useEffect(() => {
@@ -803,14 +887,18 @@ export function CourseAccessPage() {
       courseId,
       positionSeconds: progress.positionSeconds,
       durationSeconds: progress.durationSeconds,
+      progressPercent: progress.progressPercent,
       completed: progress.completed,
     })
       .then((res) => {
         const data = res.data as CourseProgressPatch
-        setProgressByCourseId((current) => ({
-          ...current,
-          [courseId]: mergeProgress(current[courseId], data),
-        }))
+        setProgressByCourseId((current) => {
+          const merged = mergeProgress(current[courseId], data)
+          return {
+            ...current,
+            [courseId]: merged,
+          }
+        })
       })
       .catch(() => {
         // Keep local progress even if the public progress save fails temporarily.
@@ -819,16 +907,20 @@ export function CourseAccessPage() {
 
   const updateCourseProgress = useCallback((courseId: string, patch: CourseProgressPatch, options?: { persist?: boolean }) => {
     if (!courseId) return
-    const nextProgress = mergeProgress(latestLocalStateRef.current.progressByCourseId?.[courseId], patch)
-    setProgressByCourseId((current) => ({
-      ...current,
-      [courseId]: mergeProgress(current[courseId], patch),
-    }))
+    let nextProgress: CourseProgress | null = null
+    setProgressByCourseId((current) => {
+      nextProgress = mergeProgress(current[courseId], patch)
+      return {
+        ...current,
+        [courseId]: nextProgress,
+      }
+    })
     setOpenedCourseIds((current) => [courseId, ...current.filter((id) => id !== courseId)])
     if (options?.persist) {
       if (persistTimeoutRef.current) window.clearTimeout(persistTimeoutRef.current)
       persistTimeoutRef.current = window.setTimeout(() => {
-        persistProgress(courseId, nextProgress)
+        const fallback = latestLocalStateRef.current.progressByCourseId?.[courseId]
+        persistProgress(courseId, nextProgress || fallback || mergeProgress(undefined, patch))
       }, 150)
     }
   }, [persistProgress])
