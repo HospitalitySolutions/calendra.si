@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS bills (
     fiscal_zoi VARCHAR(255),
     fiscal_eor VARCHAR(255),
     fiscal_qr TEXT,
+    fiscal_sent_at TIMESTAMP WITH TIME ZONE,
     fiscal_message_id VARCHAR(255),
     fiscal_attempt_count INTEGER,
     fiscal_last_error TEXT,
