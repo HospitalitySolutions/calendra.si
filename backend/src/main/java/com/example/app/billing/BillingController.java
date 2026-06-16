@@ -4035,7 +4035,7 @@ public class BillingController {
                 bill.getFiscalAttemptCount(),
                 bill.getRefundOfBillId(),
                 bill.getRefundReference(),
-                bill.getBankTransferReference(),
+                BankStatementReconciliationService.bankReferenceForBill(bill),
                 toBillPaymentSplitResponses(bill),
                 items
         );

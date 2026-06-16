@@ -8,12 +8,15 @@ import com.example.app.guest.notifications.GuestPushService;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class BookingChangePublisher {
+    private static final Logger log = LoggerFactory.getLogger(BookingChangePublisher.class);
     public static final String BOOKING_CREATED = "BOOKING_CREATED";
     public static final String BOOKING_UPDATED = "BOOKING_UPDATED";
     public static final String BOOKING_DELETED = "BOOKING_DELETED";
@@ -49,12 +52,20 @@ public class BookingChangePublisher {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    publishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+                    safelyPublishAfterCommit(companyId, bookingId, startTime, endTime, kind);
                 }
             });
             return;
         }
-        publishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+        safelyPublishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+    }
+
+    private void safelyPublishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
+        try {
+            publishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+        } catch (Exception ex) {
+            log.warn("Booking change side effects failed after commit for companyId={} bookingId={} kind={}", companyId, bookingId, kind, ex);
+        }
     }
 
     private void publishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
@@ -97,23 +108,23 @@ public class BookingChangePublisher {
         // but the phone notification tray must not fan out to unrelated guests of the same tenant.
         sessionBookings.findByIdAndCompanyId(bookingId, companyId)
                 .filter(booking -> booking.getClient() != null && booking.getClient().getId() != null)
-                .flatMap(booking -> guestTenantLinks.findByCompanyIdAndClientIdAndStatus(
-                        companyId,
-                        booking.getClient().getId(),
-                        GuestTenantLinkStatus.ACTIVE
-                ))
-                .ifPresent(link -> {
-                    var guestUser = link.getGuestUser();
-                    if (guestUser == null) return;
-                    guestPushService.notifyGuestReminder(
-                            guestUser,
-                            link.getCompany(),
-                            link.getClient(),
-                            "Booking update",
-                            "A booking has changed. Open the app to see the latest time.",
-                            data
-                    );
-                });
+                .ifPresent(booking -> guestTenantLinks.findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(
+                                companyId,
+                                booking.getClient().getId(),
+                                GuestTenantLinkStatus.ACTIVE
+                        )
+                        .forEach(link -> {
+                            var guestUser = link.getGuestUser();
+                            if (guestUser == null) return;
+                            guestPushService.notifyGuestReminder(
+                                    guestUser,
+                                    link.getCompany(),
+                                    link.getClient(),
+                                    "Booking update",
+                                    "A booking has changed. Open the app to see the latest time.",
+                                    data
+                            );
+                        }));
     }
 }
 

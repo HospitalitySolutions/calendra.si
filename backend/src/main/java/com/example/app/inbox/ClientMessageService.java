@@ -1229,8 +1229,8 @@ public class ClientMessageService {
     }
 
     private void markStaffMessagesRead(Long companyId, Long clientId, List<ClientMessage> rows, Instant readAt) {
-        GuestTenantLink link = guestTenantLinks.findByCompanyIdAndClientIdAndStatus(companyId, clientId, GuestTenantLinkStatus.ACTIVE).orElse(null);
-        if (link != null) {
+        List<GuestTenantLink> links = guestTenantLinks.findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(companyId, clientId, GuestTenantLinkStatus.ACTIVE);
+        for (GuestTenantLink link : links) {
             Instant existing = link.getStaffInboxLastReadAt();
             if (existing == null || readAt.isAfter(existing)) {
                 link.setStaffInboxLastReadAt(readAt);
@@ -1417,7 +1417,7 @@ public class ClientMessageService {
     }
 
     private ChannelDeliveryResult sendGuestAppMessage(Client client, String body, User me, ClientMessage row, List<ClientFile> attachments) {
-        GuestTenantLink link = guestTenantLinks.findByCompanyIdAndClientIdAndStatus(
+        GuestTenantLink link = guestTenantLinks.findFirstByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(
                         client.getCompany().getId(),
                         client.getId(),
                         GuestTenantLinkStatus.ACTIVE

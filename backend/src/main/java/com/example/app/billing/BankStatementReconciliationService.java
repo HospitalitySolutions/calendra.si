@@ -126,6 +126,12 @@ public class BankStatementReconciliationService {
     }
 
     public static String bankReferenceForBill(Bill bill) {
+        if (bill == null) {
+            return "";
+        }
+        if (bill.getOrderId() != null && !bill.getOrderId().isBlank()) {
+            return bill.getOrderId().trim();
+        }
         if (bill.getBankTransferReference() != null && !bill.getBankTransferReference().isBlank()) {
             return bill.getBankTransferReference().trim();
         }

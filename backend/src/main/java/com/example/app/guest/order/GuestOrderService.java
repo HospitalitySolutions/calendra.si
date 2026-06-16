@@ -354,13 +354,11 @@ public class GuestOrderService {
 
         if (paymentMethodType == GuestPaymentMethodType.BANK_TRANSFER) {
             SessionBooking booking = maybeCreateConfirmedBooking(order);
-            String referenceCode = order.getReferenceCode();
+            String referenceCode = bankTransferReferenceForResponse(order, null, channel);
             double responseAmount = order.getTotalGross().doubleValue();
             if (booking != null) {
                 var bill = bankTransferBillingService.issueConfirmedBookingBill(order, booking);
-                if (bill.getBankTransferReference() != null && !bill.getBankTransferReference().isBlank()) {
-                    referenceCode = bill.getBankTransferReference();
-                }
+                referenceCode = bankTransferReferenceForResponse(order, bill.getBankTransferReference(), channel);
                 order.setBillId(bill.getId());
                 if (bill.getTotalGross() != null) {
                     order.setSubtotalGross(bill.getTotalGross());
@@ -374,9 +372,7 @@ public class GuestOrderService {
                 GuestProduct walletProduct = loadWalletProduct(order);
                 if (walletProduct != null) {
                     var bill = productBillingService.issuePendingBill(order, walletProduct, "BANK_TRANSFER");
-                    if (bill.getBankTransferReference() != null && !bill.getBankTransferReference().isBlank()) {
-                        referenceCode = bill.getBankTransferReference();
-                    }
+                    referenceCode = bankTransferReferenceForResponse(order, bill.getBankTransferReference(), channel);
                     order.setBillId(bill.getId());
                     order = orders.save(order);
                 }
@@ -569,6 +565,23 @@ public class GuestOrderService {
         if (productBillingService != null) {
             productBillingService.deleteUnpaidBill(unpaidBillId);
         }
+    }
+
+    private String bankTransferReferenceForResponse(GuestOrder order, String bankTransferReference, PaymentChannel channel) {
+        // Bank-transfer instructions should always show the public order id as "Sklic".
+        // The same reference is now used in the guest app, website widget, invoice PDF/QR
+        // payload, and bank reconciliation whenever a public order id exists.
+        return publicOrderReference(order);
+    }
+
+    private String publicOrderReference(GuestOrder order) {
+        if (order == null) {
+            return "";
+        }
+        if (order.getReferenceCode() != null && !order.getReferenceCode().isBlank()) {
+            return order.getReferenceCode().trim();
+        }
+        return order.getId() == null ? "" : String.valueOf(order.getId());
     }
 
     private String nextGuestOrderReferenceCode(GuestTenantLink link) {

@@ -106,8 +106,9 @@ public class GuestBankTransferBillingService {
         if (BillPaymentStatus.PAID.equals(targetPaymentStatus)) {
             bill.setPaidAt(paidAt == null ? OffsetDateTime.now() : paidAt);
         }
+        applyGuestOrderReferenceIfMissing(bill, order);
         if (isBankTransferPayment(paymentMethod)) {
-            bill.setBankTransferReference(BankStatementReconciliationService.bankReferenceForBill(bill));
+            applyOrderReferenceAsBankTransferReference(bill, order);
         }
 
         List<TypeTransactionService> linkedServices = resolveLinkedBillingServices(companyId, booking);
@@ -144,7 +145,11 @@ public class GuestBankTransferBillingService {
 
         bill.setTotalNet(totalNet.setScale(2, RoundingMode.HALF_UP));
         bill.setTotalGross(totalGross.setScale(2, RoundingMode.HALF_UP));
+        applyGuestOrderReferenceIfMissing(bill, order);
         invoiceOrderIdService.assignIfMissing(bill);
+        if (isBankTransferPayment(paymentMethod)) {
+            applyOrderReferenceAsBankTransferReference(bill, order);
+        }
 
         Bill saved = bills.saveAndFlush(bill);
         if (shouldFiscalizeOnBillCreate(saved.getPaymentMethod())) {
@@ -155,7 +160,9 @@ public class GuestBankTransferBillingService {
     }
 
     private Bill finalizeExistingAdvance(Bill existing, String targetPaymentStatus, OffsetDateTime paidAt, GuestOrder order) {
+        applyGuestOrderReferenceIfMissing(existing, order);
         invoiceOrderIdService.assignIfMissing(existing);
+        applyOrderReferenceAsBankTransferReference(existing, order);
         String resolvedLocale = resolveInvoiceLocale(order);
         boolean explicitOrderLocale = order != null && order.getInvoiceLocale() != null && !order.getInvoiceLocale().isBlank();
         if (resolvedLocale != null && !resolvedLocale.isBlank()
@@ -194,6 +201,50 @@ public class GuestBankTransferBillingService {
             return List.of();
         }
         return type.getLinkedServices();
+    }
+
+    private void applyGuestOrderReferenceIfMissing(Bill bill, GuestOrder order) {
+        if (bill == null) {
+            return;
+        }
+        String referenceCode = order == null ? null : order.getReferenceCode();
+        if (hasText(referenceCode)) {
+            String clean = referenceCode.trim();
+            bill.setOrderId(clean);
+            Long counter = parseTrailingCounter(clean);
+            if (counter != null) {
+                bill.setOrderCounter(counter);
+            }
+        }
+    }
+
+    private void applyOrderReferenceAsBankTransferReference(Bill bill, GuestOrder order) {
+        if (bill == null) {
+            return;
+        }
+        String reference = firstNonBlank(
+                order == null ? null : order.getReferenceCode(),
+                bill.getOrderId(),
+                bill.getBankTransferReference()
+        );
+        if (hasText(reference)) {
+            bill.setBankTransferReference(reference.trim());
+        }
+    }
+
+    private static Long parseTrailingCounter(String value) {
+        if (value == null) return null;
+        int idx = value.lastIndexOf('-');
+        if (idx < 0 || idx >= value.length() - 1) return null;
+        try {
+            return Long.parseLong(value.substring(idx + 1));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private Totals applyOrderAdvanceAmountIfPartial(GuestOrder order, Bill bill, BigDecimal originalNet, BigDecimal originalGross) {

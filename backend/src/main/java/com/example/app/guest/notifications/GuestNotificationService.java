@@ -45,7 +45,7 @@ public class GuestNotificationService {
     @Transactional
     public GuestNotification createForClient(Company company, Client client, GuestNotificationType type, String title, String body, String payloadJson) {
         if (company == null || client == null) return null;
-        GuestTenantLink link = tenantLinks.findByCompanyIdAndClientIdAndStatus(
+        GuestTenantLink link = tenantLinks.findFirstByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(
                 company.getId(), client.getId(), GuestTenantLinkStatus.ACTIVE
         ).orElse(null);
         if (link == null || link.getGuestUser() == null) return null;

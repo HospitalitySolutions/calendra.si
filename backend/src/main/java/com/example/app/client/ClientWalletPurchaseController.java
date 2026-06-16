@@ -204,7 +204,7 @@ public class ClientWalletPurchaseController {
 
     private GuestTenantLink resolveOrCreateGuestLink(Client client) {
         Long companyId = client.getCompany().getId();
-        var activeLink = guestTenantLinks.findByCompanyIdAndClientIdAndStatus(companyId, client.getId(), GuestTenantLinkStatus.ACTIVE);
+        var activeLink = guestTenantLinks.findFirstByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(companyId, client.getId(), GuestTenantLinkStatus.ACTIVE);
         if (activeLink.isPresent()) {
             return activeLink.get();
         }

@@ -150,7 +150,7 @@ public class BillFolioPdfService {
                     : (req.getRecipientName() == null || req.getRecipientName().isBlank() ? "Placnik" : req.getRecipientName());
             String payerStreet = companyRecipient ? firstNonBlank(req.getRecipientAddress(), "") : "";
             String payerCity = companyRecipient ? joinPostalAndCity(req.getRecipientPostalCode(), req.getRecipientCity()) : "";
-            String reference = firstNonBlank(bill.getBankTransferReference(), BankStatementReconciliationService.bankReferenceForBill(bill));
+            String reference = BankStatementReconciliationService.bankReferenceForBill(bill);
             String purposeCode = firstNonBlank(settingValue(companyId, SettingKey.BANK_QR_PURPOSE_CODE), "OTHR");
             String purpose = buildUpnPurpose(companyId, bill);
             req.setIban(companyIban);
@@ -428,8 +428,7 @@ public class BillFolioPdfService {
 
     private String buildInvoiceNotes(Bill bill) {
         if (bill == null) return "";
-        // Print only the public order id on the folio notes line. The bank RF/sklic remains
-        // inside the UPN QR payload for reconciliation, but is no longer repeated visually.
+        // Print the same public order id that is also used as the bank-transfer sklic/reference.
         return firstNonBlank(bill.getOrderId(), resolveGuestOrderReferenceCode(bill));
     }
 

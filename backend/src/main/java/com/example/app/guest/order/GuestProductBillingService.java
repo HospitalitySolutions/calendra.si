@@ -79,6 +79,7 @@ public class GuestProductBillingService {
             Bill existing = bills.findById(order.getBillId()).orElse(null);
             if (existing != null) {
                 applyOrderReferenceIfMissing(existing, order);
+                applyOrderReferenceAsBankTransferReference(existing, order);
                 applyInvoiceLocaleIfMissing(existing, order);
                 applyWalletProductLineDescriptionsIfMissing(existing, product);
                 return bills.save(existing);
@@ -125,10 +126,10 @@ public class GuestProductBillingService {
         bill.setTotalNet(totalNet);
         bill.setTotalGross(totalGross);
 
-        if ("BANK_TRANSFER".equalsIgnoreCase(paymentMethodType)) {
-            bill.setBankTransferReference(BankStatementReconciliationService.bankReferenceForBill(bill));
-        }
         applyOrderReferenceIfMissing(bill, order);
+        if ("BANK_TRANSFER".equalsIgnoreCase(paymentMethodType)) {
+            applyOrderReferenceAsBankTransferReference(bill, order);
+        }
 
         Bill saved = bills.saveAndFlush(bill);
 
@@ -150,11 +151,11 @@ public class GuestProductBillingService {
 
 
     private void applyOrderReferenceIfMissing(Bill bill, GuestOrder order) {
-        if (bill == null || hasText(bill.getOrderId())) {
+        if (bill == null) {
             return;
         }
         String referenceCode = order == null ? null : order.getReferenceCode();
-        if (hasText(referenceCode) && !referenceCode.trim().toUpperCase(Locale.ROOT).startsWith("ORD-")) {
+        if (hasText(referenceCode)) {
             String clean = referenceCode.trim();
             bill.setOrderId(clean);
             Long counter = parseTrailingCounter(clean);
@@ -164,6 +165,20 @@ public class GuestProductBillingService {
             return;
         }
         invoiceOrderIdService.assignIfMissing(bill);
+    }
+
+    private void applyOrderReferenceAsBankTransferReference(Bill bill, GuestOrder order) {
+        if (bill == null) {
+            return;
+        }
+        String reference = firstNonBlank(
+                order == null ? null : order.getReferenceCode(),
+                bill.getOrderId(),
+                bill.getBankTransferReference()
+        );
+        if (hasText(reference)) {
+            bill.setBankTransferReference(reference.trim());
+        }
     }
 
     private static Long parseTrailingCounter(String value) {
