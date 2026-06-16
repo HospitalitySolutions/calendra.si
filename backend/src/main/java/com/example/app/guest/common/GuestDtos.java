@@ -196,11 +196,13 @@ public final class GuestDtos {
             String locale,
             /** Backwards-compatible alias for clients that send language instead of locale. */
             String language,
-            /** Gift-card code entered in the website widget; accepts the visible code shown under the wallet QR or the QR payload code. */
-            String giftCardCode
+            /** Legacy single gift-card code entered in older clients. */
+            String giftCardCode,
+            /** Multiple gift-card codes entered in the website widget; accepts visible wallet codes or QR payload codes. */
+            List<String> giftCardCodes
     ) {
         public CheckoutRequest(String paymentMethodType, Boolean saveCard, String useSavedPaymentMethodId) {
-            this(paymentMethodType, saveCard, useSavedPaymentMethodId, null, null, null);
+            this(paymentMethodType, saveCard, useSavedPaymentMethodId, null, null, null, null);
         }
     }
     public record BankTransferInstructionsResponse(double amount, String currency, String referenceCode, String instructions) {}

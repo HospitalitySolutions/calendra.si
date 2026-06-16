@@ -58,10 +58,13 @@
       paymentMethodPaypalSubtitle: 'Redirect to PayPal to approve the payment.',
       paymentMethodGiftCard: 'Gift card',
       paymentMethodGiftCardSubtitle: 'Use available gift card balance.',
-      giftCardCodeLabel: 'Gift card code',
+      giftCardCodeLabel: 'Gift card codes',
       giftCardCodePlaceholder: 'Enter the code from your wallet card',
-      giftCardCodeHelp: 'Use the visible code shown below the QR code on your entitlement.',
+      giftCardCodeHelp: 'Use one or more visible codes shown below the QR code on your entitlements. Gift cards are deducted first; any remaining amount is paid with the selected method.',
       giftCardCodeRequired: 'gift card code',
+      giftCardAddCode: 'Add code',
+      giftCardAddedCodes: 'Added gift card codes',
+      giftCardRemoveCode: 'Remove code',
       summaryGiftCard: 'Gift card',
       summaryBankTransfer: 'Bank transfer',
       summaryPaypal: 'PayPal',
@@ -197,10 +200,13 @@
       paymentMethodPaypalSubtitle: 'Preusmeritev na PayPal za potrditev plačila.',
       paymentMethodGiftCard: 'Darilni bon',
       paymentMethodGiftCardSubtitle: 'Uporabite razpoložljivo dobroimetje darilnega bona.',
-      giftCardCodeLabel: 'Koda darilnega bona',
+      giftCardCodeLabel: 'Kode darilnih bonov',
       giftCardCodePlaceholder: 'Vnesite kodo iz kartice v denarnici',
-      giftCardCodeHelp: 'Uporabite vidno kodo, ki je prikazana pod QR kodo na ugodnosti.',
+      giftCardCodeHelp: 'Dodate lahko eno ali več kod, ki so prikazane pod QR kodo na ugodnosti. Darilni boni se porabijo najprej, preostanek pa se plača z izbranim načinom plačila.',
       giftCardCodeRequired: 'kodo darilnega bona',
+      giftCardAddCode: 'Dodaj kodo',
+      giftCardAddedCodes: 'Dodane kode darilnih bonov',
+      giftCardRemoveCode: 'Odstrani kodo',
       summaryGiftCard: 'Darilni bon',
       summaryBankTransfer: 'Bančno nakazilo',
       summaryPaypal: 'PayPal',
@@ -356,6 +362,7 @@
         paymentMethod: null,
         paymentMethodVariant: '',
         giftCardCode: '',
+        giftCardCodes: [],
         termsAccepted: true,
         paymentResult: null,
       };
@@ -959,7 +966,7 @@
         const hasPayment = this.hasPaymentChoices()
           && Boolean(this.state.paymentMethod)
           && this.isPaymentMethodAvailable(this.state.paymentMethod);
-        const hasGiftCardCode = this.state.paymentMethod !== 'GIFT_CARD' || Boolean(String(this.state.giftCardCode || '').trim());
+        const hasGiftCardCode = this.state.paymentMethod !== 'GIFT_CARD' || this.giftCardCodesForCheckout().length > 0;
         return hasGuestDetails && hasPayment && hasGiftCardCode && this.state.termsAccepted !== false;
       }
       return false;
@@ -974,10 +981,11 @@
     }
 
     paymentPickerAllowedMethods() {
+      const allowed = this.allowedPaymentMethods();
       if (this.paymentOnLocationAllowed()) {
-        return { card: false, bankTransfer: false, paypal: false, giftCard: false };
+        return { card: false, bankTransfer: false, paypal: false, giftCard: Boolean(allowed.giftCard) };
       }
-      return this.allowedPaymentMethods();
+      return allowed;
     }
 
     hasPaymentChoices() {
@@ -993,6 +1001,45 @@
 
     selectedPaymentMethodRequiresOnlinePayment() {
       return Boolean(this.state.paymentMethod && this.state.paymentMethod !== 'PAY_AT_VENUE');
+    }
+
+    normalizeGiftCardCode(raw) {
+      const code = String(raw || '').trim().replace(/\s+/g, '').toUpperCase();
+      return code || '';
+    }
+
+    giftCardCodesForCheckout() {
+      const unique = [];
+      const add = (raw) => {
+        const code = this.normalizeGiftCardCode(raw);
+        if (code && !unique.includes(code)) unique.push(code);
+      };
+      (this.state.giftCardCodes || []).forEach(add);
+      add(this.state.giftCardCode);
+      return unique;
+    }
+
+    hasGiftCardCodes() {
+      return this.giftCardCodesForCheckout().length > 0;
+    }
+
+    addPendingGiftCardCode() {
+      const code = this.normalizeGiftCardCode(this.state.giftCardCode);
+      if (!code) return;
+      const existing = Array.isArray(this.state.giftCardCodes) ? this.state.giftCardCodes : [];
+      if (existing.includes(code)) {
+        this.setState({ giftCardCode: '' });
+        return;
+      }
+      this.setState({ giftCardCodes: [...existing, code], giftCardCode: '', error: '' });
+    }
+
+    removeGiftCardCode(code) {
+      const normalized = this.normalizeGiftCardCode(code);
+      this.setState({
+        giftCardCodes: (this.state.giftCardCodes || []).filter((item) => item !== normalized),
+        error: '',
+      });
     }
 
     paymentMethodSummaryLabel(method = this.state.paymentMethod) {
@@ -1060,9 +1107,12 @@
         `;
       }
       if (requirement !== 'deposit') {
+        const methodLabel = this.hasGiftCardCodes() && this.state.paymentMethod !== 'GIFT_CARD'
+          ? `${t.summaryGiftCard || t.paymentMethodGiftCard} + ${this.paymentMethodSummaryLabel()}`
+          : this.paymentMethodSummaryLabel();
         return `
           <div class="summary-divider" aria-hidden="true"></div>
-          ${paymentRow(t.summaryPayment, this.paymentMethodSummaryLabel(), true)}
+          ${paymentRow(t.summaryPayment, methodLabel, true)}
         `;
       }
       const priceInfo = this.parsePriceLabel(service.priceLabel);
@@ -1083,12 +1133,12 @@
 
     isPaymentMethodAvailable(method) {
       if (method === 'PAY_AT_VENUE') return this.paymentOnLocationAllowed();
-      if (this.paymentOnLocationAllowed()) return false;
       const allowed = this.allowedPaymentMethods();
+      if (method === 'GIFT_CARD') return Boolean(allowed.giftCard);
+      if (this.paymentOnLocationAllowed()) return false;
       if (method === 'CARD') return Boolean(allowed.card);
       if (method === 'BANK_TRANSFER') return Boolean(allowed.bankTransfer);
       if (method === 'PAYPAL') return Boolean(allowed.paypal);
-      if (method === 'GIFT_CARD') return Boolean(allowed.giftCard);
       return false;
     }
 
@@ -1168,7 +1218,7 @@
           missing.push(t.payment);
         }
 
-        if (this.state.paymentMethod === 'GIFT_CARD' && !String(this.state.giftCardCode || '').trim()) {
+        if (this.state.paymentMethod === 'GIFT_CARD' && this.giftCardCodesForCheckout().length === 0) {
           missing.push(t.giftCardCodeRequired || t.paymentMethodGiftCard);
         }
 
@@ -1434,7 +1484,8 @@
           body: {
             paymentMethodType: effectivePaymentMethod,
             locale: this.options.locale || 'sl',
-            giftCardCode: effectivePaymentMethod === 'GIFT_CARD' ? String(this.state.giftCardCode || '').trim() : null,
+            giftCardCode: this.giftCardCodesForCheckout()[0] || null,
+            giftCardCodes: this.giftCardCodesForCheckout(),
           },
         });
 
@@ -1510,6 +1561,7 @@
         paymentMethod: defaultPaymentMethod,
         paymentMethodVariant: defaultPaymentMethod ? defaultPaymentMethod.toLowerCase() : '',
         giftCardCode: '',
+        giftCardCodes: [],
         termsAccepted: true,
         paymentResult: null,
         activeStep: 'datetime',
@@ -1951,15 +2003,27 @@
                     ${!payAtVenueOnly && allowed.card ? methodTile('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, this.uiIcon('card')) : ''}
                     ${!payAtVenueOnly && allowed.bankTransfer ? methodTile('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, this.paymentMethodLogos('BANK_TRANSFER')) : ''}
                     ${!payAtVenueOnly && allowed.paypal ? methodTile('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, this.paymentMethodLogos('PAYPAL')) : ''}
-                    ${!payAtVenueOnly && allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
+                    ${allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
-                ${this.state.paymentMethod === 'GIFT_CARD' ? `
-                  <label class="gift-card-code-field">
+                ${allowed.giftCard ? `
+                  <div class="gift-card-code-field">
                     <span>${escapeHtml(t.giftCardCodeLabel || t.paymentMethodGiftCard)}</span>
-                    <input id="gift-card-code" type="text" autocomplete="off" inputmode="text" value="${escapeHtml(this.state.giftCardCode || '')}" placeholder="${escapeHtml(t.giftCardCodePlaceholder || '')}" />
+                    <div class="gift-card-code-input-row">
+                      <input id="gift-card-code" type="text" autocomplete="off" inputmode="text" value="${escapeHtml(this.state.giftCardCode || '')}" placeholder="${escapeHtml(t.giftCardCodePlaceholder || '')}" />
+                      <button class="secondary gift-card-code-add" type="button" data-action="add-gift-card-code">${escapeHtml(t.giftCardAddCode || '+')}</button>
+                    </div>
+                    ${(this.state.giftCardCodes || []).length ? `
+                      <div class="gift-card-code-list" aria-label="${escapeHtml(t.giftCardAddedCodes || '')}">
+                        ${(this.state.giftCardCodes || []).map((code) => `
+                          <button class="gift-card-code-chip" type="button" data-action="remove-gift-card-code" data-code="${escapeHtml(code)}">
+                            <span>${escapeHtml(code)}</span><i aria-hidden="true">×</i>
+                          </button>
+                        `).join('')}
+                      </div>
+                    ` : ''}
                     <small>${escapeHtml(t.giftCardCodeHelp || '')}</small>
-                  </label>
+                  </div>
                 ` : ''}
                 ${this.paymentRequirement() === 'deposit' && this.selectedPaymentMethodRequiresOnlinePayment() ? `<p class="summary-payment-note summary-payment-note--checkout">${escapeHtml(t.depositPaymentNote)}</p>` : ''}
                 ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap turnstile-wrap--under-payments"><slot name="turnstile-slot"></slot></div>` : ''}
@@ -2244,6 +2308,7 @@
           padding: 14px 16px;
         }
         .gift-card-code-field span { color: var(--calendra-text); font-size: 14px; font-weight: 850; }
+        .gift-card-code-input-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; }
         .gift-card-code-field input {
           width: 100%;
           min-height: 52px;
@@ -2258,6 +2323,20 @@
           padding: 12px 14px;
           outline: none;
         }
+        .gift-card-code-add { min-height: 52px; white-space: nowrap; padding-inline: 16px; }
+        .gift-card-code-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .gift-card-code-chip {
+          display: inline-flex; align-items: center; gap: 8px;
+          border: 1px solid rgba(15,107,255,.22);
+          border-radius: 999px;
+          background: #fff;
+          color: var(--calendra-primary);
+          padding: 8px 12px;
+          font-weight: 850;
+          letter-spacing: .06em;
+          cursor: pointer;
+        }
+        .gift-card-code-chip i { font-style: normal; color: #64748b; font-size: 18px; line-height: 1; }
         .gift-card-code-field input:focus { border-color: var(--calendra-primary); box-shadow: 0 0 0 3px rgba(15,107,255,.10); }
         .gift-card-code-field small { color: var(--calendra-muted); line-height: 1.4; }
         .apple-pay-mark { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 30px; line-height: 1; color: #000; }
@@ -2565,7 +2644,21 @@
           const submit = this.shadowRoot.querySelector('[data-action="submit"]');
           if (submit) submit.disabled = !this.isStepComplete('details') || this.state.saving;
         });
+        giftCardCode.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            this.addPendingGiftCardCode();
+          }
+        });
       }
+
+      this.shadowRoot.querySelectorAll('[data-action="add-gift-card-code"]').forEach((button) => {
+        button.addEventListener('click', () => this.addPendingGiftCardCode());
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="remove-gift-card-code"]').forEach((button) => {
+        button.addEventListener('click', () => this.removeGiftCardCode(button.dataset.code || ''));
+      });
 
       const next = this.shadowRoot.querySelector('[data-action="next"]');
       if (next) {
@@ -2598,7 +2691,6 @@
           this.setState({
             paymentMethod: method,
             paymentMethodVariant: button.dataset.variant || method.toLowerCase(),
-            giftCardCode: method === 'GIFT_CARD' ? this.state.giftCardCode : '',
             error: '',
           });
         });

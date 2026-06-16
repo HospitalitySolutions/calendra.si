@@ -25,8 +25,11 @@ import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -375,15 +378,16 @@ public class GuestOrderService {
             if (booking == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card checkout requires a booking slot.");
             }
-            String giftCardCode = request.giftCardCode();
-            if (channel == PaymentChannel.WEBSITE || (giftCardCode != null && !giftCardCode.isBlank())) {
-                entitlementService.consumeGiftCardCode(
+            List<String> giftCardCodes = giftCardCodesFromRequest(request);
+            if (channel == PaymentChannel.WEBSITE || !giftCardCodes.isEmpty()) {
+                entitlementService.consumeGiftCardCodes(
                         order.getClient(),
                         order.getCompany().getId(),
                         order.getTotalGross(),
                         order.getCurrency(),
                         booking,
-                        giftCardCode
+                        giftCardCodes,
+                        true
                 );
             } else {
                 entitlementService.consumeBestMatchingGiftCard(
@@ -408,6 +412,22 @@ public class GuestOrderService {
             );
         }
 
+        GiftCardPaymentAdjustment giftCardAdjustment = applyGiftCardCodesBeforeFinalPayment(order, request, channel);
+        order = giftCardAdjustment.order();
+        if (giftCardAdjustment.coveredInFull()) {
+            return new GuestDtos.CheckoutResponse(
+                    String.valueOf(order.getId()),
+                    GuestPaymentMethodType.GIFT_CARD.name(),
+                    order.getStatus().name(),
+                    null,
+                    null,
+                    "COMPLETE",
+                    null,
+                    null,
+                    null,
+                    order.getCompany().getName()
+            );
+        }
 
         if (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE) {
             // PAID clears pending-order noise in the app; amount is informational until collected at venue.
@@ -695,6 +715,19 @@ public class GuestOrderService {
     private void cancelUnfinishedExternalOrder(GuestOrder order) {
         if (order == null || order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) return;
         Long unpaidBillId = order.getBillId();
+        SessionBooking booking = findBookingForOrder(order);
+        if (booking != null) {
+            entitlementService.maybeRestoreCreditForBooking(booking);
+            booking.setBookingStatus("CANCELLED");
+            bookings.save(booking);
+            bookingChangePublisher.publish(
+                    booking.getCompany().getId(),
+                    booking.getId(),
+                    booking.getStartTime(),
+                    booking.getEndTime(),
+                    BookingChangePublisher.BOOKING_CANCELLED
+            );
+        }
         order.setBillId(null);
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
@@ -783,6 +816,88 @@ public class GuestOrderService {
 
     private static boolean isSessionLikeProductType(String productType) {
         return "SESSION_SINGLE".equals(productType) || "CLASS_TICKET".equals(productType);
+    }
+
+    private GiftCardPaymentAdjustment applyGiftCardCodesBeforeFinalPayment(GuestOrder order, GuestDtos.CheckoutRequest request, PaymentChannel channel) {
+        List<String> giftCardCodes = giftCardCodesFromRequest(request);
+        if (giftCardCodes.isEmpty()) {
+            return new GiftCardPaymentAdjustment(order, false);
+        }
+        assertPaymentMethodAllowed(order.getCompany().getId(), GuestPaymentMethodType.GIFT_CARD, inferProductType(order), channel);
+
+        SessionBooking booking = maybeCreateConfirmedBooking(order);
+        if (booking == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card checkout requires a booking slot.");
+        }
+
+        GuestEntitlementService.GiftCardRedemptionResult redemption = entitlementService.consumeGiftCardCodes(
+                order.getClient(),
+                order.getCompany().getId(),
+                order.getTotalGross(),
+                order.getCurrency(),
+                booking,
+                giftCardCodes,
+                false
+        );
+
+        if (redemption.amountApplied() == null || redemption.amountApplied().compareTo(BigDecimal.ZERO) <= 0) {
+            return new GiftCardPaymentAdjustment(order, false);
+        }
+
+        BigDecimal remaining = redemption.remainingAmount() == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : redemption.remainingAmount().setScale(2, RoundingMode.HALF_UP);
+        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+            order.setPaymentMethodType(GuestPaymentMethodType.GIFT_CARD);
+            order.setSubtotalGross(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            order.setTaxAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            order.setTotalGross(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            order.setStatus(OrderStatus.PAID);
+            order.setPaidAt(Instant.now());
+            order = orders.save(order);
+            return new GiftCardPaymentAdjustment(order, true);
+        }
+
+        order = reduceOrderAmountToRemainingBalance(order, remaining);
+        return new GiftCardPaymentAdjustment(order, false);
+    }
+
+    private GuestOrder reduceOrderAmountToRemainingBalance(GuestOrder order, BigDecimal remainingGross) {
+        BigDecimal remaining = remainingGross == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : remainingGross.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal originalTotal = order.getTotalGross() == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : order.getTotalGross().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal originalTax = order.getTaxAmount() == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : order.getTaxAmount().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal adjustedTax = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (originalTotal.compareTo(BigDecimal.ZERO) > 0 && originalTax.compareTo(BigDecimal.ZERO) > 0) {
+            adjustedTax = originalTax.multiply(remaining).divide(originalTotal, 2, RoundingMode.HALF_UP);
+        }
+        order.setSubtotalGross(remaining);
+        order.setTaxAmount(adjustedTax);
+        order.setTotalGross(remaining);
+        return orders.save(order);
+    }
+
+    private static List<String> giftCardCodesFromRequest(GuestDtos.CheckoutRequest request) {
+        if (request == null) return List.of();
+        LinkedHashSet<String> codes = new LinkedHashSet<>();
+        addGiftCardCode(codes, request.giftCardCode());
+        if (request.giftCardCodes() != null) {
+            request.giftCardCodes().forEach(raw -> addGiftCardCode(codes, raw));
+        }
+        return new ArrayList<>(codes);
+    }
+
+    private static void addGiftCardCode(LinkedHashSet<String> codes, String raw) {
+        if (raw == null) return;
+        String code = raw.trim().replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
+        if (!code.isBlank()) {
+            codes.add(code);
+        }
     }
 
     private void assertPaymentMethodAllowed(Long companyId, GuestPaymentMethodType paymentMethodType, String productType, PaymentChannel channel) {
@@ -1276,6 +1391,8 @@ public class GuestOrderService {
     }
 
     public record PayPalCompletionResult(GuestOrder order, boolean completed, String message) {}
+
+    private record GiftCardPaymentAdjustment(GuestOrder order, boolean coveredInFull) {}
 
     private record SlotContext(Long sessionTypeId, Long consultantId, java.time.LocalDateTime startsAt, java.time.LocalDateTime endsAt, Long groupSessionId) {}
 
