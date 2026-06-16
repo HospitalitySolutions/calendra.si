@@ -3,6 +3,7 @@ package com.example.app.security;
 import com.example.app.auth.GoogleOAuth2SuccessHandler;
 import com.example.app.guest.auth.GuestJwtAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -127,6 +128,13 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
                 .authorizeHttpRequests(auth -> {
+                    // SSE responses use servlet async dispatch after the initial authenticated request.
+                    // Do not re-authorize those internal ASYNC/ERROR dispatches, otherwise Spring Security
+                    // can see them as anonymous after the response stream is already open and log
+                    // "Access Denied" / "response is already committed". The initial REQUEST dispatch
+                    // is still protected by the matchers below.
+                    auth.dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll();
+
                     auth.requestMatchers("/api/auth/**").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/register/catalog").permitAll();
@@ -178,6 +186,9 @@ public class SecurityConfig {
 
         http.exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
+                            if (response.isCommitted()) {
+                                return;
+                            }
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json");
 
@@ -188,6 +199,9 @@ public class SecurityConfig {
                             response.getWriter().write(new ObjectMapper().writeValueAsString(body));
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            if (response.isCommitted()) {
+                                return;
+                            }
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json");
 
