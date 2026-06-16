@@ -482,6 +482,8 @@ final class AppStore: ObservableObject {
             let tenant = try await self.api.resolveTenant(code: normalizedCode)
             try await self.api.joinTenant(code: normalizedCode)
             if self.linkedTenants.contains(where: { $0.id == tenant.companyId }) == false {
+                // The lookup payload only carries public fields; billing/payment settings are
+                // filled in by refreshTenant(companyId:) below.
                 self.linkedTenants.append(
                     TenantModel(
                         id: tenant.companyId,
@@ -493,12 +495,6 @@ final class AppStore: ObservableObject {
                         companyAddress: tenant.companyAddress,
                         employeeSelectionStep: tenant.employeeSelectionStep,
                         useEmployeeContact: tenant.useEmployeeContact,
-                        billingEnabled: tenant.billingEnabled,
-                        inboxEnabled: tenant.inboxEnabled,
-                        requireOnlinePayment: tenant.requireOnlinePayment,
-                        paymentRequirement: tenant.paymentRequirement,
-                        depositPercent: tenant.depositPercent,
-                        acceptedPaymentMethods: tenant.acceptedPaymentMethods,
                         cardImageUrl: tenant.cardImageUrl,
                         logoImageUrl: tenant.logoImageUrl,
                         iconImageUrl: tenant.iconImageUrl
