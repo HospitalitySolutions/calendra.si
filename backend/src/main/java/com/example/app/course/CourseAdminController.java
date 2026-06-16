@@ -32,6 +32,7 @@ public class CourseAdminController {
     private final MembershipCourseRepository membershipCourses;
     private final BunnyMediaService bunnyMediaService;
     private final CourseModuleAccessService courseModuleAccessService;
+    private final CourseAccessProgressRepository courseAccessProgressRepository;
 
     @Autowired
     public CourseAdminController(
@@ -41,7 +42,8 @@ public class CourseAdminController {
             GuestEntitlementRepository entitlements,
             MembershipCourseRepository membershipCourses,
             BunnyMediaService bunnyMediaService,
-            CourseModuleAccessService courseModuleAccessService
+            CourseModuleAccessService courseModuleAccessService,
+            CourseAccessProgressRepository courseAccessProgressRepository
     ) {
         this.courses = courses;
         this.products = products;
@@ -50,6 +52,7 @@ public class CourseAdminController {
         this.membershipCourses = membershipCourses;
         this.bunnyMediaService = bunnyMediaService;
         this.courseModuleAccessService = courseModuleAccessService;
+        this.courseAccessProgressRepository = courseAccessProgressRepository;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -61,7 +64,7 @@ public class CourseAdminController {
             MembershipCourseRepository membershipCourses,
             BunnyMediaService bunnyMediaService
     ) {
-        this(courses, products, orderItems, entitlements, membershipCourses, bunnyMediaService, null);
+        this(courses, products, orderItems, entitlements, membershipCourses, bunnyMediaService, null, null);
     }
 
     @GetMapping
@@ -137,6 +140,8 @@ public class CourseAdminController {
             course.setBunnyCdnUrl(null);
             course.setFileName(session.fileName());
             course.setContentType(session.contentType());
+            course.setDurationSeconds(null);
+            resetCourseProgress(course);
             course.setMetadataJson("{\"uploadStatus\":\"DIRECT_UPLOAD_PENDING\",\"deleteOldMedia\":" + deleteOld + "}");
             courses.save(course);
             return new DirectUploadSessionResponse(
@@ -181,6 +186,7 @@ public class CourseAdminController {
         course.setBunnyVideoId(videoId);
         if (request.fileName() != null && !request.fileName().isBlank()) course.setFileName(request.fileName().trim());
         if (request.contentType() != null && !request.contentType().isBlank()) course.setContentType(request.contentType().trim());
+        if (course.getDurationSeconds() != null && course.getDurationSeconds() <= 0) course.setDurationSeconds(null);
         course.setMetadataJson("{\"uploadStatus\":\"UPLOADED_TO_BUNNY_STREAM_DIRECT\"}");
         course.setStatus(CourseStatus.ACTIVE);
         course.setActive(true);
@@ -234,6 +240,8 @@ public class CourseAdminController {
             }
             course.setFileName(file.getOriginalFilename());
             course.setContentType(contentType);
+            course.setDurationSeconds(null);
+            resetCourseProgress(course);
             course.setMetadataJson("{\"uploadStatus\":" + jsonString(result.uploadStatus()) + ",\"deleteOldMedia\":" + deleteOld + "}");
             boolean mediaReady = course.getMediaType() == CourseMediaType.AUDIO
                     ? (result.bunnyStoragePath() != null || result.bunnyCdnUrl() != null)
@@ -269,6 +277,12 @@ public class CourseAdminController {
         }
         if (product != null) products.delete(product);
         courses.delete(course);
+    }
+
+    private void resetCourseProgress(Course course) {
+        if (courseAccessProgressRepository != null && course != null && course.getId() != null) {
+            courseAccessProgressRepository.deleteAllByCourseId(course.getId());
+        }
     }
 
     private void assertCoursesEnabled(Long companyId) {

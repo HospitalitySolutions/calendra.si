@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useLocale } from '../locale'
@@ -13,6 +13,11 @@ type CourseItem = {
   bunnyVideoId?: string | null
   mediaUrl?: string | null
   durationSeconds?: number | null
+  progressPositionSeconds?: number | null
+  progressDurationSeconds?: number | null
+  progressPercent?: number | null
+  completed?: boolean | null
+  lastPlayedAt?: string | null
 }
 
 type CourseAccessResponse = CourseItem & {
@@ -20,7 +25,48 @@ type CourseAccessResponse = CourseItem & {
   courses?: CourseItem[] | null
 }
 
+type CourseProgress = {
+  positionSeconds: number
+  durationSeconds?: number | null
+  progressPercent: number
+  completed: boolean
+  lastPlayedAt?: string | null
+}
+
+type CourseProgressPatch = {
+  positionSeconds?: number | null
+  durationSeconds?: number | null
+  progressPercent?: number | null
+  completed?: boolean | null
+  lastPlayedAt?: string | null
+}
+
+type StoredCourseAccessState = {
+  selectedCourseId?: string
+  openedCourseIds?: string[]
+  favoriteCourseIds?: string[]
+  progressByCourseId?: Record<string, CourseProgress>
+}
+
 type CourseSort = 'recent' | 'title' | 'duration'
+
+type BunnyPlayer = {
+  on: (eventName: string, callback: (data?: unknown) => void) => void
+  off?: (eventName: string, callback?: (data?: unknown) => void) => void
+  getDuration?: (callback: (duration: unknown) => void) => void
+  getCurrentTime?: (callback: (time: unknown) => void) => void
+  setCurrentTime?: (time: number) => void
+}
+
+type PlayerJsConstructor = new (element: HTMLIFrameElement) => BunnyPlayer
+
+declare global {
+  interface Window {
+    playerjs?: {
+      Player?: PlayerJsConstructor
+    }
+  }
+}
 
 type CourseAccessCopy = {
   loading: string
@@ -49,10 +95,15 @@ type CourseAccessCopy = {
   audio: string
   started: string
   notStarted: string
+  completed: string
   favorite: string
   favorited: string
   lessonsFallback: string
   totalTime: string
+  currentPosition: string
+  progress: string
+  watched: string
+  resumeAt: (time: string) => string
   coursesLabel: string
   courseLabel: string
   needHelp: string
@@ -62,6 +113,74 @@ type CourseAccessCopy = {
   lifetimeHint: string
   noDescription: string
   selected: string
+  type: string
+  status: string
+}
+
+function normalizeSeconds(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.floor(value))
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed))
+  }
+  if (value && typeof value === 'object') {
+    const data = value as Record<string, unknown>
+    return normalizeSeconds(data.seconds ?? data.currentTime ?? data.time ?? data.duration)
+  }
+  return null
+}
+
+function clampPercent(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed)) return 0
+  return Math.max(0, Math.min(100, Math.round(parsed * 10) / 10))
+}
+
+function progressFrom(positionSeconds = 0, durationSeconds?: number | null, completed = false): CourseProgress {
+  const position = Math.max(0, Math.floor(positionSeconds || 0))
+  const duration = durationSeconds && durationSeconds > 0 ? Math.max(1, Math.floor(durationSeconds)) : null
+  const percent = duration ? clampPercent((position / duration) * 100) : 0
+  return {
+    positionSeconds: duration ? Math.min(position, duration) : position,
+    durationSeconds: duration,
+    progressPercent: completed ? 100 : percent,
+    completed: completed || percent >= 90,
+  }
+}
+
+function mergeProgress(current: CourseProgress | undefined, patch: CourseProgressPatch): CourseProgress {
+  const duration = patch.durationSeconds && patch.durationSeconds > 0
+    ? Math.floor(patch.durationSeconds)
+    : current?.durationSeconds ?? null
+  const position = patch.positionSeconds != null
+    ? Math.max(0, Math.floor(patch.positionSeconds))
+    : current?.positionSeconds ?? 0
+  const computed = progressFrom(position, duration, Boolean(current?.completed || patch.completed))
+  return {
+    ...computed,
+    progressPercent: patch.progressPercent != null ? clampPercent(patch.progressPercent) : computed.progressPercent,
+    completed: Boolean(current?.completed || patch.completed || computed.completed),
+    lastPlayedAt: patch.lastPlayedAt || current?.lastPlayedAt || new Date().toISOString(),
+  }
+}
+
+function getKnownDuration(item: CourseItem, progress?: CourseProgress): number | null {
+  const candidates = [progress?.durationSeconds, item.progressDurationSeconds, item.durationSeconds]
+  for (const value of candidates) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return Math.floor(value)
+  }
+  return null
+}
+
+function getKnownProgress(item: CourseItem, localProgress?: CourseProgress): CourseProgress {
+  const fromItem = progressFrom(
+    item.progressPositionSeconds || 0,
+    item.progressDurationSeconds || item.durationSeconds || null,
+    Boolean(item.completed),
+  )
+  if (item.progressPercent != null) fromItem.progressPercent = clampPercent(item.progressPercent)
+  if (item.lastPlayedAt) fromItem.lastPlayedAt = item.lastPlayedAt
+  return localProgress || fromItem
 }
 
 function formatDuration(seconds: number | null | undefined, locale: string, copy?: CourseAccessCopy): string {
@@ -72,6 +191,15 @@ function formatDuration(seconds: number | null | undefined, locale: string, copy
   const rest = minutes % 60
   if (rest === 0) return locale === 'sl' ? `${hours} h` : `${hours}h`
   return locale === 'sl' ? `${hours} h ${rest} min` : `${hours}h ${rest}m`
+}
+
+function formatClock(seconds: number | null | undefined): string {
+  const safe = Math.max(0, Math.floor(seconds || 0))
+  const hours = Math.floor(safe / 3600)
+  const minutes = Math.floor((safe % 3600) / 60)
+  const rest = safe % 60
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+  return `${minutes}:${String(rest).padStart(2, '0')}`
 }
 
 function safeLocalStorageGet(key: string): string | null {
@@ -87,6 +215,16 @@ function safeLocalStorageSet(key: string, value: string): void {
     window.localStorage.setItem(key, value)
   } catch {
     // Ignore storage errors on locked-down browsers/private mode.
+  }
+}
+
+function readStoredState(storageKey: string): StoredCourseAccessState {
+  const savedRaw = safeLocalStorageGet(storageKey)
+  if (!savedRaw) return {}
+  try {
+    return JSON.parse(savedRaw) as StoredCourseAccessState
+  } catch {
+    return {}
   }
 }
 
@@ -112,6 +250,7 @@ function CourseCard({
   active,
   opened,
   favorite,
+  progress,
   onSelect,
   onFavorite,
   copy,
@@ -122,11 +261,20 @@ function CourseCard({
   active: boolean
   opened: boolean
   favorite: boolean
+  progress: CourseProgress
   onSelect: () => void
   onFavorite: () => void
   copy: CourseAccessCopy
   locale: string
 }) {
+  const knownDuration = getKnownDuration(item, progress)
+  const progressPercent = progress.completed ? 100 : clampPercent(progress.progressPercent)
+  const isStarted = opened || progress.positionSeconds > 0 || progressPercent > 0
+  const statusText = progress.completed ? copy.completed : isStarted ? copy.started : copy.notStarted
+  const progressText = progress.positionSeconds > 0
+    ? `${copy.resumeAt(formatClock(progress.positionSeconds))}${knownDuration ? ` · ${Math.round(progressPercent)}%` : ''}`
+    : formatDuration(knownDuration, locale, copy)
+
   return (
     <button
       type="button"
@@ -160,20 +308,252 @@ function CourseCard({
           </span>
         </span>
         <span className="course-access-card-status-row">
-          <span className={`course-access-status-dot${opened ? ' course-access-status-dot--started' : ''}`} />
-          <span>{opened ? copy.started : copy.notStarted}</span>
+          <span className={`course-access-status-dot${isStarted ? ' course-access-status-dot--started' : ''}${progress.completed ? ' course-access-status-dot--completed' : ''}`} />
+          <span>{statusText}</span>
           <span aria-hidden="true">•</span>
           <span>{courseMediaLabel(item, copy)}</span>
         </span>
-        <span className="course-access-progress" aria-hidden="true">
-          <span style={{ width: opened ? '35%' : '0%' }} />
+        <span className="course-access-progress" aria-label={`${Math.round(progressPercent)}%`}>
+          <span style={{ width: `${progressPercent}%` }} />
         </span>
         <span className="course-access-card-meta">
-          <span>{formatDuration(item.durationSeconds, locale, copy)}</span>
+          <span>{progressText}</span>
         </span>
       </span>
       <span className="course-access-card-arrow" aria-hidden="true">›</span>
     </button>
+  )
+}
+
+const BUNNY_PLAYER_SCRIPT_ID = 'bunny-playerjs-sdk'
+const BUNNY_PLAYER_SCRIPT_SRC = 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js'
+
+function loadBunnyPlayerScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  if (window.playerjs?.Player) return Promise.resolve()
+  const existing = document.getElementById(BUNNY_PLAYER_SCRIPT_ID) as HTMLScriptElement | null
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener('load', () => resolve(), { once: true })
+      existing.addEventListener('error', () => reject(new Error('Bunny Player.js failed to load.')), { once: true })
+    })
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.id = BUNNY_PLAYER_SCRIPT_ID
+    script.src = BUNNY_PLAYER_SCRIPT_SRC
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Bunny Player.js failed to load.'))
+    document.head.appendChild(script)
+  })
+}
+
+function BunnyCoursePlayer({
+  title,
+  src,
+  startSeconds,
+  durationSeconds,
+  onProgress,
+  loadingLabel,
+}: {
+  title: string
+  src: string
+  startSeconds: number
+  durationSeconds?: number | null
+  onProgress: (patch: CourseProgressPatch, options?: { persist?: boolean }) => void
+  loadingLabel: string
+}) {
+  const [scriptReady, setScriptReady] = useState(() => typeof window !== 'undefined' && Boolean(window.playerjs?.Player))
+  const [scriptFailed, setScriptFailed] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const playerRef = useRef<BunnyPlayer | null>(null)
+  const lastPersistAtRef = useRef(0)
+  const latestPositionRef = useRef(startSeconds || 0)
+  const latestDurationRef = useRef(durationSeconds || null)
+  const didSeekRef = useRef(false)
+
+  useEffect(() => {
+    if (scriptReady) return
+    let cancelled = false
+    loadBunnyPlayerScript()
+      .then(() => { if (!cancelled) setScriptReady(true) })
+      .catch(() => { if (!cancelled) setScriptFailed(true) })
+    return () => { cancelled = true }
+  }, [scriptReady])
+
+  useEffect(() => {
+    latestPositionRef.current = startSeconds || 0
+    latestDurationRef.current = durationSeconds || null
+    didSeekRef.current = false
+  }, [src, startSeconds, durationSeconds])
+
+  useEffect(() => {
+    let cancelled = false
+    let readyHandler: ((data?: unknown) => void) | null = null
+    let durationHandler: ((data?: unknown) => void) | null = null
+    let timeHandler: ((data?: unknown) => void) | null = null
+    let pauseHandler: ((data?: unknown) => void) | null = null
+    let endedHandler: ((data?: unknown) => void) | null = null
+
+    if (!scriptReady || !iframeRef.current || !window.playerjs?.Player) return
+    const player = new window.playerjs.Player(iframeRef.current)
+    playerRef.current = player
+
+    const persistCurrent = (force = false) => {
+          const position = latestPositionRef.current
+          const duration = latestDurationRef.current
+          if (!force && position <= 0 && !duration) return
+          onProgress(
+            {
+              positionSeconds: position,
+              durationSeconds: duration,
+              completed: duration ? position >= duration * 0.9 : false,
+            },
+            { persist: true },
+          )
+        }
+
+        const maybeSeek = () => {
+          if (didSeekRef.current || !player.setCurrentTime) return
+          const start = latestPositionRef.current
+          if (start > 3) {
+            try { player.setCurrentTime(start) } catch { /* Player might reject an early seek while loading. */ }
+          }
+          didSeekRef.current = true
+        }
+
+        const updateDuration = (value: unknown, persist = false) => {
+          const duration = normalizeSeconds(value)
+          if (!duration || duration <= 0) return
+          latestDurationRef.current = duration
+          onProgress({ durationSeconds: duration, positionSeconds: latestPositionRef.current }, { persist })
+        }
+
+        readyHandler = () => {
+          if (player.getDuration) {
+            try { player.getDuration((duration) => updateDuration(duration, true)) } catch { /* Ignore unsupported calls. */ }
+          }
+          maybeSeek()
+        }
+        durationHandler = (data) => updateDuration(data, true)
+        timeHandler = (data) => {
+          const seconds = normalizeSeconds(data)
+          if (seconds == null) return
+          latestPositionRef.current = seconds
+          const duration = latestDurationRef.current
+          onProgress({ positionSeconds: seconds, durationSeconds: duration }, { persist: false })
+          const now = Date.now()
+          if (now - lastPersistAtRef.current > 8000 && seconds > 0) {
+            lastPersistAtRef.current = now
+            persistCurrent(false)
+          }
+        }
+        pauseHandler = () => persistCurrent(true)
+        endedHandler = () => {
+          const duration = latestDurationRef.current
+          onProgress(
+            {
+              positionSeconds: duration || latestPositionRef.current,
+              durationSeconds: duration,
+              progressPercent: 100,
+              completed: true,
+            },
+            { persist: true },
+          )
+        }
+
+    player.on('ready', readyHandler)
+    player.on('durationchange', durationHandler)
+    player.on('timeupdate', timeHandler)
+    player.on('pause', pauseHandler)
+    player.on('ended', endedHandler)
+
+    return () => {
+      cancelled = true
+      const player = playerRef.current
+      try {
+        if (player?.off) {
+          if (readyHandler) player.off('ready', readyHandler)
+          if (durationHandler) player.off('durationchange', durationHandler)
+          if (timeHandler) player.off('timeupdate', timeHandler)
+          if (pauseHandler) player.off('pause', pauseHandler)
+          if (endedHandler) player.off('ended', endedHandler)
+        }
+      } catch {
+        // Best-effort cleanup only.
+      }
+      playerRef.current = null
+    }
+  }, [onProgress, scriptReady, src])
+
+  if (!scriptReady && !scriptFailed) {
+    return <div className="course-access-media-empty">{loadingLabel}</div>
+  }
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title={title}
+      src={src}
+      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+      allowFullScreen
+    />
+  )
+}
+
+function AudioCoursePlayer({
+  src,
+  startSeconds,
+  durationSeconds,
+  onProgress,
+}: {
+  src: string
+  startSeconds: number
+  durationSeconds?: number | null
+  onProgress: (patch: CourseProgressPatch, options?: { persist?: boolean }) => void
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const lastPersistAtRef = useRef(0)
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || startSeconds <= 3) return
+    const applyStart = () => {
+      try { audio.currentTime = startSeconds } catch { /* Ignore unsupported seek. */ }
+    }
+    if (audio.readyState >= 1) applyStart()
+    else audio.addEventListener('loadedmetadata', applyStart, { once: true })
+    return () => audio.removeEventListener('loadedmetadata', applyStart)
+  }, [src, startSeconds])
+
+  return (
+    <audio
+      ref={audioRef}
+      controls
+      src={src}
+      onLoadedMetadata={(event) => {
+        const duration = normalizeSeconds(event.currentTarget.duration)
+        if (duration) onProgress({ durationSeconds: duration, positionSeconds: startSeconds }, { persist: true })
+      }}
+      onTimeUpdate={(event) => {
+        const position = normalizeSeconds(event.currentTarget.currentTime) || 0
+        const duration = normalizeSeconds(event.currentTarget.duration)
+        onProgress({ positionSeconds: position, durationSeconds: duration }, { persist: false })
+        const now = Date.now()
+        if (now - lastPersistAtRef.current > 8000 && position > 0) {
+          lastPersistAtRef.current = now
+          onProgress({ positionSeconds: position, durationSeconds: duration }, { persist: true })
+        }
+      }}
+      onPause={(event) => {
+        onProgress({ positionSeconds: event.currentTarget.currentTime, durationSeconds: event.currentTarget.duration }, { persist: true })
+      }}
+      onEnded={(event) => {
+        const duration = normalizeSeconds(event.currentTarget.duration)
+        onProgress({ positionSeconds: duration || event.currentTarget.currentTime, durationSeconds: duration, progressPercent: 100, completed: true }, { persist: true })
+      }}
+    />
   )
 }
 
@@ -194,8 +574,11 @@ export function CourseAccessPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>('')
   const [openedCourseIds, setOpenedCourseIds] = useState<string[]>([])
   const [favoriteCourseIds, setFavoriteCourseIds] = useState<string[]>([])
+  const [progressByCourseId, setProgressByCourseId] = useState<Record<string, CourseProgress>>({})
   const [sortBy, setSortBy] = useState<CourseSort>('recent')
   const [error, setError] = useState('')
+  const persistTimeoutRef = useRef<number | null>(null)
+  const latestLocalStateRef = useRef<StoredCourseAccessState>({})
 
   const copy: CourseAccessCopy = locale === 'sl'
     ? {
@@ -225,10 +608,15 @@ export function CourseAccessPage() {
         audio: 'Audio',
         started: 'Začeto',
         notStarted: 'Ni začeto',
+        completed: 'Zaključeno',
         favorite: 'Dodaj med priljubljene',
         favorited: 'Odstrani iz priljubljenih',
         lessonsFallback: 'Čas ni določen',
         totalTime: 'Skupni čas',
+        currentPosition: 'Trenutni položaj',
+        progress: 'Napredek',
+        watched: 'ogledano',
+        resumeAt: (time) => `Nadaljuj pri ${time}`,
         coursesLabel: 'tečajev',
         courseLabel: 'tečaj',
         needHelp: 'Potrebuješ pomoč?',
@@ -238,6 +626,8 @@ export function CourseAccessPage() {
         lifetimeHint: 'Shrani povezavo za ponovni dostop.',
         noDescription: 'Opis za ta tečaj še ni dodan.',
         selected: 'Izbrano',
+        type: 'Vrsta',
+        status: 'Stanje',
       }
     : {
         loading: 'Loading course…',
@@ -266,10 +656,15 @@ export function CourseAccessPage() {
         audio: 'Audio',
         started: 'Started',
         notStarted: 'Not started',
+        completed: 'Completed',
         favorite: 'Add to favorites',
         favorited: 'Remove from favorites',
         lessonsFallback: 'Time not set',
         totalTime: 'Total time',
+        currentPosition: 'Current position',
+        progress: 'Progress',
+        watched: 'watched',
+        resumeAt: (time) => `Resume at ${time}`,
         coursesLabel: 'courses',
         courseLabel: 'course',
         needHelp: 'Need help?',
@@ -279,6 +674,8 @@ export function CourseAccessPage() {
         lifetimeHint: 'Save this link for future access.',
         noDescription: 'No description has been added for this course yet.',
         selected: 'Selected',
+        type: 'Type',
+        status: 'Status',
       }
 
   useEffect(() => {
@@ -293,22 +690,25 @@ export function CourseAccessPage() {
       .then((res) => {
         if (!cancelled) {
           const courses = Array.isArray(res.data.courses) && res.data.courses.length > 0 ? res.data.courses : [res.data]
-          const savedRaw = safeLocalStorageGet(storageKey)
-          let saved: { selectedCourseId?: string; openedCourseIds?: string[]; favoriteCourseIds?: string[] } = {}
-          if (savedRaw) {
-            try {
-              saved = JSON.parse(savedRaw) as typeof saved
-            } catch {
-              saved = {}
-            }
-          }
+          const saved = readStoredState(storageKey)
+          const progressById: Record<string, CourseProgress> = {}
+          courses.forEach((item) => {
+            const savedProgress = saved.progressByCourseId?.[item.courseId]
+            progressById[item.courseId] = getKnownProgress(item, savedProgress)
+          })
           const savedSelected = saved.selectedCourseId && courses.some((item) => item.courseId === saved.selectedCourseId)
             ? saved.selectedCourseId
             : ''
-          const first = savedSelected ? courses.find((item) => item.courseId === savedSelected) : courses[0]
+          const mostRecentProgress = Object.entries(progressById)
+            .filter(([, progress]) => progress.positionSeconds > 0 || progress.completed)
+            .sort(([, a], [, b]) => new Date(b.lastPlayedAt || 0).getTime() - new Date(a.lastPlayedAt || 0).getTime())[0]
+          const initialCourseId = savedSelected || mostRecentProgress?.[0] || courses[0]?.courseId || ''
           setCourseAccess(res.data)
-          setSelectedCourseId(first?.courseId || '')
-          setOpenedCourseIds(Array.isArray(saved.openedCourseIds) ? saved.openedCourseIds.filter((id) => courses.some((item) => item.courseId === id)) : [])
+          setSelectedCourseId(initialCourseId)
+          setProgressByCourseId(progressById)
+          setOpenedCourseIds(Array.isArray(saved.openedCourseIds)
+            ? saved.openedCourseIds.filter((id) => courses.some((item) => item.courseId === id))
+            : Object.keys(progressById).filter((id) => progressById[id].positionSeconds > 0 || progressById[id].completed))
           setFavoriteCourseIds(Array.isArray(saved.favoriteCourseIds) ? saved.favoriteCourseIds.filter((id) => courses.some((item) => item.courseId === id)) : [])
           setError('')
         }
@@ -336,30 +736,41 @@ export function CourseAccessPage() {
     return accessibleCourses.find((item) => item.courseId === selectedCourseId) || accessibleCourses[0]
   }, [accessibleCourses, selectedCourseId])
 
+  const selectedProgress = selectedCourse ? getKnownProgress(selectedCourse, progressByCourseId[selectedCourse.courseId]) : null
+
   const sortedCourses = useMemo(() => {
     const originalIndex = new Map(accessibleCourses.map((course, index) => [course.courseId, index]))
     return [...accessibleCourses].sort((a, b) => {
       const favoriteDelta = Number(favoriteCourseIds.includes(b.courseId)) - Number(favoriteCourseIds.includes(a.courseId))
       if (favoriteDelta !== 0) return favoriteDelta
       if (sortBy === 'title') return a.title.localeCompare(b.title, locale)
-      if (sortBy === 'duration') return (a.durationSeconds || Number.MAX_SAFE_INTEGER) - (b.durationSeconds || Number.MAX_SAFE_INTEGER)
-      const aOpened = openedCourseIds.includes(a.courseId)
-      const bOpened = openedCourseIds.includes(b.courseId)
-      if (aOpened !== bOpened) return Number(bOpened) - Number(aOpened)
+      if (sortBy === 'duration') return (getKnownDuration(a, progressByCourseId[a.courseId]) || Number.MAX_SAFE_INTEGER) - (getKnownDuration(b, progressByCourseId[b.courseId]) || Number.MAX_SAFE_INTEGER)
+      const aProgress = progressByCourseId[a.courseId]
+      const bProgress = progressByCourseId[b.courseId]
+      const aStarted = openedCourseIds.includes(a.courseId) || (aProgress?.positionSeconds || 0) > 0
+      const bStarted = openedCourseIds.includes(b.courseId) || (bProgress?.positionSeconds || 0) > 0
+      if (aStarted !== bStarted) return Number(bStarted) - Number(aStarted)
       return (originalIndex.get(a.courseId) || 0) - (originalIndex.get(b.courseId) || 0)
     })
-  }, [accessibleCourses, favoriteCourseIds, locale, openedCourseIds, sortBy])
+  }, [accessibleCourses, favoriteCourseIds, locale, openedCourseIds, progressByCourseId, sortBy])
 
   const totalDurationSeconds = useMemo(() => (
-    accessibleCourses.reduce((sum, item) => sum + (item.durationSeconds || 0), 0)
-  ), [accessibleCourses])
+    accessibleCourses.reduce((sum, item) => sum + (getKnownDuration(item, progressByCourseId[item.courseId]) || 0), 0)
+  ), [accessibleCourses, progressByCourseId])
 
   const lastOpenedCourse = useMemo(() => {
+    const byProgress = [...accessibleCourses]
+      .filter((item) => {
+        const progress = progressByCourseId[item.courseId]
+        return progress && (progress.positionSeconds > 0 || progress.completed)
+      })
+      .sort((a, b) => new Date(progressByCourseId[b.courseId]?.lastPlayedAt || 0).getTime() - new Date(progressByCourseId[a.courseId]?.lastPlayedAt || 0).getTime())[0]
+    if (byProgress) return byProgress
     if (selectedCourse && openedCourseIds.includes(selectedCourse.courseId)) return selectedCourse
     const recentId = openedCourseIds.find((id) => accessibleCourses.some((item) => item.courseId === id))
     if (!recentId) return selectedCourse
     return accessibleCourses.find((item) => item.courseId === recentId) || selectedCourse
-  }, [accessibleCourses, openedCourseIds, selectedCourse])
+  }, [accessibleCourses, openedCourseIds, progressByCourseId, selectedCourse])
 
   const selectedCourseIndex = useMemo(() => (
     selectedCourse ? accessibleCourses.findIndex((item) => item.courseId === selectedCourse.courseId) : 0
@@ -374,15 +785,55 @@ export function CourseAccessPage() {
     if (!selectedCourseId || accessibleCourses.length === 0) return
     setOpenedCourseIds((current) => {
       const next = [selectedCourseId, ...current.filter((id) => id !== selectedCourseId)]
-      safeLocalStorageSet(storageKey, JSON.stringify({ selectedCourseId, openedCourseIds: next, favoriteCourseIds }))
       return next
     })
-  }, [accessibleCourses.length, favoriteCourseIds, selectedCourseId, storageKey])
+  }, [accessibleCourses.length, selectedCourseId])
 
   useEffect(() => {
+    latestLocalStateRef.current = { selectedCourseId, openedCourseIds, favoriteCourseIds, progressByCourseId }
     if (!selectedCourseId) return
-    safeLocalStorageSet(storageKey, JSON.stringify({ selectedCourseId, openedCourseIds, favoriteCourseIds }))
-  }, [favoriteCourseIds, openedCourseIds, selectedCourseId, storageKey])
+    safeLocalStorageSet(storageKey, JSON.stringify(latestLocalStateRef.current))
+  }, [favoriteCourseIds, openedCourseIds, progressByCourseId, selectedCourseId, storageKey])
+
+  const persistProgress = useCallback((courseId: string, progress: CourseProgress) => {
+    if (!token || !courseId) return
+    api.post(`/course-access/${encodeURIComponent(token)}/progress`, {
+      courseId,
+      positionSeconds: progress.positionSeconds,
+      durationSeconds: progress.durationSeconds,
+      completed: progress.completed,
+    })
+      .then((res) => {
+        const data = res.data as CourseProgressPatch
+        setProgressByCourseId((current) => ({
+          ...current,
+          [courseId]: mergeProgress(current[courseId], data),
+        }))
+      })
+      .catch(() => {
+        // Keep local progress even if the public progress save fails temporarily.
+      })
+  }, [token])
+
+  const updateCourseProgress = useCallback((courseId: string, patch: CourseProgressPatch, options?: { persist?: boolean }) => {
+    if (!courseId) return
+    const nextProgress = mergeProgress(latestLocalStateRef.current.progressByCourseId?.[courseId], patch)
+    setProgressByCourseId((current) => ({
+      ...current,
+      [courseId]: mergeProgress(current[courseId], patch),
+    }))
+    setOpenedCourseIds((current) => [courseId, ...current.filter((id) => id !== courseId)])
+    if (options?.persist) {
+      if (persistTimeoutRef.current) window.clearTimeout(persistTimeoutRef.current)
+      persistTimeoutRef.current = window.setTimeout(() => {
+        persistProgress(courseId, nextProgress)
+      }, 150)
+    }
+  }, [persistProgress])
+
+  useEffect(() => () => {
+    if (persistTimeoutRef.current) window.clearTimeout(persistTimeoutRef.current)
+  }, [])
 
   const toggleFavorite = (courseId: string) => {
     setFavoriteCourseIds((current) => (
@@ -393,6 +844,24 @@ export function CourseAccessPage() {
   const accessValidityText = courseAccess?.validUntil
     ? `${copy.validUntil} ${new Date(courseAccess.validUntil).toLocaleDateString(locale === 'sl' ? 'sl-SI' : undefined)}`
     : copy.validLifetime
+
+  const selectedDuration = selectedCourse && selectedProgress ? getKnownDuration(selectedCourse, selectedProgress) : null
+  const selectedPercent = selectedProgress ? (selectedProgress.completed ? 100 : clampPercent(selectedProgress.progressPercent)) : 0
+  const selectedStatusText = selectedProgress?.completed
+    ? copy.completed
+    : selectedProgress && selectedProgress.positionSeconds > 0
+      ? copy.started
+      : copy.notStarted
+  const selectedProgressText = selectedProgress && selectedDuration
+    ? `${formatClock(selectedProgress.positionSeconds)} / ${formatClock(selectedDuration)}`
+    : selectedProgress && selectedProgress.positionSeconds > 0
+      ? formatClock(selectedProgress.positionSeconds)
+      : '0:00'
+
+  const handleSelectedCourseProgress = useCallback((patch: CourseProgressPatch, options?: { persist?: boolean }) => {
+    if (!selectedCourse) return
+    updateCourseProgress(selectedCourse.courseId, patch, options)
+  }, [selectedCourse, updateCourseProgress])
 
   return (
     <div className="course-access-page">
@@ -406,7 +875,7 @@ export function CourseAccessPage() {
               <h1>{copy.unavailable}</h1>
               <p>{error}</p>
             </div>
-          ) : courseAccess && selectedCourse ? (
+          ) : courseAccess && selectedCourse && selectedProgress ? (
             <>
               <header className="course-access-hero">
                 <div>
@@ -428,6 +897,9 @@ export function CourseAccessPage() {
                       <div>
                         <span>{copy.continueLearning}</span>
                         <strong>{lastOpenedCourse.title}</strong>
+                        {progressByCourseId[lastOpenedCourse.courseId]?.positionSeconds > 0 && (
+                          <small>{copy.resumeAt(formatClock(progressByCourseId[lastOpenedCourse.courseId].positionSeconds))}</small>
+                        )}
                       </div>
                       <button type="button" onClick={() => setSelectedCourseId(lastOpenedCourse.courseId)}>{copy.resume}</button>
                     </div>
@@ -459,6 +931,7 @@ export function CourseAccessPage() {
                         active={item.courseId === selectedCourse.courseId}
                         opened={openedCourseIds.includes(item.courseId)}
                         favorite={favoriteCourseIds.includes(item.courseId)}
+                        progress={getKnownProgress(item, progressByCourseId[item.courseId])}
                         onSelect={() => setSelectedCourseId(item.courseId)}
                         onFavorite={() => toggleFavorite(item.courseId)}
                         copy={copy}
@@ -489,19 +962,31 @@ export function CourseAccessPage() {
                   </div>
 
                   <div className="course-access-stat-row" aria-label={copy.courseOverview}>
-                    <span><strong>{courseMediaLabel(selectedCourse, copy)}</strong>{locale === 'sl' ? 'Vrsta' : 'Type'}</span>
-                    <span><strong>{formatDuration(selectedCourse.durationSeconds, locale, copy)}</strong>{copy.totalTime}</span>
-                    <span><strong>{openedCourseIds.includes(selectedCourse.courseId) ? copy.started : copy.notStarted}</strong>{locale === 'sl' ? 'Stanje' : 'Status'}</span>
+                    <span><strong>{courseMediaLabel(selectedCourse, copy)}</strong>{copy.type}</span>
+                    <span><strong>{formatDuration(selectedDuration, locale, copy)}</strong>{copy.totalTime}</span>
+                    <span><strong>{selectedProgressText}</strong>{copy.currentPosition}</span>
+                    <span><strong>{selectedStatusText}</strong>{copy.status}</span>
+                  </div>
+
+                  <div className="course-access-watch-progress" aria-label={copy.progress}>
+                    <div>
+                      <strong>{Math.round(selectedPercent)}% {copy.watched}</strong>
+                      {selectedProgress.positionSeconds > 0 && <span>{copy.resumeAt(formatClock(selectedProgress.positionSeconds))}</span>}
+                    </div>
+                    <div className="course-access-progress course-access-progress--large"><span style={{ width: `${selectedPercent}%` }} /></div>
                   </div>
 
                   <div className="course-access-media-frame">
                     {selectedCourse.mediaType === 'VIDEO' ? (
                       videoEmbedUrl ? (
-                        <iframe
+                        <BunnyCoursePlayer
+                          key={selectedCourse.courseId}
                           title={selectedCourse.title}
                           src={videoEmbedUrl}
-                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                          allowFullScreen
+                          startSeconds={selectedProgress.positionSeconds}
+                          durationSeconds={selectedDuration}
+                          loadingLabel={locale === 'sl' ? 'Priprava predvajalnika…' : 'Preparing player…'}
+                          onProgress={handleSelectedCourseProgress}
                         />
                       ) : (
                         <div className="course-access-media-empty">{copy.videoPreparing}</div>
@@ -509,7 +994,13 @@ export function CourseAccessPage() {
                     ) : selectedCourse.mediaUrl ? (
                       <div className="course-access-audio-card">
                         <div className="course-access-audio-icon" aria-hidden="true">♪</div>
-                        <audio controls src={selectedCourse.mediaUrl} />
+                        <AudioCoursePlayer
+                          src={selectedCourse.mediaUrl}
+                          startSeconds={selectedProgress.positionSeconds}
+                          durationSeconds={selectedDuration}
+                          loadingLabel={locale === 'sl' ? 'Priprava predvajalnika…' : 'Preparing player…'}
+                          onProgress={handleSelectedCourseProgress}
+                        />
                       </div>
                     ) : (
                       <div className="course-access-media-empty">{copy.audioPreparing}</div>

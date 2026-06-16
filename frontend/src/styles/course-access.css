@@ -614,3 +614,72 @@
     min-height: 220px;
   }
 }
+
+.course-access-resume small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.course-access-status-dot--completed {
+  background: #2563eb;
+}
+
+.course-access-card-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.course-access-watch-progress {
+  display: grid;
+  gap: 10px;
+  margin: -4px 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #eff6ff, #ffffff);
+}
+
+.course-access-watch-progress > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  justify-content: space-between;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.course-access-watch-progress strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.course-access-watch-progress span {
+  color: #2563eb;
+}
+
+.course-access-progress--large {
+  height: 7px;
+}
+
+.course-access-stat-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 860px) {
+  .course-access-stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .course-access-stat-row {
+    grid-template-columns: 1fr;
+  }
+}
