@@ -86,7 +86,12 @@ public class PublicWidgetOrderService {
             HttpServletRequest httpRequest
     ) {
         Company company = resolveCompany(tenantCode);
-        guardWidgetRequest(company, httpRequest, true, "guest-session");
+        // Opening the short-lived widget guest session is only the first step of the checkout flow.
+        // Do not count it against the stricter booking limiter, otherwise one normal booking flow
+        // consumes multiple booking tokens (guest-session + order + checkout) and a real user can hit
+        // 429 after only a couple of attempts/minute. The actual slot/order creation below remains
+        // protected by the booking limiter.
+        guardWidgetRequest(company, httpRequest, false, "guest-session");
         widgetTurnstileService.verifyForPublicAction(company, request.turnstileToken(), widgetPublicAuditLogger.clientIp(httpRequest));
 
         String email = normalizeEmail(request.email());
@@ -163,7 +168,10 @@ public class PublicWidgetOrderService {
             HttpServletRequest httpRequest
     ) {
         Company company = resolveCompany(tenantCode);
-        guardWidgetRequest(company, httpRequest, true, "orders/checkout");
+        // Checkout completes an already-created widget order. The order creation endpoint is the
+        // point where a booking slot is consumed, so use the general limiter here to avoid counting
+        // a single booking flow twice against APP_WIDGET_BOOKINGS_PER_MINUTE_PER_IP.
+        guardWidgetRequest(company, httpRequest, false, "orders/checkout");
         GuestUser guestUser = requireGuest(httpRequest);
         // The downstream service verifies that the order belongs to this guest user. The widget is
         // tenant-scoped, so any mismatch between order company and tenant code is rejected upstream
