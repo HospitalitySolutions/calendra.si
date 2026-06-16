@@ -3,6 +3,7 @@ package com.example.app.guest.notifications;
 import com.example.app.billing.BillRepository;
 import com.example.app.billing.WebInvoiceCreatedEvent;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -17,7 +18,7 @@ public class WebInvoiceNotificationListener {
         this.notifications = notifications;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onWebInvoiceCreated(WebInvoiceCreatedEvent event) {
         if (event == null || event.billId() == null || event.companyId() == null) {
