@@ -202,7 +202,7 @@ struct BookView: View {
     private func isPaymentMethodAllowed(_ method: GuestBookingPaymentChoice) -> Bool {
         if selectedProvider?.billingEnabled == false { return false }
         if method == .entitlement { return true }
-        if acceptedPaymentApiValues.isEmpty { return true }
+        if acceptedPaymentApiValues.isEmpty { return false }
         return acceptedPaymentApiValues.contains(method.apiValue)
     }
 
@@ -222,8 +222,7 @@ struct BookView: View {
             selectedPaymentMethod = .card
         }
         if !isPaymentMethodAllowed(selectedPaymentMethod) {
-            let fallbacks: [GuestBookingPaymentChoice] = [.card, .bankTransfer, .payPal]
-            if let next = fallbacks.first(where: { isPaymentMethodAllowed($0) }) {
+            if let next = availablePaymentChoices.first {
                 selectedPaymentMethod = next
             }
         }
@@ -249,6 +248,7 @@ struct BookView: View {
         case .paymentReview:
             if isSubmitting { return true }
             if skipsOnlinePaymentMethods && !usesEntitlementPayment { return false }
+            if !isPaymentMethodAllowed(selectedPaymentMethod) { return true }
             // Credit-card payments are handled by Stripe Checkout after booking confirmation.
             // The iOS guest app must not collect or store card details locally.
             if selectedPaymentMethod == .card { return false }
@@ -302,7 +302,7 @@ struct BookView: View {
                 VStack(spacing: 0) {
                     Divider().opacity(0.35)
                     if currentStep == .paymentReview, let service = selectedService {
-                        if shouldShowPaymentMethodSummary {
+                        if shouldShowPaymentMethodSummary, !availablePaymentChoices.isEmpty, isPaymentMethodAllowed(selectedPaymentMethod) {
                             selectedPaymentMethodCard
                                 .padding(.horizontal, 20)
                                 .padding(.top, 8)
@@ -727,6 +727,8 @@ struct BookView: View {
 
                 if skipsOnlinePaymentMethods && !usesEntitlementPayment {
                     emptyInlineMessage(tr("Pay at venue", "Plačilo na lokaciji"), tr("Payment is collected at the venue. Tap Confirm booking to reserve your slot.", "Plačilo se izvede na lokaciji. Tapnite Potrdi rezervacijo za rezervacijo termina."))
+                } else if shouldShowPaymentMethodSummary && availablePaymentChoices.isEmpty {
+                    emptyInlineMessage(tr("No payment methods available", "Ni razpoložljivih načinov plačila"), tr("Please contact the provider before booking.", "Pred rezervacijo kontaktirajte ponudnika."))
                 }
             }
         }

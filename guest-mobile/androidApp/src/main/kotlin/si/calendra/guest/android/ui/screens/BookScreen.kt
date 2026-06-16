@@ -145,7 +145,7 @@ data class ProviderOption(
     val requireOnlinePayment: Boolean = true,
     val paymentRequirement: String? = null,
     val depositPercent: Int? = null,
-    /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. Empty means "no allowlist" (all built-in methods allowed). */
+    /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. Empty means no online methods are selectable. */
     val acceptedPaymentMethods: List<String> = emptyList()
 )
 
@@ -396,7 +396,7 @@ fun BookScreen(
         if (selectedProvider?.billingEnabled == false) return false
         if (method == PaymentMethodUi.ENTITLEMENT) return true
         val apiValue = method.apiValue ?: return true
-        if (acceptedPaymentApiValues.isEmpty()) return true
+        if (acceptedPaymentApiValues.isEmpty()) return false
         return acceptedPaymentApiValues.contains(apiValue)
     }
     val selectedSlot = slots.firstOrNull { it.slotId == selectedSlotId }
@@ -581,11 +581,9 @@ fun BookScreen(
             selectedPaymentMethod = PaymentMethodUi.CARD
         }
         if (!isMethodAllowed(selectedPaymentMethod)) {
-            val fallback = listOf(
-                PaymentMethodUi.CARD,
-                PaymentMethodUi.BANK_TRANSFER,
-                PaymentMethodUi.PAYPAL
-            ).firstOrNull { isMethodAllowed(it) }
+            val fallback = availablePaymentMethods.firstOrNull { method ->
+                method != PaymentMethodUi.ENTITLEMENT || selectedEntitlement != null
+            }
             if (fallback != null) selectedPaymentMethod = fallback
         }
     }
@@ -891,12 +889,18 @@ fun BookScreen(
                 }
                 BookingFlowStep.PAYMENT_REVIEW -> {
                     if (selectedService != null) {
-                        if (showPaymentMethodSummary) {
+                        if (showPaymentMethodSummary && availablePaymentMethods.isNotEmpty() && isMethodAllowed(selectedPaymentMethod)) {
                             SelectedPaymentMethodCard(
                                 method = selectedPaymentMethod,
                                 languageCode = languageCode,
                                 subtitle = paymentSubtitle(selectedPaymentMethod),
                                 onChange = { showPaymentMethodChooserDialog = true }
+                            )
+                            Spacer(Modifier.height(7.dp))
+                        } else if (showPaymentMethodSummary && availablePaymentMethods.isEmpty()) {
+                            EmptyInlineMessage(
+                                title = bookTr(languageCode, "No payment methods available", "Ni razpoložljivih načinov plačila"),
+                                description = bookTr(languageCode, "Please contact the provider before booking.", "Pred rezervacijo kontaktirajte ponudnika.")
                             )
                             Spacer(Modifier.height(7.dp))
                         }
@@ -908,6 +912,7 @@ fun BookScreen(
                         enabled = selectedService != null && selectedSlot != null && !submitting && (
                             (skipsOnlinePayment && !usesEntitlementPayment) || (
                                 selectedPaymentMethod.enabled &&
+                                    isMethodAllowed(selectedPaymentMethod) &&
                                     (selectedPaymentMethod != PaymentMethodUi.ENTITLEMENT || selectedEntitlement != null) &&
                                     (selectedPaymentMethod != PaymentMethodUi.GIFT_CARD || hasGiftCardCoverage)
                                 )

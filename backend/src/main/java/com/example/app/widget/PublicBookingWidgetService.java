@@ -19,6 +19,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -76,6 +77,7 @@ public class PublicBookingWidgetService {
     private final GuestSettingsService guestSettingsService;
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
     private final PaymentMethodRepository paymentMethods;
+    private final StripeConnectService stripeConnectService;
     private final TimeService timeService;
 
     public PublicBookingWidgetService(
@@ -95,6 +97,7 @@ public class PublicBookingWidgetService {
             GuestSettingsService guestSettingsService,
             WebsiteWidgetSettingsService websiteWidgetSettingsService,
             PaymentMethodRepository paymentMethods,
+            StripeConnectService stripeConnectService,
             TimeService timeService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String widgetTimezoneId
     ) {
@@ -114,6 +117,7 @@ public class PublicBookingWidgetService {
         this.guestSettingsService = guestSettingsService;
         this.websiteWidgetSettingsService = websiteWidgetSettingsService;
         this.paymentMethods = paymentMethods;
+        this.stripeConnectService = stripeConnectService;
         this.timeService = timeService;
         this.widgetZoneId = (widgetTimezoneId == null || widgetTimezoneId.isBlank())
                 ? ZoneId.of("Europe/Ljubljana")
@@ -164,7 +168,8 @@ public class PublicBookingWidgetService {
         PaymentMethod paypalMethod = methods.stream().filter(pm ->
                 isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.OTHER).findFirst().orElse(null);
         String productType = "SESSION_SINGLE";
-        boolean card = accepted.contains("CARD") && cardMethod != null && allowedGuestProductTypes(cardMethod).contains(productType);
+        boolean stripeReady = stripeConnectService != null && stripeConnectService.isReadyForCompany(company);
+        boolean card = stripeReady && accepted.contains("CARD") && cardMethod != null && allowedGuestProductTypes(cardMethod).contains(productType);
         boolean bankTransfer = accepted.contains("BANK_TRANSFER") && bankMethod != null && allowedGuestProductTypes(bankMethod).contains(productType);
         boolean paypal = accepted.contains("PAYPAL")
                 && company.getPaypalMerchantId() != null

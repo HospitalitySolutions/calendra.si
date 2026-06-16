@@ -144,6 +144,23 @@ public class StripeConnectService {
         return new ConnectedAccountRouting(mode, accountId, cfg);
     }
 
+    /**
+     * Lightweight runtime check used by public guest surfaces before rendering Card as a selectable method.
+     * It only reads the saved tenant/platform Stripe Connect state; it does not call Stripe.
+     */
+    public boolean isReadyForCompany(Company company) {
+        if (company == null) return false;
+        try {
+            routingForCompany(company);
+            return true;
+        } catch (ResponseStatusException ex) {
+            return false;
+        } catch (RuntimeException ex) {
+            log.warn("Could not evaluate Stripe Connect readiness for companyId={}: {}", company.getId(), ex.getMessage());
+            return false;
+        }
+    }
+
     @Transactional
     public void handleAccountUpdated(String accountId, JsonNode accountNode) {
         if (accountId == null || accountId.isBlank()) return;

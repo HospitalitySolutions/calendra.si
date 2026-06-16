@@ -10,6 +10,7 @@ import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.*;
+import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import java.time.Instant;
@@ -18,6 +19,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,9 +33,11 @@ public class GuestTenantService {
     private final GuestTenantLinkRepository links;
     private final TenantInviteRepository invites;
     private final GuestSettingsService guestSettings;
+    private final StripeConnectService stripeConnectService;
     private final ClientRemovalGuard clientRemovalGuard;
     private final ClientAnonymizationService clientAnonymizationService;
 
+    @Autowired
     public GuestTenantService(
             CompanyRepository companies,
             ClientRepository clients,
@@ -41,6 +45,7 @@ public class GuestTenantService {
             GuestTenantLinkRepository links,
             TenantInviteRepository invites,
             GuestSettingsService guestSettings,
+            StripeConnectService stripeConnectService,
             ClientRemovalGuard clientRemovalGuard,
             ClientAnonymizationService clientAnonymizationService
     ) {
@@ -50,8 +55,23 @@ public class GuestTenantService {
         this.links = links;
         this.invites = invites;
         this.guestSettings = guestSettings;
+        this.stripeConnectService = stripeConnectService;
         this.clientRemovalGuard = clientRemovalGuard;
         this.clientAnonymizationService = clientAnonymizationService;
+    }
+
+    /** Backwards-compatible constructor used by existing unit tests. */
+    GuestTenantService(
+            CompanyRepository companies,
+            ClientRepository clients,
+            UserRepository users,
+            GuestTenantLinkRepository links,
+            TenantInviteRepository invites,
+            GuestSettingsService guestSettings,
+            ClientRemovalGuard clientRemovalGuard,
+            ClientAnonymizationService clientAnonymizationService
+    ) {
+        this(companies, clients, users, links, invites, guestSettings, null, clientRemovalGuard, clientAnonymizationService);
     }
 
     public GuestDtos.TenantLookupResponse resolveByCode(String tenantCode) {
@@ -121,7 +141,7 @@ public class GuestTenantService {
                     rules.requireOnlinePayment(),
                     rules.paymentRequirement(),
                     rules.depositPercent(),
-                    guestSettings.acceptedPaymentMethods(company.getId())
+                    selectablePaymentMethods(company)
             ));
         }
         out.sort(Comparator.comparing(GuestDtos.TenantSummaryResponse::companyName, String.CASE_INSENSITIVE_ORDER));
@@ -183,7 +203,7 @@ public class GuestTenantService {
                             rules.requireOnlinePayment(),
                             rules.paymentRequirement(),
                             rules.depositPercent(),
-                            guestSettings.acceptedPaymentMethods(link.getCompany().getId())
+                            selectablePaymentMethods(link.getCompany())
                     );
                 })
                 .toList();
@@ -228,6 +248,21 @@ public class GuestTenantService {
         return links.findByGuestUserIdAndCompanyId(guestUser.getId(), companyId)
                 .filter(link -> link.getStatus() == GuestTenantLinkStatus.ACTIVE)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant membership not found."));
+    }
+
+
+    private List<String> selectablePaymentMethods(Company company) {
+        List<String> accepted = guestSettings.acceptedPaymentMethods(company.getId());
+        if (accepted == null || accepted.stream().noneMatch(method -> "CARD".equalsIgnoreCase(method))) {
+            return accepted == null ? List.of() : accepted;
+        }
+        boolean stripeReady = stripeConnectService != null && stripeConnectService.isReadyForCompany(company);
+        if (stripeReady) {
+            return accepted;
+        }
+        return accepted.stream()
+                .filter(method -> !"CARD".equalsIgnoreCase(method))
+                .toList();
     }
 
     private static String normalizeTenantType(String raw) {
