@@ -7,6 +7,8 @@ import com.example.app.guest.model.GuestPaymentMethodType;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.common.GuestInvoiceSettingsSupport;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionType;
+import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -40,6 +42,7 @@ public class GuestBankTransferBillingService {
     private final BillFolioPdfService billFolioPdfService;
     private final InvoiceOrderIdService invoiceOrderIdService;
     private final UserRepository users;
+    private final SessionTypeRepository sessionTypes;
 
     public GuestBankTransferBillingService(
             BillRepository bills,
@@ -50,7 +53,8 @@ public class GuestBankTransferBillingService {
             InvoicePdfS3Service invoicePdfS3Service,
             BillFolioPdfService billFolioPdfService,
             InvoiceOrderIdService invoiceOrderIdService,
-            UserRepository users
+            UserRepository users,
+            SessionTypeRepository sessionTypes
     ) {
         this.bills = bills;
         this.paymentMethods = paymentMethods;
@@ -61,6 +65,7 @@ public class GuestBankTransferBillingService {
         this.billFolioPdfService = billFolioPdfService;
         this.invoiceOrderIdService = invoiceOrderIdService;
         this.users = users;
+        this.sessionTypes = sessionTypes;
     }
 
     @Transactional
@@ -105,13 +110,14 @@ public class GuestBankTransferBillingService {
             bill.setBankTransferReference(BankStatementReconciliationService.bankReferenceForBill(bill));
         }
 
-        if (booking.getType() == null || booking.getType().getLinkedServices() == null || booking.getType().getLinkedServices().isEmpty()) {
+        List<TypeTransactionService> linkedServices = resolveLinkedBillingServices(companyId, booking);
+        if (linkedServices.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The booked service has no linked billing services, so an advance invoice cannot be generated.");
         }
 
         BigDecimal totalNet = BigDecimal.ZERO;
         BigDecimal totalGross = BigDecimal.ZERO;
-        for (TypeTransactionService link : booking.getType().getLinkedServices()) {
+        for (TypeTransactionService link : linkedServices) {
             TransactionService tx = link.getTransactionService();
             if (tx == null) {
                 continue;
@@ -175,6 +181,19 @@ public class GuestBankTransferBillingService {
         }
         deliverAdvance(saved, saved.getCompany().getId(), orderId);
         return saved;
+    }
+
+
+    private List<TypeTransactionService> resolveLinkedBillingServices(Long companyId, SessionBooking booking) {
+        if (booking == null || booking.getType() == null || booking.getType().getId() == null) {
+            return List.of();
+        }
+        SessionType type = sessionTypes.findByIdAndCompanyIdWithLinkedServices(booking.getType().getId(), companyId)
+                .orElse(null);
+        if (type == null || type.getLinkedServices() == null) {
+            return List.of();
+        }
+        return type.getLinkedServices();
     }
 
     private Totals applyOrderAdvanceAmountIfPartial(GuestOrder order, Bill bill, BigDecimal originalNet, BigDecimal originalGross) {

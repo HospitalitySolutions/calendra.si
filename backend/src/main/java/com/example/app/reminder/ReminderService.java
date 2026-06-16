@@ -26,6 +26,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -363,17 +365,34 @@ public class ReminderService {
 
     /** Sends new-session notifications only when the template is enabled in settings. */
     public void sendBookingConfirmation(SessionBooking booking) {
-        sendBookingTemplateNotifications(booking, NotificationKind.NEW_SESSION, null, null);
+        sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.NEW_SESSION, null, null);
     }
 
     /** Sends change-session notifications when the template is enabled. */
     public void sendSessionRescheduled(SessionBooking booking, LocalDateTime previousStart, LocalDateTime previousEnd) {
-        sendBookingTemplateNotifications(booking, NotificationKind.CHANGE_SESSION, previousStart, previousEnd);
+        sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.CHANGE_SESSION, previousStart, previousEnd);
     }
 
     /** Sends cancel-session notifications when the template is enabled (call before deleting the booking entity). */
     public void sendSessionCancelled(SessionBooking booking) {
-        sendBookingTemplateNotifications(booking, NotificationKind.CANCEL_SESSION, null, null);
+        sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.CANCEL_SESSION, null, null);
+    }
+
+    private void sendBookingTemplateNotificationsAfterCommit(SessionBooking booking, NotificationKind kind,
+            LocalDateTime originalStart, LocalDateTime originalEnd) {
+        if (booking == null) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendBookingTemplateNotifications(booking, kind, originalStart, originalEnd);
+                }
+            });
+            return;
+        }
+        sendBookingTemplateNotifications(booking, kind, originalStart, originalEnd);
     }
 
     private void sendBookingTemplateNotifications(SessionBooking booking, NotificationKind kind,

@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class BookingChangePublisher {
@@ -43,7 +45,19 @@ public class BookingChangePublisher {
         if (companyId == null || bookingId == null || kind == null || kind.isBlank()) {
             return;
         }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+                }
+            });
+            return;
+        }
+        publishAfterCommit(companyId, bookingId, startTime, endTime, kind);
+    }
 
+    private void publishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
         realtimeService.publishBookingUpdated(companyId, bookingId, startTime, endTime, kind);
 
         try {
