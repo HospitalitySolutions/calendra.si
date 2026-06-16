@@ -507,10 +507,12 @@ function AudioCoursePlayer({
   startSeconds,
   durationSeconds,
   onProgress,
+  loadingLabel: _loadingLabel,
 }: {
   src: string
   startSeconds: number
   durationSeconds?: number | null
+  loadingLabel?: string
   onProgress: (patch: CourseProgressPatch, options?: { persist?: boolean }) => void
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
