@@ -4244,10 +4244,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
+  const buildSingleMethodOpenBillPaymentSplit = (ob: OpenBill, methodId: number): OpenBillPaymentSplitDraft[] => [{
+    key: `row-primary-${ob.id}`,
+    paymentMethodId: methodId,
+    amountGross: formatPaymentAmountInput(openBillPayableGross(ob)),
+    advanceSelections: [],
+  }]
+
   const updateOpenBillPaymentMethod = (openBillId: number, methodId: number) => {
     const selected = paymentMethods.find((p) => p.id === methodId) || null
     const source = detailOpenBill?.id === openBillId ? detailOpenBill : openBills.find((entry) => entry.id === openBillId)
-    if (source) markOpenBillDirty(source)
+    if (source) {
+      markOpenBillDirty(source)
+      setOpenBillPaymentEdits((prev) => ({
+        ...prev,
+        [openBillId]: buildSingleMethodOpenBillPaymentSplit(source, methodId),
+      }))
+    }
     setOpenBills((prev) => prev.map((entry) => entry.id === openBillId ? { ...entry, paymentMethod: selected } : entry))
     setDetailOpenBill((prev) => prev?.id === openBillId ? { ...prev, paymentMethod: selected } : prev)
   }
