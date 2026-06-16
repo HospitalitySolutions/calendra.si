@@ -347,6 +347,7 @@
       this.handleWindowResize = null;
       this.turnstileRenderScheduled = false;
       this.turnstileRendering = false;
+      this.submitInFlight = false;
       this.ensureTurnstileScript = this.ensureTurnstileScript.bind(this);
     }
 
@@ -1299,7 +1300,6 @@
       if (this.state.saving || this.submitInFlight) return;
       if (!this.validateCurrentStep()) return;
 
-      this.submitInFlight = true;
       const { selectedServiceId, selectedDate, selectedSlot, selectedConsultantId, form, config, paymentMethod } = this.state;
       const effectivePaymentMethod = paymentMethod || this.defaultPaymentMethod();
       const t = this.text();
@@ -1318,6 +1318,7 @@
         return;
       }
 
+      this.submitInFlight = true;
       this.setState({ saving: true, error: '' });
 
       try {
@@ -1400,7 +1401,25 @@
           selectedGroupSession: null,
         });
       } catch (error) {
-        this.setState({ saving: false, error: this.normalizeError(error, t.bookingFailed) });
+        const status = Number(error?.status || 0);
+        const message = this.normalizeError(error, t.bookingFailed);
+        if ((status === 400 || status === 409) && selectedSlot) {
+          this.setState({
+            saving: false,
+            error: message,
+            activeStep: 'datetime',
+            selectedSlot: null,
+            selectedGroupSession: null,
+            slots: [],
+            groupSessions: [],
+            availableDates: null,
+            monthAvailabilityKey: '',
+          });
+          void this.loadAvailability();
+          void this.loadMonthAvailability();
+        } else {
+          this.setState({ saving: false, error: message });
+        }
       } finally {
         this.submitInFlight = false;
       }
@@ -1408,9 +1427,13 @@
 
     resetForAnotherBooking() {
       this.resetTurnstile();
+      this.submitInFlight = false;
 
       const selectedDate = this.todayInWidgetTimezone();
-      const defaultPaymentMethod = this.defaultPaymentMethod();
+      const previousPaymentMethod = this.state.paymentMethod;
+      const defaultPaymentMethod = previousPaymentMethod && this.isPaymentMethodAvailable(previousPaymentMethod)
+        ? previousPaymentMethod
+        : this.defaultPaymentMethod();
       this.setState({
         bookingSuccess: null,
         error: '',
@@ -1419,6 +1442,7 @@
         calendarMonth: this.monthKeyForDate(selectedDate),
         selectedSlot: null,
         selectedGroupSession: null,
+        slots: [],
         groupSessions: [],
         manualTime: '',
         form: { firstName: '', lastName: '', email: '', phone: '', companyName: '' },

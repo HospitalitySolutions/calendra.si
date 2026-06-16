@@ -267,6 +267,10 @@ public class GuestOrderService {
         }
         assertPaymentMethodAllowed(order.getCompany().getId(), paymentMethodType, inferProductType(order), channel);
 
+        if (checkoutAlreadyCompleted(order, paymentMethodType)) {
+            return completedCheckoutResponse(order, paymentMethodType);
+        }
+
         if (paymentMethodType == GuestPaymentMethodType.ENTITLEMENT) {
             order.setStatus(OrderStatus.PAID);
             order.setPaidAt(Instant.now());
@@ -522,6 +526,63 @@ public class GuestOrderService {
         return new GuestDtos.CheckoutResponse(
                 String.valueOf(order.getId()),
                 order.getPaymentMethodType().name(),
+                order.getStatus().name(),
+                null,
+                null,
+                "COMPLETE",
+                null,
+                order.getGuestUser() == null ? null : order.getGuestUser().getStripeCustomerId(),
+                null,
+                order.getCompany().getName()
+        );
+    }
+
+    private boolean checkoutAlreadyCompleted(GuestOrder order, GuestPaymentMethodType paymentMethodType) {
+        if (order == null || paymentMethodType == null) {
+            return false;
+        }
+        if (order.getStatus() == OrderStatus.PAID
+                && (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE
+                || paymentMethodType == GuestPaymentMethodType.ENTITLEMENT
+                || paymentMethodType == GuestPaymentMethodType.GIFT_CARD
+                || paymentMethodType == GuestPaymentMethodType.CARD
+                || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
+            return true;
+        }
+        // Bank transfer keeps the order PENDING until the bank payment is reconciled.
+        // Once a bill exists, checkout has already created the booking/invoice, so a browser
+        // retry or double click must return the same instructions instead of creating another
+        // booking/bill or failing with a stale-slot validation error.
+        return paymentMethodType == GuestPaymentMethodType.BANK_TRANSFER && order.getBillId() != null;
+    }
+
+    private GuestDtos.CheckoutResponse completedCheckoutResponse(GuestOrder order, GuestPaymentMethodType paymentMethodType) {
+        if (paymentMethodType == GuestPaymentMethodType.BANK_TRANSFER) {
+            boolean hasBooking = findBookingForOrder(order) != null;
+            double responseAmount = order.getTotalGross() == null ? 0.0 : order.getTotalGross().doubleValue();
+            return new GuestDtos.CheckoutResponse(
+                    String.valueOf(order.getId()),
+                    paymentMethodType.name(),
+                    order.getStatus().name(),
+                    null,
+                    new GuestDtos.BankTransferInstructionsResponse(
+                            responseAmount,
+                            order.getCurrency(),
+                            bankTransferReferenceForResponse(order, null, null),
+                            hasBooking
+                                    ? "Booking confirmed. We emailed your folio/invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."
+                                    : "We emailed your invoice PDF. Use the QR code or reference on the invoice to complete the bank transfer."
+                    ),
+                    "SHOW_INSTRUCTIONS",
+                    null,
+                    null,
+                    null,
+                    order.getCompany().getName()
+            );
+        }
+        return new GuestDtos.CheckoutResponse(
+                String.valueOf(order.getId()),
+                paymentMethodType.name(),
                 order.getStatus().name(),
                 null,
                 null,
