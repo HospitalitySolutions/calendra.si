@@ -180,6 +180,15 @@ public class GuestOrderService {
         GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
         assertPaymentMethodAllowed(companyId, paymentMethodType, product.productType(), channel);
         assertExternalCheckoutReadyBeforeOrderCreated(link, paymentMethodType);
+
+        GuestOrder reusableOrder = findReusableOrderForSameSlot(guestUser, companyId, request.slotId(), product, paymentMethodType);
+        if (reusableOrder != null) {
+            GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null
+                    ? null
+                    : new GuestDtos.BookingSummaryResponse(String.valueOf(reusableOrder.getId()), bookingSummaryStatus(reusableOrder));
+            return new GuestDtos.CreateOrderResponse(toOrder(reusableOrder), bookingSummary, "CHECKOUT");
+        }
+
         cancelOpenExternalCheckoutsForGuest(guestUser, companyId, paymentMethodType);
 
         GuestOrder order = new GuestOrder();
@@ -200,6 +209,61 @@ public class GuestOrderService {
 
         GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null ? null : new GuestDtos.BookingSummaryResponse(String.valueOf(order.getId()), "PENDING_PAYMENT");
         return new GuestDtos.CreateOrderResponse(toOrder(order), bookingSummary, "CHECKOUT");
+    }
+
+    private GuestOrder findReusableOrderForSameSlot(GuestUser guestUser, Long companyId, String slotId, GuestCatalogService.ResolvedProduct product, GuestPaymentMethodType paymentMethodType) {
+        if (guestUser == null || companyId == null || slotId == null || slotId.isBlank() || product == null || paymentMethodType == null) {
+            return null;
+        }
+        return orders.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(guestUser.getId(), companyId, PageRequest.of(0, 25))
+                .stream()
+                .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
+                .filter(order -> order.getPaymentMethodType() == paymentMethodType)
+                .filter(order -> sameOrderSlotAndProduct(order, slotId, product))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean sameOrderSlotAndProduct(GuestOrder order, String slotId, GuestCatalogService.ResolvedProduct product) {
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object storedSlot = map.get("slotId");
+            if (storedSlot == null || !slotId.trim().equals(String.valueOf(storedSlot).trim())) {
+                return false;
+            }
+            Object storedProductType = map.get("productType");
+            if (storedProductType != null && product.productType() != null
+                    && !product.productType().equals(String.valueOf(storedProductType))) {
+                return false;
+            }
+            if (product.sessionType() != null && product.sessionType().getId() != null) {
+                Object storedSessionTypeId = map.get("sessionTypeId");
+                return storedSessionTypeId != null
+                        && String.valueOf(product.sessionType().getId()).equals(String.valueOf(storedSessionTypeId));
+            }
+            if (product.persistedProduct() != null && product.persistedProduct().getId() != null) {
+                Object storedGuestProductId = map.get("guestProductId");
+                return storedGuestProductId != null
+                        && String.valueOf(product.persistedProduct().getId()).equals(String.valueOf(storedGuestProductId));
+            }
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private String bookingSummaryStatus(GuestOrder order) {
+        if (order == null) {
+            return "PENDING_PAYMENT";
+        }
+        SessionBooking booking = findBookingForOrder(order);
+        if (booking != null && booking.getBookingStatus() != null && !booking.getBookingStatus().isBlank()) {
+            return booking.getBookingStatus();
+        }
+        if (checkoutAlreadyCompleted(order, order.getPaymentMethodType())) {
+            return "CONFIRMED";
+        }
+        return "PENDING_PAYMENT";
     }
 
     private static void applyRequestedInvoiceLocale(GuestOrder order, String locale, String language, GuestUser guestUser) {

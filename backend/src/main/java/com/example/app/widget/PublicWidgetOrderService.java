@@ -48,6 +48,7 @@ public class PublicWidgetOrderService {
     private final WidgetTurnstileService widgetTurnstileService;
     private final WidgetPublicAuditLogger widgetPublicAuditLogger;
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
+    private final WidgetBookingIdempotencyService widgetBookingIdempotencyService;
 
     public PublicWidgetOrderService(
             CompanyRepository companies,
@@ -62,7 +63,8 @@ public class PublicWidgetOrderService {
             WidgetRateLimiter widgetRateLimiter,
             WidgetTurnstileService widgetTurnstileService,
             WidgetPublicAuditLogger widgetPublicAuditLogger,
-            WebsiteWidgetSettingsService websiteWidgetSettingsService
+            WebsiteWidgetSettingsService websiteWidgetSettingsService,
+            WidgetBookingIdempotencyService widgetBookingIdempotencyService
     ) {
         this.companies = companies;
         this.clientCompanies = clientCompanies;
@@ -77,6 +79,7 @@ public class PublicWidgetOrderService {
         this.widgetTurnstileService = widgetTurnstileService;
         this.widgetPublicAuditLogger = widgetPublicAuditLogger;
         this.websiteWidgetSettingsService = websiteWidgetSettingsService;
+        this.widgetBookingIdempotencyService = widgetBookingIdempotencyService;
     }
 
     @Transactional
@@ -153,7 +156,15 @@ public class PublicWidgetOrderService {
                 request.locale(),
                 request.language()
         );
-        return guestOrderService.createOrder(guestUser, normalized, GuestOrderService.PaymentChannel.WEBSITE);
+        String idempotencyKey = idempotencyKey(httpRequest);
+        return widgetBookingIdempotencyService.execute(
+                company,
+                "orders",
+                idempotencyKey,
+                normalized,
+                GuestDtos.CreateOrderResponse.class,
+                () -> guestOrderService.createOrder(guestUser, normalized, GuestOrderService.PaymentChannel.WEBSITE)
+        );
     }
 
     public GuestDtos.CheckoutResponse checkout(
@@ -168,10 +179,32 @@ public class PublicWidgetOrderService {
         // The downstream service verifies that the order belongs to this guest user. The widget is
         // tenant-scoped, so any mismatch between order company and tenant code is rejected upstream
         // via the order lookup + requireLink check on the order's company.
-        return guestOrderService.checkout(guestUser, orderId, request, GuestOrderService.PaymentChannel.WEBSITE);
+        String idempotencyKey = idempotencyKey(httpRequest);
+        return widgetBookingIdempotencyService.execute(
+                company,
+                "orders-checkout",
+                idempotencyKey,
+                new WidgetCheckoutIdempotencyRequest(orderId, request),
+                GuestDtos.CheckoutResponse.class,
+                () -> guestOrderService.checkout(guestUser, orderId, request, GuestOrderService.PaymentChannel.WEBSITE)
+        );
     }
 
 
+
+    private static String idempotencyKey(HttpServletRequest request) {
+        String value = request == null ? null : request.getHeader("Idempotency-Key");
+        if (value == null || value.isBlank()) {
+            value = request == null ? null : request.getHeader("idempotency-key");
+        }
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String clean = value.trim();
+        return clean.length() <= 128 ? clean : clean.substring(0, 128);
+    }
+
+    private record WidgetCheckoutIdempotencyRequest(Long orderId, GuestDtos.CheckoutRequest request) {}
 
     public String renderStripeReturnPage(Long orderId, String status, String checkoutSessionId) {
         String normalized = normalizeStripeStatus(status);

@@ -863,6 +863,24 @@
       return error instanceof Error ? error.message : fallback;
     }
 
+    isStaleSlotError(error, message = '') {
+      const status = Number(error?.status || 0);
+      const text = String(message || error?.message || '').toLowerCase();
+      // 409 from booking checkout means the selected slot/capacity was already taken.
+      if (status === 409) return true;
+      if (status !== 400) return false;
+      // Do not send the guest back to date/time for billing/configuration validation errors.
+      // Only move back when the backend says the selected time/session itself is invalid.
+      return /slot|available|availability|capacity|time window|already has a session|already booked|session at that time|consultant already|space is already|group session|in the past/i.test(text);
+    }
+
+    newIdempotencyKey(prefix = 'widget') {
+      const random = globalThis.crypto?.randomUUID
+        ? globalThis.crypto.randomUUID()
+        : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+      return `${prefix}-${random}`;
+    }
+
     updateForm(field, value) {
       this.state.form = { ...this.state.form, [field]: value };
     }
@@ -1319,6 +1337,7 @@
       }
 
       this.submitInFlight = true;
+      const submitKey = this.newIdempotencyKey('widget-booking');
       this.setState({ saving: true, error: '' });
 
       try {
@@ -1355,7 +1374,10 @@
 
         const createResponse = await this.fetchJson(`/api/public/widget/${tenant}/orders`, {
           method: 'POST',
-          headers: authHeaders,
+          headers: {
+            ...authHeaders,
+            'Idempotency-Key': `${submitKey}:order`,
+          },
           body: {
             companyId: session.companyId || '',
             productId,
@@ -1375,7 +1397,7 @@
           method: 'POST',
           headers: {
             ...authHeaders,
-            'Idempotency-Key': (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2)),
+            'Idempotency-Key': `${submitKey}:checkout`,
           },
           body: { paymentMethodType: effectivePaymentMethod, locale: this.options.locale || 'sl' },
         });
@@ -1403,7 +1425,7 @@
       } catch (error) {
         const status = Number(error?.status || 0);
         const message = this.normalizeError(error, t.bookingFailed);
-        if ((status === 400 || status === 409) && selectedSlot) {
+        if (this.isStaleSlotError(error, message) && selectedSlot) {
           this.setState({
             saving: false,
             error: message,
@@ -1418,7 +1440,10 @@
           void this.loadAvailability();
           void this.loadMonthAvailability();
         } else {
-          this.setState({ saving: false, error: message });
+          // Stay on Plačilo in pregled for configuration/payment/billing validation errors
+          // so the guest does not think the selected slot disappeared when checkout failed.
+          this.setState({ saving: false, error: message, activeStep: 'details' });
+          this.scheduleTurnstileMount();
         }
       } finally {
         this.submitInFlight = false;
