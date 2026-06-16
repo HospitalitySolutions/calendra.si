@@ -112,6 +112,82 @@ public class GuestEntitlementService {
     }
 
     @Transactional
+    public GuestEntitlementSelection consumeGiftCardCode(
+            Client client,
+            Long companyId,
+            BigDecimal amountGross,
+            String currency,
+            SessionBooking booking,
+            String rawCode
+    ) {
+        String code = normalizeGiftCardCode(rawCode);
+        if (code == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is required.");
+        }
+        if (amountGross == null || amountGross.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card payment requires a positive booking amount.");
+        }
+        BigDecimal amount = amountGross.setScale(2, RoundingMode.HALF_UP);
+        List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
+        if (!existingUsages.isEmpty()) {
+            boolean allGiftCardUsages = existingUsages.stream()
+                    .allMatch(usage -> usage.getEntitlement().getEntitlementType() == EntitlementType.GIFT_CARD);
+            if (allGiftCardUsages) {
+                return new GuestEntitlementSelection(existingUsages.get(0).getEntitlement(), false);
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking already used a wallet entitlement.");
+        }
+
+        GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is not valid."));
+
+        Instant now = timeService.instant(companyId);
+        boolean matchesClient = entitlement.getClient() != null && Objects.equals(entitlement.getClient().getId(), client.getId());
+        boolean matchesCompany = entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId);
+        boolean active = entitlement.getStatus() == EntitlementStatus.ACTIVE;
+        boolean validFrom = entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now);
+        boolean validUntil = entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now);
+        boolean giftCard = entitlement.getEntitlementType() == EntitlementType.GIFT_CARD
+                || (entitlement.getProduct() != null && entitlement.getProduct().getProductType() == ProductType.GIFT_CARD);
+        String expectedCurrency = currency == null ? null : currency.trim().toUpperCase(java.util.Locale.ROOT);
+        boolean currencyMatches = expectedCurrency == null
+                || entitlement.getProduct() == null
+                || entitlement.getProduct().getCurrency() == null
+                || expectedCurrency.equals(entitlement.getProduct().getCurrency().trim().toUpperCase(java.util.Locale.ROOT));
+        BigDecimal beforeBalance = entitlement.getRemainingValueGross() == null
+                ? BigDecimal.ZERO
+                : entitlement.getRemainingValueGross().setScale(2, RoundingMode.HALF_UP);
+        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !giftCard || !currencyMatches || beforeBalance.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card code is not valid.");
+        }
+        if (beforeBalance.compareTo(amount) < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card does not have enough remaining balance for this booking.");
+        }
+
+        BigDecimal nextBalance = beforeBalance.subtract(amount).setScale(2, RoundingMode.HALF_UP);
+        GuestEntitlementUsage usage = new GuestEntitlementUsage();
+        usage.setEntitlement(entitlement);
+        usage.setSessionBooking(booking);
+        usage.setReason(EntitlementUsageReason.BOOKING);
+        usage.setUsedAt(Instant.now());
+        usage.setUnitsUsed(toCents(amount));
+        usage.setUnitsBefore(toCents(beforeBalance));
+        usage.setUnitsAfter(toCents(nextBalance.max(BigDecimal.ZERO)));
+        usages.save(usage);
+
+        entitlement.setRemainingValueGross(nextBalance.max(BigDecimal.ZERO));
+        if (nextBalance.compareTo(BigDecimal.ZERO) <= 0) {
+            entitlement.setRemainingUses(0);
+            entitlement.setStatus(EntitlementStatus.USED_UP);
+        } else {
+            entitlement.setRemainingUses(1);
+            entitlement.setStatus(EntitlementStatus.ACTIVE);
+        }
+        entitlements.save(entitlement);
+        return new GuestEntitlementSelection(entitlement, true);
+    }
+
+    @Transactional
     public GuestEntitlementSelection consumeBestMatchingGiftCard(
             Client client,
             Long companyId,
@@ -439,6 +515,18 @@ public class GuestEntitlementService {
                 .filter(entitlement -> entitlement.getProduct().getSessionType() == null || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId))
                 .sorted(entitlementPriority())
                 .findFirst();
+    }
+
+    private java.util.Optional<GuestEntitlement> findGiftCardByVisibleCode(String code, Long companyId) {
+        return entitlements.findByEntitlementCode(code)
+                .filter(entitlement -> entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId))
+                .or(() -> entitlements.findFirstByDisplayCodeAndCompanyIdOrderByCreatedAtDesc(code, companyId));
+    }
+
+    private static String normalizeGiftCardCode(String rawCode) {
+        if (rawCode == null) return null;
+        String code = rawCode.trim().replaceAll("\\s+", "").toUpperCase(java.util.Locale.ROOT);
+        return code.isBlank() ? null : code;
     }
 
     private List<GuestEntitlement> findMatchingGiftCards(Client client, Long companyId, String currency) {

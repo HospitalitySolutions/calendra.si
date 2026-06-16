@@ -375,13 +375,25 @@ public class GuestOrderService {
             if (booking == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gift card checkout requires a booking slot.");
             }
-            entitlementService.consumeBestMatchingGiftCard(
-                    order.getClient(),
-                    order.getCompany().getId(),
-                    order.getTotalGross(),
-                    order.getCurrency(),
-                    booking
-            );
+            String giftCardCode = request.giftCardCode();
+            if (channel == PaymentChannel.WEBSITE || (giftCardCode != null && !giftCardCode.isBlank())) {
+                entitlementService.consumeGiftCardCode(
+                        order.getClient(),
+                        order.getCompany().getId(),
+                        order.getTotalGross(),
+                        order.getCurrency(),
+                        booking,
+                        giftCardCode
+                );
+            } else {
+                entitlementService.consumeBestMatchingGiftCard(
+                        order.getClient(),
+                        order.getCompany().getId(),
+                        order.getTotalGross(),
+                        order.getCurrency(),
+                        booking
+                );
+            }
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),

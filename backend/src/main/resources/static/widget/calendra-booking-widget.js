@@ -58,6 +58,14 @@
       paymentMethodPaypalSubtitle: 'Redirect to PayPal to approve the payment.',
       paymentMethodGiftCard: 'Gift card',
       paymentMethodGiftCardSubtitle: 'Use available gift card balance.',
+      giftCardCodeLabel: 'Gift card code',
+      giftCardCodePlaceholder: 'Enter the code from your wallet card',
+      giftCardCodeHelp: 'Use the visible code shown below the QR code on your entitlement.',
+      giftCardCodeRequired: 'gift card code',
+      summaryGiftCard: 'Gift card',
+      summaryBankTransfer: 'Bank transfer',
+      summaryPaypal: 'PayPal',
+      summaryCard: 'Card payment',
       paymentMethodVenue: 'Pay at venue',
       paymentMethodVenueSubtitle: 'Book now without online payment and settle at the venue.',
       paymentMethodsNone: 'No payment methods are available for this tenant.',
@@ -189,6 +197,14 @@
       paymentMethodPaypalSubtitle: 'Preusmeritev na PayPal za potrditev plačila.',
       paymentMethodGiftCard: 'Darilni bon',
       paymentMethodGiftCardSubtitle: 'Uporabite razpoložljivo dobroimetje darilnega bona.',
+      giftCardCodeLabel: 'Koda darilnega bona',
+      giftCardCodePlaceholder: 'Vnesite kodo iz kartice v denarnici',
+      giftCardCodeHelp: 'Uporabite vidno kodo, ki je prikazana pod QR kodo na ugodnosti.',
+      giftCardCodeRequired: 'kodo darilnega bona',
+      summaryGiftCard: 'Darilni bon',
+      summaryBankTransfer: 'Bančno nakazilo',
+      summaryPaypal: 'PayPal',
+      summaryCard: 'Plačilo s kartico',
       paymentMethodVenue: 'Plačilo na lokaciji',
       paymentMethodVenueSubtitle: 'Rezervirajte brez spletnega plačila in poravnajte na lokaciji.',
       paymentMethodsNone: 'Za to tenancy ni na voljo načinov plačila.',
@@ -339,6 +355,7 @@
         turnstileRenderedSiteKey: null,
         paymentMethod: null,
         paymentMethodVariant: '',
+        giftCardCode: '',
         termsAccepted: true,
         paymentResult: null,
       };
@@ -942,7 +959,8 @@
         const hasPayment = this.hasPaymentChoices()
           && Boolean(this.state.paymentMethod)
           && this.isPaymentMethodAvailable(this.state.paymentMethod);
-        return hasGuestDetails && hasPayment && this.state.termsAccepted !== false;
+        const hasGiftCardCode = this.state.paymentMethod !== 'GIFT_CARD' || Boolean(String(this.state.giftCardCode || '').trim());
+        return hasGuestDetails && hasPayment && hasGiftCardCode && this.state.termsAccepted !== false;
       }
       return false;
     }
@@ -975,6 +993,16 @@
 
     selectedPaymentMethodRequiresOnlinePayment() {
       return Boolean(this.state.paymentMethod && this.state.paymentMethod !== 'PAY_AT_VENUE');
+    }
+
+    paymentMethodSummaryLabel(method = this.state.paymentMethod) {
+      const t = this.text();
+      if (method === 'GIFT_CARD') return t.summaryGiftCard || t.paymentMethodGiftCard;
+      if (method === 'BANK_TRANSFER') return t.summaryBankTransfer || t.paymentMethodBank;
+      if (method === 'PAYPAL') return t.summaryPaypal || t.paymentMethodPaypal;
+      if (method === 'CARD') return t.summaryCard || t.paymentMethodCard;
+      if (method === 'PAY_AT_VENUE') return t.summaryPayAtVenue || t.paymentMethodVenue;
+      return t.summaryFullPayment;
     }
 
     paymentRequirement() {
@@ -1034,7 +1062,7 @@
       if (requirement !== 'deposit') {
         return `
           <div class="summary-divider" aria-hidden="true"></div>
-          ${paymentRow(t.summaryPayment, t.summaryFullPayment, true)}
+          ${paymentRow(t.summaryPayment, this.paymentMethodSummaryLabel(), true)}
         `;
       }
       const priceInfo = this.parsePriceLabel(service.priceLabel);
@@ -1138,6 +1166,10 @@
           missing.push(t.payment);
         } else if (!this.state.paymentMethod || !this.isPaymentMethodAvailable(this.state.paymentMethod)) {
           missing.push(t.payment);
+        }
+
+        if (this.state.paymentMethod === 'GIFT_CARD' && !String(this.state.giftCardCode || '').trim()) {
+          missing.push(t.giftCardCodeRequired || t.paymentMethodGiftCard);
         }
 
         if (this.state.termsAccepted === false) {
@@ -1399,7 +1431,11 @@
             ...authHeaders,
             'Idempotency-Key': `${submitKey}:checkout`,
           },
-          body: { paymentMethodType: effectivePaymentMethod, locale: this.options.locale || 'sl' },
+          body: {
+            paymentMethodType: effectivePaymentMethod,
+            locale: this.options.locale || 'sl',
+            giftCardCode: effectivePaymentMethod === 'GIFT_CARD' ? String(this.state.giftCardCode || '').trim() : null,
+          },
         });
 
         // External payment methods redirect the guest to the provider approval/checkout URL.
@@ -1473,6 +1509,7 @@
         form: { firstName: '', lastName: '', email: '', phone: '', companyName: '' },
         paymentMethod: defaultPaymentMethod,
         paymentMethodVariant: defaultPaymentMethod ? defaultPaymentMethod.toLowerCase() : '',
+        giftCardCode: '',
         termsAccepted: true,
         paymentResult: null,
         activeStep: 'datetime',
@@ -1917,6 +1954,13 @@
                     ${!payAtVenueOnly && allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}
+                ${this.state.paymentMethod === 'GIFT_CARD' ? `
+                  <label class="gift-card-code-field">
+                    <span>${escapeHtml(t.giftCardCodeLabel || t.paymentMethodGiftCard)}</span>
+                    <input id="gift-card-code" type="text" autocomplete="off" inputmode="text" value="${escapeHtml(this.state.giftCardCode || '')}" placeholder="${escapeHtml(t.giftCardCodePlaceholder || '')}" />
+                    <small>${escapeHtml(t.giftCardCodeHelp || '')}</small>
+                  </label>
+                ` : ''}
                 ${this.paymentRequirement() === 'deposit' && this.selectedPaymentMethodRequiresOnlinePayment() ? `<p class="summary-payment-note summary-payment-note--checkout">${escapeHtml(t.depositPaymentNote)}</p>` : ''}
                 ${this.shouldRenderTurnstile() ? `<div class="turnstile-wrap turnstile-wrap--under-payments"><slot name="turnstile-slot"></slot></div>` : ''}
               </div>
@@ -2191,6 +2235,31 @@
         .payment-tile small { display: block; margin-top: 8px; color: var(--calendra-muted); line-height: 1.35; }
         .payment-check { position: absolute; right: 14px; top: 14px; width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; background: var(--calendra-primary); color: #fff; opacity: 0; }
         .payment-tile.is-active .payment-check { opacity: 1; }
+        .gift-card-code-field {
+          display: grid;
+          gap: 8px;
+          border-radius: 14px;
+          border: 1px solid rgba(15,107,255,.18);
+          background: rgba(15,107,255,.04);
+          padding: 14px 16px;
+        }
+        .gift-card-code-field span { color: var(--calendra-text); font-size: 14px; font-weight: 850; }
+        .gift-card-code-field input {
+          width: 100%;
+          min-height: 52px;
+          border-radius: 12px;
+          border: 1px solid var(--calendra-border);
+          background: #fff;
+          color: var(--calendra-text);
+          font-size: 17px;
+          font-weight: 850;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+          padding: 12px 14px;
+          outline: none;
+        }
+        .gift-card-code-field input:focus { border-color: var(--calendra-primary); box-shadow: 0 0 0 3px rgba(15,107,255,.10); }
+        .gift-card-code-field small { color: var(--calendra-muted); line-height: 1.4; }
         .apple-pay-mark { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 30px; line-height: 1; color: #000; }
         .google-pay-mark { font-weight: 950; color: #4285f4; font-size: 24px; }
         .terms-row { display: flex; align-items: flex-start; gap: 12px; color: #657188; line-height: 1.55; font-size: 15px; }
@@ -2489,6 +2558,15 @@
         });
       }
 
+      const giftCardCode = this.shadowRoot.getElementById('gift-card-code');
+      if (giftCardCode) {
+        giftCardCode.addEventListener('input', (event) => {
+          this.state.giftCardCode = String(event.target.value || '').toUpperCase();
+          const submit = this.shadowRoot.querySelector('[data-action="submit"]');
+          if (submit) submit.disabled = !this.isStepComplete('details') || this.state.saving;
+        });
+      }
+
       const next = this.shadowRoot.querySelector('[data-action="next"]');
       if (next) {
         next.addEventListener('click', () => {
@@ -2517,7 +2595,12 @@
         button.addEventListener('click', () => {
           const method = button.dataset.method;
           if (!method || !this.isPaymentMethodAvailable(method)) return;
-          this.setState({ paymentMethod: method, paymentMethodVariant: button.dataset.variant || method.toLowerCase(), error: '' });
+          this.setState({
+            paymentMethod: method,
+            paymentMethodVariant: button.dataset.variant || method.toLowerCase(),
+            giftCardCode: method === 'GIFT_CARD' ? this.state.giftCardCode : '',
+            error: '',
+          });
         });
       });
 
