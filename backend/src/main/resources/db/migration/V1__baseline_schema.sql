@@ -517,7 +517,8 @@ CREATE TABLE IF NOT EXISTS fiscal_certificates (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
     company_id BIGINT NOT NULL,
     file_name VARCHAR(255) NOT NULL,
-    content_type VARCHAR(255) NOT NULL
+    content_type VARCHAR(255) NOT NULL,
+    certificate_data_bytes BYTEA
 );
 
 -- backend/src/main/java/com/example/app/google/GoogleOAuthToken.java
