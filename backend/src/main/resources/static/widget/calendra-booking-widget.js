@@ -1296,8 +1296,10 @@
     }
 
     async submitBooking() {
+      if (this.state.saving || this.submitInFlight) return;
       if (!this.validateCurrentStep()) return;
 
+      this.submitInFlight = true;
       const { selectedServiceId, selectedDate, selectedSlot, selectedConsultantId, form, config, paymentMethod } = this.state;
       const effectivePaymentMethod = paymentMethod || this.defaultPaymentMethod();
       const t = this.text();
@@ -1399,6 +1401,8 @@
         });
       } catch (error) {
         this.setState({ saving: false, error: this.normalizeError(error, t.bookingFailed) });
+      } finally {
+        this.submitInFlight = false;
       }
     }
 

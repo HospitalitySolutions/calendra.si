@@ -40,8 +40,13 @@ public class WidgetRateLimiter {
         long windowMs = 60_000L;
         int ipLimit = bookingRequest ? properties.getBookingsPerMinutePerIp() : properties.getGeneralRequestsPerMinutePerIp();
         int tenantLimit = bookingRequest ? properties.getBookingsPerMinutePerTenant() : properties.getGeneralRequestsPerMinutePerTenant();
-        consume("ip:" + (clientIp == null ? "unknown" : clientIp), ipLimit, now, windowMs);
-        consume("tenant:" + (tenantCode == null ? "unknown" : tenantCode.toLowerCase(Locale.ROOT)), tenantLimit, now, windowMs);
+        String bucketGroup = bookingRequest ? "booking" : "general";
+
+        // Keep general widget browsing traffic (config/services/availability) separate from
+        // real booking attempts. Otherwise a normal widget flow can use several general
+        // requests before POST /orders and then trip the much lower booking limit.
+        consume(bucketGroup + ":ip:" + (clientIp == null ? "unknown" : clientIp), ipLimit, now, windowMs);
+        consume(bucketGroup + ":tenant:" + (tenantCode == null ? "unknown" : tenantCode.toLowerCase(Locale.ROOT)), tenantLimit, now, windowMs);
     }
 
     private void consume(String key, int limit, long now, long windowMs) {
