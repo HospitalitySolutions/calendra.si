@@ -48,6 +48,10 @@ public class GuestUser extends BaseEntity {
     @Column(name = "notify_reminders_enabled", nullable = false)
     private boolean notifyRemindersEnabled = true;
 
+    /** Guest-selected push reminder offset before booking start. Allowed values: 5, 15, 30, 60, 180, 1440. */
+    @Column(name = "notify_reminder_minutes", nullable = false)
+    private int notifyReminderMinutes = 60;
+
     @Column(name = "google_subject", length = 255)
     private String googleSubject;
 

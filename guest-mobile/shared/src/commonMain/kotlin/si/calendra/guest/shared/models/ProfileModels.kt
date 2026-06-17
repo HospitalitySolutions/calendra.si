@@ -37,6 +37,7 @@ data class GuestProfileSettings(
     val batchPaymentEnabled: Boolean = false,
     val notifyMessagesEnabled: Boolean = true,
     val notifyRemindersEnabled: Boolean = true,
+    val notifyReminderMinutes: Int = 60,
     val linkedCompanyOptions: List<LinkedCompanyOption> = emptyList(),
     val invoiceSettings: GuestInvoiceSettings = GuestInvoiceSettings()
 )
@@ -53,6 +54,7 @@ data class UpdateGuestProfileSettingsRequest(
     val batchPaymentEnabled: Boolean? = null,
     val notifyMessagesEnabled: Boolean? = null,
     val notifyRemindersEnabled: Boolean? = null,
+    val notifyReminderMinutes: Int? = null,
     val invoiceRecipientType: String? = null,
     val invoicePersonAddressLine: String? = null,
     val invoicePersonPostalCode: String? = null,

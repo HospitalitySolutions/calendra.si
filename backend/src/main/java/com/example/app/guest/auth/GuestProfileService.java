@@ -13,6 +13,7 @@ import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
+import com.example.app.guest.notifications.GuestBookingReminderService;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
@@ -30,19 +31,22 @@ public class GuestProfileService {
     private final ClientCompanyRepository clientCompanies;
     private final GuestSettingsService guestSettings;
     private final TenantFileS3Service fileStorage;
+    private final GuestBookingReminderService bookingReminderService;
 
     public GuestProfileService(
             GuestUserRepository guestUsers,
             GuestTenantLinkRepository links,
             ClientCompanyRepository clientCompanies,
             GuestSettingsService guestSettings,
-            TenantFileS3Service fileStorage
+            TenantFileS3Service fileStorage,
+            GuestBookingReminderService bookingReminderService
     ) {
         this.guestUsers = guestUsers;
         this.links = links;
         this.clientCompanies = clientCompanies;
         this.guestSettings = guestSettings;
         this.fileStorage = fileStorage;
+        this.bookingReminderService = bookingReminderService;
     }
 
     @Transactional(readOnly = true)
@@ -72,8 +76,15 @@ public class GuestProfileService {
         if (request.notifyMessagesEnabled() != null) {
             guestUser.setNotifyMessagesEnabled(request.notifyMessagesEnabled());
         }
+        boolean reminderPreferencesChanged = false;
         if (request.notifyRemindersEnabled() != null) {
+            reminderPreferencesChanged = guestUser.isNotifyRemindersEnabled() != request.notifyRemindersEnabled();
             guestUser.setNotifyRemindersEnabled(request.notifyRemindersEnabled());
+        }
+        if (request.notifyReminderMinutes() != null) {
+            int nextMinutes = normalizeReminderMinutes(request.notifyReminderMinutes());
+            reminderPreferencesChanged = reminderPreferencesChanged || guestUser.getNotifyReminderMinutes() != nextMinutes;
+            guestUser.setNotifyReminderMinutes(nextMinutes);
         }
         guestUsers.save(guestUser);
 
@@ -94,6 +105,10 @@ public class GuestProfileService {
             client.setBillingCompany(resolveBillingCompany(request.linkedCompanyId(), activeLink.getCompany().getId()));
             GuestInvoiceSettingsSupport.applyInvoiceSettings(client, request);
             syncClientProfile(client, guestUser);
+        }
+
+        if (reminderPreferencesChanged) {
+            bookingReminderService.recalculateFutureRemindersForGuestAfterCommit(guestUser.getId());
         }
 
         return toSettingsResponse(guestUser, activeLink);
@@ -157,6 +172,7 @@ public class GuestProfileService {
                 client != null && client.isBatchPaymentEnabled(),
                 guestUser.isNotifyMessagesEnabled(),
                 guestUser.isNotifyRemindersEnabled(),
+                normalizeReminderMinutes(guestUser.getNotifyReminderMinutes()),
                 companyOptions,
                 GuestInvoiceSettingsSupport.toResponse(client)
         );
@@ -215,6 +231,14 @@ public class GuestProfileService {
     private static String requiredName(String value, String message) {
         if (value == null || value.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
         return value.trim();
+    }
+
+    private static int normalizeReminderMinutes(Integer value) {
+        if (value == null) return 60;
+        return switch (value) {
+            case 5, 15, 30, 60, 180, 1440 -> value;
+            default -> 60;
+        };
     }
 
     private static String normalizeEmail(String value) {

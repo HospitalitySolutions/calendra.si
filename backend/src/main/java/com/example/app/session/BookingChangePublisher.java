@@ -5,6 +5,7 @@ import com.example.app.google.calendar.GoogleCalendarEntityType;
 import com.example.app.google.calendar.GoogleCalendarSyncQueueService;
 import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.notifications.GuestPushService;
+import com.example.app.guest.notifications.GuestBookingReminderService;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,19 +30,22 @@ public class BookingChangePublisher {
     private final GuestPushService guestPushService;
     private final SessionBookingRepository sessionBookings;
     private final GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
+    private final GuestBookingReminderService bookingReminderService;
 
     public BookingChangePublisher(
             SessionBookingRealtimeService realtimeService,
             GuestTenantLinkRepository guestTenantLinks,
             GuestPushService guestPushService,
             SessionBookingRepository sessionBookings,
-            GoogleCalendarSyncQueueService googleCalendarSyncQueueService
+            GoogleCalendarSyncQueueService googleCalendarSyncQueueService,
+            GuestBookingReminderService bookingReminderService
     ) {
         this.realtimeService = realtimeService;
         this.guestTenantLinks = guestTenantLinks;
         this.guestPushService = guestPushService;
         this.sessionBookings = sessionBookings;
         this.googleCalendarSyncQueueService = googleCalendarSyncQueueService;
+        this.bookingReminderService = bookingReminderService;
     }
 
     public void publish(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
@@ -70,6 +74,7 @@ public class BookingChangePublisher {
 
     private void publishAfterCommit(Long companyId, Long bookingId, LocalDateTime startTime, LocalDateTime endTime, String kind) {
         realtimeService.publishBookingUpdated(companyId, bookingId, startTime, endTime, kind);
+        bookingReminderService.reconcileBookingAfterCommit(bookingId, kind);
 
         try {
             if (BOOKING_DELETED.equals(kind) || BOOKING_CANCELLED.equals(kind)) {

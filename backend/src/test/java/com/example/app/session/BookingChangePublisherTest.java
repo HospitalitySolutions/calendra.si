@@ -16,6 +16,7 @@ import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.notifications.GuestPushService;
+import com.example.app.guest.notifications.GuestBookingReminderService;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,7 @@ class BookingChangePublisherTest {
     @Mock private GuestPushService guestPushService;
     @Mock private SessionBookingRepository sessionBookings;
     @Mock private GoogleCalendarSyncQueueService googleCalendarSyncQueueService;
+    @Mock private GuestBookingReminderService bookingReminderService;
 
     private BookingChangePublisher publisher;
 
@@ -41,7 +43,8 @@ class BookingChangePublisherTest {
                 guestTenantLinks,
                 guestPushService,
                 sessionBookings,
-                googleCalendarSyncQueueService
+                googleCalendarSyncQueueService,
+                bookingReminderService
         );
     }
 
@@ -54,13 +57,13 @@ class BookingChangePublisherTest {
         SessionBooking booking = booking(77L, company, selectedClient);
 
         when(sessionBookings.findByIdAndCompanyId(77L, 1L)).thenReturn(Optional.of(booking));
-        when(guestTenantLinks.findByCompanyIdAndClientIdAndStatus(1L, 10L, GuestTenantLinkStatus.ACTIVE))
-                .thenReturn(Optional.of(matchingLink));
+        when(guestTenantLinks.findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE))
+                .thenReturn(java.util.List.of(matchingLink));
 
         publisher.publish(1L, 77L, LocalDateTime.parse("2026-06-15T10:00:00"), LocalDateTime.parse("2026-06-15T11:00:00"), BookingChangePublisher.BOOKING_CREATED);
 
         verify(realtimeService).publishBookingUpdated(eq(1L), eq(77L), any(LocalDateTime.class), any(LocalDateTime.class), eq(BookingChangePublisher.BOOKING_CREATED));
-        verify(guestTenantLinks).findByCompanyIdAndClientIdAndStatus(1L, 10L, GuestTenantLinkStatus.ACTIVE);
+        verify(guestTenantLinks).findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE);
         verify(guestTenantLinks, never()).findAllByCompanyIdAndStatus(anyLong(), any());
         verify(guestPushService).notifyGuestReminder(
                 eq(linkedGuest),
@@ -79,12 +82,12 @@ class BookingChangePublisherTest {
         SessionBooking booking = booking(77L, company, selectedClient);
 
         when(sessionBookings.findByIdAndCompanyId(77L, 1L)).thenReturn(Optional.of(booking));
-        when(guestTenantLinks.findByCompanyIdAndClientIdAndStatus(1L, 10L, GuestTenantLinkStatus.ACTIVE))
-                .thenReturn(Optional.empty());
+        when(guestTenantLinks.findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE))
+                .thenReturn(java.util.List.of());
 
         publisher.publish(1L, 77L, LocalDateTime.parse("2026-06-15T10:00:00"), LocalDateTime.parse("2026-06-15T11:00:00"), BookingChangePublisher.BOOKING_CREATED);
 
-        verify(guestTenantLinks).findByCompanyIdAndClientIdAndStatus(1L, 10L, GuestTenantLinkStatus.ACTIVE);
+        verify(guestTenantLinks).findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE);
         verify(guestPushService, never()).notifyGuestReminder(any(), any(), any(), any(), any(), anyMap());
     }
 

@@ -257,6 +257,7 @@ struct GuestProfileSettingsModel: Codable {
     let batchPaymentEnabled: Bool
     let notifyMessagesEnabled: Bool
     let notifyRemindersEnabled: Bool
+    let notifyReminderMinutes: Int
     let linkedCompanyOptions: [GuestLinkedCompanyOptionModel]
     let invoiceSettings: GuestInvoiceSettingsModel
 
@@ -269,6 +270,7 @@ struct GuestProfileSettingsModel: Codable {
         batchPaymentEnabled: Bool,
         notifyMessagesEnabled: Bool = true,
         notifyRemindersEnabled: Bool = true,
+        notifyReminderMinutes: Int = 60,
         linkedCompanyOptions: [GuestLinkedCompanyOptionModel],
         invoiceSettings: GuestInvoiceSettingsModel = GuestInvoiceSettingsModel()
     ) {
@@ -280,6 +282,7 @@ struct GuestProfileSettingsModel: Codable {
         self.batchPaymentEnabled = batchPaymentEnabled
         self.notifyMessagesEnabled = notifyMessagesEnabled
         self.notifyRemindersEnabled = notifyRemindersEnabled
+        self.notifyReminderMinutes = notifyReminderMinutes
         self.linkedCompanyOptions = linkedCompanyOptions
         self.invoiceSettings = invoiceSettings
     }
@@ -294,6 +297,7 @@ struct GuestProfileSettingsModel: Codable {
         self.batchPaymentEnabled = try container.decodeIfPresent(Bool.self, forKey: .batchPaymentEnabled) ?? false
         self.notifyMessagesEnabled = try container.decodeIfPresent(Bool.self, forKey: .notifyMessagesEnabled) ?? true
         self.notifyRemindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .notifyRemindersEnabled) ?? true
+        self.notifyReminderMinutes = try container.decodeIfPresent(Int.self, forKey: .notifyReminderMinutes) ?? 60
         self.linkedCompanyOptions = try container.decodeIfPresent([GuestLinkedCompanyOptionModel].self, forKey: .linkedCompanyOptions) ?? []
         self.invoiceSettings = try container.decodeIfPresent(GuestInvoiceSettingsModel.self, forKey: .invoiceSettings) ?? GuestInvoiceSettingsModel()
     }
@@ -310,6 +314,7 @@ struct UpdateGuestProfileSettingsPayload: Codable {
     let batchPaymentEnabled: Bool?
     let notifyMessagesEnabled: Bool?
     let notifyRemindersEnabled: Bool?
+    let notifyReminderMinutes: Int?
     let invoiceRecipientType: String?
     let invoicePersonAddressLine: String?
     let invoicePersonPostalCode: String?
@@ -331,6 +336,7 @@ struct UpdateGuestProfileSettingsPayload: Codable {
         batchPaymentEnabled: Bool?,
         notifyMessagesEnabled: Bool? = nil,
         notifyRemindersEnabled: Bool? = nil,
+        notifyReminderMinutes: Int? = nil,
         invoiceRecipientType: String? = nil,
         invoicePersonAddressLine: String? = nil,
         invoicePersonPostalCode: String? = nil,
@@ -351,6 +357,7 @@ struct UpdateGuestProfileSettingsPayload: Codable {
         self.batchPaymentEnabled = batchPaymentEnabled
         self.notifyMessagesEnabled = notifyMessagesEnabled
         self.notifyRemindersEnabled = notifyRemindersEnabled
+        self.notifyReminderMinutes = notifyReminderMinutes
         self.invoiceRecipientType = invoiceRecipientType
         self.invoicePersonAddressLine = invoicePersonAddressLine
         self.invoicePersonPostalCode = invoicePersonPostalCode

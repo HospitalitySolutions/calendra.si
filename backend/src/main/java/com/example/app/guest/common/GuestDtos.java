@@ -62,6 +62,7 @@ public final class GuestDtos {
             boolean batchPaymentEnabled,
             boolean notifyMessagesEnabled,
             boolean notifyRemindersEnabled,
+            int notifyReminderMinutes,
             List<LinkedCompanyOptionResponse> linkedCompanyOptions,
             GuestInvoiceSettingsResponse invoiceSettings
     ) {}
@@ -76,6 +77,7 @@ public final class GuestDtos {
             Boolean batchPaymentEnabled,
             Boolean notifyMessagesEnabled,
             Boolean notifyRemindersEnabled,
+            Integer notifyReminderMinutes,
             String invoiceRecipientType,
             String invoicePersonAddressLine,
             String invoicePersonPostalCode,

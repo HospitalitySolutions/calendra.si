@@ -278,6 +278,25 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
     );
 
     @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.company
+            LEFT JOIN FETCH sb.client
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.space
+            WHERE sb.client.id = :clientId
+              AND sb.company.id = :companyId
+              AND sb.startTime > :now
+              AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')
+            ORDER BY sb.startTime ASC, sb.id ASC
+            """)
+    List<SessionBooking> findUpcomingActiveByClientIdAndCompanyId(
+            @Param("clientId") Long clientId,
+            @Param("companyId") Long companyId,
+            @Param("now") LocalDateTime now
+    );
+
+    @Query("""
             SELECT sb FROM SessionBooking sb
             LEFT JOIN FETCH sb.consultant
             LEFT JOIN FETCH sb.type

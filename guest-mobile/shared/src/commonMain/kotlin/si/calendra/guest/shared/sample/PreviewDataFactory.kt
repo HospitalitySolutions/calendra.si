@@ -7,7 +7,8 @@ class PreviewDataFactory {
         var linkedCompanyId: String? = null,
         var batchPaymentEnabled: Boolean = false,
         var notifyMessagesEnabled: Boolean = true,
-        var notifyRemindersEnabled: Boolean = true
+        var notifyRemindersEnabled: Boolean = true,
+        var notifyReminderMinutes: Int = 60
     )
 
     private val tenant = TenantSummary(
@@ -81,6 +82,7 @@ class PreviewDataFactory {
             batchPaymentEnabled = preference.batchPaymentEnabled,
             notifyMessagesEnabled = preference.notifyMessagesEnabled,
             notifyRemindersEnabled = preference.notifyRemindersEnabled,
+            notifyReminderMinutes = preference.notifyReminderMinutes,
             linkedCompanyOptions = options
         )
     }
@@ -107,6 +109,7 @@ class PreviewDataFactory {
         request.batchPaymentEnabled?.let { preference.batchPaymentEnabled = it }
         request.notifyMessagesEnabled?.let { preference.notifyMessagesEnabled = it }
         request.notifyRemindersEnabled?.let { preference.notifyRemindersEnabled = it }
+        request.notifyReminderMinutes?.let { preference.notifyReminderMinutes = it }
         return profileSettings(resolvedCompanyId)
     }
 
