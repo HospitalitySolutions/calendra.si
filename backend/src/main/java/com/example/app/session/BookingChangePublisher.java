@@ -1,14 +1,11 @@
 package com.example.app.session;
 
-import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.google.calendar.GoogleCalendarEntityType;
 import com.example.app.google.calendar.GoogleCalendarSyncQueueService;
 import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.notifications.GuestPushService;
 import com.example.app.guest.notifications.GuestBookingReminderService;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -98,38 +95,11 @@ public class BookingChangePublisher {
             // Realtime/push notifications should not fail because Google Calendar sync is unavailable.
         }
 
-        Map<String, String> data = new LinkedHashMap<>();
-        data.put("type", "booking_changed");
-        data.put("screen", "home");
-        data.put("channel", "GUEST_APP");
-        data.put("kind", kind);
-        data.put("companyId", String.valueOf(companyId));
-        data.put("bookingId", String.valueOf(bookingId));
-        if (startTime != null) data.put("startTime", startTime.toString());
-        if (endTime != null) data.put("endTime", endTime.toString());
-
-        // Push notifications must be scoped to the guest linked to the changed booking's client.
-        // The realtime event above remains tenant-wide so open apps refresh their cached dashboards,
-        // but the phone notification tray must not fan out to unrelated guests of the same tenant.
-        sessionBookings.findByIdAndCompanyId(bookingId, companyId)
-                .filter(booking -> booking.getClient() != null && booking.getClient().getId() != null)
-                .ifPresent(booking -> guestTenantLinks.findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(
-                                companyId,
-                                booking.getClient().getId(),
-                                GuestTenantLinkStatus.ACTIVE
-                        )
-                        .forEach(link -> {
-                            var guestUser = link.getGuestUser();
-                            if (guestUser == null) return;
-                            guestPushService.notifyGuestReminder(
-                                    guestUser,
-                                    link.getCompany(),
-                                    link.getClient(),
-                                    "Booking update",
-                                    "A booking has changed. Open the app to see the latest time.",
-                                    data
-                            );
-                        }));
+        // Do not send a generic visible booking-change push from this low-level publisher.
+        // Tenant-facing booking notifications are sent by ReminderService using
+        // Configuration -> Notifications -> Guest app templates, so this publisher only keeps
+        // realtime dashboard refresh and reminder reconciliation side effects. Sending a
+        // hard-coded push here would override/duplicate the tenant's configured push text.
     }
 }
 
