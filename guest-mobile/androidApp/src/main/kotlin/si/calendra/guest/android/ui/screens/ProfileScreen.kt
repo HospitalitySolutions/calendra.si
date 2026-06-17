@@ -839,6 +839,13 @@ private fun notificationsSummary(messages: Boolean, reminders: Boolean, isSl: Bo
     else -> if (isSl) "Samo opomniki" else "Reminders only"
 }
 
+private fun invoiceSummary(invoice: LocalInvoiceSettings, isSl: Boolean): String =
+    if (invoice.recipientType.equals("COMPANY", ignoreCase = true)) {
+        if (isSl) "Podjetje" else "Company"
+    } else {
+        if (isSl) "Fizična oseba" else "Individual"
+    }
+
 private fun reminderMinuteOptions(): List<Int> = listOf(5, 15, 30, 60, 180, 1440)
 
 private fun normalizeReminderMinutes(value: Int): Int = if (value in reminderMinuteOptions()) value else 60
