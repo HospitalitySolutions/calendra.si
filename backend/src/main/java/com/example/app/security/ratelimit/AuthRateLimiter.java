@@ -1,5 +1,7 @@
 package com.example.app.security.ratelimit;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.time.Instant;
@@ -22,19 +24,22 @@ public class AuthRateLimiter {
 
     private final AuthRateLimitProperties properties;
     private final StringRedisTemplate redis;
+    private final MeterRegistry meterRegistry;
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
     private final AtomicLong lastCleanupMs = new AtomicLong(0);
     private final AtomicLong lastRedisWarningMs = new AtomicLong(0);
 
     @Autowired
-    public AuthRateLimiter(AuthRateLimitProperties properties, ObjectProvider<StringRedisTemplate> redisProvider) {
+    public AuthRateLimiter(AuthRateLimitProperties properties, ObjectProvider<StringRedisTemplate> redisProvider, MeterRegistry meterRegistry) {
         this.properties = properties;
         this.redis = redisProvider == null ? null : redisProvider.getIfAvailable();
+        this.meterRegistry = meterRegistry;
     }
 
     AuthRateLimiter(AuthRateLimitProperties properties) {
         this.properties = properties;
         this.redis = null;
+        this.meterRegistry = new SimpleMeterRegistry();
     }
 
     public void checkStaffLogin(HttpServletRequest request, String email) {
@@ -86,6 +91,7 @@ public class AuthRateLimiter {
             try {
                 long count = consumeRedis(key, windowMs);
                 if (count > limit) {
+                    recordBlocked(key);
                     throw tooManyAttempts();
                 }
                 return;
@@ -107,6 +113,7 @@ public class AuthRateLimiter {
             return existing;
         });
         if (bucket.count > limit) {
+            recordBlocked(key);
             throw tooManyAttempts();
         }
     }
@@ -142,6 +149,11 @@ public class AuthRateLimiter {
             return "calendra:rate-limit:auth";
         }
         return prefix.replaceAll(":+$", "");
+    }
+
+    private void recordBlocked(String key) {
+        String action = key == null ? "unknown" : key.split(":", 2)[0];
+        meterRegistry.counter("auth_rate_limit_blocked", "action", action).increment();
     }
 
     private ResponseStatusException tooManyAttempts() {

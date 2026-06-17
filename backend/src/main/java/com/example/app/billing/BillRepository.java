@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BillRepository extends JpaRepository<Bill, Long> {
+    long countByPaymentStatus(String paymentStatus);
+    long countByFiscalStatus(BillFiscalStatus fiscalStatus);
+
     boolean existsByCompanyIdAndOrderId(Long companyId, String orderId);
 
     @Query("select coalesce(max(b.orderCounter), 0) from Bill b where b.company.id = :companyId")

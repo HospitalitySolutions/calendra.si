@@ -37,6 +37,7 @@ const adminConsoleStyles = `:root {
     .search-wrap.tenant-list-wrap{width:100%;max-width:100%}.search-hits{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;width:100%;max-width:100%}.search-hits > li{display:flex;min-width:0}.search-hit{padding:12px 14px;border-radius:16px;border:1px solid var(--border);background:#fff;cursor:pointer;text-align:left;font:inherit;width:100%;min-height:100%;display:grid;align-content:start;gap:4px}.search-hit:hover{border-color:#cddcff;background:var(--primary-soft)}.search-hit strong{display:block;font-size:.95rem;color:var(--text)}.search-hit .sub{font-size:.84rem;color:var(--muted);margin-top:2px}.search-err{color:var(--danger-text);font-size:.9rem;font-weight:800;margin:4px 0 0}
     .audit-log-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.audit-log-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}.audit-log-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.audit-log-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top;word-break:break-word}.audit-log-table tr:last-child td{border-bottom:0}.audit-log-cat{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.audit-log-cat--setting{background:var(--primary-soft);color:var(--primary)}.audit-log-cat--bill{background:var(--success-soft);color:var(--success-text)}.audit-log-cat--suspend{background:var(--danger-soft);color:var(--danger-text)}.audit-detail-cell{color:var(--muted);font-weight:700;font-size:.84rem;line-height:1.45;max-width:40rem}.audit-actor-cell{font-size:.84rem;font-weight:800;color:#40506c;word-break:break-all;max-width:14rem}
     .plan-history-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.plan-history-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:680px}.plan-history-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.plan-history-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top}.plan-history-table tr:last-child td{border-bottom:0}.plan-status-pill{display:inline-flex;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950}.plan-status-pill--applied{background:var(--success-soft);color:var(--success-text)}.plan-status-pill--scheduled{background:var(--warning-soft);color:var(--warning-text)}
+    .monitoring-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.monitoring-card{padding:16px;border-radius:20px;border:1px solid #e6edf9;background:rgba(255,255,255,.9);display:grid;gap:8px}.monitoring-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.monitoring-card strong{font-size:1rem;letter-spacing:-.03em}.monitoring-card .value{font-size:1.45rem;font-weight:950;letter-spacing:-.04em}.monitoring-detail{color:var(--muted);font-weight:750;font-size:.88rem;line-height:1.45}.monitoring-note{padding:14px;border-radius:18px;background:rgba(255,244,215,.65);border:1px solid #f2dda0;color:var(--warning-text);font-weight:800;line-height:1.45}
     .modal-backdrop{position:fixed;inset:0;background:rgba(23,37,61,.38);display:none;place-items:center;padding:20px;z-index:10}.modal-backdrop.visible{display:grid}.modal{max-width:560px;width:100%;border-radius:26px;background:#fff;border:1px solid #dfe7f5;box-shadow:0 28px 80px rgba(23,37,61,.28);padding:22px;display:grid;gap:16px}.modal h3{margin:0;font-size:1.55rem;letter-spacing:-.045em}.modal p{margin:0;color:var(--muted);line-height:1.5}.modal-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.select-row{display:grid;gap:8px}.select-row label{font-weight:900;color:#2a3a56}.select-row select,.select-row textarea,.select-row input[type=number],.select-row input[type=text]{width:100%;border:1px solid var(--border);border-radius:15px;background:#fff;color:var(--text);padding:12px 14px;font:inherit;outline:none}.select-row textarea{min-height:90px;resize:vertical}.plan-change-extras{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid #dce7fb;background:rgba(237,244,255,.6)}.price-override-extras{display:grid;gap:14px}.price-override-panel{display:grid;gap:10px}.price-current-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:var(--primary-soft);border:1px solid #cddcff;font-weight:850;font-size:.92rem;color:var(--text)}.price-current-pill strong{font-weight:950}.checkbox-row{display:flex;align-items:flex-start;gap:10px;font-weight:800;font-size:.9rem;color:#40506c;line-height:1.35}.checkbox-row input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--primary)}.price-preview{font-size:.88rem;font-weight:800;color:var(--muted)}
     @media(max-width:1180px){.admin-workspace{flex-direction:column}.admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid rgba(223,231,245,.85);padding:12px 10px 14px}.admin-sidebar-title{width:100%}.hero{grid-template-columns:1fr}.tenant-card{position:static}.kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}.field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:720px){body{padding:10px}.topbar{padding-left:16px;padding-right:16px}.admin-main{padding-left:16px;padding-right:16px;padding-top:16px}.page-head{display:grid}.search-input{min-width:0;width:100%}.kpi-row,.field-grid,.status-grid{grid-template-columns:1fr}.app-shell,.panel{border-radius:24px}}`;
@@ -3678,8 +3679,159 @@ function TimeSimulatorPanel() {
   );
 }
 
+
+type MonitoringCheck = {
+  key: string;
+  label: string;
+  status: string;
+  summary: string;
+  detail: string;
+};
+
+type MonitoringMetric = {
+  label: string;
+  value: string;
+  status: string;
+  description: string;
+};
+
+type MonitoringStatus = {
+  generatedAt: string;
+  overallStatus: string;
+  uptime: string;
+  checks: MonitoringCheck[];
+  metrics: MonitoringMetric[];
+  note: string;
+};
+
+function monitoringPillClass(status: string): string {
+  const normalized = (status || "").toUpperCase();
+  if (normalized === "UP" || normalized === "OK") return "pill success";
+  if (normalized === "WARN") return "pill warning";
+  return "pill danger";
+}
+
+function MonitoringAdminPanel() {
+  const [data, setData] = useState<MonitoringStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get<MonitoringStatus>(
+        "/platform-admin/monitoring/status",
+      );
+      setData(response.data);
+    } catch {
+      setData(null);
+      setError("Could not load monitoring status.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <div className="panel panel-pad" style={{ display: "grid", gap: 16 }}>
+      <div className="section-head">
+        <div className="section-title">
+          <strong>Monitoring</strong>
+          <span>
+            Quick platform health for the API, database, Redis, disk space and
+            production-risk counters. This is an admin overview, not a
+            replacement for external alerting.
+          </span>
+        </div>
+        <button
+          className="button secondary small"
+          type="button"
+          disabled={loading}
+          onClick={() => void load()}
+        >
+          Refresh
+        </button>
+      </div>
+
+      {loading ? <p className="muted">Loading monitoring status…</p> : null}
+      {error ? <p className="search-err">{error}</p> : null}
+
+      {data ? (
+        <>
+          <div className="section-card">
+            <div className="section-head">
+              <div className="section-title">
+                <strong>Platform status</strong>
+                <span>
+                  Last checked {data.generatedAt || "—"} · backend uptime {data.uptime || "—"}
+                </span>
+              </div>
+              <span className={monitoringPillClass(data.overallStatus)}>
+                {data.overallStatus || "UNKNOWN"}
+              </span>
+            </div>
+            {data.note ? <div className="monitoring-note">{data.note}</div> : null}
+          </div>
+
+          <div className="section-card">
+            <div className="section-title">
+              <strong>Core checks</strong>
+              <span>Backend dependencies and host capacity.</span>
+            </div>
+            <div className="monitoring-grid">
+              {(data.checks || []).map((check) => (
+                <div className="monitoring-card" key={check.key || check.label}>
+                  <div className="monitoring-card-head">
+                    <strong>{check.label}</strong>
+                    <span className={monitoringPillClass(check.status)}>
+                      {check.status || "UNKNOWN"}
+                    </span>
+                  </div>
+                  <div className="value">{check.summary || "—"}</div>
+                  <div className="monitoring-detail">{check.detail || "—"}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="section-card">
+            <div className="section-title">
+              <strong>Risk counters</strong>
+              <span>
+                Counts from the current backend process or database state,
+                depending on the metric.
+              </span>
+            </div>
+            <div className="monitoring-grid">
+              {(data.metrics || []).map((metric) => (
+                <div className="monitoring-card" key={metric.label}>
+                  <div className="monitoring-card-head">
+                    <strong>{metric.label}</strong>
+                    <span className={monitoringPillClass(metric.status)}>
+                      {metric.status || "UNKNOWN"}
+                    </span>
+                  </div>
+                  <div className="value">{metric.value || "0"}</div>
+                  <div className="monitoring-detail">
+                    {metric.description || "—"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 type AdminWorkspaceTab =
   | "tenants"
+  | "monitoring"
   | "plans"
   | "fiscalization"
   | "ajpes"
@@ -3693,6 +3845,7 @@ type AdminWorkspaceTab =
 
 const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: "tenants", label: "Tenant management" },
+  { id: "monitoring", label: "Monitoring" },
   { id: "plans", label: "Plan & add-ons" },
   { id: "fiscalization", label: "Fiscalization" },
   { id: "ajpes", label: "Ajpes" },
@@ -4729,6 +4882,8 @@ export function PlatformAdminPage() {
                       </section>
                     </section>
                   </>
+                ) : workspace === "monitoring" ? (
+                  <MonitoringAdminPanel />
                 ) : workspace === "plans" ? (
                   <div className="panel panel-pad">
                     <PlanPricesAdminPanel />
