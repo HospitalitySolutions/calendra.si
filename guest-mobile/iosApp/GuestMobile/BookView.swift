@@ -618,6 +618,7 @@ struct BookView: View {
                             providerLineRow(
                                 title: provider.name,
                                 subtitle: subtitle,
+                                tenantType: provider.tenantType,
                                 selected: selectedProviderId == provider.id
                             )
                         }
@@ -773,6 +774,23 @@ struct BookView: View {
             .shadow(color: Color.black.opacity(0.07), radius: 12, y: 6)
     }
 
+    /// Maps the tenant config type (salon, gym, spa, therapy, personal_training) to a booking card SF Symbol.
+    private func bookTenantIcon(_ tenantType: String?) -> String {
+        let normalized = tenantType?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        switch normalized {
+        case "salon": return "scissors"
+        case "gym": return "dumbbell.fill"
+        case "spa": return "leaf.fill"
+        case "therapy": return "cross.case.fill"
+        case "personal_training": return "figure.run"
+        default: return "building.2.fill"
+        }
+    }
+
     private func squareIconTile(_ systemName: String, selected: Bool = true) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -794,10 +812,10 @@ struct BookView: View {
             .frame(width: 4, height: 74)
     }
 
-    private func providerLineRow(title: String, subtitle: String, selected: Bool) -> some View {
+    private func providerLineRow(title: String, subtitle: String, tenantType: String?, selected: Bool) -> some View {
         HStack(spacing: 12) {
             selectionRail(selected)
-            squareIconTile("dumbbell.fill", selected: selected)
+            squareIconTile(bookTenantIcon(tenantType), selected: selected)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 18, weight: .bold))
@@ -820,12 +838,12 @@ struct BookView: View {
     private func serviceLineRow(service: ServiceOptionModel, selected: Bool) -> some View {
         HStack(alignment: .center, spacing: 12) {
             selectionRail(selected)
-            squareIconTile("dumbbell.fill", selected: selected)
+            squareIconTile(bookTenantIcon(service.tenantType), selected: selected)
             VStack(alignment: .leading, spacing: 6) {
-                Text(service.name)
+                Text(service.description.nilIfBlank ?? service.name)
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.27))
-                Text(service.description.nilIfBlank ?? tr("Bookable service", "Storitev za rezervacijo"))
+                Text(tr("Bookable service", "Storitev za rezervacijo"))
                     .font(.system(size: 15))
                     .foregroundColor(Color(red: 0.38, green: 0.45, blue: 0.55))
                 HStack(spacing: 7) {
@@ -1041,7 +1059,7 @@ struct BookView: View {
             if let provider = selectedProvider {
                 reviewSummaryLine(icon: "building.2", label: tr("Provider", "Ponudnik"), value: provider.name)
             }
-            reviewSummaryLine(icon: "dumbbell.fill", label: tr("Service", "Storitev"), value: service.name)
+            reviewSummaryLine(icon: bookTenantIcon(service.tenantType), label: tr("Service", "Storitev"), value: service.description.nilIfBlank ?? service.name)
             if employeeStepEnabled, let consultant = selectedConsultant {
                 reviewSummaryLine(icon: "person", label: tr("Employee", "Zaposleni"), value: consultant.fullName)
             }

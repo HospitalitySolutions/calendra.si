@@ -1164,7 +1164,8 @@ fun GuestMobileRoot() {
                                 requireOnlinePayment = provider.requireOnlinePayment,
                                 paymentRequirement = provider.paymentRequirement,
                                 depositPercent = provider.depositPercent,
-                                acceptedPaymentMethods = provider.acceptedPaymentMethods
+                                acceptedPaymentMethods = provider.acceptedPaymentMethods,
+                                tenantType = provider.tenantType
                             )
                         },
                         services = aggregatedServices(state.uiState),
@@ -1271,7 +1272,8 @@ fun GuestMobileRoot() {
                                     requireOnlinePayment = provider.requireOnlinePayment,
                                     paymentRequirement = provider.paymentRequirement,
                                     depositPercent = provider.depositPercent,
-                                    acceptedPaymentMethods = provider.acceptedPaymentMethods
+                                    acceptedPaymentMethods = provider.acceptedPaymentMethods,
+                                    tenantType = provider.tenantType
                                 )
                             },
                             services = aggregatedServices(state.uiState),
@@ -3150,7 +3152,8 @@ private fun aggregatedServices(state: GuestUiState): List<ServiceOption> =
                     priceGross = product.priceGross,
                     currency = product.currency,
                     durationMinutes = product.durationMinutes,
-                    sessionTypeId = product.sessionTypeId.orEmpty()
+                    sessionTypeId = product.sessionTypeId.orEmpty(),
+                    tenantType = it.tenantType
                 )
             }
         }

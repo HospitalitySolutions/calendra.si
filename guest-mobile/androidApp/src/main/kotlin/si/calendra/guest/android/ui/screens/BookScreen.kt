@@ -38,6 +38,11 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.SelfImprovement
+import androidx.compose.material.icons.rounded.HealthAndSafety
+import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.CalendarMonth
@@ -109,6 +114,19 @@ private fun bookTr(languageCode: String, en: String, sl: String): String =
 private fun bookLocale(languageCode: String): Locale =
     if (bookIsSl(languageCode)) Locale("sl", "SI") else Locale.ENGLISH
 
+/** Maps the tenant config type (salon, gym, spa, therapy, personal_training) to a booking card icon. */
+private fun bookTenantIcon(tenantType: String?): ImageVector {
+    val normalized = tenantType?.trim()?.lowercase(Locale.ROOT)?.replace('-', '_')?.replace(' ', '_')
+    return when (normalized) {
+        "salon" -> Icons.Rounded.ContentCut
+        "gym" -> Icons.Rounded.FitnessCenter
+        "spa" -> Icons.Rounded.Spa
+        "therapy" -> Icons.Rounded.HealthAndSafety
+        "personal_training" -> Icons.Rounded.SelfImprovement
+        else -> Icons.Rounded.Storefront
+    }
+}
+
 private fun BookingFlowStep.localizedTitle(languageCode: String, skipsOnlinePayment: Boolean = false): String {
     if (skipsOnlinePayment && this == BookingFlowStep.PAYMENT_REVIEW) {
         return bookTr(languageCode, "Review", "Pregled")
@@ -146,7 +164,9 @@ data class ProviderOption(
     val paymentRequirement: String? = null,
     val depositPercent: Int? = null,
     /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. Empty means no online methods are selectable. */
-    val acceptedPaymentMethods: List<String> = emptyList()
+    val acceptedPaymentMethods: List<String> = emptyList(),
+    /** Tenant config type (salon, gym, spa, therapy, personal_training) driving the card icon. */
+    val tenantType: String? = null
 )
 
 
@@ -161,7 +181,9 @@ data class ServiceOption(
     val priceGross: Double,
     val currency: String,
     val durationMinutes: Int?,
-    val sessionTypeId: String
+    val sessionTypeId: String,
+    /** Tenant config type (salon, gym, spa, therapy, personal_training) driving the card icon. */
+    val tenantType: String? = null
 )
 
 data class RedeemableEntitlementOption(
@@ -805,7 +827,8 @@ fun BookScreen(
                             BookingReviewSummary(
                                 languageCode = languageCode,
                                 providerName = selectedProvider?.tenantName.orEmpty(),
-                                serviceName = selectedService.name,
+                                serviceName = selectedService.description?.takeIf { it.isNotBlank() } ?: selectedService.name,
+                                serviceIcon = bookTenantIcon(selectedService.tenantType),
                                 employeeName = if (employeeStepActive) selectedConsultant?.fullName else null,
                                 duration = selectedService.durationMinutes?.let { bookTr(languageCode, "$it min", "$it min") },
                                 dateTime = selectedSlot?.startsAt?.asSummaryDateTime(languageCode).orEmpty(),
@@ -1240,7 +1263,7 @@ private fun ProviderListRow(provider: ProviderOption, languageCode: String, sele
         ) {
             SelectionRail(selected)
             Spacer(Modifier.width(12.dp))
-            SquareBookIcon(Icons.Rounded.FitnessCenter, selected = selected)
+            SquareBookIcon(bookTenantIcon(provider.tenantType), selected = selected)
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(provider.tenantName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
@@ -1268,12 +1291,17 @@ private fun ServiceListRow(service: ServiceOption, languageCode: String, selecte
         ) {
             SelectionRail(selected)
             Spacer(Modifier.width(12.dp))
-            SquareBookIcon(Icons.Rounded.FitnessCenter, selected = selected)
+            SquareBookIcon(bookTenantIcon(service.tenantType), selected = selected)
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(service.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF082143))
                 Text(
-                    service.description?.takeIf { it.isNotBlank() } ?: bookTr(languageCode, "Bookable service", "Storitev za rezervacijo"),
+                    service.description?.takeIf { it.isNotBlank() } ?: service.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF082143)
+                )
+                Text(
+                    bookTr(languageCode, "Bookable service", "Storitev za rezervacijo"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF60728A)
                 )
@@ -1701,6 +1729,7 @@ private fun BookingReviewSummary(
     languageCode: String,
     providerName: String,
     serviceName: String,
+    serviceIcon: ImageVector,
     employeeName: String?,
     duration: String?,
     dateTime: String,
@@ -1723,7 +1752,7 @@ private fun BookingReviewSummary(
             )
             Spacer(Modifier.height(6.dp))
             ReviewSummaryLine(icon = Icons.Rounded.LocationOn, label = bookTr(languageCode, "Provider", "Ponudnik"), value = providerName)
-            ReviewSummaryLine(icon = Icons.Rounded.FitnessCenter, label = bookTr(languageCode, "Service", "Storitev"), value = serviceName)
+            ReviewSummaryLine(icon = serviceIcon, label = bookTr(languageCode, "Service", "Storitev"), value = serviceName)
             employeeName?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.Assignment, label = bookTr(languageCode, "Employee", "Zaposleni"), value = it) }
             duration?.takeIf { it.isNotBlank() }?.let { ReviewSummaryLine(icon = Icons.Rounded.EventAvailable, label = bookTr(languageCode, "Duration", "Trajanje"), value = it) }
             ReviewSummaryLine(icon = Icons.Rounded.CalendarMonth, label = bookTr(languageCode, "Date & time", "Datum in ura"), value = dateTime)

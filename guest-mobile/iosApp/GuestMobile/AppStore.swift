@@ -298,7 +298,8 @@ final class AppStore: ObservableObject {
                         priceGross: product.priceGross,
                         currency: product.currency,
                         durationMinutes: product.durationMinutes,
-                        sessionTypeId: sessionTypeId
+                        sessionTypeId: sessionTypeId,
+                        tenantType: dashboard.tenant.tenantType
                     )
                 }
             }

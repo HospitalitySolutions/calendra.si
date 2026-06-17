@@ -847,6 +847,7 @@ struct ServiceOptionModel: Identifiable, Hashable {
     let currency: String
     let durationMinutes: Int?
     let sessionTypeId: String
+    let tenantType: String?
 }
 
 struct JoinTenantPayload: Codable {
