@@ -32,6 +32,11 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedSessionSelectableMetaTypes = bookedSessionIsGroup
     ? metaTypes.filter((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
     : metaTypes
+  const formatSessionTypeOptionLabel = (ty: any): string => {
+    const code = String(ty?.name ?? '').trim()
+    const description = String(ty?.description ?? '').trim()
+    return description ? `${code} - ${description}` : code
+  }
   const bookedSessionSelectedTypeAllowed = !bookedSessionIsGroup
     || !Number.isFinite(bookedSessionSelectedTypeId)
     || bookedSessionSelectedTypeId <= 0
@@ -1752,7 +1757,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </option>
                       ) : null}
                       {bookedSessionSelectableMetaTypes.map((ty: any) => (
-                        <option key={ty.id} value={ty.id}>{ty.name}</option>
+                        <option key={ty.id} value={ty.id}>{formatSessionTypeOptionLabel(ty)}</option>
                       ))}
                     </select>
                     <div className="calendar-session-billing-actions">
@@ -3861,7 +3866,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           <option value="">{t('formNoType')}</option>
                           {selectableMetaTypes.map((ty: any) => (
                             <option key={ty.id} value={ty.id}>
-                              {ty.name}
+                              {formatSessionTypeOptionLabel(ty)}
                             </option>
                           ))}
                         </select>
@@ -3878,7 +3883,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           <option value="">{t('formNoType')}</option>
                           {selectableMetaTypes.map((ty: any) => (
                             <option key={ty.id} value={ty.id}>
-                              {ty.name}
+                              {formatSessionTypeOptionLabel(ty)}
                             </option>
                           ))}
                         </select>
