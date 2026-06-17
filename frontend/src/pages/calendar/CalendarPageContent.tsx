@@ -4870,28 +4870,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return clients.length > 1 ? `${first} +${clients.length - 1}` : first
   }
 
-  /** Mobile session cards: compact readable client label for narrow timetable columns. */
-  function formatBookingMobileClientLabel(bookingLike: any, fallbackTitle: string) {
-    const gidRaw = bookingLike?.groupId
-    const gid =
-      gidRaw != null && Number.isFinite(Number(gidRaw)) && Number(gidRaw) > 0 ? Number(gidRaw) : null
-    if (groupBookingEnabled && gid != null) {
-      return formatBookingClientsLabel(bookingLike)
-    }
-
-    const ids = normalizeSelectedClientIds(bookingLike?.clients?.map((c: any) => c?.id), bookingLike?.client?.id)
-    const clients = ids
-      .map((id) => metaClients.find((c: any) => c.id === id) || bookingLike?.clients?.find((c: any) => c?.id === id) || (bookingLike?.client?.id === id ? bookingLike.client : null))
-      .filter(Boolean)
-    const firstClient = clients[0] || bookingLike?.client || bookingLike?.clients?.[0] || null
-    const firstName = String(firstClient?.firstName || '').trim()
-    const lastName = String(firstClient?.lastName || '').trim()
-    const compactName = firstName && lastName
-      ? `${firstName} ${lastName.charAt(0).toUpperCase()}.`
-      : firstName || lastName || String(fallbackTitle || '').trim() || '—'
-    return clients.length > 1 ? `${compactName} +${clients.length - 1}` : compactName
-  }
-
   /** Desktop booked block label: LastName · ServiceType (never includes first name). */
   function formatBookedBlockDesktopLabel(bookingLike: any, fallbackTitle: string) {
     const explicitLastName = String(
@@ -11255,20 +11233,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 if (props.partialOverlapGroupId && !props.partialContinuationSegment) {
                   return renderPartialOverlapContent(label)
                 }
-                const mobileTypeLabel = String(props?.type?.name || '').trim() || t('calendarEventTypeBooked')
                 return (
                   <div className="calendar-event-mobile-content calendar-event-mobile-content--single">
-                    {mainTimeRange ? (
-                      <div className="calendar-event-main-meta">
-                        <span className="calendar-event-main-meta__dot" aria-hidden="true" />
-                        <span className="calendar-event-main-meta__time">{mainTimeRange}</span>
-                      </div>
-                    ) : null}
                     <div className="calendar-event-main-row">
                       <div className="calendar-event-main-title-wrap">
                         <div className="calendar-event-mobile-title calendar-event-booked-label--narrow">
                           <span className="calendar-event-mobile-title__name">{label}</span>
-                          <span className="calendar-event-mobile-title__type">{mobileTypeLabel}</span>
                         </div>
                         <div className="calendar-event-mobile-title calendar-event-booked-label--wide">{label}</div>
                       </div>
@@ -11290,25 +11260,21 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               const mobileLabel = fallbackTitle || [fn, ln].filter(Boolean).join(' ') || resolvedLastName
               const wide = formatBookedBlockDesktopLabel(props, fallbackTitle || mobileLabel)
               const narrowTypeName = String(props?.type?.name || '').trim()
-              const mobilePrimaryLabel = formatBookingMobileClientLabel(props, fallbackTitle || mobileLabel)
-              const mobileTypeLabel = narrowTypeName || t('calendarEventTypeBooked')
+              const bookingClients = Array.isArray(props?.clients) ? props.clients : []
+              const isMultiClient = bookingClients.length > 1
+              const narrowPrimaryLabel = isMultiClient
+                ? (narrowTypeName || resolvedLastName || mobileLabel || '—')
+                : (resolvedLastName || mobileLabel || '—')
               const showTimeBelowTitle = Boolean(mainTimeRange) && !overlapCompactContent && !overlapQueueIndicator
               if (props.partialOverlapGroupId && !props.partialContinuationSegment) {
                 return renderPartialOverlapContent(wide)
               }
               return (
                 <div className="calendar-event-mobile-content calendar-event-mobile-content--single">
-                  {mainTimeRange ? (
-                    <div className="calendar-event-main-meta">
-                      <span className="calendar-event-main-meta__dot" aria-hidden="true" />
-                      <span className="calendar-event-main-meta__time">{mainTimeRange}</span>
-                    </div>
-                  ) : null}
                   <div className="calendar-event-main-row">
                     <div className="calendar-event-main-title-wrap">
                       <div className="calendar-event-mobile-title calendar-event-booked-label--narrow">
-                        <span className="calendar-event-mobile-title__name">{mobilePrimaryLabel}</span>
-                        <span className="calendar-event-mobile-title__type">{mobileTypeLabel}</span>
+                        <span className="calendar-event-mobile-title__name">{narrowPrimaryLabel}</span>
                       </div>
                       <div className="calendar-event-mobile-title calendar-event-booked-label--wide">{wide}</div>
                     </div>
@@ -11331,21 +11297,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               if (props.partialOverlapGroupId && !props.partialContinuationSegment) {
                 return renderPartialOverlapContent(fullTitle)
               }
-              const personalTypeLabel = t('formPersonal')
               return (
                 <div className="calendar-event-mobile-content calendar-event-mobile-content--single">
-                  {mainTimeRange ? (
-                    <div className="calendar-event-main-meta">
-                      <span className="calendar-event-main-meta__dot" aria-hidden="true" />
-                      <span className="calendar-event-main-meta__time">{mainTimeRange}</span>
-                    </div>
-                  ) : null}
                   <div className="calendar-event-main-row">
                     <div className="calendar-event-main-title-wrap">
-                      <div className="calendar-event-mobile-title calendar-event-personal-title--full">
-                        <span className="calendar-event-mobile-title__name">{fullTitle}</span>
-                        <span className="calendar-event-mobile-title__type">{personalTypeLabel}</span>
-                      </div>
+                      <div className="calendar-event-mobile-title calendar-event-personal-title--full">{fullTitle}</div>
                       <div className="calendar-event-mobile-title calendar-event-personal-title--short">{shortTitle}</div>
                     </div>
                     {mainTimeRange && !showTimeBelowTitle ? <div className="calendar-event-main-time">{mainTimeRange}</div> : null}
