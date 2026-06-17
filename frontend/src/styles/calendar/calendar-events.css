@@ -3151,3 +3151,257 @@
         color: #ffffff;
     }
 }
+
+/* Session design preview #1: accessible mobile timetable cards with visible time, name and service. */
+.fc .calendar-event-main-meta {
+    display: none;
+}
+
+@media (max-width: 939px) {
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual,
+    .fc .calendar-event-booked-visual,
+    .fc .calendar-event-personal-visual,
+    .fc .calendar-event-todo-visual {
+        background: linear-gradient(135deg, var(--calendar-session-bg, #f0fdf4) 0%, color-mix(in srgb, var(--calendar-session-bg, #f0fdf4) 70%, #ffffff) 100%) !important;
+        border: 1px solid color-mix(in srgb, var(--calendar-session-accent, #16a34a) 34%, #ffffff) !important;
+        border-left: 4px solid var(--calendar-session-accent, #16a34a) !important;
+        border-radius: 11px !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        box-shadow: 0 6px 15px rgba(15, 23, 42, 0.1), 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .fc-event-main,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .fc-event-main,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .fc-event-main,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .fc-event-main-frame,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .fc-event-main-frame,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .fc-event-main-frame {
+        color: #0f172a !important;
+        background: transparent !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        box-sizing: border-box;
+        display: flex !important;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 3px;
+        padding: 7px 7px 6px 9px;
+        text-align: left;
+        container-type: inline-size;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content:has(.calendar-event-quick-add),
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content:has(.calendar-event-quick-add) {
+        padding-right: 21px;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content:has(.calendar-event-overlap-mobile-count),
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content:has(.calendar-event-overlap-mobile-count) {
+        padding-bottom: 20px;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-meta,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-meta {
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        max-width: 100%;
+        gap: 4px;
+        color: var(--calendar-session-muted, #15803d);
+        font-size: clamp(0.56rem, 7.2cqi, 0.72rem);
+        font-weight: 850;
+        line-height: 1.05;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-shadow: none;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-meta__dot,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-meta__dot {
+        flex: 0 0 auto;
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--calendar-session-accent, #16a34a);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--calendar-session-accent, #16a34a) 14%, transparent);
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-meta__time,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-meta__time {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-row,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-row {
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        box-sizing: border-box;
+        display: flex !important;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 0;
+        padding: 0;
+        text-align: left;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-title-wrap,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-title-wrap {
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        padding: 0;
+        overflow: hidden;
+        text-align: left;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title {
+        width: 100%;
+        min-width: 0;
+        color: #0f172a !important;
+        font-size: clamp(0.7rem, 13.5cqi, 1rem);
+        font-weight: 850;
+        line-height: 1.08;
+        letter-spacing: -0.02em;
+        text-align: left;
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: break-word;
+        hyphens: auto;
+        text-shadow: none;
+        display: flex !important;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
+        -webkit-line-clamp: unset;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--wide,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title.calendar-event-personal-title--short {
+        display: none !important;
+    }
+
+    .fc .calendar-event-mobile-title__name {
+        display: block;
+        max-width: 100%;
+        color: #0f172a !important;
+        font-weight: 850;
+        font-size: 1em;
+        line-height: 1.08;
+        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    .fc .calendar-event-mobile-title__type {
+        display: block;
+        max-width: 100%;
+        color: #475569 !important;
+        opacity: 1;
+        font-weight: 700;
+        font-size: clamp(0.56rem, 7.5cqi, 0.74rem);
+        line-height: 1.12;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-time,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-time {
+        display: none !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-quick-add,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-quick-add,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-quick-add,
+    .fc .calendar-event-booked-visual .calendar-event-quick-add,
+    .fc .calendar-event-personal-visual .calendar-event-quick-add,
+    .fc .calendar-event-todo-visual .calendar-event-quick-add {
+        top: 4px;
+        right: 4px;
+        left: auto;
+        bottom: auto;
+        width: 18px;
+        height: 18px;
+        min-width: 18px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--calendar-session-accent, #16a34a) 28%, #ffffff);
+        background: color-mix(in srgb, var(--calendar-session-accent, #16a34a) 88%, #ffffff);
+        color: #ffffff;
+        font-size: 0.82rem;
+        font-weight: 900;
+        box-shadow: 0 4px 10px color-mix(in srgb, var(--calendar-session-accent, #16a34a) 20%, transparent);
+    }
+
+    .fc .calendar-event-overlap-mobile-count {
+        left: 8px;
+        right: auto;
+        bottom: 5px;
+        width: auto;
+        min-width: 28px;
+        height: 17px;
+        padding: 0 7px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--calendar-session-accent, #16a34a) 28%, #ffffff);
+        background: #ffffff;
+        color: var(--calendar-session-muted, #15803d);
+        font-size: 0.62rem;
+        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+    }
+
+    .calendar-fc-shell .fc-timegrid-slot-label,
+    .calendar-fc-shell .fc-timegrid-axis-cushion {
+        color: #0f172a;
+        font-weight: 760;
+    }
+
+    .calendar-fc-shell .fc-timegrid-slot-lane,
+    .calendar-fc-shell .fc-timegrid-col {
+        border-color: rgba(148, 163, 184, 0.22) !important;
+    }
+
+    [data-theme="dark"] .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
+    [data-theme="dark"] .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
+    [data-theme="dark"] .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
+        background: linear-gradient(135deg, color-mix(in srgb, var(--calendar-session-accent, #16a34a) 18%, #0f172a) 0%, #0f172a 100%) !important;
+        border-color: color-mix(in srgb, var(--calendar-session-accent, #16a34a) 38%, #334155) !important;
+        border-left-color: var(--calendar-session-accent, #16a34a) !important;
+    }
+
+    [data-theme="dark"] .fc .calendar-event-mobile-title__name,
+    [data-theme="dark"] .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title,
+    [data-theme="dark"] .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title {
+        color: #f8fafc !important;
+    }
+
+    [data-theme="dark"] .fc .calendar-event-mobile-title__type {
+        color: #cbd5e1 !important;
+    }
+}
