@@ -843,6 +843,13 @@ private fun reminderMinuteOptions(): List<Int> = listOf(5, 15, 30, 60, 180, 1440
 
 private fun normalizeReminderMinutes(value: Int): Int = if (value in reminderMinuteOptions()) value else 60
 
+private fun invoiceSummary(invoice: LocalInvoiceSettings, isSl: Boolean): String =
+    if (invoice.recipientType.equals("COMPANY", ignoreCase = true)) {
+        if (isSl) "Podjetje" else "Company"
+    } else {
+        if (isSl) "Fizična oseba" else "Individual"
+    }
+
 private fun invoiceValidationError(invoice: LocalInvoiceSettings, isSl: Boolean): String? {
     val isCompany = invoice.recipientType.equals("COMPANY", ignoreCase = true)
     if (isCompany) {
