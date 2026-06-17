@@ -1606,7 +1606,7 @@ function buildNotificationSettingsJson(settings: Record<string, string>) {
   return JSON.stringify(root);
 }
 
-function mergeNotificationSettingsJsonIntoFlat(settings: Record<string, string>) {
+function mergeNotificationSettingsJsonIntoFlat(settings: Record<string, string>): Record<string, string> {
   const raw = settings[NOTIFICATION_SETTINGS_KEY];
   if (!raw) return settings;
 
@@ -7384,7 +7384,7 @@ export function ConfigurationPage() {
       api.get<AccountUserResponse[]>("/users").catch(() => ({ data: [] })),
     ]);
     const paypalData = paypalConfigRes.data || {};
-    const settingsData = mergeNotificationSettingsJsonIntoFlat({
+    const settingsData: Record<string, string> = mergeNotificationSettingsJsonIntoFlat({
       ...(settingsRes.data || {}),
       ...(paypalData.merchantId
         ? { PAYPAL_MERCHANT_ID: paypalData.merchantId }
@@ -7398,7 +7398,7 @@ export function ConfigurationPage() {
       PAYPAL_CREDENTIALS_CONFIGURED: paypalData.credentialsConfigured
         ? "true"
         : "false",
-    });
+    } as Record<string, string>);
     const fallback = getWorkingHoursFallback();
     const parsedGuestApp = parseGuestAppSettings(
       settingsData[GUEST_APP_SETTINGS_KEY],
@@ -7406,7 +7406,7 @@ export function ConfigurationPage() {
     const unifiedTenantType = normalizeTenantConfigType(
       settingsData.MODULE_CONFIG_TYPE || parsedGuestApp.tenantType,
     );
-    const nextSettings = {
+    const nextSettings: Record<string, string> = {
       ...settingsData,
       MODULE_CONFIG_TYPE: unifiedTenantType,
       ...(!settingsData.WORKING_HOURS_START && !settingsData.WORKING_HOURS_END
