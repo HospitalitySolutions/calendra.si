@@ -70,12 +70,11 @@ struct ProfileView: View {
     }
 
     private var notificationsSummary: String {
-        let reminderText = reminderOptionLabel(notifyReminderMinutes)
         switch (notifyMessagesEnabled, notifyRemindersEnabled) {
-        case (true, true): return tr("On · reminder \(reminderText) before", "Vklopljeno · opomnik \(reminderText) prej")
+        case (true, true): return tr("On", "Vklopljeno")
         case (false, false): return tr("Off", "Izklopljeno")
         case (true, false): return tr("Messages only", "Samo sporočila")
-        case (false, true): return tr("Reminders \(reminderText) before", "Opomniki \(reminderText) prej")
+        case (false, true): return tr("Reminders only", "Samo opomniki")
         }
     }
 
@@ -255,7 +254,6 @@ struct ProfileView: View {
             NotificationPreferencesSheet(
                 messagesEnabled: $notifyMessagesEnabled,
                 remindersEnabled: $notifyRemindersEnabled,
-                reminderMinutes: $notifyReminderMinutes,
                 saving: savingPreference,
                 isSl: isSl,
                 onChangeMessages: { newValue in
@@ -263,9 +261,6 @@ struct ProfileView: View {
                 },
                 onChangeReminders: { newValue in
                     Task { await updateNotificationPreferences(messages: nil, reminders: newValue, reminderMinutes: nil) }
-                },
-                onChangeReminderMinutes: { newValue in
-                    Task { await updateNotificationPreferences(messages: nil, reminders: nil, reminderMinutes: newValue) }
                 }
             )
         }
@@ -448,18 +443,6 @@ struct ProfileView: View {
 
     private func normalizedReminderMinutes(_ value: Int) -> Int {
         [5, 15, 30, 60, 180, 1440].contains(value) ? value : 60
-    }
-
-    private func reminderOptionLabel(_ minutes: Int) -> String {
-        switch normalizedReminderMinutes(minutes) {
-        case 5: return tr("5 min", "5 min")
-        case 15: return tr("15 min", "15 min")
-        case 30: return tr("30 min", "30 min")
-        case 60: return tr("1 hour", "1 uro")
-        case 180: return tr("3 hours", "3 ure")
-        case 1440: return tr("1 day", "1 dan")
-        default: return tr("1 hour", "1 uro")
-        }
     }
 
     private func loadRemoteSettings() async {
@@ -718,27 +701,11 @@ private struct NotificationPreferencesSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var messagesEnabled: Bool
     @Binding var remindersEnabled: Bool
-    @Binding var reminderMinutes: Int
     let saving: Bool
     let isSl: Bool
     private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
     let onChangeMessages: (Bool) -> Void
     let onChangeReminders: (Bool) -> Void
-    let onChangeReminderMinutes: (Int) -> Void
-
-    private let reminderOptions = [5, 15, 30, 60, 180, 1440]
-
-    private func reminderOptionLabel(_ minutes: Int) -> String {
-        switch minutes {
-        case 5: return tr("5 min before", "5 min prej")
-        case 15: return tr("15 min before", "15 min prej")
-        case 30: return tr("30 min before", "30 min prej")
-        case 60: return tr("1 hour before", "1 uro prej")
-        case 180: return tr("3 hours before", "3 ure prej")
-        case 1440: return tr("1 day before", "1 dan prej")
-        default: return tr("1 hour before", "1 uro prej")
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -777,21 +744,6 @@ private struct NotificationPreferencesSheet: View {
                         }
                     }
                     .disabled(saving)
-
-                    if remindersEnabled {
-                        Picker(tr("Reminder before booking", "Opomnik pred terminom"), selection: Binding(
-                            get: { reminderMinutes },
-                            set: { newValue in
-                                reminderMinutes = newValue
-                                onChangeReminderMinutes(newValue)
-                            }
-                        )) {
-                            ForEach(reminderOptions, id: \.self) { minutes in
-                                Text(reminderOptionLabel(minutes)).tag(minutes)
-                            }
-                        }
-                        .disabled(saving)
-                    }
                 } footer: {
                     Text(tr("Choose which push notifications you want to receive on this device when the app is in the background.", "Izberite, katera potisna obvestila želite prejemati na tej napravi, ko je aplikacija v ozadju."))
                 }

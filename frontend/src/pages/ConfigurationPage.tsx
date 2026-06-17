@@ -1368,14 +1368,14 @@ function notificationEnabledKey(
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
-  return `NOTIFICATIONS_${channel.toUpperCase()}_${id.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase()}_ENABLED`;
+  return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${id.replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase()}_ENABLED`;
 }
 
 function notificationReminderKey(
   channel: NotificationChannel,
   reminder: "before" | "after",
 ) {
-  return `NOTIFICATIONS_${channel.toUpperCase()}_${reminder.toUpperCase()}_REMINDER_TIME`;
+  return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${reminder.toUpperCase()}_REMINDER_TIME`;
 }
 
 function getNotificationEnabled(
@@ -1404,14 +1404,14 @@ function notificationTemplateTitleKey(
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
-  return `NOTIFICATIONS_${channel.toUpperCase()}_${notificationEventSettingName(id)}_TEMPLATE_TITLE`;
+  return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_TEMPLATE_TITLE`;
 }
 
 function notificationTemplateBodyKey(
   channel: NotificationChannel,
   id: NotificationEventKind,
 ) {
-  return `NOTIFICATIONS_${channel.toUpperCase()}_${notificationEventSettingName(id)}_TEMPLATE_BODY`;
+  return `NOTIFICATIONS_${notificationChannelSettingName(channel)}_${notificationEventSettingName(id)}_TEMPLATE_BODY`;
 }
 
 type NotificationTemplateDefaults = Record<
@@ -1496,6 +1496,156 @@ const notificationTemplateDefaults: Record<
   sms: smsTemplateDefaults,
   guestApp: guestAppTemplateDefaults,
 };
+
+const NOTIFICATION_SETTINGS_KEY = "NOTIFICATION_SETTINGS_JSON";
+
+const notificationChannels = ["email", "sms", "guestApp"] as const;
+
+function notificationChannelSettingName(channel: NotificationChannel) {
+  return channel === "guestApp" ? "GUEST_APP" : channel.toUpperCase();
+}
+
+function notificationJsonEventKey(id: NotificationEventKind) {
+  switch (id) {
+    case "sessionChanged":
+      return "changeSession";
+    case "sessionCancelled":
+      return "cancelSession";
+    default:
+      return id;
+  }
+}
+
+function parseNotificationOffset(value: string, reminder: "before" | "after") {
+  const normalized = String(value || "").toLowerCase();
+  if (reminder === "after" && (normalized.includes("takoj") || normalized.includes("immediate"))) {
+    return { offsetValue: 1, offsetUnit: "minutes" };
+  }
+  if (normalized.includes("15")) return { offsetValue: 15, offsetUnit: "minutes" };
+  if (normalized.includes("30")) return { offsetValue: 30, offsetUnit: "minutes" };
+  if (normalized.includes("24") || normalized.includes("day") || normalized.includes("dan")) {
+    return { offsetValue: 24, offsetUnit: "hours" };
+  }
+  if (normalized.includes("2")) return { offsetValue: 2, offsetUnit: "hours" };
+  return { offsetValue: 1, offsetUnit: "hours" };
+}
+
+function offsetToReminderValue(
+  offsetValue: unknown,
+  offsetUnit: unknown,
+  reminder: "before" | "after",
+) {
+  const value = Number(offsetValue);
+  const unit = String(offsetUnit || "hours").toLowerCase();
+  const minutes =
+    unit.startsWith("day")
+      ? value * 24 * 60
+      : unit.startsWith("minute")
+        ? value
+        : value * 60;
+
+  if (reminder === "after") {
+    if (!Number.isFinite(minutes) || minutes <= 1) return "Takoj po seji";
+    if (minutes <= 30) return "30 min po seji";
+    if (minutes <= 60) return "1 ura po seji";
+    if (minutes <= 120) return "2 uri po seji";
+    return "24 ur po seji";
+  }
+
+  if (!Number.isFinite(minutes) || minutes <= 15) return "15 min pred terminom";
+  if (minutes <= 30) return "30 min pred terminom";
+  if (minutes <= 60) return "1 ura pred terminom";
+  if (minutes <= 120) return "2 uri pred terminom";
+  return "24 ur pred terminom";
+}
+
+function buildNotificationSettingsJson(settings: Record<string, string>) {
+  const root: Record<string, Record<string, Record<string, unknown>>> = {};
+
+  notificationChannels.forEach((channel) => {
+    root[channel] = {};
+    notificationEvents.forEach((event) => {
+      const title = getNotificationTemplateTitle(settings, channel, event.id);
+      const body = getNotificationTemplateBody(settings, channel, event.id);
+      const channelEnabled =
+        settings.NOTIFICATIONS_ENABLED !== "false" &&
+        (channel === "email"
+          ? settings.NOTIFICATIONS_EMAIL_ALERTS_ENABLED !== "false"
+          : channel === "sms"
+            ? settings.NOTIFICATIONS_SMS_ALERTS_ENABLED === "true"
+            : settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== "false");
+      const node: Record<string, unknown> = {
+        enabled: channelEnabled && getNotificationEnabled(settings, channel, event.id),
+      };
+
+      if (channel === "email") {
+        node.subject = title;
+        node.bodyHtml = body;
+      } else if (channel === "sms") {
+        node.title = title;
+        node.body = body;
+      } else {
+        node.title = title;
+        node.body = body;
+      }
+
+      if (event.reminder) {
+        Object.assign(
+          node,
+          parseNotificationOffset(
+            getReminderValue(settings, channel, event.reminder),
+            event.reminder,
+          ),
+        );
+      }
+
+      root[channel][notificationJsonEventKey(event.id)] = node;
+    });
+  });
+
+  return JSON.stringify(root);
+}
+
+function mergeNotificationSettingsJsonIntoFlat(settings: Record<string, string>) {
+  const raw = settings[NOTIFICATION_SETTINGS_KEY];
+  if (!raw) return settings;
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, Record<string, Record<string, unknown>>>;
+    const next = { ...settings };
+
+    notificationChannels.forEach((channel) => {
+      notificationEvents.forEach((event) => {
+        const node = parsed?.[channel]?.[notificationJsonEventKey(event.id)];
+        if (!node || typeof node !== "object") return;
+
+        if (typeof node.enabled === "boolean") {
+          next[notificationEnabledKey(channel, event.id)] = node.enabled
+            ? "true"
+            : "false";
+        }
+
+        const title = String(
+          channel === "email" ? node.subject || node.title || "" : node.title || "",
+        );
+        const body = String(
+          channel === "email" ? node.bodyHtml || node.body || "" : node.body || "",
+        );
+        if (title) next[notificationTemplateTitleKey(channel, event.id)] = title;
+        if (body) next[notificationTemplateBodyKey(channel, event.id)] = body;
+
+        if (event.reminder) {
+          next[notificationReminderKey(channel, event.reminder)] =
+            offsetToReminderValue(node.offsetValue, node.offsetUnit, event.reminder);
+        }
+      });
+    });
+
+    return next;
+  } catch {
+    return settings;
+  }
+}
 
 const notificationTemplateTags = [
   { label: "Ime podjetja", token: "{{ime_podjetja}}" },
@@ -7234,7 +7384,7 @@ export function ConfigurationPage() {
       api.get<AccountUserResponse[]>("/users").catch(() => ({ data: [] })),
     ]);
     const paypalData = paypalConfigRes.data || {};
-    const settingsData = {
+    const settingsData = mergeNotificationSettingsJsonIntoFlat({
       ...(settingsRes.data || {}),
       ...(paypalData.merchantId
         ? { PAYPAL_MERCHANT_ID: paypalData.merchantId }
@@ -7248,7 +7398,7 @@ export function ConfigurationPage() {
       PAYPAL_CREDENTIALS_CONFIGURED: paypalData.credentialsConfigured
         ? "true"
         : "false",
-    };
+    });
     const fallback = getWorkingHoursFallback();
     const parsedGuestApp = parseGuestAppSettings(
       settingsData[GUEST_APP_SETTINGS_KEY],
@@ -7742,6 +7892,8 @@ export function ConfigurationPage() {
         WORKING_HOURS_END: normalizedEnd,
         [PERSONAL_TASK_PRESETS_KEY]:
           serializePersonalTaskPresets(personalTaskPresets),
+        [NOTIFICATION_SETTINGS_KEY]:
+          buildNotificationSettingsJson(effectiveSettings),
         [GUEST_APP_SETTINGS_KEY]: serializeGuestAppSettings(effectiveGuestApp),
         [GUEST_BOOKING_RULES_KEY]:
           serializeGuestBookingRules(guestBookingRules),

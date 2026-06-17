@@ -170,7 +170,7 @@ public class ReminderService {
         if (client == null || client.isAnonymized()) return;
         if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) return;
 
-        JsonNode node = root.path("email").path(kind.getJsonKey());
+        JsonNode node = notificationNode(root, "email", kind);
         if (!node.path("enabled").asBoolean(false)) {
             return;
         }
@@ -193,7 +193,7 @@ public class ReminderService {
         if (client == null || client.isAnonymized()) return;
         if (client.getPhone() == null || client.getPhone().isBlank() || !smsConfigured) return;
 
-        JsonNode node = root.path("sms").path(kind.getJsonKey());
+        JsonNode node = notificationNode(root, "sms", kind);
         if (!node.path("enabled").asBoolean(false)) {
             return;
         }
@@ -231,7 +231,9 @@ public class ReminderService {
     private void sendBeforeAfterGuestApp(SessionBooking booking, NotificationKind kind, JsonNode root) {
         Client client = booking.getClient();
         if (client == null || client.isAnonymized()) return;
-        JsonNode node = root.path("guestApp").path(kind.getJsonKey());
+        Long companyId = booking.getCompany() == null ? null : booking.getCompany().getId();
+        if (!isGuestAppChannelEnabled(companyId)) return;
+        JsonNode node = notificationNode(root, "guestApp", kind);
         if (!node.path("enabled").asBoolean(false)) {
             return;
         }
@@ -241,8 +243,8 @@ public class ReminderService {
             return;
         }
         Map<String, String> tokens = buildTemplateTokens(booking, null, null);
-        String renderedTitle = replaceTokens(title, tokens);
-        String renderedBody = replaceTokens(body, tokens);
+        String renderedTitle = plainTextForPush(replaceTokens(title, tokens));
+        String renderedBody = plainTextForPush(replaceTokens(body, tokens));
         try {
             GuestNotification created = guestNotifications.createForClient(
                     booking.getCompany(),
@@ -260,20 +262,24 @@ public class ReminderService {
     }
 
     private void sendImmediateTemplateGuestApp(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
-        if (!isStaffWebBookingSource(booking)) {
+        if (!isStaffWebBookingSource(booking) || !isGuestAppChannelEnabled(companyId)) {
             return;
         }
         try {
-            JsonNode node = loadNotificationSettingsRoot(companyId).path("guestApp").path(kind.getJsonKey());
+            JsonNode node = notificationNode(loadNotificationSettingsRoot(companyId), "guestApp", kind);
+            boolean templateEnabled = node.path("enabled").asBoolean(false);
+            if (!templateEnabled) {
+                log.debug("Skipping {} guest app notification for company {}: template disabled", kind, companyId);
+                return;
+            }
             String title = node.path("title").asText("");
             String body = node.path("body").asText("");
-            boolean templateEnabled = node.path("enabled").asBoolean(false);
-            if (!templateEnabled || (title.isBlank() && body.isBlank())) {
-                title = defaultPushTitle(kind);
-                body = defaultPushBody(kind);
+            if (title.isBlank() && body.isBlank()) {
+                log.debug("Skipping {} guest app notification for company {}: empty title and body", kind, companyId);
+                return;
             }
-            String renderedTitle = replaceTokens(title, tokens);
-            String renderedBody = replaceTokens(body, tokens);
+            String renderedTitle = plainTextForPush(replaceTokens(title, tokens));
+            String renderedBody = plainTextForPush(replaceTokens(body, tokens));
             GuestNotification created = guestNotifications.createForClient(
                     booking.getCompany(),
                     client,
@@ -291,6 +297,8 @@ public class ReminderService {
 
     private void sendReminderPush(GuestNotification notification, SessionBooking booking, String title, String body, NotificationKind kind) {
         if (notification == null || notification.getGuestUser() == null) return;
+        title = plainTextForPush(title);
+        body = plainTextForPush(body);
         if (title == null || title.isBlank()) title = defaultPushTitle(kind);
         if (body == null || body.isBlank()) body = defaultPushBody(kind);
         try {
@@ -342,6 +350,56 @@ public class ReminderService {
         };
     }
 
+    private JsonNode notificationNode(JsonNode root, String channel, NotificationKind kind) {
+        JsonNode channelNode = root == null ? JSON.createObjectNode() : root.path(channel);
+        JsonNode node = channelNode.path(kind.getJsonKey());
+        if (!node.isMissingNode()) {
+            return node;
+        }
+        return switch (kind) {
+            case CHANGE_SESSION -> channelNode.path("sessionChanged");
+            case CANCEL_SESSION -> channelNode.path("sessionCancelled");
+            default -> node;
+        };
+    }
+
+    private boolean isGuestAppChannelEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return booleanSetting(companyId, SettingKey.NOTIFICATIONS_ENABLED, true)
+                && booleanSetting(companyId, SettingKey.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED, true);
+    }
+
+    private boolean booleanSetting(Long companyId, SettingKey key, boolean fallback) {
+        return appSettings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(String::trim)
+                .map(value -> {
+                    if (value.equalsIgnoreCase("true")) return true;
+                    if (value.equalsIgnoreCase("false")) return false;
+                    return fallback;
+                })
+                .orElse(fallback);
+    }
+
+    private static String plainTextForPush(String input) {
+        if (input == null || input.isBlank()) return "";
+        return input
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</(p|div|h1|h2|h3|h4|h5|h6|blockquote|li)>", "\n")
+                .replaceAll("(?i)<li>", "• ")
+                .replaceAll("<[^>]+>", "")
+                .replace("&nbsp;", " ")
+                .replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .lines()
+                .map(String::trim)
+                .filter(line -> !line.isEmpty())
+                .collect(java.util.stream.Collectors.joining("\n"));
+    }
+
     private String buildPayloadJson(SessionBooking booking) {
         if (booking == null || booking.getId() == null) return null;
         ObjectNode n = JSON.createObjectNode();
@@ -365,29 +423,36 @@ public class ReminderService {
         };
     }
 
-    /** Sends new-session notifications; guest-app bell falls back to a default message when no template is enabled. */
+    /** Sends new-session notifications using configured channel templates. */
     public void sendBookingConfirmation(SessionBooking booking) {
         sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.NEW_SESSION, null, null);
     }
 
-    /** Sends change-session notifications; guest-app bell falls back to a default message when no template is enabled. */
+    /** Sends change-session notifications using configured channel templates. */
     public void sendSessionRescheduled(SessionBooking booking, LocalDateTime previousStart, LocalDateTime previousEnd) {
         sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.CHANGE_SESSION, previousStart, previousEnd);
     }
 
-    /** Sends cancel-session notifications; guest-app bell falls back to a default message when no template is enabled. */
+    /** Sends cancel-session notifications using configured channel templates. */
     public void sendSessionCancelled(SessionBooking booking) {
         sendBookingTemplateNotificationsAfterCommit(booking, NotificationKind.CANCEL_SESSION, null, null);
     }
 
-    /** Records a bell notification for tenant-staff edits that do not already produce a create/reschedule/cancel notice. */
+    /** Sends the configured guest-app change template for tenant-staff edits that are not reschedules/cancellations. */
     public void recordStaffBookingModified(SessionBooking booking) {
-        if (!isStaffWebBookingSource(booking)) {
+        if (!isStaffWebBookingSource(booking) || booking == null || booking.getClient() == null || booking.getClient().isAnonymized()) {
             return;
         }
         Runnable task = () -> {
             try {
-                guestNotifications.webBookingUpdated(booking);
+                Long companyId = booking.getCompany() == null ? null : booking.getCompany().getId();
+                sendImmediateTemplateGuestApp(
+                        booking,
+                        booking.getClient(),
+                        companyId,
+                        NotificationKind.CHANGE_SESSION,
+                        buildTemplateTokens(booking, null, null)
+                );
             } catch (Exception e) {
                 log.warn("Failed to record booking-updated guest app notification: {}", e.getMessage());
             }
@@ -493,7 +558,7 @@ public class ReminderService {
 
     private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind) {
         try {
-            JsonNode node = loadNotificationSettingsRoot(companyId).path("email").path(kind.getJsonKey());
+            JsonNode node = notificationNode(loadNotificationSettingsRoot(companyId), "email", kind);
             if (!node.path("enabled").asBoolean(false)) {
                 return Optional.empty();
             }
@@ -508,7 +573,7 @@ public class ReminderService {
 
     private Optional<NotificationSmsTemplate> loadNotificationSmsTemplate(Long companyId, NotificationKind kind) {
         try {
-            JsonNode node = loadNotificationSettingsRoot(companyId).path("sms").path(kind.getJsonKey());
+            JsonNode node = notificationNode(loadNotificationSettingsRoot(companyId), "sms", kind);
             if (!node.path("enabled").asBoolean(false)) {
                 return Optional.empty();
             }
@@ -537,38 +602,69 @@ public class ReminderService {
         Long companyId = company.getId();
 
         Client client = booking.getClient();
-        m.put("{{companyName}}", settingOr(companyId, SettingKey.COMPANY_NAME, company.getName()));
-        m.put("{{clientFirstName}}", nz(client.getFirstName()));
-        m.put("{{clientLastName}}", nz(client.getLastName()));
-        m.put("{{serviceName}}", booking.getType() != null ? nz(booking.getType().getName()) : "");
-        m.put("{{serviceCategories}}", "");
+        String companyName = settingOr(companyId, SettingKey.COMPANY_NAME, company.getName());
+        String clientFirstName = nz(client.getFirstName());
+        String clientLastName = nz(client.getLastName());
+        String serviceName = booking.getType() != null ? nz(booking.getType().getName()) : "";
+        String serviceCategories = "";
 
         LocalDateTime start = booking.getStartTime();
         LocalDateTime end = booking.getEndTime();
-        m.put("{{date}}", start.format(TAG_DATE));
-        m.put("{{dayName}}", start.format(DateTimeFormatter.ofPattern("EEEE", NOTIFY_LOCALE)));
-        m.put("{{year}}", String.valueOf(start.getYear()));
-        m.put("{{time}}", start.format(TAG_TIME) + "–" + end.format(TAG_TIME));
+        String date = start.format(TAG_DATE);
+        String dayName = start.format(DateTimeFormatter.ofPattern("EEEE", NOTIFY_LOCALE));
+        String year = String.valueOf(start.getYear());
+        String time = start.format(TAG_TIME) + "–" + end.format(TAG_TIME);
 
-        m.put("{{locationName}}", booking.getSpace() != null ? nz(booking.getSpace().getName()) : "");
-        m.put("{{locationAddress}}", formatCompanyAddress(companyId));
-        m.put("{{locationPhone}}", settingOr(companyId, SettingKey.COMPANY_TELEPHONE, ""));
+        String locationName = booking.getSpace() != null ? nz(booking.getSpace().getName()) : "";
+        String locationAddress = formatCompanyAddress(companyId);
+        String locationPhone = settingOr(companyId, SettingKey.COMPANY_TELEPHONE, "");
 
         User consultant = booking.getConsultant();
-        m.put("{{consultantName}}", consultant == null
+        String consultantName = consultant == null
                 ? ""
-                : (nz(consultant.getFirstName()) + " " + nz(consultant.getLastName())).trim());
-        m.put("{{consultantPhone}}", consultant != null && consultant.getPhone() != null ? consultant.getPhone().trim() : "");
-
-        m.put("{{rescheduleLink}}", buildRescheduleLink(company));
-
+                : (nz(consultant.getFirstName()) + " " + nz(consultant.getLastName())).trim();
+        String consultantPhone = consultant != null && consultant.getPhone() != null ? consultant.getPhone().trim() : "";
+        String rescheduleLink = buildRescheduleLink(company);
+        String originalAppointmentDateTime;
         if (originalStart != null) {
             LocalDateTime oEnd = originalEnd != null ? originalEnd : originalStart;
-            m.put("{{originalAppointmentDateTime}}",
-                    originalStart.format(TAG_DATETIME_FULL) + " – " + oEnd.format(TAG_TIME));
+            originalAppointmentDateTime = originalStart.format(TAG_DATETIME_FULL) + " – " + oEnd.format(TAG_TIME);
         } else {
-            m.put("{{originalAppointmentDateTime}}", "");
+            originalAppointmentDateTime = "";
         }
+
+        m.put("{{companyName}}", companyName);
+        m.put("{{clientFirstName}}", clientFirstName);
+        m.put("{{clientLastName}}", clientLastName);
+        m.put("{{serviceName}}", serviceName);
+        m.put("{{serviceCategories}}", serviceCategories);
+        m.put("{{date}}", date);
+        m.put("{{dayName}}", dayName);
+        m.put("{{year}}", year);
+        m.put("{{time}}", time);
+        m.put("{{locationName}}", locationName);
+        m.put("{{locationAddress}}", locationAddress);
+        m.put("{{locationPhone}}", locationPhone);
+        m.put("{{consultantName}}", consultantName);
+        m.put("{{consultantPhone}}", consultantPhone);
+        m.put("{{rescheduleLink}}", rescheduleLink);
+        m.put("{{originalAppointmentDateTime}}", originalAppointmentDateTime);
+
+        // Slovenian aliases used by Configuration -> Notifications template tags.
+        m.put("{{ime_podjetja}}", companyName);
+        m.put("{{ime_stranke}}", clientFirstName);
+        m.put("{{priimek_stranke}}", clientLastName);
+        m.put("{{ime_storitve}}", serviceName);
+        m.put("{{datum}}", date);
+        m.put("{{cas}}", time);
+        m.put("{{naslov_lokacije}}", locationAddress);
+        m.put("{{ime_lokacije}}", locationName);
+        m.put("{{telefon_lokacije}}", locationPhone);
+        m.put("{{povezava_za_prenarocanje}}", rescheduleLink);
+        m.put("{{kategorija_storitve}}", serviceCategories);
+        m.put("{{ime_izvajalca}}", consultantName);
+        m.put("{{telefon_izvajalca}}", consultantPhone);
+        m.put("{{prvotni_termin}}", originalAppointmentDateTime);
 
         return m;
     }

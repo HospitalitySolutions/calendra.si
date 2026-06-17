@@ -54,7 +54,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
@@ -384,7 +383,7 @@ fun ProfileScreen(
                             HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceNavigationRow(
                                 title = tr("Notifications", "Obvestila"),
-                                value = notificationsSummary(notifyMessagesEnabled, notifyRemindersEnabled, notifyReminderMinutes, isSl),
+                                value = notificationsSummary(notifyMessagesEnabled, notifyRemindersEnabled, isSl),
                                 leadingIcon = Icons.Rounded.Notifications,
                                 iconTint = Color(0xFFFF8A00),
                                 onClick = { showNotificationsDialog = true }
@@ -509,30 +508,6 @@ fun ProfileScreen(
                             }
                         }
                     )
-                    if (notifyRemindersEnabled) {
-                        Text(
-                            tr("Reminder before booking", "Opomnik pred terminom"),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        reminderMinuteOptions().forEach { option ->
-                            ReminderMinuteOptionRow(
-                                label = reminderOptionLabel(option, isSl),
-                                selected = notifyReminderMinutes == option,
-                                enabled = !savingPreference,
-                                onClick = {
-                                    val previous = notifyReminderMinutes
-                                    notifyReminderMinutes = option
-                                    scope.launch {
-                                        savingPreference = true
-                                        val success = persistRemote(profile, notifyReminderMinutesValue = option)
-                                        savingPreference = false
-                                        if (!success) notifyReminderMinutes = previous
-                                    }
-                                }
-                            )
-                        }
-                    }
                 }
             },
             confirmButton = {
@@ -857,39 +832,16 @@ private fun languageDisplayName(code: String): String = when (code.lowercase()) 
     else -> "English"
 }
 
-private fun notificationsSummary(messages: Boolean, reminders: Boolean, reminderMinutes: Int, isSl: Boolean): String = when {
-    messages && reminders -> if (isSl) "Vklopljeno · opomnik ${reminderShortLabel(reminderMinutes, isSl)} prej" else "On · reminder ${reminderShortLabel(reminderMinutes, isSl)} before"
+private fun notificationsSummary(messages: Boolean, reminders: Boolean, isSl: Boolean): String = when {
+    messages && reminders -> if (isSl) "Vklopljeno" else "On"
     !messages && !reminders -> if (isSl) "Izklopljeno" else "Off"
     messages -> if (isSl) "Samo sporočila" else "Messages only"
-    else -> if (isSl) "Opomniki ${reminderShortLabel(reminderMinutes, isSl)} prej" else "Reminders ${reminderShortLabel(reminderMinutes, isSl)} before"
+    else -> if (isSl) "Samo opomniki" else "Reminders only"
 }
 
 private fun reminderMinuteOptions(): List<Int> = listOf(5, 15, 30, 60, 180, 1440)
 
 private fun normalizeReminderMinutes(value: Int): Int = if (value in reminderMinuteOptions()) value else 60
-
-private fun reminderShortLabel(minutes: Int, isSl: Boolean): String = when (normalizeReminderMinutes(minutes)) {
-    5 -> "5 min"
-    15 -> "15 min"
-    30 -> "30 min"
-    60 -> if (isSl) "1 uro" else "1 hour"
-    180 -> if (isSl) "3 ure" else "3 hours"
-    1440 -> if (isSl) "1 dan" else "1 day"
-    else -> if (isSl) "1 uro" else "1 hour"
-}
-
-private fun reminderOptionLabel(minutes: Int, isSl: Boolean): String = if (isSl) {
-    "${reminderShortLabel(minutes, true)} prej"
-} else {
-    "${reminderShortLabel(minutes, false)} before"
-}
-
-private fun invoiceSummary(invoice: LocalInvoiceSettings, isSl: Boolean): String =
-    if (invoice.recipientType.equals("COMPANY", ignoreCase = true)) {
-        if (isSl) "Podjetje" else "Company"
-    } else {
-        if (isSl) "Fizična oseba" else "Individual"
-    }
 
 private fun invoiceValidationError(invoice: LocalInvoiceSettings, isSl: Boolean): String? {
     val isCompany = invoice.recipientType.equals("COMPANY", ignoreCase = true)
@@ -905,34 +857,6 @@ private fun invoiceValidationError(invoice: LocalInvoiceSettings, isSl: Boolean)
     if (invoice.personPostalCode.isBlank()) return if (isSl) "Poštna številka je obvezna." else "Postal code is required."
     if (invoice.personCity.isBlank()) return if (isSl) "Kraj je obvezen." else "City is required."
     return null
-}
-
-@Composable
-private fun ReminderMinuteOptionRow(
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        RadioButton(
-            selected = selected,
-            onClick = onClick,
-            enabled = enabled
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
 }
 
 @Composable
