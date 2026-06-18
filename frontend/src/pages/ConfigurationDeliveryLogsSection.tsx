@@ -76,13 +76,22 @@ const STATUSES: Array<{ id: "" | DeliveryStatus; labelSl: string; labelEn: strin
 
 const pageSize = 50;
 
+type MessagingProviderCapabilities = {
+  whatsappEnabled?: boolean;
+  viberEnabled?: boolean;
+};
+
 type ConfigurationDeliveryLogsSectionProps = {
   settings?: Record<string, string>;
+  messagingProviders?: MessagingProviderCapabilities;
+  messagingProvidersLoaded?: boolean;
 };
 
 function isDeliveryChannelVisible(
   settings: Record<string, string>,
   channel?: string | null,
+  messagingProviders: MessagingProviderCapabilities = {},
+  messagingProvidersLoaded = true,
 ) {
   const normalized = String(channel || "").toUpperCase();
   const notificationsOn = settings.NOTIFICATIONS_ENABLED !== "false";
@@ -95,11 +104,19 @@ function isDeliveryChannelVisible(
   if (normalized === "GUEST_APP" || normalized === "PUSH") {
     return notificationsOn && settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== "false";
   }
+  if (normalized === "WHATSAPP") {
+    return !messagingProvidersLoaded || messagingProviders.whatsappEnabled !== false;
+  }
+  if (normalized === "VIBER") {
+    return !messagingProvidersLoaded || messagingProviders.viberEnabled !== false;
+  }
   return true;
 }
 
 export function ConfigurationDeliveryLogsSection({
   settings = {},
+  messagingProviders = {},
+  messagingProvidersLoaded = true,
 }: ConfigurationDeliveryLogsSectionProps) {
   const { locale } = useLocale();
   const sl = locale === "sl";
@@ -118,8 +135,8 @@ export function ConfigurationDeliveryLogsSection({
   const [selected, setSelected] = useState<DeliveryLogItem | null>(null);
 
   const visibleChannels = useMemo(
-    () => CHANNELS.filter((entry) => !entry.id || isDeliveryChannelVisible(settings, entry.id)),
-    [settings],
+    () => CHANNELS.filter((entry) => !entry.id || isDeliveryChannelVisible(settings, entry.id, messagingProviders, messagingProvidersLoaded)),
+    [settings, messagingProviders, messagingProvidersLoaded],
   );
   const visibleChannelIds = useMemo(
     () => new Set(visibleChannels.map((entry) => entry.id).filter(Boolean)),
@@ -130,8 +147,8 @@ export function ConfigurationDeliveryLogsSection({
     [visibleChannels],
   );
   const visibleItems = useMemo(
-    () => items.filter((item) => isDeliveryChannelVisible(settings, item.channel)),
-    [items, settings],
+    () => items.filter((item) => isDeliveryChannelVisible(settings, item.channel, messagingProviders, messagingProvidersLoaded)),
+    [items, settings, messagingProviders, messagingProvidersLoaded],
   );
 
   useEffect(() => {

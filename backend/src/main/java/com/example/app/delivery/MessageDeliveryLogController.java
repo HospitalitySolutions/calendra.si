@@ -3,6 +3,7 @@ package com.example.app.delivery;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.GlobalMessagingProviderService;
 import com.example.app.user.User;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -31,16 +32,27 @@ import org.springframework.web.bind.annotation.RestController;
 public class MessageDeliveryLogController {
     private final MessageDeliveryLogRepository logs;
     private final AppSettingRepository appSettings;
+    private final GlobalMessagingProviderService globalMessagingProviders;
 
     @Autowired
-    public MessageDeliveryLogController(MessageDeliveryLogRepository logs, AppSettingRepository appSettings) {
+    public MessageDeliveryLogController(
+            MessageDeliveryLogRepository logs,
+            AppSettingRepository appSettings,
+            GlobalMessagingProviderService globalMessagingProviders
+    ) {
         this.logs = logs;
         this.appSettings = appSettings;
+        this.globalMessagingProviders = globalMessagingProviders;
+    }
+
+    /** Backwards-compatible constructor used by older unit tests. */
+    public MessageDeliveryLogController(MessageDeliveryLogRepository logs, AppSettingRepository appSettings) {
+        this(logs, appSettings, null);
     }
 
     /** Backwards-compatible constructor used by older unit tests. */
     public MessageDeliveryLogController(MessageDeliveryLogRepository logs) {
-        this(logs, null);
+        this(logs, null, null);
     }
 
     @GetMapping
@@ -156,8 +168,12 @@ public class MessageDeliveryLogController {
                 visible.add(MessageDeliveryChannel.PUSH);
             }
         }
-        visible.add(MessageDeliveryChannel.WHATSAPP);
-        visible.add(MessageDeliveryChannel.VIBER);
+        if (globalMessagingProviders == null || globalMessagingProviders.isWhatsAppEnabled()) {
+            visible.add(MessageDeliveryChannel.WHATSAPP);
+        }
+        if (globalMessagingProviders == null || globalMessagingProviders.isViberEnabled()) {
+            visible.add(MessageDeliveryChannel.VIBER);
+        }
         return visible;
     }
 

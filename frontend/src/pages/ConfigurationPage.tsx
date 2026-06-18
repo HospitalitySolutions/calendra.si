@@ -17275,7 +17275,11 @@ export function ConfigurationPage() {
                   t={t}
                 />
               ) : tab === "deliveryLogs" ? (
-                <ConfigurationDeliveryLogsSection settings={settings} />
+                <ConfigurationDeliveryLogsSection
+                  settings={settings}
+                  messagingProviders={inboxGlobalCapabilities}
+                  messagingProvidersLoaded={inboxCapabilitiesLoaded}
+                />
               ) : tab === "integrations" ? (
                 <div className="integrations-modern-shell">
                   <style>{`
