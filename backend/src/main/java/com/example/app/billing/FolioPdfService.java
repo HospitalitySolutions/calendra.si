@@ -1244,7 +1244,7 @@ public class FolioPdfService {
     }
 
     private static float shiftedBelowServicesTableY(float originalY, FolioLayoutConfig layout, float tableFlowOffset) {
-        if (tableFlowOffset <= 0) return originalY;
+        if (tableFlowOffset == 0) return originalY;
         var tbl = layout.getTable();
         float baselineTableBottom = visualServicesTableBottom(tbl.getStartY(), tbl.getHeaderHeight(), tbl.getRowHeight(), LAYOUT_PREVIEW_SERVICE_ROWS);
         return originalY >= baselineTableBottom ? originalY + tableFlowOffset : originalY;
