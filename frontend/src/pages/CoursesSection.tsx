@@ -677,7 +677,6 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
               </section>
             </form>
             <div className="booking-side-panel-footer session-type-config-modal-footer">
-              <button type="button" className="secondary" onClick={() => setShowModal(false)}>{locale === 'sl' ? 'Prekliči' : 'Cancel'}</button>
               <button
                 form="course-edit-form"
                 type="submit"

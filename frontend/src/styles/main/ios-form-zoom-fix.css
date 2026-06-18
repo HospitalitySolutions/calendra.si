@@ -1,0 +1,12 @@
+/*
+ * iOS Safari automatically zooms the page when a focused native form control
+ * has a computed font size below 16px. Keep mobile form controls at 16px+ so
+ * fields can be edited without the viewport jumping/zooming in.
+ */
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
