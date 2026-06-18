@@ -196,7 +196,7 @@ final class GuestApiClient {
     }
 
     func unsubscribeTenant(companyId: String) async throws {
-        try await postEmpty(path: "api/guest/tenants/\(companyId)/leave")
+        try await postEmpty(path: "api/guest/tenants/\(companyId)/unsubscribe")
     }
 
     func anonymizeTenant(companyId: String) async throws {
