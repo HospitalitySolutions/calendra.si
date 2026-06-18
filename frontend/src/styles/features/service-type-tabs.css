@@ -605,11 +605,21 @@
   width: auto;
   height: auto;
   border: 0;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
   box-shadow: none;
-  padding: 0;
+  padding: 6px 10px;
+  margin: -6px 0;
   font-size: 14px;
   line-height: 1.2;
   font-weight: 700;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.service-config-actions.account-table-actions button:not(:disabled):hover {
+  background: rgba(8, 120, 247, 0.12);
+}
+
+.service-config-actions.account-table-actions .account-table-action-danger:not(:disabled):hover {
+  background: rgba(239, 68, 68, 0.12);
 }

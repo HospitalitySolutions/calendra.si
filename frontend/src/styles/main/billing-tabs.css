@@ -1871,10 +1871,11 @@
     width: auto;
     height: auto;
     border: 0;
-    border-radius: 0;
+    border-radius: 8px;
     background: transparent;
     box-shadow: none;
-    padding: 0;
+    padding: 6px 10px;
+    margin: -6px 0;
     color: inherit;
     display: inline-flex;
     align-items: center;
@@ -1885,7 +1886,7 @@
     letter-spacing: 0;
     text-decoration: none;
     text-transform: none;
-    transition: opacity .18s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .billing-action-btn:hover,
@@ -1894,12 +1895,17 @@
 .billing-open-row-action--primary:hover,
 .billing-action-btn--danger:hover,
 .billing-open-row-action--danger:hover {
-    background: transparent;
+    background: rgba(8, 120, 247, 0.12);
     border: 0;
     box-shadow: none;
     transform: none;
     text-decoration: none;
-    opacity: .78;
+    opacity: 1;
+}
+
+.billing-action-btn--danger:hover,
+.billing-open-row-action--danger:hover {
+    background: rgba(239, 68, 68, 0.12);
 }
 
 .billing-action-btn--danger,
@@ -1912,6 +1918,11 @@
     opacity: .45;
     cursor: not-allowed;
     transform: none;
+}
+
+.billing-action-btn:disabled:hover,
+.billing-open-row-action:disabled:hover {
+    background: transparent;
 }
 
 [data-theme="dark"] .billing-action-btn,

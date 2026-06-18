@@ -2794,7 +2794,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         ? 'New company'
         : 'New group'
   const statusHeader = locale === 'sl' ? 'Status' : 'Status'
-  const actionsHeader = locale === 'sl' ? 'Akcije' : 'Actions'
+  const actionsHeader = locale === 'sl' ? 'Dejanja' : 'Actions'
   const clientNameHeader = locale === 'sl' ? 'Ime stranke' : 'Client name'
   const companyIdHeader = locale === 'sl' ? 'Davčna številka / ID' : 'Tax ID / ID'
   const groupMembersHeader = locale === 'sl' ? 'Št. članov' : 'Members'

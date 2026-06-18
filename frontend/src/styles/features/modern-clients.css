@@ -453,9 +453,10 @@
     appearance: none;
     min-height: 0;
     min-width: 0;
-    padding: 0;
+    padding: 6px 10px;
+    margin: -6px 0;
     border: 0;
-    border-radius: 0;
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -469,10 +470,11 @@
     white-space: nowrap;
     cursor: pointer;
     text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .clients-row-action-btn.secondary:hover {
-    background: transparent;
+    background: rgba(37, 99, 235, 0.12);
     color: #1d4ed8;
     box-shadow: none;
     text-decoration: none;
@@ -481,6 +483,10 @@
 .clients-row-action-btn.secondary:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.clients-row-action-btn.secondary:disabled:hover {
+    background: transparent;
 }
 
 .clients-row-action-btn.secondary svg {
@@ -493,6 +499,7 @@
 }
 
 .clients-row-action-btn--danger.secondary:hover {
+    background: rgba(239, 68, 68, 0.12);
     color: #dc2626;
 }
 
