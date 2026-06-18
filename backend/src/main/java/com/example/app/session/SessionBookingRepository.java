@@ -182,6 +182,29 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
 
     @Query("""
             SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.client
+            LEFT JOIN FETCH sb.consultant consultant
+            LEFT JOIN FETCH sb.space space
+            LEFT JOIN FETCH sb.type sessionType
+            WHERE sb.company.id = :companyId
+              AND sb.startTime >= :rangeStart
+              AND sb.startTime < :rangeEnd
+              AND (:consultantId IS NULL OR consultant.id = :consultantId)
+              AND (:spaceId IS NULL OR space.id = :spaceId)
+              AND (:typeId IS NULL OR sessionType.id = :typeId)
+            ORDER BY sb.startTime ASC, sb.id ASC
+            """)
+    List<SessionBooking> findAnalyticsByCompanyIdAndRange(
+            @Param("companyId") Long companyId,
+            @Param("rangeStart") LocalDateTime rangeStart,
+            @Param("rangeEnd") LocalDateTime rangeEnd,
+            @Param("consultantId") Long consultantId,
+            @Param("spaceId") Long spaceId,
+            @Param("typeId") Long typeId
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
             LEFT JOIN FETCH sb.client c
             LEFT JOIN FETCH c.billingCompany
             LEFT JOIN FETCH sb.payeeCompany

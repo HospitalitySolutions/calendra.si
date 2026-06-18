@@ -636,13 +636,18 @@ public class SessionBookingController {
                     return a.getId().compareTo(b.getId());
                 })
                 .forEach(row -> grouped.computeIfAbsent(groupKey(row), ignored -> new ArrayList<>()).add(row));
+        PaymentStatusLookup lookup = buildPaymentStatusLookup(rows, companyId);
         return grouped.values().stream()
-                .map(group -> withPaymentStatuses(toGroupedResponse(group), group, companyId))
+                .map(group -> withPaymentStatuses(toGroupedResponse(group), group, lookup))
                 .toList();
     }
 
     private BookingResponse withPaymentStatuses(BookingResponse base, List<SessionBooking> rows, Long companyId) {
-        List<BookingPaymentStatusResponse> statuses = computePaymentStatuses(rows, companyId);
+        return withPaymentStatuses(base, rows, buildPaymentStatusLookup(rows, companyId));
+    }
+
+    private BookingResponse withPaymentStatuses(BookingResponse base, List<SessionBooking> rows, PaymentStatusLookup lookup) {
+        List<BookingPaymentStatusResponse> statuses = computePaymentStatuses(rows, lookup);
         return new BookingResponse(
                 base.id(),
                 base.bookingGroupKey(),
@@ -666,26 +671,41 @@ public class SessionBookingController {
     }
 
     private List<BookingPaymentStatusResponse> computePaymentStatuses(List<SessionBooking> rows, Long companyId) {
+        return computePaymentStatuses(rows, buildPaymentStatusLookup(rows, companyId));
+    }
+
+    private PaymentStatusLookup buildPaymentStatusLookup(List<SessionBooking> rows, Long companyId) {
+        Set<Long> sessionIds = rows == null
+                ? Set.of()
+                : rows.stream()
+                .filter(row -> row.getId() != null && row.getClient() != null)
+                .map(SessionBooking::getId)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (sessionIds.isEmpty()) {
+            return PaymentStatusLookup.empty();
+        }
+
+        List<Bill> linkedBills = bills.findAllLinkedToSessionIds(companyId, sessionIds);
+        Map<Long, List<Bill>> linkedBillsBySessionId = linkedBillsBySessionId(linkedBills, sessionIds);
+        Map<Long, Long> openBillIdBySessionId = openBills.findAllContainingSessionIds(companyId, sessionIds).stream()
+                .flatMap(openBill -> openBillSessionIds(openBill).stream()
+                        .map(sessionId -> Map.entry(sessionId, openBill.getId())))
+                .filter(entry -> sessionIds.contains(entry.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> left, LinkedHashMap::new));
+        Map<Long, List<GuestEntitlementUsage>> usagesBySessionId = entitlementUsages.findAllBySessionBookingIdInOrderByUsedAtAsc(sessionIds).stream()
+                .filter(usage -> usage.getSessionBooking() != null && usage.getSessionBooking().getId() != null)
+                .collect(Collectors.groupingBy(usage -> usage.getSessionBooking().getId(), LinkedHashMap::new, Collectors.toList()));
+
+        return new PaymentStatusLookup(linkedBillsBySessionId, openBillIdBySessionId, usagesBySessionId);
+    }
+
+    private List<BookingPaymentStatusResponse> computePaymentStatuses(List<SessionBooking> rows, PaymentStatusLookup lookup) {
         var participantRows = rows == null ? List.<SessionBooking>of() : rows.stream()
                 .filter(row -> row.getId() != null && row.getClient() != null)
                 .toList();
         if (participantRows.isEmpty()) {
             return List.of();
         }
-        Set<Long> sessionIds = participantRows.stream().map(SessionBooking::getId).collect(Collectors.toSet());
-        List<Bill> linkedBills = sessionIds.isEmpty() ? List.of() : bills.findAllLinkedToSessionIds(companyId, sessionIds);
-        Map<Long, Long> openBillIdBySessionId = sessionIds.isEmpty()
-                ? Map.of()
-                : openBills.findAllContainingSessionIds(companyId, sessionIds).stream()
-                .flatMap(openBill -> openBillSessionIds(openBill).stream()
-                        .map(sessionId -> Map.entry(sessionId, openBill.getId())))
-                .filter(entry -> sessionIds.contains(entry.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> left, LinkedHashMap::new));
-        Map<Long, List<GuestEntitlementUsage>> usagesBySessionId = sessionIds.isEmpty()
-                ? Map.of()
-                : entitlementUsages.findAllBySessionBookingIdInOrderByUsedAtAsc(sessionIds).stream()
-                .filter(usage -> usage.getSessionBooking() != null && usage.getSessionBooking().getId() != null)
-                .collect(Collectors.groupingBy(usage -> usage.getSessionBooking().getId()));
 
         List<BookingPaymentStatusResponse> result = new ArrayList<>();
         for (SessionBooking row : participantRows) {
@@ -696,7 +716,7 @@ public class SessionBookingController {
             boolean entitlementCoversSession = false;
             List<BookingPaymentAllocationResponse> allocations = new ArrayList<>();
 
-            for (Bill bill : linkedBills) {
+            for (Bill bill : lookup.linkedBillsBySessionId().getOrDefault(row.getId(), List.of())) {
                 BigDecimal amountGross = linkedBillAmountForSession(bill, row.getId());
                 if (amountGross == null) {
                     continue;
@@ -747,7 +767,7 @@ public class SessionBookingController {
                 }
             }
 
-            for (GuestEntitlementUsage usage : usagesBySessionId.getOrDefault(row.getId(), List.of())) {
+            for (GuestEntitlementUsage usage : lookup.usagesBySessionId().getOrDefault(row.getId(), List.of())) {
                 var entitlement = usage.getEntitlement();
                 var product = entitlement == null ? null : entitlement.getProduct();
                 entitlementCoversSession = true;
@@ -792,13 +812,57 @@ public class SessionBookingController {
                     totalGross,
                     paidGross.setScale(2, RoundingMode.HALF_UP),
                     pendingGross.setScale(2, RoundingMode.HALF_UP),
-                    openBillIdBySessionId.get(row.getId()),
+                    lookup.openBillIdBySessionId().get(row.getId()),
                     allocations
             ));
         }
         return result;
     }
 
+
+
+    private record PaymentStatusLookup(
+            Map<Long, List<Bill>> linkedBillsBySessionId,
+            Map<Long, Long> openBillIdBySessionId,
+            Map<Long, List<GuestEntitlementUsage>> usagesBySessionId
+    ) {
+        static PaymentStatusLookup empty() {
+            return new PaymentStatusLookup(Map.of(), Map.of(), Map.of());
+        }
+    }
+
+    private static Map<Long, List<Bill>> linkedBillsBySessionId(List<Bill> linkedBills, Set<Long> sessionIds) {
+        if (linkedBills == null || linkedBills.isEmpty() || sessionIds == null || sessionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<Bill>> result = new LinkedHashMap<>();
+        for (Bill bill : linkedBills) {
+            for (Long sessionId : linkedBillSessionIds(bill)) {
+                if (sessionIds.contains(sessionId)) {
+                    result.computeIfAbsent(sessionId, ignored -> new ArrayList<>()).add(bill);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static Set<Long> linkedBillSessionIds(Bill bill) {
+        if (bill == null) {
+            return Set.of();
+        }
+        Set<Long> ids = new java.util.LinkedHashSet<>();
+        if (bill.getSourceSessionIdSnapshot() != null) {
+            ids.add(bill.getSourceSessionIdSnapshot());
+        }
+        if (bill.getItems() != null) {
+            for (BillItem item : bill.getItems()) {
+                if (item.getSourceSessionBookingId() != null && item.getSourceSessionBookingId() > 0) {
+                    ids.add(item.getSourceSessionBookingId());
+                }
+            }
+        }
+        return ids;
+    }
 
     private static Set<Long> openBillSessionIds(OpenBill openBill) {
         if (openBill == null) {

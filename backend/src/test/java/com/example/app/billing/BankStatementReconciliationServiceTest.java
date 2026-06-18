@@ -42,7 +42,7 @@ class BankStatementReconciliationServiceTest {
         pm.setPaymentType(PaymentType.BANK_TRANSFER);
         bill.setPaymentMethod(pm);
 
-        when(billRepo.findAllByCompanyId(1L)).thenReturn(List.of(bill));
+        when(billRepo.findBankTransferReconciliationCandidates(1L, BillPaymentStatus.PAID, PaymentType.BANK_TRANSFER)).thenReturn(List.of(bill));
         when(billRepo.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var service = new BankStatementReconciliationService(billRepo, events);

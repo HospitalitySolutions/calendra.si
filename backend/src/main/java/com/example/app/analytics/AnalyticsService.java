@@ -13,7 +13,9 @@ import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.TextStyle;
@@ -179,29 +181,31 @@ public class AnalyticsService {
         String period = normalizePeriod(periodRaw);
         DateRange range = resolveRange(period, fromParam, toParam, zone);
 
-        List<SessionBooking> bookings = bookingRepository.findAllByCompanyId(companyId);
-        List<Client> clients = clientRepository.findAllByCompanyId(companyId);
-        List<Bill> bills = billRepository.findAllByCompanyId(companyId);
+        LocalDateTime bookingRangeStart = range.from().atStartOfDay();
+        LocalDateTime bookingRangeEndExclusive = range.to().plusDays(1).atStartOfDay();
+        Instant clientCreatedFrom = range.from().atStartOfDay(zone).toInstant();
+        Instant clientCreatedToExclusive = range.to().plusDays(1).atStartOfDay(zone).toInstant();
 
-        bookings = bookings.stream()
-                .filter(b -> b.getStartTime() != null)
-                .filter(b -> isInDateRange(b.getStartTime().toLocalDate(), range))
-                .filter(b -> consultantFilter == null || (b.getConsultant() != null && consultantFilter.equals(b.getConsultant().getId())))
-                .filter(b -> spaceId == null || (b.getSpace() != null && spaceId.equals(b.getSpace().getId())))
-                .filter(b -> typeId == null || (b.getType() != null && typeId.equals(b.getType().getId())))
-                .toList();
-
-        clients = clients.stream()
-                .filter(c -> c.getCreatedAt() != null)
-                .filter(c -> isInDateRange(c.getCreatedAt().atZone(zone).toLocalDate(), range))
-                .filter(c -> consultantFilter == null || (c.getAssignedTo() != null && consultantFilter.equals(c.getAssignedTo().getId())))
-                .toList();
-
-        bills = bills.stream()
-                .filter(b -> b.getIssueDate() != null)
-                .filter(b -> isInDateRange(b.getIssueDate(), range))
-                .filter(b -> consultantFilter == null || (b.getConsultant() != null && consultantFilter.equals(b.getConsultant().getId())))
-                .toList();
+        List<SessionBooking> bookings = bookingRepository.findAnalyticsByCompanyIdAndRange(
+                companyId,
+                bookingRangeStart,
+                bookingRangeEndExclusive,
+                consultantFilter,
+                spaceId,
+                typeId
+        );
+        List<Client> clients = clientRepository.findAnalyticsByCompanyIdAndCreatedAtRange(
+                companyId,
+                clientCreatedFrom,
+                clientCreatedToExclusive,
+                consultantFilter
+        );
+        List<Bill> bills = billRepository.findAnalyticsByCompanyIdAndIssueDateRange(
+                companyId,
+                range.from(),
+                range.to(),
+                consultantFilter
+        );
 
         Map<YearMonth, Bucket> monthBuckets = new HashMap<>();
         Map<Integer, Bucket> yearBuckets = new HashMap<>();

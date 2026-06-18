@@ -2,7 +2,7 @@ package com.example.app.billing;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -12,19 +12,21 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class BankStatementReconciliationService {
+    private static final long MAX_BANK_STATEMENT_BYTES = 5L * 1024L * 1024L;
+
     private final BillRepository billRepo;
     private final ApplicationEventPublisher events;
 
@@ -35,75 +37,70 @@ public class BankStatementReconciliationService {
 
     @Transactional
     public ReconciliationResult importStatement(Long companyId, MultipartFile file) throws IOException {
-        String text = new String(file.getBytes(), StandardCharsets.UTF_8);
-        List<String> lines = new BufferedReader(new StringReader(text)).lines().toList();
-
-        if (lines.isEmpty()) {
-            return new ReconciliationResult(0, 0, 0, List.of());
+        if (file.getSize() > MAX_BANK_STATEMENT_BYTES) {
+            throw new ResponseStatusException(
+                    HttpStatus.PAYLOAD_TOO_LARGE,
+                    "Bank statement file is too large. Maximum allowed size is 5 MB."
+            );
         }
 
-        List<Bill> candidates = billRepo.findAllByCompanyId(companyId).stream()
+        List<Bill> candidates = billRepo.findBankTransferReconciliationCandidates(
+                        companyId,
+                        BillPaymentStatus.PAID,
+                        PaymentType.BANK_TRANSFER
+                ).stream()
                 .filter(b -> BillPaymentSplitSupport.resolveBankTransferDueGross(b).compareTo(BigDecimal.ZERO) > 0)
-                .filter(b -> !BillPaymentStatus.PAID.equals(b.getPaymentStatus()))
-                .sorted((a, b) -> Long.compare(a.getId(), b.getId()))
                 .toList();
+        Map<BigDecimal, List<ReconciliationCandidate>> candidatesByAmount = indexCandidatesByAmount(candidates);
 
         Map<Long, Bill> matchedBills = new LinkedHashMap<>();
-        Set<Integer> matchedRows = new HashSet<>();
+        int matchedRows = 0;
         List<MatchedBill> matched = new ArrayList<>();
         int processedRows = 0;
+        List<String> headerCells = List.of();
 
-        for (int idx = 0; idx < lines.size(); idx++) {
-            String line = lines.get(idx);
-
-            if (line == null || line.isBlank()) {
-                continue;
-            }
-
-            processedRows++;
-
-            List<String> cells = splitRow(line, guessDelimiter(line));
-            String normalized = normalize(String.join(" | ", cells));
-            LocalDate paidDate = firstDate(cells);
-
-            BigDecimal rowAmount = amountFromRow(cells, lines, idx);
-            if (rowAmount == null || rowAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
-            }
-
-            for (Bill bill : candidates) {
-                if (matchedBills.containsKey(bill.getId())) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
                     continue;
                 }
 
-                String expectedReference = bankReferenceForBill(bill);
-
-                BigDecimal expectedAmount = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
-                boolean amountMatch = expectedAmount.compareTo(BigDecimal.ZERO) > 0
-                        && expectedAmount.setScale(2, RoundingMode.HALF_UP).compareTo(rowAmount) == 0;
-
-                if (!amountMatch) {
+                List<String> cells = splitRow(line, guessDelimiter(line));
+                if (isHeaderRow(cells)) {
+                    headerCells = cells;
                     continue;
                 }
 
-                String normRef = normalize(expectedReference);
-                String normBill = normalize(bill.getBillNumber());
+                String normalized = normalize(String.join(" | ", cells));
+                LocalDate paidDate = firstDate(cells);
+                BigDecimal rowAmount = amountFromRow(cells, headerCells);
+                if (rowAmount == null || rowAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
 
-                if ((!normRef.isBlank() && normalized.contains(normRef))
-                        || (!normBill.isBlank() && normalized.contains(normBill))) {
-                    bill.setPaymentStatus(BillPaymentStatus.PAID);
-                    bill.setPaidAt(paidDate == null
-                            ? OffsetDateTime.now()
-                            : paidDate.atStartOfDay().plusHours(12).atOffset(ZoneOffset.UTC));
-
-                    if (bill.getBankTransferReference() == null || bill.getBankTransferReference().isBlank()) {
-                        bill.setBankTransferReference(expectedReference);
+                processedRows++;
+                for (ReconciliationCandidate candidate : candidatesByAmount.getOrDefault(rowAmount, List.of())) {
+                    Bill bill = candidate.bill();
+                    if (matchedBills.containsKey(bill.getId())) {
+                        continue;
                     }
+                    if ((!candidate.normalizedReference().isBlank() && normalized.contains(candidate.normalizedReference()))
+                            || (!candidate.normalizedBillNumber().isBlank() && normalized.contains(candidate.normalizedBillNumber()))) {
+                        bill.setPaymentStatus(BillPaymentStatus.PAID);
+                        bill.setPaidAt(paidDate == null
+                                ? OffsetDateTime.now()
+                                : paidDate.atStartOfDay().plusHours(12).atOffset(ZoneOffset.UTC));
 
-                    matchedBills.put(bill.getId(), bill);
-                    matchedRows.add(idx);
-                    matched.add(new MatchedBill(bill.getId(), bill.getBillNumber(), expectedReference, rowAmount, paidDate));
-                    break;
+                        if (bill.getBankTransferReference() == null || bill.getBankTransferReference().isBlank()) {
+                            bill.setBankTransferReference(candidate.expectedReference());
+                        }
+
+                        matchedBills.put(bill.getId(), bill);
+                        matchedRows++;
+                        matched.add(new MatchedBill(bill.getId(), bill.getBillNumber(), candidate.expectedReference(), rowAmount, paidDate));
+                        break;
+                    }
                 }
             }
         }
@@ -120,7 +117,7 @@ public class BankStatementReconciliationService {
         return new ReconciliationResult(
                 processedRows,
                 matched.size(),
-                Math.max(0, processedRows - matchedRows.size()),
+                Math.max(0, processedRows - matchedRows),
                 matched
         );
     }
@@ -139,8 +136,34 @@ public class BankStatementReconciliationService {
         return UpnQrPayloadBuilder.toRfReference(bill.getBillNumber());
     }
 
-    private static BigDecimal amountFromRow(List<String> cells, List<String> lines, int rowIndex) {
-        List<String> headerCells = findHeaderCells(lines, rowIndex);
+    private record ReconciliationCandidate(
+            Bill bill,
+            String expectedReference,
+            String normalizedReference,
+            String normalizedBillNumber
+    ) {}
+
+    private static Map<BigDecimal, List<ReconciliationCandidate>> indexCandidatesByAmount(List<Bill> bills) {
+        Map<BigDecimal, List<ReconciliationCandidate>> index = new LinkedHashMap<>();
+        for (Bill bill : bills) {
+            BigDecimal expectedAmount = BillPaymentSplitSupport.resolveBankTransferDueGross(bill);
+            if (expectedAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            String expectedReference = bankReferenceForBill(bill);
+            ReconciliationCandidate candidate = new ReconciliationCandidate(
+                    bill,
+                    expectedReference,
+                    normalize(expectedReference),
+                    normalize(bill.getBillNumber())
+            );
+            BigDecimal amountKey = expectedAmount.setScale(2, RoundingMode.HALF_UP);
+            index.computeIfAbsent(amountKey, ignored -> new ArrayList<>()).add(candidate);
+        }
+        return index;
+    }
+
+    private static BigDecimal amountFromRow(List<String> cells, List<String> headerCells) {
         int dobroIndex = findHeaderIndex(headerCells, "DOBRO");
 
         if (dobroIndex >= 0) {
@@ -159,24 +182,8 @@ public class BankStatementReconciliationService {
         return firstAmount(cells);
     }
 
-    private static List<String> findHeaderCells(List<String> lines, int beforeRowIndex) {
-        for (int i = beforeRowIndex - 1; i >= 0; i--) {
-            String line = lines.get(i);
-
-            if (line == null || line.isBlank()) {
-                continue;
-            }
-
-            List<String> cells = splitRow(line, guessDelimiter(line));
-
-            for (String cell : cells) {
-                if ("DOBRO".equals(normalize(cell))) {
-                    return cells;
-                }
-            }
-        }
-
-        return List.of();
+    private static boolean isHeaderRow(List<String> cells) {
+        return findHeaderIndex(cells, "DOBRO") >= 0;
     }
 
     private static int findHeaderIndex(List<String> headerCells, String wanted) {

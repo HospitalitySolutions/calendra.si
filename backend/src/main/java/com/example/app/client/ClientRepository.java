@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,23 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
 
     @EntityGraph(attributePaths = {"assignedTo", "preferredSlots", "billingCompany"})
     List<Client> findByAssignedToIdAndCompanyId(Long userId, Long companyId);
+
+    @Query("""
+            select c from Client c
+            left join fetch c.assignedTo assignedTo
+            left join fetch c.billingCompany
+            where c.company.id = :companyId
+              and c.createdAt >= :createdFrom
+              and c.createdAt < :createdToExclusive
+              and (:assignedToId is null or assignedTo.id = :assignedToId)
+            order by c.createdAt asc, c.id asc
+            """)
+    List<Client> findAnalyticsByCompanyIdAndCreatedAtRange(
+            @Param("companyId") Long companyId,
+            @Param("createdFrom") Instant createdFrom,
+            @Param("createdToExclusive") Instant createdToExclusive,
+            @Param("assignedToId") Long assignedToId
+    );
 
     @EntityGraph(attributePaths = {"assignedTo", "billingCompany"})
     @Query("""

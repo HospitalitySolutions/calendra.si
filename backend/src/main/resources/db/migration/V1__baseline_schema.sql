@@ -1266,6 +1266,11 @@ BEGIN
                  WHERE phone IS NOT NULL AND trim(phone) <> ''''';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_active_assigned
                  ON clients (company_id, active, assigned_to_id, id)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_created_at
+                 ON clients (company_id, created_at, id)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_assigned_created_at
+                 ON clients (company_id, assigned_to_id, created_at, id)
+                 WHERE assigned_to_id IS NOT NULL';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_billing_company
                  ON clients (company_id, billing_company_id) WHERE billing_company_id IS NOT NULL';
     END IF;
@@ -1505,6 +1510,27 @@ BEGIN
 
     IF to_regclass('public.bills') IS NOT NULL THEN
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bills_company_issue_date_id ON bills (company_id, issue_date DESC, id DESC)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bills_company_consultant_issue_date_id
+                 ON bills (company_id, consultant_id, issue_date DESC, id DESC)
+                 WHERE consultant_id IS NOT NULL';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bills_company_payment_status_id
+                 ON bills (company_id, payment_status, id)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bills_company_payment_method_status_id
+                 ON bills (company_id, payment_method_id, payment_status, id)
+                 WHERE payment_method_id IS NOT NULL';
+    END IF;
+
+    IF to_regclass('public.bill_item') IS NOT NULL THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bill_item_source_session_booking
+                 ON bill_item (source_session_booking_id, bill_id)
+                 WHERE source_session_booking_id IS NOT NULL';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bill_item_bill_id
+                 ON bill_item (bill_id)';
+    END IF;
+
+    IF to_regclass('public.bill_payments') IS NOT NULL THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bill_payments_bill_method
+                 ON bill_payments (bill_id, payment_method_id)';
     END IF;
 
     IF to_regclass('public.open_bills') IS NOT NULL THEN
