@@ -47,9 +47,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RestController
 @RequestMapping("/api/bookings")
 public class SessionBookingController {
-    private static final long DEFAULT_BOOKING_LIST_PAST_DAYS = 180;
-    private static final long DEFAULT_BOOKING_LIST_FUTURE_DAYS = 365;
-    private static final long MAX_BOOKING_QUERY_DAYS = 731;
+    private static final long DEFAULT_BOOKING_LIST_PAST_DAYS = 31;
+    private static final long DEFAULT_BOOKING_LIST_FUTURE_DAYS = 62;
+    private static final long MAX_BOOKING_QUERY_DAYS = 93;
 
     private final SessionBookingRepository repo;
     private final BookableSlotRepository bookableSlots;

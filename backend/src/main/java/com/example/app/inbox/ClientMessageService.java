@@ -438,7 +438,15 @@ public class ClientMessageService {
     public List<ThreadSummary> listThreads(User me, ThreadFilter filter, int page, int size) {
         List<ClientMessage> visible = filterVisibleMessages(me, page, size);
         List<ClientMessage> filtered = visible.stream().filter(row -> matchesFilter(row, filter)).toList();
-        Map<Long, GuestTenantLink> activeGuestLinksByClientId = guestTenantLinks.findAllByCompanyIdAndStatus(me.getCompany().getId(), GuestTenantLinkStatus.ACTIVE).stream()
+        Set<Long> visibleClientIds = filtered.stream()
+                .map(ClientMessage::getClient)
+                .filter(Objects::nonNull)
+                .map(Client::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, GuestTenantLink> activeGuestLinksByClientId = (visibleClientIds.isEmpty()
+                ? List.<GuestTenantLink>of()
+                : guestTenantLinks.findAllByCompanyIdAndStatusAndClientIdIn(me.getCompany().getId(), GuestTenantLinkStatus.ACTIVE, visibleClientIds)).stream()
                 .collect(Collectors.toMap(link -> link.getClient().getId(), link -> link, (left, right) -> left, LinkedHashMap::new));
         Map<String, List<ClientMessage>> grouped = groupByConversationKey(filtered);
 
@@ -1642,13 +1650,12 @@ public class ClientMessageService {
     }
 
     private Client findWhatsAppClient(Long companyId, String from) {
-        if (from == null) return null;
-        for (Client client : clients.findAllByCompanyId(companyId)) {
-            String wa = normalizeMsisdn(client.getWhatsappPhone());
-            String phone = normalizeMsisdn(client.getPhone());
-            if (from.equals(wa) || from.equals(phone)) return client;
-        }
-        return null;
+        String normalized = normalizeMsisdn(from);
+        if (normalized == null) return null;
+        return clients.findMessagingPhoneCandidatesByCompanyId(companyId, normalized, PageRequest.of(0, 1))
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     private String extractWhatsAppInboundBody(JsonNode message, String senderName) {

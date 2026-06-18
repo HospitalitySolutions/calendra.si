@@ -1,5 +1,6 @@
 package com.example.app.guest.model;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,4 +14,5 @@ public interface GuestTenantLinkRepository extends JpaRepository<GuestTenantLink
     boolean existsByCompanyIdAndClientIdAndStatus(Long companyId, Long clientId, GuestTenantLinkStatus status);
     List<GuestTenantLink> findAllByGuestUserIdAndStatus(Long guestUserId, GuestTenantLinkStatus status);
     List<GuestTenantLink> findAllByCompanyIdAndStatus(Long companyId, GuestTenantLinkStatus status);
+    List<GuestTenantLink> findAllByCompanyIdAndStatusAndClientIdIn(Long companyId, GuestTenantLinkStatus status, Collection<Long> clientIds);
 }

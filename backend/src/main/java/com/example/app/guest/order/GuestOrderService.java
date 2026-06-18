@@ -1281,13 +1281,11 @@ public class GuestOrderService {
             }
         }
 
-        List<User> activeUsers = users.findAllByCompanyId(order.getCompany().getId()).stream()
-                .filter(User::isActive)
-                .sorted(java.util.Comparator.comparing(User::getId))
-                .toList();
-
         // Guest mobile bookings stay unassigned unless there is exactly one active user in the tenancy.
-        return activeUsers.size() == 1 ? activeUsers.get(0) : null;
+        Long companyId = order.getCompany().getId();
+        return users.countByCompanyIdAndActiveTrue(companyId) == 1
+                ? users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(companyId).orElse(null)
+                : null;
     }
 
     private SessionBooking createBooking(GuestOrder order, SlotContext slotContext, String status) {

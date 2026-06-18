@@ -79,6 +79,22 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
     Optional<Client> findFirstByCompanyIdAndWhatsappPhoneOrderByIdAsc(Long companyId, String whatsappPhone);
     Optional<Client> findFirstByCompanyIdAndViberUserIdOrderByIdAsc(Long companyId, String viberUserId);
 
+    @Query("""
+            select c from Client c
+            left join fetch c.assignedTo
+            left join fetch c.billingCompany
+            where c.company.id = :companyId
+              and (
+                    function('regexp_replace', coalesce(c.whatsappPhone, ''), '[^0-9]', '', 'g') = :normalizedPhone
+                 or function('regexp_replace', coalesce(c.phone, ''), '[^0-9]', '', 'g') = :normalizedPhone
+              )
+            order by c.id asc
+            """)
+    List<Client> findMessagingPhoneCandidatesByCompanyId(
+            @Param("companyId") Long companyId,
+            @Param("normalizedPhone") String normalizedPhone,
+            Pageable pageable);
+
     Optional<Client> findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(Long companyId, Long billingCompanyId);
 
     List<Client> findAllByCompanyIdAndBillingCompanyId(Long companyId, Long billingCompanyId);

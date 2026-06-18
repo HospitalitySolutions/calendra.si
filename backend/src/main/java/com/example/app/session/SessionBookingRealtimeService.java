@@ -2,6 +2,9 @@ package com.example.app.session;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,15 +31,34 @@ public class SessionBookingRealtimeService {
     private final SessionBookingRealtimeProperties properties;
     private final ObjectProvider<StringRedisTemplate> redisProvider;
     private final ObjectMapper objectMapper;
+    private final Counter sseSendFailures;
+    private final Counter sseRedisEventsReceived;
+    private final Counter sseRedisPublishFailures;
 
     public SessionBookingRealtimeService(
             SessionBookingRealtimeProperties properties,
             ObjectProvider<StringRedisTemplate> redisProvider,
-            ObjectProvider<ObjectMapper> objectMapperProvider
+            ObjectProvider<ObjectMapper> objectMapperProvider,
+            MeterRegistry meterRegistry
     ) {
         this.properties = properties;
         this.redisProvider = redisProvider;
         this.objectMapper = objectMapperProvider.getIfAvailable(ObjectMapper::new);
+        this.sseSendFailures = Counter.builder("sse_send_failures")
+                .description("Number of booking realtime SSE sends that failed and caused an emitter cleanup")
+                .register(meterRegistry);
+        this.sseRedisEventsReceived = Counter.builder("sse_redis_events_received")
+                .description("Number of booking realtime Redis fan-out events received by this instance")
+                .register(meterRegistry);
+        this.sseRedisPublishFailures = Counter.builder("sse_redis_publish_failures")
+                .description("Number of booking realtime Redis fan-out publish failures")
+                .register(meterRegistry);
+        Gauge.builder("active_guest_sse_connections", this, SessionBookingRealtimeService::activeConnectionCount)
+                .description("Current number of active booking realtime SSE connections on this instance")
+                .register(meterRegistry);
+        Gauge.builder("active_guest_sse_companies", this, service -> service.emittersByCompany.size())
+                .description("Current number of tenant/company buckets with active booking realtime SSE connections on this instance")
+                .register(meterRegistry);
     }
 
     public record BookingUpdatedEvent(
@@ -56,6 +78,7 @@ public class SessionBookingRealtimeService {
         try {
             emitter.send(SseEmitter.event().name("connected").data("ok"));
         } catch (Exception ex) {
+            sseSendFailures.increment();
             removeEmitter(companyId, emitter);
         }
         return emitter;
@@ -72,6 +95,7 @@ public class SessionBookingRealtimeService {
                 try {
                     emitter.send(SseEmitter.event().name("heartbeat").data("ok"));
                 } catch (Exception ex) {
+                    sseSendFailures.increment();
                     staleEmitters.add(emitter);
                 }
             }
@@ -95,6 +119,7 @@ public class SessionBookingRealtimeService {
         if (payload == null || payload.isBlank()) {
             return;
         }
+        sseRedisEventsReceived.increment();
         try {
             JsonNode node = objectMapper.readTree(payload);
             if (instanceId.equals(node.path("sourceInstanceId").asText(""))) {
@@ -135,6 +160,7 @@ public class SessionBookingRealtimeService {
             envelope.put("kind", event.kind());
             redis.convertAndSend(properties.getRedis().getChannel(), objectMapper.writeValueAsString(envelope));
         } catch (Exception ex) {
+            sseRedisPublishFailures.increment();
             log.warn("Failed to publish booking realtime event to Redis companyId={} bookingId={}", event.companyId(), event.bookingId(), ex);
         }
     }
@@ -152,10 +178,17 @@ public class SessionBookingRealtimeService {
             try {
                 emitter.send(SseEmitter.event().name("booking-updated").data(event));
             } catch (Exception ex) {
+                sseSendFailures.increment();
                 staleEmitters.add(emitter);
             }
         }
         staleEmitters.forEach(emitter -> removeEmitter(event.companyId(), emitter));
+    }
+
+    private int activeConnectionCount() {
+        return emittersByCompany.values().stream()
+                .mapToInt(emitters -> emitters == null ? 0 : emitters.size())
+                .sum();
     }
 
     private Long readLong(JsonNode node, String fieldName) {

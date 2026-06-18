@@ -1057,7 +1057,7 @@ public class PlatformSubscriptionBillingService {
     }
 
     private String nextInvoiceNumber(Long companyId) {
-        AppSetting setting = settings.findByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
+        AppSetting setting = settings.findForUpdateByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
                 .orElseThrow(() -> new IllegalStateException("Missing setting: INVOICE_COUNTER"));
         String current = setting.getValue();
         setting.setValue(incrementAlphaNumeric(current));

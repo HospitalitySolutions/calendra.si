@@ -268,9 +268,7 @@ public class UserController {
         return userRepository.findByIdAndCompanyId(id, companyId)
                 .<ResponseEntity<?>>map(target -> {
                     if (target.getRole() == Role.ADMIN && target.isActive()) {
-                        long activeAdmins = userRepository.findAllByCompanyId(companyId).stream()
-                                .filter(u -> u.getRole() == Role.ADMIN && u.isActive())
-                                .count();
+                        long activeAdmins = userRepository.countByCompanyIdAndActiveTrueAndRole(companyId, Role.ADMIN);
                         if (activeAdmins <= 1) {
                             return ResponseEntity.status(HttpStatus.CONFLICT)
                                     .body(Map.of("message", "Cannot deactivate the last active administrator."));

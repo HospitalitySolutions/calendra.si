@@ -2707,10 +2707,7 @@ public class BillingController {
         if (session.getConsultant() != null) {
             return session.getConsultant();
         }
-        return users.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .min(Comparator.comparing(User::getId))
-                .orElse(null);
+        return users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(companyId).orElse(null);
     }
 
     private OpenBill resolveSyncTargetOpenBill(
@@ -3615,7 +3612,7 @@ public class BillingController {
         if (!isAdvanceBillingEnabled(companyId)) {
             return List.of();
         }
-        return billRepo.findAllByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(companyId, BillType.ADVANCE).stream()
+        return billRepo.findByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(companyId, BillType.ADVANCE, PageRequest.of(0, 500)).stream()
                 .map(advance -> toUnusedAdvanceResponse(companyId, advance))
                 .filter(advance -> advance.remainingNet().compareTo(BigDecimal.ZERO) > 0)
                 .toList();
@@ -3837,7 +3834,7 @@ public class BillingController {
     private void saveSettingValue(Long companyId, SettingKey key, String value) {
         var setting = settings.findByCompanyIdAndKey(companyId, key).orElseGet(() -> {
             var ns = new AppSetting();
-            var owner = users.findAllByCompanyId(companyId).stream()
+            var owner = users.findFirstByCompanyIdOrderByIdAsc(companyId).stream()
                     .map(User::getCompany)
                     .filter(Objects::nonNull)
                     .findFirst()
@@ -4150,7 +4147,7 @@ public class BillingController {
     }
 
     private String nextInvoiceNumber(Long companyId) {
-        var setting = settings.findByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
+        var setting = settings.findForUpdateByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
                 .orElseThrow(() -> new IllegalStateException("Missing setting: INVOICE_COUNTER"));
         String current = setting.getValue();
         setting.setValue(incrementAlphaNumeric(current));

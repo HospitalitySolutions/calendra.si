@@ -333,10 +333,8 @@ public class GuestProductBillingService {
     }
 
     private User resolveConsultant(Long companyId) {
-        return users.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .min(Comparator.comparing(User::getId))
-                .or(() -> users.findAllByCompanyId(companyId).stream().min(Comparator.comparing(User::getId)))
+        return users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(companyId)
+                .or(() -> users.findFirstByCompanyIdOrderByIdAsc(companyId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Tenancy has no users available to issue the invoice against."));
     }
@@ -361,9 +359,7 @@ public class GuestProductBillingService {
     /** Falls back when no linked transaction services are configured on product session type. */
     private TransactionService resolveOrCreateGuestProductService(GuestProduct product, Long companyId) {
         String code = "GP-" + product.getId();
-        return transactionServices.findAllByCompanyId(companyId).stream()
-                .filter(tx -> code.equals(tx.getCode()))
-                .findFirst()
+        return transactionServices.findByCompanyIdAndCodeIgnoreCase(companyId, code)
                 .orElseGet(() -> {
                     TransactionService tx = new TransactionService();
                     tx.setCompany(product.getCompany());
@@ -381,7 +377,7 @@ public class GuestProductBillingService {
     }
 
     private String nextInvoiceNumber(Long companyId) {
-        AppSetting setting = settings.findByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
+        AppSetting setting = settings.findForUpdateByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
                 .orElseThrow(() -> new IllegalStateException("Missing setting: INVOICE_COUNTER"));
         String current = setting.getValue();
         setting.setValue(incrementAlphaNumeric(current));

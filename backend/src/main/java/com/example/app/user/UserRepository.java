@@ -18,10 +18,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     long countByCompanyId(Long companyId);
     long countByCompanyIdAndActiveTrue(Long companyId);
+    long countByCompanyIdAndActiveTrueAndRole(Long companyId, Role role);
     Optional<User> findByIdAndCompanyId(Long id, Long companyId);
     Optional<User> findByIdAndCompanyIdAndActiveTrue(Long id, Long companyId);
     Optional<User> findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(Long companyId, Role role);
     Optional<User> findFirstByCompanyIdAndActiveTrueOrderByIdAsc(Long companyId);
+    Optional<User> findFirstByCompanyIdOrderByIdAsc(Long companyId);
 
     @Query("""
             select distinct u from User u

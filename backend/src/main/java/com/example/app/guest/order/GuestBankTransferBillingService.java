@@ -362,10 +362,8 @@ public class GuestBankTransferBillingService {
         if (booking.getConsultant() != null) {
             return booking.getConsultant();
         }
-        return users.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .min(Comparator.comparing(User::getId))
-                .or(() -> users.findAllByCompanyId(companyId).stream().min(Comparator.comparing(User::getId)))
+        return users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(companyId)
+                .or(() -> users.findFirstByCompanyIdOrderByIdAsc(companyId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Tenancy has no users available to issue the advance invoice against."));
     }
@@ -375,7 +373,7 @@ public class GuestBankTransferBillingService {
     }
 
     private String nextInvoiceNumber(Long companyId) {
-        AppSetting setting = settings.findByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
+        AppSetting setting = settings.findForUpdateByCompanyIdAndKey(companyId, SettingKey.INVOICE_COUNTER)
                 .orElseThrow(() -> new IllegalStateException("Missing setting: INVOICE_COUNTER"));
         String current = setting.getValue();
         setting.setValue(incrementAlphaNumeric(current));

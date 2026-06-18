@@ -1306,6 +1306,11 @@ BEGIN
     END IF;
 
     IF to_regclass('public.bills') IS NOT NULL THEN
+        EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS ux_bills_company_bill_number
+                 ON bills (company_id, bill_number)';
+        EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS ux_bills_company_order_id
+                 ON bills (company_id, order_id)
+                 WHERE order_id IS NOT NULL';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bill_company_issue_date
                  ON bills (company_id, issue_date DESC, id DESC)';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_bill_company_type_issue_date
@@ -1506,6 +1511,12 @@ BEGIN
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_assigned_name_id ON clients (company_id, assigned_to_id, last_name, first_name, id) WHERE assigned_to_id IS NOT NULL';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_email_lower ON clients (company_id, lower(email)) WHERE email IS NOT NULL';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_phone ON clients (company_id, phone) WHERE phone IS NOT NULL';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_phone_digits
+                 ON clients (company_id, regexp_replace(coalesce(phone, ''''), ''[^0-9]'', '''', ''g''))
+                 WHERE phone IS NOT NULL AND trim(phone) <> ''''';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_clients_company_whatsapp_phone_digits
+                 ON clients (company_id, regexp_replace(coalesce(whatsapp_phone, ''''), ''[^0-9]'', '''', ''g''))
+                 WHERE whatsapp_phone IS NOT NULL AND trim(whatsapp_phone) <> ''''';
     END IF;
 
     IF to_regclass('public.bills') IS NOT NULL THEN

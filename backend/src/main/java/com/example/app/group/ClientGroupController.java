@@ -180,9 +180,7 @@ public class ClientGroupController {
         var companyId = me.getCompany().getId();
         groups.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        List<SessionBooking> rows = bookings.findAllByCompanyId(companyId).stream()
-                .filter(b -> b.getClientGroup() != null && b.getClientGroup().getId().equals(id))
-                .toList();
+        List<SessionBooking> rows = bookings.findByCompanyIdAndClientGroupIdOrderByStartTimeAsc(companyId, id);
         // One logical group session = one row per bookingGroupKey (multiple DB rows share the same key, one per member).
         Map<String, SessionBooking> onePerSession = new LinkedHashMap<>();
         for (SessionBooking b : rows) {

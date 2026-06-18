@@ -255,6 +255,21 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
     List<SessionBooking> findByClientIdAndCompanyId(@Param("clientId") Long clientId, @Param("companyId") Long companyId);
 
     @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.client
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.space
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.clientGroup
+            WHERE sb.company.id = :companyId
+              AND sb.clientGroup.id = :groupId
+            ORDER BY sb.startTime ASC, sb.id ASC
+            """)
+    List<SessionBooking> findByCompanyIdAndClientGroupIdOrderByStartTimeAsc(
+            @Param("companyId") Long companyId,
+            @Param("groupId") Long groupId);
+
+    @Query("""
             SELECT sb FROM SessionBooking sb
             LEFT JOIN FETCH sb.consultant
             LEFT JOIN FETCH sb.type
