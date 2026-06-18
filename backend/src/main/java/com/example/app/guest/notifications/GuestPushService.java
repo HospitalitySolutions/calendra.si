@@ -2,6 +2,8 @@ package com.example.app.guest.notifications;
 
 import com.example.app.client.Client;
 import com.example.app.company.Company;
+import com.example.app.delivery.MessageDeliveryChannel;
+import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.guest.model.GuestDevicePlatform;
 import com.example.app.guest.model.GuestDeviceToken;
 import com.example.app.guest.model.GuestDeviceTokenRepository;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -46,6 +49,9 @@ public class GuestPushService {
 
     private volatile CachedGoogleToken cachedGoogleToken;
     private volatile CachedApnsJwt cachedApnsJwt;
+
+    @Autowired(required = false)
+    private MessageDeliveryLogService deliveryLogs;
 
     public GuestPushService(
             GuestDeviceTokenRepository deviceTokens,
@@ -65,7 +71,9 @@ public class GuestPushService {
         if (!guestUser.isNotifyMessagesEnabled()) {
             log.info("Guest push delivery skipped because guest has disabled message notifications guestUserId={}, companyId={}, clientId={}",
                     guestUser.getId(), company.getId(), client.getId());
-            return DeliveryResult.none();
+            DeliveryResult result = DeliveryResult.none();
+            logPushDelivery(guestUser, company, client, "GUEST_CHAT_MESSAGE_PUSH", title, body, result);
+            return result;
         }
         Map<String, String> data = Map.of(
                 "type", "guest_chat_message",
@@ -76,7 +84,9 @@ public class GuestPushService {
                 "title", title,
                 "body", body
         );
-        return dispatch(guestUser, company, client, title, body, data, "guest_messages");
+        DeliveryResult result = dispatch(guestUser, company, client, title, body, data, "guest_messages");
+        logPushDelivery(guestUser, company, client, "GUEST_CHAT_MESSAGE_PUSH", title, body, result);
+        return result;
     }
 
     public DeliveryResult notifyGuestReminder(
@@ -90,7 +100,9 @@ public class GuestPushService {
         if (!guestUser.isNotifyRemindersEnabled()) {
             log.info("Guest push reminder skipped because guest has disabled reminder notifications guestUserId={}, companyId={}",
                     guestUser.getId(), company == null ? null : company.getId());
-            return DeliveryResult.none();
+            DeliveryResult result = DeliveryResult.none();
+            logPushDelivery(guestUser, company, client, "GUEST_REMINDER_PUSH", title, body, result);
+            return result;
         }
         Map<String, String> data = new LinkedHashMap<>();
         data.put("type", "guest_reminder");
@@ -107,7 +119,9 @@ public class GuestPushService {
                 }
             }
         }
-        return dispatch(guestUser, company, client, title, body, data, "guest_reminders");
+        DeliveryResult result = dispatch(guestUser, company, client, title, body, data, "guest_reminders");
+        logPushDelivery(guestUser, company, client, "GUEST_REMINDER_PUSH", title, body, result);
+        return result;
     }
 
     private DeliveryResult dispatch(
@@ -468,6 +482,25 @@ public class GuestPushService {
     private static String truncate(String value, int maxLen) {
         if (value == null || value.length() <= maxLen) return value;
         return value.substring(0, maxLen) + "…";
+    }
+
+
+    private void logPushDelivery(GuestUser guestUser, Company company, Client client, String messageType, String title, String body, DeliveryResult result) {
+        if (deliveryLogs == null || company == null) return;
+        String recipient = guestUser == null ? null : guestUser.getEmail();
+        String referenceId = guestUser == null ? null : String.valueOf(guestUser.getId());
+        if (result == null || result.attemptedCount() <= 0) {
+            deliveryLogs.skipped(company, client, guestUser, MessageDeliveryChannel.PUSH, messageType, recipient, title, body, "guest_user", referenceId, "No registered push devices or push notifications disabled");
+            return;
+        }
+        String providerStatus = "attempted=" + result.attemptedCount() + ", delivered=" + result.deliveredCount() + ", invalid=" + result.invalidTokenCount() + ", failed=" + result.failedCount();
+        if (result.deliveredCount() > 0) {
+            deliveryLogs.delivered(company, client, guestUser, MessageDeliveryChannel.PUSH, messageType, recipient, title, body, "guest_user", referenceId, null, providerStatus);
+        } else if (result.failedCount() > 0 || result.invalidTokenCount() > 0) {
+            deliveryLogs.failed(company, client, guestUser, MessageDeliveryChannel.PUSH, messageType, recipient, title, body, "guest_user", referenceId, providerStatus);
+        } else {
+            deliveryLogs.skipped(company, client, guestUser, MessageDeliveryChannel.PUSH, messageType, recipient, title, body, "guest_user", referenceId, providerStatus);
+        }
     }
 
     private static boolean isBlank(String value) {

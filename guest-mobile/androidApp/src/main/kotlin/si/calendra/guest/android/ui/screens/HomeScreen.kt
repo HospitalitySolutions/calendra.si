@@ -646,26 +646,28 @@ private fun BookingDateTimeStrip(booking: UpcomingBookingCard, isSl: Boolean) {
             .padding(horizontal = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1.12f)) {
+            Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 text = formatBookingDateCompact(booking.startsAt, isSl),
                 color = BrandText,
-                fontSize = 16.sp,
+                fontSize = 13.sp,
+                lineHeight = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Box(modifier = Modifier.width(1.dp).height(30.dp).background(Color(0xFFCBD7EA)))
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).padding(start = 14.dp)) {
-            Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
+        Box(modifier = Modifier.width(1.dp).height(28.dp).background(Color(0xFFCBD7EA)))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(0.98f).padding(start = 10.dp)) {
+            Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 text = formatBookingTimeRange(booking.startsAt, booking.endsAt, isSl),
                 color = BrandText,
-                fontSize = 16.sp,
+                fontSize = 13.sp,
+                lineHeight = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

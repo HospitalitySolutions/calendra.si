@@ -1609,7 +1609,7 @@ private fun WalletStackedPassCard(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 WalletQRCode(content = code, modifier = Modifier.size(44.dp))
                                 Spacer(Modifier.height(6.dp))
-                                Text(walletTr(languageCode, "Show QR", "Prikaži QR"), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(walletTr(languageCode, "Show QR", "Prikaži QR"), color = if (isLightCard) WalletInk else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1651,7 +1651,7 @@ private fun WalletStackedPassCard(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 WalletQRCode(content = code, modifier = Modifier.size(44.dp))
                                 Spacer(Modifier.height(6.dp))
-                                Text(walletTr(languageCode, "Show QR", "Prikaži QR"), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(walletTr(languageCode, "Show QR", "Prikaži QR"), color = if (isLightCard) WalletInk else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1716,7 +1716,7 @@ private fun WalletStackedPassCard(
                     }
                 }
 
-                if (type != "GIFT_CARD") {
+                if (type != "GIFT_CARD" && type != "COURSE") {
                     Spacer(Modifier.weight(1f))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1823,6 +1823,7 @@ private fun walletPassGradient(type: String, index: Int): List<Color> = when (ty
     "PACK" -> listOf(Color(0xFFFFB11E), Color(0xFFFF8A00), Color(0xFFFF6D00))
     "CLASS_TICKET" -> listOf(Color(0xFFF5FAFF), Color(0xFFEAF4FF), Color(0xFFFFFFFF))
     "GIFT_CARD" -> listOf(Color(0xFFFFF8EF), Color(0xFFFFF1DD), Color(0xFFFFFFFF))
+    "COURSE" -> listOf(Color(0xFF14B8A6), Color(0xFF0F766E), Color(0xFF115E59))
     else -> if (index % 2 == 0) listOf(Color(0xFFF5FAFF), Color(0xFFEAF4FF), Color.White) else listOf(Color(0xFF0F7BFF), Color(0xFF0056D6), Color(0xFF003DA8))
 }
 
@@ -2214,10 +2215,10 @@ private fun walletTicketStyle(type: String, index: Int): WalletTicketStyle = whe
         softAccent = Color(0xFFFFFFFF)
     )
     "COURSE" -> WalletTicketStyle(
-        background = Color(0xFF0F7BFF),
-        accent = WalletBlueSoft,
-        border = Color(0xFF2C8BFF),
-        softAccent = Color(0xFF003DA8)
+        background = Color(0xFF14B8A6),
+        accent = Color(0xFF14B8A6),
+        border = Color(0xFF5EEAD4),
+        softAccent = Color(0xFF0F766E)
     )
     else -> {
         val isBlue = index % 2 == 0

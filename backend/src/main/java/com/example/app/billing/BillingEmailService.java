@@ -3,6 +3,8 @@ package com.example.app.billing;
 import com.example.app.client.Client;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.delivery.MessageDeliveryChannel;
+import com.example.app.delivery.MessageDeliveryLogService;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -40,6 +42,9 @@ public class BillingEmailService {
     private final String mailFrom;
     private final String fallbackFrom;
     private final boolean mailConfigured;
+
+    @Autowired(required = false)
+    private MessageDeliveryLogService deliveryLogs;
 
     public BillingEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
@@ -102,15 +107,18 @@ public class BillingEmailService {
     public void sendBankTransferFolio(Bill bill, byte[] pdfBytes) {
         if (!isInvoiceDeliveryEnabled(bill)) {
             log.info("Bank transfer folio not emailed for bill {}: invoice delivery is disabled", bill.getId());
+            logBillEmailSkipped(bill, "BANK_TRANSFER_FOLIO", null, "Bank transfer folio", "Invoice delivery is disabled");
             return;
         }
         String recipient = resolveRecipientEmail(bill);
         if (recipient == null || recipient.isBlank()) {
             log.warn("Bank transfer folio not emailed for bill {}: missing recipient email", bill.getId());
+            logBillEmailSkipped(bill, "BANK_TRANSFER_FOLIO", null, "Bank transfer folio", "Missing recipient email");
             return;
         }
         if (!mailConfigured) {
             log.warn("Bank transfer folio not emailed for bill {}: mail is not configured", bill.getId());
+            logBillEmailSkipped(bill, "BANK_TRANSFER_FOLIO", recipient, "Bank transfer folio", "Mail is not configured");
             return;
         }
         try {
@@ -124,8 +132,10 @@ public class BillingEmailService {
             helper.setText(body, looksLikeHtml(body));
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
+            logBillEmailSent(bill, "BANK_TRANSFER_FOLIO", recipient, subject, body);
             log.info("Bank transfer folio emailed for bill {} to {}", bill.getId(), recipient);
         } catch (Exception ex) {
+            logBillEmailFailed(bill, "BANK_TRANSFER_FOLIO", recipient, "Bank transfer folio", ex.getMessage());
             log.warn("Failed to send bank transfer folio for bill {}: {}", bill.getId(), ex.getMessage());
         }
     }
@@ -134,15 +144,18 @@ public class BillingEmailService {
     public void sendInvoiceFolio(Bill bill, byte[] pdfBytes) {
         if (!isInvoiceDeliveryEnabled(bill)) {
             log.info("Invoice folio not emailed for bill {}: invoice delivery is disabled", bill.getId());
+            logBillEmailSkipped(bill, "INVOICE_FOLIO", null, "Invoice folio", "Invoice delivery is disabled");
             return;
         }
         String recipient = resolveRecipientEmail(bill);
         if (recipient == null || recipient.isBlank()) {
             log.warn("Invoice folio not emailed for bill {}: missing recipient email", bill.getId());
+            logBillEmailSkipped(bill, "INVOICE_FOLIO", null, "Invoice folio", "Missing recipient email");
             return;
         }
         if (!mailConfigured) {
             log.warn("Invoice folio not emailed for bill {}: mail is not configured", bill.getId());
+            logBillEmailSkipped(bill, "INVOICE_FOLIO", recipient, "Invoice folio", "Mail is not configured");
             return;
         }
         try {
@@ -156,8 +169,10 @@ public class BillingEmailService {
             helper.setText(body, looksLikeHtml(body));
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
+            logBillEmailSent(bill, "INVOICE_FOLIO", recipient, subject, body);
             log.info("Invoice folio emailed for bill {} to {}", bill.getId(), recipient);
         } catch (Exception ex) {
+            logBillEmailFailed(bill, "INVOICE_FOLIO", recipient, "Invoice folio", ex.getMessage());
             log.warn("Failed to send invoice folio for bill {}: {}", bill.getId(), ex.getMessage());
         }
     }
@@ -197,9 +212,11 @@ public class BillingEmailService {
             String filenamePrefix = slovenian ? "predracun-" : "proforma-";
             helper.addAttachment(filenamePrefix + safeBillNumber(bill) + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
+            logBillEmailSent(bill, "OPEN_BILL_PREVIEW_FOLIO", recipient, subject, body);
             log.info("Open-bill preview folio emailed for bill {} to {}", bill.getId(), recipient);
             return recipient;
         } catch (Exception ex) {
+            logBillEmailFailed(bill, "OPEN_BILL_PREVIEW_FOLIO", recipient, subject, ex.getMessage());
             log.warn("Failed to send open-bill preview folio for bill {}: {}", bill.getId(), ex.getMessage());
             throw new IllegalStateException("Failed to send preview email.", ex);
         }
@@ -210,10 +227,12 @@ public class BillingEmailService {
         String recipient = resolveRecipientEmail(bill);
         if (recipient == null || recipient.isBlank()) {
             log.warn("{} URL not emailed for bill {}: missing recipient email", logLabel, bill.getId());
+            logBillEmailSkipped(bill, normalizeMessageType(logLabel), null, subject, "Missing recipient email");
             return;
         }
         if (!mailConfigured) {
             log.warn("{} URL not emailed for bill {}: mail is not configured", logLabel, bill.getId());
+            logBillEmailSkipped(bill, normalizeMessageType(logLabel), recipient, subject, "Mail is not configured");
             return;
         }
         try {
@@ -224,8 +243,10 @@ public class BillingEmailService {
             helper.setSubject(subject);
             helper.setText(body, false);
             mailSender.send(message);
+            logBillEmailSent(bill, normalizeMessageType(logLabel), recipient, subject, body);
             log.info("{} emailed for bill {} to {}", logLabel, bill.getId(), recipient);
         } catch (Exception ex) {
+            logBillEmailFailed(bill, normalizeMessageType(logLabel), recipient, subject, ex.getMessage());
             log.warn("Failed to send {} email for bill {}: {}", logLabel, bill.getId(), ex.getMessage());
         }
     }
@@ -233,15 +254,18 @@ public class BillingEmailService {
     public void sendPaidBillReceipt(Bill bill, byte[] pdfBytes) {
         if (!isInvoiceDeliveryEnabled(bill)) {
             log.info("Paid bill receipt not emailed for bill {}: invoice delivery is disabled", bill.getId());
+            logBillEmailSkipped(bill, "PAID_BILL_RECEIPT", null, "Paid bill receipt", "Invoice delivery is disabled");
             return;
         }
         String recipient = resolveRecipientEmail(bill);
         if (recipient == null || recipient.isBlank()) {
             log.warn("Paid bill receipt not emailed for bill {}: missing recipient email", bill.getId());
+            logBillEmailSkipped(bill, "PAID_BILL_RECEIPT", null, "Paid bill receipt", "Missing recipient email");
             return;
         }
         if (!mailConfigured) {
             log.warn("Paid bill receipt not emailed for bill {}: mail is not configured", bill.getId());
+            logBillEmailSkipped(bill, "PAID_BILL_RECEIPT", recipient, "Paid bill receipt", "Mail is not configured");
             return;
         }
         try {
@@ -255,12 +279,70 @@ public class BillingEmailService {
             helper.setText(body, looksLikeHtml(body));
             helper.addAttachment(bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
+            logBillEmailSent(bill, "PAID_BILL_RECEIPT", recipient, subject, body);
             log.info("Paid bill receipt emailed for bill {} to {}", bill.getId(), recipient);
         } catch (Exception ex) {
+            logBillEmailFailed(bill, "PAID_BILL_RECEIPT", recipient, "Paid bill receipt", ex.getMessage());
             log.warn("Failed to send paid bill receipt for bill {}: {}", bill.getId(), ex.getMessage());
         }
     }
 
+
+
+    private void logBillEmailSent(Bill bill, String messageType, String recipient, String subject, String preview) {
+        if (deliveryLogs == null || bill == null) return;
+        deliveryLogs.sent(
+                bill.getCompany(),
+                bill.getClient(),
+                null,
+                MessageDeliveryChannel.EMAIL,
+                messageType,
+                recipient,
+                subject,
+                preview,
+                "bill",
+                bill.getId()
+        );
+    }
+
+    private void logBillEmailFailed(Bill bill, String messageType, String recipient, String subject, String reason) {
+        if (deliveryLogs == null || bill == null) return;
+        deliveryLogs.failed(
+                bill.getCompany(),
+                bill.getClient(),
+                null,
+                MessageDeliveryChannel.EMAIL,
+                messageType,
+                recipient,
+                subject,
+                null,
+                "bill",
+                bill.getId(),
+                reason
+        );
+    }
+
+    private void logBillEmailSkipped(Bill bill, String messageType, String recipient, String subject, String reason) {
+        if (deliveryLogs == null || bill == null) return;
+        deliveryLogs.skipped(
+                bill.getCompany(),
+                bill.getClient(),
+                null,
+                MessageDeliveryChannel.EMAIL,
+                messageType,
+                recipient,
+                subject,
+                null,
+                "bill",
+                bill.getId(),
+                reason
+        );
+    }
+
+    private static String normalizeMessageType(String label) {
+        if (label == null || label.isBlank()) return "BILLING_EMAIL";
+        return label.trim().toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]+", "_").replaceAll("^_+|_+$", "");
+    }
 
     private String resolveCompanyName(Bill bill) {
         Long companyId = bill != null && bill.getCompany() != null ? bill.getCompany().getId() : null;

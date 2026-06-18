@@ -764,6 +764,7 @@ struct BookingCardModel: Identifiable, Hashable {
     let status: String
     let tenantName: String
     let tenantCity: String?
+    let tenantAddress: String?
     let tenantPhone: String?
     let cardImageUrl: String?
     let logoImageUrl: String?

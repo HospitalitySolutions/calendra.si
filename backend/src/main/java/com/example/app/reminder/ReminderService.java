@@ -3,6 +3,8 @@ package com.example.app.reminder;
 import com.example.app.client.Client;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.delivery.MessageDeliveryChannel;
+import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.guest.model.GuestNotification;
 import com.example.app.guest.model.GuestNotificationType;
 import com.example.app.guest.notifications.GuestNotificationService;
@@ -58,6 +60,9 @@ public class ReminderService {
     private final GuestNotificationService guestNotifications;
     private final GuestPushService guestPushService;
     private final String frontendBaseUrl;
+
+    @Autowired(required = false)
+    private MessageDeliveryLogService deliveryLogs;
 
     public ReminderService(
             @Autowired(required = false) JavaMailSender mailSender,
@@ -181,9 +186,13 @@ public class ReminderService {
         }
         Map<String, String> tokens = buildTemplateTokens(booking, originalStart, originalEnd);
         try {
-            sendHtmlMail(client.getEmail().trim(), replaceTokens(subject, tokens), replaceTokens(bodyHtml, tokens));
+            String renderedSubject = replaceTokens(subject, tokens);
+            String renderedBody = replaceTokens(bodyHtml, tokens);
+            sendHtmlMail(client.getEmail().trim(), renderedSubject, renderedBody);
+            logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), renderedSubject, renderedBody);
             log.info("Sent {} scheduled booking email to {}", kind, client.getEmail());
         } catch (Exception e) {
+            logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, e.getMessage());
             log.warn("Failed to send {} scheduled booking email: {}", kind, e.getMessage());
         }
     }
@@ -206,8 +215,10 @@ public class ReminderService {
         String text = replaceTokens(body, tokens);
         try {
             sendSmsViaGateway(client.getPhone(), text, companyId, buildCustomId(booking, kind));
+            logBookingDeliverySent(booking, client, MessageDeliveryChannel.SMS, kind, client.getPhone(), smsSubject(kind), text);
             log.info("Sent {} scheduled booking SMS", kind);
         } catch (Exception e) {
+            logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.SMS, kind, client.getPhone(), smsSubject(kind), e.getMessage());
             log.warn("Failed to send {} scheduled booking SMS: {}", kind, e.getMessage());
         }
     }
@@ -254,9 +265,13 @@ public class ReminderService {
                     renderedBody,
                     buildPayloadJson(booking)
             );
+            if (created == null) {
+                logBookingDeliverySkipped(booking, client, MessageDeliveryChannel.GUEST_APP, kind, null, renderedTitle, "Client is not linked to a guest app user");
+            }
             log.info("Sent {} scheduled guest app notification for company {}", kind, booking.getCompany().getId());
             sendReminderPush(created, booking, renderedTitle, renderedBody, kind);
         } catch (Exception e) {
+            logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.GUEST_APP, kind, null, title, e.getMessage());
             log.warn("Failed to send {} scheduled guest app notification: {}", kind, e.getMessage());
         }
     }
@@ -288,9 +303,13 @@ public class ReminderService {
                     renderedBody,
                     buildPayloadJson(booking)
             );
+            if (created == null) {
+                logBookingDeliverySkipped(booking, client, MessageDeliveryChannel.GUEST_APP, kind, null, renderedTitle, "Client is not linked to a guest app user");
+            }
             log.info("Recorded {} guest app bell notification for company {}", kind, companyId);
             sendReminderPush(created, booking, renderedTitle, renderedBody, kind);
         } catch (Exception e) {
+            logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.GUEST_APP, kind, null, null, e.getMessage());
             log.warn("Failed to record {} guest app notification for company {}: {}", kind, companyId, e.getMessage());
         }
     }
@@ -495,7 +514,7 @@ public class ReminderService {
 
         Long companyId = booking.getCompany().getId();
         Map<String, String> tokens = buildTemplateTokens(booking, originalStart, originalEnd);
-        sendImmediateTemplateEmail(client, companyId, kind, tokens);
+        sendImmediateTemplateEmail(booking, client, companyId, kind, tokens);
         sendImmediateTemplateSms(booking, client, companyId, kind, tokens);
         sendImmediateTemplateGuestApp(booking, client, companyId, kind, tokens);
     }
@@ -506,8 +525,9 @@ public class ReminderService {
         return sourceChannel == null || sourceChannel.isBlank() || "STAFF".equalsIgnoreCase(sourceChannel.trim());
     }
 
-    private void sendImmediateTemplateEmail(Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
+    private void sendImmediateTemplateEmail(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
         if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) {
+            logBookingDeliverySkipped(booking, client, MessageDeliveryChannel.EMAIL, kind, client == null ? null : client.getEmail(), null, "Missing recipient email or mail is not configured");
             return;
         }
 
@@ -527,14 +547,17 @@ public class ReminderService {
 
         try {
             sendHtmlMail(client.getEmail().trim(), subject, bodyHtml);
+            logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, bodyHtml);
             log.info("Sent {} booking email to {}", kind, client.getEmail());
         } catch (Exception e) {
+            logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, e.getMessage());
             log.warn("Failed to send {} booking email to {}: {}", kind, client.getEmail(), e.getMessage());
         }
     }
 
     private void sendImmediateTemplateSms(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
         if (client.getPhone() == null || client.getPhone().isBlank() || !smsConfigured) {
+            logBookingDeliverySkipped(booking, client, MessageDeliveryChannel.SMS, kind, client == null ? null : client.getPhone(), smsSubject(kind), "Missing recipient phone or SMS gateway is not configured");
             return;
         }
 
@@ -550,10 +573,39 @@ public class ReminderService {
         }
         try {
             sendSmsViaGateway(client.getPhone(), body, companyId, buildCustomId(booking, kind));
+            logBookingDeliverySent(booking, client, MessageDeliveryChannel.SMS, kind, client.getPhone(), smsSubject(kind), body);
             log.info("Sent {} booking SMS to {}", kind, client.getPhone());
         } catch (Exception e) {
+            logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.SMS, kind, client.getPhone(), smsSubject(kind), e.getMessage());
             log.warn("Failed to send {} booking SMS to {}: {}", kind, client.getPhone(), e.getMessage());
         }
+    }
+
+
+    private void logBookingDeliverySent(SessionBooking booking, Client client, MessageDeliveryChannel channel, NotificationKind kind, String recipient, String subject, String preview) {
+        if (deliveryLogs == null) return;
+        Company company = booking != null ? booking.getCompany() : client != null ? client.getCompany() : null;
+        deliveryLogs.sent(company, client, null, channel, bookingMessageType(kind), recipient, subject, preview, "booking", booking == null ? null : booking.getId());
+    }
+
+    private void logBookingDeliveryFailed(SessionBooking booking, Client client, MessageDeliveryChannel channel, NotificationKind kind, String recipient, String subject, String reason) {
+        if (deliveryLogs == null) return;
+        Company company = booking != null ? booking.getCompany() : client != null ? client.getCompany() : null;
+        deliveryLogs.failed(company, client, null, channel, bookingMessageType(kind), recipient, subject, null, "booking", booking == null ? null : booking.getId(), reason);
+    }
+
+    private void logBookingDeliverySkipped(SessionBooking booking, Client client, MessageDeliveryChannel channel, NotificationKind kind, String recipient, String subject, String reason) {
+        if (deliveryLogs == null) return;
+        Company company = booking != null ? booking.getCompany() : client != null ? client.getCompany() : null;
+        deliveryLogs.skipped(company, client, null, channel, bookingMessageType(kind), recipient, subject, null, "booking", booking == null ? null : booking.getId(), reason);
+    }
+
+    private static String bookingMessageType(NotificationKind kind) {
+        return kind == null ? "BOOKING_NOTIFICATION" : "BOOKING_" + kind.name();
+    }
+
+    private static String smsSubject(NotificationKind kind) {
+        return kind == null ? "SMS notification" : "SMS " + kind.name().replace('_', ' ').toLowerCase(Locale.ROOT);
     }
 
     private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind) {

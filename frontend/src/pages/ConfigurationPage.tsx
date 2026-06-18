@@ -19,6 +19,7 @@ import {
   ConfigurationWhatsAppSection,
 } from "./ConfigurationInboxMessagingSections";
 import { ConfigurationInvoiceDeliverySection } from "./ConfigurationInvoiceDeliverySection";
+import { ConfigurationDeliveryLogsSection } from "./ConfigurationDeliveryLogsSection";
 import { FolioLayoutEditor } from "./FolioLayoutEditor";
 import { SecurityPage } from "./SecurityPage";
 import { GoogleCalendarIntegrationSection } from "./GoogleCalendarIntegrationSection";
@@ -38,6 +39,7 @@ type Tab =
   | "guestApp"
   | "website"
   | "notifications"
+  | "deliveryLogs"
   | "integrations"
   | "whatsapp"
   | "viber"
@@ -178,6 +180,7 @@ type ConfigNavIcon =
   | "guestApp"
   | "website"
   | "notifications"
+  | "deliveryLogs"
   | "integrations"
   | "googleCalendar"
   | "whatsapp"
@@ -528,6 +531,7 @@ const CONFIG_TAB_IDS: readonly Tab[] = [
   "guestApp",
   "website",
   "notifications",
+  "deliveryLogs",
   "integrations",
   "whatsapp",
   "viber",
@@ -541,6 +545,7 @@ const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   guestApp: "tabGuestApp",
   website: "tabWebsite",
   notifications: "tabNotifications",
+  deliveryLogs: "tabDeliveryLogs",
   integrations: "tabIntegrations",
   whatsapp: "tabWhatsapp",
   viber: "tabViber",
@@ -709,6 +714,27 @@ function ConfigTabIcon({ kind }: { kind: ConfigNavIcon }) {
       >
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+    );
+  }
+  if (kind === "deliveryLogs") {
+    return (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M4 4h16v16H4z" />
+        <path d="M8 8h8" />
+        <path d="M8 12h5" />
+        <path d="M8 16h6" />
+        <path d="M17 15l1.5 1.5 2.5-3" />
       </svg>
     );
   }
@@ -7681,6 +7707,7 @@ export function ConfigurationPage() {
       { id: "guestApp", icon: "guestApp" },
       { id: "website", icon: "website" },
       { id: "notifications", icon: "notifications" },
+      { id: "deliveryLogs", icon: "deliveryLogs" },
       { id: "integrations", icon: "integrations" },
       { id: "whatsapp", icon: "whatsapp" },
       { id: "viber", icon: "viber" },
@@ -17209,6 +17236,8 @@ export function ConfigurationPage() {
                   onSave={saveSettings}
                   t={t}
                 />
+              ) : tab === "deliveryLogs" ? (
+                <ConfigurationDeliveryLogsSection />
               ) : tab === "integrations" ? (
                 <div className="integrations-modern-shell">
                   <style>{`

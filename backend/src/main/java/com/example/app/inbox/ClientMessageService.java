@@ -3,6 +3,8 @@ package com.example.app.inbox;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
+import com.example.app.delivery.MessageDeliveryChannel;
+import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.GuestTenantLink;
 import com.example.app.guest.model.GuestTenantLinkRepository;
@@ -91,6 +93,9 @@ public class ClientMessageService {
     private final ScheduledMessageRepository scheduledMessages;
     private final com.example.app.common.TimeService timeService;
     private final RestTemplate restTemplate = new RestTemplate();
+
+    @Autowired(required = false)
+    private MessageDeliveryLogService deliveryLogs;
 
     public ClientMessageService(
             ClientMessageRepository messages,
@@ -855,6 +860,7 @@ public class ClientMessageService {
         }
 
         ClientMessage saved = messages.save(row);
+        logInboxDelivery(saved);
         linkAttachments(saved, safeAttachments);
         finalizePendingInboxAttachments(safeAttachments);
         if (saved.getStatus() == MessageStatus.FAILED) {
@@ -871,6 +877,38 @@ public class ClientMessageService {
             markStaffMessagesRead(saved.getCompany().getId(), saved.getClient().getId(), guestAppRows, saved.getSentAt());
         }
         return toView(saved);
+    }
+
+
+    private void logInboxDelivery(ClientMessage message) {
+        if (deliveryLogs == null || message == null || message.getCompany() == null) return;
+        MessageDeliveryChannel channel = deliveryChannel(message.getChannel());
+        if (channel == null) return;
+        String type = "INBOX_" + (message.getChannel() == null ? "MESSAGE" : message.getChannel().name());
+        String subject = message.getSubject() == null || message.getSubject().isBlank()
+                ? type.replace('_', ' ')
+                : message.getSubject();
+        if (message.getStatus() == MessageStatus.FAILED) {
+            deliveryLogs.failed(message.getCompany(), message.getClient(), message.getGuestUser(), channel, type,
+                    message.getRecipient(), subject, message.getBody(), "client_message", message.getId(), message.getErrorMessage());
+        } else if (message.getStatus() == MessageStatus.DELIVERED) {
+            deliveryLogs.delivered(message.getCompany(), message.getClient(), message.getGuestUser(), channel, type,
+                    message.getRecipient(), subject, message.getBody(), "client_message", message.getId(), message.getExternalMessageId(), null);
+        } else {
+            deliveryLogs.sent(message.getCompany(), message.getClient(), message.getGuestUser(), channel, type,
+                    message.getRecipient(), subject, message.getBody(), "client_message", message.getId());
+        }
+    }
+
+    private static MessageDeliveryChannel deliveryChannel(MessageChannel channel) {
+        if (channel == null) return null;
+        return switch (channel) {
+            case EMAIL -> MessageDeliveryChannel.EMAIL;
+            case SMS -> MessageDeliveryChannel.SMS;
+            case GUEST_APP -> MessageDeliveryChannel.GUEST_APP;
+            case WHATSAPP -> MessageDeliveryChannel.WHATSAPP;
+            case VIBER -> MessageDeliveryChannel.VIBER;
+        };
     }
 
     @Transactional

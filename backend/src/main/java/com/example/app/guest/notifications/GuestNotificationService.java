@@ -3,6 +3,8 @@ package com.example.app.guest.notifications;
 import com.example.app.billing.Bill;
 import com.example.app.client.Client;
 import com.example.app.company.Company;
+import com.example.app.delivery.MessageDeliveryChannel;
+import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.model.*;
@@ -26,6 +28,9 @@ public class GuestNotificationService {
     private final GuestNotificationRepository notifications;
     private final GuestTenantLinkRepository tenantLinks;
     private final GuestPushService guestPushService;
+
+    @Autowired(required = false)
+    private MessageDeliveryLogService deliveryLogs;
 
     @Autowired
     public GuestNotificationService(
@@ -56,7 +61,26 @@ public class GuestNotificationService {
         notification.setTitle(title);
         notification.setBody(body);
         notification.setPayloadJson(payloadJson);
-        return notifications.save(notification);
+        GuestNotification saved = notifications.save(notification);
+        logGuestAppNotification(saved, guestUser, company, client, type, title, body);
+        return saved;
+    }
+
+
+    private void logGuestAppNotification(GuestNotification notification, GuestUser guestUser, Company company, Client client, GuestNotificationType type, String title, String body) {
+        if (deliveryLogs == null || notification == null || company == null) return;
+        deliveryLogs.sent(
+                company,
+                client,
+                guestUser,
+                MessageDeliveryChannel.GUEST_APP,
+                type == null ? "GUEST_APP_NOTIFICATION" : type.name(),
+                guestUser == null ? null : guestUser.getEmail(),
+                title,
+                body,
+                "guest_notification",
+                notification.getId()
+        );
     }
 
     /**

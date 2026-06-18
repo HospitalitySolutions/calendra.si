@@ -791,6 +791,7 @@ CREATE TABLE IF NOT EXISTS guest_users (
     email_verified BOOLEAN NOT NULL,
     notify_messages_enabled BOOLEAN NOT NULL,
     notify_reminders_enabled BOOLEAN NOT NULL,
+    notify_reminder_minutes INTEGER NOT NULL DEFAULT 60,
     google_subject VARCHAR(255),
     apple_subject VARCHAR(255),
     stripe_customer_id VARCHAR(255),
@@ -1014,6 +1015,65 @@ CREATE TABLE IF NOT EXISTS session_booking (
     payee_company_vat_id VARCHAR(64),
     payee_company_email VARCHAR(512)
 );
+
+-- ============================================================================
+-- Squashed from V2__guest_booking_push_reminders.sql
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS booking_push_reminders (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    booking_id BIGINT NOT NULL,
+    guest_user_id BIGINT NOT NULL,
+    company_id BIGINT NOT NULL,
+    client_id BIGINT NOT NULL,
+    due_at TIMESTAMP NOT NULL,
+    booking_start_at TIMESTAMP NOT NULL,
+    reminder_minutes INTEGER NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    sent_at TIMESTAMP,
+    failed_at TIMESTAMP,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error VARCHAR(1000)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_booking_push_reminders_booking_guest
+    ON booking_push_reminders (booking_id, guest_user_id);
+CREATE INDEX IF NOT EXISTS idx_booking_push_reminders_due
+    ON booking_push_reminders (status, due_at, id);
+CREATE INDEX IF NOT EXISTS idx_booking_push_reminders_guest_status
+    ON booking_push_reminders (guest_user_id, status, due_at);
+CREATE INDEX IF NOT EXISTS idx_booking_push_reminders_booking
+    ON booking_push_reminders (booking_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_booking_push_reminders_booking') THEN
+        ALTER TABLE booking_push_reminders ADD CONSTRAINT fk_booking_push_reminders_booking
+            FOREIGN KEY (booking_id) REFERENCES session_booking(id) ON DELETE CASCADE NOT VALID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_booking_push_reminders_guest_user') THEN
+        ALTER TABLE booking_push_reminders ADD CONSTRAINT fk_booking_push_reminders_guest_user
+            FOREIGN KEY (guest_user_id) REFERENCES guest_users(id) ON DELETE CASCADE NOT VALID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_booking_push_reminders_company') THEN
+        ALTER TABLE booking_push_reminders ADD CONSTRAINT fk_booking_push_reminders_company
+            FOREIGN KEY (company_id) REFERENCES company(id) ON DELETE CASCADE NOT VALID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_booking_push_reminders_client') THEN
+        ALTER TABLE booking_push_reminders ADD CONSTRAINT fk_booking_push_reminders_client
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE NOT VALID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_guest_notify_reminder_minutes') THEN
+        ALTER TABLE guest_users ADD CONSTRAINT chk_guest_notify_reminder_minutes
+            CHECK (notify_reminder_minutes IN (5, 15, 30, 60, 180, 1440)) NOT VALID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_booking_push_reminder_minutes') THEN
+        ALTER TABLE booking_push_reminders ADD CONSTRAINT chk_booking_push_reminder_minutes
+            CHECK (reminder_minutes IN (5, 15, 30, 60, 180, 1440)) NOT VALID;
+    END IF;
+END $$;
 
 -- backend/src/main/java/com/example/app/session/SessionType.java
 CREATE TABLE IF NOT EXISTS session_type (
@@ -1798,3 +1858,41 @@ CREATE TABLE IF NOT EXISTS course_access_progress (
 
 CREATE INDEX IF NOT EXISTS idx_course_access_progress_entitlement ON course_access_progress(entitlement_id);
 CREATE INDEX IF NOT EXISTS idx_course_access_progress_course ON course_access_progress(course_id);
+
+-- backend/src/main/java/com/example/app/delivery/MessageDeliveryLog.java
+CREATE TABLE IF NOT EXISTS message_delivery_logs (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+    company_id BIGINT NOT NULL REFERENCES company(id),
+    client_id BIGINT REFERENCES clients(id),
+    guest_user_id BIGINT,
+    channel VARCHAR(32) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    message_type VARCHAR(80) NOT NULL,
+    recipient VARCHAR(320),
+    subject VARCHAR(500),
+    message_preview VARCHAR(1200),
+    reference_type VARCHAR(80),
+    reference_id VARCHAR(80),
+    provider_message_id VARCHAR(255),
+    provider_status_code VARCHAR(80),
+    error_message VARCHAR(1200),
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    sent_at TIMESTAMP(6) WITH TIME ZONE,
+    delivered_at TIMESTAMP(6) WITH TIME ZONE,
+    failed_at TIMESTAMP(6) WITH TIME ZONE,
+    metadata_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_delivery_company_created
+    ON message_delivery_logs(company_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_message_delivery_company_status
+    ON message_delivery_logs(company_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_message_delivery_company_channel
+    ON message_delivery_logs(company_id, channel);
+
+CREATE INDEX IF NOT EXISTS idx_message_delivery_reference
+    ON message_delivery_logs(company_id, reference_type, reference_id);

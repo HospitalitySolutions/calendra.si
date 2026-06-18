@@ -108,6 +108,7 @@ final class AppStore: ObservableObject {
                         status: booking.status,
                         tenantName: dashboard.tenant.name,
                         tenantCity: dashboard.tenant.city,
+                        tenantAddress: dashboard.tenant.companyAddress,
                         tenantPhone: selectedPhone,
                         cardImageUrl: dashboard.tenant.cardImageUrl,
                         logoImageUrl: dashboard.tenant.logoImageUrl,

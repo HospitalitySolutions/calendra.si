@@ -1,6 +1,8 @@
 package com.example.app.course;
 
 import com.example.app.guest.model.GuestEntitlement;
+import com.example.app.delivery.MessageDeliveryChannel;
+import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.guest.model.GuestProduct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +18,9 @@ public class CourseAccessEmailService {
 
     private final JavaMailSender mailSender;
     private final String from;
+
+    @Autowired(required = false)
+    private MessageDeliveryLogService deliveryLogs;
 
     public CourseAccessEmailService(
             @Autowired(required = false) JavaMailSender mailSender,

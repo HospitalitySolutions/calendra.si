@@ -26,6 +26,7 @@ struct HomeView: View {
     @State private var bookingPendingCancel: BookingCardModel?
     @State private var selectedPage: Int = 0
     @State private var cardDragOffset: CGFloat = 0
+    @State private var expandedBookingCardId: String? = nil
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
     private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
@@ -54,6 +55,10 @@ struct HomeView: View {
             sorted = filtered.sorted { ($0.startDate ?? .distantPast) > ($1.startDate ?? .distantPast) }
         }
         return Array(sorted.prefix(5))
+    }
+
+    private var selectedBookingMenuExpanded: Bool {
+        filteredBookingCards.indices.contains(selectedPage) && expandedBookingCardId == filteredBookingCards[selectedPage].id
     }
 
     var body: some View {
@@ -89,7 +94,11 @@ struct HomeView: View {
                 Text(isSl ? "S tem boste preklicali \(booking.title) dne \(bookingDate(booking.startsAt, isSl: isSl))." : "This will cancel \(booking.title) on \(bookingDate(booking.startsAt, isSl: isSl)).")
             }
         }
-        .onChange(of: selectedBookingTab) { _ in selectedPage = 0 }
+        .onChange(of: selectedBookingTab) { _ in
+            selectedPage = 0
+            expandedBookingCardId = nil
+        }
+        .onChange(of: selectedPage) { _ in expandedBookingCardId = nil }
     }
 
     private var headerBlock: some View {
@@ -280,7 +289,14 @@ struct HomeView: View {
                             onMessage: openMessage,
                             onReschedule: onReschedule,
                             onCancel: { bookingPendingCancel = booking },
-                            isSl: isSl
+                            isSl: isSl,
+                            onMenuExpansionChange: { expanded in
+                                if expanded {
+                                    expandedBookingCardId = booking.id
+                                } else if expandedBookingCardId == booking.id {
+                                    expandedBookingCardId = nil
+                                }
+                            }
                         )
                         .scaleEffect(index == selectedPage ? 1.0 : 0.94)
                         .opacity(index == selectedPage ? 1.0 : 0.82)
@@ -312,14 +328,16 @@ struct HomeView: View {
             }
             .frame(height: 470)
 
-            HStack(spacing: 8) {
-                ForEach(filteredBookingCards.indices, id: \.self) { index in
-                    Circle()
-                        .fill(index == selectedPage ? brandBlue : Color(red: 0.792, green: 0.816, blue: 0.855))
-                        .frame(width: index == selectedPage ? 9 : 7, height: index == selectedPage ? 9 : 7)
+            if !selectedBookingMenuExpanded {
+                HStack(spacing: 8) {
+                    ForEach(filteredBookingCards.indices, id: \.self) { index in
+                        Circle()
+                            .fill(index == selectedPage ? brandBlue : Color(red: 0.792, green: 0.816, blue: 0.855))
+                            .frame(width: index == selectedPage ? 9 : 7, height: index == selectedPage ? 9 : 7)
+                    }
                 }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -346,7 +364,7 @@ struct HomeView: View {
     }
 }
 
-private enum HomeBookingActionMenu {
+private enum HomeBookingActionMenu: Equatable {
     case contact
     case manage
 }
@@ -359,12 +377,17 @@ struct HomeBookingCard: View {
     let onReschedule: (BookingCardModel) -> Void
     let onCancel: () -> Void
     let isSl: Bool
+    let onMenuExpansionChange: (Bool) -> Void
 
     @State private var activeActionMenu: HomeBookingActionMenu? = nil
 
     var body: some View {
         cardContent
             .animation(.spring(response: 0.32, dampingFraction: 0.86), value: activeActionMenu)
+            .onChange(of: activeActionMenu) { newValue in
+                onMenuExpansionChange(newValue != nil)
+            }
+            .onDisappear { onMenuExpansionChange(false) }
     }
 
     private var cardContent: some View {
@@ -772,10 +795,13 @@ private func bookingTimeRange(start: String, end: String?, isSl: Bool) -> String
 }
 
 private func bookingLocationLine(booking: BookingCardModel, isSl: Bool) -> String {
-    if let city = booking.tenantCity, !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        return city
+    let address = booking.tenantAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let city = booking.tenantCity?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let parts = [address, city].compactMap { value -> String? in
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
-    return isSl ? "Lokacija še ni potrjena" : "Location to be confirmed"
+    return parts.isEmpty ? (isSl ? "Lokacija še ni potrjena" : "Location to be confirmed") : parts.joined(separator: ", ")
 }
 
 private func bookingDate(_ raw: String, isSl: Bool) -> String {
@@ -795,13 +821,35 @@ private func bookingTime(_ raw: String, isSl: Bool) -> String {
 }
 
 private func parseBookingDate(_ raw: String) -> Date? {
-    let iso = ISO8601DateFormatter()
-    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = iso.date(from: raw) { return date }
-    let iso2 = ISO8601DateFormatter()
-    if let date = iso2.date(from: raw) { return date }
+    let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !value.isEmpty else { return nil }
+
+    let isoFractional = ISO8601DateFormatter()
+    isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = isoFractional.date(from: value) { return date }
+
+    let isoPlain = ISO8601DateFormatter()
+    isoPlain.formatOptions = [.withInternetDateTime]
+    if let date = isoPlain.date(from: value) { return date }
+
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-    return formatter.date(from: raw)
+    formatter.timeZone = TimeZone.current
+
+    let localPatterns = [
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSS",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm"
+    ]
+
+    for pattern in localPatterns {
+        formatter.dateFormat = pattern
+        if let date = formatter.date(from: value) { return date }
+    }
+
+    return nil
 }
