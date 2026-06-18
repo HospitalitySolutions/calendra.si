@@ -8,6 +8,9 @@ import com.example.app.guest.model.GuestDevicePlatform;
 import com.example.app.guest.model.GuestDeviceToken;
 import com.example.app.guest.model.GuestDeviceTokenRepository;
 import com.example.app.guest.model.GuestUser;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
@@ -45,6 +48,7 @@ public class GuestPushService {
     private final GuestDeviceTokenRepository deviceTokens;
     private final GuestPushProperties properties;
     private final ObjectMapper objectMapper;
+    private final AppSettingRepository appSettings;
     private final HttpClient httpClient;
 
     private volatile CachedGoogleToken cachedGoogleToken;
@@ -53,21 +57,36 @@ public class GuestPushService {
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
 
+    @Autowired
     public GuestPushService(
             GuestDeviceTokenRepository deviceTokens,
             GuestPushProperties properties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AppSettingRepository appSettings
     ) {
         this.deviceTokens = deviceTokens;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.appSettings = appSettings;
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_2)
                 .connectTimeout(Duration.ofSeconds(Math.max(3, properties.getConnectTimeoutSeconds())))
                 .build();
     }
 
+    /** Backwards-compatible constructor used by older unit tests. */
+    public GuestPushService(
+            GuestDeviceTokenRepository deviceTokens,
+            GuestPushProperties properties,
+            ObjectMapper objectMapper
+    ) {
+        this(deviceTokens, properties, objectMapper, null);
+    }
+
     public DeliveryResult notifyGuestMessage(GuestUser guestUser, Company company, Client client, String title, String body) {
+        if (!guestAppNotificationsEnabled(company)) {
+            return DeliveryResult.none();
+        }
         if (!guestUser.isNotifyMessagesEnabled()) {
             log.info("Guest push delivery skipped because guest has disabled message notifications guestUserId={}, companyId={}, clientId={}",
                     guestUser.getId(), company.getId(), client.getId());
@@ -97,6 +116,9 @@ public class GuestPushService {
             String body,
             Map<String, String> extraData
     ) {
+        if (!guestAppNotificationsEnabled(company)) {
+            return DeliveryResult.none();
+        }
         if (!guestUser.isNotifyRemindersEnabled()) {
             log.info("Guest push reminder skipped because guest has disabled reminder notifications guestUserId={}, companyId={}",
                     guestUser.getId(), company == null ? null : company.getId());
@@ -122,6 +144,25 @@ public class GuestPushService {
         DeliveryResult result = dispatch(guestUser, company, client, title, body, data, "guest_reminders");
         logPushDelivery(guestUser, company, client, "GUEST_REMINDER_PUSH", title, body, result);
         return result;
+    }
+
+    private boolean guestAppNotificationsEnabled(Company company) {
+        Long companyId = company == null ? null : company.getId();
+        if (appSettings == null || companyId == null) return true;
+        return booleanSetting(companyId, SettingKey.NOTIFICATIONS_ENABLED, true)
+                && booleanSetting(companyId, SettingKey.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED, true);
+    }
+
+    private boolean booleanSetting(Long companyId, SettingKey key, boolean fallback) {
+        return appSettings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(String::trim)
+                .map(value -> {
+                    if (value.equalsIgnoreCase("true")) return true;
+                    if (value.equalsIgnoreCase("false")) return false;
+                    return fallback;
+                })
+                .orElse(fallback);
     }
 
     private DeliveryResult dispatch(

@@ -231,6 +231,11 @@ public class GuestBookingReminderService {
             extra.put("reminderKind", "GUEST_SELECTED_BEFORE_BOOKING");
             extra.put("bookingId", String.valueOf(booking.getId()));
             extra.put("reminderMinutes", String.valueOf(reminder.getReminderMinutes()));
+            if (notification == null) {
+                reminder.setStatus(BookingPushReminderStatus.CANCELLED);
+                reminder.setLastError("Guest app notifications are disabled for this tenant");
+                return;
+            }
             if (notification.getId() != null) {
                 extra.put("notificationId", String.valueOf(notification.getId()));
             }

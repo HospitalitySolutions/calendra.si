@@ -112,8 +112,8 @@ public class ReminderService {
                 continue;
             }
 
-            if (wantsBeforeSession(root)) {
-                int off = scheduleOffsetMinutes(root, "beforeSession");
+            if (wantsBeforeSession(companyId, root)) {
+                int off = scheduleOffsetMinutes(companyId, root, "beforeSession");
                 LocalDateTime startFrom = now.plusMinutes(off);
                 LocalDateTime startTo = now.plusMinutes(off + windowMinutes);
                 List<SessionBooking> beforeList = sessionBookings.findNeedingBeforeSessionNotification(companyId, startFrom, startTo);
@@ -131,8 +131,8 @@ public class ReminderService {
                 }
             }
 
-            if (wantsAfterSession(root)) {
-                int off = scheduleOffsetMinutes(root, "afterSession");
+            if (wantsAfterSession(companyId, root)) {
+                int off = scheduleOffsetMinutes(companyId, root, "afterSession");
                 LocalDateTime endTo = now.minusMinutes(off);
                 LocalDateTime endFrom = now.minusMinutes(off + windowMinutes);
                 List<SessionBooking> afterList = sessionBookings.findNeedingAfterSessionNotification(companyId, endFrom, endTo);
@@ -152,16 +152,26 @@ public class ReminderService {
         }
     }
 
-    private boolean wantsBeforeSession(JsonNode root) {
-        return root.path("email").path("beforeSession").path("enabled").asBoolean(false)
-                || root.path("sms").path("beforeSession").path("enabled").asBoolean(false)
-                || root.path("guestApp").path("beforeSession").path("enabled").asBoolean(false);
+    private boolean wantsBeforeSession(Long companyId, JsonNode root) {
+        return channelTemplateEnabled(companyId, root, "email", "beforeSession")
+                || channelTemplateEnabled(companyId, root, "sms", "beforeSession")
+                || channelTemplateEnabled(companyId, root, "guestApp", "beforeSession");
     }
 
-    private boolean wantsAfterSession(JsonNode root) {
-        return root.path("email").path("afterSession").path("enabled").asBoolean(false)
-                || root.path("sms").path("afterSession").path("enabled").asBoolean(false)
-                || root.path("guestApp").path("afterSession").path("enabled").asBoolean(false);
+    private boolean wantsAfterSession(Long companyId, JsonNode root) {
+        return channelTemplateEnabled(companyId, root, "email", "afterSession")
+                || channelTemplateEnabled(companyId, root, "sms", "afterSession")
+                || channelTemplateEnabled(companyId, root, "guestApp", "afterSession");
+    }
+
+    private boolean channelTemplateEnabled(Long companyId, JsonNode root, String channel, String jsonKind) {
+        boolean channelEnabled = switch (channel) {
+            case "email" -> isEmailChannelEnabled(companyId);
+            case "sms" -> isSmsChannelEnabled(companyId);
+            case "guestApp" -> isGuestAppChannelEnabled(companyId);
+            default -> false;
+        };
+        return channelEnabled && root.path(channel).path(jsonKind).path("enabled").asBoolean(false);
     }
 
     private void sendBeforeAfterEmail(
@@ -173,6 +183,8 @@ public class ReminderService {
     ) {
         Client client = booking.getClient();
         if (client == null || client.isAnonymized()) return;
+        Long companyId = booking.getCompany() == null ? null : booking.getCompany().getId();
+        if (!isEmailChannelEnabled(companyId)) return;
         if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) return;
 
         JsonNode node = notificationNode(root, "email", kind);
@@ -200,6 +212,8 @@ public class ReminderService {
     private void sendBeforeAfterSms(SessionBooking booking, NotificationKind kind, JsonNode root) {
         Client client = booking.getClient();
         if (client == null || client.isAnonymized()) return;
+        Long companyId = booking.getCompany() == null ? null : booking.getCompany().getId();
+        if (!isSmsChannelEnabled(companyId)) return;
         if (client.getPhone() == null || client.getPhone().isBlank() || !smsConfigured) return;
 
         JsonNode node = notificationNode(root, "sms", kind);
@@ -210,7 +224,6 @@ public class ReminderService {
         if (body.isBlank()) {
             return;
         }
-        Long companyId = booking.getCompany().getId();
         Map<String, String> tokens = buildTemplateTokens(booking, null, null);
         String text = replaceTokens(body, tokens);
         try {
@@ -223,16 +236,22 @@ public class ReminderService {
         }
     }
 
-    private int scheduleOffsetMinutes(JsonNode root, String jsonKind) {
-        int fromEmail = parseOffsetMinutes(root.path("email").path(jsonKind));
+    private int scheduleOffsetMinutes(Long companyId, JsonNode root, String jsonKind) {
+        int fromEmail = isEmailChannelEnabled(companyId)
+                ? parseOffsetMinutes(root.path("email").path(jsonKind))
+                : 0;
         if (fromEmail > 0) {
             return fromEmail;
         }
-        int fromSms = parseOffsetMinutes(root.path("sms").path(jsonKind));
+        int fromSms = isSmsChannelEnabled(companyId)
+                ? parseOffsetMinutes(root.path("sms").path(jsonKind))
+                : 0;
         if (fromSms > 0) {
             return fromSms;
         }
-        int fromGuestApp = parseOffsetMinutes(root.path("guestApp").path(jsonKind));
+        int fromGuestApp = isGuestAppChannelEnabled(companyId)
+                ? parseOffsetMinutes(root.path("guestApp").path(jsonKind))
+                : 0;
         if (fromGuestApp > 0) {
             return fromGuestApp;
         }
@@ -382,6 +401,18 @@ public class ReminderService {
         };
     }
 
+    private boolean isEmailChannelEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return booleanSetting(companyId, SettingKey.NOTIFICATIONS_ENABLED, true)
+                && booleanSetting(companyId, SettingKey.NOTIFICATIONS_EMAIL_ALERTS_ENABLED, true);
+    }
+
+    private boolean isSmsChannelEnabled(Long companyId) {
+        if (companyId == null) return false;
+        return booleanSetting(companyId, SettingKey.NOTIFICATIONS_ENABLED, true)
+                && booleanSetting(companyId, SettingKey.NOTIFICATIONS_SMS_ALERTS_ENABLED, false);
+    }
+
     private boolean isGuestAppChannelEnabled(Long companyId) {
         if (companyId == null) return false;
         return booleanSetting(companyId, SettingKey.NOTIFICATIONS_ENABLED, true)
@@ -526,6 +557,9 @@ public class ReminderService {
     }
 
     private void sendImmediateTemplateEmail(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
+        if (!isEmailChannelEnabled(companyId)) {
+            return;
+        }
         if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) {
             logBookingDeliverySkipped(booking, client, MessageDeliveryChannel.EMAIL, kind, client == null ? null : client.getEmail(), null, "Missing recipient email or mail is not configured");
             return;
@@ -556,6 +590,9 @@ public class ReminderService {
     }
 
     private void sendImmediateTemplateSms(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
+        if (!isSmsChannelEnabled(companyId)) {
+            return;
+        }
         if (client.getPhone() == null || client.getPhone().isBlank() || !smsConfigured) {
             logBookingDeliverySkipped(booking, client, MessageDeliveryChannel.SMS, kind, client == null ? null : client.getPhone(), smsSubject(kind), "Missing recipient phone or SMS gateway is not configured");
             return;
@@ -609,6 +646,9 @@ public class ReminderService {
     }
 
     private Optional<NotificationEmailTemplate> loadNotificationEmailTemplate(Long companyId, NotificationKind kind) {
+        if (!isEmailChannelEnabled(companyId)) {
+            return Optional.empty();
+        }
         try {
             JsonNode node = notificationNode(loadNotificationSettingsRoot(companyId), "email", kind);
             if (!node.path("enabled").asBoolean(false)) {
@@ -624,6 +664,9 @@ public class ReminderService {
     }
 
     private Optional<NotificationSmsTemplate> loadNotificationSmsTemplate(Long companyId, NotificationKind kind) {
+        if (!isSmsChannelEnabled(companyId)) {
+            return Optional.empty();
+        }
         try {
             JsonNode node = notificationNode(loadNotificationSettingsRoot(companyId), "sms", kind);
             if (!node.path("enabled").asBoolean(false)) {

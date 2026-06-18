@@ -76,7 +76,31 @@ const STATUSES: Array<{ id: "" | DeliveryStatus; labelSl: string; labelEn: strin
 
 const pageSize = 50;
 
-export function ConfigurationDeliveryLogsSection() {
+type ConfigurationDeliveryLogsSectionProps = {
+  settings?: Record<string, string>;
+};
+
+function isDeliveryChannelVisible(
+  settings: Record<string, string>,
+  channel?: string | null,
+) {
+  const normalized = String(channel || "").toUpperCase();
+  const notificationsOn = settings.NOTIFICATIONS_ENABLED !== "false";
+  if (normalized === "EMAIL") {
+    return notificationsOn && settings.NOTIFICATIONS_EMAIL_ALERTS_ENABLED !== "false";
+  }
+  if (normalized === "SMS") {
+    return notificationsOn && settings.NOTIFICATIONS_SMS_ALERTS_ENABLED === "true";
+  }
+  if (normalized === "GUEST_APP" || normalized === "PUSH") {
+    return notificationsOn && settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== "false";
+  }
+  return true;
+}
+
+export function ConfigurationDeliveryLogsSection({
+  settings = {},
+}: ConfigurationDeliveryLogsSectionProps) {
   const { locale } = useLocale();
   const sl = locale === "sl";
   const [items, setItems] = useState<DeliveryLogItem[]>([]);
@@ -92,6 +116,30 @@ export function ConfigurationDeliveryLogsSection() {
   const [fromDate, setFromDate] = useState(() => formatDateInput(daysAgo(30)));
   const [toDate, setToDate] = useState(() => formatDateInput(new Date()));
   const [selected, setSelected] = useState<DeliveryLogItem | null>(null);
+
+  const visibleChannels = useMemo(
+    () => CHANNELS.filter((entry) => !entry.id || isDeliveryChannelVisible(settings, entry.id)),
+    [settings],
+  );
+  const visibleChannelIds = useMemo(
+    () => new Set(visibleChannels.map((entry) => entry.id).filter(Boolean)),
+    [visibleChannels],
+  );
+  const visibleChannelsKey = useMemo(
+    () => visibleChannels.map((entry) => entry.id || "ALL").join("|"),
+    [visibleChannels],
+  );
+  const visibleItems = useMemo(
+    () => items.filter((item) => isDeliveryChannelVisible(settings, item.channel)),
+    [items, settings],
+  );
+
+  useEffect(() => {
+    if (channel && !visibleChannelIds.has(channel)) {
+      setChannel("");
+      setPage(0);
+    }
+  }, [channel, visibleChannelIds]);
 
   const copy = useMemo(
     () => ({
@@ -142,7 +190,7 @@ export function ConfigurationDeliveryLogsSection() {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel, status, search, fromDate, toDate, page]);
+  }, [channel, status, search, fromDate, toDate, page, visibleChannelsKey]);
 
   const load = async (cancelled = false) => {
     setLoading(true);
@@ -203,7 +251,7 @@ export function ConfigurationDeliveryLogsSection() {
       </div>
 
       <div className="delivery-logs-channel-strip" aria-label={sl ? "Pregled po kanalih" : "Channel overview"}>
-        {CHANNELS.filter((entry) => entry.id).map((entry) => (
+        {visibleChannels.filter((entry) => entry.id).map((entry) => (
           <span key={entry.id} className="delivery-channel-pill">
             <span>{sl ? entry.labelSl : entry.labelEn}</span>
             <strong>{Number(summary.byChannel?.[entry.id as DeliveryChannel] || 0)}</strong>
@@ -215,7 +263,7 @@ export function ConfigurationDeliveryLogsSection() {
         <div className="delivery-logs-filter-row">
           <strong>{copy.filters}</strong>
           <select value={channel} onChange={(event) => setFilterPage(() => setChannel(event.target.value as "" | DeliveryChannel))}>
-            {CHANNELS.map((entry) => (
+            {visibleChannels.map((entry) => (
               <option key={entry.id || "all"} value={entry.id}>{sl ? entry.labelSl : entry.labelEn}</option>
             ))}
           </select>
@@ -260,10 +308,10 @@ export function ConfigurationDeliveryLogsSection() {
                 <tr><td colSpan={7} className="delivery-logs-empty">{copy.loading}</td></tr>
               ) : error ? (
                 <tr><td colSpan={7} className="delivery-logs-empty is-error">{error}</td></tr>
-              ) : items.length === 0 ? (
+              ) : visibleItems.length === 0 ? (
                 <tr><td colSpan={7} className="delivery-logs-empty">{copy.noItems}</td></tr>
               ) : (
-                items.map((item) => (
+                visibleItems.map((item) => (
                   <tr key={item.id}>
                     <td>{formatDateTime(item.createdAt, locale)}</td>
                     <td><ChannelBadge channel={item.channel} sl={sl} /></td>

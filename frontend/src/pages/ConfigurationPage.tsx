@@ -1531,6 +1531,41 @@ function notificationChannelSettingName(channel: NotificationChannel) {
   return channel === "guestApp" ? "GUEST_APP" : channel.toUpperCase();
 }
 
+function isNotificationChannelAvailable(
+  settings: Record<string, string>,
+  channel: NotificationChannel,
+) {
+  if (settings.NOTIFICATIONS_ENABLED === "false") return false;
+  if (channel === "email") {
+    return settings.NOTIFICATIONS_EMAIL_ALERTS_ENABLED !== "false";
+  }
+  if (channel === "sms") {
+    return settings.NOTIFICATIONS_SMS_ALERTS_ENABLED === "true";
+  }
+  return settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== "false";
+}
+
+function applyNotificationModuleAvailability(
+  settings: Record<string, string>,
+): Record<string, string> {
+  const next = { ...settings };
+  if (next.NOTIFICATIONS_ENABLED === "false") {
+    next.NOTIFICATIONS_EMAIL_ALERTS_ENABLED = "false";
+    next.NOTIFICATIONS_SMS_ALERTS_ENABLED = "false";
+    next.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED = "false";
+  }
+
+  notificationChannels.forEach((channel) => {
+    if (!isNotificationChannelAvailable(next, channel)) {
+      notificationEvents.forEach((event) => {
+        next[notificationEnabledKey(channel, event.id)] = "false";
+      });
+    }
+  });
+
+  return next;
+}
+
 function notificationJsonEventKey(id: NotificationEventKind) {
   switch (id) {
     case "sessionChanged":
@@ -1586,22 +1621,22 @@ function offsetToReminderValue(
 }
 
 function buildNotificationSettingsJson(settings: Record<string, string>) {
+  const normalizedSettings = applyNotificationModuleAvailability(settings);
   const root: Record<string, Record<string, Record<string, unknown>>> = {};
 
   notificationChannels.forEach((channel) => {
     root[channel] = {};
     notificationEvents.forEach((event) => {
-      const title = getNotificationTemplateTitle(settings, channel, event.id);
-      const body = getNotificationTemplateBody(settings, channel, event.id);
-      const channelEnabled =
-        settings.NOTIFICATIONS_ENABLED !== "false" &&
-        (channel === "email"
-          ? settings.NOTIFICATIONS_EMAIL_ALERTS_ENABLED !== "false"
-          : channel === "sms"
-            ? settings.NOTIFICATIONS_SMS_ALERTS_ENABLED === "true"
-            : settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== "false");
+      const title = getNotificationTemplateTitle(normalizedSettings, channel, event.id);
+      const body = getNotificationTemplateBody(normalizedSettings, channel, event.id);
+      const channelEnabled = isNotificationChannelAvailable(
+        normalizedSettings,
+        channel,
+      );
       const node: Record<string, unknown> = {
-        enabled: channelEnabled && getNotificationEnabled(settings, channel, event.id),
+        enabled:
+          channelEnabled &&
+          getNotificationEnabled(normalizedSettings, channel, event.id),
       };
 
       if (channel === "email") {
@@ -1619,7 +1654,7 @@ function buildNotificationSettingsJson(settings: Record<string, string>) {
         Object.assign(
           node,
           parseNotificationOffset(
-            getReminderValue(settings, channel, event.reminder),
+            getReminderValue(normalizedSettings, channel, event.reminder),
             event.reminder,
           ),
         );
@@ -2060,9 +2095,9 @@ function ConfigurationNotificationsSection({
   };
 
   const channelAvailability: Record<NotificationChannel, boolean> = {
-    email: settings.NOTIFICATIONS_EMAIL_ALERTS_ENABLED !== "false",
-    sms: settings.NOTIFICATIONS_SMS_ALERTS_ENABLED === "true",
-    guestApp: settings.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED !== "false",
+    email: isNotificationChannelAvailable(settings, "email"),
+    sms: isNotificationChannelAvailable(settings, "sms"),
+    guestApp: isNotificationChannelAvailable(settings, "guestApp"),
   };
   const availableChannels = (["email", "sms", "guestApp"] as const).filter(
     (id) => channelAvailability[id],
@@ -7410,7 +7445,8 @@ export function ConfigurationPage() {
       api.get<AccountUserResponse[]>("/users").catch(() => ({ data: [] })),
     ]);
     const paypalData = paypalConfigRes.data || {};
-    const settingsData: Record<string, string> = mergeNotificationSettingsJsonIntoFlat({
+    const settingsData: Record<string, string> = applyNotificationModuleAvailability(
+      mergeNotificationSettingsJsonIntoFlat({
       ...(settingsRes.data || {}),
       ...(paypalData.merchantId
         ? { PAYPAL_MERCHANT_ID: paypalData.merchantId }
@@ -7424,7 +7460,8 @@ export function ConfigurationPage() {
       PAYPAL_CREDENTIALS_CONFIGURED: paypalData.credentialsConfigured
         ? "true"
         : "false",
-    } as Record<string, string>);
+    } as Record<string, string>),
+    );
     const fallback = getWorkingHoursFallback();
     const parsedGuestApp = parseGuestAppSettings(
       settingsData[GUEST_APP_SETTINGS_KEY],
@@ -7912,6 +7949,7 @@ export function ConfigurationPage() {
         ...effectiveGuestApp,
         tenantType: unifiedTenantType,
       };
+      effectiveSettings = applyNotificationModuleAvailability(effectiveSettings);
 
       const payload = {
         ...effectiveSettings,
@@ -17237,7 +17275,7 @@ export function ConfigurationPage() {
                   t={t}
                 />
               ) : tab === "deliveryLogs" ? (
-                <ConfigurationDeliveryLogsSection />
+                <ConfigurationDeliveryLogsSection settings={settings} />
               ) : tab === "integrations" ? (
                 <div className="integrations-modern-shell">
                   <style>{`

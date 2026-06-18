@@ -9,6 +9,9 @@ import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
+import com.example.app.settings.AppSetting;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -28,6 +31,7 @@ public class GuestNotificationService {
     private final GuestNotificationRepository notifications;
     private final GuestTenantLinkRepository tenantLinks;
     private final GuestPushService guestPushService;
+    private final AppSettingRepository appSettings;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -36,11 +40,13 @@ public class GuestNotificationService {
     public GuestNotificationService(
             GuestNotificationRepository notifications,
             GuestTenantLinkRepository tenantLinks,
-            GuestPushService guestPushService
+            GuestPushService guestPushService,
+            AppSettingRepository appSettings
     ) {
         this.notifications = notifications;
         this.tenantLinks = tenantLinks;
         this.guestPushService = guestPushService;
+        this.appSettings = appSettings;
     }
 
     /** Backwards-compatible constructor used by older unit tests. */
@@ -48,11 +54,14 @@ public class GuestNotificationService {
             GuestNotificationRepository notifications,
             GuestTenantLinkRepository tenantLinks
     ) {
-        this(notifications, tenantLinks, null);
+        this(notifications, tenantLinks, null, null);
     }
 
     @Transactional
     public GuestNotification create(GuestUser guestUser, Company company, Client client, GuestNotificationType type, String title, String body, String payloadJson) {
+        if (!guestAppNotificationsEnabled(company)) {
+            return null;
+        }
         GuestNotification notification = new GuestNotification();
         notification.setGuestUser(guestUser);
         notification.setCompany(company);
@@ -66,6 +75,25 @@ public class GuestNotificationService {
         return saved;
     }
 
+
+    private boolean guestAppNotificationsEnabled(Company company) {
+        Long companyId = company == null ? null : company.getId();
+        if (appSettings == null || companyId == null) return true;
+        return booleanSetting(companyId, SettingKey.NOTIFICATIONS_ENABLED, true)
+                && booleanSetting(companyId, SettingKey.NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED, true);
+    }
+
+    private boolean booleanSetting(Long companyId, SettingKey key, boolean fallback) {
+        return appSettings.findByCompanyIdAndKey(companyId, key)
+                .map(AppSetting::getValue)
+                .map(String::trim)
+                .map(value -> {
+                    if (value.equalsIgnoreCase("true")) return true;
+                    if (value.equalsIgnoreCase("false")) return false;
+                    return fallback;
+                })
+                .orElse(fallback);
+    }
 
     private void logGuestAppNotification(GuestNotification notification, GuestUser guestUser, Company company, Client client, GuestNotificationType type, String title, String body) {
         if (deliveryLogs == null || notification == null || company == null) return;
