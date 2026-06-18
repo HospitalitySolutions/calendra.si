@@ -51,6 +51,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 import si.calendra.guest.android.R
 import si.calendra.guest.shared.models.TenantSummary
 import java.time.DayOfWeek
@@ -664,15 +666,10 @@ private fun UpcomingMonthList(
                 SessionListCard(
                     booking = booking,
                     compact = false,
+                    primaryText = booking.tenantName,
+                    secondaryText = booking.consultantName ?: booking.title,
                     onClick = { originalById[booking.id]?.let(onOpenBooking) }
                 )
-            }
-            TextButton(
-                onClick = {},
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) {
-                Text(if (isSl) "Poglej vse termine" else "View all sessions", color = BrandBlue, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -702,7 +699,7 @@ private fun WeekCalendarView(
             onNextWeek = onNextWeek,
             largeSelected = true
         )
-        TimelineCard(bookings = dayBookings, isSl = isSl)
+        TimelineCard(bookings = dayBookings, selectedDate = selectedDate, isSl = isSl)
     }
 }
 
@@ -853,7 +850,22 @@ private fun FilterChipLike(
 }
 
 @Composable
-private fun TimelineCard(bookings: List<CalendarBooking>, isSl: Boolean) {
+private fun TimelineCard(
+    bookings: List<CalendarBooking>,
+    selectedDate: LocalDate,
+    isSl: Boolean
+) {
+    var currentMoment by remember { mutableStateOf(LocalDateTime.now()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000L)
+            currentMoment = LocalDateTime.now()
+        }
+    }
+
+    val showCurrentTime = selectedDate == currentMoment.toLocalDate()
+    val currentTime = currentMoment.toLocalTime()
     ElevatedCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = Color.White),
@@ -883,11 +895,12 @@ private fun TimelineCard(bookings: List<CalendarBooking>, isSl: Boolean) {
                         bookings.filter { it.start.hour == hour }.forEach { booking ->
                             TimelineBookingCard(booking = booking, isSl = isSl)
                         }
-                        if (hour == 9) {
+                        if (showCurrentTime && hour == currentTime.hour && hour in 8..18) {
+                            val markerTop = 9.dp + ((currentTime.minute / 60f) * 38f).dp
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 16.dp),
+                                    .padding(top = markerTop),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
@@ -900,7 +913,7 @@ private fun TimelineCard(bookings: List<CalendarBooking>, isSl: Boolean) {
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            "09:32",
+                                            currentTime.format(DateTimeFormatter.ofPattern("HH:mm")),
                                             color = Color.White,
                                             fontSize = 10.sp,
                                             lineHeight = 11.sp,
@@ -1033,7 +1046,13 @@ private fun ListDayGroup(
 }
 
 @Composable
-private fun SessionListCard(booking: CalendarBooking, compact: Boolean, onClick: () -> Unit) {
+private fun SessionListCard(
+    booking: CalendarBooking,
+    compact: Boolean,
+    primaryText: String = booking.title,
+    secondaryText: String = booking.consultantName ?: booking.tenantName,
+    onClick: () -> Unit
+) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(if (compact) 11.dp else 13.dp),
@@ -1087,8 +1106,8 @@ private fun SessionListCard(booking: CalendarBooking, compact: Boolean, onClick:
             }
             Spacer(Modifier.width(7.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(booking.title, fontSize = if (compact) 11.sp else 13.sp, fontWeight = FontWeight.ExtraBold, color = BrandBlueDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(booking.consultantName ?: booking.tenantName, fontSize = 10.sp, color = BrandBlue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(primaryText, fontSize = if (compact) 11.sp else 13.sp, fontWeight = FontWeight.ExtraBold, color = BrandBlueDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(secondaryText, fontSize = 10.sp, color = BrandBlue, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 booking.tenantAddress?.let {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = TextMuted, modifier = Modifier.size(11.dp))

@@ -7,6 +7,7 @@ struct CalendarView: View {
     @State private var selectedMode: CalendarMode = .month
     @State private var selectedDate = Date()
     @State private var visibleMonth = Date()
+    @State private var currentTime = Date()
     @State private var popupBooking: BookingCardModel?
     @State private var bookingPendingCancel: BookingCardModel?
 
@@ -28,6 +29,7 @@ struct CalendarView: View {
     private let brandBlue = Color(red: 0.114, green: 0.400, blue: 0.957)
     private let softText = Color(red: 0.37, green: 0.44, blue: 0.54)
     private let cardShadow = Color.black.opacity(0.08)
+    private let currentTimeTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var bookings: [BookingCardModel] {
         store.bookingCards
@@ -62,6 +64,8 @@ struct CalendarView: View {
             .padding(.bottom, 84)
         }
         .background(Color(red: 0.955, green: 0.970, blue: 0.990))
+        .onAppear { currentTime = Date() }
+        .onReceive(currentTimeTimer) { currentTime = $0 }
         .sheet(item: $popupBooking) { booking in
             bookingPopup(booking)
                 .presentationDetents([.height(720), .large])
@@ -211,13 +215,8 @@ struct CalendarView: View {
                 emptyCard
             } else {
                 ForEach(items) { booking in
-                    bookingRow(booking, compact: false)
+                    bookingRow(booking, compact: false, useTenantAsTitle: true)
                 }
-                Button(isSl ? "Poglej vse termine" : "View all sessions") { selectedMode = .list }
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(brandBlue)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 2)
             }
         }
     }
@@ -266,15 +265,22 @@ struct CalendarView: View {
     private var dayTimeline: some View {
         VStack(spacing: 0) {
             ForEach(8...18, id: \.self) { hour in
-                HStack(alignment: .top, spacing: 10) {
-                    Text(String(format: "%02d:00", hour))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(softText)
-                        .frame(width: 32, alignment: .leading)
-                    Rectangle()
-                        .fill(Color(red: 0.86, green: 0.89, blue: 0.94))
-                        .frame(height: 1)
-                        .padding(.top, 6)
+                ZStack(alignment: .topLeading) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(String(format: "%02d:00", hour))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(softText)
+                            .frame(width: 32, alignment: .leading)
+                        Rectangle()
+                            .fill(Color(red: 0.86, green: 0.89, blue: 0.94))
+                            .frame(height: 1)
+                            .padding(.top, 6)
+                    }
+                    if shouldShowCurrentTime(in: hour) {
+                        currentTimeIndicator
+                            .padding(.leading, 36)
+                            .padding(.top, currentTimeMarkerTopPadding)
+                    }
                 }
                 .frame(height: 28)
                 let hourItems = bookings(on: selectedDate).filter { booking in
@@ -466,8 +472,13 @@ struct CalendarView: View {
         .buttonStyle(.plain)
     }
 
-    private func bookingRow(_ booking: BookingCardModel, compact: Bool) -> some View {
-        Button { popupBooking = booking } label: {
+    private func bookingRow(_ booking: BookingCardModel, compact: Bool, useTenantAsTitle: Bool = false) -> some View {
+        let primaryTitle = useTenantAsTitle ? booking.tenantName : booking.title
+        let consultant = booking.consultantName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let secondaryLabel = !(consultant ?? "").isEmpty ? consultant : (useTenantAsTitle ? booking.title : nil)
+        let locationLabel = useTenantAsTitle ? booking.tenantCity : booking.tenantName
+
+        return Button { popupBooking = booking } label: {
             HStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(color(for: booking.tenantName))
@@ -483,19 +494,22 @@ struct CalendarView: View {
                 .frame(width: compact ? 48 : 56, alignment: .leading)
                 Rectangle().fill(Color(red: 0.88, green: 0.90, blue: 0.94)).frame(width: 1, height: compact ? 26 : 32)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(booking.title)
+                    Text(primaryTitle)
                         .font(.system(size: compact ? 11 : 13, weight: .bold))
                         .foregroundColor(Color(red: 0.03, green: 0.12, blue: 0.24))
                         .lineLimit(1)
-                    if let consultant = booking.consultantName, !consultant.isEmpty {
-                        Label(consultant, systemImage: "person")
+                    if let secondaryLabel, !secondaryLabel.isEmpty {
+                        Label(secondaryLabel, systemImage: "person")
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundColor(brandBlue)
+                            .lineLimit(1)
                     }
-                    Label(booking.tenantName, systemImage: "mappin.and.ellipse")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(softText)
-                        .lineLimit(1)
+                    if let locationLabel, !locationLabel.isEmpty {
+                        Label(locationLabel, systemImage: "mappin.and.ellipse")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(softText)
+                            .lineLimit(1)
+                    }
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -646,8 +660,39 @@ struct CalendarView: View {
         return formatter.string(from: date).capitalized
     }
 
+    private func shouldShowCurrentTime(in hour: Int) -> Bool {
+        Calendar.current.isDate(selectedDate, inSameDayAs: currentTime)
+            && Calendar.current.component(.hour, from: currentTime) == hour
+            && (8...18).contains(hour)
+    }
+
+    private var currentTimeMarkerTopPadding: CGFloat {
+        let minute = Calendar.current.component(.minute, from: currentTime)
+        return 6 + (CGFloat(minute) / 60.0 * 28.0)
+    }
+
+    private var currentTimeIndicator: some View {
+        HStack(spacing: 0) {
+            Text(timeText(currentTime))
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .frame(height: 22)
+                .background(Capsule().fill(brandBlue))
+            Rectangle()
+                .fill(brandBlue.opacity(0.65))
+                .frame(height: 1.5)
+        }
+    }
+
     private func timeText(_ iso: String) -> String {
         guard let date = parseDate(iso) else { return "--:--" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func timeText(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
