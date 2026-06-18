@@ -100,6 +100,50 @@ function readCookie(name: string) {
   return match ? decodeURIComponent(match.substring(name.length + 1)) : null
 }
 
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isUsefulApiMessage(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const normalized = value.trim()
+  if (!normalized) return false
+  const generic = new Set([
+    'bad request',
+    'request failed with status code 400',
+    'forbidden',
+    'not found',
+    'internal server error',
+  ])
+  return !generic.has(normalized.toLowerCase())
+}
+
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  const maybeError = error as { response?: { data?: unknown }; message?: unknown }
+  const data = maybeError?.response?.data
+
+  if (isUsefulApiMessage(data)) return data.trim()
+
+  if (isPlainRecord(data)) {
+    for (const key of ['message', 'detail', 'errorMessage', 'reason', 'title'] as const) {
+      const value = data[key]
+      if (isUsefulApiMessage(value)) return value.trim()
+    }
+
+    const errors = data.errors
+    if (Array.isArray(errors)) {
+      const firstMessage = errors
+        .map((item) => isPlainRecord(item) ? item.message : item)
+        .find(isUsefulApiMessage)
+      if (firstMessage) return firstMessage.trim()
+    }
+  }
+
+  if (isUsefulApiMessage(maybeError?.message)) return maybeError.message.trim()
+  return fallback
+}
+
 export async function ensureCsrfToken(force = false): Promise<void> {
   if (isNativePlatform) return
   if (!force && readCookie('XSRF-TOKEN')) return

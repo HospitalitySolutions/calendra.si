@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
-import { api } from '../api'
+import { api, getApiErrorMessage } from '../api'
 import { getStoredUser } from '../auth'
 import { useLocale } from '../locale'
 import { useCalendarFiltersBottomBar, useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
@@ -178,6 +178,28 @@ function walletEntitlementKindLabel(kind: ReturnType<typeof entitlementKind>, lo
   if (kind === 'ticket') return 'Ticket'
   if (kind === 'course') return 'Course'
   return 'Pack'
+}
+
+
+function localizeWalletPurchaseError(message: string, locale: string): string {
+  const normalized = message.trim().toLowerCase()
+  if (locale !== 'sl') return message
+  if (normalized.includes('client needs an email') || normalized.includes('active guest-app link')) {
+    return 'Stranka mora imeti e-mail naslov ali aktivno povezavo z gostujočo aplikacijo, da lahko zanjo kupite ugodnost ali dostop do tečaja.'
+  }
+  if (normalized.includes('guest email is already linked to another client')) {
+    return 'Ta e-mail naslov je že povezan z drugo stranko pri tem ponudniku.'
+  }
+  if (normalized.includes('no payment methods configured')) {
+    return 'Ni nastavljenih načinov plačila. Dodajte jih v App nastavitve > Obračun.'
+  }
+  if (normalized.includes('courses are disabled')) {
+    return 'Tečaji so za ta račun izklopljeni. Vklopite jih v App nastavitve.'
+  }
+  if (normalized.includes('wallet product not found')) {
+    return 'Izbrana ugodnost ni več na voljo. Osvežite seznam in poskusite znova.'
+  }
+  return message
 }
 
 function walletProductPrice(product: WalletProduct): number {
@@ -1529,9 +1551,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       } else {
         navigate('/billing')
       }
-    } catch (err: any) {
-      const message = err?.response?.data?.message
-        || (locale === 'sl' ? 'Odprtega računa za ugodnost ni bilo mogoče ustvariti.' : 'Could not create the entitlement open bill.')
+    } catch (err: unknown) {
+      const fallback = locale === 'sl' ? 'Odprtega računa za ugodnost ni bilo mogoče ustvariti.' : 'Could not create the entitlement open bill.'
+      const message = localizeWalletPurchaseError(getApiErrorMessage(err, fallback), locale)
       setWalletPurchaseError(message)
     } finally {
       setCreatingWalletOpenBill(false)

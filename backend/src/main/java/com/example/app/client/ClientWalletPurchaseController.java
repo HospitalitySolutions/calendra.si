@@ -41,8 +41,10 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -129,6 +131,7 @@ public class ClientWalletPurchaseController {
     ) {}
 
     public record CreateWalletPurchaseOpenBillResponse(Long openBillId, Long orderId, Long productId) {}
+    public record WalletPurchaseErrorResponse(String message) {}
 
     @GetMapping("/products")
     @Transactional(readOnly = true)
@@ -189,6 +192,25 @@ public class ClientWalletPurchaseController {
 
         open = openBills.saveAndFlush(open);
         return new CreateWalletPurchaseOpenBillResponse(open.getId(), order.getId(), product.getId());
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<WalletPurchaseErrorResponse> handleWalletPurchaseError(ResponseStatusException ex) {
+        return ResponseEntity.status(ex.getStatusCode()).body(new WalletPurchaseErrorResponse(errorMessage(ex)));
+    }
+
+    private String errorMessage(ResponseStatusException ex) {
+        String reason = ex.getReason();
+        if (reason != null && !reason.isBlank()) {
+            return reason;
+        }
+        return switch (ex.getStatusCode().value()) {
+            case 400 -> "Bad request.";
+            case 403 -> "You do not have permission to perform this action.";
+            case 404 -> "Requested resource was not found.";
+            case 409 -> "The requested change conflicts with existing data.";
+            default -> "Request failed.";
+        };
     }
 
     private Client loadClientForWalletWrite(Long clientId, User me) {

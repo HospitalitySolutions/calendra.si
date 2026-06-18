@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { api } from '../api'
 import { EmptyState, Field } from '../components/ui'
+import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 import { useToast } from '../components/Toast'
 import { useLocale } from '../locale'
 
@@ -606,7 +607,11 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
               </div>
               <button type="button" className="secondary session-type-config-modal-close" onClick={() => setShowModal(false)}>×</button>
             </div>
-            <form className="booking-side-panel-body config-type-panel-form session-type-config-modal-body" onSubmit={submit}>
+            <form
+              id="course-edit-form"
+              className="booking-side-panel-body config-type-panel-form session-type-config-modal-body"
+              onSubmit={submit}
+            >
               <section className="session-type-config-section">
                 <div className="form-grid two">
                   <Field label={locale === 'sl' ? 'Naslov tečaja *' : 'Course title *'}>
@@ -670,11 +675,19 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                   <label className="checkbox-row"><input type="checkbox" checked={form.guestVisible} onChange={(e) => setForm((f) => ({ ...f, guestVisible: e.target.checked }))} /> {locale === 'sl' ? 'Na voljo za dostop' : 'Available for access'}</label>
                 </div>
               </section>
-              <div className="booking-side-panel-footer session-type-config-modal-footer">
-                <button type="button" className="secondary" onClick={() => setShowModal(false)}>{locale === 'sl' ? 'Prekliči' : 'Cancel'}</button>
-                <button type="submit" className="primary" disabled={saving || uploadingId != null}>{saving || uploadingId != null ? (uploadProgress != null ? `${locale === 'sl' ? 'Nalaganje' : 'Uploading'} ${uploadProgress.toFixed(0)}%` : (locale === 'sl' ? 'Shranjevanje…' : 'Saving…')) : (locale === 'sl' ? 'Shrani' : 'Save')}</button>
-              </div>
             </form>
+            <div className="booking-side-panel-footer session-type-config-modal-footer">
+              <button type="button" className="secondary" onClick={() => setShowModal(false)}>{locale === 'sl' ? 'Prekliči' : 'Cancel'}</button>
+              <button
+                form="course-edit-form"
+                type="submit"
+                className="gapp-primary-button"
+                disabled={saving || uploadingId != null}
+              >
+                <GuestConfigSaveIcon />
+                {saving || uploadingId != null ? (uploadProgress != null ? `${locale === 'sl' ? 'Nalaganje' : 'Uploading'} ${uploadProgress.toFixed(0)}%` : (locale === 'sl' ? 'Shranjevanje…' : 'Saving…')) : (editingId ? (locale === 'sl' ? 'Shrani spremembe' : 'Save changes') : (locale === 'sl' ? 'Ustvari tečaj' : 'Create course'))}
+              </button>
+            </div>
           </div>
         </div>
       )}

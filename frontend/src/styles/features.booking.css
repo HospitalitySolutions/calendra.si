@@ -1597,11 +1597,19 @@
     max-height: calc(100vh - 56px);
     margin: auto;
     padding: 0;
+    display: flex;
+    flex-direction: column;
     border-radius: 24px;
     overflow: hidden;
     background: var(--color-surface);
     border: 1px solid rgba(15, 23, 42, 0.1);
     box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+}
+
+@supports (height: 100dvh) {
+    .session-type-config-modal.modal.large-modal.booking-side-panel {
+        max-height: calc(100dvh - 56px);
+    }
 }
 
 .session-type-config-modal-header {
@@ -1685,10 +1693,13 @@ button.session-type-config-modal-close {
 }
 
 .session-type-config-modal-body.booking-side-panel-body {
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 14px;
     padding: 20px 24px 12px;
+    overflow-y: auto;
     background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
 }
 
@@ -1956,6 +1967,7 @@ button.session-type-config-add-service {
 }
 
 .session-type-config-modal-footer.booking-side-panel-footer {
+    flex-shrink: 0;
     display: flex;
     gap: 12px;
     justify-content: flex-end;
@@ -2017,6 +2029,13 @@ button.session-type-config-add-service {
         min-height: 100vh;
         border-radius: 0;
         margin: 0;
+    }
+
+    @supports (height: 100dvh) {
+        .session-type-config-modal.modal.large-modal.booking-side-panel {
+            min-height: 100dvh;
+            max-height: 100dvh;
+        }
     }
 
     .session-type-config-modal-header {
@@ -2351,11 +2370,19 @@ button.session-type-config-add-service {
     max-height: calc(100vh - 56px);
     margin: auto;
     padding: 0;
+    display: flex;
+    flex-direction: column;
     border-radius: 24px;
     overflow: hidden;
     background: #fff;
     border: 1px solid rgba(15, 23, 42, 0.1);
     box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+}
+
+@supports (height: 100dvh) {
+    .transaction-service-modal.modal.large-modal.booking-side-panel {
+        max-height: calc(100dvh - 56px);
+    }
 }
 
 .transaction-service-modal-header {
@@ -2440,6 +2467,7 @@ button.transaction-service-modal-close {
 
 .transaction-service-modal-body {
     flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     padding: 32px 42px 34px;
     background: #fff;
@@ -2582,6 +2610,7 @@ button.transaction-service-modal-close {
 }
 
 .transaction-service-modal-footer.booking-side-panel-footer {
+    flex-shrink: 0;
     display: flex;
     gap: 16px;
     justify-content: flex-end;
@@ -2664,6 +2693,13 @@ button.transaction-service-modal-close {
         max-height: 100vh;
         border-radius: 0;
         margin: 0;
+    }
+
+    @supports (height: 100dvh) {
+        .transaction-service-modal.modal.large-modal.booking-side-panel {
+            min-height: 100dvh;
+            max-height: 100dvh;
+        }
     }
 
     .transaction-service-modal-header {
