@@ -41,8 +41,10 @@ public class MessageDeliveryLogController {
         Long companyId = me.getCompany().getId();
         MessageDeliveryChannel channelFilter = parseEnum(MessageDeliveryChannel.class, channel);
         MessageDeliveryStatus statusFilter = parseEnum(MessageDeliveryStatus.class, status);
-        String normalizedType = blankToNull(messageType);
-        String normalizedSearch = blankToNull(search);
+        String normalizedType = lowerBlankToNull(messageType);
+        String normalizedSearchPattern = likePatternOrNull(search);
+        boolean hasMessageTypeFilter = normalizedType != null;
+        boolean hasSearchFilter = normalizedSearchPattern != null;
         Instant fromInstant = parseInstant(from);
         Instant toInstant = parseInstant(to);
         int safePage = Math.max(0, page);
@@ -51,8 +53,10 @@ public class MessageDeliveryLogController {
                 companyId,
                 channelFilter,
                 statusFilter,
-                normalizedType,
-                normalizedSearch,
+                hasMessageTypeFilter,
+                hasMessageTypeFilter ? normalizedType : "",
+                hasSearchFilter,
+                hasSearchFilter ? normalizedSearchPattern : "",
                 fromInstant,
                 toInstant,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"))
@@ -68,8 +72,14 @@ public class MessageDeliveryLogController {
         );
     }
 
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+    private static String lowerBlankToNull(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String likePatternOrNull(String value) {
+        String normalized = lowerBlankToNull(value);
+        return normalized == null ? null : "%" + normalized + "%";
     }
 
     private static Instant parseInstant(String value) {

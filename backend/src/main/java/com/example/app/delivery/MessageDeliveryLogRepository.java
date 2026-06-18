@@ -14,16 +14,16 @@ public interface MessageDeliveryLogRepository extends JpaRepository<MessageDeliv
             where log.company.id = :companyId
               and (:channel is null or log.channel = :channel)
               and (:status is null or log.status = :status)
-              and (:messageType is null or lower(log.messageType) = lower(:messageType))
+              and (:messageTypeFilterEnabled = false or lower(log.messageType) = :messageTypeLower)
               and (:from is null or log.createdAt >= :from)
               and (:to is null or log.createdAt < :to)
               and (
-                    :search is null
-                    or lower(coalesce(log.recipient, '')) like lower(concat('%', :search, '%'))
-                    or lower(coalesce(log.subject, '')) like lower(concat('%', :search, '%'))
-                    or lower(coalesce(log.messagePreview, '')) like lower(concat('%', :search, '%'))
-                    or lower(coalesce(log.referenceId, '')) like lower(concat('%', :search, '%'))
-                    or lower(coalesce(log.errorMessage, '')) like lower(concat('%', :search, '%'))
+                    :searchFilterEnabled = false
+                    or lower(coalesce(log.recipient, '')) like :searchPattern
+                    or lower(coalesce(log.subject, '')) like :searchPattern
+                    or lower(coalesce(log.messagePreview, '')) like :searchPattern
+                    or lower(coalesce(log.referenceId, '')) like :searchPattern
+                    or lower(coalesce(log.errorMessage, '')) like :searchPattern
               )
             order by log.createdAt desc
             """)
@@ -31,8 +31,10 @@ public interface MessageDeliveryLogRepository extends JpaRepository<MessageDeliv
             @Param("companyId") Long companyId,
             @Param("channel") MessageDeliveryChannel channel,
             @Param("status") MessageDeliveryStatus status,
-            @Param("messageType") String messageType,
-            @Param("search") String search,
+            @Param("messageTypeFilterEnabled") boolean messageTypeFilterEnabled,
+            @Param("messageTypeLower") String messageTypeLower,
+            @Param("searchFilterEnabled") boolean searchFilterEnabled,
+            @Param("searchPattern") String searchPattern,
             @Param("from") Instant from,
             @Param("to") Instant to,
             Pageable pageable
