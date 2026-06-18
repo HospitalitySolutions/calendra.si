@@ -139,6 +139,9 @@ app:
       channel: ${APP_REALTIME_REDIS_CHANNEL:calendra:session-bookings:events}
   mail:
     from: ${APP_MAIL_FROM:}
+  delivery-logs:
+    retention: ${APP_DELIVERY_LOG_RETENTION:P30D}
+    retention-cron: ${APP_DELIVERY_LOG_RETENTION_CRON:0 37 2 * * *}
   bunny:
     enabled: ${APP_BUNNY_ENABLED:true}
     api-key: ${BUNNY_API_KEY:}

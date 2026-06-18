@@ -136,6 +136,12 @@ public class MessageDeliveryLogService {
         return logs.save(log);
     }
 
+    @Transactional
+    public int purgeLogsOlderThan(Instant cutoff) {
+        if (cutoff == null) return 0;
+        return logs.deleteOlderThan(cutoff);
+    }
+
     private static String blankToDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
