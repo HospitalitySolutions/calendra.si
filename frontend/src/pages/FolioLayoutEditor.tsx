@@ -5,6 +5,9 @@ import { Field, PageHeader } from '../components/ui'
 import { useLocale, type AppLocale } from '../locale'
 import '../styles/folio-layout-editor.css'
 
+const FOLIO_IMAGE_MAX_BYTES = 2_000_000
+const FOLIO_IMAGE_MAX_MB = 2
+
 /* ── Types mirroring backend FolioLayoutConfig ── */
 
 type LocalizedText = {
@@ -744,6 +747,12 @@ export function FolioLayoutEditor() {
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file) return
+      if (file.size > FOLIO_IMAGE_MAX_BYTES) {
+        window.alert(locale === 'sl'
+          ? `Logotip mora biti manjši od ${FOLIO_IMAGE_MAX_MB} MB.`
+          : `Logo must be smaller than ${FOLIO_IMAGE_MAX_MB} MB.`)
+        return
+      }
       const fd = new FormData()
       fd.append('file', file)
       try {
@@ -751,6 +760,9 @@ export function FolioLayoutEditor() {
         setLogoDataUrl(r.data as string)
       } catch (err: any) {
         console.error('Logo upload failed', err)
+        window.alert(locale === 'sl'
+          ? 'Nalaganje logotipa ni uspelo. Preverite, ali je datoteka PNG/JPEG in manjša od 2 MB.'
+          : 'Logo upload failed. Please check that the file is PNG/JPEG and smaller than 2 MB.')
       }
     }
     input.click()
@@ -772,6 +784,12 @@ export function FolioLayoutEditor() {
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file) return
+      if (file.size > FOLIO_IMAGE_MAX_BYTES) {
+        window.alert(locale === 'sl'
+          ? `Podpis mora biti manjši od ${FOLIO_IMAGE_MAX_MB} MB.`
+          : `Signature must be smaller than ${FOLIO_IMAGE_MAX_MB} MB.`)
+        return
+      }
       const fd = new FormData()
       fd.append('file', file)
       try {
@@ -788,6 +806,9 @@ export function FolioLayoutEditor() {
         setDirty(false)
       } catch (err: any) {
         console.error('Signature upload failed', err)
+        window.alert(locale === 'sl'
+          ? 'Nalaganje podpisa ni uspelo. Preverite, ali je datoteka PNG/JPEG in manjša od 2 MB.'
+          : 'Signature upload failed. Please check that the file is PNG/JPEG and smaller than 2 MB.')
       }
     }
     input.click()

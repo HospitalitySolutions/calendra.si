@@ -5084,7 +5084,7 @@ public class BillingController {
 
     /* ── Folio logo management ── */
 
-    private static final long LOGO_MAX_BYTES = 500_000;
+    private static final long LOGO_MAX_BYTES = 2_000_000;
     private static final Set<String> LOGO_MIME_TYPES = Set.of("image/png", "image/jpeg", "image/jpg");
 
     @GetMapping("/folio-logo")
@@ -5108,7 +5108,7 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only PNG and JPEG images are accepted");
         }
         if (file.getSize() > LOGO_MAX_BYTES) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Logo must be smaller than 500 KB");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Logo must be smaller than 2 MB");
         }
         try {
             byte[] bytes = file.getBytes();
@@ -5201,7 +5201,7 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only PNG and JPEG images are accepted");
         }
         if (file.getSize() > LOGO_MAX_BYTES) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Signature must be smaller than 500 KB");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Signature must be smaller than 2 MB");
         }
         try {
             byte[] bytes = file.getBytes();
