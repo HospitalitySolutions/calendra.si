@@ -429,15 +429,70 @@ public class FolioPdfService {
         List<FolioPdfRequest.AdvancePaymentLine> rows = advancePaymentRows(req);
         var tbl = layout.getTable();
         float rowH = Math.max(12f, tbl.getRowHeight());
-        float reservedSingleAdvanceTableHeight = 46f + rowH;
         if (rows.isEmpty()) {
-            // The default layout reserves space for the Predplačila table. When the invoice
-            // does not use any advance-payment method, collapse that reserved area so the
-            // VAT table, summary totals, QR, signature, and payment lines move up.
-            return -reservedSingleAdvanceTableHeight;
+            // The editor shows the VAT/totals block below the Predplačila preview.
+            // When the real invoice does not use advance payments, collapse the whole
+            // reserved Predplačila area and anchor the first follow-up block directly
+            // below the services table instead of only subtracting a hardcoded table height.
+            return -advancePaymentsReservedAreaToCollapse(layout);
         }
-        // One advance row fits into the reserved area. Additional advance rows push content down.
+        // One advance row fits into the preview/reserved area. Additional advance rows push content down.
         return rowH * Math.max(0, rows.size() - 1);
+    }
+
+    private float advancePaymentsReservedAreaToCollapse(FolioLayoutConfig layout) {
+        if (layout == null || layout.getTable() == null) return 0f;
+        var tbl = layout.getTable();
+        float baselineTableBottom = visualServicesTableBottom(
+                tbl.getStartY(),
+                tbl.getHeaderHeight(),
+                tbl.getRowHeight(),
+                LAYOUT_PREVIEW_SERVICE_ROWS
+        );
+        float desiredFirstBlockY = baselineTableBottom + advancePaymentsCollapsedGap(layout);
+        float firstFollowUpY = firstAdvanceAwareFollowUpY(layout, baselineTableBottom);
+        if (firstFollowUpY <= 0f || firstFollowUpY <= desiredFirstBlockY) return 0f;
+        return firstFollowUpY - desiredFirstBlockY;
+    }
+
+    private float advancePaymentsCollapsedGap(FolioLayoutConfig layout) {
+        if (layout == null || layout.getTable() == null) return 12f;
+        // Keep the collapsed layout tight, but not glued to the services table.
+        // Scale the small gap with the configured services-row height so custom layouts remain readable.
+        return Math.max(8f, Math.min(16f, layout.getTable().getRowHeight() * 0.65f));
+    }
+
+    private float firstAdvanceAwareFollowUpY(FolioLayoutConfig layout, float baselineTableBottom) {
+        float firstY = Float.MAX_VALUE;
+
+        var vat = layout.getVatBreakdownTable();
+        if (vat != null && vat.isVisible()) {
+            float h = Math.max(10f, vat.getHeaderHeight()) + Math.max(10f, vat.getRowHeight());
+            firstY = minAdvanceAwareY(layout, firstY, vat.getY(), h, baselineTableBottom);
+        }
+
+        if (layout.getFooter() != null && layout.getFooter().getItems() != null) {
+            for (var item : layout.getFooter().getItems()) {
+                if (item == null || !isSummaryBlockKey(item.getKey())) continue;
+                firstY = minAdvanceAwareY(layout, firstY, item.getY(), footerItemHeight(layout, item), baselineTableBottom);
+            }
+        }
+
+        // Fallbacks for very customized layouts where VAT/totals are hidden or moved.
+        if (layout.getPaymentQr() != null && layout.getPaymentQr().isVisible()) {
+            firstY = minAdvanceAwareY(layout, firstY, layout.getPaymentQr().getY(), layout.getPaymentQr().getHeight(), baselineTableBottom);
+        }
+        if (layout.getSignature() != null && layout.getSignature().isVisible()) {
+            firstY = minAdvanceAwareY(layout, firstY, layout.getSignature().getY(), layout.getSignature().getHeight(), baselineTableBottom);
+        }
+
+        return firstY == Float.MAX_VALUE ? 0f : firstY;
+    }
+
+    private float minAdvanceAwareY(FolioLayoutConfig layout, float currentMin, float y, float height, float baselineTableBottom) {
+        if (y < baselineTableBottom) return currentMin;
+        if (isFixedPageSectionBlock(layout, y, Math.max(1f, height))) return currentMin;
+        return Math.min(currentMin, y);
     }
 
     private List<FolioPdfRequest.AdvancePaymentLine> advancePaymentRows(FolioPdfRequest req) {
