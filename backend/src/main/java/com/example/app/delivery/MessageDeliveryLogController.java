@@ -3,12 +3,15 @@ package com.example.app.delivery;
 import com.example.app.user.User;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,22 +46,20 @@ public class MessageDeliveryLogController {
         MessageDeliveryStatus statusFilter = parseEnum(MessageDeliveryStatus.class, status);
         String normalizedType = lowerBlankToNull(messageType);
         String normalizedSearchPattern = likePatternOrNull(search);
-        boolean hasMessageTypeFilter = normalizedType != null;
-        boolean hasSearchFilter = normalizedSearchPattern != null;
         Instant fromInstant = parseInstant(from);
         Instant toInstant = parseInstant(to);
         int safePage = Math.max(0, page);
         int safeSize = Math.min(Math.max(1, size), 100);
-        var result = logs.searchTenantLogs(
-                companyId,
-                channelFilter,
-                statusFilter,
-                hasMessageTypeFilter,
-                hasMessageTypeFilter ? normalizedType : "",
-                hasSearchFilter,
-                hasSearchFilter ? normalizedSearchPattern : "",
-                fromInstant,
-                toInstant,
+        var result = logs.findAll(
+                tenantLogSpec(
+                        companyId,
+                        channelFilter,
+                        statusFilter,
+                        normalizedType,
+                        normalizedSearchPattern,
+                        fromInstant,
+                        toInstant
+                ),
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"))
         );
         Instant summarySince = Instant.now().minus(30, ChronoUnit.DAYS);
@@ -70,6 +71,49 @@ public class MessageDeliveryLogController {
                 result.getTotalPages(),
                 DeliveryLogSummary.from(logs, companyId, summarySince)
         );
+    }
+
+
+    private static Specification<MessageDeliveryLog> tenantLogSpec(
+            Long companyId,
+            MessageDeliveryChannel channel,
+            MessageDeliveryStatus status,
+            String messageTypeLower,
+            String searchPattern,
+            Instant from,
+            Instant to
+    ) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("company").get("id"), companyId));
+
+            if (channel != null) {
+                predicates.add(cb.equal(root.get("channel"), channel));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (messageTypeLower != null) {
+                predicates.add(cb.equal(cb.lower(root.<String>get("messageType")), messageTypeLower));
+            }
+            if (from != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.<Instant>get("createdAt"), from));
+            }
+            if (to != null) {
+                predicates.add(cb.lessThan(root.<Instant>get("createdAt"), to));
+            }
+            if (searchPattern != null) {
+                predicates.add(cb.or(
+                        cb.like(cb.lower(cb.coalesce(root.<String>get("recipient"), "")), searchPattern),
+                        cb.like(cb.lower(cb.coalesce(root.<String>get("subject"), "")), searchPattern),
+                        cb.like(cb.lower(cb.coalesce(root.<String>get("messagePreview"), "")), searchPattern),
+                        cb.like(cb.lower(cb.coalesce(root.<String>get("referenceId"), "")), searchPattern),
+                        cb.like(cb.lower(cb.coalesce(root.<String>get("errorMessage"), "")), searchPattern)
+                ));
+            }
+
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
     }
 
     private static String lowerBlankToNull(String value) {
