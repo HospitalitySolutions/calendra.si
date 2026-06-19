@@ -1,15 +1,5 @@
 {
   "scripts": {
-    "postinstall": "node scripts/patch-speech-plugin.js",
     "load:widget": "k6 run load-tests/k6/widget-smoke.js"
-  },
-  "dependencies": {
-    "@capacitor-community/speech-recognition": "^7.0.1",
-    "@capacitor/android": "^8.2.0",
-    "@capacitor/core": "^8.2.0",
-    "@capacitor/ios": "^8.2.0"
-  },
-  "devDependencies": {
-    "@capacitor/cli": "^8.2.0"
   }
 }

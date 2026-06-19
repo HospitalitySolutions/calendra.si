@@ -1,8 +1,7 @@
-import { Capacitor } from '@capacitor/core'
+import { isNativeAndroid } from '../../lib/platform'
 import slLocale from '@fullcalendar/core/locales/sl'
 import enGbLocale from '@fullcalendar/core/locales/en-gb'
 
-export const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
 export const WORKING_HOURS_FALLBACK_KEY = 'workingHoursFallback'
 export const PERSONAL_TASK_PRESETS_KEY = 'PERSONAL_TASK_PRESETS_JSON'
 export const AVAILABILITY_BLOCK_TASK = '__availability_block__'

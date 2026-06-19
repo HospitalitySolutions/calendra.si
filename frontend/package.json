@@ -14,8 +14,6 @@
     "build:production": "tsc -b && vite build --mode production"
   },
   "dependencies": {
-    "@capacitor-community/speech-recognition": "^7.0.1",
-    "@capacitor/core": "^8.2.0",
     "@fullcalendar/core": "^6.1.17",
     "@fullcalendar/daygrid": "^6.1.17",
     "@fullcalendar/interaction": "^6.1.17",

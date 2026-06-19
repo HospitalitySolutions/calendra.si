@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Capacitor } from '@capacitor/core'
+import { isNativeAndroid } from '../lib/platform'
 import { api, getApiErrorMessage } from '../api'
 import { getStoredUser } from '../auth'
 import { useLocale } from '../locale'
@@ -277,7 +277,6 @@ const emptyCompanyForm: CompanyForm = {
   batchPaymentEnabled: false,
 }
 
-const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
 
 /** Must match backend TenantFileS3Service and spring.servlet.multipart.max-file-size. */
 const MAX_CLIENT_OR_COMPANY_FILE_BYTES = 50 * 1024 * 1024

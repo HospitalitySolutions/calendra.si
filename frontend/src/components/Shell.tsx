@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core'
+import { isNativeAndroid } from '../lib/platform'
 import { PropsWithChildren, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -10,8 +10,6 @@ import { LanguageModal } from './LanguageModal'
 import { CalendarShellHeaderProvider, useCalendarShellHeader } from '../calendarHeaderContext'
 import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hooks/useCalendarResponsiveLayout'
 import { OnboardingTour } from './OnboardingTour'
-
-const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
 
 function AndroidNavIconCalendar() {
   return (
@@ -165,7 +163,7 @@ function ShellInner({ children }: PropsWithChildren) {
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'
   const [companyName, setCompanyName] = useState(defaultCompanyName)
-  const [aiBookingEnabled, setAiBookingEnabled] = useState(true)
+  const [aiBookingEnabled, setAiBookingEnabled] = useState(false)
   const [overdueTodoCount, setOverdueTodoCount] = useState(0)
   const [todos, setTodos] = useState<any[]>([])
   const [todosModuleEnabled, setTodosModuleEnabled] = useState(true)
@@ -250,7 +248,7 @@ function ShellInner({ children }: PropsWithChildren) {
         const settingsData = r.data || {}
         const configuredName = String(settingsData.COMPANY_NAME || '').trim()
         setCompanyName(configuredName || defaultCompanyName)
-        setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED !== 'false')
+        setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED === 'true')
         setTodosModuleEnabled(settingsData.TODOS_ENABLED !== 'false')
         setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
         setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
@@ -413,7 +411,7 @@ function ShellInner({ children }: PropsWithChildren) {
   }
 
   const globalVoiceButton =
-    aiBookingEnabled && !isCalendarRoute && !narrowWebHeaderForVoice
+    settingsLoaded && aiBookingEnabled && !isCalendarRoute && !narrowWebHeaderForVoice
       ? createPortal(
           <button
             type="button"
@@ -987,7 +985,7 @@ function ShellInner({ children }: PropsWithChildren) {
   )
 
   const compactAppHeaderVoiceButton =
-    !isCalendarRoute && narrowWebHeaderForVoice && aiBookingEnabled ? (
+    settingsLoaded && !isCalendarRoute && narrowWebHeaderForVoice && aiBookingEnabled ? (
       <button
         type="button"
         className="calendar-voice-fab calendar-voice-fab--bottom-panel calendar-voice-fab--header-toolbar"

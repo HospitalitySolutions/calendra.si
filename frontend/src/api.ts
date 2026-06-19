@@ -1,7 +1,5 @@
-import { Capacitor } from '@capacitor/core'
+import { appPlatform, isNativePlatform } from './lib/platform'
 import axios from 'axios'
-
-const isNativePlatform = Capacitor.isNativePlatform()
 
 function readEnv(name: keyof ImportMetaEnv): string | undefined {
   return (import.meta.env[name] as string | undefined)?.trim() || undefined
@@ -48,10 +46,10 @@ function isAndroidEmulatorUrl(url: string): boolean {
  * (Android emulator). VITE_API_URL is still supported as a full URL override.
  */
 export function getApiBaseURL(): string {
-  const native = Capacitor.isNativePlatform()
+  const native = isNativePlatform
   const mobileApiUrl = configuredMobileApiUrl()
   const webUrl = readEnv('VITE_WEB_API_URL')
-  const android = Capacitor.getPlatform() === 'android'
+  const android = appPlatform === 'android'
 
   if (native) {
     if (mobileApiUrl) {

@@ -5,7 +5,6 @@ import interactionPlugin from '@fullcalendar/interaction'
 import resourcePlugin from '@fullcalendar/resource'
 import resourceTimeGridPlugin from '@fullcalendar/resource-timegrid'
 import resourceDayGridPlugin from '@fullcalendar/resource-daygrid'
-import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition'
 import { createPortal } from 'react-dom'
 import {
   useCallback,
@@ -121,6 +120,17 @@ import {
   useCalendarFiltersBottomBar,
   useCalendarMobileHeaderNav,
 } from './hooks/useCalendarHeaderBreakpoints'
+
+type NativeSpeechPermissionState = 'granted' | 'denied' | 'prompt'
+
+const NativeSpeechRecognition = {
+  available: async (): Promise<{ available: boolean }> => ({ available: false }),
+  checkPermissions: async (): Promise<{ speechRecognition: NativeSpeechPermissionState }> => ({ speechRecognition: 'denied' }),
+  requestPermissions: async (): Promise<{ speechRecognition: NativeSpeechPermissionState }> => ({ speechRecognition: 'denied' }),
+  addListener: async (_eventName: string, _listener: (event: any) => void): Promise<{ remove: () => Promise<void> }> => ({ remove: async () => {} }),
+  start: async (_options?: Record<string, unknown>): Promise<{ matches?: string[] }> => ({ matches: [] }),
+  stop: async (): Promise<void> => {},
+}
 
 const EmbeddedBillingPage = lazy(() =>
   import('../BillingPage').then((module) => ({ default: module.BillingPage })),
@@ -1873,7 +1883,7 @@ export default function CalendarPage() {
 
   const fallbackSessionLengthMinutes = Number(settings.SESSION_LENGTH_MINUTES || 60)
   const bookableEnabled = settings.BOOKABLE_ENABLED !== 'false'
-  const aiBookingEnabled = settings.AI_BOOKING_ENABLED !== 'false'
+  const aiBookingEnabled = settings.AI_BOOKING_ENABLED === 'true'
   const spacesEnabled = settings.SPACES_ENABLED === 'true'
   /** Spaces setting on and at least one space exists — hide mode + space filters otherwise */
   const calendarSpacesFeatureActive = spacesEnabled && metaSpaces.length > 0
