@@ -3612,7 +3612,14 @@ public class BillingController {
         if (!isAdvanceBillingEnabled(companyId)) {
             return List.of();
         }
-        return billRepo.findByCompanyIdAndBillTypeOrderByIssueDateDescIdDesc(companyId, BillType.ADVANCE, PageRequest.of(0, 500)).stream()
+        var advanceIds = billRepo.findPageIdsByCompanyIdAndBillType(companyId, BillType.ADVANCE, PageRequest.of(0, 500));
+        if (advanceIds.isEmpty()) {
+            return List.of();
+        }
+        return billRepo.findAllByCompanyIdAndIdIn(companyId, advanceIds).stream()
+                .sorted(Comparator
+                        .comparing(Bill::getIssueDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(Bill::getId, Comparator.reverseOrder()))
                 .map(advance -> toUnusedAdvanceResponse(companyId, advance))
                 .filter(advance -> advance.remainingNet().compareTo(BigDecimal.ZERO) > 0)
                 .toList();
