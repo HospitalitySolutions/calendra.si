@@ -1,5 +1,6 @@
 package com.example.app.auth;
 
+import com.example.app.logging.LogSanitizer;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
@@ -67,7 +68,7 @@ public class PasswordResetService {
         String normalized = email.trim().toLowerCase();
         List<User> matches = users.findAllByEmailIgnoreCaseAndActiveTrue(normalized);
         if (matches.isEmpty()) {
-            log.info("Password reset requested for non-active or unknown email={}", normalized);
+            log.info("Password reset requested for non-active or unknown email={}", LogSanitizer.emailHash(normalized));
             return;
         }
         User user = matches.get(0);
@@ -146,7 +147,7 @@ public class PasswordResetService {
 
     private void sendResetEmail(User user, String token) {
         if (!mailConfigured) {
-            log.warn("Password reset requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", user.getEmail());
+            log.warn("Password reset requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(user.getEmail()));
             return;
         }
         String encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8);
@@ -172,9 +173,9 @@ public class PasswordResetService {
             helper.setSubject(subject);
             helper.setText(body, false);
             mailSender.send(message);
-            log.info("Password reset email sent to {}", user.getEmail());
+            log.info("Password reset email sent to {}", LogSanitizer.emailHash(user.getEmail()));
         } catch (Exception e) {
-            log.warn("Failed sending password reset email to {}: {}", user.getEmail(), e.getMessage());
+            log.warn("Failed sending password reset email to {}: {}", LogSanitizer.emailHash(user.getEmail()), e.getMessage());
         }
     }
 

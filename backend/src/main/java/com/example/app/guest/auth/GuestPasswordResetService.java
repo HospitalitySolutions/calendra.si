@@ -1,6 +1,7 @@
 package com.example.app.guest.auth;
 
 import com.example.app.guest.model.GuestUser;
+import com.example.app.logging.LogSanitizer;
 import com.example.app.guest.model.GuestUserRepository;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
@@ -61,7 +62,7 @@ public class GuestPasswordResetService {
         Optional<GuestUser> candidate = guestUsers.findByEmailIgnoreCase(normalized)
                 .filter(GuestUser::isActive);
         if (candidate.isEmpty()) {
-            log.info("Guest password reset code requested for non-active or unknown email={}", normalized);
+            log.info("Guest password reset code requested for non-active or unknown email={}", LogSanitizer.emailHash(normalized));
             return;
         }
         GuestUser guestUser = candidate.get();
@@ -178,7 +179,7 @@ public class GuestPasswordResetService {
 
     private void sendVerificationCodeEmail(GuestUser guestUser, String code, String locale) {
         if (!mailConfigured) {
-            log.warn("Guest password reset code requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", guestUser.getEmail());
+            log.warn("Guest password reset code requested for {}, but mail is not configured (spring.mail.host / SMTP sender missing).", LogSanitizer.emailHash(guestUser.getEmail()));
             return;
         }
         boolean sl = locale == null || locale.isBlank() || locale.trim().toLowerCase(Locale.ROOT).startsWith("sl");
@@ -218,9 +219,9 @@ public class GuestPasswordResetService {
             helper.setSubject(subject);
             helper.setText(body, false);
             mailSender.send(message);
-            log.info("Guest password reset verification code email sent to {}", guestUser.getEmail());
+            log.info("Guest password reset verification code email sent to {}", LogSanitizer.emailHash(guestUser.getEmail()));
         } catch (Exception ex) {
-            log.warn("Failed sending guest password reset code email to {}: {}", guestUser.getEmail(), ex.getMessage());
+            log.warn("Failed sending guest password reset code email to {}: {}", LogSanitizer.emailHash(guestUser.getEmail()), ex.getMessage());
         }
     }
 

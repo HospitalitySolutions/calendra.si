@@ -1,5 +1,6 @@
 package com.example.app.securitycenter;
 
+import com.example.app.logging.LogSanitizer;
 import com.example.app.user.User;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
@@ -62,7 +63,7 @@ public class SecurityNotificationService {
             return;
         }
         if (!mailConfigured) {
-            log.info("Security notification not sent to {} because mail is not configured. subject={}", user.getEmail(), subject);
+            log.info("Security notification not sent to {} because mail is not configured. subject={}", LogSanitizer.emailHash(user.getEmail()), subject);
             return;
         }
         try {
@@ -74,7 +75,7 @@ public class SecurityNotificationService {
             helper.setText(body, false);
             mailSender.send(message);
         } catch (Exception e) {
-            log.warn("Failed sending security notification to {}: {}", user.getEmail(), e.getMessage());
+            log.warn("Failed sending security notification to {}: {}", LogSanitizer.emailHash(user.getEmail()), e.getMessage());
         }
     }
 

@@ -31,5 +31,24 @@ export default defineConfig({
   build: {
     sourcemap: false,
     chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@fullcalendar')) return 'vendor-calendar'
+            if (id.includes('recharts')) return 'vendor-charts'
+            if (id.includes('@zxing')) return 'vendor-scanner'
+            if (id.includes('react')) return 'vendor-react'
+            if (id.includes('axios')) return 'vendor-http'
+            return 'vendor'
+          }
+          if (id.includes('/src/pages/ConfigurationPage')) return 'page-configuration'
+          if (id.includes('/src/pages/BillingPage')) return 'page-billing'
+          if (id.includes('/src/pages/calendar/CalendarPageContent') || id.includes('/src/pages/CalendarPage')) return 'page-calendar'
+          if (id.includes('/src/pages/ClientsPage')) return 'page-clients'
+          if (id.includes('/src/pages/PlatformAdminPage')) return 'page-platform-admin'
+        },
+      },
+    },
   },
 })

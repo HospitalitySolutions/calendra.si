@@ -9,6 +9,7 @@ import com.example.app.guest.model.GuestNotification;
 import com.example.app.guest.model.GuestNotificationType;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.notifications.GuestPushService;
+import com.example.app.logging.LogSanitizer;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -202,7 +203,7 @@ public class ReminderService {
             String renderedBody = replaceTokens(bodyHtml, tokens);
             sendHtmlMail(client.getEmail().trim(), renderedSubject, renderedBody);
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), renderedSubject, renderedBody);
-            log.info("Sent {} scheduled booking email to {}", kind, client.getEmail());
+            log.info("Sent {} scheduled booking email companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking.getId(), client.getId(), LogSanitizer.emailHash(client.getEmail()));
         } catch (Exception e) {
             logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, e.getMessage());
             log.warn("Failed to send {} scheduled booking email: {}", kind, e.getMessage());
@@ -582,10 +583,10 @@ public class ReminderService {
         try {
             sendHtmlMail(client.getEmail().trim(), subject, bodyHtml);
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, bodyHtml);
-            log.info("Sent {} booking email to {}", kind, client.getEmail());
+            log.info("Sent {} booking email companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking == null ? null : booking.getId(), client == null ? null : client.getId(), LogSanitizer.emailHash(client == null ? null : client.getEmail()));
         } catch (Exception e) {
             logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, e.getMessage());
-            log.warn("Failed to send {} booking email to {}: {}", kind, client.getEmail(), e.getMessage());
+            log.warn("Failed to send {} booking email companyId={} bookingId={} clientId={} recipient={}: {}", kind, companyId, booking == null ? null : booking.getId(), client == null ? null : client.getId(), LogSanitizer.emailHash(client == null ? null : client.getEmail()), e.getMessage());
         }
     }
 
@@ -611,10 +612,10 @@ public class ReminderService {
         try {
             sendSmsViaGateway(client.getPhone(), body, companyId, buildCustomId(booking, kind));
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.SMS, kind, client.getPhone(), smsSubject(kind), body);
-            log.info("Sent {} booking SMS to {}", kind, client.getPhone());
+            log.info("Sent {} booking SMS companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking == null ? null : booking.getId(), client == null ? null : client.getId(), LogSanitizer.maskedPhone(client == null ? null : client.getPhone()));
         } catch (Exception e) {
             logBookingDeliveryFailed(booking, client, MessageDeliveryChannel.SMS, kind, client.getPhone(), smsSubject(kind), e.getMessage());
-            log.warn("Failed to send {} booking SMS to {}: {}", kind, client.getPhone(), e.getMessage());
+            log.warn("Failed to send {} booking SMS companyId={} bookingId={} clientId={} recipient={}: {}", kind, companyId, booking == null ? null : booking.getId(), client == null ? null : client.getId(), LogSanitizer.maskedPhone(client == null ? null : client.getPhone()), e.getMessage());
         }
     }
 
@@ -868,8 +869,8 @@ public class ReminderService {
             return;
         }
         SmsGateway.SmsSendResult result = smsGateway.send(new SmsGateway.SmsSendRequest(companyId, to, body, customId));
-        log.info("Sent A1 SMS to {} (messageId={}, customId={}, parts={}, companyId={})",
-                to, result.messageId(), result.customId(), result.parts(), companyId);
+        log.info("Sent A1 SMS recipient={} messageId={} customId={} parts={} companyId={}",
+                LogSanitizer.maskedPhone(to), result.messageId(), result.customId(), result.parts(), companyId);
         if (companyId != null) {
             incrementTenantSmsSentCount(companyId, result.parts());
         }

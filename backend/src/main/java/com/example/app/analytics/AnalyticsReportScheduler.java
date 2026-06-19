@@ -1,6 +1,7 @@
 package com.example.app.analytics;
 
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import com.example.app.logging.LogSanitizer;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -59,7 +60,7 @@ public class AnalyticsReportScheduler {
             try {
                 reportService.sendScheduledReport(enabledSetting.getCompany(), email, frequency);
                 save(companyId, enabledSetting, SettingKey.ANALYTICS_REPORTS_LAST_SENT_AT, today.toString());
-                log.info("Sent scheduled analytics report for company {} to {}", companyId, email);
+                log.info("Sent scheduled analytics report for company {} to {}", companyId, LogSanitizer.emailHash(email));
             } catch (Exception ex) {
                 log.warn("Failed to send scheduled analytics report for company {}: {}", companyId, ex.getMessage());
             }

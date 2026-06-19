@@ -5,6 +5,7 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
+import com.example.app.logging.LogSanitizer;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -133,7 +134,7 @@ public class BillingEmailService {
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
             logBillEmailSent(bill, "BANK_TRANSFER_FOLIO", recipient, subject, body);
-            log.info("Bank transfer folio emailed for bill {} to {}", bill.getId(), recipient);
+            log.info("Bank transfer folio emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
             logBillEmailFailed(bill, "BANK_TRANSFER_FOLIO", recipient, "Bank transfer folio", ex.getMessage());
             log.warn("Failed to send bank transfer folio for bill {}: {}", bill.getId(), ex.getMessage());
@@ -170,7 +171,7 @@ public class BillingEmailService {
             helper.addAttachment("folio-" + bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
             logBillEmailSent(bill, "INVOICE_FOLIO", recipient, subject, body);
-            log.info("Invoice folio emailed for bill {} to {}", bill.getId(), recipient);
+            log.info("Invoice folio emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
             logBillEmailFailed(bill, "INVOICE_FOLIO", recipient, "Invoice folio", ex.getMessage());
             log.warn("Failed to send invoice folio for bill {}: {}", bill.getId(), ex.getMessage());
@@ -213,7 +214,7 @@ public class BillingEmailService {
             helper.addAttachment(filenamePrefix + safeBillNumber(bill) + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
             logBillEmailSent(bill, "OPEN_BILL_PREVIEW_FOLIO", recipient, subject, body);
-            log.info("Open-bill preview folio emailed for bill {} to {}", bill.getId(), recipient);
+            log.info("Open-bill preview folio emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
             return recipient;
         } catch (Exception ex) {
             logBillEmailFailed(bill, "OPEN_BILL_PREVIEW_FOLIO", recipient, subject, ex.getMessage());
@@ -244,7 +245,7 @@ public class BillingEmailService {
             helper.setText(body, false);
             mailSender.send(message);
             logBillEmailSent(bill, normalizeMessageType(logLabel), recipient, subject, body);
-            log.info("{} emailed for bill {} to {}", logLabel, bill.getId(), recipient);
+            log.info("{} emailed billId={} companyId={} clientId={} recipient={}", logLabel, bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
             logBillEmailFailed(bill, normalizeMessageType(logLabel), recipient, subject, ex.getMessage());
             log.warn("Failed to send {} email for bill {}: {}", logLabel, bill.getId(), ex.getMessage());
@@ -280,7 +281,7 @@ public class BillingEmailService {
             helper.addAttachment(bill.getBillNumber() + ".pdf", new ByteArrayResource(pdfBytes), "application/pdf");
             mailSender.send(message);
             logBillEmailSent(bill, "PAID_BILL_RECEIPT", recipient, subject, body);
-            log.info("Paid bill receipt emailed for bill {} to {}", bill.getId(), recipient);
+            log.info("Paid bill receipt emailed billId={} companyId={} clientId={} recipient={}", bill.getId(), billCompanyId(bill), billClientId(bill), LogSanitizer.emailHash(recipient));
         } catch (Exception ex) {
             logBillEmailFailed(bill, "PAID_BILL_RECEIPT", recipient, "Paid bill receipt", ex.getMessage());
             log.warn("Failed to send paid bill receipt for bill {}: {}", bill.getId(), ex.getMessage());
@@ -288,6 +289,14 @@ public class BillingEmailService {
     }
 
 
+
+    private Long billCompanyId(Bill bill) {
+        return bill == null || bill.getCompany() == null ? null : bill.getCompany().getId();
+    }
+
+    private Long billClientId(Bill bill) {
+        return bill == null || bill.getClient() == null ? null : bill.getClient().getId();
+    }
 
     private void logBillEmailSent(Bill bill, String messageType, String recipient, String subject, String preview) {
         if (deliveryLogs == null || bill == null) return;

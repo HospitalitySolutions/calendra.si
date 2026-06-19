@@ -1,5 +1,7 @@
 package com.example.app.auth;
 
+import com.example.app.logging.LogSanitizer;
+
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +63,7 @@ public class SignupWelcomeEmailService {
     ) {
         if (recipientEmail == null || recipientEmail.isBlank()) return;
         if (!mailConfigured || mailSender == null) {
-            log.info("Welcome email not sent to {} because mail is not configured.", recipientEmail);
+            log.info("Welcome email not sent to {} because mail is not configured.", LogSanitizer.emailHash(recipientEmail));
             return;
         }
 
@@ -142,9 +144,9 @@ public class SignupWelcomeEmailService {
             helper.setSubject(subject);
             helper.setText(html.toString(), true);
             mailSender.send(message);
-            log.info("Welcome email sent to {}", recipientEmail);
+            log.info("Welcome email sent to {}", LogSanitizer.emailHash(recipientEmail));
         } catch (Exception ex) {
-            log.warn("Failed to send welcome email to {}: {}", recipientEmail, ex.getMessage());
+            log.warn("Failed to send welcome email to {}: {}", LogSanitizer.emailHash(recipientEmail), ex.getMessage());
         }
     }
 

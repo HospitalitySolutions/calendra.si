@@ -1,5 +1,6 @@
 package com.example.app.auth;
 
+import com.example.app.logging.LogSanitizer;
 import com.example.app.mfa.WebAuthnService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.securitycenter.SecurityCenterService;
@@ -69,7 +70,7 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         String firstName = extractFirstName(oauth2User);
         String lastName = extractLastName(oauth2User);
 
-        log.info("{} OAuth success callback reached. email={}, firstName={}, lastName={}", providerName, email, firstName, lastName);
+        log.info("{} OAuth success callback reached. email={} firstNamePresent={} lastNamePresent={}", providerName, LogSanitizer.emailHash(email), firstName != null && !firstName.isBlank(), lastName != null && !lastName.isBlank());
 
         if (email == null || email.isBlank()) {
             log.warn("{} OAuth success rejected: provider did not return email.", providerName);
@@ -79,7 +80,7 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
         String normalizedEmail = email.trim().toLowerCase();
         List<User> candidates = userRepository.findAllByEmailIgnoreCase(normalizedEmail);
-        log.info("{} OAuth user lookup. normalizedEmail={}, matches={}", providerName, normalizedEmail, candidates.size());
+        log.info("{} OAuth user lookup. email={} matches={}", providerName, LogSanitizer.emailHash(normalizedEmail), candidates.size());
         User user = candidates.isEmpty() ? null : candidates.get(0);
 
         HttpSession session = request.getSession(false);
@@ -107,25 +108,25 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
                         pending.billingInterval()
                 );
                 if (!completion.getStatusCode().is2xxSuccessful()) {
-                    log.warn("Google signup pending completion failed for email={} status={}", normalizedEmail, completion.getStatusCode());
+                    log.warn("Google signup pending completion failed for email={} status={}", LogSanitizer.emailHash(normalizedEmail), completion.getStatusCode());
                     redirectWithError(response, "Could not complete signup. Please try again.");
                     return;
                 }
                 String target = buildRegisterBillingDetailsUrl(pending.returnSearch());
-                log.info("Google signup: completed pending self-serve signup for email={}; redirecting to {}", normalizedEmail, target);
+                log.info("Google signup: completed pending self-serve signup for email={}; redirecting to {}", LogSanitizer.emailHash(normalizedEmail), target);
                 getRedirectStrategy().sendRedirect(request, response, target);
                 return;
             }
             if (user != null) {
                 String returnSearch = pending != null && pending.returnSearch() != null ? pending.returnSearch() : "";
                 String target = buildRegisterAccountExistingAccountUrl(returnSearch, normalizedEmail);
-                log.info("Google signup: verified account exists for email={}; redirecting to {}", normalizedEmail, target);
+                log.info("Google signup: verified account exists for email={}; redirecting to {}", LogSanitizer.emailHash(normalizedEmail), target);
                 getRedirectStrategy().sendRedirect(request, response, target);
                 return;
             }
             String pendingEmail = pending.email() == null ? "" : pending.email().trim();
             if (!pendingEmail.isBlank() && !normalizedEmail.equalsIgnoreCase(pendingEmail)) {
-                log.warn("Google signup email mismatch. google={}, pending={}", normalizedEmail, pendingEmail);
+                log.warn("Google signup email mismatch. google={} pending={}", LogSanitizer.emailHash(normalizedEmail), LogSanitizer.emailHash(pendingEmail));
                 redirectWithError(response, "Google account email does not match the work email you entered. Use the same email or start again.");
                 return;
             }
@@ -157,13 +158,13 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         }
 
         if (user == null) {
-            log.warn("{} OAuth success rejected: no local account for email={}", providerName, normalizedEmail);
+            log.warn("{} OAuth success rejected: no local account for email={}", providerName, LogSanitizer.emailHash(normalizedEmail));
             redirectWithError(response, "No account exists for this email. Please sign up first or contact your administrator.");
             return;
         }
 
         if (!user.isActive()) {
-            log.warn("{} OAuth success rejected: user inactive for email={}", providerName, normalizedEmail);
+            log.warn("{} OAuth success rejected: user inactive for email={}", providerName, LogSanitizer.emailHash(normalizedEmail));
             redirectWithError(response, "Your account is disabled.");
             return;
         }

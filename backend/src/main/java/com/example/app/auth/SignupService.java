@@ -6,6 +6,7 @@ import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.company.CompanyProvisioningService;
+import com.example.app.logging.LogSanitizer;
 import com.example.app.register.PlatformSubscriptionBillingService;
 import com.example.app.security.AuthCookieService;
 import com.example.app.securitycenter.SecurityCenterService;
@@ -616,7 +617,7 @@ public class SignupService {
                         !skipPostProvisionConfirmationEmail
                 );
             } catch (java.io.IOException e) {
-                log.warn("Failed to create post-provision signup intent for {}: {}", normalizedEmail, e.getMessage());
+                log.warn("Failed to create post-provision signup intent for {}: {}", LogSanitizer.emailHash(normalizedEmail), e.getMessage());
                 throw new IllegalStateException("Could not create email verification intent", e);
             }
             Map<String, Object> body = new LinkedHashMap<>();
@@ -1175,7 +1176,7 @@ public class SignupService {
 
     private void sendSignupCodeEmail(String email, String code) {
         if (!mailConfigured) {
-            log.warn("Signup code for {} skipped: mail is not configured.", email);
+            log.warn("Signup code for {} skipped: mail is not configured.", LogSanitizer.emailHash(email));
             return;
         }
         String subject = "Your Calendra verification code";
@@ -1197,9 +1198,9 @@ public class SignupService {
             helper.setSubject(subject);
             helper.setText(body, false);
             mailSender.send(message);
-            log.info("Signup verification code email sent to {}", email);
+            log.info("Signup verification code email sent to {}", LogSanitizer.emailHash(email));
         } catch (Exception e) {
-            log.warn("Failed sending signup verification code to {}: {}", email, e.getMessage());
+            log.warn("Failed sending signup verification code to {}: {}", LogSanitizer.emailHash(email), e.getMessage());
         }
     }
 

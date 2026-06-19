@@ -5,10 +5,11 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   backend:
-    name: Backend build and tests
+    name: Backend tests and package
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -30,8 +31,11 @@ jobs:
       - name: Run backend tests
         run: ./mvnw --batch-mode test
 
+      - name: Package backend artifact
+        run: ./mvnw --batch-mode -DskipTests package
+
   frontend:
-    name: Frontend build
+    name: Frontend production build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,29 +47,71 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build frontend
-        run: npm run build
+      - name: Build frontend production bundle
+        run: npm run build:production
+
+  android:
+    name: Android debug and release bundle
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: guest-mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Generate CI-only Android release keystore
+        run: |
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/calendra-ci-release.jks" \
+            -storepass ci-release-password \
+            -keypass ci-release-password \
+            -alias calendra-ci \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Calendra CI, OU=CI, O=Calendra, L=CI, S=CI, C=SI"
+
+      - name: Build Android shared metadata, debug APK and release AAB
+        env:
+          ANDROID_RELEASE_STORE_FILE: ${{ runner.temp }}/calendra-ci-release.jks
+          ANDROID_RELEASE_STORE_PASSWORD: ci-release-password
+          ANDROID_RELEASE_KEY_ALIAS: calendra-ci
+          ANDROID_RELEASE_KEY_PASSWORD: ci-release-password
+        run: ./gradlew :shared:compileKotlinMetadata :androidApp:assembleDebug :androidApp:bundleRelease
 
   docker:
-    name: Docker image smoke build
+    name: Docker production image smoke build
     runs-on: ubuntu-latest
     needs: [ backend, frontend ]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Build backend image
+      - name: Build backend production image
         run: docker build -t calendra-backend-ci ./backend
 
-      - name: Build frontend image
-        run: docker build -t calendra-frontend-ci -f ./frontend/Dockerfile.prod ./frontend
+      - name: Build frontend production image
+        run: docker build --build-arg BUILD_SCRIPT=build:production -t calendra-frontend-ci -f ./frontend/Dockerfile.prod ./frontend
 
       - name: Validate staging compose file
         env:
@@ -75,3 +121,36 @@ jobs:
           POSTGRES_PASSWORD: ci-compose-config-placeholder
           APP_JWT_SECRET: ci-compose-config-placeholder-at-least-32-characters
         run: docker compose -f docker-compose.staging.yml --env-file .env.staging.example config >/tmp/calendra-staging-compose.yml
+
+  k6-quick-smoke:
+    name: Optional staging k6 quick smoke
+    runs-on: ubuntu-latest
+    needs: [ backend, frontend, android, docker ]
+    if: ${{ github.event_name != 'pull_request' && vars.STAGING_BASE_URL != '' && vars.STAGING_ORIGIN != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run quick staging k6 smoke
+        env:
+          BASE_URL: ${{ vars.STAGING_BASE_URL }}
+          ORIGIN: ${{ vars.STAGING_ORIGIN }}
+          LOADTEST_PASSWORD: ${{ secrets.LOADTEST_PASSWORD || 'LoadTest123!' }}
+          SEED_TENANTS: ${{ vars.LOADTEST_SEED_TENANTS || '1000' }}
+          SEED_GUESTS: ${{ vars.LOADTEST_SEED_GUESTS || '10000' }}
+          P95_MS: ${{ vars.LOADTEST_P95_MS || '800' }}
+          ERROR_RATE: ${{ vars.LOADTEST_ERROR_RATE || '0.01' }}
+          QUICK: 'true'
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            -e BASE_URL \
+            -e ORIGIN \
+            -e LOADTEST_PASSWORD \
+            -e SEED_TENANTS \
+            -e SEED_GUESTS \
+            -e P95_MS \
+            -e ERROR_RATE \
+            -e QUICK \
+            grafana/k6:latest run load-tests/k6/production-readiness.js
