@@ -1,4 +1,4 @@
-import { isNativeAndroid } from '../../lib/platform'
+export { isNativeAndroid } from '../../lib/platform'
 import slLocale from '@fullcalendar/core/locales/sl'
 import enGbLocale from '@fullcalendar/core/locales/en-gb'
 
