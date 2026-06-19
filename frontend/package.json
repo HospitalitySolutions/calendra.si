@@ -11,6 +11,7 @@
     "build:android:emu": "tsc -b && vite build --mode androidemu",
     "preview": "vite preview",
     "build:staging": "tsc -b && vite build --mode staging",
+    "prebuild:production": "node scripts/validate-production-env.mjs",
     "build:production": "tsc -b && vite build --mode production"
   },
   "dependencies": {

@@ -85,26 +85,30 @@ export function LoginPage() {
       window.location.assign(nextPath)
     } catch (err) {
       if (axios.isAxiosError(err) && !err.response) {
-        const base = String(api.defaults.baseURL || '(missing)')
-        const parts = [`No response from ${base}.`]
-        if (base.includes('localhost')) parts.push('On Android, localhost is the phone, not your PC.')
-        if (base.includes('127.0.0.1')) {
-          parts.push(
-            'On Android, 127.0.0.1 is the device itself unless you ran adb reverse tcp:4000 tcp:4000. Rebuild with VITE_API_HOST=10.0.2.2 (emulator) or your PC/Laptop Wi‑Fi IP in .env.android.local (phone).',
-          )
+        if (import.meta.env.MODE === 'production') {
+          setError(t('loginSignInFailed'))
+        } else {
+          const base = String(api.defaults.baseURL || '(missing)')
+          const parts = [`No response from ${base}.`]
+          if (base.includes('localhost')) parts.push('On Android, localhost is the phone, not your PC.')
+          if (base.includes('127.0.0.1')) {
+            parts.push(
+              'On Android, 127.0.0.1 is the device itself unless you ran adb reverse tcp:4000 tcp:4000. Rebuild with VITE_API_HOST=10.0.2.2 (emulator) or your PC/Laptop Wi‑Fi IP in .env.android.local (phone).',
+            )
+          }
+          if (base.includes('10.0.2.2')) {
+            parts.push(
+              'Open http://10.0.2.2:4000/api/auth/ping in the emulator browser. If that fails: run Spring on the host (not only WSL), check firewall.',
+            )
+          } else if (!base.includes('127.0.0.1')) {
+            parts.push('Fix: .env.android (phone) or .env.androidemu (emulator) → npm run build:android[:emu] → npx cap sync android → reinstall.')
+          }
+          setError(parts.join(' '))
         }
-        if (base.includes('10.0.2.2')) {
-          parts.push(
-            'Open http://10.0.2.2:4000/api/auth/ping in the emulator browser. If that fails: run Spring on the host (not only WSL), check firewall.',
-          )
-        } else if (!base.includes('127.0.0.1')) {
-          parts.push('Fix: .env.android (phone) or .env.androidemu (emulator) → npm run build:android[:emu] → npx cap sync android → reinstall.')
-        }
-        setError(parts.join(' '))
       } else if (axios.isAxiosError(err) && err.response?.status === 401) {
         setError(t('loginInvalidCredentials'))
       } else if (axios.isAxiosError(err) && err.code === 'ECONNABORTED') {
-        setError('Request timed out. Is the API running on port 4000?')
+        setError(import.meta.env.MODE === 'production' ? t('loginSignInFailed') : 'Request timed out. Is the API running on port 4000?')
       } else {
         setError(t('loginSignInFailed'))
       }
