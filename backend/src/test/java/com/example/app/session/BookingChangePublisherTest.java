@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.example.app.client.Client;
@@ -49,46 +50,30 @@ class BookingChangePublisherTest {
     }
 
     @Test
-    void publishPushesOnlyToGuestLinkedToChangedBookingClient() {
+    void publishKeepsRealtimeReminderAndCalendarSideEffectsWithoutGenericGuestPush() {
         Company company = company(1L);
         Client selectedClient = client(10L, company);
-        GuestUser linkedGuest = guestUser(100L);
-        GuestTenantLink matchingLink = link(company, selectedClient, linkedGuest);
         SessionBooking booking = booking(77L, company, selectedClient);
 
-        when(sessionBookings.findByIdAndCompanyId(77L, 1L)).thenReturn(Optional.of(booking));
-        when(guestTenantLinks.findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE))
-                .thenReturn(java.util.List.of(matchingLink));
+        when(sessionBookings.findById(77L)).thenReturn(Optional.of(booking));
 
         publisher.publish(1L, 77L, LocalDateTime.parse("2026-06-15T10:00:00"), LocalDateTime.parse("2026-06-15T11:00:00"), BookingChangePublisher.BOOKING_CREATED);
 
         verify(realtimeService).publishBookingUpdated(eq(1L), eq(77L), any(LocalDateTime.class), any(LocalDateTime.class), eq(BookingChangePublisher.BOOKING_CREATED));
-        verify(guestTenantLinks).findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE);
-        verify(guestTenantLinks, never()).findAllByCompanyIdAndStatus(anyLong(), any());
-        verify(guestPushService).notifyGuestReminder(
-                eq(linkedGuest),
-                eq(company),
-                eq(selectedClient),
-                eq("Booking update"),
-                eq("A booking has changed. Open the app to see the latest time."),
-                anyMap()
-        );
+        verify(bookingReminderService).reconcileBookingAfterCommit(77L, BookingChangePublisher.BOOKING_CREATED);
+        verify(googleCalendarSyncQueueService).enqueueUpsert(eq(company), any(), any(), eq(77L));
+        verifyNoInteractions(guestTenantLinks, guestPushService);
     }
 
     @Test
-    void publishDoesNotPushWhenChangedBookingClientHasNoGuestLink() {
-        Company company = company(1L);
-        Client selectedClient = client(10L, company);
-        SessionBooking booking = booking(77L, company, selectedClient);
-
-        when(sessionBookings.findByIdAndCompanyId(77L, 1L)).thenReturn(Optional.of(booking));
-        when(guestTenantLinks.findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE))
-                .thenReturn(java.util.List.of());
+    void publishStillDoesNotUseGuestPushWhenBookingCannotBeLoaded() {
+        when(sessionBookings.findById(77L)).thenReturn(Optional.empty());
 
         publisher.publish(1L, 77L, LocalDateTime.parse("2026-06-15T10:00:00"), LocalDateTime.parse("2026-06-15T11:00:00"), BookingChangePublisher.BOOKING_CREATED);
 
-        verify(guestTenantLinks).findAllByCompanyIdAndClientIdAndStatusOrderByUpdatedAtDesc(1L, 10L, GuestTenantLinkStatus.ACTIVE);
-        verify(guestPushService, never()).notifyGuestReminder(any(), any(), any(), any(), any(), anyMap());
+        verify(realtimeService).publishBookingUpdated(eq(1L), eq(77L), any(LocalDateTime.class), any(LocalDateTime.class), eq(BookingChangePublisher.BOOKING_CREATED));
+        verify(bookingReminderService).reconcileBookingAfterCommit(77L, BookingChangePublisher.BOOKING_CREATED);
+        verifyNoInteractions(guestTenantLinks, guestPushService);
     }
 
     private static Company company(Long id) {

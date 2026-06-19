@@ -280,8 +280,7 @@ class BillingControllerCompanyProxyClientFallbackTest {
 
         when(openBillRepo.findById(202L)).thenReturn(Optional.of(openBill));
         when(clientCompanies.findByIdAndOwnerCompanyId(77L, 1L)).thenReturn(Optional.of(recipientCompany));
-        when(settings.findByCompanyIdAndKey(anyLong(), any(SettingKey.class))).thenReturn(Optional.empty());
-        when(settings.findByCompanyIdAndKey(1L, SettingKey.INVOICE_COUNTER)).thenReturn(Optional.of(invoiceCounter));
+        when(settings.findForUpdateByCompanyIdAndKey(1L, SettingKey.INVOICE_COUNTER)).thenReturn(Optional.of(invoiceCounter));
         when(settings.save(any(AppSetting.class))).thenAnswer(inv -> inv.getArgument(0));
         when(billRepo.saveAndFlush(any(Bill.class))).thenAnswer(inv -> {
             Bill bill = inv.getArgument(0);

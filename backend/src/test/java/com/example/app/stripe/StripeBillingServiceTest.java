@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -32,7 +33,7 @@ class StripeBillingServiceTest {
 
     @Test
     void duplicateActiveSessionIsRejected() {
-        StripeConfig config = new StripeConfig();
+        StripeConfig config = testStripeConfig();
         StripeBillingService service = new StripeBillingService(bills, client, invoiceClient, config);
         Bill bill = sampleBill();
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
@@ -44,7 +45,7 @@ class StripeBillingServiceTest {
 
     @Test
     void expiredPendingSessionCanBeRecreated() {
-        StripeConfig config = new StripeConfig();
+        StripeConfig config = testStripeConfig();
         StripeBillingService service = new StripeBillingService(bills, client, invoiceClient, config);
         Bill bill = sampleBill();
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
@@ -58,6 +59,13 @@ class StripeBillingServiceTest {
         Assertions.assertEquals("cs_new", created.id());
         Assertions.assertEquals(BillPaymentStatus.PAYMENT_PENDING, bill.getPaymentStatus());
         Assertions.assertEquals("cs_new", bill.getCheckoutSessionId());
+    }
+
+    private StripeConfig testStripeConfig() {
+        StripeConfig config = new StripeConfig();
+        ReflectionTestUtils.setField(config, "secretKey", "sk_test_dummy");
+        ReflectionTestUtils.setField(config, "currency", "eur");
+        return config;
     }
 
     private Bill sampleBill() {

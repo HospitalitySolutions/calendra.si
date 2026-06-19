@@ -12,3 +12,6 @@ backend/.env.local
 .DS_Store
 *.tsbuildinfo
 .cursor/debug-*.log
+guest-mobile/androidApp/local.properties
+guest-mobile/.kotlin
+guest-mobile/androidApp/release
