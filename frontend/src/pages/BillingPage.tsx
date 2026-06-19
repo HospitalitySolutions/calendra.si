@@ -5119,7 +5119,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 />
                 <button
                   type="button"
-                  className={`billing-invoice-match-mini${isAdvanceSplit ? ' billing-invoice-match-mini--advance' : ''}`}
+                  className={`billing-invoice-match-mini${isAdvanceSplit ? ' billing-invoice-match-mini--advance' : ''}${!isEntitlement && !isAdvanceSplit ? ' billing-invoice-match-mini--text' : ''}`}
                   aria-label={isEntitlement
                     ? (locale === 'sl' ? 'Izberi način vnosa ugodnosti' : 'Choose entitlement input')
                     : isAdvanceSplit
@@ -5142,7 +5142,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     matchOpenBillPaymentSplitToRemaining(ob, split.key, totalGross)
                   }}
                 >
-                  {isEntitlement ? entitlementScanIcon() : isAdvanceSplit ? paymentTypeIcon('OTHER', 'Predplačilo') : matchRemainingIcon()}
+                  {isEntitlement ? entitlementScanIcon() : isAdvanceSplit ? paymentTypeIcon('OTHER', 'Predplačilo') : (
+                    <>
+                      <span className="billing-invoice-match-icon" aria-hidden>{matchRemainingIcon()}</span>
+                      <span className="billing-invoice-match-label">{locale === 'sl' ? 'Dopolni razliko' : 'Match difference'}</span>
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -5965,7 +5970,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 />
                 <button
                   type="button"
-                  className={`billing-invoice-match-mini${isAdvanceSplit ? ' billing-invoice-match-mini--advance' : ''}`}
+                  className={`billing-invoice-match-mini${isAdvanceSplit ? ' billing-invoice-match-mini--advance' : ''}${!isAdvanceSplit ? ' billing-invoice-match-mini--text' : ''}`}
                   aria-label={isAdvanceSplit ? (locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments') : (locale === 'sl' ? 'Dopolni razliko na to metodo plačila' : 'Match remaining on this payment method')}
                   title={isAdvanceSplit ? (locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments') : (locale === 'sl' ? 'Dopolni razliko' : 'Match remaining')}
                   onClick={() => {
@@ -5976,7 +5981,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     matchCreateBillPaymentSplitToRemaining(split.key, totalGross)
                   }}
                 >
-                  {isAdvanceSplit ? paymentTypeIcon('OTHER', 'Predplačilo') : matchRemainingIcon()}
+                  {isAdvanceSplit ? paymentTypeIcon('OTHER', 'Predplačilo') : (
+                    <>
+                      <span className="billing-invoice-match-icon" aria-hidden>{matchRemainingIcon()}</span>
+                      <span className="billing-invoice-match-label">{locale === 'sl' ? 'Dopolni razliko' : 'Match difference'}</span>
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -6563,7 +6573,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return (
       <div className="billing-invoice-modern-body">
         <section className="billing-invoice-management-card billing-invoice-management-card--bookmarks">
-          <div className="billing-invoice-management-head">
+          <div className="billing-invoice-management-head billing-invoice-management-head--edit-open">
             <div>
               <h3>{locale === 'sl' ? 'Prejemnik računa' : 'Bill recipient'}</h3>
               <p>{locale === 'sl' ? 'Preklopite med računi ali dodajte novega.' : 'Switch between bills or add a new one.'}</p>
@@ -8045,7 +8055,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
               <div className={`billing-invoice-modern-body billing-invoice-modern-body--create${isCreateAdvanceBill ? ' billing-invoice-modern-body--advance-create' : ''}`}>
                 <section className="billing-invoice-management-card">
-                  <div className="billing-invoice-management-head">
+                  <div className={`billing-invoice-management-head billing-invoice-management-head--create${!isCreateAdvanceBill ? ' billing-invoice-management-head--create-open' : ''}`}>
                     <div>
                       <h3>{isCreateAdvanceBill ? (locale === 'sl' ? 'Upravljanje predplačila' : 'Advance management') : (locale === 'sl' ? 'Upravljanje računa' : 'Bill management')}</h3>
                       <p>{isCreateAdvanceBill ? (locale === 'sl' ? 'Plačnika in osnovne podatke predplačila uredite na kartici.' : 'Edit advance payee and details from the bill tab.') : (locale === 'sl' ? 'Plačnika in osnovne podatke uredite na kartici računa.' : 'Edit payee and bill details from the bill tab.')}</p>
