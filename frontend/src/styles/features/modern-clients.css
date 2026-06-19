@@ -3397,3 +3397,28 @@
     background: #e0f2fe;
     color: #0369a1;
 }
+
+
+/* Mobile refinements for client detail wallet/files from issue list. */
+@media (max-width: 720px) {
+    .clients-client-detail-modal .clients-wallet-drawer-footer .secondary,
+    .clients-wallet-drawer-footer .secondary {
+        display: none;
+    }
+
+    .clients-client-detail-modal .clients-wallet-drawer-footer,
+    .clients-wallet-drawer-footer {
+        display: block;
+    }
+
+    .clients-client-detail-modal .clients-file-upload-dropzone strong,
+    .clients-file-upload-dropzone strong {
+        display: none;
+    }
+
+    .clients-client-detail-modal .clients-file-upload-dropzone,
+    .clients-file-upload-dropzone {
+        gap: 10px;
+        min-height: 132px;
+    }
+}

@@ -570,7 +570,27 @@ const registerAccountPageStyles = `
 
   @media (max-width: 560px) {
     .register-flow.register-account-page .content {
-      padding-bottom: 150px;
+      padding-top: 12px;
+      padding-bottom: 132px;
+    }
+
+    .register-flow.register-account-page .register-account-stepper-row {
+      display: none;
+    }
+
+    .register-flow.register-account-page .register-account-page-stack {
+      align-items: stretch;
+    }
+
+    .register-flow.register-account-page .register-account-card {
+      width: 100%;
+      padding: 0;
+      gap: 16px;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      margin-top: 0;
+      margin-bottom: 0;
     }
 
     .register-flow.register-account-page .register-account-title-row {
@@ -578,8 +598,30 @@ const registerAccountPageStyles = `
       align-items: flex-start;
     }
 
-    .register-flow.register-account-page .register-account-form-card {
+    .register-flow.register-account-page .register-account-trust,
+    .register-flow.register-account-page .register-account-selection-chip {
+      display: none;
+    }
+
+    .register-flow.register-account-page .register-account-header {
+      padding: 0 2px;
+    }
+
+    .register-flow.register-account-page .register-account-title {
+      font-size: clamp(1.7rem, 9vw, 2.15rem);
+    }
+
+    .register-flow.register-account-page .register-account-copy {
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .register-flow.register-account-page .register-account-form-card,
+    .register-flow.register-account-page .register-account-verify-card {
       padding: 18px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid #dbe6f7;
+      box-shadow: 0 14px 32px rgba(47, 109, 246, 0.08);
     }
   }
 `;

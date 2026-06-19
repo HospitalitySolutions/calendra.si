@@ -783,6 +783,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const billingCopy = locale === 'sl' ? {
     newCompanyTitle: 'Novo podjetje',
     newCompanySubtitle: 'Obvezno je samo ime podjetja.',
+    newClientTitle: 'Nova stranka',
+    newClientSubtitle: 'Obvezna sta ime in priimek.',
+    clientFirstName: 'Ime',
+    clientLastName: 'Priimek',
     companyName: 'Ime podjetja',
     email: 'E-pošta',
     telephone: 'Telefon',
@@ -889,6 +893,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   } : {
     newCompanyTitle: 'New company',
     newCompanySubtitle: 'Required: company name.',
+    newClientTitle: 'New client',
+    newClientSubtitle: 'Required: first and last name.',
+    clientFirstName: 'First name',
+    clientLastName: 'Last name',
     companyName: 'Company name',
     email: 'Email',
     telephone: 'Telephone',
@@ -1077,6 +1085,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [creatingCompany, setCreatingCompany] = useState(false)
   const [showAddCompanyModal, setShowAddCompanyModal] = useState(false)
   const [addCompanyTarget, setAddCompanyTarget] = useState<{ mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number } | null>(null)
+  const [newClientFirstName, setNewClientFirstName] = useState('')
+  const [newClientLastName, setNewClientLastName] = useState('')
+  const [newClientEmail, setNewClientEmail] = useState('')
+  const [newClientPhone, setNewClientPhone] = useState('')
+  const [creatingClientInline, setCreatingClientInline] = useState(false)
+  const [showAddClientModal, setShowAddClientModal] = useState(false)
+  const [addClientTarget, setAddClientTarget] = useState<{ mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number } | null>(null)
   const [recipientCompanySearch, setRecipientCompanySearch] = useState('')
   const [recipientCompanyPickerOpen, setRecipientCompanyPickerOpen] = useState(false)
   const [editingRecipientCompanySearch, setEditingRecipientCompanySearch] = useState(false)
@@ -3529,6 +3544,61 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const closeAddCompanyModal = () => {
     setShowAddCompanyModal(false)
     setAddCompanyTarget(null)
+  }
+
+  const openAddClientModal = (target: { mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number }) => {
+    setAddClientTarget(target)
+    setNewClientFirstName('')
+    setNewClientLastName('')
+    setNewClientEmail('')
+    setNewClientPhone('')
+    setShowAddClientModal(true)
+  }
+
+  const closeAddClientModal = () => {
+    setShowAddClientModal(false)
+    setAddClientTarget(null)
+  }
+
+  const createClientInline = async () => {
+    const firstName = newClientFirstName.trim()
+    const lastName = newClientLastName.trim()
+    if (!firstName || !lastName || creatingClientInline) return
+    setCreatingClientInline(true)
+    try {
+      const { data } = await api.post('/clients', {
+        firstName,
+        lastName,
+        email: newClientEmail.trim() || null,
+        phone: newClientPhone.trim() || null,
+        preferredSlots: [],
+      })
+      const createdClient = data as Client
+      setClients((prev) => [createdClient, ...prev].sort((a, b) => fullName(a).localeCompare(fullName(b))))
+      if (addClientTarget?.mode === 'editOpenBill') {
+        const targetId = addClientTarget.openBillId
+        const targetOpenBill = detailOpenBill?.id === targetId ? detailOpenBill : openBills.find((entry) => entry.id === targetId)
+        setOpenBillDetailsEdits((prev) => {
+          const current = targetOpenBill
+            ? (prev[targetId] ?? deriveOpenBillDetailsDraft(targetOpenBill))
+            : (prev[targetId] ?? { billingTarget: 'PERSON' as const })
+          return {
+            ...prev,
+            [targetId]: {
+              ...current,
+              billingTarget: 'PERSON',
+              clientId: createdClient.id,
+              recipientCompanyId: undefined,
+            },
+          }
+        })
+      } else {
+        setBillForm((prev) => ({ ...prev, billingTarget: 'PERSON', clientId: createdClient.id, recipientCompanyId: undefined }))
+      }
+      closeAddClientModal()
+    } finally {
+      setCreatingClientInline(false)
+    }
   }
 
   const createCompanyInline = async () => {
@@ -6050,26 +6120,35 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             )}
             {(billForm.billingTarget === 'PERSON' || clientsLinkedToInvoiceCompany.length > 0) && (
               <Field label={billForm.billingTarget === 'COMPANY' ? billingCopy.clientOptional : billingCopy.client}>
-                <select
-                  value={billForm.clientId ?? ''}
-                  onChange={(e) => {
-                    const nextClientId = e.target.value === '' ? undefined : Number(e.target.value)
-                    const pool = billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients
-                    const nextClient = pool.find((client) => client.id === nextClientId)
-                    setBillForm({
-                      ...billForm,
-                      clientId: nextClientId,
-                      recipientCompanyId: billForm.billingTarget === 'COMPANY'
-                        ? (billForm.recipientCompanyId ?? nextClient?.billingCompany?.id)
-                        : undefined,
-                    })
-                  }}
-                >
-                  <option value="">{billingCopy.selectClient}</option>
-                  {(billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients).map((client) => (
-                    <option key={client.id} value={client.id}>{fullName(client)}</option>
-                  ))}
-                </select>
+                <div className="billing-payee-client-picker-row">
+                  <select
+                    value={billForm.clientId ?? ''}
+                    onChange={(e) => {
+                      const nextClientId = e.target.value === '' ? undefined : Number(e.target.value)
+                      const pool = billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients
+                      const nextClient = pool.find((client) => client.id === nextClientId)
+                      setBillForm({
+                        ...billForm,
+                        clientId: nextClientId,
+                        recipientCompanyId: billForm.billingTarget === 'COMPANY'
+                          ? (billForm.recipientCompanyId ?? nextClient?.billingCompany?.id)
+                          : undefined,
+                      })
+                    }}
+                  >
+                    <option value="">{billingCopy.selectClient}</option>
+                    {(billForm.billingTarget === 'COMPANY' ? clientsLinkedToInvoiceCompany : clients).map((client) => (
+                      <option key={client.id} value={client.id}>{fullName(client)}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="secondary client-add-btn"
+                    onClick={() => openAddClientModal({ mode: 'createBill' })}
+                  >
+                    +
+                  </button>
+                </div>
               </Field>
             )}
             <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
@@ -6339,17 +6418,26 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </Field>
             )}
             <Field label={draft.billingTarget === 'COMPANY' ? billingCopy.clientOptional : billingCopy.client}>
-              <select
-                value={draft.clientId ?? ''}
-                onChange={(e) => updateOpenBillDetailsDraft(targetOpenBill, {
-                  clientId: e.target.value === '' ? undefined : Number(e.target.value),
-                })}
-              >
-                <option value="">{billingCopy.selectClient}</option>
-                {payeeClientOptions.map((client) => (
-                  <option key={client.id} value={client.id}>{fullName(client)}</option>
-                ))}
-              </select>
+              <div className="billing-payee-client-picker-row">
+                <select
+                  value={draft.clientId ?? ''}
+                  onChange={(e) => updateOpenBillDetailsDraft(targetOpenBill, {
+                    clientId: e.target.value === '' ? undefined : Number(e.target.value),
+                  })}
+                >
+                  <option value="">{billingCopy.selectClient}</option>
+                  {payeeClientOptions.map((client) => (
+                    <option key={client.id} value={client.id}>{fullName(client)}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="secondary client-add-btn"
+                  onClick={() => openAddClientModal({ mode: 'editOpenBill', openBillId: targetOpenBill.id })}
+                >
+                  +
+                </button>
+              </div>
             </Field>
             <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
               <select
@@ -8140,6 +8228,55 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
       {renderEntitlementPaymentModal()}
 
+
+      {showAddClientModal && (
+        <div className="modal-backdrop billing-add-company-modal-backdrop" onClick={closeAddClientModal}>
+          <div className="modal billing-add-company-modal billing-add-client-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="billing-bill-modal-header">
+              <div>
+                <div className="billing-bill-modal-title-row">
+                  <h2>{billingCopy.newClientTitle}</h2>
+                </div>
+                <p>{billingCopy.newClientSubtitle}</p>
+              </div>
+              <button type="button" className="billing-bill-modal-close" onClick={closeAddClientModal} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            </div>
+            <div className="billing-add-company-modal-body">
+              <div className="form-grid">
+                <Field label={billingCopy.clientFirstName}>
+                  <input value={newClientFirstName} onChange={(e) => setNewClientFirstName(e.target.value)} placeholder={billingCopy.clientFirstName} />
+                </Field>
+                <Field label={billingCopy.clientLastName}>
+                  <input value={newClientLastName} onChange={(e) => setNewClientLastName(e.target.value)} placeholder={billingCopy.clientLastName} />
+                </Field>
+                <Field label={billingCopy.email}>
+                  <input type="email" value={newClientEmail} onChange={(e) => setNewClientEmail(e.target.value)} placeholder={billingCopy.emailOptional} />
+                </Field>
+                <Field label={billingCopy.telephone}>
+                  <input value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} placeholder={billingCopy.telephoneOptional} />
+                </Field>
+              </div>
+            </div>
+            <div className="billing-add-company-modal-footer">
+              <button
+                type="button"
+                className="billing-bill-modal-save-btn"
+                onClick={createClientInline}
+                disabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
+              >
+                <span className="billing-bill-modal-save-btn__icon" aria-hidden>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+                    <path d="M17 21v-8H7v8" />
+                    <path d="M7 3v5h8" />
+                  </svg>
+                </span>
+                <span>{creatingClientInline ? billingCopy.creating : billingCopy.create}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAddCompanyModal && (
         <div className="modal-backdrop billing-add-company-modal-backdrop" onClick={closeAddCompanyModal}>

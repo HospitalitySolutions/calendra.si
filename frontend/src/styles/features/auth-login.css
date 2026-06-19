@@ -53,7 +53,7 @@
 
 .login-modern-logo-mark {
     width: clamp(170px, 38vw, 230px);
-    aspect-ratio: 927 / 319;
+    aspect-ratio: 889 / 292;
     height: auto;
     display: inline-flex;
     align-items: center;
@@ -217,3 +217,105 @@
     gap: 12px;
 }
 
+
+
+/* Compact mobile login: keep the form on a single viewport without page scrolling. */
+@media (max-width: 720px) {
+    .login-wrap {
+        min-height: 100dvh;
+        height: 100dvh;
+        overflow: hidden;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 12px max(8px, env(safe-area-inset-bottom, 0px));
+        justify-content: center;
+    }
+
+    .login {
+        max-width: 100%;
+        gap: 10px;
+    }
+
+    .polished-login--modern,
+    .polished-login {
+        max-height: calc(100dvh - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        overflow: hidden;
+        padding: 14px 14px 16px;
+        gap: 9px;
+        border-radius: 22px;
+    }
+
+    .auth-card-topbar {
+        align-items: center;
+        gap: 10px;
+    }
+
+    .login-brand-inline .login-modern-logo-mark {
+        width: clamp(112px, 38vw, 150px);
+    }
+
+    .login-modern-label {
+        font-size: 0.82rem;
+        margin-bottom: -5px;
+    }
+
+    .polished-login input:not([type="hidden"]) {
+        min-height: 40px;
+        padding-top: 9px;
+        padding-bottom: 9px;
+        font-size: 0.92rem;
+    }
+
+    .login-password-toggle {
+        width: 36px;
+        height: 36px;
+    }
+
+    .login-forgot-open {
+        font-size: 0.78rem;
+    }
+
+    .login-primary-btn,
+    .login-social-btn {
+        min-height: 40px;
+        padding-top: 9px;
+        padding-bottom: 9px;
+        font-size: 0.9rem;
+    }
+
+    .login-social-separator {
+        margin-top: 0;
+        font-size: 0.78rem;
+        gap: 8px;
+    }
+
+    .login-signup-row {
+        margin-top: 0;
+        font-size: 0.88rem;
+    }
+}
+
+@media (max-width: 380px), (max-height: 680px) {
+    .polished-login--modern,
+    .polished-login {
+        gap: 7px;
+        padding: 10px 12px 12px;
+    }
+
+    .login-brand-inline .login-modern-logo-mark {
+        width: clamp(100px, 34vw, 132px);
+    }
+
+    .login-lang-btn {
+        padding: 4px 8px;
+        font-size: 0.68rem;
+    }
+
+    .login-modern-label {
+        font-size: 0.78rem;
+    }
+
+    .polished-login input:not([type="hidden"]),
+    .login-primary-btn,
+    .login-social-btn {
+        min-height: 38px;
+    }
+}

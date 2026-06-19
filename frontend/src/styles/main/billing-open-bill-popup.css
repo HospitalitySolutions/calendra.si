@@ -2163,6 +2163,28 @@
     font-weight: 700;
 }
 
+.billing-payee-client-picker-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.billing-payee-client-picker-row select {
+    min-width: 0;
+    width: 100%;
+}
+
+.billing-payee-client-picker-row .client-add-btn {
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    padding: 0;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 900;
+}
+
 [data-theme="dark"] .billing-payee-readonly-value {
     background: rgba(15, 23, 42, 0.72);
     border-color: rgba(148, 163, 184, 0.28);
@@ -2569,10 +2591,13 @@
         padding: 0 14px 16px;
     }
     .billing-invoice-tabs-row,
-    .billing-invoice-compact-summary,
     .billing-payee-modal-grid,
     .billing-advance-picker-summary {
         grid-template-columns: 1fr;
+    }
+
+    .billing-invoice-compact-summary {
+        display: none !important;
     }
     .billing-advance-picker-check {
         grid-template-columns: auto auto minmax(0, 1fr);
@@ -5798,5 +5823,38 @@
         border-left: 0 !important;
         border-right: 0 !important;
         box-shadow: none;
+    }
+}
+
+
+/* Requested mobile create-advance header simplification. */
+@media (max-width: 820px) {
+    .billing-create-panel--advance .billing-bill-modal-mobile-back,
+    .billing-create-panel--advance .billing-bill-modal-status--draft {
+        display: none !important;
+    }
+
+    .billing-create-panel--advance .billing-bill-modal-header {
+        min-height: 104px;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 30px);
+    }
+
+    .billing-create-panel--advance .billing-bill-modal-header > div {
+        padding: 0 58px 0 12px;
+    }
+}
+
+@media (max-width: 720px) {
+    .billing-invoice-compact-summary {
+        display: none !important;
+    }
+
+    .billing-payee-client-picker-row {
+        grid-template-columns: minmax(0, 1fr) 44px;
+    }
+
+    .billing-payee-client-picker-row .client-add-btn {
+        width: 44px;
+        min-width: 44px;
     }
 }

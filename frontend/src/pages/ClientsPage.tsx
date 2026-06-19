@@ -1020,6 +1020,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [deletingWalletEntitlementId, setDeletingWalletEntitlementId] = useState<number | null>(null)
   const clientFilesDropDepth = useRef(0)
   const companyFilesDropDepth = useRef(0)
+  const walletPurchaseDrawerRef = useRef<HTMLElement | null>(null)
   const [isClientsMobile, setIsClientsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 720px)').matches : false,
   )
@@ -1530,6 +1531,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setWalletPurchaseError('')
     void loadWalletProducts(detailClient.id)
   }, [detailClient, loadWalletProducts])
+
+  useEffect(() => {
+    if (!walletPurchaseDrawerOpen || !isClientsMobile) return
+    const frame = window.requestAnimationFrame(() => {
+      walletPurchaseDrawerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [walletPurchaseDrawerOpen, isClientsMobile])
 
   const closeWalletPurchaseDrawer = useCallback(() => {
     setWalletPurchaseDrawerOpen(false)
@@ -3432,7 +3441,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         </div>
 
                         {walletPurchaseDrawerOpen && (
-                          <aside className="clients-wallet-purchase-drawer" aria-label={locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}>
+                          <aside ref={walletPurchaseDrawerRef} className="clients-wallet-purchase-drawer" aria-label={locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}>
                             <div className="clients-wallet-purchase-drawer-header">
                               <h3>{locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}</h3>
                               <button type="button" className="clients-wallet-drawer-close" onClick={closeWalletPurchaseDrawer} aria-label={t('mobileNavClose')}>×</button>
