@@ -268,7 +268,8 @@ fun WalletScreen(
                         title = walletTr(languageCode, "Scan access code", "Skenirajte dostopno kodo"),
                         subtitle = walletTr(languageCode, "Show this at reception", "Pokažite to na recepciji"),
                         code = code,
-                        entitlementId = card.id
+                        entitlementId = card.id,
+                        showCodeText = card.type.uppercase(Locale.getDefault()) != "COURSE"
                     )
                 },
                 onToggleAutoRenew = onToggleAutoRenew,
@@ -785,7 +786,8 @@ private data class WalletQRCodePopupModel(
     val title: String,
     val subtitle: String,
     val code: String,
-    val entitlementId: String
+    val entitlementId: String,
+    val showCodeText: Boolean = true
 )
 
 @Composable
@@ -855,15 +857,19 @@ private fun WalletQRCodePopupDialog(
                     modifier = Modifier.padding(top = 50.dp).size(184.dp).shadow(12.dp, RoundedCornerShape(12.dp), clip = false)
                 )
 
-                Text(
-                    text = model.code,
-                    color = WalletInk,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.5.sp,
-                    modifier = Modifier.padding(top = 26.dp, bottom = 34.dp)
-                )
+                if (model.showCodeText) {
+                    Text(
+                        text = model.code,
+                        color = WalletInk,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.5.sp,
+                        modifier = Modifier.padding(top = 26.dp, bottom = 34.dp)
+                    )
+                } else {
+                    Spacer(Modifier.height(34.dp))
+                }
             }
 
             Text(
@@ -936,8 +942,8 @@ private fun EntitlementsPanel(
             }
         }
     }
-    val hasMoreThanFive = filteredCards.size > 5
     val previewCards = remember(filteredCards) { filteredCards.take(4) }
+    val hasHiddenCards = filteredCards.size > previewCards.size
 
     androidx.compose.runtime.LaunchedEffect(selectedFilter, showInactive) {
         showAllCards = false
@@ -996,7 +1002,7 @@ private fun EntitlementsPanel(
                     onQRCodeTap = onQRCodeTap,
                     onToggleAutoRenew = onToggleAutoRenew,
                     onBookWithEntitlement = onBookWithEntitlement,
-                    showAllEnabled = hasMoreThanFive,
+                    showAllEnabled = hasHiddenCards,
                     onShowAll = { showAllCards = true },
                     modifier = Modifier.fillMaxSize().padding(start = 20.dp, top = 2.dp, end = 20.dp, bottom = 8.dp)
                 )
@@ -1716,7 +1722,7 @@ private fun WalletStackedPassCard(
                     }
                 }
 
-                if (type != "GIFT_CARD" && type != "COURSE") {
+                if (type == "PACK" || type == "CLASS_TICKET") {
                     Spacer(Modifier.weight(1f))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2735,39 +2741,43 @@ private fun BuyMarketplaceOfferCard(
                             )
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = WalletGoldSoft,
-                            tonalElevation = 0.dp
-                        ) {
-                            Text(
-                                text = marketplaceOfferTag(offer, languageCode),
-                                color = WalletGold,
-                                fontSize = 10.sp,
-                                lineHeight = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
-                            )
+                        marketplaceOfferTag(offer)?.let { promoText ->
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = WalletGoldSoft,
+                                tonalElevation = 0.dp
+                            ) {
+                                Text(
+                                    text = promoText,
+                                    color = WalletGold,
+                                    fontSize = 10.sp,
+                                    lineHeight = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp)
+                                )
+                            }
                         }
 
                         Spacer(Modifier.weight(1f))
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            BuyOfferSmallIcon(offer = offer, accent = WalletBlue)
-                            Text(
-                                text = buyMarketplaceQuantityLabel(offer, languageCode),
-                                color = WalletBlue,
-                                fontSize = 13.sp,
-                                lineHeight = 14.sp,
-                                fontWeight = FontWeight.Black,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                        buyMarketplaceQuantityLabel(offer, languageCode)?.let { quantityLabel ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                BuyOfferSmallIcon(offer = offer, accent = WalletBlue)
+                                Text(
+                                    text = quantityLabel,
+                                    color = WalletBlue,
+                                    fontSize = 13.sp,
+                                    lineHeight = 14.sp,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
 
@@ -2781,15 +2791,17 @@ private fun BuyMarketplaceOfferCard(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    Text(
-                        text = marketplaceOfferDescription(offer, languageCode),
-                        color = WalletInk.copy(alpha = 0.70f),
-                        fontSize = 14.sp,
-                        lineHeight = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    marketplaceOfferDescription(offer)?.let { description ->
+                        Text(
+                            text = description,
+                            color = WalletInk.copy(alpha = 0.70f),
+                            fontSize = 14.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
                     Spacer(Modifier.weight(1f))
 
@@ -3109,13 +3121,13 @@ private fun buyMarketplaceCardTypeLabel(offer: WalletOfferCard, languageCode: St
     }
 }
 
-private fun buyMarketplaceQuantityLabel(offer: WalletOfferCard, languageCode: String): String {
+private fun buyMarketplaceQuantityLabel(offer: WalletOfferCard, languageCode: String): String? {
     val limit = offer.usageLimit ?: 0
     val type = offer.productType.uppercase(Locale.getDefault())
     return when {
-        type == "MEMBERSHIP" -> walletTr(languageCode, "1 month", "1 mesec")
+        type == "MEMBERSHIP" -> null
         type == "COURSE" -> walletTr(languageCode, "Lifetime access", "Doživljenjski dostop")
-        isGiftOffer(offer) -> walletTr(languageCode, "1 item", "1 kos")
+        isGiftOffer(offer) -> null
         limit > 1 -> walletTr(languageCode, "$limit visits", "$limit obiskov")
         else -> walletTr(languageCode, "1 visit", "1 obisk")
     }
@@ -3128,7 +3140,7 @@ private fun buyMarketplaceExpiryLabel(offer: WalletOfferCard, languageCode: Stri
     val pattern = if (walletIsSl(languageCode)) "dd. MM. yyyy" else "dd MMM yyyy"
     val date = offer.validityDays?.takeIf { it > 0 }?.let { days ->
         java.time.LocalDate.now().plusDays(days.toLong()).format(java.time.format.DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
-    } ?: if (walletIsSl(languageCode)) "31. 12. 2026" else "31 Dec 2026"
+    } ?: return walletTr(languageCode, "No expiry", "Brez poteka")
     return walletTr(languageCode, "Expires: $date", "Poteče: $date")
 }
 
@@ -3142,17 +3154,11 @@ private fun buyMarketplacePriceSubtitle(offer: WalletOfferCard, languageCode: St
     }
 }
 
-private fun marketplaceOfferTag(offer: WalletOfferCard, languageCode: String): String =
-    offer.promoText?.takeIf { it.isNotBlank() } ?: walletTr(languageCode, "Promo", "PROMO")
+private fun marketplaceOfferTag(offer: WalletOfferCard): String? =
+    offer.promoText?.trim()?.takeIf { it.isNotBlank() }
 
-private fun marketplaceOfferDescription(offer: WalletOfferCard, languageCode: String): String = when {
-    offer.description?.isNotBlank() == true -> offer.description
-    isGiftOffer(offer) -> walletTr(languageCode, "A thoughtful gift for every occasion.", "Popolno darilo za vsak poseben trenutek.")
-    offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> walletTr(languageCode, "A perfect start for new members.", "Popoln začetek za nove člane.")
-    offer.productType.uppercase(Locale.getDefault()) == "COURSE" -> walletTr(languageCode, "Lifetime access to selected courses after purchase.", "Doživljenjski dostop do izbranih tečajev po nakupu.")
-    (offer.usageLimit ?: 0) > 1 -> walletTr(languageCode, "Flexible visits for all available sessions.", "Karta za več obiskov. Velja za vse termine.")
-    else -> walletTr(languageCode, "Flexible access for your next visit.", "Prilagodljiv dostop za naslednji obisk.")
-}
+private fun marketplaceOfferDescription(offer: WalletOfferCard): String? =
+    offer.description?.trim()?.takeIf { it.isNotBlank() }
 
 private fun marketplaceOfferAccent(offer: WalletOfferCard, index: Int): Color {
     val type = offer.productType.uppercase(Locale.getDefault())
@@ -3442,7 +3448,7 @@ private fun buyOfferStyle(offer: WalletOfferCard): BuyOfferStyle = when {
         background = Color(0xFFF7FBFF),
         border = WalletLine.copy(alpha = 0.95f),
         soft = Color(0xFFEAF4FF),
-        tag = "Most popular"
+        tag = offer.promoText?.trim()?.takeIf { it.isNotBlank() }
     )
     isGiftOffer(offer) -> BuyOfferStyle(
         accent = WalletGold,
@@ -3456,7 +3462,7 @@ private fun buyOfferStyle(offer: WalletOfferCard): BuyOfferStyle = when {
         background = Color(0xFFF3FCF7),
         border = WalletGreen.copy(alpha = 0.46f),
         soft = WalletGreenSoft,
-        tag = offer.promoText?.takeIf { it.isNotBlank() } ?: "Best value"
+        tag = offer.promoText?.trim()?.takeIf { it.isNotBlank() }
     )
 }
 
@@ -3735,7 +3741,7 @@ private fun buyOfferTypeLabel(offer: WalletOfferCard): String = when {
 }
 
 private fun buyOfferSubtitle(offer: WalletOfferCard): String = when {
-    isGiftOffer(offer) -> offer.description?.takeIf { it.isNotBlank() } ?: "Send to a friend"
+    isGiftOffer(offer) -> offer.description?.trim()?.takeIf { it.isNotBlank() } ?: ""
     offer.productType.uppercase(Locale.getDefault()) == "MEMBERSHIP" -> offer.sessionTypeName?.takeIf { it.isNotBlank() } ?: "All club access"
     else -> offer.sessionTypeName?.takeIf { it.isNotBlank() } ?: "Studio access"
 }
@@ -3952,7 +3958,7 @@ private fun PackOfferCard(offer: WalletOfferCard, index: Int, onBuyClick: () -> 
             shadowElevation = 6.dp
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-                if (!offer.promoText.isNullOrBlank() || (offer.usageLimit ?: 0) > 1) {
+                if (!offer.promoText.isNullOrBlank()) {
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -3961,7 +3967,7 @@ private fun PackOfferCard(offer: WalletOfferCard, index: Int, onBuyClick: () -> 
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text(
-                            text = offer.promoText?.takeIf { it.isNotBlank() } ?: "BEST VALUE",
+                            text = offer.promoText?.trim().orEmpty(),
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
@@ -4068,13 +4074,15 @@ private fun PackOfferCard(offer: WalletOfferCard, index: Int, onBuyClick: () -> 
                             fontWeight = FontWeight.Bold,
                             fontSize = 28.sp
                         )
-                        Text(
-                            text = offer.promoText?.takeIf { it.isNotBlank() } ?: "Flexible visits",
-                            color = WalletMuted,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 16.sp
-                        )
+                        offer.promoText?.trim()?.takeIf { it.isNotBlank() }?.let { promoText ->
+                            Text(
+                                text = promoText,
+                                color = WalletMuted,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 16.sp
+                            )
+                        }
                         Button(
                             onClick = onBuyClick,
                             modifier = Modifier.fillMaxWidth().height(44.dp),
@@ -4298,8 +4306,7 @@ private fun offerStudioName(offer: WalletOfferCard): String =
     offer.sessionTypeName?.takeIf { it.isNotBlank() } ?: "Studio access"
 
 private fun offerClassDescription(offer: WalletOfferCard): String =
-    offer.description?.takeIf { it.isNotBlank() }
-        ?: "A flexible single-class pass to book your next visit with ease."
+    offer.description?.trim()?.takeIf { it.isNotBlank() } ?: ""
 
 private fun offerPackTitle(offer: WalletOfferCard): String {
     val uses = offer.usageLimit
@@ -4309,11 +4316,10 @@ private fun offerPackTitle(offer: WalletOfferCard): String {
 }
 
 private fun offerPackDescription(offer: WalletOfferCard): String =
-    offer.description?.takeIf { it.isNotBlank() }
-        ?: "Flexible visits to use on any eligible class. Shareable with friends or family."
+    offer.description?.trim()?.takeIf { it.isNotBlank() } ?: ""
 
 private fun offerValidityLabel(days: Int?): String = when {
-    days == null || days <= 0 -> "Flexible validity"
+    days == null || days <= 0 -> "No expiry"
     days >= 120 && days % 30 == 0 -> "Valid for ${days / 30} months"
     days >= 60 -> "Valid for ${days / 30} months"
     days == 30 -> "Valid for 30 days"

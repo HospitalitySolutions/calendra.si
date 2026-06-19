@@ -480,7 +480,7 @@ struct WalletView: View {
         let inactiveCards = filteredByType.filter { isInactiveEntitlement($0) }
         let visibleCards = showInactiveEntitlements ? inactiveCards : activeCards
         let previewCards = Array(visibleCards.prefix(4))
-        let canShowAll = visibleCards.count > 4
+        let canShowAll = visibleCards.count > previewCards.count
 
         return VStack(spacing: 0) {
             entitlementFilterRow(
@@ -536,7 +536,8 @@ struct WalletView: View {
                                 title: walletTr(appUiLocaleStorage, "Scan access code", "Skeniraj dostopno kodo"),
                                 subtitle: walletTr(appUiLocaleStorage, "Show this at reception", "Pokažite to na recepciji"),
                                 code: code,
-                                entitlementId: entitlement.id
+                                entitlementId: entitlement.id,
+                                showCodeText: entitlement.type.uppercased() != "COURSE"
                             )
                         }
                     },
@@ -567,7 +568,8 @@ struct WalletView: View {
                                 title: walletTr(appUiLocaleStorage, "Scan access code", "Skeniraj dostopno kodo"),
                                 subtitle: walletTr(appUiLocaleStorage, "Show this at reception", "Pokažite to na recepciji"),
                                 code: code,
-                                entitlementId: entitlement.id
+                                entitlementId: entitlement.id,
+                                showCodeText: entitlement.type.uppercased() != "COURSE"
                             )
                         }
                     },
@@ -692,47 +694,25 @@ struct WalletView: View {
     }
 
     private func buyHeroSubtitle(for offer: WalletOfferModel) -> String {
-        if let promoText = offer.promoText, !promoText.isEmpty { return promoText }
-        if offer.productType == "MEMBERSHIP" { return walletTr(appUiLocaleStorage, "Unlimited access, simple checkout, saved directly to your wallet.", "Neomejen dostop, enostavno plačilo in shranjeno neposredno v denarnico.") }
-        if offer.productType == "PACK" { return walletTr(appUiLocaleStorage, "Flexible visits for your favorite classes, ready instantly after purchase.", "Prilagodljivi obiski za vaše najljubše termine, pripravljeni takoj po nakupu.") }
-        return offer.description?.isEmpty == false ? offer.description! : walletTr(appUiLocaleStorage, "Book your next session with a pass that activates instantly.", "Rezervirajte naslednji termin z vstopnico, ki se aktivira takoj.")
+        if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty { return promoText }
+        if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
+        return ""
     }
 
     private func buyOfferSubtitle(for offer: WalletOfferModel) -> String {
-        if let description = offer.description, !description.isEmpty { return description }
-        switch offer.productType {
-        case "PACK":
-            return walletTr(appUiLocaleStorage, "\(offerVisitCountLabel(offer.usageLimit)) to use anytime. \(offerValidityLabel(offer.validityDays)).", "\(offerVisitCountLabel(offer.usageLimit)) za uporabo kadarkoli. \(offerValidityLabel(offer.validityDays)).")
-        case "MEMBERSHIP":
-            return walletTr(appUiLocaleStorage, "Recurring access for your routine. Saved to Wallet after checkout.", "Ponavljajoč dostop za vašo rutino. Po plačilu shranjeno v denarnico.")
-        case "CLASS_TICKET":
-            return walletTr(appUiLocaleStorage, "One class. Any time. \(offerValidityLabel(offer.validityDays)).", "En obisk. Kadarkoli. \(offerValidityLabel(offer.validityDays)).")
-        default:
-            return walletTr(appUiLocaleStorage, "Secure checkout with instant activation.", "Varno plačilo s takojšnjo aktivacijo.")
-        }
+        if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
+        return ""
     }
 
     private func buyOfferEyebrow(for offer: WalletOfferModel, index: Int) -> String {
-        if let promoText = offer.promoText, !promoText.isEmpty { return promoText }
-        switch offer.productType {
-        case "PACK": return (offer.usageLimit ?? 0) >= 10 ? walletTr(appUiLocaleStorage, "Best value", "Najboljša vrednost") : walletTr(appUiLocaleStorage, "Class pack", "Karte")
-        case "MEMBERSHIP": return index == 0 ? walletTr(appUiLocaleStorage, "Most popular", "Najbolj priljubljeno") : walletTr(appUiLocaleStorage, "Membership", "Članarina")
-        case "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Great for trying out", "Odlično za prvi obisk")
-        default: return productTypeLabel(offer.productType)
-        }
+        if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty { return promoText }
+        return productTypeLabel(offer.productType)
     }
 
 
     private func buyShowcaseDescription(for offer: WalletOfferModel) -> String {
-        if let description = offer.description, !description.isEmpty { return description }
-        switch offer.productType {
-        case "MEMBERSHIP":
-            return walletTr(appUiLocaleStorage, "Unlimited access to your favourite services with one simple membership.", "Neomejen dostop do vaših najljubših storitev z eno članarino.")
-        case "PACK":
-            return walletTr(appUiLocaleStorage, "Bundle sessions together for better value and flexible booking.", "Združite obiske v paket za boljšo vrednost in prilagodljivo rezervacijo.")
-        default:
-            return walletTr(appUiLocaleStorage, "A simple pass ready to use on your next visit.", "Preprosta vstopnica, pripravljena za vaš naslednji obisk.")
-        }
+        if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
+        return ""
     }
 
     private func buyShowcaseLabel(for offer: WalletOfferModel) -> String {
@@ -1217,6 +1197,7 @@ private struct WalletQRCodePopupModel: Identifiable, Equatable {
     let subtitle: String
     let code: String
     let entitlementId: String
+    let showCodeText: Bool
 
     var id: String { "\(entitlementId)-\(code)" }
 }
@@ -1263,12 +1244,17 @@ private struct WalletQRCodePopup: View {
                     .padding(.top, 50)
                     .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
 
-                Text(model.code)
-                    .font(.system(size: 26, weight: .medium, design: .monospaced))
-                    .tracking(1.5)
-                    .foregroundColor(walletInk)
-                    .padding(.top, 26)
-                    .padding(.bottom, 34)
+                if model.showCodeText {
+                    Text(model.code)
+                        .font(.system(size: 26, weight: .medium, design: .monospaced))
+                        .tracking(1.5)
+                        .foregroundColor(walletInk)
+                        .padding(.top, 26)
+                        .padding(.bottom, 34)
+                } else {
+                    Spacer(minLength: 34)
+                        .frame(height: 34)
+                }
             }
             .frame(maxWidth: 330)
             .background(
@@ -1347,6 +1333,7 @@ private struct WalletEntitlementFullList: View {
     }
 
     private func displayCode(for entitlement: AccessCardModel) -> String {
+        if entitlement.type.uppercased() == "COURSE", let accessUrl = entitlement.accessUrl, !accessUrl.isEmpty { return accessUrl }
         if let entitlementCode = entitlement.entitlementCode, !entitlementCode.isEmpty { return entitlementCode }
         if let displayCode = entitlement.displayCode, !displayCode.isEmpty { return displayCode }
         return entitlement.entitlementId
@@ -1527,6 +1514,7 @@ private struct WalletPullOutEntitlementDeck: View {
     }
 
     private func displayCode(for entitlement: AccessCardModel) -> String {
+        if entitlement.type.uppercased() == "COURSE", let accessUrl = entitlement.accessUrl, !accessUrl.isEmpty { return accessUrl }
         if let entitlementCode = entitlement.entitlementCode, !entitlementCode.isEmpty { return entitlementCode }
         if let displayCode = entitlement.displayCode, !displayCode.isEmpty { return displayCode }
         return entitlement.entitlementId
@@ -1838,7 +1826,7 @@ private struct WalletStackedPassCard: View {
                                 .frame(width: 1, height: 36)
                             WalletDetailBlock(label: secondaryMetric.label.uppercased(), value: secondaryMetric.value, accent: style.accent)
                         }
-                        if entitlement.type.uppercased() != "GIFT_CARD" {
+                        if entitlement.type.uppercased() == "PACK" || entitlement.type.uppercased() == "CLASS_TICKET" {
                             Divider().overlay(walletLine.opacity(0.55))
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(walletTr(appUiLocaleStorage, "SCAN CODE", "KODA"))
@@ -3124,43 +3112,32 @@ private struct BuyShowcaseOfferCard: View {
         }
     }
 
-    private var promoLabel: String {
-        if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty { return promoText }
-        switch offer.productType {
-        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Special offer", "Posebna ponudba")
-        case "COURSE": return walletTr(appUiLocaleStorage, "Course access", "Dostop do tečaja")
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "Great gift", "Odlično darilo")
-        default: return index % 2 == 0 ? walletTr(appUiLocaleStorage, "New", "Novo") : walletTr(appUiLocaleStorage, "Deal", "Akcija")
-        }
+    private var promoLabel: String? {
+        guard let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty else { return nil }
+        return promoText
     }
 
-    private var quantityLabel: String {
+    private var quantityLabel: String? {
         let isSl = appUiLocaleStorage.lowercased().hasPrefix("sl")
-        if offer.productType == "MEMBERSHIP" { return isSl ? "1 mesec" : "1 month" }
+        if offer.productType == "MEMBERSHIP" { return nil }
         if offer.productType == "COURSE" { return isSl ? "doživljenjski dostop" : "lifetime access" }
-        if offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT" { return isSl ? "1 kos" : "1 item" }
+        if offer.productType == "GIFT_CARD" || offer.productType == "GIFT_CARD_PRODUCT" { return nil }
         guard let usageLimit = offer.usageLimit, usageLimit > 1 else { return isSl ? "1 obisk" : "1 visit" }
         return isSl ? "\(usageLimit) obiskov" : "\(usageLimit) visits"
     }
 
-    private var descriptionText: String {
-        if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
-        switch offer.productType {
-        case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Unlimited access to selected services", "Neomejen dostop do izbranih storitev")
-        case "COURSE": return walletTr(appUiLocaleStorage, "Lifetime access to selected courses after purchase", "Doživljenjski dostop do izbranih tečajev po nakupu")
-        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "For all services from this provider", "Za vse storitve pri ponudniku")
-        default: return walletTr(appUiLocaleStorage, "Flexible access for regular visits", "Popolno za redne obiske")
-        }
+    private var descriptionText: String? {
+        guard let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty else { return nil }
+        return description
     }
 
     private var expiryText: String {
         if offer.productType == "COURSE" {
             return walletTr(appUiLocaleStorage, "No expiry", "Brez poteka")
         }
-        let fallback = appUiLocaleStorage.lowercased().hasPrefix("sl") ? "31. 12. 2026" : "31 Dec 2026"
         guard let validityDays = offer.validityDays, validityDays > 0,
               let date = Calendar.current.date(byAdding: .day, value: validityDays, to: Date()) else {
-            return walletTr(appUiLocaleStorage, "Expires: \(fallback)", "Poteče: \(fallback)")
+            return walletTr(appUiLocaleStorage, "No expiry", "Brez poteka")
         }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: appUiLocaleStorage.lowercased().hasPrefix("sl") ? "sl_SI" : "en_US_POSIX")
@@ -3190,24 +3167,28 @@ private struct BuyShowcaseOfferCard: View {
                             .frame(height: 28)
                             .background(walletBlue, in: Capsule(style: .continuous))
 
-                        Text(promoLabel)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(walletAmber)
-                            .lineLimit(1)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
-                            .background(Color(red: 1.0, green: 0.90, blue: 0.80), in: Capsule(style: .continuous))
+                        if let promoLabel = promoLabel {
+                            Text(promoLabel)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(walletAmber)
+                                .lineLimit(1)
+                                .padding(.horizontal, 10)
+                                .frame(height: 28)
+                                .background(Color(red: 1.0, green: 0.90, blue: 0.80), in: Capsule(style: .continuous))
+                        }
 
                         Spacer(minLength: 8)
 
-                        HStack(spacing: 6) {
-                            Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : (offer.productType == "COURSE" ? "play.rectangle" : "person.crop.circle"))
-                                .font(.system(size: 13, weight: .bold))
-                            Text(quantityLabel)
-                                .font(.system(size: 13, weight: .black))
-                                .lineLimit(1)
+                        if let quantityLabel = quantityLabel {
+                            HStack(spacing: 6) {
+                                Image(systemName: offer.productType == "MEMBERSHIP" ? "calendar" : (offer.productType == "COURSE" ? "play.rectangle" : "person.crop.circle"))
+                                    .font(.system(size: 13, weight: .bold))
+                                Text(quantityLabel)
+                                    .font(.system(size: 13, weight: .black))
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(walletBlue)
                         }
-                        .foregroundColor(walletBlue)
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -3216,10 +3197,12 @@ private struct BuyShowcaseOfferCard: View {
                             .foregroundColor(walletInk)
                             .lineLimit(2)
                             .minimumScaleFactor(0.78)
-                        Text(descriptionText)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(walletInk.opacity(0.70))
-                            .lineLimit(2)
+                        if let descriptionText = descriptionText {
+                            Text(descriptionText)
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(walletInk.opacity(0.70))
+                                .lineLimit(2)
+                        }
                     }
 
                     Rectangle()
@@ -3427,17 +3410,19 @@ private struct BuyMarketplaceHeroCard: View {
                 .offset(x: -4, y: 20)
 
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 6) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11, weight: .bold))
-                    Text((offer.promoText?.isEmpty == false ? offer.promoText! : walletTr(appUiLocaleStorage, "Most popular", "Najbolj priljubljeno")).uppercased())
-                        .font(.system(size: 11, weight: .heavy))
-                        .lineLimit(1)
+                if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 11, weight: .bold))
+                        Text(promoText.uppercased())
+                            .font(.system(size: 11, weight: .heavy))
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(Color(red: 1.0, green: 0.66, blue: 0.38))
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(Color.white.opacity(0.14), in: Capsule(style: .continuous))
                 }
-                .foregroundColor(Color(red: 1.0, green: 0.66, blue: 0.38))
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(Color.white.opacity(0.14), in: Capsule(style: .continuous))
 
                 Text(offer.name)
                     .font(.system(size: 30, weight: .heavy))
@@ -3861,11 +3846,13 @@ private struct PackOfferCard: View {
                         Text("$\(String(format: "%.2f", offer.priceGross))")
                             .font(.system(size: 28, weight: .bold, design: .serif))
                             .foregroundColor(Color(red: 0.06, green: 0.35, blue: 0.21))
-                        Text((offer.promoText?.isEmpty == false ? offer.promoText! : "Flexible visits"))
-                            .font(.caption)
-                            .foregroundColor(walletMuted)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
+                        if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty {
+                            Text(promoText)
+                                .font(.caption)
+                                .foregroundColor(walletMuted)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        }
                         Button(action: onTap) {
                             Text("Buy now")
                                 .font(.subheadline.weight(.bold))
@@ -3885,8 +3872,8 @@ private struct PackOfferCard: View {
                 .overlay(shape.stroke(border, lineWidth: 1))
                 .shadow(color: Color.black.opacity(0.08), radius: 6, y: 3)
 
-                if offer.promoText?.isEmpty == false || (offer.usageLimit ?? 0) > 1 {
-                    Text(offer.promoText?.isEmpty == false ? offer.promoText! : "BEST VALUE")
+                if let promoText = offer.promoText?.trimmingCharacters(in: .whitespacesAndNewlines), !promoText.isEmpty {
+                    Text(promoText)
                         .font(.caption.weight(.bold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
@@ -4089,8 +4076,8 @@ private func offerStudioName(_ offer: WalletOfferModel) -> String {
 }
 
 private func classOfferDescription(_ offer: WalletOfferModel) -> String {
-    if let description = offer.description, !description.isEmpty { return description }
-    return "A flexible single-class pass to book your next visit with ease."
+    if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
+    return ""
 }
 
 private func packOfferTitle(_ offer: WalletOfferModel) -> String {
@@ -4101,12 +4088,12 @@ private func packOfferTitle(_ offer: WalletOfferModel) -> String {
 }
 
 private func packOfferDescription(_ offer: WalletOfferModel) -> String {
-    if let description = offer.description, !description.isEmpty { return description }
-    return "Flexible visits to use on any eligible class. Shareable with friends or family."
+    if let description = offer.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty { return description }
+    return ""
 }
 
 private func offerValidityLabel(_ days: Int?) -> String {
-    guard let days, days > 0 else { return "Flexible validity" }
+    guard let days, days > 0 else { return "No expiry" }
     if days >= 120, days % 30 == 0 { return "Valid for \(days / 30) months" }
     if days >= 60 { return "Valid for \(days / 30) months" }
     if days == 30 { return "Valid for 30 days" }
