@@ -44,7 +44,7 @@ public class DataSeeder implements CommandLineRunner {
         seedTenant("Tenant 1", "tenancy1@terminko.eu");
         seedTenant("Tenant 2", "tenancy2@terminko.eu");
         seedTenant("Tenant 3", "tenancy3@terminko.eu");
-        seedTenant("CoreGym", "jdukaric@calendra.si");
+        seedTenant("CoreGym", "aholcman@calendra.si");
         seedTenant("Nejc Bracko s.p.", "nbracko@calendra.si");
         seedTenant("Inštitut AVISENSA", "nina@avisensa.com");
         seedTenant("Rudi Inc.", "astraus81@gmail.com");
