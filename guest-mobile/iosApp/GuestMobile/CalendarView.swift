@@ -111,7 +111,8 @@ struct CalendarView: View {
                         bookingPendingCancel = booking
                     }
                 },
-                isSl: isSl
+                isSl: isSl,
+                onMenuExpansionChange: { _ in }
             )
             .frame(maxWidth: .infinity)
             .padding(.top, 20)
