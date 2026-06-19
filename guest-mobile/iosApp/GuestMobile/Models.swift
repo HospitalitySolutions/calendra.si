@@ -19,6 +19,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let phone: String?
     let status: String?
     let companyAddress: String?
+    let tenantType: String?
     let employeeSelectionStep: Bool?
     let useEmployeeContact: Bool?
     let billingEnabled: Bool?
@@ -43,6 +44,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         case phone = "publicPhone"
         case status
         case companyAddress
+        case tenantType
         case employeeSelectionStep
         case useEmployeeContact
         case billingEnabled
@@ -64,6 +66,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         phone: String?,
         status: String?,
         companyAddress: String?,
+        tenantType: String? = nil,
         employeeSelectionStep: Bool? = nil,
         useEmployeeContact: Bool? = nil,
         billingEnabled: Bool? = nil,
@@ -83,6 +86,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.phone = phone
         self.status = status
         self.companyAddress = companyAddress
+        self.tenantType = tenantType
         self.employeeSelectionStep = employeeSelectionStep
         self.useEmployeeContact = useEmployeeContact
         self.billingEnabled = billingEnabled
@@ -105,6 +109,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
         self.phone = try c.decodeIfPresent(String.self, forKey: .phone)
         self.status = try c.decodeIfPresent(String.self, forKey: .status)
         self.companyAddress = try c.decodeIfPresent(String.self, forKey: .companyAddress)
+        self.tenantType = try c.decodeIfPresent(String.self, forKey: .tenantType)
         self.employeeSelectionStep = try c.decodeIfPresent(Bool.self, forKey: .employeeSelectionStep)
         self.useEmployeeContact = try c.decodeIfPresent(Bool.self, forKey: .useEmployeeContact)
         self.billingEnabled = try c.decodeIfPresent(Bool.self, forKey: .billingEnabled)

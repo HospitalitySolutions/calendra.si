@@ -1360,13 +1360,16 @@ private struct WalletPullOutEntitlementDeck: View {
         GeometryReader { proxy in
             let cards = walletCards
             let compactLayout = proxy.size.height < 560
-            let fullCardHeight: CGFloat = compactLayout ? 260 : 286
+            let fullCardHeight: CGFloat = compactLayout ? 260 : 316
             let pocketHeight: CGFloat = compactLayout ? 270 : 328
             let pocketTopWhenStored = max(proxy.size.height - (compactLayout ? 178 : 214), fullCardHeight + 32)
             let pocketVisibleSliceWhenPulled: CGFloat = compactLayout ? 26 : 34
             let pocketTopWhenPulled = max(proxy.size.height - pocketVisibleSliceWhenPulled, fullCardHeight + 58)
             let pocketTop = isPulledForward ? pocketTopWhenPulled : pocketTopWhenStored
-            let storedCardStep: CGFloat = isPulledForward ? (compactLayout ? 42 : 48) : (compactLayout ? 52 : 60)
+            // Keep inactive passes tucked into the wallet.
+            // Android shows only the top edges of the stored passes; the previous iOS
+            // offsets used a large step, so most of each stored card remained visible.
+            let storedCardStep: CGFloat = isPulledForward ? (compactLayout ? 16 : 18) : (compactLayout ? 18 : 20)
             let stackCards = orderedCards(cards)
             let storedStackCards: [AccessCardModel] = isPulledForward ? Array(stackCards.dropFirst()) : stackCards
             let storedCards = Array(storedStackCards.prefix(3))
@@ -1758,7 +1761,7 @@ private struct WalletTicketStyle {
 private struct WalletStackedPassCard: View {
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
-    static let baseHeight: CGFloat = 260
+    static let baseHeight: CGFloat = 274
 
     let entitlement: AccessCardModel
     let index: Int
@@ -1768,244 +1771,230 @@ private struct WalletStackedPassCard: View {
     let onToggleAutoRenew: (Bool) -> Void
     let onBookWithEntitlement: () -> Void
 
+    private var type: String { entitlement.type.uppercased() }
     private var style: WalletTicketStyle { walletTicketStyle(type: entitlement.type, index: index) }
-    private var shape: CompactTicketShape { CompactTicketShape(cornerRadius: 20, notchRadius: 10, notchFractionY: 0.48) }
+    private var roundedShape: RoundedRectangle { RoundedRectangle(cornerRadius: 26, style: .continuous) }
+    private var isLightCard: Bool { type == "CLASS_TICKET" || type == "GIFT_CARD" || type == "GIFT_CARD_PRODUCT" }
+    private var textColor: Color { isLightCard ? walletInk : .white }
+    private var mutedTextColor: Color { isLightCard ? walletMuted : .white.opacity(0.78) }
+    private var dividerColor: Color { isLightCard ? walletLine.opacity(0.85) : .white.opacity(0.22) }
     private var code: String {
-        if entitlement.type.uppercased() == "COURSE", let accessUrl = entitlement.accessUrl, !accessUrl.isEmpty { return accessUrl }
+        if type == "COURSE", let accessUrl = entitlement.accessUrl, !accessUrl.isEmpty { return accessUrl }
         if let entitlementCode = entitlement.entitlementCode, !entitlementCode.isEmpty { return entitlementCode }
         if let displayCode = entitlement.displayCode, !displayCode.isEmpty { return displayCode }
         return entitlement.entitlementId
     }
 
     var body: some View {
-        Group {
-            if isBookableTicket {
-                modernBookingCard
-            } else {
-                defaultCard
-            }
-        }
-        .frame(height: cardHeight)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
-    }
-
-    private var defaultCard: some View {
         ZStack(alignment: .bottomTrailing) {
-            WalletPassWave(accent: style.accent)
-                .frame(height: 92)
-                .padding(.trailing, 16)
-                .padding(.bottom, 18)
+            WalletPassWave(accent: isLightCard ? style.accent : .white)
+                .frame(width: 230, height: 116)
+                .padding(.trailing, 10)
+                .padding(.bottom, 8)
                 .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: isBookableTicket ? 14 : 4) {
                         Text(entitlement.name)
-                            .font(.system(size: 20, weight: .bold, design: .serif))
-                            .foregroundColor(walletInk)
-                            .lineLimit(1)
+                            .font(.system(size: isBookableTicket ? 21 : 20, weight: .bold))
+                            .foregroundColor(textColor)
+                            .lineLimit(2)
                             .minimumScaleFactor(0.78)
-                    }
-                    Spacer(minLength: 10)
-                    WalletTypeBadge(label: entitlementKindLabel, accent: style.accent)
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 16)
 
-                dashedDivider(color: style.accent.opacity(0.62))
-                    .padding(.horizontal, 17)
-
-                HStack(alignment: .bottom, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 15) {
-                        HStack(spacing: 18) {
-                            WalletDetailBlock(label: primaryMetric.label.uppercased(), value: primaryMetric.value, accent: style.accent)
-                            Rectangle()
-                                .fill(walletLine.opacity(0.95))
-                                .frame(width: 1, height: 36)
-                            WalletDetailBlock(label: secondaryMetric.label.uppercased(), value: secondaryMetric.value, accent: style.accent)
-                        }
-                        if entitlement.type.uppercased() == "PACK" || entitlement.type.uppercased() == "CLASS_TICKET" {
-                            Divider().overlay(walletLine.opacity(0.55))
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(walletTr(appUiLocaleStorage, "SCAN CODE", "KODA"))
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(walletInk.opacity(0.58))
-                                Text(code)
-                                    .font(.system(size: 15, weight: .medium, design: .monospaced))
-                                    .foregroundColor(walletInk)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
+                        if isBookableTicket {
+                            Button(action: onBookWithEntitlement) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 15, weight: .semibold))
+                                    Text(walletTr(appUiLocaleStorage, "Choose slot", "Izberi termin"))
+                                        .font(.system(size: 13, weight: .bold))
+                                        .lineLimit(1)
+                                    Spacer(minLength: 6)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .bold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 13)
+                                .frame(height: 36)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(red: 0.03, green: 0.15, blue: 0.32), in: Capsule(style: .continuous))
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Button {
-                        onQRCodeTap(code)
-                    } label: {
-                        WalletQRCodeView(content: code)
-                            .frame(width: 74, height: 74)
-                            .overlay(
-                                Circle()
-                                    .stroke(style.accent.opacity(0.22), lineWidth: 1.2)
-                                    .scaleEffect(1.16)
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(style.accent.opacity(0.12), lineWidth: 1.2)
-                                    .scaleEffect(1.42)
-                            )
+                    VStack(alignment: .trailing, spacing: 8) {
+                        entitlementKindChip
+
+                        Button {
+                            onQRCodeTap(code)
+                        } label: {
+                            VStack(spacing: 6) {
+                                WalletQRCodeView(content: code)
+                                    .frame(width: 44, height: 44)
+                                Text(walletTr(appUiLocaleStorage, "Show QR", "Prikaži QR"))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(textColor)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 72)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Enlarge QR code")
-                    .padding(.bottom, 1)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 18)
+
+                Spacer(minLength: 14)
+
+                Rectangle()
+                    .fill(dividerColor)
+                    .frame(height: 1)
+                    .padding(.bottom, 14)
+
+                if isBookableTicket {
+                    HStack(alignment: .top, spacing: 0) {
+                        metricColumn(
+                            label: walletTr(appUiLocaleStorage, "EXPIRES", "POTEČE"),
+                            value: validUntilLabel
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Rectangle()
+                            .fill(dividerColor)
+                            .frame(width: 1, height: 48)
+                            .padding(.horizontal, 18)
+
+                        accessRemainingMetric
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    HStack(alignment: .center, spacing: 0) {
+                        metricColumn(label: secondaryMetric.label.uppercased(), value: secondaryMetric.value)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Rectangle()
+                            .fill(dividerColor)
+                            .frame(width: 1, height: 40)
+                            .padding(.horizontal, 14)
+
+                        metricColumn(label: primaryMetric.label.uppercased(), value: primaryMetric.value)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Rectangle()
+                            .fill(dividerColor)
+                            .frame(width: 1, height: 40)
+                            .padding(.horizontal, 14)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(statusLabel)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(textColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if type == "PACK" || type == "CLASS_TICKET" {
+                        Spacer(minLength: 14)
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(isLightCard ? style.accent.opacity(0.12) : .white.opacity(0.12))
+                                Text("▦")
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundColor(isLightCard ? style.accent : .white)
+                            }
+                            .frame(width: 42, height: 42)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(walletTr(appUiLocaleStorage, "YOUR ACCESS CODE", "VAŠA DOSTOPNA KODA"))
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(mutedTextColor)
+                                Text(code)
+                                    .font(.system(size: 19, weight: .bold, design: .monospaced))
+                                    .foregroundColor(textColor)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Text(walletTr(appUiLocaleStorage, "Tap at check-in", "Tapnite ob prijavi"))
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(mutedTextColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                    }
+                }
             }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
         }
+        .frame(height: cardHeight)
         .background(
-            shape.fill(
+            roundedShape.fill(
                 LinearGradient(
-                    colors: [style.background, Color(.systemBackground).opacity(0.92), style.softAccent.opacity(0.30)],
+                    colors: walletPassGradient(type: entitlement.type, index: index),
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
         )
-        .clipShape(shape)
-        .overlay(shape.stroke(style.border, lineWidth: 1.25))
-        .shadow(color: style.accent.opacity(0.12), radius: 12, x: 0, y: 7)
-        .shadow(color: Color.black.opacity(0.045), radius: 7, x: 0, y: 3)
+        .clipShape(roundedShape)
+        .overlay(roundedShape.stroke(style.border.opacity(0.95), lineWidth: 1.25))
+        .shadow(color: Color.black.opacity(0.10), radius: 18, x: 0, y: 10)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
     }
 
-    private var modernBookingCard: some View {
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [Color(red: 1.0, green: 0.66, blue: 0.12), Color(red: 1.0, green: 0.55, blue: 0.05)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+    private var entitlementKindChip: some View {
+        Text(entitlementKindLabel)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(isLightCard ? style.accent : .white)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(isLightCard ? style.accent.opacity(0.10) : .white.opacity(0.18), in: Capsule(style: .continuous))
             .overlay(
-                ZStack(alignment: .topTrailing) {
-                    Circle()
-                        .fill(Color.white.opacity(0.09))
-                        .frame(width: 180, height: 180)
-                        .offset(x: 70, y: 52)
-
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(alignment: .top, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack(alignment: .top, spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(entitlement.name)
-                                            .font(.system(size: 20, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.76)
-                                    }
-                                }
-
-                                Button {
-                                    onBookWithEntitlement()
-                                } label: {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: "calendar")
-                                            .font(.system(size: 16, weight: .semibold))
-                                        Text(walletTr(appUiLocaleStorage, "Choose slot", "Izberi termin"))
-                                            .font(.system(size: 13, weight: .bold))
-                                            .lineLimit(1)
-                                        Spacer(minLength: 6)
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 13, weight: .bold))
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 13)
-                                    .frame(height: 38)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [Color(red: 0.03, green: 0.19, blue: 0.44), Color(red: 0.07, green: 0.30, blue: 0.62)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        ),
-                                        in: Capsule(style: .continuous)
-                                    )
-                                    .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 8)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                            VStack(alignment: .trailing, spacing: 12) {
-                                WalletGlassTypeBadge(label: entitlementKindLabel)
-
-                                Button {
-                                    onQRCodeTap(code)
-                                } label: {
-                                    VStack(spacing: 6) {
-                                        WalletQRCodeView(content: code)
-                                            .frame(width: 44, height: 44)
-                                        Text(walletTr(appUiLocaleStorage, "Show QR", "Prikaži QR"))
-                                            .font(.system(size: 11, weight: .semibold))
-                                            .foregroundColor(Color.white)
-                                    }
-                                    .frame(width: 72)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-
-                        Spacer(minLength: 16)
-
-                        HStack(spacing: 0) {
-                            bookingMetricColumn(
-                                title: walletTr(appUiLocaleStorage, "EXPIRES", "POTEČE"),
-                                value: validUntilLabel,
-                                caption: expiryCaption
-                            )
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            bookingMetricDivider
-                            bookingAccessRemainingMetric
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                        .padding(.bottom, 18)
-                    }
-                }
+                Capsule(style: .continuous)
+                    .stroke(isLightCard ? style.accent.opacity(0.20) : .white.opacity(0.35), lineWidth: 1)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.10), radius: 18, x: 0, y: 10)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
     }
 
+    private func metricColumn(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(mutedTextColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.76)
+            Text(value)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(textColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+    }
 
-    private var bookingAccessRemainingMetric: some View {
-        VStack(alignment: .leading, spacing: 7) {
+    private var accessRemainingMetric: some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text(walletTr(appUiLocaleStorage, "ACCESS / REMAINING", "DOSTOP / PREOSTALO"))
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color.white.opacity(0.82))
+                .foregroundColor(mutedTextColor)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.72)
 
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .stroke(Color.white.opacity(0.24), lineWidth: 3.5)
+                        .stroke(isLightCard ? style.accent.opacity(0.20) : .white.opacity(0.24), lineWidth: 3.5)
                     Circle()
                         .trim(from: 0, to: accessRemainingProgress)
                         .stroke(
-                            Color.white,
+                            isLightCard ? style.accent : .white,
                             style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
                         )
                         .rotationEffect(.degrees(-90))
@@ -2014,41 +2003,15 @@ private struct WalletStackedPassCard: View {
 
                 Text(accessRemainingDisplayValue)
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(textColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
         }
     }
 
-    private var bookingMetricDivider: some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.25))
-            .frame(width: 1, height: 58)
-            .padding(.horizontal, 12)
-    }
-
-    private func bookingMetricColumn(title: String, value: String, caption: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color.white.opacity(0.82))
-            Text(value)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.76)
-            Text(caption)
-                .font(.system(size: 8, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.82))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var isBookableTicket: Bool {
-        (entitlement.type == "PACK" || entitlement.type == "CLASS_TICKET") && !isInactiveStatus
+        (type == "PACK" || type == "CLASS_TICKET") && !isInactiveStatus
     }
 
     private var isInactiveStatus: Bool {
@@ -2060,18 +2023,11 @@ private struct WalletStackedPassCard: View {
         }
     }
 
-    private var typeLabel: String {
-        switch entitlement.type {
-        case "CLASS_TICKET": return "Single"
-        default: return productTypeLabel(entitlement.type)
-        }
-    }
-
     private var entitlementKindLabel: String {
-        switch entitlement.type.uppercased() {
+        switch type {
         case "PACK", "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Ticket", "Vstopnica")
         case "MEMBERSHIP": return walletTr(appUiLocaleStorage, "Membership", "Članarina")
-        case "GIFT_CARD": return walletTr(appUiLocaleStorage, "Gift card", "Darilna kartica")
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return walletTr(appUiLocaleStorage, "Gift card", "Darilna kartica")
         case "COURSE": return walletTr(appUiLocaleStorage, "Course access", "Dostop do tečaja")
         default: return productTypeLabel(entitlement.type)
         }
@@ -2079,59 +2035,51 @@ private struct WalletStackedPassCard: View {
 
     private var statusLabel: String {
         switch entitlement.status.uppercased() {
-        case "EXPIRED": return "Expired"
-        case "USED_UP": return "Used up"
-        case "CANCELLED": return "Cancelled"
-        case "PENDING": return "Pending"
+        case "EXPIRED": return walletTr(appUiLocaleStorage, "Expired", "Poteklo")
+        case "USED_UP": return walletTr(appUiLocaleStorage, "Used up", "Porabljeno")
+        case "CANCELLED": return walletTr(appUiLocaleStorage, "Cancelled", "Preklicano")
+        case "PENDING": return walletTr(appUiLocaleStorage, "Pending", "V čakanju")
         default: break
         }
-        switch entitlement.type {
+        switch type {
         case "PACK":
-            if let remaining = entitlement.remainingUses { return "\(remaining) left" }
-            return "Active"
-        case "CLASS_TICKET": return "Ready"
+            if let remaining = entitlement.remainingUses { return walletTr(appUiLocaleStorage, "\(remaining) left", "\(remaining) preostalo") }
+            return walletTr(appUiLocaleStorage, "Active", "Aktivno")
+        case "CLASS_TICKET": return walletTr(appUiLocaleStorage, "Ready", "Pripravljeno")
         case "COURSE": return walletTr(appUiLocaleStorage, "Available", "Na voljo")
-        default: return "Active"
-        }
-    }
-
-    private var statusAccent: Color {
-        switch entitlement.status.uppercased() {
-        case "EXPIRED", "CANCELLED", "USED_UP": return walletMuted
-        case "PENDING": return walletAmber
-        default: return entitlement.type == "MEMBERSHIP" ? walletGreen : style.accent
+        default: return walletTr(appUiLocaleStorage, "Active", "Aktivno")
         }
     }
 
     private var primaryMetric: (label: String, value: String) {
-        switch entitlement.type {
-        case "MEMBERSHIP": return ("Visits", "\(entitlement.visitCount ?? 0)")
-        case "PACK": return ("Access", usesSummary)
-        case "CLASS_TICKET": return ("Access", "1 class")
-        case "GIFT_CARD": return ("Balance", giftCardBalance)
+        switch type {
+        case "MEMBERSHIP": return (walletTr(appUiLocaleStorage, "Visits", "Obiski"), "\(entitlement.visitCount ?? 0)")
+        case "PACK": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), usesSummary)
+        case "CLASS_TICKET": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), walletTr(appUiLocaleStorage, "1 class", "1 obisk"))
+        case "GIFT_CARD", "GIFT_CARD_PRODUCT": return (walletTr(appUiLocaleStorage, "Balance", "Dobroimetje"), giftCardBalance)
         case "COURSE": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), walletTr(appUiLocaleStorage, "Open course", "Odpri tečaj"))
         default: return (productTypeLabel(entitlement.type), usesSummary)
         }
     }
 
     private var secondaryMetric: (label: String, value: String) {
-        switch entitlement.type {
-        case "MEMBERSHIP": return ("Valid until", validUntilLabel)
-        case "PACK": return ("Expires", validUntilLabel)
-        case "CLASS_TICKET": return ("Date", validUntilLabel)
-        case "COURSE": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), validUntilLabel == "No expiry" ? walletTr(appUiLocaleStorage, "Lifetime", "Doživljenjsko") : validUntilLabel)
-        default: return ("Valid until", validUntilLabel)
+        switch type {
+        case "MEMBERSHIP": return (walletTr(appUiLocaleStorage, "Valid until", "Velja do"), validUntilLabel)
+        case "PACK": return (walletTr(appUiLocaleStorage, "Expires", "Poteče"), validUntilLabel)
+        case "CLASS_TICKET": return (walletTr(appUiLocaleStorage, "Date", "Datum"), validUntilLabel)
+        case "COURSE": return (walletTr(appUiLocaleStorage, "Access", "Dostop"), validUntilLabel == walletTr(appUiLocaleStorage, "No expiry", "Brez poteka") ? walletTr(appUiLocaleStorage, "Lifetime", "Doživljenjsko") : validUntilLabel)
+        default: return (walletTr(appUiLocaleStorage, "Valid until", "Velja do"), validUntilLabel)
         }
     }
 
     private var usesSummary: String {
-        if let remaining = entitlement.remainingUses, let total = entitlement.totalUses {
-            return "\(remaining) classes"
+        if let remaining = entitlement.remainingUses, entitlement.totalUses != nil {
+            return walletTr(appUiLocaleStorage, "\(remaining) classes", "\(remaining) obiskov")
         }
-        if let remaining = entitlement.remainingUses { return "\(remaining) classes" }
-        if let total = entitlement.totalUses { return "\(total) classes" }
-        if entitlement.type == "MEMBERSHIP" { return "Unlimited" }
-        return "1 class"
+        if let remaining = entitlement.remainingUses { return walletTr(appUiLocaleStorage, "\(remaining) classes", "\(remaining) obiskov") }
+        if let total = entitlement.totalUses { return walletTr(appUiLocaleStorage, "\(total) classes", "\(total) obiskov") }
+        if type == "MEMBERSHIP" { return walletTr(appUiLocaleStorage, "Unlimited", "Neomejeno") }
+        return walletTr(appUiLocaleStorage, "1 class", "1 obisk")
     }
 
     private var giftCardBalance: String {
@@ -2142,30 +2090,6 @@ private struct WalletStackedPassCard: View {
         let formatted = formatLongDate(entitlement.validUntil)
         return formatted == "—" ? walletTr(appUiLocaleStorage, "No expiry", "Brez poteka") : formatted
     }
-
-    private var expiryCaption: String {
-        validUntilLabel == walletTr(appUiLocaleStorage, "No expiry", "Brez poteka")
-            ? walletTr(appUiLocaleStorage, "Valid", "Veljavno")
-            : walletTr(appUiLocaleStorage, "Until date", "Do datuma")
-    }
-
-    private var accessMetricValue: String {
-        if let total = entitlement.totalUses, total > 0 {
-            return walletTr(appUiLocaleStorage, "\(total) visits", "\(total) obisk\(total == 1 ? "" : "i")")
-        }
-        if entitlement.type == "CLASS_TICKET" {
-            return walletTr(appUiLocaleStorage, "1 visit", "1 obisk")
-        }
-        if let remaining = entitlement.remainingUses, remaining > 0 {
-            return walletTr(appUiLocaleStorage, "\(remaining) visits", "\(remaining) obisk\(remaining == 1 ? "" : "i")")
-        }
-        return walletTr(appUiLocaleStorage, "Flexible", "Prilagodljivo")
-    }
-
-    private var accessMetricCaption: String {
-        walletTr(appUiLocaleStorage, "Ready to use", "Pripravljeno za uporabo")
-    }
-
 
     private var accessRemainingDisplayValue: String {
         if let remaining = entitlement.remainingUses, let total = effectiveTotalUses {
@@ -2186,35 +2110,21 @@ private struct WalletStackedPassCard: View {
 
     private var effectiveTotalUses: Int? {
         if let total = entitlement.totalUses, total > 0 { return total }
-        if entitlement.type == "CLASS_TICKET" { return 1 }
+        if type == "CLASS_TICKET" { return 1 }
         return nil
     }
 
-    private var remainingMetricValue: String {
-        if let remaining = entitlement.remainingUses {
-            return walletTr(appUiLocaleStorage, "\(remaining) left", "\(remaining) preostalo")
+    private var accessMetricValue: String {
+        if let total = entitlement.totalUses, total > 0 {
+            return walletTr(appUiLocaleStorage, "\(total) visits", "\(total) obiskov")
         }
-        if let visits = entitlement.visitCount, visits > 0 {
-            return walletTr(appUiLocaleStorage, "\(visits) visits", "\(visits) obiskov")
+        if type == "CLASS_TICKET" {
+            return walletTr(appUiLocaleStorage, "1 visit", "1 obisk")
         }
-        return walletTr(appUiLocaleStorage, "Available", "Na voljo")
-    }
-
-    private var remainingMetricCaption: String {
-        walletTr(appUiLocaleStorage, "Use on next booking", "Za naslednjo rezervacijo")
-    }
-
-    private func dashedDivider(color: Color) -> some View {
-        GeometryReader { proxy in
-            Path { path in
-                let y = proxy.size.height / 2
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: proxy.size.width, y: y))
-            }
-            .stroke(style: StrokeStyle(lineWidth: 1.15, dash: [6, 7], dashPhase: 1))
-            .foregroundColor(color)
+        if let remaining = entitlement.remainingUses, remaining > 0 {
+            return walletTr(appUiLocaleStorage, "\(remaining) visits", "\(remaining) obiskov")
         }
-        .frame(height: 1)
+        return walletTr(appUiLocaleStorage, "Flexible", "Prilagodljivo")
     }
 }
 
@@ -2510,33 +2420,66 @@ private struct WalletPassWave: View {
     }
 }
 
+private func walletPassGradient(type: String, index: Int) -> [Color] {
+    switch type.uppercased() {
+    case "MEMBERSHIP":
+        return [Color(red: 0.06, green: 0.48, blue: 1.0), Color(red: 0.0, green: 0.34, blue: 0.84), Color(red: 0.0, green: 0.24, blue: 0.66)]
+    case "PACK":
+        return [Color(red: 1.0, green: 0.69, blue: 0.12), Color(red: 1.0, green: 0.54, blue: 0.0), Color(red: 1.0, green: 0.43, blue: 0.0)]
+    case "CLASS_TICKET":
+        return [Color(red: 0.96, green: 0.98, blue: 1.0), Color(red: 0.92, green: 0.96, blue: 1.0), Color.white]
+    case "GIFT_CARD", "GIFT_CARD_PRODUCT":
+        return [Color(red: 1.0, green: 0.97, blue: 0.94), Color(red: 1.0, green: 0.95, blue: 0.87), Color.white]
+    case "COURSE":
+        return [Color(red: 0.08, green: 0.72, blue: 0.65), Color(red: 0.06, green: 0.46, blue: 0.43), Color(red: 0.07, green: 0.37, blue: 0.35)]
+    default:
+        return index.isMultiple(of: 2)
+            ? [Color(red: 0.96, green: 0.98, blue: 1.0), Color(red: 0.92, green: 0.96, blue: 1.0), Color.white]
+            : [Color(red: 0.06, green: 0.48, blue: 1.0), Color(red: 0.0, green: 0.34, blue: 0.84), Color(red: 0.0, green: 0.24, blue: 0.66)]
+    }
+}
+
 private func walletTicketStyle(type: String, index: Int) -> WalletTicketStyle {
-    switch type {
+    switch type.uppercased() {
     case "MEMBERSHIP":
         return WalletTicketStyle(
-            background: Color(red: 0.93, green: 0.97, blue: 1.0),
+            background: Color(red: 0.06, green: 0.48, blue: 1.0),
             accent: walletBlueSoft,
-            border: walletBlueSoft.opacity(0.82),
+            border: Color(red: 0.18, green: 0.45, blue: 0.79),
             softAccent: Color(red: 0.78, green: 0.90, blue: 1.0)
         )
     case "PACK":
         return WalletTicketStyle(
-            background: Color(red: 1.0, green: 0.96, blue: 0.90),
+            background: Color(red: 1.0, green: 0.69, blue: 0.12),
             accent: walletAmber,
-            border: walletAmber.opacity(0.78),
+            border: Color(red: 1.0, green: 0.79, blue: 0.32),
             softAccent: Color(red: 1.0, green: 0.86, blue: 0.66)
         )
     case "CLASS_TICKET":
         return WalletTicketStyle(
-            background: Color(red: 0.95, green: 0.98, blue: 1.0),
+            background: Color(red: 0.96, green: 0.98, blue: 1.0),
             accent: walletGold,
             border: walletGold.opacity(0.50),
             softAccent: Color(red: 0.82, green: 0.91, blue: 1.0)
         )
-    default:
-        let isBlue = index % 2 == 0
+    case "GIFT_CARD", "GIFT_CARD_PRODUCT":
         return WalletTicketStyle(
-            background: isBlue ? Color(red: 0.94, green: 0.98, blue: 1.0) : Color(red: 1.0, green: 0.96, blue: 0.90),
+            background: Color(red: 1.0, green: 0.97, blue: 0.94),
+            accent: walletAmber,
+            border: walletAmber.opacity(0.45),
+            softAccent: Color(red: 1.0, green: 0.86, blue: 0.66)
+        )
+    case "COURSE":
+        return WalletTicketStyle(
+            background: Color(red: 0.08, green: 0.72, blue: 0.65),
+            accent: Color(red: 0.08, green: 0.72, blue: 0.65),
+            border: Color(red: 0.38, green: 0.82, blue: 0.78).opacity(0.88),
+            softAccent: Color(red: 0.78, green: 0.96, blue: 0.94)
+        )
+    default:
+        let isBlue = index.isMultiple(of: 2)
+        return WalletTicketStyle(
+            background: isBlue ? Color(red: 0.96, green: 0.98, blue: 1.0) : Color(red: 0.06, green: 0.48, blue: 1.0),
             accent: isBlue ? walletBlueSoft : walletAmber,
             border: (isBlue ? walletBlueSoft : walletAmber).opacity(0.66),
             softAccent: isBlue ? Color(red: 0.78, green: 0.90, blue: 1.0) : Color(red: 1.0, green: 0.86, blue: 0.66)

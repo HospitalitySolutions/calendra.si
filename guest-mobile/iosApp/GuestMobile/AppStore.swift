@@ -285,7 +285,7 @@ final class AppStore: ObservableObject {
         activeTenantIds
             .flatMap { tenantId -> [ServiceOptionModel] in
                 guard let dashboard = tenantDashboards[tenantId] else { return [] }
-                return dashboard.products.compactMap { product in
+                return dashboard.products.compactMap { product -> ServiceOptionModel? in
                     guard product.bookable, let sessionTypeId = product.sessionTypeId else { return nil }
                     return ServiceOptionModel(
                         id: "\(tenantId)-\(product.id)",
@@ -495,6 +495,7 @@ final class AppStore: ObservableObject {
                         phone: tenant.publicPhone,
                         status: "ACTIVE",
                         companyAddress: tenant.companyAddress,
+                        tenantType: tenant.tenantType,
                         employeeSelectionStep: tenant.employeeSelectionStep,
                         useEmployeeContact: tenant.useEmployeeContact,
                         cardImageUrl: tenant.cardImageUrl,
