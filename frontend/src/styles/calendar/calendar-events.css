@@ -3151,3 +3151,203 @@
         color: #ffffff;
     }
 }
+
+/* --- Mobile weekly calendar: fourth design preview implementation ---
+   Compact colored cards, session name only, and "+ X more" displayed below the card. */
+@media (max-width: 939px) {
+    .calendar-fc-shell .fc-timegrid-event-harness:has(.calendar-event-booked-visual .calendar-event-overlap-mobile-count),
+    .calendar-fc-shell .fc-timegrid-event-harness:has(.calendar-event-personal-visual .calendar-event-overlap-mobile-count),
+    .calendar-fc-shell .fc-timegrid-event-harness:has(.calendar-event-todo-visual .calendar-event-overlap-mobile-count) {
+        overflow: visible !important;
+        z-index: 12 !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event-harness,
+    .calendar-fc-shell .fc-timegrid-event,
+    .calendar-fc-shell .fc-v-event {
+        overflow: visible !important;
+    }
+
+    .calendar-fc-shell .fc-event.calendar-event-booked-visual,
+    .calendar-fc-shell .fc-event.calendar-event-personal-visual,
+    .calendar-fc-shell .fc-event.calendar-event-todo-visual,
+    .calendar-fc-shell .fc .calendar-event-booked-visual,
+    .calendar-fc-shell .fc .calendar-event-personal-visual,
+    .calendar-fc-shell .fc .calendar-event-todo-visual {
+        background: var(--calendar-session-accent, #1672f3) !important;
+        border: 0 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 8px 18px color-mix(in srgb, var(--calendar-session-accent, #1672f3) 24%, transparent) !important;
+        color: #ffffff !important;
+        padding: 0 !important;
+        min-height: 20px;
+        overflow: visible !important;
+    }
+
+    .calendar-fc-shell .fc-event.calendar-event-booked-visual .fc-event-main,
+    .calendar-fc-shell .fc-event.calendar-event-personal-visual .fc-event-main,
+    .calendar-fc-shell .fc-event.calendar-event-todo-visual .fc-event-main,
+    .calendar-fc-shell .fc-event.calendar-event-booked-visual .fc-event-main-frame,
+    .calendar-fc-shell .fc-event.calendar-event-personal-visual .fc-event-main-frame,
+    .calendar-fc-shell .fc-event.calendar-event-todo-visual .fc-event-main-frame {
+        background: transparent !important;
+        color: #ffffff !important;
+        border-radius: inherit !important;
+        overflow: visible !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-row {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        display: flex !important;
+        align-items: stretch;
+        justify-content: flex-start;
+        padding: 0 !important;
+        overflow: visible !important;
+        text-align: left;
+        container-type: inline-size;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-row,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-row,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-row {
+        display: flex !important;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        align-items: flex-start;
+        justify-content: flex-start;
+        padding: 6px 8px !important;
+        gap: 0;
+        overflow: hidden;
+        text-align: left;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-title-wrap,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-title-wrap {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        width: 100%;
+        height: auto;
+        min-width: 0;
+        padding: 0;
+        overflow: hidden;
+        text-align: left;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-title,
+    .calendar-fc-shell .fc .calendar-event-mobile-title__name {
+        display: -webkit-box !important;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        color: #ffffff !important;
+        font-size: clamp(0.64rem, 15cqi, 0.9rem);
+        font-weight: 750;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+        text-align: left;
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: anywhere;
+        hyphens: auto;
+        text-shadow: none;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        overflow: hidden;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-booked-label--wide,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-personal-title--short {
+        display: none !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-time,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-time--below,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-time,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-time--below,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-main-time,
+    .calendar-fc-shell .fc .calendar-event-overlap-queue-indicator,
+    .calendar-fc-shell .fc .calendar-event-overlap-inline-list,
+    .calendar-fc-shell .fc .calendar-event-overlap-more:not(.calendar-event-overlap-mobile-count) {
+        display: none !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-quick-add,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-quick-add,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-quick-add,
+    .calendar-fc-shell .fc .calendar-event-booked-visual .calendar-event-quick-add,
+    .calendar-fc-shell .fc .calendar-event-personal-visual .calendar-event-quick-add,
+    .calendar-fc-shell .fc .calendar-event-todo-visual .calendar-event-quick-add {
+        display: none !important;
+    }
+
+    .calendar-fc-shell .fc .calendar-event-overlap-mobile-count {
+        position: absolute;
+        top: calc(100% + 5px);
+        left: 6px;
+        right: auto;
+        bottom: auto;
+        z-index: 8;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: flex-start;
+        width: auto;
+        min-width: 0;
+        height: auto;
+        min-height: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--calendar-session-accent, #1672f3) !important;
+        font-size: clamp(0.66rem, 13cqi, 0.84rem);
+        font-weight: 800;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        cursor: pointer;
+        pointer-events: auto;
+        user-select: none;
+    }
+
+    .calendar-fc-shell .fc .calendar-event-overlap-mobile-count__text {
+        display: inline-flex;
+        align-items: center;
+        line-height: 1.15;
+    }
+
+    .calendar-fc-shell .fc .calendar-event-overlap-mobile-count:hover,
+    .calendar-fc-shell .fc .calendar-event-overlap-mobile-count:focus-visible {
+        outline: none;
+        color: color-mix(in srgb, var(--calendar-session-accent, #1672f3) 80%, #0f172a) !important;
+        text-decoration: underline;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    [data-theme="dark"] .calendar-fc-shell .fc-event.calendar-event-booked-visual,
+    [data-theme="dark"] .calendar-fc-shell .fc-event.calendar-event-personal-visual,
+    [data-theme="dark"] .calendar-fc-shell .fc-event.calendar-event-todo-visual,
+    [data-theme="dark"] .calendar-fc-shell .fc .calendar-event-booked-visual,
+    [data-theme="dark"] .calendar-fc-shell .fc .calendar-event-personal-visual,
+    [data-theme="dark"] .calendar-fc-shell .fc .calendar-event-todo-visual {
+        background: var(--calendar-session-accent, #2563eb) !important;
+        border: 0 !important;
+        box-shadow: 0 10px 22px rgba(2, 6, 23, 0.38) !important;
+        color: #ffffff !important;
+    }
+
+    [data-theme="dark"] .calendar-fc-shell .fc .calendar-event-overlap-mobile-count {
+        color: #93c5fd !important;
+        background: transparent !important;
+    }
+}
