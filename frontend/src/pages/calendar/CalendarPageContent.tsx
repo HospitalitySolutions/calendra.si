@@ -5847,78 +5847,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   stopVoiceBookingForShellRef.current = stopVoiceBooking
 
 
-  const openHeaderAddSession = useCallback((anchorEl?: HTMLElement | null) => {
-    if (isViewOnly) return
-    const api = calendarRef.current?.getApi()
-    const activeStart = api?.view?.activeStart ? new Date(api.view.activeStart) : null
-    const activeEnd = api?.view?.activeEnd ? new Date(api.view.activeEnd) : null
-    const today = new Date()
-    const todayInVisibleRange =
-      activeStart != null && activeEnd != null &&
-      today.getTime() >= activeStart.getTime() &&
-      today.getTime() < activeEnd.getTime()
-    const base = todayInVisibleRange ? today : (api?.getDate ? new Date(api.getDate()) : today)
-
-    const [minHourRaw, minMinuteRaw] = slotMinTime.split(':').map((part) => Number(part) || 0)
-    const minHour = Math.max(0, Math.min(23, minHourRaw))
-    const minMinute = Math.max(0, Math.min(59, minMinuteRaw))
-    const start = new Date(base)
-    start.setHours(minHour, minMinute, 0, 0)
-
-    const sameDayAsToday =
-      start.getFullYear() === today.getFullYear() &&
-      start.getMonth() === today.getMonth() &&
-      start.getDate() === today.getDate()
-    if (sameDayAsToday && start.getTime() < today.getTime()) {
-      const rounded = new Date(today)
-      const snapMinutes = Math.max(5, Math.min(60, calendarSlotDurationMinutes || 15))
-      rounded.setSeconds(0, 0)
-      rounded.setMinutes(Math.ceil(rounded.getMinutes() / snapMinutes) * snapMinutes)
-      start.setTime(rounded.getTime())
-    }
-
-    const end = new Date(start.getTime() + SLOT_MS)
-    const startLocal = toLocalDateTimeString(start)
-    const endLocal = toLocalDateTimeString(end)
-
-    if (calendarMode === 'availability') {
-      openAvailabilityModalFromSelection(startLocal, endLocal)
-      return
-    }
-
-    const selectedConsultantId =
-      consultantFilterId != null && consultantFilterId !== CONSULTANT_FILTER_ALL_SESSION
-        ? consultantFilterId
-        : undefined
-    const preselectedSpaceId = calendarMode === 'spaces'
-      ? (spaceFilterId !== undefined ? spaceFilterId : undefined)
-      : undefined
-
-    openBookingModal(
-      startLocal,
-      endLocal,
-      selectedConsultantId,
-      false,
-      preselectedSpaceId,
-      undefined,
-      false,
-      anchorEl ?? undefined,
-    )
-  }, [
-    SLOT_MS,
-    calendarMode,
-    calendarSlotDurationMinutes,
-    consultantFilterId,
-    isViewOnly,
-    openAvailabilityModalFromSelection,
-    openBookingModal,
-    slotMinTime,
-    spaceFilterId,
-  ])
-
-  const openHeaderAddSessionRef = useRef(openHeaderAddSession)
-  openHeaderAddSessionRef.current = openHeaderAddSession
-
   const shellCalendarSlots = useMemo(() => {
     if (isNativeAndroid) return null
     const dateNav = (
@@ -5987,17 +5915,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         </svg>
       </button>
     ) : null
-    const addButton = !isViewOnly ? (
-      <button
-        type="button"
-        className="calendar-header-add-session-btn"
-        onClick={(event) => openHeaderAddSessionRef.current(event.currentTarget)}
-        title={locale === 'sl' ? 'Dodaj termin' : 'Add session'}
-        aria-label={locale === 'sl' ? 'Dodaj termin' : 'Add session'}
-      >
-        <span aria-hidden="true">+</span>
-      </button>
-    ) : null
     const showWebToolbarMonthChip =
       (calendarFiltersBottomBar || calendarMobileHeaderNav) && isWebTimeGridLikeView(view)
     const toolbarMonthLabel = showWebToolbarMonthChip ? (
@@ -6014,7 +5931,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       showMobileToolbar: calendarMobileHeaderNav,
       toolbarMonthLabel,
       viewDropdown,
-      addButton,
       voiceButton,
     }
   }, [
@@ -6039,7 +5955,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     voiceListening,
     voiceBookingLoading,
     voiceBookingConfigured,
-    isViewOnly,
     locale,
   ])
 
@@ -11058,7 +10973,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 consultantResourceId: bookingsUseResourceColumns ? resourceId : undefined,
               })
             }
-            const quickAddButton = !isViewOnly && (props.kind === 'booked' || props.kind === 'personal' || props.kind === 'todo') ? (
+            const quickAddButton = !isViewOnly && overlapHiddenCount === 0 && (props.kind === 'booked' || props.kind === 'personal' || props.kind === 'todo') ? (
               <span
                 role="button"
                 tabIndex={0}

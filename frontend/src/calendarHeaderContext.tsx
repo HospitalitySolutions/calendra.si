@@ -19,8 +19,6 @@ export type CalendarShellHeaderSlots = {
   /** Month name — narrow layouts, left of the view dropdown (time-grid views). */
   toolbarMonthLabel: ReactNode | null
   viewDropdown: ReactNode
-  /** Create button shown in the compact calendar header. */
-  addButton: ReactNode | null
   /** AI voice control — rendered in header after todo when bottom-strip mic is not used */
   voiceButton: ReactNode | null
 }

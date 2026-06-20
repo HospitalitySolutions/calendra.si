@@ -3221,10 +3221,12 @@
         min-height: 0;
         align-items: flex-start;
         justify-content: flex-start;
-        padding: 6px 8px !important;
+        padding: 6px 8px 22px 8px !important;
         gap: 0;
         overflow: hidden;
         text-align: left;
+        align-content: flex-start;
+        box-sizing: border-box;
     }
 
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-title-wrap,
@@ -3257,16 +3259,26 @@
         white-space: normal;
         word-break: normal;
         overflow-wrap: anywhere;
+        word-break: break-word;
         hyphens: auto;
         text-shadow: none;
         -webkit-box-orient: vertical;
-        -webkit-line-clamp: 3;
+        -webkit-line-clamp: 4;
         overflow: hidden;
     }
 
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-booked-label--wide,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-personal-title--short {
         display: none !important;
+    }
+
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--narrow,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title.calendar-event-personal-title--full,
+    .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-title {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        text-overflow: clip !important;
     }
 
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-time,
@@ -3285,53 +3297,64 @@
     .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-quick-add,
     .calendar-fc-shell .fc .calendar-event-booked-visual .calendar-event-quick-add,
     .calendar-fc-shell .fc .calendar-event-personal-visual .calendar-event-quick-add,
-    .calendar-fc-shell .fc .calendar-event-todo-visual .calendar-event-quick-add {
-        display: none !important;
-    }
-
+    .calendar-fc-shell .fc .calendar-event-todo-visual .calendar-event-quick-add,
     .calendar-fc-shell .fc .calendar-event-overlap-mobile-count {
         position: absolute;
-        top: calc(100% + 5px);
-        left: 6px;
-        right: auto;
-        bottom: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
         z-index: 8;
         display: inline-flex !important;
         align-items: center;
-        justify-content: flex-start;
-        width: auto;
+        justify-content: center;
+        width: 100%;
         min-width: 0;
-        height: auto;
-        min-height: 0;
-        padding: 0;
+        height: 18px;
+        min-height: 18px;
+        padding: 0 6px;
         border: 0;
-        border-radius: 0;
-        background: transparent !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 0 0 8px 8px;
+        background: rgba(255, 255, 255, 0.14) !important;
         box-shadow: none !important;
-        color: var(--calendar-session-accent, #1672f3) !important;
-        font-size: clamp(0.66rem, 13cqi, 0.84rem);
+        color: #ffffff !important;
+        font-size: clamp(0.62rem, 12cqi, 0.8rem);
         font-weight: 800;
-        line-height: 1.15;
+        line-height: 1;
         letter-spacing: -0.01em;
         white-space: nowrap;
         cursor: pointer;
         pointer-events: auto;
         user-select: none;
+        text-decoration: none;
+        backdrop-filter: blur(1px);
+        -webkit-backdrop-filter: blur(1px);
+    }
+
+    .calendar-fc-shell .fc .calendar-event-quick-add {
+        font-size: clamp(0.9rem, 16cqi, 1.1rem);
+        font-weight: 900;
     }
 
     .calendar-fc-shell .fc .calendar-event-overlap-mobile-count__text {
         display: inline-flex;
         align-items: center;
-        line-height: 1.15;
+        justify-content: center;
+        line-height: 1;
+        width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
+    .calendar-fc-shell .fc .calendar-event-quick-add:hover,
+    .calendar-fc-shell .fc .calendar-event-quick-add:focus-visible,
     .calendar-fc-shell .fc .calendar-event-overlap-mobile-count:hover,
     .calendar-fc-shell .fc .calendar-event-overlap-mobile-count:focus-visible {
         outline: none;
-        color: color-mix(in srgb, var(--calendar-session-accent, #1672f3) 80%, #0f172a) !important;
-        text-decoration: underline;
-        background: transparent !important;
+        background: rgba(255, 255, 255, 0.2) !important;
         box-shadow: none !important;
+        text-decoration: none;
     }
 
     [data-theme="dark"] .calendar-fc-shell .fc-event.calendar-event-booked-visual,
@@ -3346,8 +3369,10 @@
         color: #ffffff !important;
     }
 
-    [data-theme="dark"] .calendar-fc-shell .fc .calendar-event-overlap-mobile-count {
-        color: #93c5fd !important;
-        background: transparent !important;
+    [data-theme="dark"] .calendar-fc-shell .fc .calendar-event-overlap-mobile-count,
+    [data-theme="dark"] .calendar-fc-shell .fc .calendar-event-quick-add {
+        color: #ffffff !important;
+        background: rgba(255, 255, 255, 0.14) !important;
+        border-top-color: rgba(255, 255, 255, 0.24);
     }
 }

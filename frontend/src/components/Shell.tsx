@@ -1027,7 +1027,6 @@ function ShellInner({ children }: PropsWithChildren) {
       <>
         {calendarShellSlots.modeGroup}
         {calendarShellSlots.viewDropdown}
-        {calendarShellSlots.addButton}
         {calendarTodoBell}
         {calendarVoiceInHeader}
         <div className="header-actions header-icons">{headerActionsRest}</div>
@@ -1247,7 +1246,6 @@ function ShellInner({ children }: PropsWithChildren) {
                 {calendarMobileHeaderToolbar ?? (
                   <>
                     {calendarShellSlots.viewDropdown}
-                    {calendarShellSlots.addButton}
                     <div className="header-actions header-icons">
                       {calendarTodoBell}
                       {calendarVoiceInHeader}
