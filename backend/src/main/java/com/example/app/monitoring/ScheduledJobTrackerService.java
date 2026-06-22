@@ -51,7 +51,7 @@ public class ScheduledJobTrackerService {
         try {
             Integer processed = action.call();
             int count = processed == null ? 0 : Math.max(0, processed);
-            finish(run, STATUS_SUCCESS, count, null, startedAt);
+            finish(run, STATUS_SUCCESS, count, (String) null, startedAt);
             return count;
         } catch (Exception ex) {
             finish(run, STATUS_FAILED, null, ex, startedAt);
