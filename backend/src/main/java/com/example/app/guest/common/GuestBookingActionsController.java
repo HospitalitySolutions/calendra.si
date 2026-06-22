@@ -5,6 +5,8 @@ import com.example.app.billing.BillFolioPdfService;
 import com.example.app.billing.BillRepository;
 import com.example.app.billing.InvoicePdfS3Service;
 import com.example.app.billing.OpenBillSyncService;
+import com.example.app.company.Company;
+import com.example.app.company.CompanyRepository;
 import com.example.app.guest.auth.GuestAuthContextService;
 import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.model.GuestOrder;
@@ -14,10 +16,12 @@ import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingRealtimeService;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.user.UserRepository;
+import com.example.app.widget.WidgetBookingIdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -26,6 +30,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -46,8 +51,11 @@ public class GuestBookingActionsController {
     private final SessionBookingRealtimeService bookingRealtimeService;
     private final BookingChangePublisher bookingChangePublisher;
     private final OpenBillSyncService openBillSyncService;
+    private final CompanyRepository companies;
+    private final SessionBookingCreationService bookingCreationService;
+    private final WidgetBookingIdempotencyService idempotencyService;
 
-    public GuestBookingActionsController(GuestAuthContextService authContextService, SessionBookingRepository bookings, GuestTenantService tenantService, GuestCatalogService catalogService, UserRepository users, GuestOrderRepository orders, BillRepository bills, BillFolioPdfService billFolioPdfService, InvoicePdfS3Service invoicePdfS3Service, GuestEntitlementService entitlementService, SessionBookingRealtimeService bookingRealtimeService, BookingChangePublisher bookingChangePublisher, OpenBillSyncService openBillSyncService) {
+    public GuestBookingActionsController(GuestAuthContextService authContextService, SessionBookingRepository bookings, GuestTenantService tenantService, GuestCatalogService catalogService, UserRepository users, GuestOrderRepository orders, BillRepository bills, BillFolioPdfService billFolioPdfService, InvoicePdfS3Service invoicePdfS3Service, GuestEntitlementService entitlementService, SessionBookingRealtimeService bookingRealtimeService, BookingChangePublisher bookingChangePublisher, OpenBillSyncService openBillSyncService, CompanyRepository companies, SessionBookingCreationService bookingCreationService, WidgetBookingIdempotencyService idempotencyService) {
         this.authContextService = authContextService;
         this.bookings = bookings;
         this.tenantService = tenantService;
@@ -61,6 +69,9 @@ public class GuestBookingActionsController {
         this.bookingRealtimeService = bookingRealtimeService;
         this.bookingChangePublisher = bookingChangePublisher;
         this.openBillSyncService = openBillSyncService;
+        this.companies = companies;
+        this.bookingCreationService = bookingCreationService;
+        this.idempotencyService = idempotencyService;
     }
 
     @GetMapping(value = "/bookings/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -70,62 +81,44 @@ public class GuestBookingActionsController {
         return bookingRealtimeService.subscribe(companyId);
     }
 
+    @Transactional
     @PostMapping("/bookings/{bookingId}/cancel")
-    public GuestDtos.BookingActionResponse cancel(@PathVariable Long bookingId, @RequestBody(required = false) GuestDtos.CancelBookingRequest payload, HttpServletRequest request) {
+    public GuestDtos.BookingActionResponse cancel(
+            @PathVariable Long bookingId,
+            @RequestBody(required = false) GuestDtos.CancelBookingRequest payload,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        SessionBooking booking = requireGuestBooking(guestUser, bookingId);
-        var rules = catalogService.bookingRules(booking.getCompany().getId());
-        LocalDateTime now = LocalDateTime.now();
-        if (booking.getStartTime() != null && !booking.getStartTime().isAfter(now)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking has already started.");
-        }
-        long hoursUntil = booking.getStartTime() == null ? Long.MAX_VALUE : Duration.between(now, booking.getStartTime()).toHours();
-        boolean lateCancel = hoursUntil < rules.cancelUntilHours();
-        boolean groupBooking = booking.getClientGroup() != null;
-        boolean creditConsumed = !groupBooking && lateCancel && rules.lateCancelConsumesCredit();
-        booking.setBookingStatus(SessionBookingStatus.CANCELLED);
-        bookings.save(booking);
-        if (booking.getBilledAt() == null && booking.getId() != null) {
-            openBillSyncService.removeSessionRowsFromOpenBills(booking.getCompany().getId(), java.util.List.of(booking.getId()));
-        }
-        if (!creditConsumed) {
-            entitlementService.maybeRestoreCreditForBooking(booking);
-        }
-        bookingChangePublisher.publish(
-                booking.getCompany().getId(),
-                booking.getId(),
-                booking.getStartTime(),
-                booking.getEndTime(),
-                BookingChangePublisher.BOOKING_CANCELLED
+        Company company = requireCompanyForGuestAction(guestUser, bookingId);
+        return idempotencyService.execute(
+                company,
+                "guest-booking-cancel:" + bookingId,
+                idempotencyKey,
+                new GuestBookingActionIdempotencyRequest(bookingId, payload),
+                GuestDtos.BookingActionResponse.class,
+                () -> cancelLocked(guestUser, bookingId, company.getId())
         );
-        return new GuestDtos.BookingActionResponse(String.valueOf(booking.getId()), booking.getBookingStatus(), creditConsumed, booking.getStartTime().toString(), booking.getEndTime().toString());
     }
 
+    @Transactional
     @PostMapping("/bookings/{bookingId}/reschedule")
-    public GuestDtos.BookingActionResponse reschedule(@PathVariable Long bookingId, @RequestBody GuestDtos.RescheduleBookingRequest payload, HttpServletRequest request) {
+    public GuestDtos.BookingActionResponse reschedule(
+            @PathVariable Long bookingId,
+            @RequestBody GuestDtos.RescheduleBookingRequest payload,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        SessionBooking booking = requireGuestBooking(guestUser, bookingId);
-        var rules = catalogService.bookingRules(booking.getCompany().getId());
-        long hoursUntil = Duration.between(LocalDateTime.now(), booking.getStartTime()).toHours();
-        if (hoursUntil < rules.rescheduleUntilHours()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reschedule window has passed.");
-        }
-        var slot = catalogService.parseSlotId(payload.newSlotId());
-        var consultant = users.findByIdAndCompanyId(slot.consultantId(), booking.getCompany().getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant not found."));
-        booking.setConsultant(consultant);
-        booking.setStartTime(slot.startsAt());
-        booking.setEndTime(slot.endsAt());
-        booking.setBookingStatus(SessionBookingStatus.RESERVED);
-        bookings.save(booking);
-        bookingChangePublisher.publish(
-                booking.getCompany().getId(),
-                booking.getId(),
-                booking.getStartTime(),
-                booking.getEndTime(),
-                BookingChangePublisher.BOOKING_RESCHEDULED
+        Company company = requireCompanyForGuestAction(guestUser, bookingId);
+        return idempotencyService.execute(
+                company,
+                "guest-booking-reschedule:" + bookingId,
+                idempotencyKey,
+                new GuestBookingActionIdempotencyRequest(bookingId, payload),
+                GuestDtos.BookingActionResponse.class,
+                () -> rescheduleLocked(guestUser, bookingId, company.getId(), payload)
         );
-        return new GuestDtos.BookingActionResponse(String.valueOf(booking.getId()), booking.getBookingStatus(), false, booking.getStartTime().toString(), booking.getEndTime().toString());
     }
 
     @GetMapping("/orders/{orderId}/receipt")
@@ -151,6 +144,127 @@ public class GuestBookingActionsController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
     }
+
+    private Company requireCompanyForGuestAction(GuestUser guestUser, Long bookingId) {
+        Long companyId = bookings.findCompanyIdById(bookingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found."));
+        tenantService.requireLink(guestUser, companyId);
+        return companies.findById(companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
+    }
+
+    private void lockCompanyForGuestAction(Long companyId) {
+        companies.findByIdForUpdate(companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
+    }
+
+    private GuestDtos.BookingActionResponse cancelLocked(GuestUser guestUser, Long bookingId, Long companyId) {
+        lockCompanyForGuestAction(companyId);
+        SessionBooking booking = requireGuestBooking(guestUser, bookingId);
+        if (SessionBookingStatus.CANCELLED.equalsIgnoreCase(booking.getBookingStatus())) {
+            return actionResponse(booking, false);
+        }
+        var rules = catalogService.bookingRules(booking.getCompany().getId());
+        LocalDateTime now = LocalDateTime.now();
+        if (booking.getStartTime() != null && !booking.getStartTime().isAfter(now)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking has already started.");
+        }
+        long hoursUntil = booking.getStartTime() == null ? Long.MAX_VALUE : Duration.between(now, booking.getStartTime()).toHours();
+        boolean lateCancel = hoursUntil < rules.cancelUntilHours();
+        boolean groupBooking = booking.getClientGroup() != null;
+        boolean creditConsumed = !groupBooking && lateCancel && rules.lateCancelConsumesCredit();
+        booking.setBookingStatus(SessionBookingStatus.CANCELLED);
+        bookings.save(booking);
+        if (booking.getBilledAt() == null && booking.getId() != null) {
+            openBillSyncService.removeSessionRowsFromOpenBills(booking.getCompany().getId(), java.util.List.of(booking.getId()));
+        }
+        if (!creditConsumed) {
+            entitlementService.maybeRestoreCreditForBooking(booking);
+        }
+        bookingChangePublisher.publish(
+                booking.getCompany().getId(),
+                booking.getId(),
+                booking.getStartTime(),
+                booking.getEndTime(),
+                BookingChangePublisher.BOOKING_CANCELLED
+        );
+        return actionResponse(booking, creditConsumed);
+    }
+
+    private GuestDtos.BookingActionResponse rescheduleLocked(GuestUser guestUser, Long bookingId, Long companyId, GuestDtos.RescheduleBookingRequest payload) {
+        lockCompanyForGuestAction(companyId);
+        SessionBooking booking = requireGuestBooking(guestUser, bookingId);
+        if (payload == null || payload.newSlotId() == null || payload.newSlotId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New slot is required.");
+        }
+        if (SessionBookingStatus.CANCELLED.equalsIgnoreCase(booking.getBookingStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cancelled bookings cannot be rescheduled.");
+        }
+        if (booking.getType() == null || booking.getType().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking service is missing.");
+        }
+        var rules = catalogService.bookingRules(booking.getCompany().getId());
+        LocalDateTime now = LocalDateTime.now();
+        if (booking.getStartTime() != null && !booking.getStartTime().isAfter(now)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking has already started.");
+        }
+        long hoursUntil = booking.getStartTime() == null ? Long.MAX_VALUE : Duration.between(now, booking.getStartTime()).toHours();
+        if (hoursUntil < rules.rescheduleUntilHours()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reschedule window has passed.");
+        }
+
+        var slot = catalogService.requireBookableRescheduleSlot(
+                booking.getCompany().getId(),
+                booking.getType().getId(),
+                payload.newSlotId(),
+                booking.getId(),
+                guestUser
+        );
+        var consultant = users.findByIdAndCompanyId(slot.consultantId(), booking.getCompany().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant not found."));
+
+        bookingCreationService.validateBookingWindow(
+                booking.getCompany().getId(),
+                java.util.List.of(booking.getClient().getId()),
+                consultant.getId(),
+                booking.getSpace() == null ? null : booking.getSpace().getId(),
+                slot.startsAt(),
+                slot.endsAt(),
+                booking.getType().getId(),
+                SessionBookingCreationService.bookingExcludeIds(booking.getId()),
+                bookingCreationService.isSpacesEnabled(booking.getCompany().getId()),
+                bookingCreationService.isMultipleSessionsPerSpaceEnabled(booking.getCompany().getId()),
+                bookingCreationService.isMultipleClientsPerSessionEnabled(booking.getCompany().getId()),
+                booking.getMeetingLink() != null && !booking.getMeetingLink().isBlank(),
+                false
+        );
+
+        booking.setConsultant(consultant);
+        booking.setStartTime(slot.startsAt());
+        booking.setEndTime(slot.endsAt());
+        booking.setBookingStatus(SessionBookingStatus.RESERVED);
+        bookings.save(booking);
+        bookingChangePublisher.publish(
+                booking.getCompany().getId(),
+                booking.getId(),
+                booking.getStartTime(),
+                booking.getEndTime(),
+                BookingChangePublisher.BOOKING_RESCHEDULED
+        );
+        return actionResponse(booking, false);
+    }
+
+    private static GuestDtos.BookingActionResponse actionResponse(SessionBooking booking, Boolean creditConsumed) {
+        return new GuestDtos.BookingActionResponse(
+                String.valueOf(booking.getId()),
+                booking.getBookingStatus(),
+                creditConsumed,
+                booking.getStartTime() == null ? null : booking.getStartTime().toString(),
+                booking.getEndTime() == null ? null : booking.getEndTime().toString()
+        );
+    }
+
+    private record GuestBookingActionIdempotencyRequest(Long bookingId, Object payload) {}
 
     private SessionBooking requireGuestBooking(GuestUser guestUser, Long bookingId) {
         return bookings.findById(bookingId)

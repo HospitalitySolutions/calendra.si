@@ -244,6 +244,73 @@ public class GuestCatalogService {
         }
     }
 
+
+    public SlotPayload requireBookableRescheduleSlot(
+            Long companyId,
+            Long sessionTypeId,
+            String slotId,
+            Long excludeBookingId,
+            GuestUser guestUser
+    ) {
+        if (isGroupSlotToken(slotId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group-session slots cannot be used for rescheduling.");
+        }
+        SlotPayload slot = parseSlotId(slotId);
+        if (slot.startsAt() == null || slot.endsAt() == null || !slot.endsAt().isAfter(slot.startsAt())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid slot identifier.");
+        }
+        SessionType type = sessionTypes.findById(sessionTypeId)
+                .filter(t -> Objects.equals(t.getCompany().getId(), companyId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
+        if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
+        }
+        if (isGuestGroupService(type)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group-session bookings cannot be rescheduled to a private slot.");
+        }
+        int durationMinutes = type.getDurationMinutes() == null ? 60 : type.getDurationMinutes();
+        if (!slot.endsAt().equals(slot.startsAt().plusMinutes(durationMinutes))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot no longer matches the booking service duration.");
+        }
+        LocalDate slotDate = slot.startsAt().toLocalDate();
+        if (!isGuestSlotStartInFuture(slotDate, slot.startsAt())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is no longer bookable.");
+        }
+        User consultant = users.findByIdAndCompanyId(slot.consultantId(), companyId)
+                .filter(User::isActive)
+                .filter(this::isBookableGuestConsultant)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant not found."));
+        if (!consultantSupportsSessionType(consultant, type)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant does not offer this service.");
+        }
+        if (!isSlotInsideConfiguredGuestAvailability(companyId, type, consultant, slot, durationMinutes)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is outside the current guest booking availability.");
+        }
+        try {
+            bookingCreationService.validateBookingWindow(
+                    companyId,
+                    List.of(),
+                    consultant.getId(),
+                    null,
+                    slot.startsAt(),
+                    slot.endsAt(),
+                    type.getId(),
+                    SessionBookingCreationService.bookingExcludeIds(excludeBookingId),
+                    bookingCreationService.isSpacesEnabled(companyId),
+                    bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
+                    bookingCreationService.isMultipleClientsPerSessionEnabled(companyId),
+                    false,
+                    false
+            );
+        } catch (ResponseStatusException ex) {
+            if (HttpStatus.CONFLICT.equals(ex.getStatusCode())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Selected slot is no longer available. Please choose another time.");
+            }
+            throw ex;
+        }
+        return slot;
+    }
+
     public GuestSettingsService.GuestBookingRules bookingRules(Long companyId) {
         return guestSettings.bookingRules(companyId);
     }
@@ -335,6 +402,59 @@ public class GuestCatalogService {
                 cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
             }
         }
+    }
+
+
+    private boolean isSlotInsideConfiguredGuestAvailability(
+            Long companyId,
+            SessionType type,
+            User consultant,
+            SlotPayload slot,
+            int durationMinutes
+    ) {
+        LocalDate date = slot.startsAt().toLocalDate();
+        if (isSlotInsideBookableWindow(companyId, type, consultant, slot, date, durationMinutes)) {
+            return true;
+        }
+        Optional<TimeWindow> workingWindow = resolveConsultantWorkingWindow(consultant, date);
+        return workingWindow
+                .map(window -> generatedSlotMatchesWindow(slot, window.start(), window.end(), durationMinutes))
+                .orElse(false);
+    }
+
+    private boolean isSlotInsideBookableWindow(
+            Long companyId,
+            SessionType type,
+            User consultant,
+            SlotPayload slot,
+            LocalDate date,
+            int durationMinutes
+    ) {
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        return bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
+                .filter(window -> window.getConsultant() != null)
+                .filter(window -> Objects.equals(window.getConsultant().getId(), consultant.getId()))
+                .filter(window -> window.getConsultant().isActive())
+                .filter(window -> window.getDayOfWeek() == dayOfWeek)
+                .filter(window -> window.isIndefinite() || withinBookableDateRange(window, date))
+                .filter(window -> consultantSupportsSessionType(window.getConsultant(), type))
+                .anyMatch(window -> generatedSlotMatchesWindow(slot, window.getStartTime(), window.getEndTime(), durationMinutes));
+    }
+
+    private boolean generatedSlotMatchesWindow(SlotPayload slot, LocalTime windowStart, LocalTime windowEnd, int durationMinutes) {
+        if (windowStart == null || windowEnd == null || !windowEnd.isAfter(windowStart)) {
+            return false;
+        }
+        LocalTime cursor = windowStart;
+        while (!cursor.plusMinutes(durationMinutes).isAfter(windowEnd)) {
+            LocalDateTime candidateStart = slot.startsAt().toLocalDate().atTime(cursor);
+            LocalDateTime candidateEnd = candidateStart.plusMinutes(durationMinutes);
+            if (candidateStart.equals(slot.startsAt()) && candidateEnd.equals(slot.endsAt())) {
+                return true;
+            }
+            cursor = cursor.plusMinutes(SLOT_GRID_MINUTES);
+        }
+        return false;
     }
 
     private boolean isGuestSlotStartInFuture(LocalDate date, LocalDateTime slotStart) {

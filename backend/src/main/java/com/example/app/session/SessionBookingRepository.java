@@ -249,6 +249,9 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
 
     Optional<SessionBooking> findByIdAndCompanyId(Long id, Long companyId);
 
+    @Query("SELECT sb.company.id FROM SessionBooking sb WHERE sb.id = :id")
+    Optional<Long> findCompanyIdById(@Param("id") Long id);
+
     Optional<SessionBooking> findFirstByCompanyIdAndSourceOrderId(Long companyId, String sourceOrderId);
 
     @Query("SELECT sb FROM SessionBooking sb LEFT JOIN FETCH sb.consultant WHERE sb.client.id = :clientId AND sb.company.id = :companyId")

@@ -7,6 +7,10 @@ const QUICK = __ENV.QUICK === 'true';
 const P95_MS = Number(__ENV.P95_MS || 800);
 const ERROR_RATE = Number(__ENV.ERROR_RATE || 0.01);
 
+function idempotencyKey(prefix) {
+  return `${prefix}-${__VU}-${__ITER}-${Date.now()}`;
+}
+
 export const options = {
   scenarios: {
     guest_browse_wallet_inbox: {
@@ -131,14 +135,14 @@ export function guestOrderBookingActions() {
     const newSlot = firstAvailableSlot(parseJson(laterAvailabilityRes, {}));
     if (newSlot) {
       const rescheduleRes = http.post(`${BASE_URL}/api/guest/bookings/${bookingId}/reschedule`, JSON.stringify({ newSlotId: newSlot.slotId }), {
-        headers: bearer(login.token),
+        headers: bearer(login.token, { 'Idempotency-Key': idempotencyKey('k6-guest-reschedule') }),
         tags: { endpoint: 'guest_booking_reschedule' },
       });
       expectStatus(rescheduleRes, 'guest booking reschedule 200', [200, 400, 409]);
     }
 
     const cancelRes = http.post(`${BASE_URL}/api/guest/bookings/${bookingId}/cancel`, JSON.stringify({ reason: 'k6 load test cleanup' }), {
-      headers: bearer(login.token),
+      headers: bearer(login.token, { 'Idempotency-Key': idempotencyKey('k6-guest-cancel') }),
       tags: { endpoint: 'guest_booking_cancel' },
     });
     expectStatus(cancelRes, 'guest booking cancel 200', [200, 400, 409]);
