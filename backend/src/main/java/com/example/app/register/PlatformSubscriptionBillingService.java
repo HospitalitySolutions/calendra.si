@@ -38,8 +38,6 @@ import com.example.app.stripe.StripeBillingService;
 import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.user.Role;
 import com.example.app.user.User;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.app.user.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -54,7 +52,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.zip.CRC32;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
@@ -98,7 +95,6 @@ public class PlatformSubscriptionBillingService {
     private final StripeBillingService stripeBillingService;
     private final TimeService timeService;
     private final ScheduledJobTrackerService jobTracker;
-    private final ObjectMapper objectMapper;
 
     public PlatformSubscriptionBillingService(
             CompanyRepository companies,
@@ -119,8 +115,7 @@ public class PlatformSubscriptionBillingService {
             BillingEmailService billingEmailService,
             StripeBillingService stripeBillingService,
             TimeService timeService,
-            ScheduledJobTrackerService jobTracker,
-            ObjectMapper objectMapper
+            ScheduledJobTrackerService jobTracker
     ) {
         this.companies = companies;
         this.users = users;
@@ -141,7 +136,6 @@ public class PlatformSubscriptionBillingService {
         this.stripeBillingService = stripeBillingService;
         this.timeService = timeService;
         this.jobTracker = jobTracker;
-        this.objectMapper = objectMapper;
     }
 
     /** Upserts the platform payee + open bill using the best data currently available for the signup. */
@@ -174,9 +168,6 @@ public class PlatformSubscriptionBillingService {
         RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
         PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
         PlatformPlan plan = billingCatalog.resolvePlan(packageName, billingInterval);
-        if (plan == null && "CUSTOM".equals(normalizePackageType(packageName))) {
-            plan = customPlan(platformCompany, tenantCompany, billingInterval);
-        }
         if (plan == null) {
             log.warn("Skipping platform subscription open bill for tenant {}: unsupported package={} interval={}", tenantCompany.getId(), packageName, billingInterval);
             return;
@@ -225,7 +216,7 @@ public class PlatformSubscriptionBillingService {
         open.setSessionBooking(null);
         open.setBookingGroupKey(null);
         open.setBillType(BillType.INVOICE);
-        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, tenantCompany.getId(), userCount, smsCount, addonKeys, 0, 0, List.of());
+        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys, 0, 0, List.of());
         upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
 
         openBills.save(open);
@@ -416,9 +407,6 @@ public class PlatformSubscriptionBillingService {
         String packageName = normalizePackageType(settingValueOrDefault(tenantId, SettingKey.SIGNUP_PACKAGE_NAME, "PROFESSIONAL"));
         String interval = normalizeInterval(settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, "MONTHLY")).settingValue();
         PlatformPlan plan = billingCatalog.resolvePlan(packageName, interval);
-        if (plan == null && "CUSTOM".equals(normalizePackageType(packageName))) {
-            plan = customPlan(platformCompany, tenant, interval);
-        }
         if (plan == null) {
             return;
         }
@@ -464,7 +452,7 @@ public class PlatformSubscriptionBillingService {
         open.setBookingGroupKey(null);
         open.setBillType(BillType.INVOICE);
 
-        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, tenantId, userCount, smsCount, addonKeys, currentUserAddCount, currentSmsAddCount, currentAddonKeys);
+        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys, currentUserAddCount, currentSmsAddCount, currentAddonKeys);
         if (upgradeDiff.compareTo(BigDecimal.ZERO) > 0) {
             TransactionService diffTx = resolveBillingTransactionService(platformCompany, null, "SUBUPGDIFF", "Subscription upgrade difference", upgradeDiff);
             totalGross = totalGross.add(addOpenLine(open, diffTx, 1, upgradeDiff));
@@ -493,7 +481,7 @@ public class PlatformSubscriptionBillingService {
         return switch (normalizedPackage) {
             case "BASIC", "TRIAL" -> 1;
             case "PROFESSIONAL" -> 2;
-            case "PREMIUM", "CUSTOM" -> 3;
+            case "PREMIUM" -> 3;
             default -> 2;
         };
     }
@@ -505,7 +493,6 @@ public class PlatformSubscriptionBillingService {
         BigDecimal monthly = switch (normalized) {
             case "PREMIUM" -> money(prices.getOrDefault("business", 59.90));
             case "PROFESSIONAL" -> money(prices.getOrDefault("pro", 34.90));
-            case "CUSTOM" -> money(0.0);
             default -> money(prices.getOrDefault("basic", 18.90));
         };
         return interval == BillingInterval.YEARLY ? annualGross(monthly, annualDiscount) : monthly;
@@ -554,9 +541,6 @@ public class PlatformSubscriptionBillingService {
             String packageName = settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_PACKAGE_NAME).map(AppSetting::getValue).orElse("PROFESSIONAL");
             String interval = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL).map(AppSetting::getValue).orElse("MONTHLY");
             PlatformPlan plan = billingCatalog.resolvePlan(packageName, interval);
-            if (plan == null && "CUSTOM".equals(normalizePackageType(packageName))) {
-                plan = customPlan(platformCompany, tenant, interval);
-            }
             if (plan == null) {
                 continue;
             }
@@ -569,12 +553,14 @@ public class PlatformSubscriptionBillingService {
             List<String> signupAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
             List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS).map(AppSetting::getValue).orElse(joinAddonKeys(signupAddonKeys)));
             List<String> currentAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
-            LocalDate billingStart = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
-                    .map(AppSetting::getValue)
-                    .map(this::parseDateOrNull)
-                    .orElseGet(() -> resolveInitialBillingStart(plan, tenantId, today));
+            AppSetting billingStartSetting = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
+                    .orElse(null);
+            LocalDate billingStart = billingStartSetting == null ? null : parseDateOrNull(billingStartSetting.getValue());
+            if (billingStart == null) {
+                billingStart = resolveInitialBillingStart(plan, tenantId, today);
+            }
             LocalDate billingEnd = periodEnd(billingStart, plan.interval());
-            BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, tenantId, userCount, smsCount, addonKeys, currentUserAddCount, currentSmsAddCount, currentAddonKeys);
+            BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, userCount, smsCount, addonKeys, currentUserAddCount, currentSmsAddCount, currentAddonKeys);
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
@@ -586,105 +572,6 @@ public class PlatformSubscriptionBillingService {
             SimulatedTimeContext.clear();
         }
         });
-    }
-
-    /** Marks unpaid manually-created/self-serve subscription accounts as past due after the configured grace period. */
-    @Scheduled(cron = "${app.platform-subscription-billing.status-cron:0 35 0 * * *}")
-    @SchedulerLock(name = "platformSubscriptionBillingService_markPastDue", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
-    @Transactional
-    public void markPastDueSubscriptions() {
-        jobTracker.run("platform-subscription-past-due-scan", () -> {
-            int changed = 0;
-            for (AppSetting statusSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_STATUS)) {
-                Company tenant = statusSetting == null ? null : statusSetting.getCompany();
-                if (tenant == null || tenant.getId() == null) {
-                    continue;
-                }
-                String status = statusSetting.getValue() == null ? "" : statusSetting.getValue().trim().toUpperCase(Locale.ROOT);
-                if (!"PENDING_PAYMENT".equals(status)) {
-                    continue;
-                }
-                Long tenantId = tenant.getId();
-                LocalDate start = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
-                        .map(AppSetting::getValue)
-                        .map(this::parseDateOrNull)
-                        .orElse(null);
-                int graceDays = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_GRACE_DAYS, 30);
-                LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
-                if (start != null && !start.plusDays(graceDays).isAfter(today)) {
-                    upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PAST_DUE");
-                    changed++;
-                }
-            }
-            return changed;
-        });
-    }
-
-    /** Re-sends the latest platform subscription bill for a tenant, or recreates/starts the payment flow when only an open bill exists. */
-    @Transactional(noRollbackFor = Exception.class)
-    public SignupBillingInvoiceResult resendLatestSubscriptionPayment(Company tenantCompany) {
-        if (tenantCompany == null || tenantCompany.getId() == null) {
-            return SignupBillingInvoiceResult.empty();
-        }
-        Company platformCompany = resolvePlatformCompany().orElse(null);
-        if (platformCompany == null || platformCompany.getId() == null) {
-            return SignupBillingInvoiceResult.empty();
-        }
-        String reference = referenceForTenant(tenantCompany.getId());
-        Optional<Bill> existing = findExistingSignupBill(platformCompany.getId(), reference);
-        if (existing.isEmpty()) {
-            return createInvoiceForSignupTenantIfDue(tenantCompany);
-        }
-        Bill bill = existing.get();
-        PaymentMethod method = bill.getPaymentMethod();
-        if (method != null && method.isStripeEnabled() && method.getPaymentType() == PaymentType.CARD) {
-            StripeCheckoutSessionResult checkout = stripeBillingService.createCheckoutSessionForBill(bill);
-            billingEmailService.sendCheckoutLink(bill, checkout.url());
-            return new SignupBillingInvoiceResult(bill.getId(), bill.getBillNumber(), checkout.url(), BillPaymentStatus.PAYMENT_PENDING);
-        }
-        byte[] pdf = generateAndArchive(bill, platformCompany.getId());
-        if (method != null && method.getPaymentType() == PaymentType.BANK_TRANSFER) {
-            billingEmailService.sendBankTransferFolio(bill, pdf);
-        } else {
-            billingEmailService.sendInvoiceFolio(bill, pdf);
-        }
-        return new SignupBillingInvoiceResult(bill.getId(), bill.getBillNumber(), null, bill.getPaymentStatus());
-    }
-
-    private PlatformPlan customPlan(Company platformCompany, Company tenantCompany, String billingInterval) {
-        if (platformCompany == null || tenantCompany == null || tenantCompany.getId() == null) {
-            return null;
-        }
-        BillingInterval interval = normalizeInterval(billingInterval);
-        BigDecimal monthly = parseMoneySetting(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE);
-        BigDecimal yearly = parseMoneySetting(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE);
-        BigDecimal gross = interval == BillingInterval.YEARLY ? yearly : monthly;
-        if (gross.compareTo(BigDecimal.ZERO) <= 0 && interval == BillingInterval.YEARLY) {
-            gross = monthly.multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
-        }
-        if (gross.compareTo(BigDecimal.ZERO) <= 0) {
-            return null;
-        }
-        String displayName = firstNonBlank(
-                settingValueOrDefault(tenantCompany.getId(), SettingKey.BILLING_SUBSCRIPTION_CUSTOM_NAME, ""),
-                "Custom package"
-        );
-        String code = interval == BillingInterval.YEARLY ? "CUSTOM_Y" : "CUSTOM_M";
-        String description = displayName + (interval == BillingInterval.YEARLY ? " - Annual" : " - Monthly");
-        TransactionService tx = resolveBillingTransactionService(platformCompany, null, code, description, gross);
-        return new PlatformPlan(PackageType.CUSTOM, interval, gross, tx, code);
-    }
-
-    private BigDecimal parseMoneySetting(Long companyId, SettingKey key) {
-        String raw = settingValueOrDefault(companyId, key, "0");
-        if (raw == null || raw.isBlank()) {
-            return BigDecimal.ZERO;
-        }
-        try {
-            return new BigDecimal(raw.trim().replace(',', '.')).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
     }
 
     private Bill createBillFromSignupOpenBill(OpenBill open, Company platformCompany) {
@@ -771,7 +658,6 @@ public class PlatformSubscriptionBillingService {
             OpenBill open,
             PlatformBillingCatalog catalog,
             PlatformPlan plan,
-            Long tenantId,
             Integer selectedUserCount,
             Integer selectedSmsCount,
             List<String> selectedAddonKeys,
@@ -788,103 +674,54 @@ public class PlatformSubscriptionBillingService {
             totalGross = totalGross.add(addOpenLine(open, plan.transactionService(), 1, planGross));
         }
 
-        if (plan.packageType() != PackageType.CUSTOM) {
-            BigDecimal userUnitGross = plan.interval() == BillingInterval.YEARLY
-                    ? annualGross(catalog.additionalUserMonthly(), catalog.annualDiscountPercent())
-                    : catalog.additionalUserMonthly();
-            int billableCurrentUsers = Math.max(0, currentUserAddCount == null ? 0 : currentUserAddCount);
-            if (billableCurrentUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
-                totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableCurrentUsers, userUnitGross));
-            }
+        BigDecimal userUnitGross = plan.interval() == BillingInterval.YEARLY
+                ? annualGross(catalog.additionalUserMonthly(), catalog.annualDiscountPercent())
+                : catalog.additionalUserMonthly();
+        int billableCurrentUsers = Math.max(0, currentUserAddCount == null ? 0 : currentUserAddCount);
+        if (billableCurrentUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableCurrentUsers, userUnitGross));
+        }
 
-            int billableUsers = Math.max(0, (selectedUserCount == null ? 1 : selectedUserCount) - baseIncludedUsers(plan.packageType()));
-            if (billableUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
-                totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableUsers, userUnitGross));
-            }
+        int billableUsers = Math.max(0, (selectedUserCount == null ? 1 : selectedUserCount) - 1);
+        if (billableUsers > 0 && catalog.additionalUserService() != null && catalog.additionalUserMonthly().compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, catalog.additionalUserService(), billableUsers, userUnitGross));
+        }
 
-            BigDecimal smsUnitGross = plan.interval() == BillingInterval.YEARLY
-                    ? catalog.smsPerMessage().multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP)
-                    : catalog.smsPerMessage();
-            int currentSmsCount = Math.max(0, currentSmsAddCount == null ? 0 : currentSmsAddCount);
-            if (currentSmsCount > 0 && catalog.smsService() != null && catalog.smsPerMessage().compareTo(BigDecimal.ZERO) > 0) {
-                totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), currentSmsCount, smsUnitGross));
-            }
+        BigDecimal smsUnitGross = plan.interval() == BillingInterval.YEARLY
+                ? catalog.smsPerMessage().multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP)
+                : catalog.smsPerMessage();
+        int currentSmsCount = Math.max(0, currentSmsAddCount == null ? 0 : currentSmsAddCount);
+        if (currentSmsCount > 0 && catalog.smsService() != null && catalog.smsPerMessage().compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), currentSmsCount, smsUnitGross));
+        }
 
-            int smsCount = Math.max(0, selectedSmsCount == null ? 0 : selectedSmsCount);
-            if (smsCount > 0 && catalog.smsService() != null && catalog.smsPerMessage().compareTo(BigDecimal.ZERO) > 0) {
-                totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), smsCount, smsUnitGross));
-            }
+        int smsCount = Math.max(0, selectedSmsCount == null ? 0 : selectedSmsCount);
+        if (smsCount > 0 && catalog.smsService() != null && catalog.smsPerMessage().compareTo(BigDecimal.ZERO) > 0) {
+            totalGross = totalGross.add(addOpenLine(open, catalog.smsService(), smsCount, smsUnitGross));
         }
 
         for (String key : currentAddonKeys == null ? List.<String>of() : currentAddonKeys) {
-            totalGross = totalGross.add(addAddonOpenLine(open, catalog, plan, tenantId, key));
+            PlatformAddon addon = catalog.addons().get(normalizeAddonKey(key));
+            if (addon == null || addon.monthlyGross().compareTo(BigDecimal.ZERO) <= 0 || addon.transactionService() == null) {
+                continue;
+            }
+            BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
+                    ? annualGross(addon.monthlyGross(), catalog.annualDiscountPercent())
+                    : addon.monthlyGross();
+            totalGross = totalGross.add(addOpenLine(open, addon.transactionService(), 1, unitGross));
         }
 
         for (String key : selectedAddonKeys == null ? List.<String>of() : selectedAddonKeys) {
-            totalGross = totalGross.add(addAddonOpenLine(open, catalog, plan, tenantId, key));
+            PlatformAddon addon = catalog.addons().get(normalizeAddonKey(key));
+            if (addon == null || addon.monthlyGross().compareTo(BigDecimal.ZERO) <= 0 || addon.transactionService() == null) {
+                continue;
+            }
+            BigDecimal unitGross = plan.interval() == BillingInterval.YEARLY
+                    ? annualGross(addon.monthlyGross(), catalog.annualDiscountPercent())
+                    : addon.monthlyGross();
+            totalGross = totalGross.add(addOpenLine(open, addon.transactionService(), 1, unitGross));
         }
         return totalGross.setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private BigDecimal addAddonOpenLine(OpenBill open, PlatformBillingCatalog catalog, PlatformPlan plan, Long tenantId, String rawKey) {
-        String key = normalizeAddonKey(rawKey);
-        if (key.isBlank()) {
-            return BigDecimal.ZERO;
-        }
-        PlatformAddon addon = catalog.addons().get(key);
-        if (addon == null || addon.transactionService() == null) {
-            return BigDecimal.ZERO;
-        }
-        BigDecimal unitGross = customAddonGross(tenantId, plan, key)
-                .orElseGet(() -> plan.interval() == BillingInterval.YEARLY
-                        ? annualGross(addon.monthlyGross(), catalog.annualDiscountPercent())
-                        : addon.monthlyGross());
-        if (unitGross.compareTo(BigDecimal.ZERO) <= 0) {
-            return BigDecimal.ZERO;
-        }
-        return addOpenLine(open, addon.transactionService(), 1, unitGross);
-    }
-
-    private Optional<BigDecimal> customAddonGross(Long tenantId, PlatformPlan plan, String key) {
-        if (tenantId == null || plan == null || plan.packageType() != PackageType.CUSTOM || objectMapper == null) {
-            return Optional.empty();
-        }
-        String json = settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_ADDONS_JSON, "");
-        if (json == null || json.isBlank()) {
-            return Optional.empty();
-        }
-        try {
-            List<Map<String, Object>> rows = objectMapper.readValue(json, new TypeReference<>() {});
-            for (Map<String, Object> row : rows) {
-                if (row == null || !key.equals(normalizeAddonKey(String.valueOf(row.getOrDefault("key", ""))))) {
-                    continue;
-                }
-                Object charged = row.get("charged");
-                if (charged != null && !Boolean.parseBoolean(String.valueOf(charged))) {
-                    return Optional.of(BigDecimal.ZERO);
-                }
-                String field = plan.interval() == BillingInterval.YEARLY ? "yearlyPrice" : "monthlyPrice";
-                BigDecimal amount = parseMoneyObject(row.get(field));
-                if (amount.compareTo(BigDecimal.ZERO) <= 0 && plan.interval() == BillingInterval.YEARLY) {
-                    amount = parseMoneyObject(row.get("monthlyPrice")).multiply(BigDecimal.valueOf(12)).setScale(2, RoundingMode.HALF_UP);
-                }
-                return Optional.of(amount);
-            }
-        } catch (Exception ignored) {
-            return Optional.empty();
-        }
-        return Optional.empty();
-    }
-
-    private BigDecimal parseMoneyObject(Object value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
-        try {
-            return new BigDecimal(String.valueOf(value).trim().replace(',', '.')).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
     }
 
     private BigDecimal addOpenLine(OpenBill open, TransactionService tx, int quantity, BigDecimal targetGrossPerUnit) {
@@ -1094,7 +931,6 @@ public class PlatformSubscriptionBillingService {
             case BASIC -> 1;
             case PROFESSIONAL -> 5;
             case PREMIUM -> 10;
-            case CUSTOM -> 1;
         };
     }
 
@@ -1378,7 +1214,7 @@ public class PlatformSubscriptionBillingService {
         if ("BUSINESS".equals(normalized)) {
             return "PREMIUM";
         }
-        if ("BASIC".equals(normalized) || "TRIAL".equals(normalized) || "PROFESSIONAL".equals(normalized) || "PREMIUM".equals(normalized) || "CUSTOM".equals(normalized)) {
+        if ("BASIC".equals(normalized) || "TRIAL".equals(normalized) || "PROFESSIONAL".equals(normalized) || "PREMIUM".equals(normalized)) {
             return normalized;
         }
         return "PROFESSIONAL";
@@ -1469,8 +1305,7 @@ public class PlatformSubscriptionBillingService {
     private enum PackageType {
         BASIC,
         PROFESSIONAL,
-        PREMIUM,
-        CUSTOM
+        PREMIUM
     }
 
     private enum BillingInterval {
