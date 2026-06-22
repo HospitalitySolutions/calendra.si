@@ -86,6 +86,24 @@ public class StripeWebhookService {
         this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, null, null, null, null, null);
     }
 
+    /** Backwards-compatible constructor for older unit tests that provide optional Stripe collaborators but not app settings. */
+    StripeWebhookService(
+            StripeConfig config,
+            StripeWebhookVerifier verifier,
+            StripeWebhookEventRepository events,
+            BillRepository bills,
+            FiscalizationService fiscalizationService,
+            BillFolioPdfService billFolioPdfService,
+            BillingEmailService billingEmailService,
+            InvoicePdfS3Service invoicePdfS3Service,
+            StripeCheckoutClient checkoutClient,
+            StripePlatformSettingsService platformSettings,
+            StripeConnectService connectService,
+            GuestOrderService guestOrderService
+    ) {
+        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, checkoutClient, platformSettings, connectService, guestOrderService, null);
+    }
+
     @Transactional
     public void handleWebhook(String payload, String signatureHeader) {
         if (!isValidSignature(payload, signatureHeader)) {
