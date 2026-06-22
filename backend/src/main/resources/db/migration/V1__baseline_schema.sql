@@ -636,6 +636,10 @@ CREATE TABLE IF NOT EXISTS guest_device_tokens (
     locale VARCHAR(8),
     last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_device_tokens_push_token
+    ON guest_device_tokens (push_token);
+CREATE INDEX IF NOT EXISTS idx_guest_device_tokens_guest_updated
+    ON guest_device_tokens (guest_user_id, updated_at DESC);
 
 -- backend/src/main/java/com/example/app/guest/model/GuestEntitlement.java
 CREATE TABLE IF NOT EXISTS guest_entitlements (
@@ -1173,7 +1177,11 @@ CREATE TABLE IF NOT EXISTS widget_booking_idempotency (
     idempotency_key VARCHAR(128) NOT NULL,
     endpoint VARCHAR(80) NOT NULL,
     payload_hash VARCHAR(128) NOT NULL,
-    response_json TEXT NOT NULL
+    status VARCHAR(24) NOT NULL DEFAULT 'IN_PROGRESS',
+    response_json TEXT,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    failed_at TIMESTAMP WITH TIME ZONE,
+    last_error VARCHAR(1000)
 );
 
 -- backend/src/main/java/com/example/app/zoom/ZoomOAuthToken.java
@@ -1361,6 +1369,38 @@ BEGIN
     IF to_regclass('public.widget_booking_idempotency') IS NOT NULL THEN
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_widget_booking_idempotency_lookup
                  ON widget_booking_idempotency (company_id, idempotency_key, endpoint)';
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'widget_booking_idempotency' AND column_name = 'status'
+        ) THEN
+            ALTER TABLE widget_booking_idempotency ADD COLUMN status VARCHAR(24) NOT NULL DEFAULT 'IN_PROGRESS';
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'widget_booking_idempotency' AND column_name = 'completed_at'
+        ) THEN
+            ALTER TABLE widget_booking_idempotency ADD COLUMN completed_at TIMESTAMP WITH TIME ZONE;
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'widget_booking_idempotency' AND column_name = 'failed_at'
+        ) THEN
+            ALTER TABLE widget_booking_idempotency ADD COLUMN failed_at TIMESTAMP WITH TIME ZONE;
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'widget_booking_idempotency' AND column_name = 'last_error'
+        ) THEN
+            ALTER TABLE widget_booking_idempotency ADD COLUMN last_error VARCHAR(1000);
+        END IF;
+        ALTER TABLE widget_booking_idempotency ALTER COLUMN response_json DROP NOT NULL;
+    END IF;
+
+    IF to_regclass('public.guest_device_tokens') IS NOT NULL THEN
+        EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS ux_guest_device_tokens_push_token
+                 ON guest_device_tokens (push_token)';
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_guest_device_tokens_guest_updated
+                 ON guest_device_tokens (guest_user_id, updated_at DESC)';
     END IF;
 END $$;
 

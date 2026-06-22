@@ -18,6 +18,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlin.random.Random
 import si.calendra.guest.shared.config.GuestApiConfig
 import si.calendra.guest.shared.models.*
 
@@ -25,6 +26,9 @@ class RemoteGuestApi(
     private val config: GuestApiConfig,
     private val client: HttpClient
 ) {
+    private val orderIdempotencyKeys = mutableMapOf<String, String>()
+    private val checkoutIdempotencyKeys = mutableMapOf<String, String>()
+
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -35,6 +39,34 @@ class RemoteGuestApi(
         header(HttpHeaders.Accept, ContentType.Application.Json.toString())
         header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
     }
+
+    private fun io.ktor.client.request.HttpRequestBuilder.idempotencyHeader(value: String) {
+        header("Idempotency-Key", value.take(128))
+    }
+
+    private fun newIdempotencyKey(prefix: String): String {
+        val first = Random.nextLong().toString(16).replace("-", "n")
+        val second = Random.nextLong().toString(16).replace("-", "n")
+        return "$prefix-$first-$second"
+    }
+
+    private fun createOrderScope(request: CreateOrderRequest): String = listOf(
+        request.companyId,
+        request.productId,
+        request.slotId.orEmpty(),
+        request.paymentMethodType,
+        request.consultantId.orEmpty(),
+        request.entitlementId.orEmpty(),
+        request.locale.orEmpty()
+    ).joinToString("|")
+
+    private fun checkoutScope(orderId: String, request: CheckoutRequest): String = listOf(
+        orderId,
+        request.paymentMethodType,
+        request.saveCard.toString(),
+        request.useSavedPaymentMethodId.orEmpty(),
+        request.locale.orEmpty()
+    ).joinToString("|")
 
     private suspend inline fun <reified T> parse(response: HttpResponse): T {
         val payload = response.bodyAsText()
@@ -240,33 +272,44 @@ class RemoteGuestApi(
             parameter("sessionTypeId", sessionTypeId)
         })
 
-    suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse =
-        parse(client.post("${config.baseUrl}/api/guest/orders") {
+    suspend fun createOrder(request: CreateOrderRequest): CreateOrderResponse {
+        val scope = createOrderScope(request)
+        val key = orderIdempotencyKeys.getOrPut(scope) { newIdempotencyKey("guest-order") }
+        return parse(client.post("${config.baseUrl}/api/guest/orders") {
             jsonRequest()
+            idempotencyHeader(key)
             setBody(request)
         })
+    }
 
     suspend fun rescheduleBooking(bookingId: String, newSlotId: String): BookingActionResult =
         parse(client.post("${config.baseUrl}/api/guest/bookings/$bookingId/reschedule") {
             jsonRequest()
+            idempotencyHeader(newIdempotencyKey("guest-booking-reschedule"))
             setBody(RescheduleBookingRequest(newSlotId = newSlotId))
         })
 
     suspend fun cancelBooking(bookingId: String): BookingActionResult =
         parse(client.post("${config.baseUrl}/api/guest/bookings/$bookingId/cancel") {
             jsonRequest()
+            idempotencyHeader(newIdempotencyKey("guest-booking-cancel"))
             setBody(CancelBookingRequest())
         })
 
-    suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse =
-        parse(client.post("${config.baseUrl}/api/guest/orders/$orderId/checkout") {
+    suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse {
+        val scope = checkoutScope(orderId, request)
+        val key = checkoutIdempotencyKeys.getOrPut(scope) { newIdempotencyKey("guest-checkout") }
+        return parse(client.post("${config.baseUrl}/api/guest/orders/$orderId/checkout") {
             jsonRequest()
+            idempotencyHeader(key)
             setBody(request)
         })
+    }
 
     suspend fun cancelCheckout(orderId: String, checkoutSessionId: String? = null): CheckoutResponse =
         parse(client.post("${config.baseUrl}/api/guest/orders/$orderId/checkout/cancel") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())
+            idempotencyHeader(newIdempotencyKey("guest-checkout-cancel"))
             checkoutSessionId?.takeIf { it.isNotBlank() }?.let { parameter("session_id", it) }
         })
 

@@ -404,32 +404,38 @@ final class GuestApiClient {
     func rescheduleBooking(bookingId: String, newSlotId: String) async throws -> BookingActionResultModel {
         try await post(
             path: "api/guest/bookings/\(bookingId)/reschedule",
-            body: RescheduleBookingPayload(newSlotId: newSlotId)
+            body: RescheduleBookingPayload(newSlotId: newSlotId),
+            idempotencyKey: newIdempotencyKey(prefix: "ios-booking-reschedule")
         )
     }
 
     func cancelBooking(bookingId: String) async throws -> BookingActionResultModel {
         try await post(
             path: "api/guest/bookings/\(bookingId)/cancel",
-            body: CancelBookingPayload()
+            body: CancelBookingPayload(),
+            idempotencyKey: newIdempotencyKey(prefix: "ios-booking-cancel")
         )
     }
 
     func createOrder(companyId: String, productId: String, slotId: String?, paymentMethodType: String, consultantId: String? = nil, entitlementId: String? = nil) async throws -> CheckoutResponseModel {
+        let flowKey = newIdempotencyKey(prefix: "ios-guest-order")
         let order: CreateOrderEnvelope = try await post(
             path: "api/guest/orders",
-            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId, entitlementId: entitlementId)
+            body: CreateOrderPayload(companyId: companyId, productId: productId, slotId: slotId, paymentMethodType: paymentMethodType, consultantId: consultantId, entitlementId: entitlementId),
+            idempotencyKey: "\(flowKey):create"
         )
         return try await post(
             path: "api/guest/orders/\(order.order.orderId)/checkout",
-            body: CheckoutPayload(paymentMethodType: paymentMethodType, saveCard: paymentMethodType == "CARD", useSavedPaymentMethodId: nil)
+            body: CheckoutPayload(paymentMethodType: paymentMethodType, saveCard: paymentMethodType == "CARD", useSavedPaymentMethodId: nil),
+            idempotencyKey: "\(flowKey):checkout"
         )
     }
 
     func cancelExternalCheckout(orderId: String) async throws -> CheckoutResponseModel {
         try await post(
             path: "api/guest/orders/\(orderId)/checkout/cancel",
-            body: EmptyPayload()
+            body: EmptyPayload(),
+            idempotencyKey: newIdempotencyKey(prefix: "ios-checkout-cancel")
         )
     }
 
@@ -444,17 +450,20 @@ final class GuestApiClient {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private func post<T: Decodable, Body: Encodable>(path: String, body: Body) async throws -> T {
-        try await post(path: path, query: [], body: body)
+    private func post<T: Decodable, Body: Encodable>(path: String, body: Body, idempotencyKey: String? = nil) async throws -> T {
+        try await post(path: path, query: [], body: body, idempotencyKey: idempotencyKey)
     }
 
-    private func post<T: Decodable, Body: Encodable>(path: String, query: [URLQueryItem], body: Body) async throws -> T {
+    private func post<T: Decodable, Body: Encodable>(path: String, query: [URLQueryItem], body: Body, idempotencyKey: String? = nil) async throws -> T {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         components.queryItems = query.isEmpty ? nil : query
         var request = URLRequest(url: components.url!)
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(body)
         applyHeaders(to: &request)
+        if let idempotencyKey, !idempotencyKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            request.setValue(String(idempotencyKey.prefix(128)), forHTTPHeaderField: "Idempotency-Key")
+        }
         let (data, response) = try await performDataRequest(request)
         try validate(response: response, data: data)
         return try JSONDecoder().decode(T.self, from: data)
@@ -482,6 +491,10 @@ final class GuestApiClient {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
+
+    private func newIdempotencyKey(prefix: String) -> String {
+        "\(prefix)-\(UUID().uuidString.lowercased())"
+    }
 
     private func applyHeaders(to request: inout URLRequest) {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

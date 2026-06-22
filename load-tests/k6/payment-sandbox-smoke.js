@@ -60,7 +60,7 @@ export function guestCardCheckoutSmoke() {
   const orderId = orderBody && orderBody.order ? orderBody.order.orderId : null;
   if (orderId) {
     const checkout = http.post(`${BASE_URL}/api/guest/orders/${orderId}/checkout`, JSON.stringify({ paymentMethodType: 'CARD', saveCard: false, locale: 'sl' }), {
-      headers: bearer(login.token),
+      headers: bearer(login.token, { 'Idempotency-Key': `k6-payment-checkout-${orderId}-${Date.now()}-${__VU}-${__ITER}` }),
       tags: { endpoint: 'payment_guest_card_checkout' },
     });
     check(checkout, {

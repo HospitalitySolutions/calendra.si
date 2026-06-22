@@ -344,10 +344,12 @@ public class PublicBookingWidgetService {
 
             User consultant = resolveConsultantForBooking(company.getId(), request.consultantId(), cfg.availabilityEnabled());
             User actor = consultant != null ? consultant : resolveAdminActor(company.getId());
-            lockTenantForClientMatch(company);
-            Client client = findOrCreateClient(company, actor, request);
 
             PublicBookingWidgetController.BookingResponse response = widgetBookingIdempotencyService.execute(company, "booking", idempotencyKey, request, PublicBookingWidgetController.BookingResponse.class, () -> {
+                // Keep all side effects behind the idempotency claim so duplicate browser/mobile
+                // retries with the same Idempotency-Key cannot create duplicate clients/bookings.
+                lockTenantForClientMatch(company);
+                Client client = findOrCreateClient(company, actor, request);
                 SessionBooking booking = bookingCreationService.createChannelBooking(new SessionBookingCreationService.ChannelBookingRequest(
                         company.getId(),
                         client.getId(),

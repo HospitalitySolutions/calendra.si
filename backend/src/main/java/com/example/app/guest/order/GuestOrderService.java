@@ -40,6 +40,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -477,7 +479,16 @@ public class GuestOrderService {
                     order = orders.save(order);
                 }
             }
-            notifications.paymentPending(order.getGuestUser(), order.getCompany(), order.getClient(), "Invoice sent", "Your order is ready. We emailed you the invoice PDF and bank transfer instructions.");
+            var notificationGuestUser = order.getGuestUser();
+            var notificationCompany = order.getCompany();
+            var notificationClient = order.getClient();
+            runAfterCommit(() -> notifications.paymentPending(
+                    notificationGuestUser,
+                    notificationCompany,
+                    notificationClient,
+                    "Invoice sent",
+                    "Your order is ready. We emailed you the invoice PDF and bank transfer instructions."
+            ));
             return new GuestDtos.CheckoutResponse(
                     String.valueOf(order.getId()),
                     paymentMethodType.name(),
@@ -1393,6 +1404,20 @@ public class GuestOrderService {
     private record GiftCardPaymentAdjustment(GuestOrder order, boolean coveredInFull) {}
 
     private record SlotContext(Long sessionTypeId, Long consultantId, java.time.LocalDateTime startsAt, java.time.LocalDateTime endsAt, Long groupSessionId) {}
+
+    private static void runAfterCommit(Runnable task) {
+        if (task == null) return;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+            return;
+        }
+        task.run();
+    }
 
     public enum PaymentChannel {
         GUEST,

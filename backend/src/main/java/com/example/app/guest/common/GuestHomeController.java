@@ -1,18 +1,24 @@
 package com.example.app.guest.common;
 
+import com.example.app.company.Company;
+import com.example.app.company.CompanyRepository;
 import com.example.app.guest.auth.GuestAuthContextService;
 import com.example.app.guest.catalog.GuestCatalogService;
+import com.example.app.guest.model.GuestOrderRepository;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.order.GuestOrderService;
 import com.example.app.guest.wallet.GuestWalletService;
+import com.example.app.widget.WidgetBookingIdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/guest")
@@ -23,6 +29,9 @@ public class GuestHomeController {
     private final GuestOrderService orderService;
     private final GuestWalletService walletService;
     private final GuestNotificationService notificationService;
+    private final CompanyRepository companies;
+    private final GuestOrderRepository orders;
+    private final WidgetBookingIdempotencyService idempotencyService;
 
     public GuestHomeController(
             GuestAuthContextService authContextService,
@@ -30,7 +39,10 @@ public class GuestHomeController {
             GuestCatalogService catalogService,
             GuestOrderService orderService,
             GuestWalletService walletService,
-            GuestNotificationService notificationService
+            GuestNotificationService notificationService,
+            CompanyRepository companies,
+            GuestOrderRepository orders,
+            WidgetBookingIdempotencyService idempotencyService
     ) {
         this.authContextService = authContextService;
         this.homeService = homeService;
@@ -38,6 +50,9 @@ public class GuestHomeController {
         this.orderService = orderService;
         this.walletService = walletService;
         this.notificationService = notificationService;
+        this.companies = companies;
+        this.orders = orders;
+        this.idempotencyService = idempotencyService;
     }
 
     @GetMapping("/home")
@@ -66,16 +81,46 @@ public class GuestHomeController {
     }
 
     @PostMapping("/orders")
-    public GuestDtos.CreateOrderResponse createOrder(@RequestBody GuestDtos.CreateOrderRequest payload, HttpServletRequest request) {
+    public GuestDtos.CreateOrderResponse createOrder(
+            @RequestBody GuestDtos.CreateOrderRequest payload,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return orderService.createOrder(guestUser, payload, GuestOrderService.PaymentChannel.GUEST);
+        Company company = companies.findById(Long.parseLong(payload.companyId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
+        return idempotencyService.execute(
+                company,
+                "guest-orders",
+                idempotencyKey,
+                payload,
+                GuestDtos.CreateOrderResponse.class,
+                () -> orderService.createOrder(guestUser, payload, GuestOrderService.PaymentChannel.GUEST)
+        );
     }
 
     @PostMapping("/orders/{orderId}/checkout")
-    public GuestDtos.CheckoutResponse checkout(@PathVariable Long orderId, @RequestBody GuestDtos.CheckoutRequest payload, HttpServletRequest request) {
+    public GuestDtos.CheckoutResponse checkout(
+            @PathVariable Long orderId,
+            @RequestBody GuestDtos.CheckoutRequest payload,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest request
+    ) {
         GuestUser guestUser = authContextService.requireGuest(request);
-        return orderService.checkout(guestUser, orderId, payload, GuestOrderService.PaymentChannel.GUEST);
+        Company company = orders.findByIdAndGuestUserId(orderId, guestUser.getId())
+                .map(order -> order.getCompany())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
+        return idempotencyService.execute(
+                company,
+                "guest-orders-checkout",
+                idempotencyKey,
+                new GuestCheckoutIdempotencyRequest(orderId, payload),
+                GuestDtos.CheckoutResponse.class,
+                () -> orderService.checkout(guestUser, orderId, payload, GuestOrderService.PaymentChannel.GUEST)
+        );
     }
+
+    private record GuestCheckoutIdempotencyRequest(Long orderId, GuestDtos.CheckoutRequest request) {}
 
 
     @GetMapping(value = "/paypal/return", produces = MediaType.TEXT_HTML_VALUE)

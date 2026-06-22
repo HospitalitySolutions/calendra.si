@@ -239,7 +239,7 @@ public class GuestBookingReminderService {
             if (notification.getId() != null) {
                 extra.put("notificationId", String.valueOf(notification.getId()));
             }
-            guestPushService.notifyGuestReminder(
+            GuestPushService.DeliveryResult delivery = guestPushService.notifyGuestReminder(
                     guestUser,
                     reminder.getCompany(),
                     reminder.getClient(),
@@ -247,9 +247,19 @@ public class GuestBookingReminderService {
                     body,
                     extra
             );
-            reminder.setStatus(BookingPushReminderStatus.SENT);
-            reminder.setSentAt(now);
             reminder.setAttempts(reminder.getAttempts() + 1);
+            if (delivery != null && delivery.delivered()) {
+                reminder.setStatus(BookingPushReminderStatus.SENT);
+                reminder.setSentAt(now);
+                reminder.setFailedAt(null);
+                reminder.setLastError(null);
+                return;
+            }
+            reminder.setFailedAt(now);
+            reminder.setLastError(deliverySummary(delivery));
+            if (reminder.getAttempts() >= 3) {
+                reminder.setStatus(BookingPushReminderStatus.FAILED);
+            }
         } catch (Exception ex) {
             reminder.setAttempts(reminder.getAttempts() + 1);
             reminder.setFailedAt(now);
@@ -313,6 +323,19 @@ public class GuestBookingReminderService {
     private static String payload(SessionBooking booking, BookingPushReminder reminder) {
         return "{\"event\":\"booking_reminder\",\"bookingId\":\"" + booking.getId()
                 + "\",\"reminderMinutes\":" + reminder.getReminderMinutes() + "}";
+    }
+
+    private static String deliverySummary(GuestPushService.DeliveryResult result) {
+        if (result == null) {
+            return "Push delivery returned no result.";
+        }
+        if (result.attemptedCount() <= 0) {
+            return "Push delivery skipped or no guest device tokens were available.";
+        }
+        return "Push delivery failed: attempted=" + result.attemptedCount()
+                + ", delivered=" + result.deliveredCount()
+                + ", invalidTokens=" + result.invalidTokenCount()
+                + ", failed=" + result.failedCount();
     }
 
     private static String truncate(String value, int max) {
