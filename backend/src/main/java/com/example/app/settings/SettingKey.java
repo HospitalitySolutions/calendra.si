@@ -135,6 +135,24 @@ public enum SettingKey {
     BILLING_SUBSCRIPTION_DUE_AMOUNT,
     /** Preferred payment method selected during self-serve signup billing details. */
     BILLING_SUBSCRIPTION_PAYMENT_METHOD,
+    /** ACTIVE, SUSPENDED, or CANCELLED. Controls tenant login/access, separate from billing state. */
+    TENANCY_ACCESS_STATUS,
+    /** PENDING_PAYMENT, PAID, or PAST_DUE. Controls subscription payment state, separate from tenant login. */
+    BILLING_SUBSCRIPTION_STATUS,
+    /** Number of days after an unpaid subscription invoice before the account becomes past due. */
+    BILLING_SUBSCRIPTION_GRACE_DAYS,
+    /** Custom package display name saved for platform-admin-created custom plans. */
+    BILLING_SUBSCRIPTION_CUSTOM_NAME,
+    /** Custom monthly gross price for platform-admin-created custom plans. */
+    BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE,
+    /** Custom yearly gross price for platform-admin-created custom plans. */
+    BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE,
+    /** CSV of enabled module/configuration keys chosen by Platform Admin for a custom package. */
+    BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS,
+    /** JSON snapshot of selected add-ons and optional custom/free pricing chosen by Platform Admin. */
+    BILLING_SUBSCRIPTION_CUSTOM_ADDONS_JSON,
+    /** Marker that the tenant was created manually from Platform Admin rather than public registration. */
+    MANUAL_TENANT_CREATED,
     INVOICE_DELIVERY_EMAIL_ENABLED,
     INVOICE_DELIVERY_EMAIL_SUBJECT,
     INVOICE_DELIVERY_EMAIL_BODY,

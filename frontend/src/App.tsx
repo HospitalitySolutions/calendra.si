@@ -187,6 +187,39 @@ export default function App() {
   }, [user])
 
   useEffect(() => {
+    if (!user || user.role === 'SUPER_ADMIN') return
+    let cancelled = false
+    api.get('/settings/sms-quota')
+      .then((res) => {
+        if (cancelled) return
+        const warning = res.data?.warning === true
+        const exhausted = res.data?.exhausted === true
+        const remaining = Number(res.data?.remaining ?? 0)
+        const monthKey = new Date().toISOString().slice(0, 7)
+        const storageKey = `calendra.smsQuotaWarning.${user.companyId}.${monthKey}`
+        if ((warning || exhausted) && sessionStorage.getItem(storageKey) !== '1') {
+          sessionStorage.setItem(storageKey, '1')
+          const message = exhausted
+            ? (locale === 'sl'
+              ? 'Mesečni limit SMS sporočil je dosežen. Povečajte limit v Upravljanje računa → Naročnina.'
+              : 'The monthly SMS limit has been reached. Increase the limit in Account management → Subscription.')
+            : (locale === 'sl'
+              ? `Bližate se mesečni omejitvi SMS sporočil. Preostanek: ${remaining}. Limit lahko povečate v Upravljanje računa → Naročnina.`
+              : `You are approaching the monthly SMS limit. Remaining: ${remaining}. You can increase the limit in Account management → Subscription.`)
+          showToast('info', message)
+          const shouldOpenSubscription = window.confirm(`${message}\n\n${locale === 'sl' ? 'Želite odpreti Naročnino?' : 'Open Subscription settings?'}`)
+          if (shouldOpenSubscription) {
+            navigate('/configuration?tab=company&subtab=subscription')
+          }
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [locale, navigate, showToast, user])
+
+  useEffect(() => {
     let cancelled = false
     api.get('/auth/me')
       .then((res) => {

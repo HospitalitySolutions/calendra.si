@@ -13,6 +13,7 @@ import com.example.app.logging.LogSanitizer;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantSmsQuotaService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.sms.SmsGateway;
@@ -60,6 +61,7 @@ public class ReminderService {
     private final SessionBookingRepository sessionBookings;
     private final GuestNotificationService guestNotifications;
     private final GuestPushService guestPushService;
+    private final TenantSmsQuotaService smsQuotaService;
     private final String frontendBaseUrl;
 
     @Autowired(required = false)
@@ -76,7 +78,8 @@ public class ReminderService {
             SessionBookingRepository sessionBookings,
             SmsGateway smsGateway,
             GuestNotificationService guestNotifications,
-            GuestPushService guestPushService
+            GuestPushService guestPushService,
+            TenantSmsQuotaService smsQuotaService
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom != null ? mailFrom : "";
@@ -91,6 +94,7 @@ public class ReminderService {
         this.sessionBookings = sessionBookings;
         this.guestNotifications = guestNotifications;
         this.guestPushService = guestPushService;
+        this.smsQuotaService = smsQuotaService;
     }
 
     /**
@@ -868,6 +872,7 @@ public class ReminderService {
         if (!smsConfigured || smsGateway == null) {
             return;
         }
+        smsQuotaService.assertCanSend(companyId, 1);
         SmsGateway.SmsSendResult result = smsGateway.send(new SmsGateway.SmsSendRequest(companyId, to, body, customId));
         log.info("Sent A1 SMS recipient={} messageId={} customId={} parts={} companyId={}",
                 LogSanitizer.maskedPhone(to), result.messageId(), result.customId(), result.parts(), companyId);
@@ -885,21 +890,7 @@ public class ReminderService {
 
     private void incrementTenantSmsSentCount(Long companyId, int parts) {
         try {
-            Company company = companies.findById(companyId).orElse(null);
-            if (company == null) {
-                return;
-            }
-            AppSetting s = appSettings.findByCompanyIdAndKey(companyId, SettingKey.TENANCY_SMS_SENT_COUNT).orElseGet(() -> {
-                AppSetting ns = new AppSetting();
-                ns.setCompany(company);
-                ns.setKey(SettingKey.TENANCY_SMS_SENT_COUNT.name());
-                ns.setValue("0");
-                return appSettings.save(ns);
-            });
-            String raw = s.getValue() == null ? "0" : s.getValue().trim();
-            int n = Integer.parseInt(raw.isEmpty() ? "0" : raw);
-            s.setValue(String.valueOf(n + Math.max(1, parts)));
-            appSettings.save(s);
+            smsQuotaService.increment(companyId, parts);
         } catch (Exception e) {
             log.warn("Failed to increment SMS sent count for company {}: {}", companyId, e.getMessage());
         }

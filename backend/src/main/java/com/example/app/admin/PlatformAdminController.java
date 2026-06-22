@@ -46,7 +46,7 @@ public class PlatformAdminController {
     private static final String PROD_PREMISE_DEFAULT = "https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices/register";
 
     private static final Set<String> ALLOWED_PLATFORM_TENANCY_AUDIT_ACTIONS = Set.of(
-            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT");
+            "CHANGE_PLAN", "PRICE_OVERRIDE", "SUSPEND_TENANT", "MANAGE_ADDONS", "DELETE_TENANT", "MANUAL_CREATE");
 
     private final CompanyRepository companies;
     private final AppSettingRepository settings;
@@ -57,6 +57,7 @@ public class PlatformAdminController {
     private final PlatformTenancyAdminAuditLogRepository tenancyAdminAuditLogs;
     private final StripePlatformSettingsService stripePlatformSettingsService;
     private final PlatformTenancyDeletionService tenancyDeletionService;
+    private final ManualTenantService manualTenantService;
 
     public PlatformAdminController(
             CompanyRepository companies,
@@ -67,7 +68,8 @@ public class PlatformAdminController {
             RegisterCatalogService registerCatalogService,
             PlatformTenancyAdminAuditLogRepository tenancyAdminAuditLogs,
             StripePlatformSettingsService stripePlatformSettingsService,
-            PlatformTenancyDeletionService tenancyDeletionService) {
+            PlatformTenancyDeletionService tenancyDeletionService,
+            ManualTenantService manualTenantService) {
         this.companies = companies;
         this.settings = settings;
         this.users = users;
@@ -77,6 +79,7 @@ public class PlatformAdminController {
         this.tenancyAdminAuditLogs = tenancyAdminAuditLogs;
         this.stripePlatformSettingsService = stripePlatformSettingsService;
         this.tenancyDeletionService = tenancyDeletionService;
+        this.manualTenantService = manualTenantService;
     }
 
     public record TenancyRow(Long id, String tenantCode, String name) {}
@@ -115,7 +118,16 @@ public class PlatformAdminController {
             boolean ownerPasswordSetupPending,
             String signupCompletionSummary,
             String vatId,
-            String stripeCustomerIdPreview) {}
+            String stripeCustomerIdPreview,
+            String accessStatus,
+            String billingStatus,
+            String customPackageName,
+            String customMonthlyPrice,
+            String customYearlyPrice,
+            String customFeatureKeys,
+            String customAddonsJson,
+            String paymentMethod,
+            String companyType) {}
 
     public record AuditLogEntryDto(String occurredAt, String category, String summary, String detail, String actorEmail) {}
 
@@ -153,6 +165,37 @@ public class PlatformAdminController {
                 .map(c -> new TenancyRow(c.getId(), c.getTenantCode(), c.getName()))
                 .sorted(java.util.Comparator.comparing(TenancyRow::name, String.CASE_INSENSITIVE_ORDER))
                 .collect(Collectors.toList());
+    }
+
+    @GetMapping("/tenancies/manual-options")
+    public ManualTenantService.ManualTenantOptions manualTenantOptions() {
+        return manualTenantService.options();
+    }
+
+    @PostMapping("/tenancies/manual")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ManualTenantService.ManualTenantResponse createManualTenant(
+            @RequestBody ManualTenantService.ManualTenantRequest body,
+            @AuthenticationPrincipal User actor
+    ) {
+        return manualTenantService.createManualTenant(body, actor);
+    }
+
+    @PutMapping("/tenancies/{id}/manual-subscription")
+    public ManualTenantService.ManualTenantResponse updateManualTenantSubscription(
+            @PathVariable Long id,
+            @RequestBody ManualTenantService.ManualTenantRequest body,
+            @AuthenticationPrincipal User actor
+    ) {
+        return manualTenantService.updateManualSubscription(id, body, actor);
+    }
+
+    @PostMapping("/tenancies/{id}/resend-subscription-payment")
+    public ManualTenantService.ManualTenantResponse resendSubscriptionPayment(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User actor
+    ) {
+        return manualTenantService.resendPayment(id, actor);
     }
 
     /**
@@ -325,7 +368,16 @@ public class PlatformAdminController {
                 ownerPasswordPending,
                 signupSummary,
                 vatId,
-                stripePreview);
+                stripePreview,
+                settingTrim(cid, SettingKey.TENANCY_ACCESS_STATUS).isBlank() ? "ACTIVE" : settingTrim(cid, SettingKey.TENANCY_ACCESS_STATUS),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_STATUS).isBlank() ? "PENDING_PAYMENT" : settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_STATUS),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_NAME),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_ADDONS_JSON),
+                settingTrim(cid, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD),
+                settingTrim(cid, SettingKey.MODULE_CONFIG_TYPE));
     }
 
     private static String buildSignupCompletionSummary(boolean ownerPasswordPending, String vatId) {
@@ -474,6 +526,7 @@ public class PlatformAdminController {
             case "SUSPEND_TENANT" -> "Suspend tenant";
             case "MANAGE_ADDONS" -> "Manage add-ons";
             case "DELETE_TENANT" -> "Delete tenant";
+            case "MANUAL_CREATE" -> "Manual tenant";
             default -> code;
         };
     }

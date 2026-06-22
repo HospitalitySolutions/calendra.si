@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import axios from "axios";
 import { api } from "../api";
 import { clearAuthStoragePreservingTheme } from "../theme";
+import { TENANT_CONFIG_TYPE_OPTIONS } from "./configuration/guestWebsiteSettings";
 
 const adminConsoleStyles = `:root {
       --bg-1:#f7faff; --bg-2:#edf3ff; --panel:rgba(255,255,255,.78); --panel-strong:#fff;
@@ -181,7 +182,174 @@ type TenancyDetails = TenancySearchHit & {
   ownerPasswordSetupPending: boolean;
   vatId: string;
   stripeCustomerIdPreview: string;
+  accessStatus: string;
+  billingStatus: string;
+  customPackageName: string;
+  customMonthlyPrice: string;
+  customYearlyPrice: string;
+  customFeatureKeys: string;
+  customAddonsJson: string;
+  paymentMethod: string;
+  companyType: string;
 };
+
+type ManualTenantFeatureOption = { key: string; label: string };
+type ManualTenantAddOnOption = {
+  key: string;
+  name?: string;
+  nameSl?: string;
+  monthlyPrice?: number | string;
+};
+type ManualTenantOptions = {
+  features: ManualTenantFeatureOption[];
+  addOns: ManualTenantAddOnOption[];
+  companyTypes: string[];
+};
+type ManualTenantAddOnFormRow = {
+  key: string;
+  monthlyPrice: string;
+  yearlyPrice: string;
+  charged: boolean;
+};
+type ManualTenantFormState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  companyName: string;
+  companyType: string;
+  vatId: string;
+  country: string;
+  city: string;
+  address: string;
+  postalCode: string;
+  packageName: string;
+  customPackageName: string;
+  customMonthlyPrice: string;
+  customYearlyPrice: string;
+  billingInterval: string;
+  userCount: string;
+  smsCount: string;
+  enabledFeatureKeys: string[];
+  addOns: ManualTenantAddOnFormRow[];
+  paymentMethod: string;
+  accessStatus: string;
+  billingStatus: string;
+  subscriptionStart: string;
+  language: string;
+};
+type ManualTenantResponse = {
+  tenantId: number;
+  tenantCode: string;
+  companyName: string;
+  email: string;
+  billId?: number | null;
+  billNumber?: string | null;
+  checkoutUrl?: string | null;
+  accessStatus: string;
+  billingStatus: string;
+};
+
+function defaultManualTenantForm(): ManualTenantFormState {
+  return {
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    companyName: "",
+    companyType: "salon",
+    vatId: "",
+    country: "Slovenija",
+    city: "",
+    address: "",
+    postalCode: "",
+    packageName: "PROFESSIONAL",
+    customPackageName: "",
+    customMonthlyPrice: "0.00",
+    customYearlyPrice: "0.00",
+    billingInterval: "MONTHLY",
+    userCount: "5",
+    smsCount: "0",
+    enabledFeatureKeys: [],
+    addOns: [],
+    paymentMethod: "BANK_TRANSFER",
+    accessStatus: "ACTIVE",
+    billingStatus: "PENDING_PAYMENT",
+    subscriptionStart: new Date().toISOString().slice(0, 10),
+    language: "sl",
+  };
+}
+
+function splitContactName(name: string): { firstName: string; lastName: string } {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+function parseCsv(raw: string): string[] {
+  return String(raw || "")
+    .split(",")
+    .map((row) => row.trim())
+    .filter(Boolean);
+}
+
+function parseManualAddOns(raw: string): ManualTenantAddOnFormRow[] {
+  try {
+    const rows = JSON.parse(raw || "[]");
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((row) => ({
+        key: String(row?.key || "").trim(),
+        monthlyPrice: String(row?.monthlyPrice ?? "0.00"),
+        yearlyPrice: String(row?.yearlyPrice ?? "0.00"),
+        charged: row?.charged !== false,
+      }))
+      .filter((row) => row.key);
+  } catch {
+    return [];
+  }
+}
+
+function formFromTenancyDetails(selected: TenancyDetails): ManualTenantFormState {
+  const names = splitContactName(selected.contactName || "");
+  return {
+    ...defaultManualTenantForm(),
+    firstName: names.firstName,
+    lastName: names.lastName,
+    email: selected.contactEmail || "",
+    phone: selected.contactPhone || "",
+    companyName: selected.companyName || "",
+    companyType: selected.companyType || "salon",
+    vatId: selected.vatId || "",
+    city: selected.companyCity || "",
+    address: selected.companyAddress || "",
+    postalCode: selected.companyPostalCode || "",
+    packageName: (selected.packageType || "PROFESSIONAL").toUpperCase(),
+    customPackageName: selected.customPackageName || "",
+    customMonthlyPrice: selected.customMonthlyPrice || "0.00",
+    customYearlyPrice: selected.customYearlyPrice || "0.00",
+    billingInterval: selected.subscriptionInterval || "MONTHLY",
+    userCount: String(selected.usersPaidTotal ?? 1),
+    smsCount: String(selected.smsQuota ?? 0),
+    enabledFeatureKeys: parseCsv(selected.customFeatureKeys),
+    addOns: parseManualAddOns(selected.customAddonsJson),
+    paymentMethod: selected.paymentMethod || "BANK_TRANSFER",
+    accessStatus: selected.accessStatus || "ACTIVE",
+    billingStatus: selected.billingStatus || "PENDING_PAYMENT",
+    subscriptionStart: selected.subscriptionStart || new Date().toISOString().slice(0, 10),
+  };
+}
+
+function toNumberOrZero(raw: string): number {
+  const parsed = Number.parseFloat(String(raw || "0").replace(",", "."));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function toPositiveInt(raw: string, fallback: number): number {
+  const parsed = Number.parseInt(String(raw || ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 const modalContent: Record<string, [string, string, string[]]> = {
   plan: [
@@ -4111,6 +4279,15 @@ export function PlatformAdminPage() {
   const [auditLog, setAuditLog] = useState<AuditLogEntryDto[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditErr, setAuditErr] = useState<string | null>(null);
+  const [manualTenantOpen, setManualTenantOpen] = useState(false);
+  const [manualTenantMode, setManualTenantMode] = useState<"create" | "edit">("create");
+  const [manualTenantOptions, setManualTenantOptions] = useState<ManualTenantOptions | null>(null);
+  const [manualTenantForm, setManualTenantForm] = useState<ManualTenantFormState>(() =>
+    defaultManualTenantForm(),
+  );
+  const [manualTenantSaving, setManualTenantSaving] = useState(false);
+  const [manualTenantErr, setManualTenantErr] = useState<string | null>(null);
+  const [manualTenantResult, setManualTenantResult] = useState<string | null>(null);
 
   selectedRef.current = selected;
 
@@ -4458,6 +4635,186 @@ export function PlatformAdminPage() {
     [auditLog],
   );
 
+  const loadManualTenantOptions = useCallback(async () => {
+    if (manualTenantOptions) return manualTenantOptions;
+    const { data } = await api.get<ManualTenantOptions>(
+      "/platform-admin/tenancies/manual-options",
+    );
+    const normalized = {
+      features: Array.isArray(data.features) ? data.features : [],
+      addOns: Array.isArray(data.addOns) ? data.addOns : [],
+      companyTypes: Array.isArray(data.companyTypes) ? data.companyTypes : [],
+    };
+    setManualTenantOptions(normalized);
+    return normalized;
+  }, [manualTenantOptions]);
+
+  const openManualTenantCreate = useCallback(() => {
+    setManualTenantMode("create");
+    setManualTenantForm(defaultManualTenantForm());
+    setManualTenantErr(null);
+    setManualTenantResult(null);
+    setManualTenantOpen(true);
+    void loadManualTenantOptions().catch(() => {
+      setManualTenantErr("Could not load manual tenant options.");
+    });
+  }, [loadManualTenantOptions]);
+
+  const openManualTenantEdit = useCallback(() => {
+    if (!selected) return;
+    setManualTenantMode("edit");
+    setManualTenantForm(formFromTenancyDetails(selected));
+    setManualTenantErr(null);
+    setManualTenantResult(null);
+    setManualTenantOpen(true);
+    void loadManualTenantOptions().catch(() => {
+      setManualTenantErr("Could not load manual tenant options.");
+    });
+  }, [loadManualTenantOptions, selected]);
+
+  const updateManualTenantField = useCallback(
+    (key: keyof ManualTenantFormState, value: string) => {
+      setManualTenantForm((current) => ({ ...current, [key]: value }));
+    },
+    [],
+  );
+
+  const toggleManualFeature = useCallback((key: string, checked: boolean) => {
+    setManualTenantForm((current) => {
+      const existing = new Set(current.enabledFeatureKeys);
+      if (checked) existing.add(key);
+      else existing.delete(key);
+      return { ...current, enabledFeatureKeys: Array.from(existing) };
+    });
+  }, []);
+
+  const toggleManualAddon = useCallback(
+    (option: ManualTenantAddOnOption, checked: boolean) => {
+      setManualTenantForm((current) => {
+        const existing = current.addOns.filter((row) => row.key !== option.key);
+        if (!checked) return { ...current, addOns: existing };
+        const monthly = String(option.monthlyPrice ?? "0.00");
+        const yearly = String((toNumberOrZero(monthly) * 12).toFixed(2));
+        return {
+          ...current,
+          addOns: [
+            ...existing,
+            { key: option.key, monthlyPrice: monthly, yearlyPrice: yearly, charged: true },
+          ],
+        };
+      });
+    },
+    [],
+  );
+
+  const updateManualAddonField = useCallback(
+    (key: string, field: keyof ManualTenantAddOnFormRow, value: string | boolean) => {
+      setManualTenantForm((current) => ({
+        ...current,
+        addOns: current.addOns.map((row) =>
+          row.key === key ? { ...row, [field]: value } : row,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const manualTenantPayload = useCallback(() => {
+    return {
+      ...manualTenantForm,
+      userCount: toPositiveInt(manualTenantForm.userCount, 1),
+      smsCount: Math.max(0, toPositiveInt(manualTenantForm.smsCount, 0)),
+      customMonthlyPrice: toNumberOrZero(manualTenantForm.customMonthlyPrice),
+      customYearlyPrice: toNumberOrZero(manualTenantForm.customYearlyPrice),
+      addOns: manualTenantForm.addOns.map((row) => ({
+        key: row.key,
+        monthlyPrice: toNumberOrZero(row.monthlyPrice),
+        yearlyPrice: toNumberOrZero(row.yearlyPrice),
+        charged: row.charged,
+      })),
+    };
+  }, [manualTenantForm]);
+
+  const submitManualTenant = useCallback(async () => {
+    setManualTenantSaving(true);
+    setManualTenantErr(null);
+    setManualTenantResult(null);
+    try {
+      const payload = manualTenantPayload();
+      if (manualTenantMode === "create") {
+        const { data } = await api.post<ManualTenantResponse>(
+          "/platform-admin/tenancies/manual",
+          payload,
+        );
+        setManualTenantResult(
+          `Tenant ${data.companyName || data.tenantCode} was created. ${data.checkoutUrl ? `Stripe payment link: ${data.checkoutUrl}` : data.billNumber ? `Invoice ${data.billNumber} was emailed.` : "Payment email was sent."}`,
+        );
+        await loadTenanciesList();
+        if (data.tenantId) await loadDetail(data.tenantId);
+      } else if (selected) {
+        const { data } = await api.put<ManualTenantResponse>(
+          `/platform-admin/tenancies/${selected.id}/manual-subscription`,
+          payload,
+        );
+        setManualTenantResult(
+          `Tenant ${data.companyName || data.tenantCode} subscription was updated.`,
+        );
+        await loadTenanciesList();
+        await loadDetail(selected.id);
+        await reloadAuditForCurrentSelection();
+      }
+    } catch (e) {
+      if (axios.isAxiosError(e)) {
+        setManualTenantErr(
+          String(e.response?.data?.message || e.response?.data?.error || e.message),
+        );
+      } else {
+        setManualTenantErr("Could not save manual tenant.");
+      }
+    } finally {
+      setManualTenantSaving(false);
+    }
+  }, [
+    loadDetail,
+    loadTenanciesList,
+    manualTenantMode,
+    manualTenantPayload,
+    reloadAuditForCurrentSelection,
+    selected,
+  ]);
+
+  const resendSubscriptionPayment = useCallback(async () => {
+    if (!selected) return;
+    setManualTenantErr(null);
+    setManualTenantResult(null);
+    try {
+      const { data } = await api.post<ManualTenantResponse>(
+        `/platform-admin/tenancies/${selected.id}/resend-subscription-payment`,
+      );
+      setManualTenantResult(
+        data.checkoutUrl
+          ? `Payment link resent: ${data.checkoutUrl}`
+          : data.billNumber
+            ? `Invoice ${data.billNumber} resent.`
+            : "Payment email resent.",
+      );
+      await reloadAuditForCurrentSelection();
+    } catch (e) {
+      if (axios.isAxiosError(e)) {
+        setManualTenantErr(
+          String(e.response?.data?.message || e.response?.data?.error || e.message),
+        );
+      } else {
+        setManualTenantErr("Could not resend the subscription payment email.");
+      }
+    }
+  }, [reloadAuditForCurrentSelection, selected]);
+
+  const manualSelectedAddonKeys = useMemo(
+    () => new Set(manualTenantForm.addOns.map((row) => row.key)),
+    [manualTenantForm.addOns],
+  );
+
   return (
     <>
       <style>{adminConsoleStyles}</style>
@@ -4536,6 +4893,13 @@ export function PlatformAdminPage() {
                             onChange={(e) => setSearchInput(e.target.value)}
                             aria-label="Filter tenant list"
                           />
+                          <button
+                            className="button primary"
+                            type="button"
+                            onClick={openManualTenantCreate}
+                          >
+                            + Manual tenant
+                          </button>
                         </div>
                         {!listLoading && hits.length > 0 ? (
                           <p
@@ -4586,6 +4950,17 @@ export function PlatformAdminPage() {
                         ) : null}
                       </div>
                     </div>
+
+                    {manualTenantErr && !manualTenantOpen ? (
+                      <div className="manual-error" style={{ marginBottom: 16 }}>
+                        {manualTenantErr}
+                      </div>
+                    ) : null}
+                    {manualTenantResult && !manualTenantOpen ? (
+                      <div className="manual-result" style={{ marginBottom: 16 }}>
+                        {manualTenantResult}
+                      </div>
+                    ) : null}
 
                     <section className="hero">
                       <aside className="panel panel-pad tenant-card">
@@ -4895,6 +5270,15 @@ export function PlatformAdminPage() {
                                     settings.
                                   </span>
                                 </div>
+                                <div className="top-actions">
+                                  <button
+                                    className="button secondary small"
+                                    type="button"
+                                    onClick={openManualTenantEdit}
+                                  >
+                                    Edit subscription
+                                  </button>
+                                </div>
                               </div>
                               <div className="field-grid">
                                 <div className="field-card">
@@ -4924,6 +5308,36 @@ export function PlatformAdminPage() {
                                     </span>
                                   </div>
                                 </div>
+                                <div className="field-card">
+                                  <div className="field-label">
+                                    <strong>Access status</strong>
+                                    <span>{selected.accessStatus || "ACTIVE"}</span>
+                                  </div>
+                                </div>
+                                <div className="field-card">
+                                  <div className="field-label">
+                                    <strong>Billing status</strong>
+                                    <span>{selected.billingStatus || "PENDING_PAYMENT"}</span>
+                                  </div>
+                                </div>
+                                <div className="field-card">
+                                  <div className="field-label">
+                                    <strong>Payment method</strong>
+                                    <span>{selected.paymentMethod || "—"}</span>
+                                  </div>
+                                </div>
+                                {selected.packageType?.toUpperCase() === "CUSTOM" ? (
+                                  <div className="field-card">
+                                    <div className="field-label">
+                                      <strong>Custom package</strong>
+                                      <span>
+                                        {selected.customPackageName || "Custom"} · €
+                                        {selected.customMonthlyPrice || "0.00"}/mo · €
+                                        {selected.customYearlyPrice || "0.00"}/yr
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
                             </section>
 
@@ -4935,6 +5349,15 @@ export function PlatformAdminPage() {
                                     Due balance and renewal from billing
                                     settings.
                                   </span>
+                                </div>
+                                <div className="top-actions">
+                                  <button
+                                    className="button secondary small"
+                                    type="button"
+                                    onClick={resendSubscriptionPayment}
+                                  >
+                                    Resend invoice/payment link
+                                  </button>
                                 </div>
                               </div>
                               <div className="field-grid">
@@ -5134,6 +5557,392 @@ export function PlatformAdminPage() {
             </div>
           </main>
         </div>
+
+        {manualTenantOpen ? (
+          <div
+            className="manual-tenant-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label={manualTenantMode === "create" ? "Create manual tenant" : "Edit manual subscription"}
+          >
+            <div className="manual-tenant-modal">
+              <div className="manual-tenant-header">
+                <div className="manual-tenant-title">
+                  <div className="eyebrow">Platform Admin</div>
+                  <h2>
+                    {manualTenantMode === "create"
+                      ? "Add tenant manually"
+                      : "Edit tenant subscription"}
+                  </h2>
+                  <p>
+                    Creates the tenant, first admin user, package limits,
+                    features, invoice/payment link and separate invite email.
+                  </p>
+                </div>
+                <button
+                  className="button secondary small"
+                  type="button"
+                  onClick={() => setManualTenantOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {manualTenantErr ? (
+                <div className="manual-error">{manualTenantErr}</div>
+              ) : null}
+              {manualTenantResult ? (
+                <div className="manual-result">{manualTenantResult}</div>
+              ) : null}
+
+              <section className="manual-section">
+                <h3>Owner and company details</h3>
+                <div className="manual-grid">
+                  <div className="manual-field">
+                    <label>First name</label>
+                    <input
+                      value={manualTenantForm.firstName}
+                      disabled={manualTenantMode === "edit"}
+                      onChange={(e) => updateManualTenantField("firstName", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Last name</label>
+                    <input
+                      value={manualTenantForm.lastName}
+                      disabled={manualTenantMode === "edit"}
+                      onChange={(e) => updateManualTenantField("lastName", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>E-mail</label>
+                    <input
+                      type="email"
+                      value={manualTenantForm.email}
+                      disabled={manualTenantMode === "edit"}
+                      onChange={(e) => updateManualTenantField("email", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Phone</label>
+                    <input
+                      value={manualTenantForm.phone}
+                      onChange={(e) => updateManualTenantField("phone", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Company</label>
+                    <input
+                      value={manualTenantForm.companyName}
+                      onChange={(e) => updateManualTenantField("companyName", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Tip podjetja</label>
+                    <select
+                      value={manualTenantForm.companyType}
+                      onChange={(e) => updateManualTenantField("companyType", e.target.value)}
+                    >
+                      {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.labelSl}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="manual-field">
+                    <label>VAT ID</label>
+                    <input
+                      value={manualTenantForm.vatId}
+                      onChange={(e) => updateManualTenantField("vatId", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Country</label>
+                    <input
+                      value={manualTenantForm.country}
+                      onChange={(e) => updateManualTenantField("country", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>City</label>
+                    <input
+                      value={manualTenantForm.city}
+                      onChange={(e) => updateManualTenantField("city", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Address</label>
+                    <input
+                      value={manualTenantForm.address}
+                      onChange={(e) => updateManualTenantField("address", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Postal code</label>
+                    <input
+                      value={manualTenantForm.postalCode}
+                      onChange={(e) => updateManualTenantField("postalCode", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Language</label>
+                    <select
+                      value={manualTenantForm.language}
+                      onChange={(e) => updateManualTenantField("language", e.target.value)}
+                    >
+                      <option value="sl">Slovenian</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section className="manual-section">
+                <h3>Package, limits and payment</h3>
+                <div className="manual-grid">
+                  <div className="manual-field">
+                    <label>Package</label>
+                    <select
+                      value={manualTenantForm.packageName}
+                      onChange={(e) => updateManualTenantField("packageName", e.target.value)}
+                    >
+                      <option value="BASIC">Osnovni</option>
+                      <option value="PROFESSIONAL">Pro</option>
+                      <option value="PREMIUM">Poslovni</option>
+                      <option value="CUSTOM">Custom</option>
+                    </select>
+                  </div>
+                  <div className="manual-field">
+                    <label>Billing interval</label>
+                    <select
+                      value={manualTenantForm.billingInterval}
+                      onChange={(e) => updateManualTenantField("billingInterval", e.target.value)}
+                    >
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="YEARLY">Yearly</option>
+                    </select>
+                  </div>
+                  <div className="manual-field">
+                    <label>Users</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={manualTenantForm.userCount}
+                      onChange={(e) => updateManualTenantField("userCount", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>SMS / month</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={manualTenantForm.smsCount}
+                      onChange={(e) => updateManualTenantField("smsCount", e.target.value)}
+                    />
+                  </div>
+                  <div className="manual-field">
+                    <label>Payment method</label>
+                    <select
+                      value={manualTenantForm.paymentMethod}
+                      onChange={(e) => updateManualTenantField("paymentMethod", e.target.value)}
+                    >
+                      <option value="BANK_TRANSFER">Bank transfer</option>
+                      <option value="CARD">Stripe / credit card</option>
+                    </select>
+                  </div>
+                  <div className="manual-field">
+                    <label>Access status</label>
+                    <select
+                      value={manualTenantForm.accessStatus}
+                      onChange={(e) => updateManualTenantField("accessStatus", e.target.value)}
+                    >
+                      <option value="ACTIVE">Active</option>
+                      <option value="SUSPENDED">Suspended</option>
+                      <option value="CANCELLED">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="manual-field">
+                    <label>Billing status</label>
+                    <select
+                      value={manualTenantForm.billingStatus}
+                      onChange={(e) => updateManualTenantField("billingStatus", e.target.value)}
+                    >
+                      <option value="PENDING_PAYMENT">Pending payment</option>
+                      <option value="PAID">Paid</option>
+                      <option value="PAST_DUE">Past due</option>
+                    </select>
+                  </div>
+                  <div className="manual-field">
+                    <label>Subscription start</label>
+                    <input
+                      type="date"
+                      value={manualTenantForm.subscriptionStart}
+                      onChange={(e) => updateManualTenantField("subscriptionStart", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {manualTenantForm.packageName === "CUSTOM" ? (
+                  <div className="manual-grid">
+                    <div className="manual-field">
+                      <label>Custom package name</label>
+                      <input
+                        value={manualTenantForm.customPackageName}
+                        onChange={(e) =>
+                          updateManualTenantField("customPackageName", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="manual-field">
+                      <label>Custom monthly price</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={manualTenantForm.customMonthlyPrice}
+                        onChange={(e) =>
+                          updateManualTenantField("customMonthlyPrice", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="manual-field">
+                      <label>Custom yearly price</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={manualTenantForm.customYearlyPrice}
+                        onChange={(e) =>
+                          updateManualTenantField("customYearlyPrice", e.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              {manualTenantForm.packageName === "CUSTOM" ? (
+                <section className="manual-section">
+                  <h3>Custom features</h3>
+                  <div className="manual-check-list">
+                    <strong>Enabled App nastavitve / modules</strong>
+                    <div className="manual-checkbox-grid">
+                      {(manualTenantOptions?.features ?? []).map((feature) => (
+                        <label className="manual-checkbox" key={feature.key}>
+                          <input
+                            type="checkbox"
+                            checked={manualTenantForm.enabledFeatureKeys.includes(feature.key)}
+                            onChange={(e) =>
+                              toggleManualFeature(feature.key, e.target.checked)
+                            }
+                          />
+                          <span>{feature.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="manual-section">
+                <h3>Add-ons</h3>
+                <div className="manual-checkbox-grid">
+                  {(manualTenantOptions?.addOns ?? []).map((addon) => (
+                    <label className="manual-checkbox" key={addon.key}>
+                      <input
+                        type="checkbox"
+                        checked={manualSelectedAddonKeys.has(addon.key)}
+                        onChange={(e) => toggleManualAddon(addon, e.target.checked)}
+                      />
+                      <span>
+                        {addon.nameSl || addon.name || addon.key} · €
+                        {String(addon.monthlyPrice ?? "0.00")}/mo
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {manualTenantForm.addOns.length > 0 ? (
+                  <div className="manual-check-list">
+                    <strong>Selected add-on prices</strong>
+                    {manualTenantForm.addOns.map((row) => (
+                      <div className="manual-addon-row" key={row.key}>
+                        <div className="manual-field">
+                          <label>Add-on</label>
+                          <input value={row.key} disabled />
+                        </div>
+                        <div className="manual-field">
+                          <label>Monthly</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={row.monthlyPrice}
+                            onChange={(e) =>
+                              updateManualAddonField(
+                                row.key,
+                                "monthlyPrice",
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="manual-field">
+                          <label>Yearly</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={row.yearlyPrice}
+                            onChange={(e) =>
+                              updateManualAddonField(
+                                row.key,
+                                "yearlyPrice",
+                                e.target.value,
+                              )
+                            }
+                          />
+                        </div>
+                        <label className="manual-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={row.charged}
+                            onChange={(e) =>
+                              updateManualAddonField(row.key, "charged", e.target.checked)
+                            }
+                          />
+                          <span>Charged</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+
+              <div className="manual-actions">
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => setManualTenantOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button primary"
+                  type="button"
+                  disabled={manualTenantSaving}
+                  onClick={submitManualTenant}
+                >
+                  {manualTenantSaving
+                    ? "Saving…"
+                    : manualTenantMode === "create"
+                      ? "Create tenant"
+                      : "Save subscription"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div
           className="modal-backdrop"

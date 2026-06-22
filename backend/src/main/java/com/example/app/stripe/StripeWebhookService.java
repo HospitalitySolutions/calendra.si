@@ -8,6 +8,8 @@ import com.example.app.billing.BillingEmailService;
 import com.example.app.billing.InvoicePdfS3Service;
 import com.example.app.fiscal.FiscalizationService;
 import com.example.app.guest.order.GuestOrderService;
+import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.SettingKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
@@ -37,6 +39,7 @@ public class StripeWebhookService {
     private final StripePlatformSettingsService platformSettings;
     private final StripeConnectService connectService;
     private final GuestOrderService guestOrderService;
+    private final AppSettingRepository appSettings;
 
     @Autowired
     public StripeWebhookService(
@@ -51,7 +54,8 @@ public class StripeWebhookService {
             StripeCheckoutClient checkoutClient,
             StripePlatformSettingsService platformSettings,
             StripeConnectService connectService,
-            GuestOrderService guestOrderService
+            GuestOrderService guestOrderService,
+            AppSettingRepository appSettings
     ) {
         this.config = config;
         this.verifier = verifier;
@@ -65,6 +69,7 @@ public class StripeWebhookService {
         this.platformSettings = platformSettings;
         this.connectService = connectService;
         this.guestOrderService = guestOrderService;
+        this.appSettings = appSettings;
     }
 
     /** Backwards-compatible constructor for older unit tests. */
@@ -78,7 +83,7 @@ public class StripeWebhookService {
             BillingEmailService billingEmailService,
             InvoicePdfS3Service invoicePdfS3Service
     ) {
-        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, null, null, null, null);
+        this(config, verifier, events, bills, fiscalizationService, billFolioPdfService, billingEmailService, invoicePdfS3Service, null, null, null, null, null);
     }
 
     @Transactional
@@ -183,6 +188,7 @@ public class StripeWebhookService {
         }
         bill.setPaidAt(OffsetDateTime.now());
         finalizeBillPayment(bill);
+        markPlatformSubscriptionPaidIfApplicable(bill);
         return new BillCheckoutReconcileResult(true, false, stripeSessionStatus, stripePaymentStatus, "Bill marked as paid from Stripe checkout return.");
     }
 
@@ -219,6 +225,27 @@ public class StripeWebhookService {
         bill.setPaymentIntentId(paymentIntentId.isBlank() ? bill.getPaymentIntentId() : paymentIntentId);
         bill.setPaidAt(OffsetDateTime.now());
         finalizeBillPayment(bill);
+        markPlatformSubscriptionPaidIfApplicable(bill);
+    }
+
+    private void markPlatformSubscriptionPaidIfApplicable(Bill bill) {
+        if (bill == null || appSettings == null) {
+            return;
+        }
+        String reference = bill.getBankTransferReference();
+        String prefix = "CALENDRA-SUBSCRIPTION:";
+        if (reference == null || !reference.startsWith(prefix)) {
+            return;
+        }
+        try {
+            Long tenantId = Long.parseLong(reference.substring(prefix.length()).trim());
+            appSettings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_STATUS).ifPresent(setting -> {
+                setting.setValue("PAID");
+                appSettings.save(setting);
+            });
+        } catch (Exception ignored) {
+            // Keep the bill paid even if the subscription-status marker cannot be updated.
+        }
     }
 
     private void handleInvoicePaid(JsonNode eventNode) {
@@ -255,6 +282,7 @@ public class StripeWebhookService {
         bill.setPaymentStatus(BillPaymentStatus.PAID);
         bill.setPaidAt(OffsetDateTime.now());
         finalizeBillPayment(bill);
+        markPlatformSubscriptionPaidIfApplicable(bill);
     }
 
     private void handleCheckoutExpiredOrFailed(JsonNode eventNode) {

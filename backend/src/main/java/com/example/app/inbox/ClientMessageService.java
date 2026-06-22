@@ -24,6 +24,7 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalMessagingProviderService;
 import com.example.app.settings.SettingKey;
 import com.example.app.settings.SettingsCryptoService;
+import com.example.app.settings.TenantSmsQuotaService;
 import com.example.app.sms.SmsGateway;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -92,6 +93,7 @@ public class ClientMessageService {
     private final GlobalMessagingProviderService globalMessagingProviders;
     private final GuestSettingsService guestSettingsService;
     private final ScheduledMessageRepository scheduledMessages;
+    private final TenantSmsQuotaService smsQuotaService;
     private final com.example.app.common.TimeService timeService;
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -114,6 +116,7 @@ public class ClientMessageService {
             GuestSettingsService guestSettingsService,
             ScheduledMessageRepository scheduledMessages,
             com.example.app.common.TimeService timeService,
+            TenantSmsQuotaService smsQuotaService,
             SmsGateway smsGateway,
             @Autowired(required = false) JavaMailSender mailSender,
             @Value("${app.mail.from:}") String mailFrom,
@@ -136,6 +139,7 @@ public class ClientMessageService {
         this.guestSettingsService = guestSettingsService;
         this.scheduledMessages = scheduledMessages;
         this.timeService = timeService;
+        this.smsQuotaService = smsQuotaService;
         this.smsGateway = smsGateway;
         this.smsConfigured = smsGateway != null && smsGateway.isConfigured();
         this.mailSender = mailSender;
@@ -1533,6 +1537,7 @@ public class ClientMessageService {
         if (!smsConfigured || smsGateway == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SMS is not configured on the server. Configure the A1 Crosschat SMS gateway first.");
         }
+        smsQuotaService.assertCanSend(client.getCompany().getId(), 1);
         try {
             SmsGateway.SmsSendResult result = smsGateway.send(new SmsGateway.SmsSendRequest(
                     client.getCompany().getId(),
@@ -1557,21 +1562,7 @@ public class ClientMessageService {
     private void incrementTenantSmsSentCount(Company company, int parts) {
         if (company == null || company.getId() == null) return;
         try {
-            AppSetting setting = settings.findForUpdateByCompanyIdAndKey(company.getId(), SettingKey.TENANCY_SMS_SENT_COUNT).orElseGet(() -> {
-                AppSetting created = new AppSetting();
-                created.setCompany(company);
-                created.setKey(SettingKey.TENANCY_SMS_SENT_COUNT.name());
-                created.setValue("0");
-                return settings.save(created);
-            });
-            int current;
-            try {
-                current = Integer.parseInt(setting.getValue() == null || setting.getValue().isBlank() ? "0" : setting.getValue().trim());
-            } catch (NumberFormatException ignored) {
-                current = 0;
-            }
-            setting.setValue(String.valueOf(current + Math.max(1, parts)));
-            settings.save(setting);
+            smsQuotaService.increment(company.getId(), parts);
         } catch (Exception ignored) {
             // SMS was accepted by the provider; do not fail the user-facing send just because usage metering failed.
         }

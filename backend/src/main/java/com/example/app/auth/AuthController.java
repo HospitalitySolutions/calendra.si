@@ -184,6 +184,10 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Invalid email or password."));
         }
+        if (tenantLoginBlocked(user)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "This tenant account is suspended or cancelled. Please contact Calendra support."));
+        }
 
         WebAuthnService.PrimaryLoginResult mfa = webAuthnService.startLoginChallenge(user);
         if (mfa.mfaRequired()) {
@@ -219,6 +223,11 @@ public class AuthController {
         if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Not authenticated."));
+        }
+
+        if (tenantLoginBlocked(user)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "This tenant account is suspended or cancelled. Please contact Calendra support."));
         }
 
         return ResponseEntity.ok(Map.of(
@@ -597,6 +606,17 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, xsrfCookie.toString());
 
         return ResponseEntity.ok(Map.of("message", "Signed out."));
+    }
+
+    private boolean tenantLoginBlocked(User user) {
+        if (user == null || user.getCompany() == null || user.getRole() == com.example.app.user.Role.SUPER_ADMIN) {
+            return false;
+        }
+        String status = settings.findByCompanyIdAndKey(user.getCompany().getId(), SettingKey.TENANCY_ACCESS_STATUS)
+                .map(AppSetting::getValue)
+                .orElse("ACTIVE");
+        String normalized = status == null ? "ACTIVE" : status.trim().toUpperCase(java.util.Locale.ROOT);
+        return "SUSPENDED".equals(normalized) || "CANCELLED".equals(normalized);
     }
 
     private Map<String, Object> authSuccessResponse(User user, String token, HttpServletRequest request) {

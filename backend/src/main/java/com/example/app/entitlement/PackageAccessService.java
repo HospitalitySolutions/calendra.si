@@ -64,13 +64,10 @@ public class PackageAccessService {
         int currentCycleAdditions = parseIntSetting(companyId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, 0);
         int explicit = paidBase == Integer.MAX_VALUE ? Integer.MAX_VALUE : paidBase + Math.max(0, currentCycleAdditions);
         String pkg = packageType(companyId);
-        int packageMinimum = switch (pkg) {
-            case "CUSTOM" -> Integer.MAX_VALUE;
-            default -> 1;
-        };
-        if ("CUSTOM".equals(pkg) && explicit <= 0) {
-            return Integer.MAX_VALUE;
+        if ("CUSTOM".equals(pkg)) {
+            return explicit <= 0 ? 1 : explicit;
         }
+        int packageMinimum = 1;
         return Math.max(packageMinimum, explicit);
     }
 
@@ -93,7 +90,18 @@ public class PackageAccessService {
     }
 
     private boolean modulePackageAndConfigAllowed(Long companyId, SettingKey moduleKey, String fallbackMinPackage) {
+        boolean explicitlyCustomPackage = settings.findByCompanyIdAndKey(companyId, SettingKey.SIGNUP_PACKAGE_NAME)
+                .map(AppSetting::getValue)
+                .map(PackageAccessService::normalizePackageType)
+                .filter("CUSTOM"::equals)
+                .isPresent();
         String tenantPackage = packageType(companyId);
+        if (explicitlyCustomPackage) {
+            return settings.findByCompanyIdAndKey(companyId, moduleKey)
+                    .map(AppSetting::getValue)
+                    .map(value -> "true".equalsIgnoreCase(value == null ? "" : value.trim()))
+                    .orElse(false);
+        }
         String tenantConfigType = normalizeConfigType(settings.findByCompanyIdAndKey(companyId, SettingKey.MODULE_CONFIG_TYPE)
                 .map(AppSetting::getValue)
                 .orElse("salon"));

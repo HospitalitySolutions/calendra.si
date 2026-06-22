@@ -81,6 +81,7 @@ public class SettingsController {
     private final GlobalConsumablesFeatureService globalConsumablesFeatureService;
     private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
     private final CourseModuleAccessService courseModuleAccessService;
+    private final TenantSmsQuotaService tenantSmsQuotaService;
 
     @Autowired
     public SettingsController(
@@ -90,7 +91,8 @@ public class SettingsController {
             GlobalPaymentProviderService globalPaymentProviders,
             GlobalConsumablesFeatureService globalConsumablesFeatureService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService,
-            CourseModuleAccessService courseModuleAccessService
+            CourseModuleAccessService courseModuleAccessService,
+            TenantSmsQuotaService tenantSmsQuotaService
     ) {
         this.repository = repository;
         this.crypto = crypto;
@@ -99,6 +101,7 @@ public class SettingsController {
         this.globalConsumablesFeatureService = globalConsumablesFeatureService;
         this.platformTenantAccountLinkService = platformTenantAccountLinkService;
         this.courseModuleAccessService = courseModuleAccessService;
+        this.tenantSmsQuotaService = tenantSmsQuotaService;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -110,11 +113,21 @@ public class SettingsController {
             GlobalConsumablesFeatureService globalConsumablesFeatureService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
-        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null);
+        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null);
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
     public record ModuleCapabilitiesResponse(boolean consumablesEnabled) {}
+    public record SmsQuotaResponse(int quota, int used, int remaining, boolean warning, boolean exhausted) {}
+
+    @GetMapping("/sms-quota")
+    public SmsQuotaResponse smsQuota(@AuthenticationPrincipal User me) {
+        if (me == null || me.getCompany() == null || tenantSmsQuotaService == null) {
+            return new SmsQuotaResponse(0, 0, 0, false, false);
+        }
+        TenantSmsQuotaService.SmsQuota quota = tenantSmsQuotaService.quota(me.getCompany().getId());
+        return new SmsQuotaResponse(quota.quota(), quota.used(), quota.remaining(), quota.warning(), quota.exhausted());
+    }
 
     @GetMapping
     public Map<String, String> all(@AuthenticationPrincipal User me) {
