@@ -137,7 +137,14 @@ public class SecurityConfig {
                     auth.dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll();
 
                     auth.requestMatchers("/api/auth/**").permitAll();
-                    auth.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll();
+                    auth.requestMatchers(HttpMethod.GET,
+                            "/api/actuator/health",
+                            "/api/actuator/health/**",
+                            "/api/actuator/info",
+                            "/actuator/health",
+                            "/actuator/health/**",
+                            "/actuator/info"
+                    ).permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/register/catalog").permitAll();
                     auth.requestMatchers("/api/guest/auth/**").permitAll();
                     auth.requestMatchers(HttpMethod.POST, "/api/guest/tenants/resolve-code").permitAll();
