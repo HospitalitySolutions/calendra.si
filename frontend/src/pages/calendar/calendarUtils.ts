@@ -10,6 +10,16 @@ export function isWebTimeGridLikeView(v: string) {
   )
 }
 
+/** Web/mobile shell: month grid views (bookings + resource month). */
+export function isCalendarMonthGridView(v: string) {
+  return v === 'dayGridMonth' || v === 'resourceDayGridMonth'
+}
+
+/** Compact month label beside hamburger: week/day/3-day and month views. */
+export function isCalendarViewWithToolbarMonthChip(v: string) {
+  return isWebTimeGridLikeView(v) || isCalendarMonthGridView(v)
+}
+
 export function toIsoDateKey(date: Date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')

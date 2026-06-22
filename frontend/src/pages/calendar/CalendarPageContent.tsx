@@ -101,6 +101,7 @@ import {
 } from './calendarStatus'
 import type { ConfirmNonBookableEditPayload, ConfirmNonBookableState } from './calendarTypes'
 import {
+  isCalendarViewWithToolbarMonthChip,
   isWebTimeGridLikeView,
   newClientInitials,
   slovenianTerminCountForm,
@@ -5916,7 +5917,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       </button>
     ) : null
     const showWebToolbarMonthChip =
-      (calendarFiltersBottomBar || calendarMobileHeaderNav) && isWebTimeGridLikeView(view)
+      (calendarFiltersBottomBar || calendarMobileHeaderNav) && isCalendarViewWithToolbarMonthChip(view)
     const toolbarMonthLabel = showWebToolbarMonthChip ? (
       <span className="calendar-toolbar-month-chip" aria-hidden="true">
         {calendarToolbarMonthLabel}
