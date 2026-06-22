@@ -257,7 +257,9 @@ public class ManualTenantService {
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_STATUS, normalizeBillingStatus(request.billingStatus(), "PENDING_PAYMENT"));
         seedSetting(company, SettingKey.MANUAL_TENANT_CREATED, "true");
         if ("CUSTOM".equals(packageName)) {
-            seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_NAME, required(request.customPackageName(), "Custom package name is required."));
+            String customName = trimToNull(request.customPackageName());
+            if (customName == null) customName = "Custom";
+            seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_NAME, customName);
             seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_MONTHLY_PRICE, moneyString(request.customMonthlyPrice()));
             seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_YEARLY_PRICE, moneyString(request.customYearlyPrice()));
             seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CUSTOM_FEATURE_KEYS, String.join(",", normalizeFeatureKeys(request.enabledFeatureKeys())));

@@ -4720,8 +4720,11 @@ export function PlatformAdminPage() {
   );
 
   const manualTenantPayload = useCallback(() => {
+    const isCustomPackage = manualTenantForm.packageName === "CUSTOM";
+    const customPackageName = manualTenantForm.customPackageName.trim() || "Custom";
     return {
       ...manualTenantForm,
+      customPackageName: isCustomPackage ? customPackageName : manualTenantForm.customPackageName,
       userCount: toPositiveInt(manualTenantForm.userCount, 1),
       smsCount: Math.max(0, toPositiveInt(manualTenantForm.smsCount, 0)),
       customMonthlyPrice: toNumberOrZero(manualTenantForm.customMonthlyPrice),
@@ -5789,6 +5792,7 @@ export function PlatformAdminPage() {
                       <label>Custom package name</label>
                       <input
                         value={manualTenantForm.customPackageName}
+                        placeholder="Custom"
                         onChange={(e) =>
                           updateManualTenantField("customPackageName", e.target.value)
                         }
