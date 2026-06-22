@@ -3,6 +3,7 @@ package com.example.app.guest.common;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -14,6 +15,7 @@ import com.example.app.billing.InvoicePdfS3Service;
 import com.example.app.billing.OpenBillSyncService;
 import com.example.app.client.Client;
 import com.example.app.company.Company;
+import com.example.app.company.CompanyRepository;
 import com.example.app.guest.auth.GuestAuthContextService;
 import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.model.GuestOrderRepository;
@@ -24,9 +26,11 @@ import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRealtimeService;
+import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.user.UserRepository;
+import com.example.app.widget.WidgetBookingIdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -56,6 +60,9 @@ class GuestBookingActionsControllerTest {
     @Mock private SessionBookingRealtimeService bookingRealtimeService;
     @Mock private BookingChangePublisher bookingChangePublisher;
     @Mock private OpenBillSyncService openBillSyncService;
+    @Mock private CompanyRepository companies;
+    @Mock private SessionBookingCreationService bookingCreationService;
+    @Mock private WidgetBookingIdempotencyService idempotencyService;
     @Mock private HttpServletRequest request;
 
     private GuestBookingActionsController controller;
@@ -75,7 +82,10 @@ class GuestBookingActionsControllerTest {
                 entitlementService,
                 bookingRealtimeService,
                 bookingChangePublisher,
-                openBillSyncService
+                openBillSyncService,
+                companies,
+                bookingCreationService,
+                idempotencyService
         );
     }
 
@@ -86,7 +96,7 @@ class GuestBookingActionsControllerTest {
 
         stubCancelFlow(booking);
 
-        controller.cancel(booking.getId(), null, request);
+        controller.cancel(booking.getId(), null, "cancel-key", request);
 
         verify(openBillSyncService).removeSessionRowsFromOpenBills(booking.getCompany().getId(), List.of(booking.getId()));
     }
@@ -98,7 +108,7 @@ class GuestBookingActionsControllerTest {
 
         stubCancelFlow(booking);
 
-        controller.cancel(booking.getId(), null, request);
+        controller.cancel(booking.getId(), null, "cancel-key", request);
 
         verify(openBillSyncService, never()).removeSessionRowsFromOpenBills(eq(booking.getCompany().getId()), any());
     }
@@ -116,10 +126,21 @@ class GuestBookingActionsControllerTest {
         link.setClient(differentLinkedClient);
 
         when(authContextService.requireGuest(request)).thenReturn(guestUser);
+        when(bookings.findCompanyIdById(booking.getId())).thenReturn(Optional.of(booking.getCompany().getId()));
+        when(companies.findById(booking.getCompany().getId())).thenReturn(Optional.of(booking.getCompany()));
+        when(companies.findByIdForUpdate(booking.getCompany().getId())).thenReturn(Optional.of(booking.getCompany()));
         when(bookings.findById(booking.getId())).thenReturn(Optional.of(booking));
         when(tenantService.requireLink(guestUser, booking.getCompany().getId())).thenReturn(link);
+        when(idempotencyService.execute(
+                eq(booking.getCompany()),
+                eq("guest-booking-cancel:" + booking.getId()),
+                anyString(),
+                any(),
+                eq(GuestDtos.BookingActionResponse.class),
+                any()
+        )).thenAnswer(inv -> ((WidgetBookingIdempotencyService.IdempotentSupplier<GuestDtos.BookingActionResponse>) inv.getArgument(5)).get());
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.cancel(booking.getId(), null, request));
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> controller.cancel(booking.getId(), null, "cancel-key", request));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
         verify(bookings, never()).save(any(SessionBooking.class));
@@ -149,8 +170,19 @@ class GuestBookingActionsControllerTest {
         link.setClient(booking.getClient());
 
         when(authContextService.requireGuest(request)).thenReturn(guestUser);
+        when(bookings.findCompanyIdById(booking.getId())).thenReturn(Optional.of(booking.getCompany().getId()));
+        when(companies.findById(booking.getCompany().getId())).thenReturn(Optional.of(booking.getCompany()));
+        when(companies.findByIdForUpdate(booking.getCompany().getId())).thenReturn(Optional.of(booking.getCompany()));
         when(bookings.findById(booking.getId())).thenReturn(Optional.of(booking));
         when(tenantService.requireLink(guestUser, booking.getCompany().getId())).thenReturn(link);
+        when(idempotencyService.execute(
+                eq(booking.getCompany()),
+                eq("guest-booking-cancel:" + booking.getId()),
+                anyString(),
+                any(),
+                eq(GuestDtos.BookingActionResponse.class),
+                any()
+        )).thenAnswer(inv -> ((WidgetBookingIdempotencyService.IdempotentSupplier<GuestDtos.BookingActionResponse>) inv.getArgument(5)).get());
         when(catalogService.bookingRules(booking.getCompany().getId())).thenReturn(new GuestSettingsService.GuestBookingRules(
                 24,
                 24,

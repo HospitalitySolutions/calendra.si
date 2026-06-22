@@ -87,6 +87,7 @@ import com.example.app.stripe.StripeBillingService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.widget.WidgetBookingIdempotencyService;
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -256,7 +257,10 @@ class TenantIsolationControllerAccessTest {
                 mock(GuestEntitlementService.class),
                 mock(SessionBookingRealtimeService.class),
                 mock(BookingChangePublisher.class),
-                mock(OpenBillSyncService.class));
+                mock(OpenBillSyncService.class),
+                mock(CompanyRepository.class),
+                mock(SessionBookingCreationService.class),
+                mock(WidgetBookingIdempotencyService.class));
         HttpServletRequest request = mock(HttpServletRequest.class);
         GuestUser guestUser = new GuestUser();
         guestUser.setId(7L);
