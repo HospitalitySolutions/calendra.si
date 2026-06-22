@@ -66,6 +66,9 @@ server:
 management:
   endpoints:
     web:
+      # Keep Actuator behind the same public /api prefix as the rest of the backend so
+      # external uptime monitors can check https://app.calendra.si/api/actuator/health.
+      base-path: /api/actuator
       exposure:
         include: health,info,prometheus
   endpoint:
