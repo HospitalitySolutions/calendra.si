@@ -3,6 +3,7 @@ package com.example.app.admin;
 import com.example.app.billing.BillFiscalStatus;
 import com.example.app.billing.BillPaymentStatus;
 import com.example.app.billing.BillRepository;
+import com.example.app.monitoring.ScheduledJobAlertService;
 import com.example.app.monitoring.ScheduledJobMonitoringService;
 import com.example.app.stripe.StripeWebhookEventRepository;
 import io.micrometer.core.instrument.Measurement;
@@ -42,6 +43,7 @@ public class PlatformMonitoringController {
     private final StripeWebhookEventRepository stripeWebhookEvents;
     private final BillRepository bills;
     private final ScheduledJobMonitoringService scheduledJobs;
+    private final ScheduledJobAlertService scheduledJobAlerts;
     private final String publicBaseUrl;
 
     public PlatformMonitoringController(
@@ -51,6 +53,7 @@ public class PlatformMonitoringController {
             StripeWebhookEventRepository stripeWebhookEvents,
             BillRepository bills,
             ScheduledJobMonitoringService scheduledJobs,
+            ScheduledJobAlertService scheduledJobAlerts,
             @Value("${app.public-base-url:}") String publicBaseUrl
     ) {
         this.dataSource = dataSource;
@@ -59,6 +62,7 @@ public class PlatformMonitoringController {
         this.stripeWebhookEvents = stripeWebhookEvents;
         this.bills = bills;
         this.scheduledJobs = scheduledJobs;
+        this.scheduledJobAlerts = scheduledJobAlerts;
         this.publicBaseUrl = publicBaseUrl == null ? "" : publicBaseUrl.trim();
     }
 
@@ -138,6 +142,11 @@ public class PlatformMonitoringController {
     @GetMapping("/scheduled-jobs/{jobName}/runs")
     public List<ScheduledJobMonitoringService.ScheduledJobRunDto> scheduledJobRuns(@PathVariable String jobName) {
         return scheduledJobs.recentRuns(jobName);
+    }
+
+    @GetMapping("/scheduled-job-alerts")
+    public List<ScheduledJobAlertService.ScheduledJobAlertDto> scheduledJobAlerts() {
+        return scheduledJobAlerts.activeAlertDtos();
     }
 
     private MonitoringCheckDto backendCheck() {

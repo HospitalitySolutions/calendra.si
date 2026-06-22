@@ -13,33 +13,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ScheduledJobMonitoringService {
-    private static final List<ScheduledJobDefinition> DEFINITIONS = List.of(
-            def("reminder-scheduled-template-notifications", "Booking reminders", Duration.ofMinutes(15), Duration.ofMinutes(10), "Tenant-configured before/after session email/SMS reminders."),
-            def("guest-booking-push-reminders", "Guest push reminders", Duration.ofMinutes(15), Duration.ofMinutes(10), "Guest-app push reminders before bookings."),
-            def("scheduled-messages-dispatch", "Scheduled messages", Duration.ofMinutes(15), Duration.ofMinutes(10), "Scheduled inbox/client messages dispatch."),
-            def("open-bill-sync-queue", "Open bill sync", Duration.ofMinutes(10), Duration.ofMinutes(5), "Dirty-queue sync for open bills."),
-            def("google-calendar-sync-jobs", "Google Calendar sync", Duration.ofHours(2), Duration.ofMinutes(10), "Queued Google Calendar push/pull/full-sync jobs."),
-            def("google-calendar-watch-renewal", "Google Calendar watch renewal", Duration.ofHours(2), Duration.ofMinutes(20), "Renewal of expiring Google Calendar webhook channels."),
-            def("platform-subscription-renewals", "Subscription billing", Duration.ofHours(26), Duration.ofHours(1), "Daily tenant subscription renewal billing."),
-            def("platform-subscription-open-bill-refresh", "Subscription open-bill refresh", Duration.ofHours(26), Duration.ofHours(1), "Refresh open platform subscription bills."),
-            def("delivery-log-cleanup", "Delivery log cleanup", Duration.ofHours(30), Duration.ofHours(1), "Retention cleanup for message delivery logs."),
-            def("inbox-message-cleanup", "Inbox cleanup", Duration.ofHours(30), Duration.ofHours(1), "Retention cleanup for inbox messages."),
-            def("inbox-attachment-cleanup", "Inbox attachment cleanup", Duration.ofHours(2), Duration.ofMinutes(30), "Cleanup of expired pending inbox attachments."),
-            def("guest-entitlement-expiry", "Guest entitlement expiry", Duration.ofMinutes(15), Duration.ofMinutes(10), "Marks expired wallet entitlements."),
-            def("analytics-report-scheduler", "Analytics reports", Duration.ofHours(2), Duration.ofHours(1), "Scheduled owner analytics reports."),
-            def("scheduled-job-run-cleanup", "Scheduled job run cleanup", Duration.ofHours(30), Duration.ofHours(1), "Retention cleanup for scheduled job run history.")
-    );
-
     private final ScheduledJobRunRepository runs;
+    private final ScheduledJobAlertService alerts;
 
-    public ScheduledJobMonitoringService(ScheduledJobRunRepository runs) {
+    public ScheduledJobMonitoringService(ScheduledJobRunRepository runs, ScheduledJobAlertService alerts) {
         this.runs = runs;
+        this.alerts = alerts;
     }
 
     @Transactional(readOnly = true)
     public List<ScheduledJobStatusDto> statuses() {
-        Map<String, ScheduledJobDefinition> definitions = new LinkedHashMap<>();
-        for (ScheduledJobDefinition definition : DEFINITIONS) {
+        Map<String, ScheduledJobAlertDefinition> definitions = new LinkedHashMap<>();
+        for (ScheduledJobAlertDefinition definition : ScheduledJobAlertDefinitions.all()) {
             definitions.put(definition.jobName(), definition);
         }
         Map<String, List<ScheduledJobRun>> grouped = new LinkedHashMap<>();
@@ -47,9 +32,10 @@ public class ScheduledJobMonitoringService {
         for (ScheduledJobRun run : runs.findByJobNameInOrderByStartedAtDesc(definitions.keySet())) {
             grouped.computeIfAbsent(run.getJobName(), ignored -> new ArrayList<>()).add(run);
         }
+        Map<String, List<ScheduledJobAlertService.ScheduledJobAlertDto>> activeAlerts = alerts.activeAlertDtosByJob(List.copyOf(definitions.keySet()));
         Instant now = Instant.now();
         return definitions.values().stream()
-                .map(def -> toStatus(def, grouped.getOrDefault(def.jobName(), List.of()), now))
+                .map(def -> toStatus(def, grouped.getOrDefault(def.jobName(), List.of()), activeAlerts.getOrDefault(def.jobName(), List.of()), now))
                 .toList();
     }
 
@@ -62,7 +48,12 @@ public class ScheduledJobMonitoringService {
                 .toList();
     }
 
-    private ScheduledJobStatusDto toStatus(ScheduledJobDefinition definition, List<ScheduledJobRun> allRuns, Instant now) {
+    private ScheduledJobStatusDto toStatus(
+            ScheduledJobAlertDefinition definition,
+            List<ScheduledJobRun> allRuns,
+            List<ScheduledJobAlertService.ScheduledJobAlertDto> activeAlerts,
+            Instant now
+    ) {
         List<ScheduledJobRun> runsForJob = allRuns.stream()
                 .sorted((a, b) -> {
                     Instant as = a.getStartedAt();
@@ -116,6 +107,8 @@ public class ScheduledJobMonitoringService {
             detail = "Last successful run is within expected window.";
         }
 
+        ScheduledJobAlertService.ScheduledJobAlertDto primaryAlert = activeAlerts == null || activeAlerts.isEmpty() ? null : activeAlerts.get(0);
+
         return new ScheduledJobStatusDto(
                 definition.jobName(),
                 definition.label(),
@@ -127,7 +120,12 @@ public class ScheduledJobMonitoringService {
                 lastSuccess == null ? null : toRunDto(lastSuccess),
                 failedLast24h,
                 formatDuration(definition.expectedSuccessWithin()),
-                formatDuration(definition.stuckAfter())
+                formatDuration(definition.stuckAfter()),
+                primaryAlert == null ? null : primaryAlert.alertType(),
+                primaryAlert == null ? null : primaryAlert.severity(),
+                primaryAlert == null ? null : primaryAlert.message(),
+                primaryAlert == null ? null : primaryAlert.firstDetectedAt(),
+                activeAlerts == null ? 0 : activeAlerts.size()
         );
     }
 
@@ -145,9 +143,6 @@ public class ScheduledJobMonitoringService {
         );
     }
 
-    private static ScheduledJobDefinition def(String jobName, String label, Duration expectedSuccessWithin, Duration stuckAfter, String description) {
-        return new ScheduledJobDefinition(jobName, label, expectedSuccessWithin, stuckAfter, description);
-    }
 
     private static String iso(Instant instant) {
         return instant == null ? null : instant.toString();
@@ -164,7 +159,6 @@ public class ScheduledJobMonitoringService {
         return String.format(Locale.ROOT, "%dm", minutes);
     }
 
-    private record ScheduledJobDefinition(String jobName, String label, Duration expectedSuccessWithin, Duration stuckAfter, String description) {}
 
     public record ScheduledJobStatusDto(
             String jobName,
@@ -177,7 +171,12 @@ public class ScheduledJobMonitoringService {
             ScheduledJobRunDto lastSuccess,
             long failuresLast24h,
             String expectedSuccessWithin,
-            String stuckAfter
+            String stuckAfter,
+            String activeAlertType,
+            String activeAlertSeverity,
+            String activeAlertMessage,
+            String activeAlertSince,
+            int activeAlertCount
     ) {}
 
     public record ScheduledJobRunDto(

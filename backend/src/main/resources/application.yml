@@ -89,6 +89,10 @@ management:
 
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  platform-alert-emails: ${APP_PLATFORM_ALERT_EMAILS:}
+  scheduled-job-alerts:
+    scan-cron: "${APP_SCHEDULED_JOB_ALERTS_SCAN_CRON:0 */5 * * * *}"
+    startup-grace: ${APP_SCHEDULED_JOB_ALERTS_STARTUP_GRACE:PT15M}
   settings:
     encryption-key: ${APP_SETTINGS_ENCRYPTION_KEY:}
   open-bills:

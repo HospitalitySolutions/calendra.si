@@ -2002,3 +2002,29 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_job_runs_status_started
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_job_runs_created
     ON scheduled_job_runs (created_at);
+
+CREATE TABLE IF NOT EXISTS scheduled_job_alert_states (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    job_name VARCHAR(120) NOT NULL,
+    alert_type VARCHAR(48) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    severity VARCHAR(32) NOT NULL,
+    first_detected_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_detected_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    last_email_sent_at TIMESTAMP WITH TIME ZONE,
+    last_recovery_email_sent_at TIMESTAMP WITH TIME ZONE,
+    last_run_id BIGINT,
+    message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_job_alert_states_status
+    ON scheduled_job_alert_states (status, last_detected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_job_alert_states_job_status
+    ON scheduled_job_alert_states (job_name, status);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_job_alert_states_job_type_status
+    ON scheduled_job_alert_states (job_name, alert_type, status);

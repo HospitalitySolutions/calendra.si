@@ -3727,6 +3727,26 @@ type ScheduledJobStatus = {
   failuresLast24h: number;
   expectedSuccessWithin: string;
   stuckAfter: string;
+  activeAlertType?: string | null;
+  activeAlertSeverity?: string | null;
+  activeAlertMessage?: string | null;
+  activeAlertSince?: string | null;
+  activeAlertCount?: number | null;
+};
+
+type ScheduledJobAlert = {
+  id: number;
+  jobName: string;
+  label: string;
+  alertType?: string | null;
+  status?: string | null;
+  severity?: string | null;
+  firstDetectedAt?: string | null;
+  lastDetectedAt?: string | null;
+  resolvedAt?: string | null;
+  lastEmailSentAt?: string | null;
+  lastRunId?: number | null;
+  message?: string | null;
 };
 
 
@@ -3756,6 +3776,7 @@ function formatMonitoringTime(iso: string | null | undefined): string {
 function MonitoringAdminPanel() {
   const [data, setData] = useState<MonitoringStatus | null>(null);
   const [scheduledJobs, setScheduledJobs] = useState<ScheduledJobStatus[]>([]);
+  const [scheduledJobAlerts, setScheduledJobAlerts] = useState<ScheduledJobAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -3763,15 +3784,18 @@ function MonitoringAdminPanel() {
     setLoading(true);
     setError(null);
     try {
-      const [statusResponse, jobsResponse] = await Promise.all([
+      const [statusResponse, jobsResponse, alertsResponse] = await Promise.all([
         api.get<MonitoringStatus>("/platform-admin/monitoring/status"),
         api.get<ScheduledJobStatus[]>("/platform-admin/monitoring/scheduled-jobs"),
+        api.get<ScheduledJobAlert[]>("/platform-admin/monitoring/scheduled-job-alerts"),
       ]);
       setData(statusResponse.data);
       setScheduledJobs(jobsResponse.data || []);
+      setScheduledJobAlerts(alertsResponse.data || []);
     } catch {
       setData(null);
       setScheduledJobs([]);
+      setScheduledJobAlerts([]);
       setError("Could not load monitoring status.");
     } finally {
       setLoading(false);
@@ -3870,6 +3894,66 @@ function MonitoringAdminPanel() {
             </div>
           </div>
 
+
+          <div className="section-card">
+            <div className="section-title">
+              <strong>Active scheduled job alerts</strong>
+              <span>
+                Email-backed alerts opened by the scheduled job alert scanner.
+                Recovery emails are sent when an alert resolves.
+              </span>
+            </div>
+            <div className="monitoring-jobs-wrap">
+              <table className="monitoring-jobs-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Alert</th>
+                    <th scope="col">Job</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">First detected</th>
+                    <th scope="col">Last detected</th>
+                    <th scope="col">Email sent</th>
+                    <th scope="col">Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduledJobAlerts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="monitoring-job-small">
+                        No active scheduled job alerts.
+                      </td>
+                    </tr>
+                  ) : (
+                    scheduledJobAlerts.map((alert) => (
+                      <tr key={alert.id}>
+                        <td>
+                          <span className={monitoringPillClass(alert.status || "WARN")}>
+                            {alert.alertType || "ALERT"}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="monitoring-job-name">
+                            <strong>{alert.label || alert.jobName}</strong>
+                            <span>{alert.jobName}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={monitoringPillClass(alert.severity === "CRITICAL" ? "CRITICAL" : "WARN")}>
+                            {alert.severity || "WARNING"}
+                          </span>
+                        </td>
+                        <td>{formatMonitoringTime(alert.firstDetectedAt)}</td>
+                        <td>{formatMonitoringTime(alert.lastDetectedAt)}</td>
+                        <td>{formatMonitoringTime(alert.lastEmailSentAt)}</td>
+                        <td className="monitoring-job-small">{alert.message || "—"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div className="section-card">
             <div className="section-title">
               <strong>Scheduled jobs</strong>
@@ -3885,6 +3969,7 @@ function MonitoringAdminPanel() {
                   <tr>
                     <th scope="col">Job</th>
                     <th scope="col">Health</th>
+                    <th scope="col">Active alert</th>
                     <th scope="col">Last success</th>
                     <th scope="col">Latest run</th>
                     <th scope="col">Duration</th>
@@ -3896,7 +3981,7 @@ function MonitoringAdminPanel() {
                 <tbody>
                   {scheduledJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="monitoring-job-small">
+                      <td colSpan={9} className="monitoring-job-small">
                         No scheduled job tracking rows are available yet. Wait
                         until the next scheduled executions run.
                       </td>
@@ -3918,6 +4003,22 @@ function MonitoringAdminPanel() {
                             <span>{job.summary || "—"}</span>
                             {job.detail ? <span>{job.detail}</span> : null}
                           </div>
+                        </td>
+                        <td>
+                          {job.activeAlertType ? (
+                            <div className="monitoring-job-summary">
+                              <span className={monitoringPillClass(job.activeAlertSeverity === "CRITICAL" ? "CRITICAL" : "WARN")}>
+                                {job.activeAlertType}
+                              </span>
+                              <span>{job.activeAlertSeverity || "WARNING"}</span>
+                              <span>{formatMonitoringTime(job.activeAlertSince)}</span>
+                              {job.activeAlertCount && job.activeAlertCount > 1 ? (
+                                <span>{job.activeAlertCount} active alerts</span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="monitoring-job-small">None</span>
+                          )}
                         </td>
                         <td>{formatMonitoringTime(job.lastSuccess?.finishedAt)}</td>
                         <td>
