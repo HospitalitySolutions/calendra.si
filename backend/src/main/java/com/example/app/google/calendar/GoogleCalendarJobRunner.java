@@ -1,5 +1,6 @@
 package com.example.app.google.calendar;
 
+import com.example.app.monitoring.ScheduledJobTrackerService;
 import java.time.Duration;
 import java.time.Instant;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -15,18 +16,23 @@ public class GoogleCalendarJobRunner {
     private final GoogleCalendarSyncJobRepository jobs;
     private final GoogleCalendarSyncService syncService;
     private final GoogleCalendarConnectionRepository connections;
+    private final ScheduledJobTrackerService jobTracker;
 
-    public GoogleCalendarJobRunner(GoogleCalendarSyncJobRepository jobs, GoogleCalendarSyncService syncService, GoogleCalendarConnectionRepository connections) {
+    public GoogleCalendarJobRunner(GoogleCalendarSyncJobRepository jobs, GoogleCalendarSyncService syncService, GoogleCalendarConnectionRepository connections, ScheduledJobTrackerService jobTracker) {
         this.jobs = jobs;
         this.syncService = syncService;
         this.connections = connections;
+        this.jobTracker = jobTracker;
     }
 
     @Scheduled(fixedDelayString = "${app.google-calendar.job-runner-delay-ms:30000}")
     @SchedulerLock(name = "googleCalendarSyncJobRunner", lockAtMostFor = "PT5M", lockAtLeastFor = "PT5S")
     public void runDueJobs() {
-        var due = jobs.findDueJobs(Instant.now(), PageRequest.of(0, 25));
-        for (GoogleCalendarSyncJob job : due) processOne(job.getId());
+        jobTracker.run("google-calendar-sync-jobs", () -> {
+            var due = jobs.findDueJobs(Instant.now(), PageRequest.of(0, 25));
+            for (GoogleCalendarSyncJob job : due) processOne(job.getId());
+            return due.size();
+        });
     }
 
     public void processOne(Long jobId) {

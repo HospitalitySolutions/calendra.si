@@ -8,13 +8,14 @@ import si.calendra.guest.shared.repository.PreviewGuestRepository
 import si.calendra.guest.shared.repository.RemoteGuestRepository
 
 class GuestAppContainer(
-    val config: GuestApiConfig = GuestApiConfig()
+    val config: GuestApiConfig = GuestApiConfig(),
+    private val enableHttpLogging: Boolean = false
 ) {
     val repository: GuestRepository by lazy {
         if (config.usePreviewData) {
             PreviewGuestRepository()
         } else {
-            RemoteGuestRepository(RemoteGuestApi(config, HttpClientFactory.create()))
+            RemoteGuestRepository(RemoteGuestApi(config, HttpClientFactory.create(enableHttpLogging = enableHttpLogging)))
         }
     }
 }

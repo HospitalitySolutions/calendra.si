@@ -37,7 +37,7 @@ const adminConsoleStyles = `:root {
     .search-wrap.tenant-list-wrap{width:100%;max-width:100%}.search-hits{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;width:100%;max-width:100%}.search-hits > li{display:flex;min-width:0}.search-hit{padding:12px 14px;border-radius:16px;border:1px solid var(--border);background:#fff;cursor:pointer;text-align:left;font:inherit;width:100%;min-height:100%;display:grid;align-content:start;gap:4px}.search-hit:hover{border-color:#cddcff;background:var(--primary-soft)}.search-hit strong{display:block;font-size:.95rem;color:var(--text)}.search-hit .sub{font-size:.84rem;color:var(--muted);margin-top:2px}.search-err{color:var(--danger-text);font-size:.9rem;font-weight:800;margin:4px 0 0}
     .audit-log-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.audit-log-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}.audit-log-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.audit-log-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top;word-break:break-word}.audit-log-table tr:last-child td{border-bottom:0}.audit-log-cat{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.audit-log-cat--setting{background:var(--primary-soft);color:var(--primary)}.audit-log-cat--bill{background:var(--success-soft);color:var(--success-text)}.audit-log-cat--suspend{background:var(--danger-soft);color:var(--danger-text)}.audit-detail-cell{color:var(--muted);font-weight:700;font-size:.84rem;line-height:1.45;max-width:40rem}.audit-actor-cell{font-size:.84rem;font-weight:800;color:#40506c;word-break:break-all;max-width:14rem}
     .plan-history-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.plan-history-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:680px}.plan-history-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.plan-history-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top}.plan-history-table tr:last-child td{border-bottom:0}.plan-status-pill{display:inline-flex;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950}.plan-status-pill--applied{background:var(--success-soft);color:var(--success-text)}.plan-status-pill--scheduled{background:var(--warning-soft);color:var(--warning-text)}
-    .monitoring-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.monitoring-card{padding:16px;border-radius:20px;border:1px solid #e6edf9;background:rgba(255,255,255,.9);display:grid;gap:8px}.monitoring-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.monitoring-card strong{font-size:1rem;letter-spacing:-.03em}.monitoring-card .value{font-size:1.45rem;font-weight:950;letter-spacing:-.04em}.monitoring-detail{color:var(--muted);font-weight:750;font-size:.88rem;line-height:1.45}.monitoring-note{padding:14px;border-radius:18px;background:rgba(255,244,215,.65);border:1px solid #f2dda0;color:var(--warning-text);font-weight:800;line-height:1.45}
+    .monitoring-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.monitoring-card{padding:16px;border-radius:20px;border:1px solid #e6edf9;background:rgba(255,255,255,.9);display:grid;gap:8px}.monitoring-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.monitoring-card strong{font-size:1rem;letter-spacing:-.03em}.monitoring-card .value{font-size:1.45rem;font-weight:950;letter-spacing:-.04em}.monitoring-detail{color:var(--muted);font-weight:750;font-size:.88rem;line-height:1.45}.monitoring-note{padding:14px;border-radius:18px;background:rgba(255,244,215,.65);border:1px solid #f2dda0;color:var(--warning-text);font-weight:800;line-height:1.45}.monitoring-jobs-wrap{overflow:auto;border:1px solid #e6edf9;border-radius:18px;background:#fff}.monitoring-jobs-table{width:100%;border-collapse:collapse;min-width:980px}.monitoring-jobs-table th{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;text-align:left;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.monitoring-jobs-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top}.monitoring-jobs-table tr:last-child td{border-bottom:0}.monitoring-job-name{display:grid;gap:3px}.monitoring-job-name strong{font-size:.95rem;letter-spacing:-.02em}.monitoring-job-name span{font-size:.78rem;color:var(--muted);font-weight:800}.monitoring-job-summary{display:grid;gap:5px}.monitoring-job-summary span{font-size:.84rem;color:var(--muted);font-weight:750;line-height:1.4}.monitoring-job-small{font-size:.84rem;color:var(--muted);font-weight:800;line-height:1.4}
     .modal-backdrop{position:fixed;inset:0;background:rgba(23,37,61,.38);display:none;place-items:center;padding:20px;z-index:10}.modal-backdrop.visible{display:grid}.modal{max-width:560px;width:100%;border-radius:26px;background:#fff;border:1px solid #dfe7f5;box-shadow:0 28px 80px rgba(23,37,61,.28);padding:22px;display:grid;gap:16px}.modal h3{margin:0;font-size:1.55rem;letter-spacing:-.045em}.modal p{margin:0;color:var(--muted);line-height:1.5}.modal-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.select-row{display:grid;gap:8px}.select-row label{font-weight:900;color:#2a3a56}.select-row select,.select-row textarea,.select-row input[type=number],.select-row input[type=text]{width:100%;border:1px solid var(--border);border-radius:15px;background:#fff;color:var(--text);padding:12px 14px;font:inherit;outline:none}.select-row textarea{min-height:90px;resize:vertical}.plan-change-extras{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid #dce7fb;background:rgba(237,244,255,.6)}.price-override-extras{display:grid;gap:14px}.price-override-panel{display:grid;gap:10px}.price-current-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:var(--primary-soft);border:1px solid #cddcff;font-weight:850;font-size:.92rem;color:var(--text)}.price-current-pill strong{font-weight:950}.checkbox-row{display:flex;align-items:flex-start;gap:10px;font-weight:800;font-size:.9rem;color:#40506c;line-height:1.35}.checkbox-row input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--primary)}.price-preview{font-size:.88rem;font-weight:800;color:var(--muted)}
     @media(max-width:1180px){.admin-workspace{flex-direction:column}.admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid rgba(223,231,245,.85);padding:12px 10px 14px}.admin-sidebar-title{width:100%}.hero{grid-template-columns:1fr}.tenant-card{position:static}.kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}.field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:720px){body{padding:10px}.topbar{padding-left:16px;padding-right:16px}.admin-main{padding-left:16px;padding-right:16px;padding-top:16px}.page-head{display:grid}.search-input{min-width:0;width:100%}.kpi-row,.field-grid,.status-grid{grid-template-columns:1fr}.app-shell,.panel{border-radius:24px}}`;
@@ -3703,6 +3703,32 @@ type MonitoringStatus = {
   metrics: MonitoringMetric[];
   note: string;
 };
+type ScheduledJobRun = {
+  id: number;
+  jobName: string;
+  status: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+  instanceId?: string | null;
+  recordsProcessed?: number | null;
+  errorMessage?: string | null;
+};
+
+type ScheduledJobStatus = {
+  jobName: string;
+  label: string;
+  description: string;
+  health: string;
+  summary: string;
+  detail: string;
+  latestRun?: ScheduledJobRun | null;
+  lastSuccess?: ScheduledJobRun | null;
+  failuresLast24h: number;
+  expectedSuccessWithin: string;
+  stuckAfter: string;
+};
+
 
 function monitoringPillClass(status: string): string {
   const normalized = (status || "").toUpperCase();
@@ -3711,8 +3737,25 @@ function monitoringPillClass(status: string): string {
   return "pill danger";
 }
 
+function formatDurationMs(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "—";
+  }
+  if (value < 1000) return `${Math.round(value)} ms`;
+  const seconds = value / 1000;
+  if (seconds < 60) return `${seconds.toFixed(seconds >= 10 ? 0 : 1)} s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  return `${minutes}m ${rest}s`;
+}
+
+function formatMonitoringTime(iso: string | null | undefined): string {
+  return iso ? formatAuditTime(iso) : "—";
+}
+
 function MonitoringAdminPanel() {
   const [data, setData] = useState<MonitoringStatus | null>(null);
+  const [scheduledJobs, setScheduledJobs] = useState<ScheduledJobStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -3720,12 +3763,15 @@ function MonitoringAdminPanel() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<MonitoringStatus>(
-        "/platform-admin/monitoring/status",
-      );
-      setData(response.data);
+      const [statusResponse, jobsResponse] = await Promise.all([
+        api.get<MonitoringStatus>("/platform-admin/monitoring/status"),
+        api.get<ScheduledJobStatus[]>("/platform-admin/monitoring/scheduled-jobs"),
+      ]);
+      setData(statusResponse.data);
+      setScheduledJobs(jobsResponse.data || []);
     } catch {
       setData(null);
+      setScheduledJobs([]);
       setError("Could not load monitoring status.");
     } finally {
       setLoading(false);
@@ -3821,6 +3867,81 @@ function MonitoringAdminPanel() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="section-card">
+            <div className="section-title">
+              <strong>Scheduled jobs</strong>
+              <span>
+                Confirms important background jobs are running, succeeding and
+                not stuck. Missing recent success means the job has not completed
+                inside its expected window.
+              </span>
+            </div>
+            <div className="monitoring-jobs-wrap">
+              <table className="monitoring-jobs-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Job</th>
+                    <th scope="col">Health</th>
+                    <th scope="col">Last success</th>
+                    <th scope="col">Latest run</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Processed</th>
+                    <th scope="col">Failures 24h</th>
+                    <th scope="col">Expected</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduledJobs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="monitoring-job-small">
+                        No scheduled job tracking rows are available yet. Wait
+                        until the next scheduled executions run.
+                      </td>
+                    </tr>
+                  ) : (
+                    scheduledJobs.map((job) => (
+                      <tr key={job.jobName}>
+                        <td>
+                          <div className="monitoring-job-name">
+                            <strong>{job.label || job.jobName}</strong>
+                            <span>{job.jobName}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="monitoring-job-summary">
+                            <span className={monitoringPillClass(job.health)}>
+                              {job.health || "UNKNOWN"}
+                            </span>
+                            <span>{job.summary || "—"}</span>
+                            {job.detail ? <span>{job.detail}</span> : null}
+                          </div>
+                        </td>
+                        <td>{formatMonitoringTime(job.lastSuccess?.finishedAt)}</td>
+                        <td>
+                          <div className="monitoring-job-small">
+                            {job.latestRun?.status || "—"}
+                            <br />
+                            {formatMonitoringTime(job.latestRun?.startedAt)}
+                          </div>
+                        </td>
+                        <td>{formatDurationMs(job.latestRun?.durationMs)}</td>
+                        <td>{job.latestRun?.recordsProcessed ?? "—"}</td>
+                        <td>{job.failuresLast24h ?? 0}</td>
+                        <td>
+                          <div className="monitoring-job-small">
+                            Success within {job.expectedSuccessWithin || "—"}
+                            <br />
+                            Stuck after {job.stuckAfter || "—"}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </>

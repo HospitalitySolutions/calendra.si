@@ -875,6 +875,15 @@ final class AppStore: ObservableObject {
         try await api.resetPassword(token: token, password: password)
     }
 
+    func appDidEnterBackground() {
+        stopBookingRealtimeStreams()
+    }
+
+    func appDidBecomeActive() async {
+        restartBookingRealtimeStreams()
+        await refreshOnAppBecameActive()
+    }
+
     func refreshOnAppBecameActive() async {
         guard !usePreviewData, !linkedTenants.isEmpty else { return }
         await refreshAllTenants()

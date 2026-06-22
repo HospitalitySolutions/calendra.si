@@ -1,5 +1,6 @@
 package com.example.app.delivery;
 
+import com.example.app.monitoring.ScheduledJobTrackerService;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import java.time.Duration;
 import java.time.Instant;
@@ -14,13 +15,16 @@ public class MessageDeliveryLogRetentionScheduler {
     private static final Logger log = LoggerFactory.getLogger(MessageDeliveryLogRetentionScheduler.class);
 
     private final MessageDeliveryLogService service;
+    private final ScheduledJobTrackerService jobTracker;
     private final Duration retention;
 
     public MessageDeliveryLogRetentionScheduler(
             MessageDeliveryLogService service,
+            ScheduledJobTrackerService jobTracker,
             @Value("${app.delivery-logs.retention:P30D}") Duration retention
     ) {
         this.service = service;
+        this.jobTracker = jobTracker;
         this.retention = retention == null || retention.isNegative() || retention.isZero()
                 ? Duration.ofDays(30)
                 : retention;
@@ -29,9 +33,12 @@ public class MessageDeliveryLogRetentionScheduler {
     @Scheduled(cron = "${app.delivery-logs.retention-cron:0 37 2 * * *}")
     @SchedulerLock(name = "messageDeliveryLogRetentionScheduler_purgeExpiredLogs", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void purgeExpiredLogs() {
-        int deleted = service.purgeLogsOlderThan(Instant.now().minus(retention));
-        if (deleted > 0) {
-            log.info("Deleted {} message delivery logs older than {}.", deleted, retention);
-        }
+        jobTracker.run("delivery-log-cleanup", () -> {
+            int deleted = service.purgeLogsOlderThan(Instant.now().minus(retention));
+            if (deleted > 0) {
+                log.info("Deleted {} message delivery logs older than {}.", deleted, retention);
+            }
+            return deleted;
+        });
     }
 }

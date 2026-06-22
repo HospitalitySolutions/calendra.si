@@ -1,5 +1,29 @@
 import Foundation
 
+
+private struct RealtimeReconnectBackoff {
+    private let initialDelay: TimeInterval = 2
+    private let maximumDelay: TimeInterval = 60
+    private let jitterRatio: Double = 0.25
+    private(set) var attempt: Int = 0
+
+    mutating func reset() {
+        attempt = 0
+    }
+
+    mutating func increase(stronger: Bool = false) {
+        attempt = min(attempt + (stronger ? 2 : 1), 8)
+    }
+
+    func nextDelayNanoseconds() -> UInt64 {
+        let exponent = max(0, attempt - 1)
+        let baseDelay = min(initialDelay * pow(2, Double(exponent)), maximumDelay)
+        let jitteredDelay = baseDelay * Double.random(in: (1 - jitterRatio)...(1 + jitterRatio))
+        let boundedDelay = min(max(jitteredDelay, initialDelay), maximumDelay)
+        return UInt64(boundedDelay * 1_000_000_000)
+    }
+}
+
 final class GuestApiClient {
     private let baseURL: URL
     private let session: URLSession
@@ -348,11 +372,17 @@ final class GuestApiClient {
         companyId: String,
         onBookingUpdated: @escaping @Sendable () async -> Void
     ) async {
+        var backoff = RealtimeReconnectBackoff()
+        let stableConnectionResetSeconds: TimeInterval = 30
+
         while !Task.isCancelled {
+            var connectedAt: Date?
+            var retryMoreSlowly = false
             do {
                 let token = authToken
                 guard let token, !token.isEmpty else {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    backoff.increase()
+                    try await Task.sleep(nanoseconds: backoff.nextDelayNanoseconds())
                     continue
                 }
                 var components = URLComponents(
@@ -361,7 +391,8 @@ final class GuestApiClient {
                 )!
                 components.queryItems = [URLQueryItem(name: "companyId", value: companyId)]
                 guard let url = components.url else {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                    backoff.increase()
+                    try await Task.sleep(nanoseconds: backoff.nextDelayNanoseconds())
                     continue
                 }
 
@@ -373,11 +404,20 @@ final class GuestApiClient {
                 request.timeoutInterval = 65
 
                 let (bytes, response) = try await session.bytes(for: request)
-                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                    try await Task.sleep(nanoseconds: 2_000_000_000)
+                guard let http = response as? HTTPURLResponse else {
+                    backoff.increase()
+                    try await Task.sleep(nanoseconds: backoff.nextDelayNanoseconds())
+                    continue
+                }
+                guard (200..<300).contains(http.statusCode) else {
+                    if http.statusCode == 401 || http.statusCode == 403 { return }
+                    retryMoreSlowly = http.statusCode == 429
+                    backoff.increase(stronger: retryMoreSlowly)
+                    try await Task.sleep(nanoseconds: backoff.nextDelayNanoseconds())
                     continue
                 }
 
+                connectedAt = Date()
                 var eventName: String?
                 for try await line in bytes.lines {
                     if Task.isCancelled { return }
@@ -395,8 +435,15 @@ final class GuestApiClient {
                 }
             } catch {
                 if Task.isCancelled { return }
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
+
+            if Task.isCancelled { return }
+            if let connectedAt, Date().timeIntervalSince(connectedAt) >= stableConnectionResetSeconds {
+                backoff.reset()
+            } else {
+                backoff.increase(stronger: retryMoreSlowly)
+            }
+            try? await Task.sleep(nanoseconds: backoff.nextDelayNanoseconds())
         }
     }
 

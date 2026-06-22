@@ -12,6 +12,7 @@ import com.example.app.guest.model.GuestTenantLinkRepository;
 import com.example.app.guest.model.GuestTenantLinkStatus;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
+import com.example.app.monitoring.ScheduledJobTrackerService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
@@ -48,6 +49,7 @@ public class GuestBookingReminderService {
     private final GuestNotificationService guestNotifications;
     private final GuestPushService guestPushService;
     private final boolean enabled;
+    private final ScheduledJobTrackerService jobTracker;
     private final ZoneId timezone;
 
     public GuestBookingReminderService(
@@ -57,6 +59,7 @@ public class GuestBookingReminderService {
             GuestUserRepository guestUsers,
             GuestNotificationService guestNotifications,
             GuestPushService guestPushService,
+            ScheduledJobTrackerService jobTracker,
             @Value("${app.guest.booking-reminders.enabled:true}") boolean enabled,
             @Value("${app.reminders.timezone:}") String timezoneId
     ) {
@@ -66,6 +69,7 @@ public class GuestBookingReminderService {
         this.guestUsers = guestUsers;
         this.guestNotifications = guestNotifications;
         this.guestPushService = guestPushService;
+        this.jobTracker = jobTracker;
         this.enabled = enabled;
         this.timezone = timezoneId == null || timezoneId.isBlank() ? ZoneId.systemDefault() : ZoneId.of(timezoneId);
     }
@@ -138,16 +142,22 @@ public class GuestBookingReminderService {
     @SchedulerLock(name = "guestBookingReminderService_dispatchDue", lockAtMostFor = "PT5M", lockAtLeastFor = "PT10S")
     @Transactional
     public void dispatchDueReminders() {
-        if (!enabled) return;
-        LocalDateTime now = now();
-        List<BookingPushReminder> due = reminders.findAllByStatusAndDueAtLessThanEqualOrderByDueAtAscIdAsc(
-                BookingPushReminderStatus.PENDING,
-                now,
-                PageRequest.of(0, 100)
-        );
-        for (BookingPushReminder reminder : due) {
-            dispatchOne(reminder, now);
+        if (!enabled) {
+            jobTracker.skipped("guest-booking-push-reminders", "Guest booking push reminders disabled by configuration.");
+            return;
         }
+        jobTracker.run("guest-booking-push-reminders", () -> {
+            LocalDateTime now = now();
+            List<BookingPushReminder> due = reminders.findAllByStatusAndDueAtLessThanEqualOrderByDueAtAscIdAsc(
+                    BookingPushReminderStatus.PENDING,
+                    now,
+                    PageRequest.of(0, 100)
+            );
+            for (BookingPushReminder reminder : due) {
+                dispatchOne(reminder, now);
+            }
+            return due.size();
+        });
     }
 
     private void scheduleForLinkedGuests(SessionBooking booking, LocalDateTime now) {

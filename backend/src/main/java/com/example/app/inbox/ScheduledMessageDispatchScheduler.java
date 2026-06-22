@@ -1,5 +1,6 @@
 package com.example.app.inbox;
 
+import com.example.app.monitoring.ScheduledJobTrackerService;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -7,14 +8,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class ScheduledMessageDispatchScheduler {
     private final ClientMessageService service;
+    private final ScheduledJobTrackerService jobTracker;
 
-    public ScheduledMessageDispatchScheduler(ClientMessageService service) {
+    public ScheduledMessageDispatchScheduler(ClientMessageService service, ScheduledJobTrackerService jobTracker) {
         this.service = service;
+        this.jobTracker = jobTracker;
     }
 
     @Scheduled(cron = "0 * * * * *")
     @SchedulerLock(name = "scheduledMessageDispatchScheduler_dispatchDue", lockAtMostFor = "PT5M", lockAtLeastFor = "PT1S")
     public void dispatchDue() {
-        service.dispatchDueScheduledMessages();
+        jobTracker.run("scheduled-messages-dispatch", service::dispatchDueScheduledMessages);
     }
 }

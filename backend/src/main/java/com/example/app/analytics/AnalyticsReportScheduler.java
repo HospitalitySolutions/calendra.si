@@ -1,5 +1,6 @@
 package com.example.app.analytics;
 
+import com.example.app.monitoring.ScheduledJobTrackerService;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import com.example.app.logging.LogSanitizer;
 import com.example.app.settings.AppSetting;
@@ -22,15 +23,18 @@ public class AnalyticsReportScheduler {
 
     private final AppSettingRepository settings;
     private final AnalyticsReportService reportService;
+    private final ScheduledJobTrackerService jobTracker;
     private final ZoneId timezone;
 
     public AnalyticsReportScheduler(
             AppSettingRepository settings,
             AnalyticsReportService reportService,
+            ScheduledJobTrackerService jobTracker,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String timezoneId
     ) {
         this.settings = settings;
         this.reportService = reportService;
+        this.jobTracker = jobTracker;
         this.timezone = ZoneId.of(timezoneId == null || timezoneId.isBlank() ? "Europe/Ljubljana" : timezoneId);
     }
 
@@ -38,33 +42,44 @@ public class AnalyticsReportScheduler {
     @SchedulerLock(name = "analyticsReportScheduler_sendScheduledOwnerReports", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional
     public void sendScheduledOwnerReports() {
-        if (!reportService.isMailConfigured()) return;
+        if (!reportService.isMailConfigured()) {
+            jobTracker.skipped("analytics-report-scheduler", "Analytics report mail transport is not configured.");
+            return;
+        }
 
         LocalDateTime now = LocalDateTime.now(timezone);
-        if (now.getHour() < 7) return;
-
-        for (AppSetting enabledSetting : settings.findAllByKey(SettingKey.ANALYTICS_REPORTS_ENABLED)) {
-            Long companyId = enabledSetting.getCompany().getId();
-            if (!isTruthy(enabledSetting.getValue())) continue;
-
-            String email = get(companyId, SettingKey.ANALYTICS_REPORTS_EMAIL);
-            if (email.isBlank()) continue;
-
-            String frequency = get(companyId, SettingKey.ANALYTICS_REPORTS_FREQUENCY);
-            if (frequency.isBlank()) frequency = "WEEKLY";
-
-            LocalDate today = now.toLocalDate();
-            LocalDate lastSent = parseDate(get(companyId, SettingKey.ANALYTICS_REPORTS_LAST_SENT_AT));
-            if (!shouldSend(today, lastSent, frequency)) continue;
-
-            try {
-                reportService.sendScheduledReport(enabledSetting.getCompany(), email, frequency);
-                save(companyId, enabledSetting, SettingKey.ANALYTICS_REPORTS_LAST_SENT_AT, today.toString());
-                log.info("Sent scheduled analytics report for company {} to {}", companyId, LogSanitizer.emailHash(email));
-            } catch (Exception ex) {
-                log.warn("Failed to send scheduled analytics report for company {}: {}", companyId, ex.getMessage());
-            }
+        if (now.getHour() < 7) {
+            jobTracker.skipped("analytics-report-scheduler", "Skipped before configured daytime sending window.");
+            return;
         }
+
+        jobTracker.run("analytics-report-scheduler", () -> {
+            int sent = 0;
+            for (AppSetting enabledSetting : settings.findAllByKey(SettingKey.ANALYTICS_REPORTS_ENABLED)) {
+                Long companyId = enabledSetting.getCompany().getId();
+                if (!isTruthy(enabledSetting.getValue())) continue;
+
+                String email = get(companyId, SettingKey.ANALYTICS_REPORTS_EMAIL);
+                if (email.isBlank()) continue;
+
+                String frequency = get(companyId, SettingKey.ANALYTICS_REPORTS_FREQUENCY);
+                if (frequency.isBlank()) frequency = "WEEKLY";
+
+                LocalDate today = now.toLocalDate();
+                LocalDate lastSent = parseDate(get(companyId, SettingKey.ANALYTICS_REPORTS_LAST_SENT_AT));
+                if (!shouldSend(today, lastSent, frequency)) continue;
+
+                try {
+                    reportService.sendScheduledReport(enabledSetting.getCompany(), email, frequency);
+                    save(companyId, enabledSetting, SettingKey.ANALYTICS_REPORTS_LAST_SENT_AT, today.toString());
+                    sent++;
+                    log.info("Sent scheduled analytics report for company {} to {}", companyId, LogSanitizer.emailHash(email));
+                } catch (Exception ex) {
+                    log.warn("Failed to send scheduled analytics report for company {}: {}", companyId, ex.getMessage());
+                }
+            }
+            return sent;
+        });
     }
 
     private boolean shouldSend(LocalDate today, LocalDate lastSent, String frequency) {

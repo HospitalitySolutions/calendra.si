@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 import kotlin.coroutines.cancellation.CancellationException
 
 actual object HttpClientFactory {
-    actual fun create(): HttpClient {
+    actual fun create(enableHttpLogging: Boolean): HttpClient {
         val client = HttpClient(Darwin) {
             install(DefaultRequest) {
                 header("X-App-Platform", "native")
@@ -28,7 +28,7 @@ actual object HttpClientFactory {
             }
             install(HttpSend)
             install(Logging) {
-                level = LogLevel.INFO
+                level = if (enableHttpLogging) LogLevel.INFO else LogLevel.NONE
             }
         }
 

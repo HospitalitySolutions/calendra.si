@@ -3,6 +3,7 @@ package com.example.app.admin;
 import com.example.app.billing.BillFiscalStatus;
 import com.example.app.billing.BillPaymentStatus;
 import com.example.app.billing.BillRepository;
+import com.example.app.monitoring.ScheduledJobMonitoringService;
 import com.example.app.stripe.StripeWebhookEventRepository;
 import io.micrometer.core.instrument.Measurement;
 import io.micrometer.core.instrument.Meter;
@@ -27,6 +28,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,6 +41,7 @@ public class PlatformMonitoringController {
     private final MeterRegistry meterRegistry;
     private final StripeWebhookEventRepository stripeWebhookEvents;
     private final BillRepository bills;
+    private final ScheduledJobMonitoringService scheduledJobs;
     private final String publicBaseUrl;
 
     public PlatformMonitoringController(
@@ -47,6 +50,7 @@ public class PlatformMonitoringController {
             MeterRegistry meterRegistry,
             StripeWebhookEventRepository stripeWebhookEvents,
             BillRepository bills,
+            ScheduledJobMonitoringService scheduledJobs,
             @Value("${app.public-base-url:}") String publicBaseUrl
     ) {
         this.dataSource = dataSource;
@@ -54,6 +58,7 @@ public class PlatformMonitoringController {
         this.meterRegistry = meterRegistry;
         this.stripeWebhookEvents = stripeWebhookEvents;
         this.bills = bills;
+        this.scheduledJobs = scheduledJobs;
         this.publicBaseUrl = publicBaseUrl == null ? "" : publicBaseUrl.trim();
     }
 
@@ -64,6 +69,7 @@ public class PlatformMonitoringController {
         checks.add(databaseCheck());
         checks.add(redisCheck());
         checks.add(diskCheck());
+        checks.add(scheduledJobsCheck());
         checks.add(frontendCheck());
 
         List<MonitoringMetricDto> metrics = new ArrayList<>();
@@ -124,6 +130,16 @@ public class PlatformMonitoringController {
         );
     }
 
+    @GetMapping("/scheduled-jobs")
+    public List<ScheduledJobMonitoringService.ScheduledJobStatusDto> scheduledJobStatuses() {
+        return scheduledJobs.statuses();
+    }
+
+    @GetMapping("/scheduled-jobs/{jobName}/runs")
+    public List<ScheduledJobMonitoringService.ScheduledJobRunDto> scheduledJobRuns(@PathVariable String jobName) {
+        return scheduledJobs.recentRuns(jobName);
+    }
+
     private MonitoringCheckDto backendCheck() {
         return check("backend", "Backend API", "UP", "Responding", "JVM uptime " + formatDuration(ManagementFactory.getRuntimeMXBean().getUptime()));
     }
@@ -161,6 +177,23 @@ public class PlatformMonitoringController {
             return check("disk", "Disk space", status, formatPercent(freePct) + " free", formatBytes(usable) + " free of " + formatBytes(total));
         } catch (IOException ex) {
             return check("disk", "Disk space", "WARN", "Disk check unavailable", safeMessage(ex));
+        }
+    }
+
+    private MonitoringCheckDto scheduledJobsCheck() {
+        try {
+            List<ScheduledJobMonitoringService.ScheduledJobStatusDto> statuses = scheduledJobs.statuses();
+            long critical = statuses.stream().filter(s -> "CRITICAL".equalsIgnoreCase(s.health())).count();
+            long warn = statuses.stream().filter(s -> "WARN".equalsIgnoreCase(s.health())).count();
+            String status = critical > 0 ? "CRITICAL" : warn > 0 ? "WARN" : "UP";
+            String summary = critical > 0
+                    ? critical + " critical job" + (critical == 1 ? "" : "s")
+                    : warn > 0
+                    ? warn + " job warning" + (warn == 1 ? "" : "s")
+                    : "All tracked jobs OK";
+            return check("scheduled-jobs", "Scheduled jobs", status, summary, "Tracks last run, last success, failures and stuck jobs for platform background work.");
+        } catch (Exception ex) {
+            return check("scheduled-jobs", "Scheduled jobs", "WARN", "Job status unavailable", safeMessage(ex));
         }
     }
 

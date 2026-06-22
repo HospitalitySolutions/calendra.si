@@ -164,7 +164,7 @@ private fun logLinkedTenantsDebug(source: String, tenants: List<TenantSummary>) 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GuestMobileRoot() {
-    val container = remember { GuestAppContainer(GuestApiConfig(baseUrl = BuildConfig.API_BASE_URL)) }
+    val container = remember { GuestAppContainer(GuestApiConfig(baseUrl = BuildConfig.API_BASE_URL), enableHttpLogging = BuildConfig.DEBUG) }
     val repo = remember { container.repository }
     val navController = rememberNavController()
     val state = remember { GuestMutableState() }
@@ -176,6 +176,7 @@ fun GuestMobileRoot() {
     val activity = context as? ComponentActivity
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
+    var isAppInForeground by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var signupChallenge by remember { mutableStateOf<SignupChallenge?>(null) }
     var bootstrappingSession by remember { mutableStateOf(true) }
@@ -595,11 +596,11 @@ fun GuestMobileRoot() {
         }
     }
 
-    LaunchedEffect(state.uiState.session?.token, state.uiState.linkedTenants) {
+    LaunchedEffect(state.uiState.session?.token, state.uiState.linkedTenants, isAppInForeground) {
         realtimeJobs.values.forEach { it.cancel() }
         realtimeJobs.clear()
         val token = state.uiState.session?.token
-        if (token.isNullOrBlank()) return@LaunchedEffect
+        if (token.isNullOrBlank() || !isAppInForeground) return@LaunchedEffect
         state.uiState.linkedTenants.forEach { tenant ->
             val companyId = tenant.companyId
             val job = GuestBookingRealtimeStream.start(
@@ -706,10 +707,18 @@ fun GuestMobileRoot() {
         }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                Lifecycle.Event.ON_STOP -> {
+                    isAppInForeground = false
                     pendingExternalCheckout = pendingExternalCheckout?.copy(appWasBackgrounded = true)
                 }
+                Lifecycle.Event.ON_PAUSE -> {
+                    pendingExternalCheckout = pendingExternalCheckout?.copy(appWasBackgrounded = true)
+                }
+                Lifecycle.Event.ON_START -> {
+                    isAppInForeground = true
+                }
                 Lifecycle.Event.ON_RESUME -> {
+                    isAppInForeground = true
                     val pending = pendingExternalCheckout
                     if (pending != null && pending.appWasBackgrounded) {
                         scope.launch {

@@ -319,7 +319,9 @@ struct MainTabView: View {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
-                Task { await store.refreshOnAppBecameActive() }
+                Task { await store.appDidBecomeActive() }
+            } else {
+                store.appDidEnterBackground()
             }
         }
         .onChange(of: selectedTab) { nextTab in

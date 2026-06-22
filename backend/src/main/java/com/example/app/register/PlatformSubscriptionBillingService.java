@@ -30,6 +30,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
 import com.example.app.fiscal.FiscalizationService;
+import com.example.app.monitoring.ScheduledJobTrackerService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -93,6 +94,7 @@ public class PlatformSubscriptionBillingService {
     private final BillingEmailService billingEmailService;
     private final StripeBillingService stripeBillingService;
     private final TimeService timeService;
+    private final ScheduledJobTrackerService jobTracker;
 
     public PlatformSubscriptionBillingService(
             CompanyRepository companies,
@@ -112,7 +114,8 @@ public class PlatformSubscriptionBillingService {
             InvoicePdfS3Service invoicePdfS3Service,
             BillingEmailService billingEmailService,
             StripeBillingService stripeBillingService,
-            TimeService timeService
+            TimeService timeService,
+            ScheduledJobTrackerService jobTracker
     ) {
         this.companies = companies;
         this.users = users;
@@ -132,6 +135,7 @@ public class PlatformSubscriptionBillingService {
         this.billingEmailService = billingEmailService;
         this.stripeBillingService = stripeBillingService;
         this.timeService = timeService;
+        this.jobTracker = jobTracker;
     }
 
     /** Upserts the platform payee + open bill using the best data currently available for the signup. */
@@ -355,29 +359,34 @@ public class PlatformSubscriptionBillingService {
     @SchedulerLock(name = "platformSubscriptionBillingService_renewSubscriptionsDue", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional
     public void renewSubscriptionsDue() {
-        Company platformCompany = resolvePlatformCompany().orElse(null);
-        if (platformCompany == null || platformCompany.getId() == null) {
-            return;
-        }
-        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
-        PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
-        for (AppSetting endSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_END)) {
-            Company tenant = endSetting == null ? null : endSetting.getCompany();
-            if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompany.getId())) {
-                continue;
+        jobTracker.run("platform-subscription-renewals", () -> {
+            Company platformCompany = resolvePlatformCompany().orElse(null);
+            if (platformCompany == null || platformCompany.getId() == null) {
+                return 0;
             }
-            // Evaluate each tenant against its own (possibly simulated) clock.
-            LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenant.getId());
-            LocalDate end = parseDateOrNull(endSetting.getValue());
-            if (end == null || end.isAfter(today)) {
-                continue;
+            int renewed = 0;
+            RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+            PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
+            for (AppSetting endSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_END)) {
+                Company tenant = endSetting == null ? null : endSetting.getCompany();
+                if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompany.getId())) {
+                    continue;
+                }
+                // Evaluate each tenant against its own (possibly simulated) clock.
+                LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenant.getId());
+                LocalDate end = parseDateOrNull(endSetting.getValue());
+                if (end == null || end.isAfter(today)) {
+                    continue;
+                }
+                try {
+                    SimulatedTimeContext.runAs(tenant.getId(), () -> renewTenantSubscription(platformCompany, tenant, billingCatalog, end));
+                    renewed++;
+                } catch (Exception e) {
+                    log.warn("Failed to renew platform subscription for tenant {}", tenant.getId(), e);
+                }
             }
-            try {
-                SimulatedTimeContext.runAs(tenant.getId(), () -> renewTenantSubscription(platformCompany, tenant, billingCatalog, end));
-            } catch (Exception e) {
-                log.warn("Failed to renew platform subscription for tenant {}", tenant.getId(), e);
-            }
-        }
+            return renewed;
+        });
     }
 
     private void renewTenantSubscription(Company platformCompany, Company tenant, PlatformBillingCatalog billingCatalog, LocalDate previousEnd) {
@@ -509,14 +518,16 @@ public class PlatformSubscriptionBillingService {
     @SchedulerLock(name = "platformSubscriptionBillingService_refreshOpenSubscriptionBills", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional
     public void refreshOpenSubscriptionBills() {
-        Company platformCompany = resolvePlatformCompany().orElse(null);
-        if (platformCompany == null || platformCompany.getId() == null) {
-            return;
-        }
-        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
-        PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
-        try {
-        for (OpenBill open : openBills.findAllByCompanyIdAndReferenceStartingWith(platformCompany.getId(), OPEN_BILL_REFERENCE_PREFIX)) {
+        jobTracker.run("platform-subscription-open-bill-refresh", () -> {
+            Company platformCompany = resolvePlatformCompany().orElse(null);
+            if (platformCompany == null || platformCompany.getId() == null) {
+                return 0;
+            }
+            int refreshed = 0;
+            RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+            PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
+            try {
+            for (OpenBill open : openBills.findAllByCompanyIdAndReferenceStartingWith(platformCompany.getId(), OPEN_BILL_REFERENCE_PREFIX)) {
             Long tenantId = parseTenantId(open.getReference());
             if (tenantId == null) {
                 continue;
@@ -552,10 +563,13 @@ public class PlatformSubscriptionBillingService {
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
             upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
             openBills.save(open);
+            refreshed++;
         }
+            return refreshed;
         } finally {
             SimulatedTimeContext.clear();
         }
+        });
     }
 
     private Bill createBillFromSignupOpenBill(OpenBill open, Company platformCompany) {
