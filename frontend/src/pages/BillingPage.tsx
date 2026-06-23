@@ -75,6 +75,16 @@ const BANK_TRANSFER_QR_SETTING_KEYS = ['COMPANY_NAME', 'COMPANY_ADDRESS', 'COMPA
 type BankTransferQrSettingKey = typeof BANK_TRANSFER_QR_SETTING_KEYS[number]
 type BankTransferQrMissingModal = { missingKeys: BankTransferQrSettingKey[]; rawMessage?: string }
 type StripeSetupMissingModal = { rawMessage?: string }
+type InvoicePdfAction = 'download' | 'print'
+
+function escapePdfWindowHtml(value: string | number | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 const BANK_TRANSFER_QR_FIELD_LABELS: Record<BankTransferQrSettingKey, { sl: string; en: string }> = {
   COMPANY_NAME: { sl: 'Naziv podjetja', en: 'Company name' },
@@ -1018,7 +1028,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [bankTransferQrMissingModal, setBankTransferQrMissingModal] = useState<BankTransferQrMissingModal | null>(null)
   const [stripeSetupMissingModal, setStripeSetupMissingModal] = useState<StripeSetupMissingModal | null>(null)
   const [creatingFromOpenId, setCreatingFromOpenId] = useState<number | null>(null)
+  const [printingBillId, setPrintingBillId] = useState<number | null>(null)
   const [previewingOpenBillId, setPreviewingOpenBillId] = useState<number | null>(null)
+  const [printingOpenBillPreviewId, setPrintingOpenBillPreviewId] = useState<number | null>(null)
   const [emailingOpenBillPreviewId, setEmailingOpenBillPreviewId] = useState<number | null>(null)
   const [openBillPreviewChoice, setOpenBillPreviewChoice] = useState<{ openBill: OpenBill; relatedBills?: OpenBill[]; recipientEmail: string } | null>(null)
   const [deletingOpenId, setDeletingOpenId] = useState<number | null>(null)
@@ -3112,7 +3124,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     showToast('success', pendingLabel)
   }
 
-  const createBill = async () => {
+  const createBill = async (afterCreatePdfAction: InvoicePdfAction = 'download') => {
     if (creatingBill) return
     if (billForm.billType === 'ADVANCE' ? !canIssueAdvanceInvoice : !canIssueOpenInvoice) {
       showToast('error', billForm.billType === 'ADVANCE'
@@ -3120,6 +3132,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : (locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.'))
       return
     }
+    const printWindow = afterCreatePdfAction === 'print'
+      ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
+      : null
     setCreatingBill(true)
     try {
       const payload = {
@@ -3145,19 +3160,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       // Show instantly in the list.
       if (data?.id) setBills((prev) => [normalizeBill(data), ...prev])
 
-      const billId = data?.id
-      if (billId && data?.paymentStatus === 'paid') {
-        const res = await api.get(`/billing/bills/${billId}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
-        const blob = new Blob([res.data], { type: 'application/pdf' })
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `folio-${data.billNumber || `bill-${billId}`}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        window.URL.revokeObjectURL(url)
-      }
+      await handleCreatedBillPdfAction(data, afterCreatePdfAction, printWindow)
       setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
@@ -3171,6 +3174,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         onEmbeddedClose?.()
       }
     } catch (error: any) {
+      closePdfActionWindow(printWindow)
       if (!showStripeSetupPopupFromError(error) && !showBankTransferQrSettingsPopupFromError(error)) {
         showToast(
           'error',
@@ -3694,17 +3698,141 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const downloadFolioPdf = async (bill: Bill) => {
-    const res = await api.get(`/billing/bills/${bill.id}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
-    const blob = new Blob([res.data], { type: 'application/pdf' })
+  const billPdfFileName = (bill: { id: number; billNumber?: string | null }) => `folio-${bill.billNumber || `bill-${bill.id}`}.pdf`
+
+  const openPdfActionWindow = (message: string): Window | null => {
+    const actionWindow = window.open('', '_blank')
+    if (actionWindow && !actionWindow.closed) {
+      actionWindow.document.open()
+      actionWindow.document.write(`<!doctype html><html><head><title>${escapePdfWindowHtml(message)}</title></head><body style="margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#475569;"><p style="padding:24px;">${escapePdfWindowHtml(message)}</p></body></html>`)
+      actionWindow.document.close()
+    }
+    return actionWindow
+  }
+
+  const closePdfActionWindow = (actionWindow?: Window | null) => {
+    if (actionWindow && !actionWindow.closed) {
+      actionWindow.close()
+    }
+  }
+
+  const fetchBillFolioPdfBlob = async (billId: number): Promise<Blob> => {
+    const res = await api.get(`/billing/bills/${billId}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
+    return new Blob([res.data], { type: 'application/pdf' })
+  }
+
+  const downloadPdfBlob = (blob: Blob, fileName: string) => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `folio-${bill.billNumber || bill.id}.pdf`
+    a.download = fileName
     document.body.appendChild(a)
     a.click()
     a.remove()
     window.URL.revokeObjectURL(url)
+  }
+
+  const printPdfBlob = (blob: Blob, fileName: string, preparedWindow?: Window | null): boolean => {
+    const url = window.URL.createObjectURL(blob)
+    const printWindow = preparedWindow && !preparedWindow.closed ? preparedWindow : window.open('', '_blank')
+    if (!printWindow) {
+      window.URL.revokeObjectURL(url)
+      showToast('error', locale === 'sl'
+        ? 'Brskalnik je blokiral okno za tiskanje. Dovolite pojavna okna ali uporabite prenos PDF.'
+        : 'The browser blocked the print window. Allow pop-ups or use PDF download.')
+      return false
+    }
+
+    const safeTitle = escapePdfWindowHtml(fileName)
+    const safeUrl = escapePdfWindowHtml(url)
+    printWindow.document.open()
+    printWindow.document.write(`<!doctype html>
+<html>
+<head>
+  <title>${safeTitle}</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; }
+    iframe { border: 0; width: 100%; height: 100vh; display: block; }
+    .fallback { position: fixed; right: 16px; top: 16px; z-index: 2; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .fallback button { border: 1px solid #1d4ed8; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 800; padding: 10px 14px; cursor: pointer; box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24); }
+  </style>
+</head>
+<body>
+  <div class="fallback"><button type="button" onclick="printInvoicePdf()">${locale === 'sl' ? 'Natisni' : 'Print'}</button></div>
+  <iframe id="invoice-pdf-frame" src="${safeUrl}"></iframe>
+  <script>
+    (function () {
+      var autoPrintAttempted = false;
+      window.printInvoicePdf = function () {
+        try {
+          var frame = document.getElementById('invoice-pdf-frame');
+          if (frame && frame.contentWindow) {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+          } else {
+            window.focus();
+            window.print();
+          }
+        } catch (error) {
+          window.focus();
+          window.print();
+        }
+      };
+      function tryAutoPrint() {
+        if (autoPrintAttempted) return;
+        autoPrintAttempted = true;
+        window.printInvoicePdf();
+      }
+      var frame = document.getElementById('invoice-pdf-frame');
+      if (frame) frame.addEventListener('load', function () { window.setTimeout(tryAutoPrint, 650); });
+      window.setTimeout(tryAutoPrint, 2500);
+    })();
+  </script>
+</body>
+</html>`)
+    printWindow.document.close()
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+    return true
+  }
+
+  const downloadFolioPdf = async (bill: { id: number; billNumber?: string | null }) => {
+    try {
+      const blob = await fetchBillFolioPdfBlob(bill.id)
+      downloadPdfBlob(blob, billPdfFileName(bill))
+    } catch (error) {
+      showToast('error', locale === 'sl' ? 'PDF računa ni bilo mogoče prenesti.' : 'Unable to download invoice PDF.')
+    }
+  }
+
+  const printFolioPdf = async (bill: { id: number; billNumber?: string | null }, preparedWindow?: Window | null) => {
+    if (printingBillId) {
+      closePdfActionWindow(preparedWindow)
+      return
+    }
+    setPrintingBillId(bill.id)
+    try {
+      const blob = await fetchBillFolioPdfBlob(bill.id)
+      printPdfBlob(blob, billPdfFileName(bill), preparedWindow)
+    } catch (error) {
+      closePdfActionWindow(preparedWindow)
+      showToast('error', locale === 'sl' ? 'Računa ni bilo mogoče pripraviti za tiskanje.' : 'Unable to prepare the invoice for printing.')
+    } finally {
+      setPrintingBillId(null)
+    }
+  }
+
+  const handleCreatedBillPdfAction = async (bill: any, action: InvoicePdfAction, preparedWindow?: Window | null) => {
+    if (!bill?.id) {
+      closePdfActionWindow(preparedWindow)
+      return
+    }
+    if (action === 'print') {
+      await printFolioPdf({ id: bill.id, billNumber: bill.billNumber }, preparedWindow)
+      return
+    }
+    if (bill.paymentStatus === 'paid') {
+      await downloadFolioPdf({ id: bill.id, billNumber: bill.billNumber })
+    }
   }
 
   const createOpenBillClientRowKey = () => `new-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -3919,7 +4047,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const openOpenBillPreviewChoice = (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
     const { target } = resolveOpenBillPreviewTarget(ob, onePayeeRelatedBills)
-    if (previewingOpenBillId || emailingOpenBillPreviewId) return
+    if (previewingOpenBillId || printingOpenBillPreviewId || emailingOpenBillPreviewId) return
     const detailsDraft = openBillDetailsEdits[target.id]
     if (!validateOpenBillDetailsDraft(detailsDraft)) return
     const recipientEmail = resolveOpenBillPreviewRecipientEmail(ob, onePayeeRelatedBills)
@@ -3965,9 +4093,31 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
+  const printOpenBillInvoicePreview = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+    const { target, payload } = buildOpenBillPreviewRequestPayload(ob, onePayeeRelatedBills)
+    if (previewingOpenBillId || printingOpenBillPreviewId || emailingOpenBillPreviewId) return
+
+    const detailsDraft = openBillDetailsEdits[target.id]
+    if (!validateOpenBillDetailsDraft(detailsDraft)) return
+
+    const printWindow = openPdfActionWindow(locale === 'sl' ? 'Pripravljam predračun za tiskanje…' : 'Preparing proforma invoice for printing…')
+    setPrintingOpenBillPreviewId(target.id)
+    try {
+      const res = await api.post(`/billing/open-bills/${target.id}/preview-pdf?locale=${locale}`, payload, { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const didPrint = printPdfBlob(blob, `${locale === 'sl' ? 'predracun' : 'proforma'}-${target.id}.pdf`, printWindow)
+      if (didPrint) setOpenBillPreviewChoice(null)
+    } catch (error) {
+      closePdfActionWindow(printWindow)
+      showToast('error', locale === 'sl' ? 'Predračuna ni bilo mogoče pripraviti za tiskanje.' : 'Unable to prepare the proforma invoice for printing.')
+    } finally {
+      setPrintingOpenBillPreviewId(null)
+    }
+  }
+
   const emailOpenBillPreview = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
     const { target, payload } = buildOpenBillPreviewRequestPayload(ob, onePayeeRelatedBills)
-    if (emailingOpenBillPreviewId) return
+    if (previewingOpenBillId || printingOpenBillPreviewId || emailingOpenBillPreviewId) return
 
     const detailsDraft = openBillDetailsEdits[target.id]
     if (!validateOpenBillDetailsDraft(detailsDraft)) return
@@ -3991,7 +4141,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (!openBillPreviewChoice || openBillPreviewChoice.openBill.id !== ob.id) return null
     const { openBill, relatedBills, recipientEmail } = openBillPreviewChoice
     const { target } = resolveOpenBillPreviewTarget(openBill, relatedBills)
-    const busy = previewingOpenBillId === target.id || emailingOpenBillPreviewId === target.id
+    const busy = previewingOpenBillId === target.id || printingOpenBillPreviewId === target.id || emailingOpenBillPreviewId === target.id
     return (
       <div
         className="billing-preview-choice-popover"
@@ -4003,7 +4153,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <span className="billing-preview-choice-popover-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
           <div>
             <h3>{locale === 'sl' ? 'Predračun' : 'Proforma invoice'}</h3>
-            <p>{locale === 'sl' ? 'Odprite predogled ali predračun pošljite po e-pošti.' : 'Open preview or send the proforma invoice by email.'}</p>
+            <p>{locale === 'sl' ? 'Odprite, natisnite ali predračun pošljite po e-pošti.' : 'Open, print, or email the proforma invoice.'}</p>
           </div>
           <button
             type="button"
@@ -4031,6 +4181,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           </button>
           <button
             type="button"
+            className="billing-preview-choice-popover-secondary"
+            disabled={busy}
+            onClick={() => void printOpenBillInvoicePreview(openBill, relatedBills)}
+          >
+            {printingOpenBillPreviewId === target.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni predogled' : 'Print preview')}
+          </button>
+          <button
+            type="button"
             className="billing-preview-choice-popover-primary"
             disabled={busy}
             onClick={() => void emailOpenBillPreview(openBill, relatedBills)}
@@ -4042,7 +4200,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
   }
 
-  const createBillFromOpen = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[]) => {
+  const createBillFromOpen = async (ob: OpenBill, onePayeeRelatedBills?: OpenBill[], afterCreatePdfAction: InvoicePdfAction = 'download') => {
     if (creatingFromOpenId) return
     const effectiveType = resolveOpenBillEffectiveType(ob)
     if (effectiveType === 'ADVANCE' ? !canIssueAdvanceInvoice : !canIssueOpenInvoice) {
@@ -4052,12 +4210,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     const target = onePayeeRelatedBills && onePayeeRelatedBills.length > 1 ? (onePayeeRelatedBills[0] ?? ob) : ob
+    const printWindow = afterCreatePdfAction === 'print'
+      ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
+      : null
     setCreatingFromOpenId(target.id)
     try {
       let invoiceSource = target
       if (onePayeeRelatedBills && onePayeeRelatedBills.length > 1) {
         const merged = await saveOpenBillGroupAsOnePayee(target, onePayeeRelatedBills)
-        if (!merged) return
+        if (!merged) {
+          closePdfActionWindow(printWindow)
+          return
+        }
         invoiceSource = merged
       }
       const sourceOpenBill = invoiceSource
@@ -4066,7 +4230,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : getRelatedOpenBillsForEditor(sourceOpenBill)
       const items = getOpenBillItems(sourceOpenBill)
       const detailsDraft = openBillDetailsEdits[sourceOpenBill.id]
-      if (!validateOpenBillDetailsDraft(detailsDraft)) return
+      if (!validateOpenBillDetailsDraft(detailsDraft)) {
+        closePdfActionWindow(printWindow)
+        return
+      }
       await api.put(`/billing/open-bills/${sourceOpenBill.id}`, buildOpenBillUpdatePayload(sourceOpenBill, items))
 
       const { data } = await api.post(`/billing/open-bills/${sourceOpenBill.id}/create-bill`)
@@ -4076,18 +4243,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setOpenBillDetailsEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
       setOpenBillPaymentEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
       setOpenBillDiscountEdits((prev) => { const n = { ...prev }; delete n[sourceOpenBill.id]; return n })
-      if (data?.id && data?.paymentStatus === 'paid') {
-        const res = await api.get(`/billing/bills/${data.id}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
-        const blob = new Blob([res.data], { type: 'application/pdf' })
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `folio-${data.billNumber || `bill-${data.id}`}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        window.URL.revokeObjectURL(url)
-      }
+      await handleCreatedBillPdfAction(data, afterCreatePdfAction, printWindow)
       if (data?.id && shouldCreateCheckoutSession(data)) {
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
@@ -4101,6 +4257,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         if (activeOpenBillId === sourceOpenBill.id) closeDetailOpenBill()
       }
     } catch (error: any) {
+      closePdfActionWindow(printWindow)
       if (!showStripeSetupPopupFromError(error) && !showBankTransferQrSettingsPopupFromError(error)) {
         showToast(
           'error',
@@ -4204,7 +4361,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const createAndCloseManualOpenBill = async () => {
+  const createAndCloseManualOpenBill = async (afterCreatePdfAction: InvoicePdfAction = 'download') => {
     if (creatingBill || creatingManualOpenBill) return
     if (!canIssueOpenInvoice) {
       showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
@@ -4213,6 +4370,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const payload = buildManualOpenBillPayload()
     if (!payload) return
     const existingIds = new Set(openBills.map((entry) => entry.id))
+    const printWindow = afterCreatePdfAction === 'print'
+      ? openPdfActionWindow(locale === 'sl' ? 'Pripravljam račun za tiskanje…' : 'Preparing invoice for printing…')
+      : null
     setCreatingBill(true)
     try {
       const { data: createdList } = await api.post('/billing/open-bills/manual', payload)
@@ -4221,23 +4381,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         ?? [...responses].sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0))[0]
       const targetId = newlyCreated?.id
       if (!targetId) {
+        closePdfActionWindow(printWindow)
         showToast('error', locale === 'sl' ? 'Računa ni bilo mogoče zaključiti.' : 'Unable to close the invoice.')
         return
       }
       const { data: bill } = await api.post(`/billing/open-bills/${targetId}/create-bill`)
       if (bill?.id) setBills((prev) => [normalizeBill(bill), ...prev])
-      if (bill?.id && bill?.paymentStatus === 'paid') {
-        const res = await api.get(`/billing/bills/${bill.id}/folio-pdf?locale=${locale}`, { responseType: 'blob' })
-        const blob = new Blob([res.data], { type: 'application/pdf' })
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `folio-${bill.billNumber || `bill-${bill.id}`}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        window.URL.revokeObjectURL(url)
-      }
+      await handleCreatedBillPdfAction(bill, afterCreatePdfAction, printWindow)
       if (bill?.id && shouldCreateCheckoutSession(bill)) {
         await api.post(`/billing/bills/${bill.id}/checkout-session`)
       }
@@ -4247,6 +4397,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setEditingCreateBillPayee(false)
       await load()
     } catch (error: any) {
+      closePdfActionWindow(printWindow)
       if (!showStripeSetupPopupFromError(error) && !showBankTransferQrSettingsPopupFromError(error)) {
         showToast(
           'error',
@@ -7794,7 +7945,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             <td className="billing-modern-actions billing-modern-actions--history" onClick={(e) => e.stopPropagation()}>
                               <button type="button" className="billing-action-btn billing-action-btn--danger" onClick={() => refundBill(bill)} disabled={!canRefundBill(bill) || refundingBillId === bill.id}>{refundingBillId === bill.id ? (locale === 'sl' ? 'Vračilo…' : 'Refunding…') : (locale === 'sl' ? 'Vračilo' : 'Refund')}</button>
                               <button type="button" className="billing-action-btn" onClick={() => sendCheckoutLink(bill)} disabled={creatingCheckoutBillId === bill.id}>{creatingCheckoutBillId === bill.id ? (locale === 'sl' ? 'Pošiljanje…' : 'Sending…') : (locale === 'sl' ? 'Pošlji' : 'Send')}</button>
-                              <button type="button" className="billing-action-btn" onClick={() => downloadFolioPdf(bill)}>PDF</button>
+                              <button type="button" className="billing-action-btn" onClick={() => downloadFolioPdf(bill)}>{locale === 'sl' ? 'Prenesi PDF' : 'PDF'}</button>
+                              <button type="button" className="billing-action-btn" onClick={() => printFolioPdf(bill)} disabled={printingBillId === bill.id}>{printingBillId === bill.id ? (locale === 'sl' ? 'Tiskanje…' : 'Printing…') : (locale === 'sl' ? 'Natisni' : 'Print')}</button>
                             </td>
                           </tr>
                         ))}
@@ -7971,6 +8123,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </svg>
                     </span>
                     <span>Save changes</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="billing-bill-modal-save-btn"
+                    onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
+                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
+                    title={detailCloseDisabledReason}
+                  >
+                    {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}
                   </button>
                   <button
                     type="button"
@@ -8213,6 +8374,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <span>{creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}</span>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="billing-bill-modal-save-btn"
+                    onClick={() => void (isCreateAdvanceBill ? createBill('print') : createAndCloseManualOpenBill('print'))}
+                    disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueCreateBillType}
+                    title={createCloseTooltip}
+                  >
+                    {creatingBill ? billingCopy.creating : (isCreateAdvanceBill
+                      ? (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')
+                      : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'))}
+                  </button>
                   <button
                     type="button"
                     className="billing-bill-modal-primary-action"
@@ -8495,8 +8667,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           {refundingBillId === detailFolioBill.id ? 'Refunding…' : 'Refund'}
                         </button>
                       )}
+                      <button type="button" className="secondary" onClick={() => printFolioPdf(detailFolioBill)} disabled={printingBillId === detailFolioBill.id}>
+                        {printingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Pripravljam tiskanje…' : 'Preparing print…') : (locale === 'sl' ? 'Natisni račun' : 'Print invoice')}
+                      </button>
                       <button type="button" className="primary" onClick={() => downloadFolioPdf(detailFolioBill)}>
-                        Download folio PDF
+                        {locale === 'sl' ? 'Prenesi PDF računa' : 'Download invoice PDF'}
                       </button>
                     </div>
                   </div>
