@@ -13,17 +13,20 @@ public class GuestAuthController {
     private final GuestAuthContextService authContextService;
     private final AuthRateLimiter authRateLimiter;
     private final GuestPasswordResetService passwordResetService;
+    private final GuestAccountDeletionService accountDeletionService;
 
     public GuestAuthController(
             GuestAuthService authService,
             GuestAuthContextService authContextService,
             AuthRateLimiter authRateLimiter,
-            GuestPasswordResetService passwordResetService
+            GuestPasswordResetService passwordResetService,
+            GuestAccountDeletionService accountDeletionService
     ) {
         this.authService = authService;
         this.authContextService = authContextService;
         this.authRateLimiter = authRateLimiter;
         this.passwordResetService = passwordResetService;
+        this.accountDeletionService = accountDeletionService;
     }
 
     @PostMapping("/auth/signup")
@@ -115,6 +118,17 @@ public class GuestAuthController {
     public GuestDtos.GuestProfileResponse me(HttpServletRequest request) {
         GuestUser guestUser = authContextService.requireGuest(request);
         return authService.me(guestUser);
+    }
+
+    @PostMapping("/account/delete")
+    public GuestDtos.DeleteGuestAccountResponse deleteAccount(
+            @RequestBody(required = false) GuestDtos.DeleteGuestAccountRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        GuestUser guestUser = authContextService.requireGuest(httpRequest);
+        boolean confirmed = request != null && Boolean.TRUE.equals(request.confirm());
+        accountDeletionService.deleteGuestAccount(guestUser, confirmed);
+        return new GuestDtos.DeleteGuestAccountResponse(true);
     }
 
     private static String validatePasswordStrength(String password) {

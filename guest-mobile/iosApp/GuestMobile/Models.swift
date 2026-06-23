@@ -926,6 +926,14 @@ struct ResetPasswordPayload: Codable {
     let password: String
 }
 
+struct DeleteGuestAccountPayload: Codable {
+    let confirm: Bool
+}
+
+struct DeleteGuestAccountResponse: Codable {
+    let deleted: Bool
+}
+
 struct RescheduleBookingPayload: Codable {
     let newSlotId: String
 }

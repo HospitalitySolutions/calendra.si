@@ -105,9 +105,31 @@ public class Client extends BaseEntity {
         this.viberUserId = null;
         this.whatsappOptIn = false;
         this.viberConnected = false;
+        clearBillingRecipientData();
         this.anonymized = true;
         this.anonymizedAt = Instant.now();
         this.anonymizedByUserId = userId;
+    }
+
+    /**
+     * Remove billing-recipient data stored on the client profile.
+     *
+     * Issued bills/invoices keep their own legally required accounting snapshot elsewhere.
+     * The linked billing company row may be shared by several clients, so anonymization only
+     * detaches this client from it instead of mutating or deleting the company record.
+     */
+    private void clearBillingRecipientData() {
+        this.billingCompany = null;
+        this.invoiceRecipientType = InvoiceRecipientType.PERSON;
+        this.invoicePersonAddressLine = null;
+        this.invoicePersonPostalCode = null;
+        this.invoicePersonCity = null;
+        this.invoiceCompanyName = null;
+        this.invoiceCompanyAddressLine = null;
+        this.invoiceCompanyPostalCode = null;
+        this.invoiceCompanyCity = null;
+        this.invoiceCompanyVatId = null;
+        this.batchPaymentEnabled = false;
     }
 
     public static String toNameCase(String value) {

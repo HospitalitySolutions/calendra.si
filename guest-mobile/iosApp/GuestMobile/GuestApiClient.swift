@@ -105,6 +105,14 @@ final class GuestApiClient {
         )
     }
 
+    func deleteGuestAccount() async throws {
+        let _: DeleteGuestAccountResponse = try await post(
+            path: "api/guest/account/delete",
+            body: DeleteGuestAccountPayload(confirm: true)
+        )
+        updateToken(nil)
+    }
+
     func loginWithApple(idToken: String, firstName: String? = nil, lastName: String? = nil) async throws -> GuestSessionModel {
         try await post(
             path: "api/guest/auth/apple/token",

@@ -380,6 +380,15 @@ final class AppStore: ObservableObject {
         didRequestLogout = true
     }
 
+    func deleteGuestAccount() async throws {
+        guard !usePreviewData else {
+            logout()
+            return
+        }
+        try await api.deleteGuestAccount()
+        logout()
+    }
+
     func updatePushToken(_ token: String) async {
         guard !usePreviewData else { return }
         pendingPushToken = token

@@ -46,6 +46,7 @@ struct ProfileView: View {
     @State private var showInvoicingSheet = false
     @State private var showSubscribedTenantsSheet = false
     @State private var showAccountDeletionConfirmation = false
+    @State private var deletingAccount = false
     @State private var remoteError: String?
     @State private var loadingRemoteSettings = false
     @State private var savingPreference = false
@@ -347,11 +348,30 @@ struct ProfileView: View {
         }
         .alert(tr("Delete account?", "Izbrišem račun?"), isPresented: $showAccountDeletionConfirmation) {
             Button(tr("Cancel", "Prekliči"), role: .cancel) {}
-            Button(tr("Open deletion page", "Odpri stran za izbris"), role: .destructive) {
+            Button(tr("Open information page", "Odpri stran z informacijami")) {
                 openURL(accountDeletionUrl)
             }
+            Button(deletingAccount ? tr("Deleting…", "Brisanje…") : tr("Delete account", "Izbriši račun"), role: .destructive) {
+                Task { await deleteGuestAccount() }
+            }
         } message: {
-            Text(tr("This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data.", "Odpre se javna stran Calendra za izbris računa, kjer lahko zahtevate izbris računa Guest App in povezanih osebnih podatkov."))
+            Text(
+                tr(
+                    "This will delete and anonymize your Calendra Guest App account, remove this device from push notifications, unlink your subscribed tenants, and sign you out. Issued invoices, payments, bookings and records that Calendra or a tenant must keep for accounting, tax, legal or security reasons may be retained.",
+                    "S tem boste izbrisali oziroma anonimizirali račun Calendra Guest App, odstranili to napravo iz potisnih obvestil, prekinili povezave z naročenimi ponudniki in se odjavili. Izdani računi, plačila, termini in zapisi, ki jih mora Calendra ali ponudnik hraniti zaradi računovodskih, davčnih, pravnih ali varnostnih razlogov, se lahko hranijo še naprej."
+                )
+            )
+        }
+    }
+
+    private func deleteGuestAccount() async {
+        deletingAccount = true
+        defer { deletingAccount = false }
+        do {
+            try await store.deleteGuestAccount()
+            remoteError = nil
+        } catch {
+            remoteError = error.localizedDescription
         }
     }
 

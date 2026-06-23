@@ -128,6 +128,7 @@ fun ProfileScreen(
     onDownloadProfilePicture: suspend () -> ByteArray,
     onUnsubscribeTenant: suspend (String) -> Unit,
     onAnonymizeTenant: suspend (String) -> Unit,
+    onDeleteGuestAccount: suspend () -> Unit,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
@@ -153,6 +154,7 @@ fun ProfileScreen(
     var tenantAction by remember { mutableStateOf<TenantLifecycleAction?>(null) }
     var tenantActionInProgress by remember { mutableStateOf(false) }
     var tenantActionError by remember { mutableStateOf<String?>(null) }
+    var deletingAccount by remember { mutableStateOf(false) }
     val subscribedTenants = session?.linkedTenants.orEmpty()
     val accountDeletionUrl = "https://calendra.si/account-deletion"
     val isSl = profile.language.ifBlank { languageCode }.lowercase().startsWith("sl")
@@ -696,26 +698,57 @@ fun ProfileScreen(
 
     if (showDeleteAccountDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteAccountDialog = false },
+            onDismissRequest = { if (!deletingAccount) showDeleteAccountDialog = false },
             title = { Text(tr("Delete account?", "Izbrišem račun?")) },
             text = {
-                Text(
-                    tr("This opens the public Calendra account deletion page where you can request deletion of your Guest App account and associated personal data.", "Odpre se javna stran Calendra za izbris računa, kjer lahko zahtevate izbris računa Guest App in povezanih osebnih podatkov.")
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        tr(
+                            "This will delete and anonymize your Calendra Guest App account, remove this device from push notifications, unlink your subscribed tenants, and sign you out.",
+                            "S tem boste izbrisali oziroma anonimizirali račun Calendra Guest App, odstranili to napravo iz potisnih obvestil, prekinili povezave z naročenimi ponudniki in se odjavili."
+                        )
+                    )
+                    Text(
+                        tr(
+                            "Issued invoices, payments, bookings and records that Calendra or a tenant must keep for accounting, tax, legal or security reasons may be retained.",
+                            "Izdani računi, plačila, termini in zapisi, ki jih mora Calendra ali ponudnik hraniti zaradi računovodskih, davčnih, pravnih ali varnostnih razlogov, se lahko hranijo še naprej."
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        enabled = !deletingAccount,
+                        onClick = { openAccountDeletionPage() }
+                    ) {
+                        Text(tr("Open public deletion information page", "Odpri javno stran z informacijami o izbrisu"))
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
+                    enabled = !deletingAccount,
                     onClick = {
-                        showDeleteAccountDialog = false
-                        openAccountDeletionPage()
+                        scope.launch {
+                            deletingAccount = true
+                            remoteError = null
+                            runCatching { onDeleteGuestAccount() }
+                                .onSuccess { showDeleteAccountDialog = false }
+                                .onFailure {
+                                    remoteError = it.message ?: tr("Could not delete account", "Računa ni bilo mogoče izbrisati")
+                                }
+                            deletingAccount = false
+                        }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text(tr("Open deletion page", "Odpri stran za izbris"))
+                    Text(if (deletingAccount) tr("Deleting…", "Brisanje…") else tr("Delete account", "Izbriši račun"))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteAccountDialog = false }) {
+                TextButton(
+                    enabled = !deletingAccount,
+                    onClick = { showDeleteAccountDialog = false }
+                ) {
                     Text(tr("Cancel", "Prekliči"))
                 }
             }

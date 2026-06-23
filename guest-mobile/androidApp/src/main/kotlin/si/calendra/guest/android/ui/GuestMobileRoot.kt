@@ -1761,6 +1761,10 @@ fun GuestMobileRoot() {
                                 repo.anonymizeTenant(companyId)
                                 refreshAllTenants()
                             },
+                            onDeleteGuestAccount = {
+                                repo.deleteGuestAccount()
+                                logout()
+                            },
                             onLogout = ::logout
                         )
                     }

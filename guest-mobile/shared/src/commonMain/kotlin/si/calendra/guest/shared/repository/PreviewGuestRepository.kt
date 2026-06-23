@@ -42,6 +42,8 @@ class PreviewGuestRepository : GuestRepository {
 
     override suspend fun resetPassword(token: String, password: String) = Unit
 
+    override suspend fun deleteGuestAccount() = Unit
+
     override suspend fun loginWithGoogle(idToken: String): GuestSession = preview.session()
 
     override suspend fun loginWithApple(idToken: String): GuestSession = preview.session()

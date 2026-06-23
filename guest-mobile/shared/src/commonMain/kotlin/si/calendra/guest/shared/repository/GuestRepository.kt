@@ -12,6 +12,7 @@ interface GuestRepository {
     suspend fun verifyPasswordResetCode(email: String, code: String): ResetPasswordCodeResponse
     suspend fun validatePasswordResetToken(token: String): ResetPasswordValidateResponse
     suspend fun resetPassword(token: String, password: String)
+    suspend fun deleteGuestAccount()
     suspend fun loginWithGoogle(idToken: String): GuestSession
     suspend fun loginWithApple(idToken: String): GuestSession
     suspend fun me(): GuestProfile

@@ -151,6 +151,17 @@ class RemoteGuestApi(
         }
     }
 
+    suspend fun deleteGuestAccount() {
+        val response = client.post("${config.baseUrl}/api/guest/account/delete") {
+            jsonRequest()
+            setBody(DeleteGuestAccountRequest(confirm = true))
+        }
+        if (!response.status.isSuccess()) {
+            val payload = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
+            throw IllegalStateException(errorMessageFor(response.status.value, payload))
+        }
+    }
+
     suspend fun me(): GuestProfile =
         parse(client.get("${config.baseUrl}/api/guest/me") {
             header(HttpHeaders.Accept, ContentType.Application.Json.toString())

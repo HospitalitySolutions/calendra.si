@@ -102,6 +102,9 @@ public final class GuestDtos {
     public record GuestResetPasswordValidateResponse(boolean valid, String email) {}
     public record GuestResetPasswordRequest(String token, String password) {}
 
+    public record DeleteGuestAccountRequest(Boolean confirm) {}
+    public record DeleteGuestAccountResponse(boolean deleted) {}
+
     public record TenantLookupRequest(String tenantCode) {}
     public record TenantLookupResponse(String companyId, String companyName, String publicDescription, String publicCity, String publicPhone, String companyAddress, String tenantType, String cardImageUrl, String logoImageUrl, String iconImageUrl, String joinMethod, boolean canJoin, boolean employeeSelectionStep, boolean useEmployeeContact) {}
     public record JoinTenantRequest(String joinMethod, String tenantCode, String inviteCode, String companyId) {}

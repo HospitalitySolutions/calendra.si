@@ -83,3 +83,13 @@ data class ResetPasswordRequest(
     val password: String
 )
 
+
+@Serializable
+data class DeleteGuestAccountRequest(
+    val confirm: Boolean
+)
+
+@Serializable
+data class DeleteGuestAccountResponse(
+    val deleted: Boolean = false
+)

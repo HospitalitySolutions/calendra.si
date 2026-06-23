@@ -8,4 +8,5 @@ public interface GuestDeviceTokenRepository extends JpaRepository<GuestDeviceTok
     Optional<GuestDeviceToken> findByPushToken(String pushToken);
     List<GuestDeviceToken> findAllByGuestUserIdOrderByUpdatedAtDesc(Long guestUserId);
     void deleteByPushToken(String pushToken);
+    void deleteAllByGuestUserId(Long guestUserId);
 }
