@@ -10,6 +10,7 @@ import { ensureRegisterCatalogLoaded } from "../lib/registerCatalogBootstrap";
 import { useRegisterFooterClickOutside } from "../lib/useRegisterFooterClickOutside";
 import { storeAuthenticatedSession } from "../lib/session";
 import { markOnboardingTourPending } from "../lib/onboardingTour";
+import { getCalendraLegalLinks } from "../lib/legalLinks";
 import { registerPageStyles } from "./registerPageStyles";
 import {
   getBillingInterval,
@@ -835,7 +836,7 @@ const accountPageCopy: Record<"en" | "sl", AccountPageCopy> = {
       "You will set up your password after email verification if your account needs one.",
     alreadyHaveAccount: "Already have an account?",
     consent:
-      "I agree to the Terms of Service and Privacy Policy, and I understand my selected plan will continue to the next steps of signup.",
+      "I agree to the Terms of Service, Data Processing Agreement, Privacy Policy and Subprocessor List, and I understand my selected plan will continue to the next steps of signup.",
     continue: "Continue",
     back: "Back to plan selection",
     passwordHint:
@@ -906,7 +907,7 @@ const accountPageCopy: Record<"en" | "sl", AccountPageCopy> = {
       "Geslo boste nastavili po verifikaciji e-maila, če ga vaš račun potrebuje.",
     alreadyHaveAccount: "Že imate račun?",
     consent:
-      "Strinjam se s Pogoji uporabe in Politiko zasebnosti ter razumem, da bo moj izbrani paket prenesen v naslednje korake registracije.",
+      "Strinjam se s Pogoji uporabe, Pogodbo o obdelavi podatkov, Politiko zasebnosti in seznamom podobdelovalcev ter razumem, da bo moj izbrani paket prenesen v naslednje korake registracije.",
     continue: "Nadaljuj",
     back: "Nazaj na izbiro paketa",
     passwordHint:
@@ -977,6 +978,7 @@ export function RegisterAccountPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const legalLinks = useMemo(() => getCalendraLegalLinks(locale), [locale]);
   const [view, setView] = useState<
     "form" | "verify" | "registered" | "invalid"
   >("form");
@@ -2035,7 +2037,23 @@ export function RegisterAccountPage() {
                             onChange={(e) => setAcceptedTerms(e.target.checked)}
                           />
                           <span className="register-account-consent-text">
-                            {copy.consent}
+                            {locale === "sl" ? (
+                              <>
+                                Strinjam se s {" "}
+                                <a href={legalLinks.terms} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Pogoji uporabe</a>, {" "}
+                                <a href={legalLinks.dpa} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Pogodbo o obdelavi podatkov</a>, {" "}
+                                <a href={legalLinks.privacy} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Politiko zasebnosti</a> in {" "}
+                                <a href={legalLinks.subprocessors} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>seznamom podobdelovalcev</a>. Razumem, da bo moj izbrani paket prenesen v naslednje korake registracije.
+                              </>
+                            ) : (
+                              <>
+                                I agree to the {" "}
+                                <a href={legalLinks.terms} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Terms of Service</a>, {" "}
+                                <a href={legalLinks.dpa} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Data Processing Agreement</a>, {" "}
+                                <a href={legalLinks.privacy} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Privacy Policy</a> and {" "}
+                                <a href={legalLinks.subprocessors} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Subprocessor List</a>. I understand my selected plan will continue to the next steps of signup.
+                              </>
+                            )}
                           </span>
                         </label>
 

@@ -63,6 +63,7 @@ import googleCalendarLogo from "../assets/google-calendar-logo.png";
 import { GuestConfigSaveIcon as GuestSaveIcon } from "../components/GuestConfigSaveIcon";
 import { ModernTimePicker } from "../components/ModernTimePicker";
 import { useLocale } from "../locale";
+import { getCalendraLegalLinks } from "../lib/legalLinks";
 import {
   getDefaultAllowedRoute,
   normalizePackageType,
@@ -190,6 +191,7 @@ type BillingSubtab =
   | "invoiceDelivery"
   | "folioLayout";
 type IntegrationSubtab = "status" | "googleCalendar";
+type AccountSubtab = "company" | "receivedInvoices" | "subscription" | "security" | "legal";
 type PersonalTaskPreset = { id: string; name: string; color: string };
 
 type ConfigNavIcon =
@@ -725,9 +727,7 @@ export function ConfigurationPage() {
   const { showToast } = useToast();
 
   const [tab, setTab] = useState<Tab>("company");
-  const [accountSubtab, setAccountSubtab] = useState<
-    "company" | "receivedInvoices" | "subscription" | "security"
-  >("company");
+  const [accountSubtab, setAccountSubtab] = useState<AccountSubtab>("company");
   const [accountReceivedInvoices, setAccountReceivedInvoices] = useState<
     AccountReceivedInvoice[]
   >([]);
@@ -784,6 +784,38 @@ export function ConfigurationPage() {
   const [googleCalendarConflictCount, setGoogleCalendarConflictCount] =
     useState(0);
 
+  const legalLinks = useMemo(() => getCalendraLegalLinks(locale), [locale]);
+  const legalTexts = useMemo(() => {
+    const isSl = locale === "sl";
+    return {
+      subtab: isSl ? "Pravno" : "Legal",
+      title: isSl ? "Pravni dokumenti in zasebnost" : "Legal documents and privacy",
+      description: isSl
+        ? "Tukaj so povezave do pravnih dokumentov Calendre, pogodbe o obdelavi podatkov in informacij o zasebnosti za uporabo platforme."
+        : "Access Calendra legal documents, the Data Processing Agreement, and privacy information for platform use.",
+      noteTitle: isSl ? "Opomba za naročnike" : "Note for customers",
+      note: isSl
+        ? "Če v Calendra obdelujete podatke svojih strank ali gostov, praviloma nastopate kot upravljavec, Calendra pa kot obdelovalec v skladu s Pogodbo o obdelavi podatkov."
+        : "If you process your clients' or guests' data in Calendra, you generally act as controller and Calendra acts as processor under the Data Processing Agreement.",
+      open: isSl ? "Odpri" : "Open",
+      terms: isSl ? "Pogoji uporabe" : "Terms of Service",
+      termsDescription: isSl ? "Pogoji za uporabo platforme, naročnine in storitev Calendra." : "Terms for using the Calendra platform, subscriptions, and services.",
+      dpa: isSl ? "Pogodba o obdelavi podatkov" : "Data Processing Agreement",
+      dpaDescription: isSl ? "Pogoji obdelave osebnih podatkov, kadar Calendra deluje kot obdelovalec za naročnika." : "Processing terms when Calendra acts as processor for a customer.",
+      privacy: isSl ? "Politika zasebnosti" : "Privacy Policy",
+      privacyDescription: isSl ? "Kako Calendra obdeluje osebne podatke kot upravljavec in obdelovalec." : "How Calendra processes personal data as controller and processor.",
+      subprocessors: isSl ? "Podobdelovalci" : "Subprocessors",
+      subprocessorsDescription: isSl ? "Seznam ponudnikov, ki podpirajo infrastrukturo in funkcije Calendre." : "List of providers supporting Calendra infrastructure and features.",
+      security: isSl ? "Varnost" : "Security",
+      securityDescription: isSl ? "Povzetek varnostnih ukrepov, zaščite podatkov in kontakt za varnostna vprašanja." : "Summary of security measures, data protection, and security contact information.",
+      dataRights: isSl ? "Pravice posameznikov" : "Data rights",
+      dataRightsDescription: isSl ? "Kako zahtevati dostop, popravek, izbris, omejitev, prenosljivost ali druge pravice." : "How to request access, correction, deletion, restriction, portability, or other rights.",
+      accountDeletion: isSl ? "Izbris računa gosta" : "Guest account deletion",
+      accountDeletionDescription: isSl ? "Informacije o izbrisu računa Calendra Guest in o tem, kateri zapisi se lahko hranijo zaradi zakonskih razlogov." : "Information about deleting a Calendra Guest account and records that may be retained for legal reasons.",
+      tenantTermination: isSl ? "Izbris ali odpoved naročniškega računa" : "Tenant account deletion or termination",
+      tenantTerminationDescription: isSl ? "Zahteva za izbris, izvoz podatkov ali odpoved poslovnega računa Calendra." : "Request tenant account deletion, data export, or Calendra subscription termination.",
+    };
+  }, [locale]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [companyProfiles, setCompanyProfiles] = useState<CompanyProfileForm[]>(
@@ -1976,7 +2008,8 @@ export function ConfigurationPage() {
       (subtabQuery === "company" ||
         subtabQuery === "receivedInvoices" ||
         subtabQuery === "subscription" ||
-        subtabQuery === "security")
+        subtabQuery === "security" ||
+        subtabQuery === "legal")
     ) {
       setAccountSubtab(subtabQuery);
     }
@@ -5024,6 +5057,63 @@ export function ConfigurationPage() {
               gap: 16px;
               margin-top: 22px;
             }
+            .account-legal-grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 16px;
+              margin-top: 22px;
+            }
+            .account-legal-card {
+              display: flex;
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 10px;
+              min-height: 154px;
+              padding: 20px;
+              border: 1px solid var(--account-line);
+              border-radius: 18px;
+              background: #fff;
+              color: var(--account-ink);
+              text-decoration: none;
+              transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+            }
+            .account-legal-card:hover {
+              transform: translateY(-1px);
+              border-color: rgba(37, 99, 235, 0.28);
+              box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+            }
+            .account-legal-card strong {
+              font-size: 16px;
+              line-height: 1.2;
+              font-weight: 800;
+              color: var(--account-ink);
+            }
+            .account-legal-card span {
+              color: var(--account-muted);
+              font-size: 14px;
+              line-height: 1.45;
+            }
+            .account-legal-card em {
+              margin-top: auto;
+              color: var(--account-blue);
+              font-style: normal;
+              font-size: 14px;
+              font-weight: 800;
+            }
+            .account-legal-note {
+              margin-top: 18px;
+              padding: 16px 18px;
+              border-radius: 16px;
+              background: var(--account-blue-soft);
+              color: var(--account-ink);
+              font-size: 14px;
+              line-height: 1.5;
+            }
+            .account-legal-note strong {
+              display: block;
+              margin-bottom: 4px;
+              font-weight: 800;
+            }
             .account-profile-card {
               appearance: none;
               width: 100%;
@@ -5930,6 +6020,17 @@ export function ConfigurationPage() {
                       onClick={() => setAccountSubtabAndUrl("security")}
                     >
                       Varnost
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        accountSubtab === "legal"
+                          ? "account-subtab active"
+                          : "account-subtab"
+                      }
+                      onClick={() => setAccountSubtabAndUrl("legal")}
+                    >
+                      {legalTexts.subtab}
                     </button>
                   </div>
 
@@ -7622,6 +7723,47 @@ export function ConfigurationPage() {
                     </>
                   ) : accountSubtab === "security" ? (
                     <SecurityPage embedded />
+                  ) : accountSubtab === "legal" ? (
+                    <section className="account-card account-company-section">
+                      <div className="account-section-title-row">
+                        <div>
+                          <h3 className="account-section-title">
+                            {legalTexts.title}
+                          </h3>
+                          <p className="account-company-card-subtitle">
+                            {legalTexts.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="account-legal-grid">
+                        {[
+                          { title: legalTexts.terms, description: legalTexts.termsDescription, href: legalLinks.terms },
+                          { title: legalTexts.dpa, description: legalTexts.dpaDescription, href: legalLinks.dpa },
+                          { title: legalTexts.privacy, description: legalTexts.privacyDescription, href: legalLinks.privacy },
+                          { title: legalTexts.subprocessors, description: legalTexts.subprocessorsDescription, href: legalLinks.subprocessors },
+                          { title: legalTexts.security, description: legalTexts.securityDescription, href: legalLinks.security },
+                          { title: legalTexts.dataRights, description: legalTexts.dataRightsDescription, href: legalLinks.dataRights },
+                          { title: legalTexts.accountDeletion, description: legalTexts.accountDeletionDescription, href: legalLinks.accountDeletion },
+                          { title: legalTexts.tenantTermination, description: legalTexts.tenantTerminationDescription, href: "mailto:info@calendra.si?subject=Calendra%20account%20termination%20request" },
+                        ].map((item) => (
+                          <a
+                            key={item.href}
+                            className="account-legal-card"
+                            href={item.href}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <strong>{item.title}</strong>
+                            <span>{item.description}</span>
+                            <em>{legalTexts.open} ↗</em>
+                          </a>
+                        ))}
+                      </div>
+                      <div className="account-legal-note">
+                        <strong>{legalTexts.noteTitle}</strong>
+                        {legalTexts.note}
+                      </div>
+                    </section>
                   ) : null}
                 </div>
               ) : tab === "booking" ? (

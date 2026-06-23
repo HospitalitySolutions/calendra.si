@@ -156,14 +156,21 @@ fun ProfileScreen(
     var tenantActionError by remember { mutableStateOf<String?>(null) }
     var deletingAccount by remember { mutableStateOf(false) }
     val subscribedTenants = session?.linkedTenants.orEmpty()
-    val accountDeletionUrl = "https://calendra.si/account-deletion"
     val isSl = profile.language.ifBlank { languageCode }.lowercase().startsWith("sl")
+    fun legalUrl(slPath: String, enPath: String): String = "https://calendra.si" + if (isSl) slPath else enPath
+    val privacyPolicyUrl = legalUrl("/zasebnost", "/en/privacy-policy")
+    val termsOfServiceUrl = legalUrl("/pogoji-uporabe", "/en/terms-of-service")
+    val accountDeletionUrl = legalUrl("/izbris-racuna", "/en/account-deletion")
     fun tr(en: String, sl: String): String = if (isSl) sl else en
 
-    fun openAccountDeletionPage() {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(accountDeletionUrl))
+    fun openLegalPage(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         runCatching { context.startActivity(intent) }
-            .onFailure { remoteError = tr("Could not open account deletion page.", "Strani za izbris računa ni bilo mogoče odpreti.") }
+            .onFailure { remoteError = tr("Could not open legal page.", "Pravne strani ni bilo mogoče odpreti.") }
+    }
+
+    fun openAccountDeletionPage() {
+        openLegalPage(accountDeletionUrl)
     }
 
     fun mergeRemoteSettings(remote: GuestProfileSettings) {
@@ -405,6 +412,30 @@ fun ProfileScreen(
                                 leadingIcon = Icons.Rounded.Business,
                                 iconTint = Color(0xFFFF8A00),
                                 onClick = { showSubscribedTenantsDialog = true }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceNavigationRow(
+                                title = tr("Privacy Policy", "Politika zasebnosti"),
+                                value = tr("Open", "Odpri"),
+                                leadingIcon = Icons.Rounded.PersonOutline,
+                                iconTint = Color(0xFF0968F5),
+                                onClick = { openLegalPage(privacyPolicyUrl) }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceNavigationRow(
+                                title = tr("Terms of Service", "Pogoji uporabe"),
+                                value = tr("Open", "Odpri"),
+                                leadingIcon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                                iconTint = Color(0xFF0968F5),
+                                onClick = { openLegalPage(termsOfServiceUrl) }
+                            )
+                            HorizontalDivider(color = Color(0xFFE5EAF2))
+                            PreferenceNavigationRow(
+                                title = tr("Account deletion information", "Informacije o izbrisu računa"),
+                                value = tr("Open", "Odpri"),
+                                leadingIcon = Icons.Rounded.DeleteOutline,
+                                iconTint = Color(0xFF0968F5),
+                                onClick = { openAccountDeletionPage() }
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceDangerRow(

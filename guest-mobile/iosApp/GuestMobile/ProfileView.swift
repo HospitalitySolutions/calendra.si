@@ -62,8 +62,13 @@ struct ProfileView: View {
     @State private var tenantActionInFlightId: String?
     @AppStorage("guest_app_ui_locale") private var appUiLocaleStorage: String = "sl"
 
-    private let accountDeletionUrl = URL(string: "https://calendra.si/account-deletion")!
     private var isSl: Bool { appUiLocaleStorage.lowercased().hasPrefix("sl") }
+    private func legalUrl(slPath: String, enPath: String) -> URL {
+        URL(string: "https://calendra.si" + (isSl ? slPath : enPath))!
+    }
+    private var privacyPolicyUrl: URL { legalUrl(slPath: "/zasebnost", enPath: "/en/privacy-policy") }
+    private var termsOfServiceUrl: URL { legalUrl(slPath: "/pogoji-uporabe", enPath: "/en/terms-of-service") }
+    private var accountDeletionUrl: URL { legalUrl(slPath: "/izbris-racuna", enPath: "/en/account-deletion") }
     private func tr(_ en: String, _ sl: String) -> String { isSl ? sl : en }
 
     private var languageDisplay: String {
@@ -193,6 +198,33 @@ struct ProfileView: View {
                                 iconColor: Color(red: 1.0, green: 0.541, blue: 0.0)
                             ) {
                                 showSubscribedTenantsSheet = true
+                            }
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            preferenceNavigationRow(
+                                title: tr("Privacy Policy", "Politika zasebnosti"),
+                                value: tr("Open", "Odpri"),
+                                systemImage: "person.text.rectangle",
+                                iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
+                            ) {
+                                openURL(privacyPolicyUrl)
+                            }
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            preferenceNavigationRow(
+                                title: tr("Terms of Service", "Pogoji uporabe"),
+                                value: tr("Open", "Odpri"),
+                                systemImage: "doc.text",
+                                iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
+                            ) {
+                                openURL(termsOfServiceUrl)
+                            }
+                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
+                            preferenceNavigationRow(
+                                title: tr("Account deletion information", "Informacije o izbrisu računa"),
+                                value: tr("Open", "Odpri"),
+                                systemImage: "trash",
+                                iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
+                            ) {
+                                openURL(accountDeletionUrl)
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
                             dangerNavigationRow(
