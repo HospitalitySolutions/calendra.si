@@ -33,13 +33,15 @@ import java.util.stream.Collectors;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final EmployeeAccessRoleRepository accessRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
     private final PackageAccessService packageAccessService;
     private final TenantFileS3Service fileStorage;
 
-    public UserController(UserRepository userRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage) {
+    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage) {
         this.userRepository = userRepository;
+        this.accessRoleRepository = accessRoleRepository;
         this.passwordEncoder = passwordEncoder;
         this.objectMapper = objectMapper;
         this.packageAccessService = packageAccessService;
@@ -151,6 +153,8 @@ public class UserController {
         user.setRole(request.role());
         user.setActive(true);
         user.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
+        EmployeeAccessRole accessRole = resolveAccessRole(request.accessRoleId(), me.getCompany().getId());
+        user.setEmployeeAccessRole(accessRole);
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
 
@@ -170,7 +174,9 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Invalid working hours."));
         }
-        user.setPermissionsJson(writePermissionsJson(request.permissions() == null ? SecurityUtils.defaultEmployeePermissions() : request.permissions()));
+        user.setPermissionsJson(accessRole != null
+                ? accessRole.getPermissionsJson()
+                : writePermissionsJson(request.permissions() == null ? SecurityUtils.defaultEmployeePermissions() : request.permissions()));
 
         try {
             User saved = userRepository.save(user);
@@ -203,6 +209,8 @@ public class UserController {
                     existing.setEmail(normalizedEmail);
                     existing.setRole(request.role());
                     existing.setConsultant(request.consultant() || request.role() == Role.CONSULTANT);
+                    EmployeeAccessRole accessRole = resolveAccessRole(request.accessRoleId(), companyId);
+                    existing.setEmployeeAccessRole(accessRole);
                     existing.setUpdatedAt(Instant.now());
 
                     existing.setVatId(request.vatId() == null || request.vatId().isBlank() ? null : request.vatId().trim());
@@ -224,7 +232,9 @@ public class UserController {
                         }
                     }
 
-                    if (request.permissions() != null) {
+                    if (accessRole != null) {
+                        existing.setPermissionsJson(accessRole.getPermissionsJson());
+                    } else if (request.permissions() != null) {
                         existing.setPermissionsJson(writePermissionsJson(request.permissions()));
                     }
 
@@ -355,7 +365,8 @@ public class UserController {
             String vatId,
             String phone,
             JsonNode workingHours,
-            List<String> permissions
+            List<String> permissions,
+            Long accessRoleId
     ) {
     }
 
@@ -369,7 +380,8 @@ public class UserController {
             String vatId,
             String phone,
             JsonNode workingHours,
-            List<String> permissions
+            List<String> permissions,
+            Long accessRoleId
     ) {
     }
 
@@ -398,6 +410,8 @@ public class UserController {
             String whatsappPhoneNumberId,
             Object workingHours,
             List<String> permissions,
+            Long accessRoleId,
+            String accessRoleName,
             String avatarPath,
             Instant createdAt,
             Instant updatedAt
@@ -426,12 +440,20 @@ public class UserController {
                 user.getWhatsappPhoneNumberId(),
                 parseWorkingHoursJson(user.getWorkingHoursJson()),
                 SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()),
+                user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getId(),
+                user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getName(),
                 user.getAvatarS3Key() == null || user.getAvatarS3Key().isBlank()
                         ? null
                         : "/api/users/" + user.getId() + "/avatar?v=" + (user.getUpdatedAt() == null ? 0 : user.getUpdatedAt().toEpochMilli()),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );
+    }
+
+    private EmployeeAccessRole resolveAccessRole(Long accessRoleId, Long companyId) {
+        if (accessRoleId == null) return null;
+        return accessRoleRepository.findByIdAndCompanyIdAndArchivedFalse(accessRoleId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected access role was not found."));
     }
 
     private String writePermissionsJson(List<String> permissions) {

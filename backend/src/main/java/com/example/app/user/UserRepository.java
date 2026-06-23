@@ -19,6 +19,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByCompanyId(Long companyId);
     long countByCompanyIdAndActiveTrue(Long companyId);
     long countByCompanyIdAndActiveTrueAndRole(Long companyId, Role role);
+
+    @Query("select count(u) from User u where u.company.id = :companyId and u.employeeAccessRole.id = :accessRoleId and u.active = true")
+    long countActiveByCompanyIdAndEmployeeAccessRoleId(@Param("companyId") Long companyId, @Param("accessRoleId") Long employeeAccessRoleId);
+
+    @Query("select u from User u where u.company.id = :companyId and u.employeeAccessRole.id = :accessRoleId")
+    List<User> findAllByCompanyIdAndEmployeeAccessRoleId(@Param("companyId") Long companyId, @Param("accessRoleId") Long employeeAccessRoleId);
+
     Optional<User> findByIdAndCompanyId(Long id, Long companyId);
     Optional<User> findByIdAndCompanyIdAndActiveTrue(Long id, Long companyId);
     Optional<User> findFirstByCompanyIdAndActiveTrueAndRoleOrderByIdAsc(Long companyId, Role role);

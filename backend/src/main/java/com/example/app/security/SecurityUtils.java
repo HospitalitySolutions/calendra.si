@@ -5,6 +5,7 @@ import com.example.app.user.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -16,12 +17,21 @@ public final class SecurityUtils {
     public static final String PERMISSION_BILLING_OPEN_INVOICE_ISSUE = "BILLING_OPEN_INVOICE_ISSUE";
     public static final String PERMISSION_BILLING_REFUND_ISSUE = "BILLING_REFUND_ISSUE";
 
-    public static final Set<String> ALLOWED_EMPLOYEE_PERMISSIONS = Set.of(
-            PERMISSION_WALLET_ENTITLEMENT_SCAN,
-            PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE,
-            PERMISSION_BILLING_OPEN_INVOICE_ISSUE,
-            PERMISSION_BILLING_REFUND_ISSUE
+    public static final List<String> PERMISSION_GROUP_KEYS = List.of(
+            "CALENDAR_BOOKINGS",
+            "CLIENTS",
+            "EMPLOYEES",
+            "BILLING",
+            "WALLET",
+            "REPORTS",
+            "SETTINGS",
+            "INTEGRATIONS",
+            "PLATFORM_FEATURES"
     );
+
+    public static final List<String> PERMISSION_ACTION_KEYS = List.of("VIEW", "CREATE", "EDIT", "DELETE");
+
+    public static final Set<String> ALLOWED_EMPLOYEE_PERMISSIONS = buildAllowedEmployeePermissions();
 
     public static final Set<String> DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS = Set.of(
             PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE,
@@ -82,6 +92,7 @@ public final class SecurityUtils {
             permissions.stream()
                     .filter(ALLOWED_EMPLOYEE_PERMISSIONS::contains)
                     .forEach(normalized::add);
+            addCompatibilityPermissions(normalized);
         } else {
             normalized.addAll(DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS);
         }
@@ -112,6 +123,33 @@ public final class SecurityUtils {
                     .toList();
         } catch (Exception ex) {
             return List.of();
+        }
+    }
+
+    private static Set<String> buildAllowedEmployeePermissions() {
+        var allowed = new LinkedHashSet<String>();
+        allowed.add(PERMISSION_WALLET_ENTITLEMENT_SCAN);
+        allowed.add(PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE);
+        allowed.add(PERMISSION_BILLING_OPEN_INVOICE_ISSUE);
+        allowed.add(PERMISSION_BILLING_REFUND_ISSUE);
+        for (String group : PERMISSION_GROUP_KEYS) {
+            for (String action : PERMISSION_ACTION_KEYS) {
+                allowed.add(group + "_" + action);
+            }
+        }
+        return Collections.unmodifiableSet(allowed);
+    }
+
+    private static void addCompatibilityPermissions(LinkedHashSet<String> normalized) {
+        if (normalized.contains("BILLING_CREATE") || normalized.contains("BILLING_EDIT")) {
+            normalized.add(PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE);
+            normalized.add(PERMISSION_BILLING_OPEN_INVOICE_ISSUE);
+        }
+        if (normalized.contains("BILLING_DELETE") || normalized.contains("BILLING_EDIT")) {
+            normalized.add(PERMISSION_BILLING_REFUND_ISSUE);
+        }
+        if (normalized.contains("WALLET_VIEW") || normalized.contains("WALLET_CREATE") || normalized.contains("WALLET_EDIT")) {
+            normalized.add(PERMISSION_WALLET_ENTITLEMENT_SCAN);
         }
     }
 }

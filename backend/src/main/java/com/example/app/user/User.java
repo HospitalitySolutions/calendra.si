@@ -94,6 +94,11 @@ public class User extends BaseEntity {
     @Column(name = "permissions_json", columnDefinition = "TEXT")
     private String permissionsJson;
 
+    /** Optional custom role template assigned from Employees → Roles & Permissions. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "employee_access_role_id")
+    private EmployeeAccessRole employeeAccessRole;
+
     /** S3 object key for profile avatar image, or null if not set. */
     @Column(name = "avatar_s3_key", length = 512)
     private String avatarS3Key;

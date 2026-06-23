@@ -1142,6 +1142,18 @@ CREATE TABLE IF NOT EXISTS stripe_webhook_events (
     error_message TEXT
 );
 
+-- backend/src/main/java/com/example/app/user/EmployeeAccessRole.java
+CREATE TABLE IF NOT EXISTS employee_access_roles (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    company_id BIGINT NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    description VARCHAR(500),
+    archived BOOLEAN NOT NULL DEFAULT FALSE,
+    permissions_json TEXT
+);
+
 -- backend/src/main/java/com/example/app/user/User.java
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
@@ -1164,6 +1176,7 @@ CREATE TABLE IF NOT EXISTS users (
     factor_change_alerts_enabled BOOLEAN,
     suspicious_sign_in_alerts_enabled BOOLEAN,
     permissions_json TEXT,
+    employee_access_role_id BIGINT,
     avatar_s3_key VARCHAR(512),
     avatar_content_type VARCHAR(120)
 );
@@ -1290,6 +1303,18 @@ BEGIN
                  ON users (company_id, active, consultant, id)';
         EXECUTE 'CREATE INDEX IF NOT EXISTS idx_users_company_lower_email
                  ON users (company_id, lower(email))';
+    END IF;
+    IF to_regclass('public.idx_users_company_employee_access_role_active') IS NULL THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_users_company_employee_access_role_active
+                 ON users (company_id, employee_access_role_id, active)';
+    END IF;
+    IF to_regclass('public.idx_employee_access_roles_company_archived') IS NULL THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_employee_access_roles_company_archived
+                 ON employee_access_roles (company_id, archived, lower(name))';
+    END IF;
+    IF to_regclass('public.ux_employee_access_roles_company_lower_name_active') IS NULL THEN
+        EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS ux_employee_access_roles_company_lower_name_active
+                 ON employee_access_roles (company_id, lower(name)) WHERE archived = false';
     END IF;
 
     IF to_regclass('public.app_settings') IS NOT NULL THEN
@@ -1708,10 +1733,20 @@ END $$;
 DO $$
 BEGIN
     -- Core ownership and booking relations.
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_employee_access_roles_company') THEN
+        ALTER TABLE employee_access_roles ADD CONSTRAINT fk_employee_access_roles_company FOREIGN KEY (company_id) REFERENCES company(id) NOT VALID;
+    END IF;
+    ALTER TABLE employee_access_roles VALIDATE CONSTRAINT fk_employee_access_roles_company;
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_company') THEN
         ALTER TABLE users ADD CONSTRAINT fk_users_company FOREIGN KEY (company_id) REFERENCES company(id) NOT VALID;
     END IF;
     ALTER TABLE users VALIDATE CONSTRAINT fk_users_company;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_employee_access_role') THEN
+        ALTER TABLE users ADD CONSTRAINT fk_users_employee_access_role FOREIGN KEY (employee_access_role_id) REFERENCES employee_access_roles(id) NOT VALID;
+    END IF;
+    ALTER TABLE users VALIDATE CONSTRAINT fk_users_employee_access_role;
 
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_clients_company') THEN
         ALTER TABLE clients ADD CONSTRAINT fk_clients_company FOREIGN KEY (company_id) REFERENCES company(id) NOT VALID;

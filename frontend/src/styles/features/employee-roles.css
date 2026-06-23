@@ -1,0 +1,667 @@
+.employee-page-tabs {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    padding: 0 4px 4px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.employee-page-tab {
+    position: relative;
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    min-height: 42px;
+    padding: 0 0 12px;
+    box-shadow: none !important;
+    font-size: 0.94rem;
+    font-weight: 800;
+}
+
+.employee-page-tab:hover {
+    color: #1672f3;
+    background: transparent;
+}
+
+.employee-page-tab--active {
+    color: #1672f3;
+}
+
+.employee-page-tab--active::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 3px;
+    border-radius: 999px 999px 0 0;
+    background: #1672f3;
+}
+
+.employee-roles-page {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.employee-roles-card,
+.employee-roles-list-card,
+.employee-roles-detail-card,
+.employee-roles-stat-card {
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 14px 42px rgba(15, 23, 42, 0.06);
+}
+
+.employee-roles-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.employee-roles-stat-card {
+    min-height: 84px;
+    border-radius: 18px;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.employee-roles-stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.employee-roles-stat-icon--blue {
+    color: #1672f3;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.employee-roles-stat-icon--green {
+    color: #0e9f6e;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.employee-roles-stat-icon--purple {
+    color: #7c3aed;
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+}
+
+.employee-roles-stat-card strong {
+    display: block;
+    color: #0f172a;
+    font-size: 1.35rem;
+    line-height: 1.1;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+}
+
+.employee-roles-stat-card span:not(.employee-roles-stat-icon) {
+    display: block;
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 0.88rem;
+    font-weight: 650;
+}
+
+.employee-roles-alert {
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.employee-roles-alert--error {
+    border: 1px solid rgba(248, 113, 113, 0.28);
+    color: #b91c1c;
+    background: #fef2f2;
+}
+
+.employee-roles-alert--success {
+    border: 1px solid rgba(34, 197, 94, 0.24);
+    color: #15803d;
+    background: #f0fdf4;
+}
+
+.employee-roles-layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    gap: 18px;
+    align-items: stretch;
+}
+
+.employee-roles-list-card,
+.employee-roles-detail-card {
+    border-radius: 18px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.employee-roles-list-head {
+    min-height: 68px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.employee-roles-list-head h2,
+.employee-roles-detail-head h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.04rem;
+    line-height: 1.2;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+}
+
+.employee-roles-primary-mini,
+.employee-roles-primary-btn,
+.employee-roles-secondary-btn,
+.employee-roles-danger-btn {
+    min-height: 38px;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.84rem;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.employee-roles-primary-mini,
+.employee-roles-primary-btn {
+    border: 1px solid #1672f3;
+    color: #fff;
+    background: linear-gradient(135deg, #1976f7 0%, #0f62d8 100%);
+    box-shadow: 0 10px 20px rgba(22, 114, 243, 0.20);
+}
+
+.employee-roles-secondary-btn {
+    border: 1px solid #dbe4ef;
+    color: #334155;
+    background: #fff;
+    box-shadow: 0 5px 12px rgba(15, 23, 42, 0.04);
+}
+
+.employee-roles-danger-btn {
+    border: 1px solid rgba(248, 113, 113, 0.38);
+    color: #dc2626;
+    background: #fff;
+    box-shadow: none;
+}
+
+.employee-roles-primary-btn:disabled,
+.employee-roles-secondary-btn:disabled,
+.employee-roles-danger-btn:disabled,
+.employee-roles-primary-mini:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    box-shadow: none;
+}
+
+.employee-roles-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.employee-roles-list-item {
+    position: relative;
+    width: 100%;
+    min-height: 72px;
+    padding: 14px 16px;
+    border: 0;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 0;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    color: #0f172a;
+    background: #fff;
+    box-shadow: none !important;
+}
+
+.employee-roles-list-item:hover {
+    background: #f8fbff;
+}
+
+.employee-roles-list-item--active {
+    background: linear-gradient(90deg, rgba(22, 114, 243, 0.10) 0%, rgba(22, 114, 243, 0.04) 100%);
+}
+
+.employee-roles-list-item--active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #1672f3;
+}
+
+.employee-roles-list-icon,
+.employee-roles-title-icon,
+.employee-roles-group-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.employee-roles-list-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+    color: #1672f3;
+    background: #eff6ff;
+}
+
+.employee-roles-list-icon--manager,
+.employee-roles-list-icon--therapist {
+    color: #0f9f6e;
+    background: #ecfdf5;
+}
+
+.employee-roles-list-icon--reception {
+    color: #ea580c;
+    background: #fff7ed;
+}
+
+.employee-roles-list-icon--accountant {
+    color: #d97706;
+    background: #fffbeb;
+}
+
+.employee-roles-list-icon--custom {
+    color: #7c3aed;
+    background: #f5f3ff;
+}
+
+.employee-roles-list-copy {
+    min-width: 0;
+}
+
+.employee-roles-list-copy strong,
+.employee-roles-list-copy span {
+    display: block;
+}
+
+.employee-roles-list-copy strong {
+    color: #16233a;
+    font-size: 0.93rem;
+    font-weight: 850;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.employee-roles-list-copy span {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.employee-roles-role-type,
+.employee-roles-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.employee-roles-role-type--system,
+.employee-roles-badge--system {
+    color: #1672f3;
+    background: #dbeafe;
+}
+
+.employee-roles-role-type--custom,
+.employee-roles-badge--custom {
+    color: #7c3aed;
+    background: #ede9fe;
+}
+
+.employee-roles-list-foot {
+    margin: 0;
+    padding: 15px 18px 18px;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.employee-roles-detail-head {
+    min-height: 112px;
+    padding: 20px 22px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.employee-roles-title-block {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.employee-roles-title-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 20px;
+    color: #1672f3;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    box-shadow: 0 14px 30px rgba(22, 114, 243, 0.12);
+}
+
+.employee-roles-title-copy {
+    min-width: 0;
+}
+
+.employee-roles-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.employee-roles-title-copy p {
+    max-width: 720px;
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    font-weight: 600;
+}
+
+.employee-roles-member-line {
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #64748b;
+    font-size: 0.84rem;
+    font-weight: 750;
+}
+
+.employee-roles-custom-fields {
+    display: grid;
+    grid-template-columns: minmax(180px, 280px) minmax(240px, 460px);
+    gap: 10px 14px;
+    align-items: end;
+}
+
+.employee-roles-custom-fields .employee-roles-title-row {
+    grid-column: 1 / -1;
+}
+
+.employee-roles-custom-fields label {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.employee-roles-custom-fields label span {
+    color: #475569;
+    font-size: 0.76rem;
+    font-weight: 850;
+    letter-spacing: 0.02em;
+}
+
+.employee-roles-custom-fields input {
+    min-height: 40px;
+    border-radius: 11px;
+    border: 1px solid #dbe4ef;
+    background: #fff;
+    color: #0f172a;
+    font-size: 0.9rem;
+}
+
+.employee-roles-custom-fields input:focus {
+    border-color: rgba(22, 114, 243, 0.72);
+    box-shadow: 0 0 0 4px rgba(22, 114, 243, 0.12);
+}
+
+.employee-roles-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.employee-roles-matrix-wrap {
+    overflow-x: auto;
+}
+
+.employee-roles-matrix {
+    width: 100%;
+    min-width: 780px;
+    border-collapse: collapse;
+}
+
+.employee-roles-matrix th,
+.employee-roles-matrix td {
+    border-bottom: 1px solid rgba(226, 232, 240, 0.92);
+    padding: 12px 14px;
+    vertical-align: middle;
+}
+
+.employee-roles-matrix th {
+    color: #64748b;
+    background: #fbfdff;
+    font-size: 0.76rem;
+    line-height: 1.2;
+    text-align: center;
+    font-weight: 900;
+    letter-spacing: 0.025em;
+}
+
+.employee-roles-matrix th:first-child {
+    width: 44%;
+    text-align: left;
+}
+
+.employee-roles-matrix td:not(:first-child) {
+    text-align: center;
+}
+
+.employee-roles-group-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.employee-roles-group-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    color: #1672f3;
+    background: #eff6ff;
+}
+
+.employee-roles-group-icon--clients,
+.employee-roles-group-icon--wallet {
+    color: #0f9f6e;
+    background: #ecfdf5;
+}
+
+.employee-roles-group-icon--employees,
+.employee-roles-group-icon--reports {
+    color: #7c3aed;
+    background: #f5f3ff;
+}
+
+.employee-roles-group-icon--billing {
+    color: #d97706;
+    background: #fffbeb;
+}
+
+.employee-roles-group-icon--settings {
+    color: #64748b;
+    background: #f1f5f9;
+}
+
+.employee-roles-group-icon--integrations {
+    color: #0891b2;
+    background: #ecfeff;
+}
+
+.employee-roles-group-icon--platform-features {
+    color: #db2777;
+    background: #fdf2f8;
+}
+
+.employee-roles-group-cell strong,
+.employee-roles-group-cell span {
+    display: block;
+}
+
+.employee-roles-group-cell strong {
+    color: #172033;
+    font-size: 0.88rem;
+    line-height: 1.25;
+    font-weight: 900;
+}
+
+.employee-roles-group-cell span {
+    margin-top: 2px;
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    font-weight: 600;
+}
+
+.employee-roles-check {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+}
+
+.employee-roles-check input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: inherit;
+}
+
+.employee-roles-check span {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #dbe4ef;
+    color: #94a3b8;
+    background: #f8fafc;
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.employee-roles-check--checked span {
+    border-color: #1672f3;
+    color: #fff;
+    background: #1672f3;
+    box-shadow: 0 5px 12px rgba(22, 114, 243, 0.22);
+}
+
+.employee-roles-check--disabled {
+    cursor: default;
+}
+
+.employee-roles-check--disabled:not(.employee-roles-check--checked) span {
+    border-color: transparent;
+    color: #94a3b8;
+    background: transparent;
+}
+
+.employee-roles-detail-foot {
+    min-height: 46px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #64748b;
+    background: #fbfdff;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+@media (max-width: 1180px) {
+    .employee-roles-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .employee-roles-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .employee-roles-list-item {
+        border-right: 1px solid rgba(226, 232, 240, 0.8);
+    }
+
+    .employee-roles-detail-head {
+        flex-direction: column;
+    }
+
+    .employee-roles-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 760px) {
+    .employee-page-tabs {
+        gap: 18px;
+        overflow-x: auto;
+    }
+
+    .employee-roles-stats,
+    .employee-roles-list,
+    .employee-roles-custom-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .employee-roles-detail-head {
+        padding: 18px;
+    }
+
+    .employee-roles-title-block {
+        flex-direction: column;
+    }
+
+    .employee-roles-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .employee-roles-actions button {
+        width: 100%;
+    }
+}

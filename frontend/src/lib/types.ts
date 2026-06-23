@@ -14,6 +14,8 @@ export type User = {
   packageType?: PackageType
   avatarPath?: string | null
   permissions?: string[]
+  accessRoleId?: number | null
+  accessRoleName?: string | null
   createdAt?: string
   vatId?: string | null
   phone?: string | null

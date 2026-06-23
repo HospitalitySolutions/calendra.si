@@ -4,6 +4,7 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { Card, EmptyState, Field, PageHeader } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
+import { EmployeeRolesPermissionsTab } from './EmployeeRolesPermissionsTab'
 import { formatDate, fullName } from '../lib/format'
 import { dayOptions, type DayOfWeek, type WorkingHoursConfig } from '../lib/types'
 import {
@@ -175,6 +176,17 @@ type Consultant = {
   whatsappPhoneNumberId?: string | null
   workingHours?: WorkingHoursConfig | null
   permissions?: string[]
+  accessRoleId?: number | null
+  accessRoleName?: string | null
+}
+
+type AccessRoleOption = {
+  id: string
+  customRoleId?: number | null
+  system?: boolean
+  name: string
+  description?: string | null
+  permissions: string[]
 }
 
 type UserQuota = {
@@ -194,6 +206,7 @@ type ConsultantForm = {
   phone: string
   workingHours: WorkingHoursConfig
   permissions: EmployeePermission[]
+  accessRoleId: string
 }
 
 type ConsultantFormSectionTab = 'permissions' | 'workingHours'
@@ -215,6 +228,7 @@ const emptyForm: ConsultantForm = {
   phone: '',
   workingHours: { ...defaultWh, allDays: { ...defaultWh.allDays! } },
   permissions: [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS],
+  accessRoleId: '',
 }
 
 function normalizeWorkingHoursForApi(cfg: WorkingHoursConfig): WorkingHoursConfig {
@@ -276,6 +290,7 @@ function consultantFormsEqual(a: ConsultantForm, b: ConsultantForm): boolean {
     a.password === b.password &&
     a.role === b.role &&
     a.consultant === b.consultant &&
+    a.accessRoleId === b.accessRoleId &&
     a.vatId === b.vatId &&
     a.phone === b.phone &&
     workingHoursEqual(a.workingHours, b.workingHours) &&
@@ -294,6 +309,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const user = getStoredUser()
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === ('ROLE_ADMIN' as any) || user?.role === ('ROLE_SUPER_ADMIN' as any)
   const [consultants, setConsultants] = useState<Consultant[]>([])
+  const [accessRoleOptions, setAccessRoleOptions] = useState<AccessRoleOption[]>([])
   const [userQuota, setUserQuota] = useState<UserQuota | null>(null)
   const [employeeLimitDialog, setEmployeeLimitDialog] = useState<UserQuota | null>(null)
   const [editing, setEditing] = useState<Consultant | null>(null)
@@ -313,6 +329,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const formBaselineRef = useRef<ConsultantForm | null>(null)
   const [loadingSelfProfile, setLoadingSelfProfile] = useState(false)
   const [activatingEmployeeId, setActivatingEmployeeId] = useState<number | null>(null)
+  const [employeesTab, setEmployeesTab] = useState<'employees' | 'roles'>('employees')
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 450px)')
@@ -332,13 +349,15 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     setErrorMessage('')
 
     try {
-      const [usersResponse, quotaResponse] = await Promise.all([
+      const [usersResponse, quotaResponse, rolesResponse] = await Promise.all([
         api.get(`/users`),
         api.get<UserQuota>(`/users/quota`).catch(() => ({ data: null as UserQuota | null })),
+        api.get<{ roles: AccessRoleOption[] }>(`/employee-roles`).catch(() => ({ data: { roles: [] as AccessRoleOption[] } })),
       ])
       const nextConsultants = usersResponse.data ?? []
       setConsultants(nextConsultants)
       setUserQuota(quotaResponse.data ?? null)
+      setAccessRoleOptions((rolesResponse.data?.roles ?? []).filter((role) => !role.system))
     } catch (error: any) {
       console.error('Failed to load consultants', error)
 
@@ -445,7 +464,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
     return byStatus.filter((consultant) => {
       const nm = `${consultant.firstName} ${consultant.lastName}`.toLowerCase()
-      const roleLabel = formatRoleLabel(consultant.role, t).toLowerCase()
+      const roleLabel = (consultant.accessRoleName || formatRoleLabel(consultant.role, t)).toLowerCase()
       return (
         nm.includes(q) ||
         consultant.email.toLowerCase().includes(q) ||
@@ -502,6 +521,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
             byDay: {},
           },
       permissions: normalizeEmployeePermissions(c.permissions),
+      accessRoleId: c.accessRoleId == null ? '' : String(c.accessRoleId),
     }
     setForm(next)
     formBaselineRef.current = cloneConsultantForm(next)
@@ -591,6 +611,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         phone: form.phone.trim() || null,
         workingHours: normalizeWorkingHoursForApi(form.workingHours),
         permissions: form.permissions,
+        accessRoleId: form.accessRoleId ? Number(form.accessRoleId) : null,
       }
 
       if (editing) {
@@ -687,6 +708,32 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       {selfService && loadingSelfProfile && <div className="muted">{t('employeesSelfProfileLoading')}</div>}
       {selfService && !loadingSelfProfile && !showFormPanel && errorMessage && <div className="error">{errorMessage}</div>}
       {!selfService && (
+        <div className="employee-page-tabs" role="tablist" aria-label="Employees sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={employeesTab === 'employees'}
+            className={`employee-page-tab${employeesTab === 'employees' ? ' employee-page-tab--active' : ''}`}
+            onClick={() => {
+              setEmployeesTab('employees')
+              void loadConsultants()
+            }}
+          >
+            Employees
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={employeesTab === 'roles'}
+            className={`employee-page-tab${employeesTab === 'roles' ? ' employee-page-tab--active' : ''}`}
+            onClick={() => setEmployeesTab('roles')}
+          >
+            Roles & Permissions
+          </button>
+        </div>
+      )}
+      {!selfService && employeesTab === 'roles' && <EmployeeRolesPermissionsTab />}
+      {!selfService && employeesTab === 'employees' && (
         <div>
           <Card data-onboarding-panel="employees" className={`clients-modern-card employees-modern-card${isConsultantsMobile ? ' clients-mobile-shell' : ''}`}>
             <div className="clients-toolbar clients-modern-toolbar employees-modern-toolbar">
@@ -777,7 +824,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                         </div>
                         <div>
                           <span>{t('employeesMetaRole')}</span>
-                          <strong>{formatRoleLabel(c.role, t)}</strong>
+                          <strong>{c.accessRoleName || formatRoleLabel(c.role, t)}</strong>
                         </div>
                         <div>
                           <span>{statusHeader}</span>
@@ -853,7 +900,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                             </div>
                           </td>
                           <td className="clients-muted">{c.email}</td>
-                          <td className="clients-muted">{formatRoleLabel(c.role, t)}</td>
+                          <td className="clients-muted">{c.accessRoleName || formatRoleLabel(c.role, t)}</td>
                           <td>
                             <button
                               type="button"
@@ -937,9 +984,36 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 {!selfService && (
                   <>
                     <Field label={t('employeesFormRole')}>
-                      <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}>
+                      <select
+                        value={form.role}
+                        onChange={(e) => {
+                          const nextRole = e.target.value as UserRole
+                          setForm({ ...form, role: nextRole, accessRoleId: nextRole === 'ADMIN' ? '' : form.accessRoleId })
+                        }}
+                      >
                         <option value="CONSULTANT">{t('employeesFormRoleOptionConsultant')}</option>
                         <option value="ADMIN">{t('employeesFormRoleOptionAdmin')}</option>
+                      </select>
+                    </Field>
+                    <Field label="Access role">
+                      <select
+                        value={form.accessRoleId}
+                        onChange={(e) => {
+                          const accessRoleId = e.target.value
+                          const selectedRole = accessRoleOptions.find((role) => String(role.customRoleId) === accessRoleId)
+                          setForm({
+                            ...form,
+                            accessRoleId,
+                            role: accessRoleId ? 'CONSULTANT' : form.role,
+                            consultant: accessRoleId ? true : form.consultant,
+                            permissions: selectedRole ? normalizeEmployeePermissions(selectedRole.permissions) : form.permissions,
+                          })
+                        }}
+                      >
+                        <option value="">Manual permissions</option>
+                        {accessRoleOptions.map((role) => (
+                          <option key={role.id} value={role.customRoleId ?? ''}>{role.name}</option>
+                        ))}
                       </select>
                     </Field>
                     <div className="employee-form-consultant-row full-span">
@@ -992,6 +1066,16 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
                 {!selfService && formSectionTab === 'permissions' && (
                   <div className="full-span employee-form-permissions-list" role="tabpanel">
+                    {form.accessRoleId && (
+                      <div className="consultant-permissions-card employee-form-permissions-card">
+                        <div>
+                          <strong>Controlled by access role</strong>
+                          <p className="muted" style={{ margin: '0.25rem 0 0', lineHeight: 1.45 }}>
+                            These permissions are copied from the selected custom role. Update the role in Roles & Permissions to change them for everyone using it.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {([
                       {
                         permission: WALLET_SCANNER_PERMISSION,
@@ -1027,7 +1111,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                             type="button"
                             className={`employee-form-status-switch${enabled ? ' employee-form-status-switch--on' : ''}`}
                             aria-pressed={enabled}
-                            onClick={() => setForm((current) => togglePermission(current, permissionRow.permission))}
+                            disabled={!!form.accessRoleId}
+                            onClick={() => {
+                              if (form.accessRoleId) return
+                              setForm((current) => togglePermission(current, permissionRow.permission))
+                            }}
                           >
                             <span className="employee-form-status-switch-text">
                               {enabled ? t('configToggleOn') : t('configToggleOff')}
