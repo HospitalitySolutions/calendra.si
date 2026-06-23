@@ -115,7 +115,7 @@ function permissionKey(groupKey: string, action: PermissionAction): EmployeePerm
 }
 
 function sortRoles(roles: EmployeeRole[]): EmployeeRole[] {
-  const systemOrder = ['ADMINISTRATOR', 'MANAGER', 'RECEPTION', 'THERAPIST', 'ACCOUNTANT']
+  const systemOrder = ['ADMINISTRATOR']
   return [...roles].sort((a, b) => {
     if (a.system && b.system) return systemOrder.indexOf(a.systemKey || '') - systemOrder.indexOf(b.systemKey || '')
     if (a.system !== b.system) return a.system ? -1 : 1

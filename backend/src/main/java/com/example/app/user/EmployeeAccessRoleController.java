@@ -45,11 +45,8 @@ public class EmployeeAccessRoleController {
         Long companyId = me.getCompany().getId();
         var roles = new ArrayList<EmployeeRoleResponse>();
 
+        // Only real built-in application roles are returned here. Custom roles are loaded from the database below.
         roles.add(systemRole("ADMINISTRATOR", "Administrator", "Full system access with all permissions across the platform.", systemPermissions("ADMINISTRATOR"), userRepository.countByCompanyIdAndActiveTrueAndRole(companyId, Role.ADMIN)));
-        roles.add(systemRole("MANAGER", "Manager", "Operational access for bookings, clients, employees and reports.", systemPermissions("MANAGER"), 0));
-        roles.add(systemRole("RECEPTION", "Reception", "Front desk access for bookings and client coordination.", systemPermissions("RECEPTION"), 0));
-        roles.add(systemRole("THERAPIST", "Therapist", "Practitioner access for appointments and assigned client work.", systemPermissions("THERAPIST"), countDefaultConsultants(companyId)));
-        roles.add(systemRole("ACCOUNTANT", "Accountant", "Finance access for invoices, payments, wallet and reports.", systemPermissions("ACCOUNTANT"), 0));
 
         for (EmployeeAccessRole role : roleRepository.findAllByCompanyIdAndArchivedFalseOrderByNameAsc(companyId)) {
             roles.add(customRole(role, userRepository.countActiveByCompanyIdAndEmployeeAccessRoleId(companyId, role.getId())));
@@ -147,18 +144,13 @@ public class EmployeeAccessRoleController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Role not found.")));
     }
 
-    private long countDefaultConsultants(Long companyId) {
-        return userRepository.findAllByCompanyId(companyId).stream()
-                .filter(User::isActive)
-                .filter(user -> user.getEmployeeAccessRole() == null)
-                .filter(user -> user.getRole() == Role.CONSULTANT)
-                .count();
-    }
-
     private EmployeeRoleSnapshot findRoleSnapshot(String roleId, Long companyId) {
         if (roleId == null || roleId.isBlank()) return null;
         if (roleId.startsWith(SYSTEM_PREFIX)) {
             String key = roleId.substring(SYSTEM_PREFIX.length()).toUpperCase(Locale.ROOT);
+            if (!"ADMINISTRATOR".equals(key)) {
+                return null;
+            }
             return new EmployeeRoleSnapshot(roleId, systemName(key), systemDescription(key), systemPermissions(key));
         }
         if (roleId.startsWith(CUSTOM_PREFIX)) {
@@ -185,54 +177,20 @@ public class EmployeeAccessRoleController {
 
     private List<String> systemPermissions(String key) {
         var permissions = new LinkedHashSet<String>();
-        switch (key) {
-            case "ADMINISTRATOR" -> addGroups(permissions, SecurityUtils.PERMISSION_GROUP_KEYS, SecurityUtils.PERMISSION_ACTION_KEYS);
-            case "MANAGER" -> {
-                addGroups(permissions, List.of("CALENDAR_BOOKINGS", "CLIENTS", "EMPLOYEES", "REPORTS"), List.of("VIEW", "CREATE", "EDIT"));
-                addGroups(permissions, List.of("BILLING", "WALLET", "SETTINGS", "INTEGRATIONS"), List.of("VIEW", "EDIT"));
-                addPermission(permissions, "CALENDAR_BOOKINGS_DELETE");
-                addPermission(permissions, "CLIENTS_DELETE");
-            }
-            case "RECEPTION" -> {
-                addGroups(permissions, List.of("CALENDAR_BOOKINGS", "CLIENTS"), List.of("VIEW", "CREATE", "EDIT"));
-                addPermission(permissions, "CALENDAR_BOOKINGS_DELETE");
-                addPermission(permissions, "REPORTS_VIEW");
-            }
-            case "THERAPIST" -> {
-                addGroups(permissions, List.of("CALENDAR_BOOKINGS", "CLIENTS"), List.of("VIEW", "EDIT"));
-                addPermission(permissions, "REPORTS_VIEW");
-            }
-            case "ACCOUNTANT" -> {
-                addGroups(permissions, List.of("BILLING", "WALLET", "REPORTS"), List.of("VIEW", "CREATE", "EDIT", "DELETE"));
-                addPermission(permissions, "CLIENTS_VIEW");
-            }
-            default -> {
-                addGroups(permissions, List.of("CALENDAR_BOOKINGS", "CLIENTS"), List.of("VIEW"));
-            }
+        if ("ADMINISTRATOR".equals(key)) {
+            addGroups(permissions, SecurityUtils.PERMISSION_GROUP_KEYS, SecurityUtils.PERMISSION_ACTION_KEYS);
         }
         return new ArrayList<>(SecurityUtils.normalizePermissionsForStorage(new ArrayList<>(permissions)));
     }
 
     private String systemName(String key) {
-        return switch (key) {
-            case "ADMINISTRATOR" -> "Administrator";
-            case "MANAGER" -> "Manager";
-            case "RECEPTION" -> "Reception";
-            case "THERAPIST" -> "Therapist";
-            case "ACCOUNTANT" -> "Accountant";
-            default -> "System role";
-        };
+        return "ADMINISTRATOR".equals(key) ? "Administrator" : "System role";
     }
 
     private String systemDescription(String key) {
-        return switch (key) {
-            case "ADMINISTRATOR" -> "Full system access with all permissions across the platform.";
-            case "MANAGER" -> "Operational access for bookings, clients, employees and reports.";
-            case "RECEPTION" -> "Front desk access for bookings and client coordination.";
-            case "THERAPIST" -> "Practitioner access for appointments and assigned client work.";
-            case "ACCOUNTANT" -> "Finance access for invoices, payments, wallet and reports.";
-            default -> "System role.";
-        };
+        return "ADMINISTRATOR".equals(key)
+                ? "Full system access with all permissions across the platform."
+                : "System role.";
     }
 
     private static void addGroups(Set<String> out, List<String> groups, List<String> actions) {
