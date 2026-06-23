@@ -3733,7 +3733,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const printPdfBlob = (blob: Blob, fileName: string, preparedWindow?: Window | null): boolean => {
-    const url = window.URL.createObjectURL(blob)
+    // Do not embed the PDF in an iframe before printing. Chromium/Edge print preview can
+    // block embedded PDF plugin content and show "This content is blocked" instead of the invoice.
+    // Opening the PDF blob directly lets the browser's native PDF viewer handle the print job.
+    const printableBlob = typeof File !== 'undefined'
+      ? new File([blob], fileName, { type: 'application/pdf' })
+      : blob
+    const url = window.URL.createObjectURL(printableBlob)
     const printWindow = preparedWindow && !preparedWindow.closed ? preparedWindow : window.open('', '_blank')
     if (!printWindow) {
       window.URL.revokeObjectURL(url)
@@ -3743,55 +3749,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return false
     }
 
-    const safeTitle = escapePdfWindowHtml(fileName)
-    const safeUrl = escapePdfWindowHtml(url)
-    printWindow.document.open()
-    printWindow.document.write(`<!doctype html>
-<html>
-<head>
-  <title>${safeTitle}</title>
-  <style>
-    html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; }
-    iframe { border: 0; width: 100%; height: 100vh; display: block; }
-    .fallback { position: fixed; right: 16px; top: 16px; z-index: 2; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    .fallback button { border: 1px solid #1d4ed8; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 800; padding: 10px 14px; cursor: pointer; box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24); }
-  </style>
-</head>
-<body>
-  <div class="fallback"><button type="button" onclick="printInvoicePdf()">${locale === 'sl' ? 'Natisni' : 'Print'}</button></div>
-  <iframe id="invoice-pdf-frame" src="${safeUrl}"></iframe>
-  <script>
-    (function () {
-      var autoPrintAttempted = false;
-      window.printInvoicePdf = function () {
-        try {
-          var frame = document.getElementById('invoice-pdf-frame');
-          if (frame && frame.contentWindow) {
-            frame.contentWindow.focus();
-            frame.contentWindow.print();
-          } else {
-            window.focus();
-            window.print();
-          }
-        } catch (error) {
-          window.focus();
-          window.print();
-        }
-      };
-      function tryAutoPrint() {
-        if (autoPrintAttempted) return;
-        autoPrintAttempted = true;
-        window.printInvoicePdf();
+    let printAttempted = false
+    const tryPrint = () => {
+      if (printAttempted || printWindow.closed) return
+      printAttempted = true
+      try {
+        printWindow.focus()
+        printWindow.print()
+      } catch (error) {
+        // If automatic printing is blocked by the browser, the PDF remains open so the user
+        // can use the browser/PDF viewer print button.
       }
-      var frame = document.getElementById('invoice-pdf-frame');
-      if (frame) frame.addEventListener('load', function () { window.setTimeout(tryAutoPrint, 650); });
-      window.setTimeout(tryAutoPrint, 2500);
-    })();
-  </script>
-</body>
-</html>`)
-    printWindow.document.close()
-    window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+    }
+
+    try {
+      printWindow.addEventListener('load', () => window.setTimeout(tryPrint, 300), { once: true })
+    } catch (error) {
+      // Some PDF viewer contexts do not expose addEventListener reliably. The timer below is enough.
+    }
+
+    printWindow.location.href = url
+    window.setTimeout(tryPrint, 1500)
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 120_000)
     return true
   }
 
