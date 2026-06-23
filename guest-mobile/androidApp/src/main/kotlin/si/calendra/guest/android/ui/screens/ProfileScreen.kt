@@ -430,14 +430,6 @@ fun ProfileScreen(
                                 onClick = { openLegalPage(termsOfServiceUrl) }
                             )
                             HorizontalDivider(color = Color(0xFFE5EAF2))
-                            PreferenceNavigationRow(
-                                title = tr("Account deletion information", "Informacije o izbrisu računa"),
-                                value = tr("Open", "Odpri"),
-                                leadingIcon = Icons.Rounded.DeleteOutline,
-                                iconTint = Color(0xFF0968F5),
-                                onClick = { openAccountDeletionPage() }
-                            )
-                            HorizontalDivider(color = Color(0xFFE5EAF2))
                             PreferenceDangerRow(
                                 title = tr("Delete account", "Izbriši račun"),
                                 leadingIcon = Icons.Rounded.DeleteOutline,

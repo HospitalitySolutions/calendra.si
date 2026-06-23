@@ -218,15 +218,6 @@ struct ProfileView: View {
                                 openURL(termsOfServiceUrl)
                             }
                             Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
-                            preferenceNavigationRow(
-                                title: tr("Account deletion information", "Informacije o izbrisu računa"),
-                                value: tr("Open", "Odpri"),
-                                systemImage: "trash",
-                                iconColor: Color(red: 0.035, green: 0.408, blue: 0.961)
-                            ) {
-                                openURL(accountDeletionUrl)
-                            }
-                            Divider().background(Color(red: 0.898, green: 0.925, blue: 0.961))
                             dangerNavigationRow(
                                 title: tr("Delete account", "Izbriši račun"),
                                 systemImage: "trash"
