@@ -4,44 +4,7 @@ import axios from "axios";
 import { api } from "../api";
 import { clearAuthStoragePreservingTheme } from "../theme";
 import { TENANT_CONFIG_TYPE_OPTIONS } from "./configuration/guestWebsiteSettings";
-
-const adminConsoleStyles = `:root {
-      --bg-1:#f7faff; --bg-2:#edf3ff; --panel:rgba(255,255,255,.78); --panel-strong:#fff;
-      --border:#dfe7f5; --text:#17253d; --muted:#70809b; --primary:#2f6df6; --primary-dark:#1f56d7;
-      --primary-soft:#eaf1ff; --success-soft:#eafaf0; --success-text:#1f8b4c; --warning-soft:#fff4d7;
-      --warning-text:#8a6200; --danger-soft:#fff0ef; --danger-text:#bf4a41; --purple-soft:#f0edff;
-      --purple-text:#635bff; --shadow:0 18px 45px rgba(34,78,160,.12); --shadow-soft:0 12px 28px rgba(47,109,246,.1);
-      --radius-xl:30px; --radius-lg:22px; --radius-md:16px; --transition:180ms ease; --maxw:1480px;
-    }
-    *{box-sizing:border-box} html,body{margin:0;padding:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 14% 18%,rgba(79,130,255,.11),transparent 24%),radial-gradient(circle at 82% 60%,rgba(79,130,255,.10),transparent 22%),linear-gradient(180deg,var(--bg-1),var(--bg-2));min-height:100vh} body{padding:12px}
-    .app-shell{max-width:var(--maxw);margin:0 auto;background:rgba(255,255,255,.55);border:1px solid rgba(223,231,245,.92);backdrop-filter:blur(14px);border-radius:32px;box-shadow:var(--shadow);overflow:hidden}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:22px 28px;border-bottom:1px solid rgba(223,231,245,.72);background:rgba(255,255,255,.35)}
-    .brand{display:flex;align-items:center;gap:14px;min-width:0}.brand-logo{width:44px;height:44px;display:grid;place-items:center;border-radius:16px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;font-weight:950;box-shadow:0 10px 24px rgba(47,109,246,.22)}
-    .brand-copy{display:grid;gap:2px}.brand-copy strong{font-size:1.08rem;letter-spacing:-.03em}.brand-copy span{color:var(--muted);font-weight:700;font-size:.9rem}
-    .top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:.88rem;font-weight:900}.pill.primary{background:var(--primary-soft);color:var(--primary);border-color:#cddcff}.pill.success{background:var(--success-soft);color:var(--success-text);border-color:#cfead8}.pill.warning{background:var(--warning-soft);color:var(--warning-text);border-color:#f2dda0}.pill.danger{background:var(--danger-soft);color:var(--danger-text);border-color:#f4c8c3}.pill.purple{background:var(--purple-soft);color:var(--purple-text);border-color:#dcd7ff}
-    .content{padding:0}.admin-workspace{display:flex;gap:0;align-items:stretch;min-height:0}.admin-sidebar{width:min(260px,38vw);flex-shrink:0;border-right:1px solid rgba(223,231,245,.85);background:rgba(255,255,255,.42);padding:16px 10px;display:flex;flex-direction:column;gap:6px}.admin-sidebar-title{font-size:.72rem;font-weight:950;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:4px 8px 10px}.admin-sidebar-tab{text-align:left;border:1px solid transparent;background:transparent;border-radius:14px;padding:11px 12px;font:inherit;font-weight:850;color:#40506c;cursor:pointer;line-height:1.25;transition:background .15s,border-color .15s,color .15s}.admin-sidebar-tab:hover{background:rgba(255,255,255,.62);border-color:#e6edf9}.admin-sidebar-tab.active{background:var(--primary-soft);border-color:#cddcff;color:var(--primary)}.admin-main{flex:1;min-width:0;padding:22px 28px 28px}.admin-placeholder{max-width:720px;display:grid;gap:10px;line-height:1.55;color:var(--muted)}.plan-price-head{display:grid;gap:8px;margin-bottom:18px}.plan-price-head h2{margin:0;font-size:1.45rem;letter-spacing:-.04em}.plan-price-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}.plan-price-field{display:grid;gap:6px}.plan-price-field label{font-weight:900;font-size:.82rem;color:var(--muted)}.plan-price-field input{height:44px;border-radius:14px;border:1px solid var(--border);padding:0 12px;font:inherit;font-weight:800}
-    .catalog-ladder-wrap{display:grid;gap:12px}.catalog-ladder-head{display:grid;gap:4px}.catalog-ladder-head strong{font-size:1.02rem;letter-spacing:-.03em}
-    .catalog-ladder{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:stretch;gap:10px 6px;max-width:960px}
-    .catalog-ladder-step{border-radius:20px;padding:16px 12px;text-align:center;border:1px solid #dbe6f7;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(236,242,255,.88));display:grid;gap:6px;align-content:center}
-    .catalog-ladder-step--low{min-height:76px;opacity:.9;transform:translateY(10px)}
-    .catalog-ladder-step--mid{min-height:92px;border-color:#cfe0ff;box-shadow:0 10px 24px rgba(47,109,246,.08)}
-    .catalog-ladder-step--high{min-height:112px;border-color:#b8cffc;box-shadow:0 16px 36px rgba(47,109,246,.14);background:linear-gradient(180deg,#fff,var(--primary-soft))}
-    .catalog-ladder-rung{font-size:.7rem;font-weight:950;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
-    .catalog-ladder-name{font-size:1.18rem;font-weight:950;letter-spacing:-.04em;color:var(--text)}
-    .catalog-ladder-arrow{display:grid;place-items:center;color:var(--primary);font-weight:950;font-size:1.35rem;opacity:.85}
-    @media(max-width:720px){.catalog-ladder{grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto}.catalog-ladder-arrow{transform:rotate(90deg);padding:4px 0}}
-    .hero{display:grid;grid-template-columns:minmax(320px,.8fr) minmax(620px,1.2fr);gap:22px;align-items:start}.panel{background:var(--panel);border:1px solid rgba(223,231,245,.95);border-radius:var(--radius-xl);backdrop-filter:blur(10px);box-shadow:0 10px 28px rgba(58,89,150,.06)}.panel-pad{padding:24px}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:22px;flex-wrap:wrap}.page-head.platform-admin-head{flex-direction:column;align-items:stretch;gap:16px}.page-title{display:grid;gap:8px}.eyebrow{display:inline-flex;align-self:start;padding:8px 12px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:.86rem;font-weight:950}.page-title h1{margin:0;font-size:clamp(2rem,3vw,3.25rem);line-height:.96;letter-spacing:-.065em}.page-title p{margin:0;max-width:820px;color:var(--muted);line-height:1.55}.search-wrap{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;flex-direction:column}.search-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%}.search-input{height:44px;min-width:0;flex:1 1 280px;border:1px solid var(--border);border-radius:999px;padding:0 16px;background:rgba(255,255,255,.92);outline:none;color:var(--text);font-weight:700}.search-input:disabled{opacity:.55;cursor:not-allowed}.button{border:0;border-radius:15px;padding:13px 16px;font-weight:950;cursor:pointer;transition:transform var(--transition),filter var(--transition),box-shadow var(--transition)}.button:hover{transform:translateY(-1px)}.button.primary{background:linear-gradient(90deg,var(--primary),var(--primary-dark));color:#fff;box-shadow:0 12px 28px rgba(47,109,246,.18)}.button.secondary{background:#fff;color:var(--text);border:1px solid var(--border)}.button.danger{background:var(--danger-soft);color:var(--danger-text);border:1px solid #f4c8c3}.button.small{padding:9px 12px;border-radius:12px;font-size:.85rem}.button:disabled{opacity:.55;cursor:not-allowed;transform:none}
-    .admin-setting-switch{display:inline-grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;cursor:pointer;user-select:none}.admin-setting-switch input{position:absolute;opacity:0;pointer-events:none}.admin-setting-switch-slider{width:54px;height:30px;border-radius:999px;border:1px solid #d5dfef;background:#dfe7f5;position:relative;transition:background .18s,border-color .18s,box-shadow .18s}.admin-setting-switch-slider:after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:999px;background:#fff;box-shadow:0 4px 12px rgba(23,37,61,.18);transition:transform .18s}.admin-setting-switch input:checked + .admin-setting-switch-slider{background:linear-gradient(90deg,var(--primary),var(--primary-dark));border-color:#b8cffc;box-shadow:0 10px 24px rgba(47,109,246,.16)}.admin-setting-switch input:checked + .admin-setting-switch-slider:after{transform:translateX(24px)}.admin-setting-switch-copy{display:grid;gap:3px}.admin-setting-switch-copy strong{font-size:1rem;letter-spacing:-.02em}.admin-setting-switch-copy span{font-size:.9rem;color:var(--muted);font-weight:750;line-height:1.4}
-    .tenant-card{display:grid;gap:18px;position:sticky;top:24px}.tenant-head{display:grid;gap:12px}.tenant-avatar{width:64px;height:64px;border-radius:22px;background:linear-gradient(135deg,#fff,var(--primary-soft));border:1px solid #d6e3fb;display:grid;place-items:center;color:var(--primary);font-weight:950;font-size:1.35rem}.tenant-title{display:grid;gap:4px}.tenant-title h2{margin:0;font-size:1.65rem;letter-spacing:-.05em}.tenant-title span{color:var(--muted);font-size:.92rem;font-weight:750;word-break:break-word}.status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{padding:14px;border-radius:18px;background:rgba(255,255,255,.82);border:1px solid #e5edf9;display:grid;gap:4px}.stat strong{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.stat span{font-size:1rem;font-weight:950;color:var(--text);word-break:break-word}.progress{height:9px;background:#e8eef9;border-radius:999px;overflow:hidden}.progress > div{height:100%;background:linear-gradient(90deg,var(--primary),var(--primary-dark));border-radius:999px}.nav-list{display:grid;gap:8px}.nav-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;border:1px solid #e6edf9;background:rgba(255,255,255,.72);color:#40506c;font-weight:900;cursor:pointer}.nav-item.active{background:var(--primary-soft);border-color:#cddcff;color:var(--primary)}
-    .main-grid{display:grid;gap:18px}.kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.kpi{padding:18px;border-radius:22px;border:1px solid #dbe6f7;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,245,255,.94));box-shadow:0 12px 26px rgba(47,109,246,.08);display:grid;gap:7px}.kpi span{color:var(--muted);font-size:.82rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.kpi strong{font-size:1.55rem;letter-spacing:-.05em}.kpi small{color:var(--muted);font-weight:700;line-height:1.35}
-    .section-card{border-radius:24px;border:1px solid #dbe6f7;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,245,255,.94));box-shadow:0 16px 34px rgba(47,109,246,.10);padding:18px;display:grid;gap:16px}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}.section-title{display:grid;gap:4px}.section-title strong{font-size:1.05rem;letter-spacing:-.03em}.section-title span{color:var(--muted);font-size:.9rem;line-height:1.45}.field-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.field-card{padding:14px;border-radius:18px;background:rgba(255,255,255,.9);border:1px solid #e6edf9;display:grid;gap:9px}.field-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.field-label{display:grid;gap:3px}.field-label strong{font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.045em}.field-label span{font-weight:950;color:var(--text);line-height:1.3;word-break:break-word}.muted{color:var(--muted)}.empty-hint{padding:22px;border-radius:18px;border:1px dashed #dbe6f7;color:var(--muted);line-height:1.5}
-    .search-wrap.tenant-list-wrap{width:100%;max-width:100%}.search-hits{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;width:100%;max-width:100%}.search-hits > li{display:flex;min-width:0}.search-hit{padding:12px 14px;border-radius:16px;border:1px solid var(--border);background:#fff;cursor:pointer;text-align:left;font:inherit;width:100%;min-height:100%;display:grid;align-content:start;gap:4px}.search-hit:hover{border-color:#cddcff;background:var(--primary-soft)}.search-hit strong{display:block;font-size:.95rem;color:var(--text)}.search-hit .sub{font-size:.84rem;color:var(--muted);margin-top:2px}.search-err{color:var(--danger-text);font-size:.9rem;font-weight:800;margin:4px 0 0}
-    .audit-log-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.audit-log-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}.audit-log-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.audit-log-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top;word-break:break-word}.audit-log-table tr:last-child td{border-bottom:0}.audit-log-cat{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.audit-log-cat--setting{background:var(--primary-soft);color:var(--primary)}.audit-log-cat--bill{background:var(--success-soft);color:var(--success-text)}.audit-log-cat--suspend{background:var(--danger-soft);color:var(--danger-text)}.audit-detail-cell{color:var(--muted);font-weight:700;font-size:.84rem;line-height:1.45;max-width:40rem}.audit-actor-cell{font-size:.84rem;font-weight:800;color:#40506c;word-break:break-all;max-width:14rem}
-    .plan-history-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.plan-history-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:680px}.plan-history-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.plan-history-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top}.plan-history-table tr:last-child td{border-bottom:0}.plan-status-pill{display:inline-flex;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950}.plan-status-pill--applied{background:var(--success-soft);color:var(--success-text)}.plan-status-pill--scheduled{background:var(--warning-soft);color:var(--warning-text)}
-    .monitoring-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.monitoring-card{padding:16px;border-radius:20px;border:1px solid #e6edf9;background:rgba(255,255,255,.9);display:grid;gap:8px}.monitoring-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.monitoring-card strong{font-size:1rem;letter-spacing:-.03em}.monitoring-card .value{font-size:1.45rem;font-weight:950;letter-spacing:-.04em}.monitoring-detail{color:var(--muted);font-weight:750;font-size:.88rem;line-height:1.45}.monitoring-note{padding:14px;border-radius:18px;background:rgba(255,244,215,.65);border:1px solid #f2dda0;color:var(--warning-text);font-weight:800;line-height:1.45}.monitoring-jobs-wrap{overflow:auto;border:1px solid #e6edf9;border-radius:18px;background:#fff}.monitoring-jobs-table{width:100%;border-collapse:collapse;min-width:980px}.monitoring-jobs-table th{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;text-align:left;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.monitoring-jobs-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top}.monitoring-jobs-table tr:last-child td{border-bottom:0}.monitoring-job-name{display:grid;gap:3px}.monitoring-job-name strong{font-size:.95rem;letter-spacing:-.02em}.monitoring-job-name span{font-size:.78rem;color:var(--muted);font-weight:800}.monitoring-job-summary{display:grid;gap:5px}.monitoring-job-summary span{font-size:.84rem;color:var(--muted);font-weight:750;line-height:1.4}.monitoring-job-small{font-size:.84rem;color:var(--muted);font-weight:800;line-height:1.4}
-    .modal-backdrop{position:fixed;inset:0;background:rgba(23,37,61,.38);display:none;place-items:center;padding:20px;z-index:10}.modal-backdrop.visible{display:grid}.modal{max-width:560px;width:100%;border-radius:26px;background:#fff;border:1px solid #dfe7f5;box-shadow:0 28px 80px rgba(23,37,61,.28);padding:22px;display:grid;gap:16px}.modal h3{margin:0;font-size:1.55rem;letter-spacing:-.045em}.modal p{margin:0;color:var(--muted);line-height:1.5}.modal-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.select-row{display:grid;gap:8px}.select-row label{font-weight:900;color:#2a3a56}.select-row select,.select-row textarea,.select-row input[type=number],.select-row input[type=text]{width:100%;border:1px solid var(--border);border-radius:15px;background:#fff;color:var(--text);padding:12px 14px;font:inherit;outline:none}.select-row textarea{min-height:90px;resize:vertical}.plan-change-extras{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid #dce7fb;background:rgba(237,244,255,.6)}.price-override-extras{display:grid;gap:14px}.price-override-panel{display:grid;gap:10px}.price-current-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:var(--primary-soft);border:1px solid #cddcff;font-weight:850;font-size:.92rem;color:var(--text)}.price-current-pill strong{font-weight:950}.checkbox-row{display:flex;align-items:flex-start;gap:10px;font-weight:800;font-size:.9rem;color:#40506c;line-height:1.35}.checkbox-row input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--primary)}.price-preview{font-size:.88rem;font-weight:800;color:var(--muted)}
-    @media(max-width:1180px){.admin-workspace{flex-direction:column}.admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid rgba(223,231,245,.85);padding:12px 10px 14px}.admin-sidebar-title{width:100%}.hero{grid-template-columns:1fr}.tenant-card{position:static}.kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}.field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:720px){body{padding:10px}.topbar{padding-left:16px;padding-right:16px}.admin-main{padding-left:16px;padding-right:16px;padding-top:16px}.page-head{display:grid}.search-input{min-width:0;width:100%}.kpi-row,.field-grid,.status-grid{grid-template-columns:1fr}.app-shell,.panel{border-radius:24px}}`;
+import "../styles/features/platform-admin.css";
 
 type TenancySearchHit = {
   id: number;
@@ -159,8 +122,8 @@ function buildPlatformAdminAuditPayload(
 function auditCategoryPillClass(category: string): string {
   const u = category.toLowerCase();
   if (u.includes("suspend") || u.includes("delete"))
-    return "audit-log-cat audit-log-cat--suspend";
-  return "audit-log-cat audit-log-cat--setting";
+    return "platform-admin-audit-log-cat platform-admin-audit-log-cat--suspend";
+  return "platform-admin-audit-log-cat platform-admin-audit-log-cat--setting";
 }
 
 type TenancyDetails = TenancySearchHit & {
@@ -1638,11 +1601,11 @@ function PlanPricesAdminPanel() {
 
   return (
     <div>
-      <div className="plan-price-head">
-        <div className="eyebrow">Signup catalog</div>
+      <div className="platform-admin-plan-price-head">
+        <div className="platform-admin-eyebrow">Signup catalog</div>
         <h2>Plan &amp; add-on prices</h2>
         <p
-          className="muted"
+          className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
           Monthly amounts in EUR for the public register flow. Annual discount
@@ -1652,53 +1615,53 @@ function PlanPricesAdminPanel() {
       </div>
 
       <div
-        className="catalog-ladder-wrap panel panel-pad"
+        className="platform-admin-catalog-ladder-wrap platform-admin-panel platform-admin-panel-pad"
         style={{ marginBottom: 22 }}
       >
-        <div className="catalog-ladder-head">
+        <div className="platform-admin-catalog-ladder-head">
           <strong>Plan tiers</strong>
-          <span className="muted" style={{ fontWeight: 700 }}>
+          <span className="platform-admin-muted" style={{ fontWeight: 700 }}>
             Lowest on the left → highest on the right (matches register Basic ·
             Pro · Business).
           </span>
         </div>
         <div
-          className="catalog-ladder"
+          className="platform-admin-catalog-ladder"
           aria-label="Plan tiers from lowest to highest"
         >
-          <div className="catalog-ladder-step catalog-ladder-step--low">
-            <span className="catalog-ladder-rung">Lowest</span>
-            <span className="catalog-ladder-name">{planNames.basic.name}</span>
+          <div className="platform-admin-catalog-ladder-step platform-admin-catalog-ladder-step--low">
+            <span className="platform-admin-catalog-ladder-rung">Lowest</span>
+            <span className="platform-admin-catalog-ladder-name">{planNames.basic.name}</span>
             <span
-              className="muted"
+              className="platform-admin-muted"
               style={{ fontSize: "0.82rem", fontWeight: 700 }}
             >
               Entry paid tier
             </span>
           </div>
-          <span className="catalog-ladder-arrow" aria-hidden>
+          <span className="platform-admin-catalog-ladder-arrow" aria-hidden>
             →
           </span>
-          <div className="catalog-ladder-step catalog-ladder-step--mid">
-            <span className="catalog-ladder-rung">Mid</span>
-            <span className="catalog-ladder-name">{planNames.pro.name}</span>
+          <div className="platform-admin-catalog-ladder-step platform-admin-catalog-ladder-step--mid">
+            <span className="platform-admin-catalog-ladder-rung">Mid</span>
+            <span className="platform-admin-catalog-ladder-name">{planNames.pro.name}</span>
             <span
-              className="muted"
+              className="platform-admin-muted"
               style={{ fontSize: "0.82rem", fontWeight: 700 }}
             >
               Pro feature set
             </span>
           </div>
-          <span className="catalog-ladder-arrow" aria-hidden>
+          <span className="platform-admin-catalog-ladder-arrow" aria-hidden>
             →
           </span>
-          <div className="catalog-ladder-step catalog-ladder-step--high">
-            <span className="catalog-ladder-rung">Highest</span>
-            <span className="catalog-ladder-name">
+          <div className="platform-admin-catalog-ladder-step platform-admin-catalog-ladder-step--high">
+            <span className="platform-admin-catalog-ladder-rung">Highest</span>
+            <span className="platform-admin-catalog-ladder-name">
               {planNames.business.name}
             </span>
             <span
-              className="muted"
+              className="platform-admin-muted"
               style={{ fontSize: "0.82rem", fontWeight: 700 }}
             >
               Business / largest tier
@@ -1707,8 +1670,8 @@ function PlanPricesAdminPanel() {
         </div>
       </div>
 
-      {loading ? <p className="muted">Loading catalog…</p> : null}
-      {err ? <p className="search-err">{err}</p> : null}
+      {loading ? <p className="platform-admin-muted">Loading catalog…</p> : null}
+      {err ? <p className="platform-admin-search-err">{err}</p> : null}
       {ok ? (
         <p
           style={{
@@ -1725,7 +1688,7 @@ function PlanPricesAdminPanel() {
       {!loading ? (
         <>
           <h3
-            className="muted"
+            className="platform-admin-muted"
             style={{
               margin: "18px 0 10px",
               fontSize: "0.95rem",
@@ -1734,8 +1697,8 @@ function PlanPricesAdminPanel() {
           >
             Plans (€ / month)
           </h3>
-          <div className="plan-price-grid">
-            <div className="plan-price-field">
+          <div className="platform-admin-plan-price-grid">
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-plan-basic">{planNames.basic.name}</label>
               <input
                 id="pa-plan-basic"
@@ -1750,7 +1713,7 @@ function PlanPricesAdminPanel() {
                 }
               />
             </div>
-            <div className="plan-price-field">
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-plan-pro">{planNames.pro.name}</label>
               <input
                 id="pa-plan-pro"
@@ -1765,7 +1728,7 @@ function PlanPricesAdminPanel() {
                 }
               />
             </div>
-            <div className="plan-price-field">
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-plan-business">
                 {planNames.business.name}
               </label>
@@ -1785,7 +1748,7 @@ function PlanPricesAdminPanel() {
           </div>
 
           <h3
-            className="muted"
+            className="platform-admin-muted"
             style={{
               margin: "22px 0 10px",
               fontSize: "0.95rem",
@@ -1794,22 +1757,22 @@ function PlanPricesAdminPanel() {
           >
             Package names
           </h3>
-          <div className="plan-price-grid">
+          <div className="platform-admin-plan-price-grid">
             {planPreviews.map((plan) => (
               <div
                 key={`names-${plan.key}`}
-                className="section-card"
+                className="platform-admin-section-card"
                 style={{ padding: 14 }}
               >
-                <div className="section-title" style={{ marginBottom: 10 }}>
+                <div className="platform-admin-section-title" style={{ marginBottom: 10 }}>
                   <strong>{plan.label}</strong>
                   <span>
                     Used on the public register package cards and
                     selected-package preview.
                   </span>
                 </div>
-                <div className="plan-price-grid">
-                  <div className="plan-price-field">
+                <div className="platform-admin-plan-price-grid">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-plan-name-en-${plan.key}`}>
                       Name EN
                     </label>
@@ -1822,7 +1785,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-plan-name-sl-${plan.key}`}>
                       Name SL
                     </label>
@@ -1841,7 +1804,7 @@ function PlanPricesAdminPanel() {
           </div>
 
           <h3
-            className="muted"
+            className="platform-admin-muted"
             style={{
               margin: "22px 0 10px",
               fontSize: "0.95rem",
@@ -1850,9 +1813,9 @@ function PlanPricesAdminPanel() {
           >
             Package transaction service mapping
           </h3>
-          <div className="plan-price-grid">
+          <div className="platform-admin-plan-price-grid">
             {PLAN_TRANSACTION_SERVICE_FIELDS.map((field) => (
-              <div key={field.key} className="plan-price-field">
+              <div key={field.key} className="platform-admin-plan-price-field">
                 <label htmlFor={`pa-plan-service-${field.key}`}>
                   {field.label}
                 </label>
@@ -1870,7 +1833,7 @@ function PlanPricesAdminPanel() {
           </div>
 
           <h3
-            className="muted"
+            className="platform-admin-muted"
             style={{
               margin: "22px 0 10px",
               fontSize: "0.95rem",
@@ -1879,8 +1842,8 @@ function PlanPricesAdminPanel() {
           >
             Annual discount
           </h3>
-          <div className="plan-price-grid" style={{ alignItems: "end" }}>
-            <div className="plan-price-field">
+          <div className="platform-admin-plan-price-grid" style={{ alignItems: "end" }}>
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-annual-discount">Annual discount (%)</label>
               <input
                 id="pa-annual-discount"
@@ -1899,10 +1862,10 @@ function PlanPricesAdminPanel() {
               return (
                 <div
                   key={plan.key}
-                  className="field-card"
+                  className="platform-admin-field-card"
                   style={{ minHeight: 74, justifyContent: "center" }}
                 >
-                  <div className="field-label">
+                  <div className="platform-admin-field-label">
                     <strong>{plan.label} annual total</strong>
                     <span>€{formatMoneyEUR(annualTotal)} / year</span>
                   </div>
@@ -1912,7 +1875,7 @@ function PlanPricesAdminPanel() {
           </div>
 
           <h3
-            className="muted"
+            className="platform-admin-muted"
             style={{
               margin: "22px 0 10px",
               fontSize: "0.95rem",
@@ -1921,8 +1884,8 @@ function PlanPricesAdminPanel() {
           >
             Usage prices
           </h3>
-          <div className="plan-price-grid">
-            <div className="plan-price-field">
+          <div className="platform-admin-plan-price-grid">
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-additional-user-price">
                 Additional user (€ / user / month)
               </label>
@@ -1938,7 +1901,7 @@ function PlanPricesAdminPanel() {
                 }
               />
             </div>
-            <div className="plan-price-field">
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-additional-user-service">
                 Additional user transaction service
               </label>
@@ -1948,7 +1911,7 @@ function PlanPricesAdminPanel() {
                 setAdditionalUserTransactionServiceId,
               )}
             </div>
-            <div className="plan-price-field">
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-sms-price">SMS message (€ / SMS)</label>
               <input
                 id="pa-sms-price"
@@ -1962,7 +1925,7 @@ function PlanPricesAdminPanel() {
                 }
               />
             </div>
-            <div className="plan-price-field">
+            <div className="platform-admin-plan-price-field">
               <label htmlFor="pa-sms-service">SMS transaction service</label>
               {renderServiceSelect(
                 "pa-sms-service",
@@ -1971,10 +1934,10 @@ function PlanPricesAdminPanel() {
               )}
             </div>
             <div
-              className="field-card"
+              className="platform-admin-field-card"
               style={{ minHeight: 74, justifyContent: "center" }}
             >
-              <div className="field-label">
+              <div className="platform-admin-field-label">
                 <strong>50 SMS block preview</strong>
                 <span>€{formatMoneyEUR(smsPerMessage * 50)} / 50 SMS</span>
               </div>
@@ -1992,7 +1955,7 @@ function PlanPricesAdminPanel() {
             }}
           >
             <h3
-              className="muted"
+              className="platform-admin-muted"
               style={{ margin: 0, fontSize: "0.95rem", fontWeight: 950 }}
             >
               What's included in this plan (
@@ -2000,7 +1963,7 @@ function PlanPricesAdminPanel() {
               active)
             </h3>
             <button
-              className="button secondary small"
+              className="platform-admin-button platform-admin-secondary platform-admin-small"
               type="button"
               onClick={addFeature}
             >
@@ -2010,18 +1973,18 @@ function PlanPricesAdminPanel() {
 
           <div style={{ display: "grid", gap: 12, marginTop: 10 }}>
             {featureItems.length === 0 ? (
-              <div className="empty-hint">
+              <div className="platform-admin-empty-hint">
                 No included text is configured for the register plan preview.
               </div>
             ) : null}
             {featureItems.map((item, index) => (
               <div
                 key={`${item.key}-${index}`}
-                className="section-card"
+                className="platform-admin-section-card"
                 style={{ padding: 14 }}
               >
-                <div className="section-head">
-                  <div className="section-title">
+                <div className="platform-admin-section-head">
+                  <div className="platform-admin-section-title">
                     <strong>{item.name || "Included text"}</strong>
                     <span>
                       Shown from{" "}
@@ -2033,8 +1996,8 @@ function PlanPricesAdminPanel() {
                       and higher
                     </span>
                   </div>
-                  <div className="top-actions">
-                    <label className="pill" style={{ cursor: "pointer" }}>
+                  <div className="platform-admin-top-actions">
+                    <label className="platform-admin-pill" style={{ cursor: "pointer" }}>
                       <input
                         type="checkbox"
                         checked={item.active !== false}
@@ -2045,7 +2008,7 @@ function PlanPricesAdminPanel() {
                       Active
                     </label>
                     <button
-                      className="button danger small"
+                      className="platform-admin-button platform-admin-danger platform-admin-small"
                       type="button"
                       onClick={() => removeFeature(index)}
                     >
@@ -2053,8 +2016,8 @@ function PlanPricesAdminPanel() {
                     </button>
                   </div>
                 </div>
-                <div className="plan-price-grid">
-                  <div className="plan-price-field">
+                <div className="platform-admin-plan-price-grid">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-key-${index}`}>Key</label>
                     <input
                       id={`pa-feature-key-${index}`}
@@ -2067,7 +2030,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-min-${index}`}>
                       Minimum plan
                     </label>
@@ -2094,7 +2057,7 @@ function PlanPricesAdminPanel() {
                       <option value="business">Business</option>
                     </select>
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-name-${index}`}>Title EN</label>
                     <input
                       id={`pa-feature-name-${index}`}
@@ -2105,7 +2068,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-name-sl-${index}`}>
                       Title SL
                     </label>
@@ -2118,7 +2081,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-desc-${index}`}>
                       Description EN
                     </label>
@@ -2131,7 +2094,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-desc-sl-${index}`}>
                       Description SL
                     </label>
@@ -2160,13 +2123,13 @@ function PlanPricesAdminPanel() {
             }}
           >
             <h3
-              className="muted"
+              className="platform-admin-muted"
               style={{ margin: 0, fontSize: "0.95rem", fontWeight: 950 }}
             >
               Add-ons ({activeAddonCount} active)
             </h3>
             <button
-              className="button secondary small"
+              className="platform-admin-button platform-admin-secondary platform-admin-small"
               type="button"
               onClick={addAddon}
             >
@@ -2176,7 +2139,7 @@ function PlanPricesAdminPanel() {
 
           <div style={{ display: "grid", gap: 12, marginTop: 10 }}>
             {addonItems.length === 0 ? (
-              <div className="empty-hint">
+              <div className="platform-admin-empty-hint">
                 No add-ons are active in the register flow. Add a new add-on to
                 show it on Plan selection.
               </div>
@@ -2184,11 +2147,11 @@ function PlanPricesAdminPanel() {
             {addonItems.map((item, index) => (
               <div
                 key={`${item.key}-${index}`}
-                className="section-card"
+                className="platform-admin-section-card"
                 style={{ padding: 14 }}
               >
-                <div className="section-head">
-                  <div className="section-title">
+                <div className="platform-admin-section-head">
+                  <div className="platform-admin-section-title">
                     <strong>{item.name || "Add-on"}</strong>
                     <span>
                       {item.active !== false
@@ -2196,8 +2159,8 @@ function PlanPricesAdminPanel() {
                         : "Hidden from register Plan selection"}
                     </span>
                   </div>
-                  <div className="top-actions">
-                    <label className="pill" style={{ cursor: "pointer" }}>
+                  <div className="platform-admin-top-actions">
+                    <label className="platform-admin-pill" style={{ cursor: "pointer" }}>
                       <input
                         type="checkbox"
                         checked={item.active !== false}
@@ -2208,7 +2171,7 @@ function PlanPricesAdminPanel() {
                       Active
                     </label>
                     <button
-                      className="button danger small"
+                      className="platform-admin-button platform-admin-danger platform-admin-small"
                       type="button"
                       onClick={() => removeAddon(index)}
                     >
@@ -2216,8 +2179,8 @@ function PlanPricesAdminPanel() {
                     </button>
                   </div>
                 </div>
-                <div className="plan-price-grid">
-                  <div className="plan-price-field">
+                <div className="platform-admin-plan-price-grid">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-addon-key-${index}`}>Key</label>
                     <input
                       id={`pa-addon-key-${index}`}
@@ -2230,7 +2193,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-addon-name-${index}`}>Name EN</label>
                     <input
                       id={`pa-addon-name-${index}`}
@@ -2241,7 +2204,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-addon-name-sl-${index}`}>Name SL</label>
                     <input
                       id={`pa-addon-name-sl-${index}`}
@@ -2252,7 +2215,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-addon-monthly-${index}`}>
                       Price (€ / month)
                     </label>
@@ -2271,7 +2234,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-addon-service-${index}`}>
                       Transaction service
                     </label>
@@ -2282,7 +2245,7 @@ function PlanPricesAdminPanel() {
                         updateAddon(index, { transactionServiceId: value }),
                     )}
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-addon-desc-${index}`}>
                       Description EN
                     </label>
@@ -2295,7 +2258,7 @@ function PlanPricesAdminPanel() {
                       }
                     />
                   </div>
-                  <div className="plan-price-field">
+                  <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-addon-desc-sl-${index}`}>
                       Description SL
                     </label>
@@ -2313,9 +2276,9 @@ function PlanPricesAdminPanel() {
             ))}
           </div>
 
-          <div style={{ marginTop: 22 }} className="top-actions">
+          <div style={{ marginTop: 22 }} className="platform-admin-top-actions">
             <button
-              className="button primary"
+              className="platform-admin-button platform-admin-primary"
               type="button"
               onClick={() => void save()}
               disabled={saving}
@@ -2424,12 +2387,12 @@ function FiscalizationAdminPanel() {
   };
 
   return (
-    <div className="panel panel-pad">
-      <div className="plan-price-head">
-        <div className="eyebrow">Global controls</div>
+    <div className="platform-admin-panel platform-admin-panel-pad">
+      <div className="platform-admin-plan-price-head">
+        <div className="platform-admin-eyebrow">Global controls</div>
         <h2>Fiscalization</h2>
         <p
-          className="muted"
+          className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
           TEST and PROD fiscal URLs are global. The same values are used for
@@ -2438,9 +2401,9 @@ function FiscalizationAdminPanel() {
       </div>
 
       {loading ? (
-        <p className="muted">Loading fiscalization settings…</p>
+        <p className="platform-admin-muted">Loading fiscalization settings…</p>
       ) : null}
-      {err ? <p className="search-err">{err}</p> : null}
+      {err ? <p className="platform-admin-search-err">{err}</p> : null}
       {ok ? (
         <p
           style={{
@@ -2455,8 +2418,8 @@ function FiscalizationAdminPanel() {
       ) : null}
 
       {!loading ? (
-        <div className="plan-price-grid" style={{ marginTop: 12 }}>
-          <div className="plan-price-field">
+        <div className="platform-admin-plan-price-grid" style={{ marginTop: 12 }}>
+          <div className="platform-admin-plan-price-field">
             <label htmlFor="pa-fiscal-test-invoice">TEST URL računov</label>
             <input
               id="pa-fiscal-test-invoice"
@@ -2471,7 +2434,7 @@ function FiscalizationAdminPanel() {
               }
             />
           </div>
-          <div className="plan-price-field">
+          <div className="platform-admin-plan-price-field">
             <label htmlFor="pa-fiscal-test-premise">
               TEST URL prijave prostora
             </label>
@@ -2488,7 +2451,7 @@ function FiscalizationAdminPanel() {
               }
             />
           </div>
-          <div className="plan-price-field">
+          <div className="platform-admin-plan-price-field">
             <label htmlFor="pa-fiscal-prod-invoice">PROD URL računov</label>
             <input
               id="pa-fiscal-prod-invoice"
@@ -2503,7 +2466,7 @@ function FiscalizationAdminPanel() {
               }
             />
           </div>
-          <div className="plan-price-field">
+          <div className="platform-admin-plan-price-field">
             <label htmlFor="pa-fiscal-prod-premise">
               PROD URL prijave prostora
             </label>
@@ -2523,9 +2486,9 @@ function FiscalizationAdminPanel() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 18 }} className="top-actions">
+      <div style={{ marginTop: 18 }} className="platform-admin-top-actions">
         <button
-          className="button primary"
+          className="platform-admin-button platform-admin-primary"
           type="button"
           onClick={() => void save()}
           disabled={saving || loading}
@@ -2708,12 +2671,12 @@ function PaymentProvidersAdminPanel() {
   const paypalGloballyEnabled = providerFlags.GLOBAL_PAYMENTS_PAYPAL_ENABLED;
 
   return (
-    <div className="panel panel-pad">
-      <div className="plan-price-head">
-        <div className="eyebrow">Payment providers</div>
+    <div className="platform-admin-panel platform-admin-panel-pad">
+      <div className="platform-admin-plan-price-head">
+        <div className="platform-admin-eyebrow">Payment providers</div>
         <h2>{activeProvider === "stripe" ? "Stripe Connect" : "PayPal"}</h2>
         <p
-          className="muted"
+          className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
           Configure global provider availability. OFF is enforced as a hard
@@ -2721,7 +2684,7 @@ function PaymentProvidersAdminPanel() {
         </p>
       </div>
 
-      <div className="top-actions" style={{ marginBottom: 12 }}>
+      <div className="platform-admin-top-actions" style={{ marginBottom: 12 }}>
         <button
           type="button"
           className={
@@ -2747,9 +2710,9 @@ function PaymentProvidersAdminPanel() {
       </div>
 
       {loading ? (
-        <p className="muted">Loading payment provider settings…</p>
+        <p className="platform-admin-muted">Loading payment provider settings…</p>
       ) : null}
-      {err ? <p className="search-err">{err}</p> : null}
+      {err ? <p className="platform-admin-search-err">{err}</p> : null}
       {ok ? (
         <p
           style={{
@@ -2766,11 +2729,11 @@ function PaymentProvidersAdminPanel() {
       {!loading && activeProvider === "stripe" ? (
         <>
           <div
-            className="section-card"
+            className="platform-admin-section-card"
             style={{ marginTop: 12, marginBottom: 12 }}
           >
-            <div className="section-head">
-              <div className="section-title">
+            <div className="platform-admin-section-head">
+              <div className="platform-admin-section-title">
                 <strong>Stripe global status</strong>
                 <span>
                   {stripeGloballyEnabled
@@ -2779,7 +2742,7 @@ function PaymentProvidersAdminPanel() {
                 </span>
               </div>
             </div>
-            <div className="top-actions">
+            <div className="platform-admin-top-actions">
               <button
                 type="button"
                 className={
@@ -2815,7 +2778,7 @@ function PaymentProvidersAdminPanel() {
             </div>
           </div>
 
-          <div className="top-actions" style={{ marginBottom: 12 }}>
+          <div className="platform-admin-top-actions" style={{ marginBottom: 12 }}>
             <button
               type="button"
               className={
@@ -2840,9 +2803,9 @@ function PaymentProvidersAdminPanel() {
             </button>
           </div>
 
-          <div className="section-card" style={{ marginTop: 12 }}>
-            <div className="section-head">
-              <div className="section-title">
+          <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
+            <div className="platform-admin-section-head">
+              <div className="platform-admin-section-title">
                 <strong>{modeLabel} configuration</strong>
                 <span>
                   {current.enabled
@@ -2852,7 +2815,7 @@ function PaymentProvidersAdminPanel() {
               </div>
             </div>
 
-            <div className="top-actions" style={{ marginBottom: 14 }}>
+            <div className="platform-admin-top-actions" style={{ marginBottom: 14 }}>
               <button
                 type="button"
                 className={
@@ -2866,7 +2829,7 @@ function PaymentProvidersAdminPanel() {
               </button>
               <span
                 className={
-                  current.secretKeyMissing ? "pill warning" : "pill success"
+                  current.secretKeyMissing ? "platform-admin-pill platform-admin-warning" : "platform-admin-pill platform-admin-success"
                 }
               >
                 {current.secretKeyMissing
@@ -2875,7 +2838,7 @@ function PaymentProvidersAdminPanel() {
               </span>
               <span
                 className={
-                  current.webhookSecretMissing ? "pill warning" : "pill success"
+                  current.webhookSecretMissing ? "platform-admin-pill platform-admin-warning" : "platform-admin-pill platform-admin-success"
                 }
               >
                 {current.webhookSecretMissing
@@ -2884,8 +2847,8 @@ function PaymentProvidersAdminPanel() {
               </span>
             </div>
 
-            <div className="plan-price-grid">
-              <div className="plan-price-field">
+            <div className="platform-admin-plan-price-grid">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-secret`}>
                   Secret key
                 </label>
@@ -2902,7 +2865,7 @@ function PaymentProvidersAdminPanel() {
                   onChange={(e) => updateMode({ secretKey: e.target.value })}
                 />
               </div>
-              <div className="plan-price-field">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-publishable`}>
                   Publishable key
                 </label>
@@ -2916,7 +2879,7 @@ function PaymentProvidersAdminPanel() {
                   }
                 />
               </div>
-              <div className="plan-price-field">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-webhook`}>
                   Webhook signing secret
                 </label>
@@ -2935,7 +2898,7 @@ function PaymentProvidersAdminPanel() {
                   }
                 />
               </div>
-              <div className="plan-price-field">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-currency`}>
                   Default currency
                 </label>
@@ -2949,7 +2912,7 @@ function PaymentProvidersAdminPanel() {
                   }
                 />
               </div>
-              <div className="plan-price-field">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-success`}>
                   Checkout success URL
                 </label>
@@ -2961,7 +2924,7 @@ function PaymentProvidersAdminPanel() {
                   onChange={(e) => updateMode({ successUrl: e.target.value })}
                 />
               </div>
-              <div className="plan-price-field">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-cancel`}>
                   Checkout cancel URL
                 </label>
@@ -2973,7 +2936,7 @@ function PaymentProvidersAdminPanel() {
                   onChange={(e) => updateMode({ cancelUrl: e.target.value })}
                 />
               </div>
-              <div className="plan-price-field">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-fee-percent`}>
                   Platform fee (%)
                 </label>
@@ -2989,7 +2952,7 @@ function PaymentProvidersAdminPanel() {
                   }
                 />
               </div>
-              <div className="plan-price-field">
+              <div className="platform-admin-plan-price-field">
                 <label htmlFor={`stripe-${activeMode}-fee-fixed`}>
                   Fixed fee (minor units)
                 </label>
@@ -3011,7 +2974,7 @@ function PaymentProvidersAdminPanel() {
             </div>
 
             <p
-              className="muted"
+              className="platform-admin-muted"
               style={{ margin: "14px 0 0", fontWeight: 700, lineHeight: 1.5 }}
             >
               Manual bill links and guest checkout now generate safe backend
@@ -3024,9 +2987,9 @@ function PaymentProvidersAdminPanel() {
       ) : null}
 
       {!loading && activeProvider === "paypal" ? (
-        <div className="section-card" style={{ marginTop: 12 }}>
-          <div className="section-head">
-            <div className="section-title">
+        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
+          <div className="platform-admin-section-head">
+            <div className="platform-admin-section-title">
               <strong>PayPal global status</strong>
               <span>
                 {paypalGloballyEnabled
@@ -3035,7 +2998,7 @@ function PaymentProvidersAdminPanel() {
               </span>
             </div>
           </div>
-          <div className="top-actions">
+          <div className="platform-admin-top-actions">
             <button
               type="button"
               className={
@@ -3072,9 +3035,9 @@ function PaymentProvidersAdminPanel() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 18 }} className="top-actions">
+      <div style={{ marginTop: 18 }} className="platform-admin-top-actions">
         <button
-          className="button primary"
+          className="platform-admin-button platform-admin-primary"
           type="button"
           onClick={() => void save()}
           disabled={saving || loading}
@@ -3158,12 +3121,12 @@ function MessagingProvidersAdminPanel() {
   const selectedEnabled = flags[selectedKey];
 
   return (
-    <div className="panel panel-pad">
-      <div className="plan-price-head">
-        <div className="eyebrow">Global controls</div>
+    <div className="platform-admin-panel platform-admin-panel-pad">
+      <div className="platform-admin-plan-price-head">
+        <div className="platform-admin-eyebrow">Global controls</div>
         <h2>Messaging providers</h2>
         <p
-          className="muted"
+          className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
           Turn providers ON or OFF globally for all tenants. OFF disables
@@ -3172,7 +3135,7 @@ function MessagingProvidersAdminPanel() {
         </p>
       </div>
 
-      <div className="top-actions" style={{ marginBottom: 12 }}>
+      <div className="platform-admin-top-actions" style={{ marginBottom: 12 }}>
         <button
           type="button"
           className={
@@ -3197,8 +3160,8 @@ function MessagingProvidersAdminPanel() {
         </button>
       </div>
 
-      {loading ? <p className="muted">Loading provider flags…</p> : null}
-      {err ? <p className="search-err">{err}</p> : null}
+      {loading ? <p className="platform-admin-muted">Loading provider flags…</p> : null}
+      {err ? <p className="platform-admin-search-err">{err}</p> : null}
       {ok ? (
         <p
           style={{
@@ -3213,9 +3176,9 @@ function MessagingProvidersAdminPanel() {
       ) : null}
 
       {!loading ? (
-        <div className="section-card" style={{ marginTop: 12 }}>
-          <div className="section-head">
-            <div className="section-title">
+        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
+          <div className="platform-admin-section-head">
+            <div className="platform-admin-section-title">
               <strong>
                 {activeProvider === "whatsapp" ? "WhatsApp" : "Viber"} global
                 status
@@ -3227,7 +3190,7 @@ function MessagingProvidersAdminPanel() {
               </span>
             </div>
           </div>
-          <div className="top-actions">
+          <div className="platform-admin-top-actions">
             <button
               type="button"
               className={
@@ -3258,9 +3221,9 @@ function MessagingProvidersAdminPanel() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 18 }} className="top-actions">
+      <div style={{ marginTop: 18 }} className="platform-admin-top-actions">
         <button
-          className="button primary"
+          className="platform-admin-button platform-admin-primary"
           type="button"
           onClick={() => void save()}
           disabled={saving || loading}
@@ -3327,12 +3290,12 @@ function AjpesAdminPanel() {
   const enabled = flags.GLOBAL_AJPES_PRS_ENABLED;
 
   return (
-    <div className="panel panel-pad">
-      <div className="plan-price-head">
-        <div className="eyebrow">Global controls</div>
+    <div className="platform-admin-panel platform-admin-panel-pad">
+      <div className="platform-admin-plan-price-head">
+        <div className="platform-admin-eyebrow">Global controls</div>
         <h2>Ajpes</h2>
         <p
-          className="muted"
+          className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
           Turn Ajpes PRS lookup ON or OFF globally for all tenants. OFF prevents
@@ -3340,8 +3303,8 @@ function AjpesAdminPanel() {
         </p>
       </div>
 
-      {loading ? <p className="muted">Loading Ajpes flags…</p> : null}
-      {err ? <p className="search-err">{err}</p> : null}
+      {loading ? <p className="platform-admin-muted">Loading Ajpes flags…</p> : null}
+      {err ? <p className="platform-admin-search-err">{err}</p> : null}
       {ok ? (
         <p
           style={{
@@ -3356,9 +3319,9 @@ function AjpesAdminPanel() {
       ) : null}
 
       {!loading ? (
-        <div className="section-card" style={{ marginTop: 12 }}>
-          <div className="section-head">
-            <div className="section-title">
+        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
+          <div className="platform-admin-section-head">
+            <div className="platform-admin-section-title">
               <strong>PRS global status</strong>
               <span>
                 {enabled
@@ -3367,7 +3330,7 @@ function AjpesAdminPanel() {
               </span>
             </div>
           </div>
-          <div className="top-actions">
+          <div className="platform-admin-top-actions">
             <button
               type="button"
               className={
@@ -3390,9 +3353,9 @@ function AjpesAdminPanel() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 18 }} className="top-actions">
+      <div style={{ marginTop: 18 }} className="platform-admin-top-actions">
         <button
-          className="button primary"
+          className="platform-admin-button platform-admin-primary"
           type="button"
           onClick={() => void save()}
           disabled={saving || loading}
@@ -3460,12 +3423,12 @@ function OtherAdminPanel() {
   const enabled = flags.GLOBAL_CONSUMABLES_ENABLED;
 
   return (
-    <div className="panel panel-pad">
-      <div className="plan-price-head">
-        <div className="eyebrow">Global controls</div>
+    <div className="platform-admin-panel platform-admin-panel-pad">
+      <div className="platform-admin-plan-price-head">
+        <div className="platform-admin-eyebrow">Global controls</div>
         <h2>Other</h2>
         <p
-          className="muted"
+          className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
           Turn optional platform features ON or OFF globally. Platform Admin
@@ -3474,8 +3437,8 @@ function OtherAdminPanel() {
         </p>
       </div>
 
-      {loading ? <p className="muted">Loading other settings…</p> : null}
-      {err ? <p className="search-err">{err}</p> : null}
+      {loading ? <p className="platform-admin-muted">Loading other settings…</p> : null}
+      {err ? <p className="platform-admin-search-err">{err}</p> : null}
       {ok ? (
         <p
           style={{
@@ -3490,9 +3453,9 @@ function OtherAdminPanel() {
       ) : null}
 
       {!loading ? (
-        <div className="section-card" style={{ marginTop: 12 }}>
-          <div className="section-head">
-            <div className="section-title">
+        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
+          <div className="platform-admin-section-head">
+            <div className="platform-admin-section-title">
               <strong>Consumables</strong>
               <span>
                 {enabled
@@ -3501,7 +3464,7 @@ function OtherAdminPanel() {
               </span>
             </div>
           </div>
-          <label className="admin-setting-switch">
+          <label className="platform-admin-admin-setting-switch">
             <input
               type="checkbox"
               checked={enabled}
@@ -3509,8 +3472,8 @@ function OtherAdminPanel() {
                 setFlags({ GLOBAL_CONSUMABLES_ENABLED: e.target.checked })
               }
             />
-            <span className="admin-setting-switch-slider" aria-hidden />
-            <span className="admin-setting-switch-copy">
+            <span className="platform-admin-admin-setting-switch-slider" aria-hidden />
+            <span className="platform-admin-admin-setting-switch-copy">
               <strong>{enabled ? "ON" : "OFF"}</strong>
               <span>
                 {enabled
@@ -3522,9 +3485,9 @@ function OtherAdminPanel() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 18 }} className="top-actions">
+      <div style={{ marginTop: 18 }} className="platform-admin-top-actions">
         <button
-          className="button primary"
+          className="platform-admin-button platform-admin-primary"
           type="button"
           onClick={() => void save()}
           disabled={saving || loading}
@@ -3631,12 +3594,12 @@ function TimeSimulatorPanel() {
   };
 
   return (
-    <div className="panel panel-pad">
-      <div className="plan-price-head">
-        <div className="eyebrow">Developer tools</div>
+    <div className="platform-admin-panel platform-admin-panel-pad">
+      <div className="platform-admin-plan-price-head">
+        <div className="platform-admin-eyebrow">Developer tools</div>
         <h2>Time simulator</h2>
         <p
-          className="muted"
+          className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
         >
           Artificially shift "now" for a single tenant to test session status
@@ -3646,8 +3609,8 @@ function TimeSimulatorPanel() {
         </p>
       </div>
 
-      {loading ? <p className="muted">Loading…</p> : null}
-      {err ? <p className="search-err">{err}</p> : null}
+      {loading ? <p className="platform-admin-muted">Loading…</p> : null}
+      {err ? <p className="platform-admin-search-err">{err}</p> : null}
       {ok ? (
         <p
           style={{
@@ -3662,9 +3625,9 @@ function TimeSimulatorPanel() {
       ) : null}
 
       {!loading ? (
-        <div className="section-card" style={{ marginTop: 12 }}>
-          <div className="section-head">
-            <div className="section-title">
+        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
+          <div className="platform-admin-section-head">
+            <div className="platform-admin-section-title">
               <strong>Configure tenant clock</strong>
               <span>
                 Pick a tenant, then set an absolute date/time or advance/rewind
@@ -3712,7 +3675,7 @@ function TimeSimulatorPanel() {
               />
             </label>
             <button
-              className="button primary"
+              className="platform-admin-button platform-admin-primary"
               type="button"
               disabled={busy || selectedTenantId === "" || !absoluteDateTime}
               onClick={() =>
@@ -3727,7 +3690,7 @@ function TimeSimulatorPanel() {
             style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}
           >
             <button
-              className="button"
+              className="platform-admin-button"
               type="button"
               disabled={busy || selectedTenantId === ""}
               onClick={() =>
@@ -3737,7 +3700,7 @@ function TimeSimulatorPanel() {
               +1 hour
             </button>
             <button
-              className="button"
+              className="platform-admin-button"
               type="button"
               disabled={busy || selectedTenantId === ""}
               onClick={() =>
@@ -3747,7 +3710,7 @@ function TimeSimulatorPanel() {
               +1 day
             </button>
             <button
-              className="button"
+              className="platform-admin-button"
               type="button"
               disabled={busy || selectedTenantId === ""}
               onClick={() =>
@@ -3757,7 +3720,7 @@ function TimeSimulatorPanel() {
               +1 week
             </button>
             <button
-              className="button"
+              className="platform-admin-button"
               type="button"
               disabled={busy || selectedTenantId === ""}
               onClick={() =>
@@ -3767,7 +3730,7 @@ function TimeSimulatorPanel() {
               +30 days
             </button>
             <button
-              className="button"
+              className="platform-admin-button"
               type="button"
               disabled={busy || selectedTenantId === ""}
               onClick={() =>
@@ -3777,7 +3740,7 @@ function TimeSimulatorPanel() {
               -1 hour
             </button>
             <button
-              className="button"
+              className="platform-admin-button"
               type="button"
               disabled={busy || selectedTenantId === ""}
               onClick={() =>
@@ -3791,9 +3754,9 @@ function TimeSimulatorPanel() {
       ) : null}
 
       {!loading ? (
-        <div className="section-card" style={{ marginTop: 12 }}>
-          <div className="section-head">
-            <div className="section-title">
+        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
+          <div className="platform-admin-section-head">
+            <div className="platform-admin-section-title">
               <strong>Active simulations</strong>
               <span>
                 {sims.length
@@ -3821,16 +3784,16 @@ function TimeSimulatorPanel() {
                     <strong>
                       {sim.tenantName || `Tenant #${sim.tenantId}`}
                     </strong>
-                    <div className="muted" style={{ fontSize: "0.85rem" }}>
+                    <div className="platform-admin-muted" style={{ fontSize: "0.85rem" }}>
                       Shift {formatOffsetLabel(sim.offsetSeconds)} · simulated
                       now: {sim.simulatedNow}
                     </div>
-                    <div className="muted" style={{ fontSize: "0.8rem" }}>
+                    <div className="platform-admin-muted" style={{ fontSize: "0.8rem" }}>
                       real now: {sim.realNow}
                     </div>
                   </div>
                   <button
-                    className="button"
+                    className="platform-admin-button"
                     type="button"
                     disabled={busy}
                     onClick={() => void reset(sim.tenantId)}
@@ -3918,11 +3881,213 @@ type ScheduledJobAlert = {
 };
 
 
+type PlatformOverview = {
+  totalTenants: number;
+  activeTenants: number;
+  suspendedTenants: number;
+  cancelledTenants: number;
+  trialTenants: number;
+  paidTenants: number;
+  pendingPaymentTenants: number;
+  pastDueTenants: number;
+  paymentWarnings: number;
+  ownerPasswordPending: number;
+  customPlanTenants: number;
+};
+
+function statusIsProblem(status: string | null | undefined): boolean {
+  const normalized = (status || "").toUpperCase();
+  return normalized !== "UP" && normalized !== "OK";
+}
+
+function metricNumber(value: string | null | undefined): number {
+  if (!value) return 0;
+  const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function PlatformOverviewPanel({
+  onNavigate,
+}: {
+  onNavigate: (tab: AdminWorkspaceTab) => void;
+}) {
+  const [overview, setOverview] = useState<PlatformOverview | null>(null);
+  const [monitoring, setMonitoring] = useState<MonitoringStatus | null>(null);
+  const [scheduledJobs, setScheduledJobs] = useState<ScheduledJobStatus[]>([]);
+  const [scheduledJobAlerts, setScheduledJobAlerts] = useState<ScheduledJobAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [overviewResponse, statusResponse, jobsResponse, alertsResponse] =
+        await Promise.all([
+          api.get<PlatformOverview>("/platform-admin/overview"),
+          api.get<MonitoringStatus>("/platform-admin/monitoring/status"),
+          api.get<ScheduledJobStatus[]>("/platform-admin/monitoring/scheduled-jobs"),
+          api.get<ScheduledJobAlert[]>("/platform-admin/monitoring/scheduled-job-alerts"),
+        ]);
+      setOverview(overviewResponse.data);
+      setMonitoring(statusResponse.data);
+      setScheduledJobs(jobsResponse.data || []);
+      setScheduledJobAlerts(alertsResponse.data || []);
+    } catch {
+      setOverview(null);
+      setMonitoring(null);
+      setScheduledJobs([]);
+      setScheduledJobAlerts([]);
+      setError("Could not load platform overview.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const failedJobs = scheduledJobs.filter(
+    (job) => statusIsProblem(job.health) || (job.failuresLast24h ?? 0) > 0,
+  ).length;
+  const webhookMetric = (monitoring?.metrics || []).find((metric) =>
+    metric.label.toLowerCase().includes("webhook"),
+  );
+  const failedWebhooks = metricNumber(webhookMetric?.value);
+
+  return (
+    <div className="platform-admin-panel platform-admin-panel-pad platform-admin-overview-grid">
+      <div className="platform-admin-section-head">
+        <div className="platform-admin-section-title">
+          <strong>Platform overview</strong>
+          <span>
+            First screen for tenant counts, payment warnings, active alerts,
+            scheduled-job problems, webhook failures and quick operational links.
+          </span>
+        </div>
+        <button
+          className="platform-admin-button platform-admin-secondary platform-admin-small"
+          type="button"
+          disabled={loading}
+          onClick={() => void load()}
+        >
+          Refresh
+        </button>
+      </div>
+
+      {loading ? <p className="platform-admin-muted">Loading platform overview…</p> : null}
+      {error ? <p className="platform-admin-search-err">{error}</p> : null}
+
+      <div className="platform-admin-overview-kpis">
+        <div className="platform-admin-overview-card">
+          <span>Total tenants</span>
+          <strong>{overview?.totalTenants ?? "—"}</strong>
+          <small>{overview?.activeTenants ?? 0} active · {overview?.trialTenants ?? 0} trial</small>
+        </div>
+        <div className="platform-admin-overview-card">
+          <span>Payment warnings</span>
+          <strong>{overview?.paymentWarnings ?? "—"}</strong>
+          <small>{overview?.pendingPaymentTenants ?? 0} pending · {overview?.pastDueTenants ?? 0} past due</small>
+        </div>
+        <div className="platform-admin-overview-card">
+          <span>Active alerts</span>
+          <strong>{scheduledJobAlerts.length}</strong>
+          <small>{monitoring?.overallStatus || "UNKNOWN"} platform status</small>
+        </div>
+        <div className="platform-admin-overview-card">
+          <span>Failed jobs</span>
+          <strong>{failedJobs}</strong>
+          <small>{scheduledJobs.length} scheduled jobs tracked</small>
+        </div>
+        <div className="platform-admin-overview-card">
+          <span>Failed webhooks</span>
+          <strong>{failedWebhooks}</strong>
+          <small>{webhookMetric?.label || "No webhook metric found"}</small>
+        </div>
+        <div className="platform-admin-overview-card">
+          <span>Setup warnings</span>
+          <strong>{overview?.ownerPasswordPending ?? "—"}</strong>
+          <small>Owner password setup still pending</small>
+        </div>
+      </div>
+
+      <div className="platform-admin-overview-two-col">
+        <div className="platform-admin-section-card">
+          <div className="platform-admin-section-title">
+            <strong>What needs attention</strong>
+            <span>Quick read of the most important platform-admin queues.</span>
+          </div>
+          <div className="platform-admin-monitoring-grid">
+            <div className="platform-admin-monitoring-card">
+              <div className="platform-admin-monitoring-card-head">
+                <strong>Billing</strong>
+                <span className={monitoringPillClass((overview?.paymentWarnings ?? 0) > 0 ? "WARN" : "UP")}>
+                  {(overview?.paymentWarnings ?? 0) > 0 ? "WARN" : "UP"}
+                </span>
+              </div>
+              <div className="platform-admin-value">{overview?.paymentWarnings ?? 0}</div>
+              <div className="platform-admin-monitoring-detail">
+                Tenants with pending/past-due subscription status or non-zero due amount.
+              </div>
+            </div>
+            <div className="platform-admin-monitoring-card">
+              <div className="platform-admin-monitoring-card-head">
+                <strong>Operations</strong>
+                <span className={monitoringPillClass(failedJobs > 0 ? "WARN" : "UP")}>
+                  {failedJobs > 0 ? "WARN" : "UP"}
+                </span>
+              </div>
+              <div className="platform-admin-value">{failedJobs}</div>
+              <div className="platform-admin-monitoring-detail">
+                Scheduled jobs with a warning/critical health state or failures in the last 24h.
+              </div>
+            </div>
+            <div className="platform-admin-monitoring-card">
+              <div className="platform-admin-monitoring-card-head">
+                <strong>Webhooks</strong>
+                <span className={monitoringPillClass(failedWebhooks > 0 ? "WARN" : "UP")}>
+                  {failedWebhooks > 0 ? "WARN" : "UP"}
+                </span>
+              </div>
+              <div className="platform-admin-value">{failedWebhooks}</div>
+              <div className="platform-admin-monitoring-detail">
+                {webhookMetric?.description || "Failed webhook counter from monitoring metrics."}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="platform-admin-section-card">
+          <div className="platform-admin-section-title">
+            <strong>Quick links</strong>
+            <span>Jump to the most common admin actions.</span>
+          </div>
+          <div className="platform-admin-quick-links">
+            <button className="platform-admin-quick-link" type="button" onClick={() => onNavigate("tenants")}>
+              Tenant management <span>→</span>
+            </button>
+            <button className="platform-admin-quick-link" type="button" onClick={() => onNavigate("monitoring")}>
+              Monitoring <span>→</span>
+            </button>
+            <button className="platform-admin-quick-link" type="button" onClick={() => onNavigate("payments")}>
+              Payment providers <span>→</span>
+            </button>
+            <button className="platform-admin-quick-link" type="button" onClick={() => onNavigate("messaging")}>
+              Messaging providers <span>→</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function monitoringPillClass(status: string): string {
   const normalized = (status || "").toUpperCase();
-  if (normalized === "UP" || normalized === "OK") return "pill success";
-  if (normalized === "WARN") return "pill warning";
-  return "pill danger";
+  if (normalized === "UP" || normalized === "OK") return "platform-admin-pill platform-admin-success";
+  if (normalized === "WARN") return "platform-admin-pill platform-admin-warning";
+  return "platform-admin-pill platform-admin-danger";
 }
 
 function formatDurationMs(value: number | null | undefined): string {
@@ -3975,9 +4140,9 @@ function MonitoringAdminPanel() {
   }, [load]);
 
   return (
-    <div className="panel panel-pad" style={{ display: "grid", gap: 16 }}>
-      <div className="section-head">
-        <div className="section-title">
+    <div className="platform-admin-panel platform-admin-panel-pad" style={{ display: "grid", gap: 16 }}>
+      <div className="platform-admin-section-head">
+        <div className="platform-admin-section-title">
           <strong>Monitoring</strong>
           <span>
             Quick platform health for the API, database, Redis, disk space and
@@ -3986,7 +4151,7 @@ function MonitoringAdminPanel() {
           </span>
         </div>
         <button
-          className="button secondary small"
+          className="platform-admin-button platform-admin-secondary platform-admin-small"
           type="button"
           disabled={loading}
           onClick={() => void load()}
@@ -3995,14 +4160,14 @@ function MonitoringAdminPanel() {
         </button>
       </div>
 
-      {loading ? <p className="muted">Loading monitoring status…</p> : null}
-      {error ? <p className="search-err">{error}</p> : null}
+      {loading ? <p className="platform-admin-muted">Loading monitoring status…</p> : null}
+      {error ? <p className="platform-admin-search-err">{error}</p> : null}
 
       {data ? (
         <>
-          <div className="section-card">
-            <div className="section-head">
-              <div className="section-title">
+          <div className="platform-admin-section-card">
+            <div className="platform-admin-section-head">
+              <div className="platform-admin-section-title">
                 <strong>Platform status</strong>
                 <span>
                   Last checked {data.generatedAt || "—"} · backend uptime {data.uptime || "—"}
@@ -4012,49 +4177,49 @@ function MonitoringAdminPanel() {
                 {data.overallStatus || "UNKNOWN"}
               </span>
             </div>
-            {data.note ? <div className="monitoring-note">{data.note}</div> : null}
+            {data.note ? <div className="platform-admin-monitoring-note">{data.note}</div> : null}
           </div>
 
-          <div className="section-card">
-            <div className="section-title">
+          <div className="platform-admin-section-card">
+            <div className="platform-admin-section-title">
               <strong>Core checks</strong>
               <span>Backend dependencies and host capacity.</span>
             </div>
-            <div className="monitoring-grid">
+            <div className="platform-admin-monitoring-grid">
               {(data.checks || []).map((check) => (
-                <div className="monitoring-card" key={check.key || check.label}>
-                  <div className="monitoring-card-head">
+                <div className="platform-admin-monitoring-card" key={check.key || check.label}>
+                  <div className="platform-admin-monitoring-card-head">
                     <strong>{check.label}</strong>
                     <span className={monitoringPillClass(check.status)}>
                       {check.status || "UNKNOWN"}
                     </span>
                   </div>
-                  <div className="value">{check.summary || "—"}</div>
-                  <div className="monitoring-detail">{check.detail || "—"}</div>
+                  <div className="platform-admin-value">{check.summary || "—"}</div>
+                  <div className="platform-admin-monitoring-detail">{check.detail || "—"}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="section-card">
-            <div className="section-title">
+          <div className="platform-admin-section-card">
+            <div className="platform-admin-section-title">
               <strong>Risk counters</strong>
               <span>
                 Counts from the current backend process or database state,
                 depending on the metric.
               </span>
             </div>
-            <div className="monitoring-grid">
+            <div className="platform-admin-monitoring-grid">
               {(data.metrics || []).map((metric) => (
-                <div className="monitoring-card" key={metric.label}>
-                  <div className="monitoring-card-head">
+                <div className="platform-admin-monitoring-card" key={metric.label}>
+                  <div className="platform-admin-monitoring-card-head">
                     <strong>{metric.label}</strong>
                     <span className={monitoringPillClass(metric.status)}>
                       {metric.status || "UNKNOWN"}
                     </span>
                   </div>
-                  <div className="value">{metric.value || "0"}</div>
-                  <div className="monitoring-detail">
+                  <div className="platform-admin-value">{metric.value || "0"}</div>
+                  <div className="platform-admin-monitoring-detail">
                     {metric.description || "—"}
                   </div>
                 </div>
@@ -4063,16 +4228,16 @@ function MonitoringAdminPanel() {
           </div>
 
 
-          <div className="section-card">
-            <div className="section-title">
+          <div className="platform-admin-section-card">
+            <div className="platform-admin-section-title">
               <strong>Active scheduled job alerts</strong>
               <span>
                 Email-backed alerts opened by the scheduled job alert scanner.
                 Recovery emails are sent when an alert resolves.
               </span>
             </div>
-            <div className="monitoring-jobs-wrap">
-              <table className="monitoring-jobs-table">
+            <div className="platform-admin-monitoring-jobs-wrap">
+              <table className="platform-admin-monitoring-jobs-table">
                 <thead>
                   <tr>
                     <th scope="col">Alert</th>
@@ -4087,7 +4252,7 @@ function MonitoringAdminPanel() {
                 <tbody>
                   {scheduledJobAlerts.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="monitoring-job-small">
+                      <td colSpan={7} className="platform-admin-monitoring-job-small">
                         No active scheduled job alerts.
                       </td>
                     </tr>
@@ -4100,7 +4265,7 @@ function MonitoringAdminPanel() {
                           </span>
                         </td>
                         <td>
-                          <div className="monitoring-job-name">
+                          <div className="platform-admin-monitoring-job-name">
                             <strong>{alert.label || alert.jobName}</strong>
                             <span>{alert.jobName}</span>
                           </div>
@@ -4113,7 +4278,7 @@ function MonitoringAdminPanel() {
                         <td>{formatMonitoringTime(alert.firstDetectedAt)}</td>
                         <td>{formatMonitoringTime(alert.lastDetectedAt)}</td>
                         <td>{formatMonitoringTime(alert.lastEmailSentAt)}</td>
-                        <td className="monitoring-job-small">{alert.message || "—"}</td>
+                        <td className="platform-admin-monitoring-job-small">{alert.message || "—"}</td>
                       </tr>
                     ))
                   )}
@@ -4122,8 +4287,8 @@ function MonitoringAdminPanel() {
             </div>
           </div>
 
-          <div className="section-card">
-            <div className="section-title">
+          <div className="platform-admin-section-card">
+            <div className="platform-admin-section-title">
               <strong>Scheduled jobs</strong>
               <span>
                 Confirms important background jobs are running, succeeding and
@@ -4131,8 +4296,8 @@ function MonitoringAdminPanel() {
                 inside its expected window.
               </span>
             </div>
-            <div className="monitoring-jobs-wrap">
-              <table className="monitoring-jobs-table">
+            <div className="platform-admin-monitoring-jobs-wrap">
+              <table className="platform-admin-monitoring-jobs-table">
                 <thead>
                   <tr>
                     <th scope="col">Job</th>
@@ -4149,7 +4314,7 @@ function MonitoringAdminPanel() {
                 <tbody>
                   {scheduledJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="monitoring-job-small">
+                      <td colSpan={9} className="platform-admin-monitoring-job-small">
                         No scheduled job tracking rows are available yet. Wait
                         until the next scheduled executions run.
                       </td>
@@ -4158,13 +4323,13 @@ function MonitoringAdminPanel() {
                     scheduledJobs.map((job) => (
                       <tr key={job.jobName}>
                         <td>
-                          <div className="monitoring-job-name">
+                          <div className="platform-admin-monitoring-job-name">
                             <strong>{job.label || job.jobName}</strong>
                             <span>{job.jobName}</span>
                           </div>
                         </td>
                         <td>
-                          <div className="monitoring-job-summary">
+                          <div className="platform-admin-monitoring-job-summary">
                             <span className={monitoringPillClass(job.health)}>
                               {job.health || "UNKNOWN"}
                             </span>
@@ -4174,7 +4339,7 @@ function MonitoringAdminPanel() {
                         </td>
                         <td>
                           {job.activeAlertType ? (
-                            <div className="monitoring-job-summary">
+                            <div className="platform-admin-monitoring-job-summary">
                               <span className={monitoringPillClass(job.activeAlertSeverity === "CRITICAL" ? "CRITICAL" : "WARN")}>
                                 {job.activeAlertType}
                               </span>
@@ -4185,12 +4350,12 @@ function MonitoringAdminPanel() {
                               ) : null}
                             </div>
                           ) : (
-                            <span className="monitoring-job-small">None</span>
+                            <span className="platform-admin-monitoring-job-small">None</span>
                           )}
                         </td>
                         <td>{formatMonitoringTime(job.lastSuccess?.finishedAt)}</td>
                         <td>
-                          <div className="monitoring-job-small">
+                          <div className="platform-admin-monitoring-job-small">
                             {job.latestRun?.status || "—"}
                             <br />
                             {formatMonitoringTime(job.latestRun?.startedAt)}
@@ -4200,7 +4365,7 @@ function MonitoringAdminPanel() {
                         <td>{job.latestRun?.recordsProcessed ?? "—"}</td>
                         <td>{job.failuresLast24h ?? 0}</td>
                         <td>
-                          <div className="monitoring-job-small">
+                          <div className="platform-admin-monitoring-job-small">
                             Success within {job.expectedSuccessWithin || "—"}
                             <br />
                             Stuck after {job.stuckAfter || "—"}
@@ -4220,6 +4385,7 @@ function MonitoringAdminPanel() {
 }
 
 type AdminWorkspaceTab =
+  | "overview"
   | "tenants"
   | "monitoring"
   | "plans"
@@ -4234,7 +4400,8 @@ type AdminWorkspaceTab =
   | "developer";
 
 const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
-  { id: "tenants", label: "Tenant management" },
+  { id: "overview", label: "Overview" },
+  { id: "tenants", label: "Tenants" },
   { id: "monitoring", label: "Monitoring" },
   { id: "plans", label: "Plan & add-ons" },
   { id: "fiscalization", label: "Fiscalization" },
@@ -4250,8 +4417,8 @@ const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
 
 function AdminComingSoon({ title }: { title: string }) {
   return (
-    <div className="admin-placeholder panel panel-pad">
-      <div className="eyebrow">Coming soon</div>
+    <div className="platform-admin-admin-placeholder platform-admin-panel platform-admin-panel-pad">
+      <div className="platform-admin-eyebrow">Coming soon</div>
       <h2 style={{ margin: 0, fontSize: "1.45rem", letterSpacing: "-0.04em" }}>
         {title}
       </h2>
@@ -4273,7 +4440,7 @@ export function PlatformAdminPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [searchErr, setSearchErr] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState("overview");
-  const [workspace, setWorkspace] = useState<AdminWorkspaceTab>("tenants");
+  const [workspace, setWorkspace] = useState<AdminWorkspaceTab>("overview");
   /** Which admin modal is open; price override UI is only mounted when this is "price". */
   const [activeModalKind, setActiveModalKind] = useState<string | null>(null);
   const [auditLog, setAuditLog] = useState<AuditLogEntryDto[]>([]);
@@ -4457,7 +4624,7 @@ export function PlatformAdminPage() {
       if (kind === "plan" && selected && root) {
         updatePlanChangePanels(root, selected);
       }
-      modal?.classList.add("visible");
+      modal?.classList.add("platform-admin-visible");
       modal?.setAttribute("aria-hidden", "false");
     },
     [selected],
@@ -4466,7 +4633,7 @@ export function PlatformAdminPage() {
   const closeModal = useCallback(() => {
     const root = rootRef.current;
     const modal = root?.querySelector<HTMLElement>("#modalBackdrop");
-    modal?.classList.remove("visible");
+    modal?.classList.remove("platform-admin-visible");
     modal?.setAttribute("aria-hidden", "true");
     if (modal) modal.dataset.modalKind = "";
     flushSync(() => {
@@ -4490,13 +4657,13 @@ export function PlatformAdminPage() {
         window.alert("Export is not wired yet for the live tenant list.");
         return;
       }
-      const navButton = target.closest<HTMLElement>(".tenant-card .nav-item");
+      const navButton = target.closest<HTMLElement>(".platform-admin-tenant-card .platform-admin-nav-item");
       if (navButton?.dataset.target) {
         setActiveNav(navButton.dataset.target);
         root
-          .querySelectorAll(".tenant-card .nav-item")
-          .forEach((item) => item.classList.remove("active"));
-        navButton.classList.add("active");
+          .querySelectorAll(".platform-admin-tenant-card .platform-admin-nav-item")
+          .forEach((item) => item.classList.remove("platform-admin-active"));
+        navButton.classList.add("platform-admin-active");
         const section = root.querySelector<HTMLElement>(
           `#${navButton.dataset.target}`,
         );
@@ -4820,63 +4987,50 @@ export function PlatformAdminPage() {
 
   return (
     <>
-      <style>{adminConsoleStyles}</style>
-      <div ref={rootRef}>
-        <div className="app-shell">
-          <header className="topbar">
-            <div className="brand">
-              <div className="brand-logo">C</div>
-              <div className="brand-copy">
-                <strong>Calendra Admin Console</strong>
-                <span>
-                  Tenant management, billing, subscription and audit control
-                </span>
-              </div>
-            </div>
-            <div className="top-actions">
-              <span className="pill success">Live data</span>
-              <span className="pill primary">Admin view</span>
-              <button
-                className="button secondary small"
-                type="button"
-                data-admin-export
-              >
-                Export
-              </button>
-              <button
-                className="button secondary small"
-                type="button"
-                data-admin-logout
-              >
-                Logout
-              </button>
-            </div>
-          </header>
+      <div ref={rootRef} className="platform-admin-page">
+        <header className="platform-admin-page-head platform-admin-head">
+          <div className="platform-admin-page-title">
+            <div className="platform-admin-eyebrow">Platform Admin</div>
+            <h1>Calendra Admin</h1>
+            <p>
+              Manage tenants, billing, integrations, monitoring and production
+              operations from the normal Calendra app shell.
+            </p>
+          </div>
+          <div className="platform-admin-top-actions">
+            <span className="platform-admin-pill platform-admin-success">Live data</span>
+            <span className="platform-admin-pill platform-admin-primary">Admin view</span>
+            <button
+              className="platform-admin-button platform-admin-secondary platform-admin-small"
+              type="button"
+              data-admin-export
+            >
+              Export
+            </button>
+          </div>
+        </header>
 
-          <main className="content">
-            <div className="admin-workspace">
-              <aside
-                className="admin-sidebar"
-                aria-label="Platform admin sections"
-              >
-                <div className="admin-sidebar-title">Sections</div>
-                {ADMIN_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={`admin-sidebar-tab${workspace === tab.id ? " active" : ""}`}
-                    onClick={() => setWorkspace(tab.id)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </aside>
-              <div className="admin-main">
-                {workspace === "tenants" ? (
+        <nav className="platform-admin-tabs" aria-label="Platform admin sections">
+          {ADMIN_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`platform-admin-tab${workspace === tab.id ? " platform-admin-active" : ""}`}
+              onClick={() => setWorkspace(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        <main className="platform-admin-admin-main">
+                {workspace === "overview" ? (
+                  <PlatformOverviewPanel onNavigate={setWorkspace} />
+                ) : workspace === "tenants" ? (
                   <>
-                    <div className="page-head platform-admin-head">
-                      <div className="page-title">
-                        <div className="eyebrow">Management overview</div>
+                    <div className="platform-admin-page-head platform-admin-head">
+                      <div className="platform-admin-page-title">
+                        <div className="platform-admin-eyebrow">Management overview</div>
                         <h1>Tenant management</h1>
                         <p>
                           All workspaces load automatically. Use the field below
@@ -4885,10 +5039,10 @@ export function PlatformAdminPage() {
                           left.
                         </p>
                       </div>
-                      <div className="search-wrap tenant-list-wrap">
-                        <div className="search-row">
+                      <div className="platform-admin-search-wrap platform-admin-tenant-list-wrap">
+                        <div className="platform-admin-search-row">
                           <input
-                            className="search-input"
+                            className="platform-admin-search-input"
                             type="search"
                             placeholder="Filter tenants by name or code…"
                             value={searchInput}
@@ -4897,7 +5051,7 @@ export function PlatformAdminPage() {
                             aria-label="Filter tenant list"
                           />
                           <button
-                            className="button primary"
+                            className="platform-admin-button platform-admin-primary"
                             type="button"
                             onClick={openManualTenantCreate}
                           >
@@ -4906,7 +5060,7 @@ export function PlatformAdminPage() {
                         </div>
                         {!listLoading && hits.length > 0 ? (
                           <p
-                            className="muted"
+                            className="platform-admin-muted"
                             style={{
                               margin: 0,
                               fontSize: "0.88rem",
@@ -4918,32 +5072,32 @@ export function PlatformAdminPage() {
                           </p>
                         ) : null}
                         {listLoading ? (
-                          <p className="muted">Loading tenants…</p>
+                          <p className="platform-admin-muted">Loading tenants…</p>
                         ) : null}
                         {searchErr ? (
-                          <p className="search-err">{searchErr}</p>
+                          <p className="platform-admin-search-err">{searchErr}</p>
                         ) : null}
                         {!listLoading &&
                         hits.length > 0 &&
                         visibleHits.length === 0 ? (
-                          <p className="muted">No tenants match this filter.</p>
+                          <p className="platform-admin-muted">No tenants match this filter.</p>
                         ) : null}
                         {!listLoading && visibleHits.length > 0 ? (
-                          <ul className="search-hits" aria-label="Tenant list">
+                          <ul className="platform-admin-search-hits" aria-label="Tenant list">
                             {visibleHits.map((h) => (
                               <li key={h.id}>
                                 <button
                                   type="button"
-                                  className="search-hit"
+                                  className="platform-admin-search-hit"
                                   onClick={() => onPickHit(h)}
                                 >
                                   <strong>{h.companyName}</strong>
-                                  <div className="sub">
+                                  <div className="platform-admin-sub">
                                     {isPlaceholderHit(h)
                                       ? h.tenantCode || "—"
                                       : `${h.tenantCode} · ${h.contactEmail || "—"} · ${formatPlan(h.packageType)} · ${formatInterval(h.subscriptionInterval)}`}
                                   </div>
-                                  <div className="sub">
+                                  <div className="platform-admin-sub">
                                     {h.signupCompletionSummary}
                                   </div>
                                 </button>
@@ -4955,59 +5109,59 @@ export function PlatformAdminPage() {
                     </div>
 
                     {manualTenantErr && !manualTenantOpen ? (
-                      <div className="manual-error" style={{ marginBottom: 16 }}>
+                      <div className="platform-admin-manual-error" style={{ marginBottom: 16 }}>
                         {manualTenantErr}
                       </div>
                     ) : null}
                     {manualTenantResult && !manualTenantOpen ? (
-                      <div className="manual-result" style={{ marginBottom: 16 }}>
+                      <div className="platform-admin-manual-result" style={{ marginBottom: 16 }}>
                         {manualTenantResult}
                       </div>
                     ) : null}
 
-                    <section className="hero">
-                      <aside className="panel panel-pad tenant-card">
+                    <section className="platform-admin-hero">
+                      <aside className="platform-admin-panel platform-admin-panel-pad platform-admin-tenant-card">
                         {loadingDetail ? (
-                          <p className="muted">Loading tenant…</p>
+                          <p className="platform-admin-muted">Loading tenant…</p>
                         ) : null}
                         {!loadingDetail && !selected ? (
-                          <p className="muted">
+                          <p className="platform-admin-muted">
                             Select a tenant from the list to see plan, billing
                             interval, and signup status.
                           </p>
                         ) : null}
                         {!loadingDetail && selected ? (
                           <>
-                            <div className="tenant-head">
-                              <div className="tenant-avatar">
+                            <div className="platform-admin-tenant-head">
+                              <div className="platform-admin-tenant-avatar">
                                 {initials(selected.companyName)}
                               </div>
-                              <div className="tenant-title">
+                              <div className="platform-admin-tenant-title">
                                 <h2>{selected.companyName || "—"}</h2>
                                 <span>
                                   {selected.tenantCode || "—"} · {workspaceHint}
                                 </span>
                               </div>
-                              <div className="top-actions">
-                                <span className="pill success">Active</span>
+                              <div className="platform-admin-top-actions">
+                                <span className="platform-admin-pill platform-admin-success">Active</span>
                                 {selected.packageType?.toUpperCase() ===
                                 "TRIAL" ? (
-                                  <span className="pill purple">Trialing</span>
+                                  <span className="platform-admin-pill platform-admin-purple">Trialing</span>
                                 ) : null}
                                 {selected.ownerPasswordSetupPending ? (
-                                  <span className="pill warning">
+                                  <span className="platform-admin-pill platform-admin-warning">
                                     Password pending
                                   </span>
                                 ) : null}
                               </div>
                             </div>
 
-                            <div className="status-grid">
-                              <div className="stat">
+                            <div className="platform-admin-status-grid">
+                              <div className="platform-admin-stat">
                                 <strong>Plan</strong>
                                 <span>{formatPlan(selected.packageType)}</span>
                               </div>
-                              <div className="stat">
+                              <div className="platform-admin-stat">
                                 <strong>Billing</strong>
                                 <span>
                                   {formatInterval(
@@ -5015,11 +5169,11 @@ export function PlatformAdminPage() {
                                   )}
                                 </span>
                               </div>
-                              <div className="stat">
+                              <div className="platform-admin-stat">
                                 <strong>Due (sub)</strong>
                                 <span>€{selected.dueAmount}</span>
                               </div>
-                              <div className="stat">
+                              <div className="platform-admin-stat">
                                 <strong>Renewal</strong>
                                 <span>
                                   {selected.subscriptionEnd?.trim() || "—"}
@@ -5029,15 +5183,15 @@ export function PlatformAdminPage() {
 
                             <div>
                               <div
-                                className="field-top"
+                                className="platform-admin-field-top"
                                 style={{ marginBottom: 8 }}
                               >
                                 <strong>Signup status</strong>
-                                <span className="muted">
+                                <span className="platform-admin-muted">
                                   {selected.signupCompletionSummary}
                                 </span>
                               </div>
-                              <div className="progress">
+                              <div className="platform-admin-progress">
                                 <div
                                   style={{
                                     width: `${progressWidth(selected)}%`,
@@ -5047,70 +5201,70 @@ export function PlatformAdminPage() {
                             </div>
 
                             <nav
-                              className="nav-list"
+                              className="platform-admin-nav-list"
                               aria-label="Admin sections"
                             >
                               <button
                                 type="button"
-                                className={`nav-item${activeNav === "overview" ? " active" : ""}`}
+                                className={`platform-admin-nav-item${activeNav === "overview" ? " platform-admin-active" : ""}`}
                                 data-target="overview"
                               >
                                 Overview <span>›</span>
                               </button>
                               <button
                                 type="button"
-                                className={`nav-item${activeNav === "subscription" ? " active" : ""}`}
+                                className={`platform-admin-nav-item${activeNav === "subscription" ? " platform-admin-active" : ""}`}
                                 data-target="subscription"
                               >
                                 Subscription & add-ons <span>›</span>
                               </button>
                               <button
                                 type="button"
-                                className={`nav-item${activeNav === "billing" ? " active" : ""}`}
+                                className={`platform-admin-nav-item${activeNav === "billing" ? " platform-admin-active" : ""}`}
                                 data-target="billing"
                               >
                                 Billing & payments <span>›</span>
                               </button>
                               <button
                                 type="button"
-                                className={`nav-item${activeNav === "audit" ? " active" : ""}`}
+                                className={`platform-admin-nav-item${activeNav === "audit" ? " platform-admin-active" : ""}`}
                                 data-target="audit"
                               >
                                 Audit log <span>›</span>
                               </button>
                               <button
                                 type="button"
-                                className={`nav-item${activeNav === "plan-history" ? " active" : ""}`}
+                                className={`platform-admin-nav-item${activeNav === "plan-history" ? " platform-admin-active" : ""}`}
                                 data-target="plan-history"
                               >
                                 Plan history <span>›</span>
                               </button>
                             </nav>
 
-                            <div className="top-actions">
+                            <div className="platform-admin-top-actions">
                               <button
-                                className="button primary small"
+                                className="platform-admin-button platform-admin-primary platform-admin-small"
                                 type="button"
                                 data-open-modal="plan"
                               >
                                 Change plan
                               </button>
                               <button
-                                className="button secondary small"
+                                className="platform-admin-button platform-admin-secondary platform-admin-small"
                                 type="button"
                                 data-open-modal="price"
                               >
                                 Price override
                               </button>
                               <button
-                                className="button danger small"
+                                className="platform-admin-button platform-admin-danger platform-admin-small"
                                 type="button"
                                 data-open-modal="suspend"
                               >
                                 Suspend
                               </button>
                               <button
-                                className="button danger small"
+                                className="platform-admin-button platform-admin-danger platform-admin-small"
                                 type="button"
                                 data-open-modal="delete"
                               >
@@ -5121,16 +5275,16 @@ export function PlatformAdminPage() {
                         ) : null}
                       </aside>
 
-                      <section className="main-grid">
-                        <div className="kpi-row">
-                          <div className="kpi">
+                      <section className="platform-admin-main-grid">
+                        <div className="platform-admin-kpi-row">
+                          <div className="platform-admin-kpi">
                             <span>Subscription end</span>
                             <strong>
                               {selected?.subscriptionEnd?.trim() || "—"}
                             </strong>
                             <small>From billing settings on the tenant.</small>
                           </div>
-                          <div className="kpi">
+                          <div className="platform-admin-kpi">
                             <span>Due amount</span>
                             <strong>
                               {selected ? `€${selected.dueAmount}` : "—"}
@@ -5139,12 +5293,12 @@ export function PlatformAdminPage() {
                               Outstanding subscription balance string.
                             </small>
                           </div>
-                          <div className="kpi">
+                          <div className="platform-admin-kpi">
                             <span>SMS usage</span>
                             <strong>{kpiSms}</strong>
                             <small>Sent vs configured signup SMS quota.</small>
                           </div>
-                          <div className="kpi">
+                          <div className="platform-admin-kpi">
                             <span>Users</span>
                             <strong>{kpiUsers}</strong>
                             <small>
@@ -5154,15 +5308,15 @@ export function PlatformAdminPage() {
                         </div>
 
                         {!selected ? (
-                          <div className="empty-hint">
+                          <div className="platform-admin-empty-hint">
                             Select a tenant from the search results to populate
                             the overview.
                           </div>
                         ) : (
                           <>
-                            <section className="section-card" id="overview">
-                              <div className="section-head">
-                                <div className="section-title">
+                            <section className="platform-admin-section-card" id="overview">
+                              <div className="platform-admin-section-head">
+                                <div className="platform-admin-section-title">
                                   <strong>
                                     Tenant basics and owner access
                                   </strong>
@@ -5172,47 +5326,47 @@ export function PlatformAdminPage() {
                                   </span>
                                 </div>
                               </div>
-                              <div className="field-grid">
-                                <div className="field-card">
-                                  <div className="field-label">
+                              <div className="platform-admin-field-grid">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Tenant / company name</strong>
                                     <span>{selected.companyName}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Tenant code</strong>
                                     <span>{selected.tenantCode || "—"}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Owner name</strong>
                                     <span>{selected.contactName || "—"}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Owner email</strong>
                                     <span>{selected.contactEmail || "—"}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>VAT ID</strong>
                                     <span>{selected.vatId?.trim() || "—"}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Address</strong>
                                     <span>
                                       {selected.companyAddress?.trim() || "—"}
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Postal code</strong>
                                     <span>
                                       {selected.companyPostalCode?.trim() ||
@@ -5220,16 +5374,16 @@ export function PlatformAdminPage() {
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>City</strong>
                                     <span>
                                       {selected.companyCity?.trim() || "—"}
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>
                                       Stripe customer (recent bill)
                                     </strong>
@@ -5239,22 +5393,22 @@ export function PlatformAdminPage() {
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Signup status</strong>
                                     <span>
                                       {selected.signupCompletionSummary}
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Created</strong>
                                     <span>{selected.createdAt || "—"}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Phone</strong>
                                     <span>
                                       {selected.contactPhone?.trim() || "—"}
@@ -5264,18 +5418,18 @@ export function PlatformAdminPage() {
                               </div>
                             </section>
 
-                            <section className="section-card" id="subscription">
-                              <div className="section-head">
-                                <div className="section-title">
+                            <section className="platform-admin-section-card" id="subscription">
+                              <div className="platform-admin-section-head">
+                                <div className="platform-admin-section-title">
                                   <strong>Subscription</strong>
                                   <span>
                                     Plan and billing interval from tenant
                                     settings.
                                   </span>
                                 </div>
-                                <div className="top-actions">
+                                <div className="platform-admin-top-actions">
                                   <button
-                                    className="button secondary small"
+                                    className="platform-admin-button platform-admin-secondary platform-admin-small"
                                     type="button"
                                     onClick={openManualTenantEdit}
                                   >
@@ -5283,17 +5437,17 @@ export function PlatformAdminPage() {
                                   </button>
                                 </div>
                               </div>
-                              <div className="field-grid">
-                                <div className="field-card">
-                                  <div className="field-label">
+                              <div className="platform-admin-field-grid">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Plan</strong>
                                     <span>
                                       {formatPlan(selected.packageType)}
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Billing cycle</strong>
                                     <span>
                                       {formatInterval(
@@ -5302,8 +5456,8 @@ export function PlatformAdminPage() {
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Period</strong>
                                     <span>
                                       {selected.subscriptionStart || "—"} →{" "}
@@ -5311,27 +5465,27 @@ export function PlatformAdminPage() {
                                     </span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Access status</strong>
                                     <span>{selected.accessStatus || "ACTIVE"}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Billing status</strong>
                                     <span>{selected.billingStatus || "PENDING_PAYMENT"}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Payment method</strong>
                                     <span>{selected.paymentMethod || "—"}</span>
                                   </div>
                                 </div>
                                 {selected.packageType?.toUpperCase() === "CUSTOM" ? (
-                                  <div className="field-card">
-                                    <div className="field-label">
+                                  <div className="platform-admin-field-card">
+                                    <div className="platform-admin-field-label">
                                       <strong>Custom package</strong>
                                       <span>
                                         {selected.customPackageName || "Custom"} · €
@@ -5344,18 +5498,18 @@ export function PlatformAdminPage() {
                               </div>
                             </section>
 
-                            <section className="section-card" id="billing">
-                              <div className="section-head">
-                                <div className="section-title">
+                            <section className="platform-admin-section-card" id="billing">
+                              <div className="platform-admin-section-head">
+                                <div className="platform-admin-section-title">
                                   <strong>Billing snapshot</strong>
                                   <span>
                                     Due balance and renewal from billing
                                     settings.
                                   </span>
                                 </div>
-                                <div className="top-actions">
+                                <div className="platform-admin-top-actions">
                                   <button
-                                    className="button secondary small"
+                                    className="platform-admin-button platform-admin-secondary platform-admin-small"
                                     type="button"
                                     onClick={resendSubscriptionPayment}
                                   >
@@ -5363,15 +5517,15 @@ export function PlatformAdminPage() {
                                   </button>
                                 </div>
                               </div>
-                              <div className="field-grid">
-                                <div className="field-card">
-                                  <div className="field-label">
+                              <div className="platform-admin-field-grid">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>Due amount</strong>
                                     <span>€{selected.dueAmount}</span>
                                   </div>
                                 </div>
-                                <div className="field-card">
-                                  <div className="field-label">
+                                <div className="platform-admin-field-card">
+                                  <div className="platform-admin-field-label">
                                     <strong>VAT on file</strong>
                                     <span>{selected.vatId?.trim() || "—"}</span>
                                   </div>
@@ -5379,9 +5533,9 @@ export function PlatformAdminPage() {
                               </div>
                             </section>
 
-                            <section className="section-card" id="audit">
-                              <div className="section-head">
-                                <div className="section-title">
+                            <section className="platform-admin-section-card" id="audit">
+                              <div className="platform-admin-section-head">
+                                <div className="platform-admin-section-title">
                                   <strong>Audit log</strong>
                                   <span>
                                     Actions recorded from this platform admin
@@ -5392,15 +5546,15 @@ export function PlatformAdminPage() {
                                 </div>
                               </div>
                               {auditLoading ? (
-                                <p className="muted">Loading audit log…</p>
+                                <p className="platform-admin-muted">Loading audit log…</p>
                               ) : null}
                               {auditErr ? (
-                                <p className="search-err">{auditErr}</p>
+                                <p className="platform-admin-search-err">{auditErr}</p>
                               ) : null}
                               {!auditLoading &&
                               !auditErr &&
                               auditLog.length === 0 ? (
-                                <p className="muted" style={{ margin: 0 }}>
+                                <p className="platform-admin-muted" style={{ margin: 0 }}>
                                   No platform admin actions recorded for this
                                   tenant yet.
                                 </p>
@@ -5408,8 +5562,8 @@ export function PlatformAdminPage() {
                               {!auditLoading &&
                               !auditErr &&
                               auditLog.length > 0 ? (
-                                <div className="audit-log-wrap">
-                                  <table className="audit-log-table">
+                                <div className="platform-admin-audit-log-wrap">
+                                  <table className="platform-admin-audit-log-table">
                                     <thead>
                                       <tr>
                                         <th scope="col">When</th>
@@ -5446,10 +5600,10 @@ export function PlatformAdminPage() {
                                               {row.summary}
                                             </code>
                                           </td>
-                                          <td className="audit-actor-cell">
+                                          <td className="platform-admin-audit-actor-cell">
                                             {row.actorEmail?.trim() || "—"}
                                           </td>
-                                          <td className="audit-detail-cell">
+                                          <td className="platform-admin-audit-detail-cell">
                                             {row.detail}
                                           </td>
                                         </tr>
@@ -5460,9 +5614,9 @@ export function PlatformAdminPage() {
                               ) : null}
                             </section>
 
-                            <section className="section-card" id="plan-history">
-                              <div className="section-head">
-                                <div className="section-title">
+                            <section className="platform-admin-section-card" id="plan-history">
+                              <div className="platform-admin-section-head">
+                                <div className="platform-admin-section-title">
                                   <strong>Plan history</strong>
                                   <span>
                                     History of tenant plan changes from Platform
@@ -5471,18 +5625,18 @@ export function PlatformAdminPage() {
                                 </div>
                               </div>
                               {auditLoading ? (
-                                <p className="muted">Loading plan history…</p>
+                                <p className="platform-admin-muted">Loading plan history…</p>
                               ) : null}
                               {!auditLoading &&
                               !auditErr &&
                               planHistory.length === 0 ? (
-                                <p className="muted" style={{ margin: 0 }}>
+                                <p className="platform-admin-muted" style={{ margin: 0 }}>
                                   No recorded plan changes for this tenant yet.
                                 </p>
                               ) : null}
                               {!auditLoading && planHistory.length > 0 ? (
-                                <div className="plan-history-wrap">
-                                  <table className="plan-history-table">
+                                <div className="platform-admin-plan-history-wrap">
+                                  <table className="platform-admin-plan-history-table">
                                     <thead>
                                       <tr>
                                         <th scope="col">Recorded</th>
@@ -5508,14 +5662,14 @@ export function PlatformAdminPage() {
                                             <span
                                               className={
                                                 row.status === "Scheduled"
-                                                  ? "plan-status-pill plan-status-pill--scheduled"
-                                                  : "plan-status-pill plan-status-pill--applied"
+                                                  ? "platform-admin-plan-status-pill platform-admin-plan-status-pill--scheduled"
+                                                  : "platform-admin-plan-status-pill platform-admin-plan-status-pill--applied"
                                               }
                                             >
                                               {row.status}
                                             </span>
                                           </td>
-                                          <td className="audit-actor-cell">
+                                          <td className="platform-admin-audit-actor-cell">
                                             {row.actor}
                                           </td>
                                         </tr>
@@ -5533,7 +5687,7 @@ export function PlatformAdminPage() {
                 ) : workspace === "monitoring" ? (
                   <MonitoringAdminPanel />
                 ) : workspace === "plans" ? (
-                  <div className="panel panel-pad">
+                  <div className="platform-admin-panel platform-admin-panel-pad">
                     <PlanPricesAdminPanel />
                   </div>
                 ) : workspace === "fiscalization" ? (
@@ -5556,22 +5710,19 @@ export function PlatformAdminPage() {
                     }
                   />
                 )}
-              </div>
-            </div>
-          </main>
-        </div>
+        </main>
 
         {manualTenantOpen ? (
           <div
-            className="manual-tenant-backdrop"
+            className="platform-admin-manual-tenant-backdrop"
             role="dialog"
             aria-modal="true"
             aria-label={manualTenantMode === "create" ? "Create manual tenant" : "Edit manual subscription"}
           >
-            <div className="manual-tenant-modal">
-              <div className="manual-tenant-header">
-                <div className="manual-tenant-title">
-                  <div className="eyebrow">Platform Admin</div>
+            <div className="platform-admin-manual-tenant-modal">
+              <div className="platform-admin-manual-tenant-header">
+                <div className="platform-admin-manual-tenant-title">
+                  <div className="platform-admin-eyebrow">Platform Admin</div>
                   <h2>
                     {manualTenantMode === "create"
                       ? "Add tenant manually"
@@ -5583,7 +5734,7 @@ export function PlatformAdminPage() {
                   </p>
                 </div>
                 <button
-                  className="button secondary small"
+                  className="platform-admin-button platform-admin-secondary platform-admin-small"
                   type="button"
                   onClick={() => setManualTenantOpen(false)}
                 >
@@ -5592,16 +5743,16 @@ export function PlatformAdminPage() {
               </div>
 
               {manualTenantErr ? (
-                <div className="manual-error">{manualTenantErr}</div>
+                <div className="platform-admin-manual-error">{manualTenantErr}</div>
               ) : null}
               {manualTenantResult ? (
-                <div className="manual-result">{manualTenantResult}</div>
+                <div className="platform-admin-manual-result">{manualTenantResult}</div>
               ) : null}
 
-              <section className="manual-section">
+              <section className="platform-admin-manual-section">
                 <h3>Owner and company details</h3>
-                <div className="manual-grid">
-                  <div className="manual-field">
+                <div className="platform-admin-manual-grid">
+                  <div className="platform-admin-manual-field">
                     <label>First name</label>
                     <input
                       value={manualTenantForm.firstName}
@@ -5609,7 +5760,7 @@ export function PlatformAdminPage() {
                       onChange={(e) => updateManualTenantField("firstName", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Last name</label>
                     <input
                       value={manualTenantForm.lastName}
@@ -5617,7 +5768,7 @@ export function PlatformAdminPage() {
                       onChange={(e) => updateManualTenantField("lastName", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>E-mail</label>
                     <input
                       type="email"
@@ -5626,21 +5777,21 @@ export function PlatformAdminPage() {
                       onChange={(e) => updateManualTenantField("email", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Phone</label>
                     <input
                       value={manualTenantForm.phone}
                       onChange={(e) => updateManualTenantField("phone", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Company</label>
                     <input
                       value={manualTenantForm.companyName}
                       onChange={(e) => updateManualTenantField("companyName", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Tip podjetja</label>
                     <select
                       value={manualTenantForm.companyType}
@@ -5653,42 +5804,42 @@ export function PlatformAdminPage() {
                       ))}
                     </select>
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>VAT ID</label>
                     <input
                       value={manualTenantForm.vatId}
                       onChange={(e) => updateManualTenantField("vatId", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Country</label>
                     <input
                       value={manualTenantForm.country}
                       onChange={(e) => updateManualTenantField("country", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>City</label>
                     <input
                       value={manualTenantForm.city}
                       onChange={(e) => updateManualTenantField("city", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Address</label>
                     <input
                       value={manualTenantForm.address}
                       onChange={(e) => updateManualTenantField("address", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Postal code</label>
                     <input
                       value={manualTenantForm.postalCode}
                       onChange={(e) => updateManualTenantField("postalCode", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Language</label>
                     <select
                       value={manualTenantForm.language}
@@ -5701,10 +5852,10 @@ export function PlatformAdminPage() {
                 </div>
               </section>
 
-              <section className="manual-section">
+              <section className="platform-admin-manual-section">
                 <h3>Package, limits and payment</h3>
-                <div className="manual-grid">
-                  <div className="manual-field">
+                <div className="platform-admin-manual-grid">
+                  <div className="platform-admin-manual-field">
                     <label>Package</label>
                     <select
                       value={manualTenantForm.packageName}
@@ -5716,7 +5867,7 @@ export function PlatformAdminPage() {
                       <option value="CUSTOM">Custom</option>
                     </select>
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Billing interval</label>
                     <select
                       value={manualTenantForm.billingInterval}
@@ -5726,7 +5877,7 @@ export function PlatformAdminPage() {
                       <option value="YEARLY">Yearly</option>
                     </select>
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Users</label>
                     <input
                       type="number"
@@ -5735,7 +5886,7 @@ export function PlatformAdminPage() {
                       onChange={(e) => updateManualTenantField("userCount", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>SMS / month</label>
                     <input
                       type="number"
@@ -5744,7 +5895,7 @@ export function PlatformAdminPage() {
                       onChange={(e) => updateManualTenantField("smsCount", e.target.value)}
                     />
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Payment method</label>
                     <select
                       value={manualTenantForm.paymentMethod}
@@ -5754,7 +5905,7 @@ export function PlatformAdminPage() {
                       <option value="CARD">Stripe / credit card</option>
                     </select>
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Access status</label>
                     <select
                       value={manualTenantForm.accessStatus}
@@ -5765,7 +5916,7 @@ export function PlatformAdminPage() {
                       <option value="CANCELLED">Cancelled</option>
                     </select>
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Billing status</label>
                     <select
                       value={manualTenantForm.billingStatus}
@@ -5776,7 +5927,7 @@ export function PlatformAdminPage() {
                       <option value="PAST_DUE">Past due</option>
                     </select>
                   </div>
-                  <div className="manual-field">
+                  <div className="platform-admin-manual-field">
                     <label>Subscription start</label>
                     <input
                       type="date"
@@ -5787,8 +5938,8 @@ export function PlatformAdminPage() {
                 </div>
 
                 {manualTenantForm.packageName === "CUSTOM" ? (
-                  <div className="manual-grid">
-                    <div className="manual-field">
+                  <div className="platform-admin-manual-grid">
+                    <div className="platform-admin-manual-field">
                       <label>Custom package name</label>
                       <input
                         value={manualTenantForm.customPackageName}
@@ -5798,7 +5949,7 @@ export function PlatformAdminPage() {
                         }
                       />
                     </div>
-                    <div className="manual-field">
+                    <div className="platform-admin-manual-field">
                       <label>Custom monthly price</label>
                       <input
                         type="number"
@@ -5810,7 +5961,7 @@ export function PlatformAdminPage() {
                         }
                       />
                     </div>
-                    <div className="manual-field">
+                    <div className="platform-admin-manual-field">
                       <label>Custom yearly price</label>
                       <input
                         type="number"
@@ -5827,13 +5978,13 @@ export function PlatformAdminPage() {
               </section>
 
               {manualTenantForm.packageName === "CUSTOM" ? (
-                <section className="manual-section">
+                <section className="platform-admin-manual-section">
                   <h3>Custom features</h3>
-                  <div className="manual-check-list">
+                  <div className="platform-admin-manual-check-list">
                     <strong>Enabled App nastavitve / modules</strong>
-                    <div className="manual-checkbox-grid">
+                    <div className="platform-admin-manual-checkbox-grid">
                       {(manualTenantOptions?.features ?? []).map((feature) => (
-                        <label className="manual-checkbox" key={feature.key}>
+                        <label className="platform-admin-manual-checkbox" key={feature.key}>
                           <input
                             type="checkbox"
                             checked={manualTenantForm.enabledFeatureKeys.includes(feature.key)}
@@ -5849,11 +6000,11 @@ export function PlatformAdminPage() {
                 </section>
               ) : null}
 
-              <section className="manual-section">
+              <section className="platform-admin-manual-section">
                 <h3>Add-ons</h3>
-                <div className="manual-checkbox-grid">
+                <div className="platform-admin-manual-checkbox-grid">
                   {(manualTenantOptions?.addOns ?? []).map((addon) => (
-                    <label className="manual-checkbox" key={addon.key}>
+                    <label className="platform-admin-manual-checkbox" key={addon.key}>
                       <input
                         type="checkbox"
                         checked={manualSelectedAddonKeys.has(addon.key)}
@@ -5867,15 +6018,15 @@ export function PlatformAdminPage() {
                   ))}
                 </div>
                 {manualTenantForm.addOns.length > 0 ? (
-                  <div className="manual-check-list">
+                  <div className="platform-admin-manual-check-list">
                     <strong>Selected add-on prices</strong>
                     {manualTenantForm.addOns.map((row) => (
-                      <div className="manual-addon-row" key={row.key}>
-                        <div className="manual-field">
+                      <div className="platform-admin-manual-addon-row" key={row.key}>
+                        <div className="platform-admin-manual-field">
                           <label>Add-on</label>
                           <input value={row.key} disabled />
                         </div>
-                        <div className="manual-field">
+                        <div className="platform-admin-manual-field">
                           <label>Monthly</label>
                           <input
                             type="number"
@@ -5891,7 +6042,7 @@ export function PlatformAdminPage() {
                             }
                           />
                         </div>
-                        <div className="manual-field">
+                        <div className="platform-admin-manual-field">
                           <label>Yearly</label>
                           <input
                             type="number"
@@ -5907,7 +6058,7 @@ export function PlatformAdminPage() {
                             }
                           />
                         </div>
-                        <label className="manual-checkbox">
+                        <label className="platform-admin-manual-checkbox">
                           <input
                             type="checkbox"
                             checked={row.charged}
@@ -5923,16 +6074,16 @@ export function PlatformAdminPage() {
                 ) : null}
               </section>
 
-              <div className="manual-actions">
+              <div className="platform-admin-manual-actions">
                 <button
-                  className="button secondary"
+                  className="platform-admin-button platform-admin-secondary"
                   type="button"
                   onClick={() => setManualTenantOpen(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="button primary"
+                  className="platform-admin-button platform-admin-primary"
                   type="button"
                   disabled={manualTenantSaving}
                   onClick={submitManualTenant}
@@ -5949,50 +6100,50 @@ export function PlatformAdminPage() {
         ) : null}
 
         <div
-          className="modal-backdrop"
+          className="platform-admin-modal-backdrop"
           id="modalBackdrop"
           role="dialog"
           aria-modal="true"
           aria-hidden="true"
           data-modal-kind=""
         >
-          <div className="modal">
+          <div className="platform-admin-modal">
             <h3 id="modalTitle">Admin action</h3>
             <p id="modalCopy">
               Admin overrides require a reason and create an immutable audit log
               entry.
             </p>
-            <div className="select-row" id="modalPlanRow">
+            <div className="platform-admin-select-row" id="modalPlanRow">
               <label htmlFor="actionSelect">Action</label>
               <select id="actionSelect">
                 <option>Upgrade immediately</option>
               </select>
             </div>
             {activeModalKind === "plan" && selected ? (
-              <div id="planChangeExtras" className="plan-change-extras" hidden>
-                <div className="select-row">
+              <div id="planChangeExtras" className="platform-admin-plan-change-extras" hidden>
+                <div className="platform-admin-select-row">
                   <label htmlFor="planTargetSelect">New plan</label>
                   <select id="planTargetSelect" />
                 </div>
                 <p
                   id="planEffectiveDateHint"
-                  className="muted"
+                  className="platform-admin-muted"
                   style={{ margin: 0, fontWeight: 800 }}
                 />
               </div>
             ) : null}
             {activeModalKind === "price" && selected ? (
-              <div id="priceOverrideExtras" className="price-override-extras">
+              <div id="priceOverrideExtras" className="platform-admin-price-override-extras">
                 <div
                   id="priceOverridePanelCustom"
-                  className="price-override-panel"
+                  className="platform-admin-price-override-panel"
                   hidden
                 >
                   <div
-                    className="price-current-pill"
+                    className="platform-admin-price-current-pill"
                     id="priceCurrentLabelCustom"
                   />
-                  <div className="select-row">
+                  <div className="platform-admin-select-row">
                     <label htmlFor="priceCustomInput">New plan price (€)</label>
                     <input
                       id="priceCustomInput"
@@ -6002,7 +6153,7 @@ export function PlatformAdminPage() {
                       inputMode="decimal"
                     />
                     <p
-                      className="muted"
+                      className="platform-admin-muted"
                       style={{
                         margin: 0,
                         fontSize: "0.82rem",
@@ -6016,14 +6167,14 @@ export function PlatformAdminPage() {
                 </div>
                 <div
                   id="priceOverridePanelDiscount"
-                  className="price-override-panel"
+                  className="platform-admin-price-override-panel"
                   hidden
                 >
                   <div
-                    className="price-current-pill"
+                    className="platform-admin-price-current-pill"
                     id="priceCurrentLabelDiscount"
                   />
-                  <div className="select-row">
+                  <div className="platform-admin-select-row">
                     <label htmlFor="priceDiscountPercent">Discount (%)</label>
                     <input
                       id="priceDiscountPercent"
@@ -6033,46 +6184,46 @@ export function PlatformAdminPage() {
                       step={0.5}
                       inputMode="decimal"
                     />
-                    <label className="checkbox-row">
+                    <label className="platform-admin-checkbox-row">
                       <input id="priceDiscountIncludeAddons" type="checkbox" />
                       <span>
                         Include add-ons in the % discount (preview uses catalog
                         add-on prices as reference).
                       </span>
                     </label>
-                    <p id="priceDiscountPreview" className="price-preview" />
+                    <p id="priceDiscountPreview" className="platform-admin-price-preview" />
                   </div>
                 </div>
                 <div
                   id="priceOverridePanelRemove"
-                  className="price-override-panel"
+                  className="platform-admin-price-override-panel"
                   hidden
                 >
                   <p
                     id="priceRemoveCopy"
-                    className="muted"
+                    className="platform-admin-muted"
                     style={{ margin: 0, lineHeight: 1.5 }}
                   />
                 </div>
               </div>
             ) : null}
-            <div className="select-row">
+            <div className="platform-admin-select-row">
               <label htmlFor="reasonText">Reason / internal note</label>
               <textarea
                 id="reasonText"
                 placeholder="Required for admin override, price changes, suspension and annual downgrade exceptions."
               />
             </div>
-            <div className="modal-actions">
+            <div className="platform-admin-modal-actions">
               <button
-                className="button secondary"
+                className="platform-admin-button platform-admin-secondary"
                 type="button"
                 id="closeModal"
               >
                 Cancel
               </button>
               <button
-                className="button primary"
+                className="platform-admin-button platform-admin-primary"
                 type="button"
                 id="confirmModal"
               >

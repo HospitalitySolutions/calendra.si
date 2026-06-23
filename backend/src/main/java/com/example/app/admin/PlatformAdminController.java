@@ -13,6 +13,7 @@ import com.example.app.settings.SettingKey;
 import com.example.app.stripe.StripePlatformSettingsService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -135,6 +136,19 @@ public class PlatformAdminController {
 
     public record DeleteTenancyRequest(String reason) {}
 
+    public record PlatformOverviewDto(
+            long totalTenants,
+            long activeTenants,
+            long suspendedTenants,
+            long cancelledTenants,
+            long trialTenants,
+            long paidTenants,
+            long pendingPaymentTenants,
+            long pastDueTenants,
+            long paymentWarnings,
+            long ownerPasswordPending,
+            long customPlanTenants) {}
+
     @GetMapping("/register-prices")
     public RegisterPriceCatalog registerPrices(@AuthenticationPrincipal User me) {
         return registerCatalogService.readForCompany(me.getCompany().getId());
@@ -157,6 +171,78 @@ public class PlatformAdminController {
             @RequestBody StripePlatformSettingsService.PlatformStripeSettingsDto body
     ) {
         return stripePlatformSettingsService.saveForAdmin(me.getCompany(), body);
+    }
+
+    @GetMapping("/overview")
+    public PlatformOverviewDto overview() {
+        List<Company> allCompanies = companies.findAll();
+        Map<Long, String> accessByCompany = settingValuesByCompanyId(SettingKey.TENANCY_ACCESS_STATUS);
+        Map<Long, String> billingByCompany = settingValuesByCompanyId(SettingKey.BILLING_SUBSCRIPTION_STATUS);
+        Map<Long, String> packageByCompany = settingValuesByCompanyId(SettingKey.SIGNUP_PACKAGE_NAME);
+        Map<Long, String> dueByCompany = settingValuesByCompanyId(SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT);
+        Map<Long, String> ownerPasswordPendingByCompany = settingValuesByCompanyId(SettingKey.SIGNUP_OWNER_PASSWORD_PENDING);
+
+        long total = allCompanies.size();
+        long active = 0;
+        long suspended = 0;
+        long cancelled = 0;
+        long trial = 0;
+        long paid = 0;
+        long pendingPayment = 0;
+        long pastDue = 0;
+        long paymentWarnings = 0;
+        long ownerPasswordPending = 0;
+        long customPlans = 0;
+
+        for (Company company : allCompanies) {
+            Long companyId = company.getId();
+            String accessStatus = normalizeUpper(accessByCompany.getOrDefault(companyId, "ACTIVE"));
+            if ("SUSPENDED".equals(accessStatus)) {
+                suspended++;
+            } else if ("CANCELLED".equals(accessStatus) || "CANCELED".equals(accessStatus)) {
+                cancelled++;
+            } else {
+                active++;
+            }
+
+            String billingStatus = normalizeUpper(billingByCompany.getOrDefault(companyId, "PENDING_PAYMENT"));
+            if ("PAID".equals(billingStatus)) {
+                paid++;
+            } else if ("PAST_DUE".equals(billingStatus)) {
+                pastDue++;
+            } else if ("PENDING_PAYMENT".equals(billingStatus) || billingStatus.isBlank()) {
+                pendingPayment++;
+            }
+
+            String packageName = normalizeUpper(packageByCompany.get(companyId));
+            if ("TRIAL".equals(packageName)) {
+                trial++;
+            }
+            if ("CUSTOM".equals(packageName)) {
+                customPlans++;
+            }
+
+            if ("TRUE".equals(normalizeUpper(ownerPasswordPendingByCompany.get(companyId)))) {
+                ownerPasswordPending++;
+            }
+
+            if (!"PAID".equals(billingStatus) || isPositiveAmount(dueByCompany.get(companyId))) {
+                paymentWarnings++;
+            }
+        }
+
+        return new PlatformOverviewDto(
+                total,
+                active,
+                suspended,
+                cancelled,
+                trial,
+                paid,
+                pendingPayment,
+                pastDue,
+                paymentWarnings,
+                ownerPasswordPending,
+                customPlans);
     }
 
     @GetMapping("/tenancies")
@@ -452,6 +538,30 @@ public class PlatformAdminController {
         save(companyId, me, SettingKey.GLOBAL_AJPES_PRS_ENABLED, payload.get(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_CONSUMABLES_ENABLED, payload.get(SettingKey.GLOBAL_CONSUMABLES_ENABLED.name()));
         return settings(me);
+    }
+
+    private Map<Long, String> settingValuesByCompanyId(SettingKey key) {
+        return settings.findAllByKey(key).stream()
+                .filter(s -> s.getCompany() != null && s.getCompany().getId() != null)
+                .collect(Collectors.toMap(
+                        s -> s.getCompany().getId(),
+                        s -> s.getValue() == null ? "" : s.getValue().trim(),
+                        (previous, next) -> next));
+    }
+
+    private static String normalizeUpper(String raw) {
+        return raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static boolean isPositiveAmount(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        try {
+            return new BigDecimal(raw.trim().replace(',', '.')).compareTo(BigDecimal.ZERO) > 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private String get(Long companyId, SettingKey key, String fallback) {
