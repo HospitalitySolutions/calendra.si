@@ -8,11 +8,7 @@ import { EmployeeRolesPermissionsTab } from './EmployeeRolesPermissionsTab'
 import { formatDate, fullName } from '../lib/format'
 import { dayOptions, type DayOfWeek, type WorkingHoursConfig } from '../lib/types'
 import {
-  BILLING_ADVANCE_INVOICE_PERMISSION,
-  BILLING_OPEN_INVOICE_PERMISSION,
-  BILLING_REFUND_PERMISSION,
   DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS,
-  WALLET_SCANNER_PERMISSION,
   normalizeEmployeePermissions,
   type EmployeePermission,
 } from '../lib/employeePermissions'
@@ -209,7 +205,7 @@ type ConsultantForm = {
   accessRoleId: string
 }
 
-type ConsultantFormSectionTab = 'permissions' | 'workingHours'
+type ConsultantFormSectionTab = 'workingHours'
 
 const defaultWh: WorkingHoursConfig = {
   sameForAllDays: true,
@@ -254,16 +250,6 @@ function cloneConsultantForm(f: ConsultantForm): ConsultantForm {
 function permissionsEqual(a: EmployeePermission[], b: EmployeePermission[]): boolean {
   if (a.length !== b.length) return false
   return a.every((permission) => b.includes(permission))
-}
-
-function togglePermission(form: ConsultantForm, permission: EmployeePermission): ConsultantForm {
-  const enabled = form.permissions.includes(permission)
-  return {
-    ...form,
-    permissions: enabled
-      ? form.permissions.filter((item) => item !== permission)
-      : [...form.permissions, permission],
-  }
 }
 
 function workingHoursEqual(a: WorkingHoursConfig, b: WorkingHoursConfig): boolean {
@@ -702,6 +688,32 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     navigate('/configuration?tab=company&subtab=subscription')
   }
 
+  const employeeRoleSelectValue = form.accessRoleId ? `CUSTOM:${form.accessRoleId}` : form.role
+
+  const applyEmployeeRoleSelection = (value: string) => {
+    if (value.startsWith('CUSTOM:')) {
+      const accessRoleId = value.substring('CUSTOM:'.length)
+      const selectedRole = accessRoleOptions.find((role) => String(role.customRoleId) === accessRoleId)
+      setForm({
+        ...form,
+        role: 'CONSULTANT',
+        consultant: true,
+        accessRoleId,
+        permissions: selectedRole ? normalizeEmployeePermissions(selectedRole.permissions) : form.permissions,
+      })
+      return
+    }
+
+    const nextRole = value as UserRole
+    setForm({
+      ...form,
+      role: nextRole,
+      accessRoleId: '',
+      consultant: nextRole === 'CONSULTANT' ? true : form.consultant,
+      permissions: nextRole === 'CONSULTANT' ? [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS] : form.permissions,
+    })
+  }
+
   return (
     <div className="stack gap-lg">
       {selfService && !showFormPanel && <PageHeader title={t('myProfileTitle')} />}
@@ -985,35 +997,18 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                   <>
                     <Field label={t('employeesFormRole')}>
                       <select
-                        value={form.role}
-                        onChange={(e) => {
-                          const nextRole = e.target.value as UserRole
-                          setForm({ ...form, role: nextRole, accessRoleId: nextRole === 'ADMIN' ? '' : form.accessRoleId })
-                        }}
+                        value={employeeRoleSelectValue}
+                        onChange={(e) => applyEmployeeRoleSelection(e.target.value)}
                       >
                         <option value="CONSULTANT">{t('employeesFormRoleOptionConsultant')}</option>
                         <option value="ADMIN">{t('employeesFormRoleOptionAdmin')}</option>
-                      </select>
-                    </Field>
-                    <Field label="Access role">
-                      <select
-                        value={form.accessRoleId}
-                        onChange={(e) => {
-                          const accessRoleId = e.target.value
-                          const selectedRole = accessRoleOptions.find((role) => String(role.customRoleId) === accessRoleId)
-                          setForm({
-                            ...form,
-                            accessRoleId,
-                            role: accessRoleId ? 'CONSULTANT' : form.role,
-                            consultant: accessRoleId ? true : form.consultant,
-                            permissions: selectedRole ? normalizeEmployeePermissions(selectedRole.permissions) : form.permissions,
-                          })
-                        }}
-                      >
-                        <option value="">Manual permissions</option>
-                        {accessRoleOptions.map((role) => (
-                          <option key={role.id} value={role.customRoleId ?? ''}>{role.name}</option>
-                        ))}
+                        {accessRoleOptions.length > 0 && (
+                          <optgroup label={locale === 'sl' ? 'Vloge po meri' : 'Custom roles'}>
+                            {accessRoleOptions.map((role) => (
+                              <option key={role.id} value={`CUSTOM:${role.customRoleId ?? ''}`}>{role.name}</option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                     </Field>
                     <div className="employee-form-consultant-row full-span">
@@ -1040,93 +1035,15 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 )}
 
                 {!selfService && (
-                  <div className="full-span clients-session-tabs consultant-form-tabs employee-form-tabs" role="tablist" aria-label={t('employeesFormTabsAria')}>
+                  <div className="full-span clients-session-tabs consultant-form-tabs employee-form-tabs" aria-label={t('employeesFormTabWorkingHours')}>
                     <button
                       type="button"
-                      role="tab"
-                      aria-selected={formSectionTab === 'workingHours'}
-                      className={`clients-session-tab${formSectionTab === 'workingHours' ? ' active' : ''}`}
-                      onClick={() => setFormSectionTab('workingHours')}
+                      className="clients-session-tab active"
+                      aria-current="true"
                     >
                       <EmployeeFormIcon name="clock" />
                       {t('employeesFormTabWorkingHours')}
                     </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={formSectionTab === 'permissions'}
-                      className={`clients-session-tab${formSectionTab === 'permissions' ? ' active' : ''}`}
-                      onClick={() => setFormSectionTab('permissions')}
-                    >
-                      <EmployeeFormIcon name="calendar" />
-                      {t('employeesFormTabPermissions')}
-                    </button>
-                  </div>
-                )}
-
-                {!selfService && formSectionTab === 'permissions' && (
-                  <div className="full-span employee-form-permissions-list" role="tabpanel">
-                    {form.accessRoleId && (
-                      <div className="consultant-permissions-card employee-form-permissions-card">
-                        <div>
-                          <strong>Controlled by access role</strong>
-                          <p className="muted" style={{ margin: '0.25rem 0 0', lineHeight: 1.45 }}>
-                            These permissions are copied from the selected custom role. Update the role in Roles & Permissions to change them for everyone using it.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    {([
-                      {
-                        permission: WALLET_SCANNER_PERMISSION,
-                        title: t('employeesPermissionWalletScannerTitle'),
-                        text: t('employeesPermissionWalletScannerText'),
-                      },
-                      {
-                        permission: BILLING_ADVANCE_INVOICE_PERMISSION,
-                        title: t('employeesPermissionAdvanceInvoiceTitle'),
-                        text: t('employeesPermissionAdvanceInvoiceText'),
-                      },
-                      {
-                        permission: BILLING_OPEN_INVOICE_PERMISSION,
-                        title: t('employeesPermissionOpenInvoiceTitle'),
-                        text: t('employeesPermissionOpenInvoiceText'),
-                      },
-                      {
-                        permission: BILLING_REFUND_PERMISSION,
-                        title: t('employeesPermissionRefundTitle'),
-                        text: t('employeesPermissionRefundText'),
-                      },
-                    ] as const).map((permissionRow) => {
-                      const enabled = form.permissions.includes(permissionRow.permission)
-                      return (
-                        <div key={permissionRow.permission} className="consultant-permissions-card employee-form-permissions-card">
-                          <div>
-                            <strong>{permissionRow.title}</strong>
-                            <p className="muted" style={{ margin: '0.25rem 0 0', lineHeight: 1.45 }}>
-                              {permissionRow.text}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            className={`employee-form-status-switch${enabled ? ' employee-form-status-switch--on' : ''}`}
-                            aria-pressed={enabled}
-                            disabled={!!form.accessRoleId}
-                            onClick={() => {
-                              if (form.accessRoleId) return
-                              setForm((current) => togglePermission(current, permissionRow.permission))
-                            }}
-                          >
-                            <span className="employee-form-status-switch-text">
-                              {enabled ? t('configToggleOn') : t('configToggleOff')}
-                            </span>
-                            <span className="employee-form-status-switch-track" aria-hidden>
-                              <span />
-                            </span>
-                          </button>
-                        </div>
-                      )
-                    })}
                   </div>
                 )}
 
