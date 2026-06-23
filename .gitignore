@@ -15,3 +15,5 @@ backend/.env.local
 guest-mobile/androidApp/local.properties
 guest-mobile/.kotlin
 guest-mobile/androidApp/release
+*.hprof
+java_pid*.hprof

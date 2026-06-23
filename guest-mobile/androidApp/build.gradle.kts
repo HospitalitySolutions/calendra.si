@@ -82,7 +82,7 @@ android {
         applicationId = "si.calendra.guest.mobile"
         minSdk = 28
         targetSdk = 36
-        versionCode = 7
+        versionCode = 8
         versionName = "1.0.0"
         // Production default: https://app.calendra.si.
         // For local debug builds use, for example:
