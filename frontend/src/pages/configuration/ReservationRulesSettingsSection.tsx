@@ -95,7 +95,7 @@ const TEXT: Record<AppLocale, Copy> = {
     minutes: "minutes",
     hours: "hours",
     days: "days",
-    save: "Save reservation rules",
+    save: "Save configuration",
     saving: "Saving…",
   },
   sl: {
@@ -131,7 +131,7 @@ const TEXT: Record<AppLocale, Copy> = {
     minutes: "minut",
     hours: "ur",
     days: "dni",
-    save: "Shrani rezervacijska pravila",
+    save: "Shrani konfiguracijo",
     saving: "Shranjujem…",
   },
 };
@@ -213,22 +213,6 @@ export function ReservationRulesSettingsSection({
 
   return (
     <section className="general-settings-shell reservation-rules-shell">
-      <div className="general-settings-header">
-        <div>
-          <p className="general-settings-eyebrow">Calendra</p>
-          <h2>{text.title}</h2>
-          <p>{text.subtitle}</p>
-        </div>
-        <button
-          type="button"
-          className="general-settings-save-button"
-          onClick={() => void onSave()}
-          disabled={saving}
-        >
-          {saving ? text.saving : text.save}
-        </button>
-      </div>
-
       <div className="general-settings-grid reservation-rules-grid">
         <article className="general-settings-card">
           <SectionHeader title={text.bookingWindowTitle} subtitle={text.bookingWindowSubtitle} />
@@ -343,6 +327,17 @@ export function ReservationRulesSettingsSection({
             />
           </div>
         </article>
+      </div>
+
+      <div className="general-settings-savebar reservation-rules-savebar">
+        <button
+          type="button"
+          className="general-settings-save-button"
+          onClick={() => void onSave()}
+          disabled={saving}
+        >
+          {saving ? text.saving : text.save}
+        </button>
       </div>
     </section>
   );
