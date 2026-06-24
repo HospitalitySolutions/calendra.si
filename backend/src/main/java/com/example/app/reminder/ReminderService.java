@@ -56,6 +56,7 @@ public class ReminderService {
 
     private final JavaMailSender mailSender;
     private final String mailFrom;
+    private final String fallbackFrom;
     private final boolean mailConfigured;
     private final boolean smsConfigured;
     private final SmsGateway smsGateway;
@@ -87,11 +88,11 @@ public class ReminderService {
             @Autowired(required = false) PublicBookingManageTokenService publicBookingManageTokenService
     ) {
         this.mailSender = mailSender;
-        this.mailFrom = mailFrom != null ? mailFrom : "";
+        this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
+        this.fallbackFrom = mailUsername == null ? "" : mailUsername.trim();
         this.frontendBaseUrl = normalizeBaseUrl(frontendBaseUrl != null ? frontendBaseUrl : "");
         this.mailConfigured = mailSender != null
-                && mailHost != null && !mailHost.isBlank()
-                && mailUsername != null && !mailUsername.isBlank();
+                && mailHost != null && !mailHost.isBlank();
         this.smsGateway = smsGateway;
         this.smsConfigured = smsGateway != null && smsGateway.isConfigured();
         this.appSettings = appSettings;
@@ -568,7 +569,8 @@ public class ReminderService {
     }
 
     private void sendImmediateTemplateEmail(SessionBooking booking, Client client, Long companyId, NotificationKind kind, Map<String, String> tokens) {
-        if (!isEmailChannelEnabled(companyId)) {
+        boolean websiteWidgetTransactionalEmail = isWebsiteWidgetTransactionalEmail(booking, kind);
+        if (!websiteWidgetTransactionalEmail && !isEmailChannelEnabled(companyId)) {
             return;
         }
         if (client.getEmail() == null || client.getEmail().isBlank() || !mailConfigured || mailSender == null) {
@@ -866,6 +868,13 @@ public class ReminderService {
     }
 
 
+    private static boolean isWebsiteWidgetTransactionalEmail(SessionBooking booking, NotificationKind kind) {
+        return isWebsiteWidgetBookingSource(booking)
+                && (kind == NotificationKind.NEW_SESSION
+                || kind == NotificationKind.CHANGE_SESSION
+                || kind == NotificationKind.CANCEL_SESSION);
+    }
+
     private String appendPublicBookingManageButtonsIfNeeded(SessionBooking booking, NotificationKind kind, String bodyHtml) {
         if ((kind != NotificationKind.NEW_SESSION && kind != NotificationKind.CHANGE_SESSION) || !isWebsiteWidgetBookingSource(booking)) {
             return bodyHtml;
@@ -958,11 +967,17 @@ public class ReminderService {
         String safeBody = html == null || html.isBlank() ? " " : html;
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
-        helper.setFrom(mailFrom);
+        helper.setFrom(resolveFromAddress());
         helper.setTo(to);
         helper.setSubject(safeSubject);
         helper.setText(safeBody, true);
         mailSender.send(message);
+    }
+
+    private String resolveFromAddress() {
+        if (!mailFrom.isBlank()) return mailFrom;
+        if (!fallbackFrom.isBlank()) return fallbackFrom;
+        return "noreply@localhost";
     }
 
     private static String normalizeBaseUrl(String url) {
