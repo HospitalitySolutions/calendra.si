@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.util.Base64;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -23,7 +24,7 @@ public class PublicBookingManageTokenService {
         this.tokens = tokens;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String createToken(SessionBooking booking, ZoneId zoneId) {
         if (booking == null || booking.getId() == null || booking.getCompany() == null || booking.getEndTime() == null) {
             return "";
